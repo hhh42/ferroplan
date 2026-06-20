@@ -41,17 +41,31 @@ EHC reaches the goal in *dozens* of evaluations where plain best-first needs
 ## IPC-5 simple-preferences
 
 ferroplan compiles preferences away (Keyder & Geffner) and runs anytime
-branch-and-bound on the metric. Of the three planners, **only ferroplan handles
-PDDL3 here**: Metric-FF is PDDL2.1-only and errors on every preference problem,
-and SGPlan6 (the IPC-5 winner) is the relevant comparison but is not bundled.
+branch-and-bound on the metric. Metric-FF is PDDL2.1-only and errors on every
+preference problem, so the real comparison is **SGPlan6, the IPC-5 winner**
+(measured head-to-head, 15 s budget, 48 problems):
 
-Over the 48-problem set (20 s budget): ferroplan **solves ~16** with sensible
-metrics — `pathways/p01` = **2** (matching SGPlan6's optimum), `trucks/p01–p05`
-= **0** (all preferences satisfied) — and **times out on the hardest ~2/3**
-(`openstacks`, `tpp`, `storage`). So: competitive and optimal on small/medium
-preference tasks, but the anytime B&B does **not** beat SGPlan6's specialised
-penalty / constraint-partitioning search on the largest — ferroplan is *not* the
-IPC-5 winner.
+**Coverage is the dominant gap.** SGPlan6 solves ~38/48 (most in well under a
+second); ferroplan solves ~11/48 — the anytime B&B times out on `openstacks`,
+`tpp`, `storage`, and the larger pathways/rovers/trucks, where SGPlan6's
+constraint-partitioning search finishes quickly.
+
+**Quality where both solve (10 problems): 1 win, 4 ties, 5 losses.**
+
+| | ferroplan | SGPlan6 | |
+|---|---:|---:|---|
+| trucks/p01 | **0** | 1 | win |
+| trucks/p02, p04, p05 | 0 | 0 | tie |
+| pathways/p01 | 2 | 2 | tie |
+| pathways/p03 | 5.7 | 3 | loss |
+| pathways/p04 | 6.7 | 2 | loss |
+| rovers/p02, p04, p05 | 725 / 699 / 1052 | 473 / 419 / 499 | loss |
+
+So we're optimal on trucks (all preferences satisfied) and tie/beat SGPlan6 on
+the small instances, but it has **much broader coverage** and better quality on
+the harder pathways/rovers — it remains the stronger preference planner, as its
+IPC-5 win implies. Closing the coverage gap is exactly what the SGPlan-class
+constraint-partitioning work targets.
 
 ## Reproduce
 
