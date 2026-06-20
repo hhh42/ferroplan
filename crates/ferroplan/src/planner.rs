@@ -48,6 +48,22 @@ pub fn run_planner(
     };
     out.push_str(&format!("problem '{}' defined\n ... done.\n", problem.name));
 
+    // PDDL2.1 temporal: durative actions -> decision-epoch search, IPC plan format.
+    if crate::temporal::is_temporal(&domain) {
+        match crate::temporal::solve(&domain, &problem, threads) {
+            Some(tp) => {
+                out.push_str("\nff: found legal plan as follows\n");
+                out.push_str(&tp.to_ipc());
+                out.push_str(&format!("\nplan makespan: {:.3}\n", tp.makespan));
+                return (out, 0);
+            }
+            None => {
+                out.push_str("\n\nno temporal plan found.\n\n");
+                return (out, 1);
+            }
+        }
+    }
+
     // PDDL3.0: soft-goal preferences / metric -> compile + anytime B&B optimize.
     if pddl3::is_pddl3(&problem) {
         let code = plan_pddl3(

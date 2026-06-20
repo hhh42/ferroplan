@@ -175,6 +175,22 @@ pub struct TimedPlan {
     pub makespan: f64,
 }
 
+impl TimedPlan {
+    /// Render in the IPC temporal plan format: `t: (action args) [duration]`.
+    pub fn to_ipc(&self) -> String {
+        let mut s = String::new();
+        for step in &self.steps {
+            s.push_str(&format!(
+                "{:.3}: ({}) [{:.3}]\n",
+                step.time,
+                step.action.to_lowercase(),
+                step.duration.unwrap_or(0.001),
+            ));
+        }
+        s
+    }
+}
+
 #[derive(Clone, Copy)]
 enum Kind {
     /// durative start: fixed duration + the matching end op index

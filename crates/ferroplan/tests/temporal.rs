@@ -178,3 +178,16 @@ fn t3_required_concurrency_match_fuse() {
     assert!(plan.steps.iter().any(|s| s.action == "LIGHT-MATCH"));
     assert!(plan.steps.iter().any(|s| s.action == "MEND-FUSE"));
 }
+
+#[test]
+fn t4_public_api_routes_durative_to_temporal() {
+    use ferroplan::{solve, Mode, Options};
+    let plan = solve(DUR_DOM, DUR_PROB, &Options::default()).expect("solve");
+    let p = plan.plan.expect("plan");
+    assert_eq!(plan.mode, Mode::Temporal);
+    assert_eq!(p.makespan, Some(3.0));
+    assert_eq!(p.steps.len(), 1);
+    assert_eq!(p.steps[0].action, "ACT");
+    assert_eq!(p.steps[0].time, Some(0.0));
+    assert_eq!(p.steps[0].duration, Some(3.0));
+}

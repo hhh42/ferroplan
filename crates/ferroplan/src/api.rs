@@ -28,6 +28,8 @@ pub enum Mode {
     Partition,
     /// PDDL3 soft-goal preferences + anytime branch-and-bound metric optimization.
     Pddl3,
+    /// PDDL2.1 durative actions via decision-epoch temporal search.
+    Temporal,
 }
 
 /// Which search strategy to use within a mode.
@@ -118,6 +120,12 @@ pub struct Step {
     pub action: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
+    /// Temporal mode: the action's dispatch time.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub time: Option<f64>,
+    /// Temporal mode: the durative action's duration (absent for instantaneous).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub duration: Option<f64>,
 }
 
 /// A found plan.
@@ -128,6 +136,9 @@ pub struct Plan {
     /// PDDL3 metric value (cost), when a metric was optimized.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metric: Option<f64>,
+    /// Temporal mode: total plan makespan.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub makespan: Option<f64>,
 }
 
 /// Grounding/search statistics.
@@ -209,6 +220,8 @@ fn steps_of(task: &PackedTask, ops: &[usize], synthetic: Option<&HashSet<String>
             index: idx,
             action,
             args: it.map(|s| s.to_string()).collect(),
+            time: None,
+            duration: None,
         });
         idx += 1;
     }
@@ -232,6 +245,7 @@ fn trivial(mode: Mode, threads: usize) -> Solution {
             steps: Vec::new(),
             length: 0,
             metric: None,
+            makespan: None,
         }),
         statistics: Statistics {
             threads,
@@ -263,7 +277,9 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
 
     let mode = match opts.mode {
         Mode::Auto => {
-            if pddl3::has_preferences(&problem) {
+            if crate::temporal::is_temporal(&domain) {
+                Mode::Temporal
+            } else if pddl3::has_preferences(&problem) {
                 Mode::Pddl3
             } else {
                 Mode::Ff
@@ -272,10 +288,60 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
         m => m,
     };
 
-    if mode == Mode::Pddl3 {
-        return solve_pddl3(&domain, &problem, opts, threads);
+    match mode {
+        Mode::Temporal => solve_temporal(&domain, &problem, threads),
+        Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads),
+        _ => solve_classic(&domain, &problem, opts, threads, mode, Vec::new()),
     }
-    solve_classic(&domain, &problem, opts, threads, mode, Vec::new())
+}
+
+fn solve_temporal(
+    domain: &crate::types::Domain,
+    problem: &crate::types::Problem,
+    threads: usize,
+) -> Result<Solution, SolveError> {
+    match crate::temporal::solve(domain, problem, threads) {
+        Some(tp) => {
+            let steps = tp
+                .steps
+                .iter()
+                .enumerate()
+                .map(|(i, s)| {
+                    let mut it = s.action.split_whitespace();
+                    Step {
+                        index: i,
+                        action: it.next().unwrap_or("").to_string(),
+                        args: it.map(|x| x.to_string()).collect(),
+                        time: Some(s.time),
+                        duration: s.duration,
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(Solution {
+                solved: true,
+                mode: Mode::Temporal,
+                plan: Some(Plan {
+                    length: steps.len(),
+                    steps,
+                    metric: None,
+                    makespan: Some(tp.makespan),
+                }),
+                statistics: Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                notes: Vec::new(),
+            })
+        }
+        None => Ok(unsolved(
+            Mode::Temporal,
+            Statistics {
+                threads,
+                ..Default::default()
+            },
+            Vec::new(),
+        )),
+    }
 }
 
 fn solve_classic(
@@ -326,6 +392,7 @@ fn solve_classic(
                     length: steps.len(),
                     steps,
                     metric: None,
+                    makespan: None,
                 }),
                 statistics: stats(&task, evaluated, threads),
                 notes,
@@ -397,6 +464,7 @@ fn solve_pddl3(
                     length: steps.len(),
                     steps,
                     metric: Some(r.cost),
+                    makespan: None,
                 }),
                 statistics: stats(&task, 0, threads),
                 notes,

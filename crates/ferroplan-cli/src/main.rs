@@ -93,6 +93,7 @@ enum ModeArg {
     Ff,
     Partition,
     Pddl3,
+    Temporal,
 }
 
 impl From<ModeArg> for Mode {
@@ -102,6 +103,7 @@ impl From<ModeArg> for Mode {
             ModeArg::Ff => Mode::Ff,
             ModeArg::Partition => Mode::Partition,
             ModeArg::Pddl3 => Mode::Pddl3,
+            ModeArg::Temporal => Mode::Temporal,
         }
     }
 }
