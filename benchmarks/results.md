@@ -45,27 +45,28 @@ branch-and-bound on the metric. Metric-FF is PDDL2.1-only and errors on every
 preference problem, so the real comparison is **SGPlan6, the IPC-5 winner**
 (measured head-to-head, 15 s budget, 48 problems):
 
-**Coverage is the dominant gap.** SGPlan6 solves ~38/48 (most in well under a
-second); ferroplan solves ~11/48 — the anytime B&B times out on `openstacks`,
-`tpp`, `storage`, and the larger pathways/rovers/trucks, where SGPlan6's
-constraint-partitioning search finishes quickly.
+**Coverage: on par with SGPlan6.** Adopting SGPlan's modified-FF idea — an
+EHC-then-best-first subplanner for the first incumbent, then a budget-capped
+branch-and-bound refinement — took ferroplan from **11/48 to 39/48** within 15 s,
+matching SGPlan6's ~38/48. By domain (ferroplan, after): openstacks 8/8, tpp 8/8,
+pathways 8/8, rovers 8/8, trucks 6/8, storage 1/8.
 
-**Quality where both solve (10 problems): 1 win, 4 ties, 5 losses.**
+**Quality: SGPlan6 still leads on the hardest.** The capped refinement satisfices
+rather than fully optimizes, so metric values trail on the large instances:
 
 | | ferroplan | SGPlan6 | |
 |---|---:|---:|---|
 | trucks/p01 | **0** | 1 | win |
-| trucks/p02, p04, p05 | 0 | 0 | tie |
-| pathways/p01 | 2 | 2 | tie |
-| pathways/p03 | 5.7 | 3 | loss |
-| pathways/p04 | 6.7 | 2 | loss |
+| trucks (others) / pathways/p01 | 0 / 2 | 0 / 2 | tie |
+| pathways/p03, p04 | 5.7 / 6.7 | 3 / 2 | loss |
 | rovers/p02, p04, p05 | 725 / 699 / 1052 | 473 / 419 / 499 | loss |
+| openstacks/p01 | 70 | 13 | loss |
 
-So we're optimal on trucks (all preferences satisfied) and tie/beat SGPlan6 on
-the small instances, but it has **much broader coverage** and better quality on
-the harder pathways/rovers — it remains the stronger preference planner, as its
-IPC-5 win implies. Closing the coverage gap is exactly what the SGPlan-class
-constraint-partitioning work targets.
+So coverage is now on par (we even solve tpp, which SGPlan6 errors on here), and
+we tie/beat it on small instances — but it remains the stronger preference
+planner on metric *quality* for the hard cases. Narrowing that quality gap is
+where the rest of the SGPlan-class work (constraint partitioning + penalty
+resolution) — or simply a longer/smarter metric optimizer — would help.
 
 ## Reproduce
 
