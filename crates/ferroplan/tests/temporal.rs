@@ -177,6 +177,7 @@ fn t3_required_concurrency_match_fuse() {
     // both durative actions appear; mend-fuse runs within light-match's interval
     assert!(plan.steps.iter().any(|s| s.action == "LIGHT-MATCH"));
     assert!(plan.steps.iter().any(|s| s.action == "MEND-FUSE"));
+    temporal::validate(&d, &p, &plan).expect("required-concurrency plan must validate");
 }
 
 #[test]
@@ -233,5 +234,39 @@ fn t3_parameter_dependent_duration() {
         (plan.makespan - 11.0).abs() < 1e-9,
         "makespan {}",
         plan.makespan
+    );
+    temporal::validate(&d, &p, &plan).expect("param-duration plan must validate");
+}
+
+#[test]
+fn validate_accepts_and_rejects_plans() {
+    let d = parse_domain(DUR_DOM).expect("domain");
+    let p = parse_problem(DUR_PROB).expect("problem");
+    let plan = temporal::solve(&d, &p, 1).expect("plan");
+
+    // positive: the solver's own plan executes and reaches the goal
+    temporal::validate(&d, &p, &plan).expect("solved plan must validate");
+
+    // negative: a tampered duration is caught by the domain cross-check
+    let mut bad_dur = plan.clone();
+    let s = bad_dur
+        .steps
+        .iter_mut()
+        .find(|s| s.duration.is_some())
+        .expect("a durative step");
+    s.duration = Some(s.duration.unwrap() + 1.0);
+    assert!(
+        temporal::validate(&d, &p, &bad_dur).is_err(),
+        "a wrong duration must be rejected"
+    );
+
+    // negative: the empty plan cannot achieve a non-trivial goal
+    let empty = temporal::TimedPlan {
+        steps: vec![],
+        makespan: 0.0,
+    };
+    assert!(
+        temporal::validate(&d, &p, &empty).is_err(),
+        "empty plan must not validate against a real goal"
     );
 }

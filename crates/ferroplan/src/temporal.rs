@@ -496,3 +496,116 @@ fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, kind: &[Kind]) -
     }
     TimedPlan { steps, makespan }
 }
+
+// ---------------------------------------------------------------------------
+// Temporal plan validation (independent of the search).
+// ---------------------------------------------------------------------------
+
+/// Validate a [`TimedPlan`] against the temporal semantics, independently of how
+/// it was produced: expand each durative step into a START happening at `t` and
+/// an END happening at `t + duration`, order all happenings by time (ends before
+/// starts at equal time), and simulate over the same snap-action compilation —
+/// checking each happening's precondition + `over all` invariant holds, applying
+/// its effects, cross-checking each duration against the domain expression, and
+/// finally that the goal holds. Returns `Ok(())` if executable and goal-reaching,
+/// else a human-readable reason. A cross-check on the search (and on any
+/// externally-supplied plan).
+pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<(), String> {
+    let c = compile(domain, problem);
+    let task = match ground(&c.domain, &c.problem, 1) {
+        Outcome::Task(t) => t,
+        Outcome::GoalTrue => {
+            return if plan.steps.is_empty() {
+                Ok(())
+            } else {
+                Err("goal is already true but the plan is non-empty".into())
+            }
+        }
+        _ => return Err("problem grounds to unsolvable".into()),
+    };
+    let init = task.initial();
+    let snap_by_start: HashMap<&str, &SnapInfo> = c
+        .snaps
+        .iter()
+        .map(|s| (s.start_action.as_str(), s))
+        .collect();
+    let find = |disp: &str| {
+        task.op_display
+            .iter()
+            .position(|d| d == disp)
+            .ok_or_else(|| format!("plan references unknown action `{disp}`"))
+    };
+
+    struct Happening {
+        time: f64,
+        op: usize,
+        is_start: bool,
+    }
+    let mut happenings: Vec<Happening> = Vec::new();
+    for step in &plan.steps {
+        let mut it = step.action.splitn(2, ' ');
+        let head = it.next().unwrap_or("");
+        let rest = it.next();
+        let with = |suffix: &str| match rest {
+            Some(r) => format!("{head}{suffix} {r}"),
+            None => format!("{head}{suffix}"),
+        };
+        match step.duration {
+            Some(dur) => {
+                let start_name = format!("{head}-START");
+                let snap = snap_by_start
+                    .get(start_name.as_str())
+                    .ok_or_else(|| format!("`{head}` is not a durative action"))?;
+                // cross-check the stated duration against the domain's expression
+                let args: Vec<&str> = rest
+                    .map(|r| r.split_whitespace().collect())
+                    .unwrap_or_default();
+                if let Some(expected) = eval_duration(snap, &args, &task, &init) {
+                    if (expected - dur).abs() > 1e-6 {
+                        return Err(format!(
+                            "`{}` has duration {dur} but the domain says {expected}",
+                            step.action
+                        ));
+                    }
+                }
+                happenings.push(Happening {
+                    time: step.time,
+                    op: find(&with("-START"))?,
+                    is_start: true,
+                });
+                happenings.push(Happening {
+                    time: step.time + dur,
+                    op: find(&with("-END"))?,
+                    is_start: false,
+                });
+            }
+            None => happenings.push(Happening {
+                time: step.time,
+                op: find(&step.action)?,
+                is_start: true,
+            }),
+        }
+    }
+
+    // execute in time order; at equal time, ends (free tokens/resources) first
+    happenings.sort_by(|a, b| {
+        a.time
+            .partial_cmp(&b.time)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(a.is_start.cmp(&b.is_start))
+    });
+    let mut state = init.clone();
+    for h in &happenings {
+        if !task.op_applicable(h.op, &state) {
+            return Err(format!(
+                "at t={:.3}, `{}` is not applicable (precondition or invariant violated)",
+                h.time, task.op_display[h.op]
+            ));
+        }
+        state = task.apply(h.op, &state);
+    }
+    if !task.goal_met(&state) {
+        return Err("the plan does not achieve the goal".into());
+    }
+    Ok(())
+}
