@@ -1,7 +1,10 @@
-//! Temporal (PDDL2.1 durative-action) parsing — EPIC-Temporal T1.
+//! Temporal (PDDL2.1 durative-action) parsing + snap-action compilation
+//! (EPIC-Temporal T1/T2).
 
-use ferroplan::parser::parse_domain;
-use ferroplan::types::{Expr, TimeSpec};
+use ferroplan::ground::{ground, Outcome};
+use ferroplan::parser::{parse_domain, parse_problem};
+use ferroplan::temporal;
+use ferroplan::types::{Expr, Formula, TimeSpec};
 
 const DOM: &str = "
 (define (domain temporal-test)
@@ -80,4 +83,53 @@ fn classic_action_domains_still_parse() {
     let d = parse_domain(dom).expect("parse");
     assert_eq!(d.actions.len(), 1);
     assert_eq!(d.durative_actions.len(), 0);
+}
+
+const DUR_DOM: &str = "
+(define (domain t)
+  (:requirements :strips :durative-actions :numeric-fluents)
+  (:predicates (at) (goal) (light))
+  (:durative-action act
+    :parameters ()
+    :duration (= ?duration 3)
+    :condition (and (at start (at)) (over all (light)))
+    :effect (and (at start (not (at))) (at end (goal)))))";
+const DUR_PROB: &str = "(define (problem p) (:domain t) (:init (at) (light)) (:goal (goal)))";
+
+#[test]
+fn compiles_durative_to_snaps_and_grounds() {
+    let dom = parse_domain(DUR_DOM).expect("domain");
+    let prob = parse_problem(DUR_PROB).expect("problem");
+    let c = temporal::compile(&dom, &prob);
+
+    assert_eq!(c.snaps.len(), 1);
+    let s = &c.snaps[0];
+    assert_eq!(s.start_action, "ACT-START");
+    assert_eq!(s.end_action, "ACT-END");
+    assert!(matches!(s.duration, Expr::Num(n) if (n - 3.0).abs() < 1e-9));
+    // the over-all invariant is captured (the (light) atom, not True)
+    assert!(matches!(&s.invariant, Formula::Atom(p, _) if p == "LIGHT"));
+    assert!(
+        c.domain.durative_actions.is_empty(),
+        "durative compiled away"
+    );
+
+    let names: Vec<&str> = c.domain.actions.iter().map(|a| a.name.as_str()).collect();
+    assert!(names.contains(&"ACT-START") && names.contains(&"ACT-END"));
+
+    // and the compiled classical domain grounds, with both snaps reachable
+    match ground(&c.domain, &c.problem, 1) {
+        Outcome::Task(t) => {
+            let ops: Vec<&str> = t.op_display.iter().map(|s| s.as_str()).collect();
+            assert!(
+                ops.iter().any(|o| o.starts_with("ACT-START")),
+                "start reachable"
+            );
+            assert!(
+                ops.iter().any(|o| o.starts_with("ACT-END")),
+                "end reachable"
+            );
+        }
+        _ => panic!("compiled temporal domain should ground to a task"),
+    }
 }

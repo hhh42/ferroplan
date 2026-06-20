@@ -38,6 +38,7 @@ pub mod partition;
 pub mod pddl3;
 pub mod report;
 pub mod resolve;
+pub mod temporal;
 pub mod verify;
 
 // orchestration + smart public API
