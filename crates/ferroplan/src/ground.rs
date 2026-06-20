@@ -503,8 +503,10 @@ pub fn ground_task(domain: &Domain, problem: &Problem, threads: usize) -> Option
     }
 }
 
-fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) -> Outcome {
-    // ---- type system ----
+/// Build the `type -> objects` map honoring the type hierarchy (subtypes
+/// included; `OBJECT` is every object). Shared by grounding and the PDDL3
+/// compiler's forall-preference expansion.
+pub fn objects_by_type(domain: &Domain, problem: &Problem) -> HashMap<Sym, Vec<Sym>> {
     let mut type_parent: HashMap<Sym, Sym> = domain.type_parent.iter().cloned().collect();
     let mut all_objects: Vec<(Sym, Sym)> = domain.constants.clone();
     all_objects.extend(problem.objects.iter().cloned());
@@ -545,6 +547,12 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
             .collect();
         objects_of_type.insert(tn.clone(), v);
     }
+    objects_of_type
+}
+
+fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) -> Outcome {
+    // ---- type system ----
+    let objects_of_type = objects_by_type(domain, problem);
 
     // ---- empty-type check (predicates then functions) ----
     let empty = |ty: &Sym| objects_of_type.get(ty).map(|v| v.is_empty()).unwrap_or(true);

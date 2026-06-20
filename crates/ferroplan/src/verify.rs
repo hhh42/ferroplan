@@ -128,8 +128,9 @@ pub fn verify(domain_src: &str, problem_src: &str, plan: &[(String, Vec<String>)
     let hard_goal_met = task.goal_met(&s);
 
     // score preferences in the FINAL state
-    let weights = pddl3::pref_weights(&problem);
-    let prefs = pddl3::preferences(&problem.goal);
+    let weights = pddl3::pref_weights(&domain, &problem);
+    let objs = crate::ground::objects_by_type(&domain, &problem);
+    let prefs = pddl3::preferences(&problem.goal, &objs);
     let mut metric = 0.0;
     let (mut sat, mut vio) = (0usize, 0usize);
     for (name, phi) in &prefs {

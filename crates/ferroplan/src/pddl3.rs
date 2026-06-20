@@ -21,7 +21,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::packed::PackedTask;
 use crate::search::solve_subgoal_bounded;
-use crate::types::{Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Term};
+use crate::types::{Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term};
 
 pub const COST: &str = "TOTAL-COST";
 pub const COST_DISP: &str = "(TOTAL-COST)";
@@ -64,10 +64,122 @@ pub fn has_preferences(problem: &Problem) -> bool {
             .map_or(false, |(_, e)| expr_has_is_violated(e))
 }
 
-/// Split a goal into hard conjuncts and (name, formula) preferences.
-fn split_goal(g: &Formula, hard: &mut Vec<Formula>, prefs: &mut Vec<(String, Formula)>, ctr: &mut usize) {
+// ---- formula substitution + quantifier combos (for forall-preferences) ----
+
+fn subst_term(t: &Term, b: &HashMap<Sym, Sym>) -> Term {
+    match t {
+        Term::Var(v) => b.get(v).map(|o| Term::Const(o.clone())).unwrap_or_else(|| t.clone()),
+        Term::Const(_) => t.clone(),
+    }
+}
+fn subst_expr(e: &Expr, b: &HashMap<Sym, Sym>) -> Expr {
+    match e {
+        Expr::Num(n) => Expr::Num(*n),
+        Expr::Fluent(f, a) => Expr::Fluent(f.clone(), a.iter().map(|t| subst_term(t, b)).collect()),
+        Expr::Add(x, y) => Expr::Add(Box::new(subst_expr(x, b)), Box::new(subst_expr(y, b))),
+        Expr::Sub(x, y) => Expr::Sub(Box::new(subst_expr(x, b)), Box::new(subst_expr(y, b))),
+        Expr::Mul(x, y) => Expr::Mul(Box::new(subst_expr(x, b)), Box::new(subst_expr(y, b))),
+        Expr::Div(x, y) => Expr::Div(Box::new(subst_expr(x, b)), Box::new(subst_expr(y, b))),
+        Expr::Neg(x) => Expr::Neg(Box::new(subst_expr(x, b))),
+    }
+}
+fn subst_formula(f: &Formula, b: &HashMap<Sym, Sym>) -> Formula {
+    match f {
+        Formula::And(v) => Formula::And(v.iter().map(|x| subst_formula(x, b)).collect()),
+        Formula::Or(v) => Formula::Or(v.iter().map(|x| subst_formula(x, b)).collect()),
+        Formula::Not(a) => Formula::Not(Box::new(subst_formula(a, b))),
+        Formula::Atom(p, a) => Formula::Atom(p.clone(), a.iter().map(|t| subst_term(t, b)).collect()),
+        Formula::Comp(op, l, r) => Formula::Comp(*op, subst_expr(l, b), subst_expr(r, b)),
+        Formula::Eq(x, y) => Formula::Eq(subst_term(x, b), subst_term(y, b)),
+        Formula::Pref(n, inner) => Formula::Pref(n.clone(), Box::new(subst_formula(inner, b))),
+        // inner quantifier may shadow an outer var: don't substitute its own vars
+        Formula::Forall(vars, inner) | Formula::Exists(vars, inner) => {
+            let mut b2 = b.clone();
+            for (v, _) in vars {
+                b2.remove(v);
+            }
+            let inner = Box::new(subst_formula(inner, &b2));
+            if matches!(f, Formula::Forall(..)) {
+                Formula::Forall(vars.clone(), inner)
+            } else {
+                Formula::Exists(vars.clone(), inner)
+            }
+        }
+        Formula::True => Formula::True,
+        Formula::False => Formula::False,
+    }
+}
+fn combos(vars: &[(Sym, Sym)], objs: &HashMap<Sym, Vec<Sym>>) -> Vec<HashMap<Sym, Sym>> {
+    let mut acc = vec![HashMap::new()];
+    for (v, ty) in vars {
+        let dom: &[Sym] = objs.get(ty).map(|x| x.as_slice()).unwrap_or(&[]);
+        let mut next = Vec::new();
+        for a in &acc {
+            for o in dom {
+                let mut m = a.clone();
+                m.insert(v.clone(), o.clone());
+                next.push(m);
+            }
+        }
+        acc = next;
+    }
+    acc
+}
+fn contains_pref(f: &Formula) -> bool {
+    match f {
+        Formula::Pref(_, _) => true,
+        Formula::And(v) | Formula::Or(v) => v.iter().any(contains_pref),
+        Formula::Not(a) | Formula::Forall(_, a) | Formula::Exists(_, a) => contains_pref(a),
+        _ => false,
+    }
+}
+
+/// Pull soft `(preference name phi)` conjuncts out of an action precondition,
+/// returning the hard precondition and the list of (name, phi) precond prefs.
+fn extract_precond_prefs(f: &Formula, ctr: &mut usize) -> (Formula, Vec<(String, Formula)>) {
+    match f {
+        Formula::And(v) => {
+            let mut hard = Vec::new();
+            let mut prefs = Vec::new();
+            for x in v {
+                let (h, mut ps) = extract_precond_prefs(x, ctr);
+                prefs.append(&mut ps);
+                if !matches!(h, Formula::True) {
+                    hard.push(h);
+                }
+            }
+            (Formula::And(hard), prefs)
+        }
+        Formula::Pref(name, inner) => {
+            let n = name.clone().unwrap_or_else(|| {
+                let s = format!("PCPREF{}", *ctr);
+                *ctr += 1;
+                s
+            });
+            (Formula::True, vec![(n, (**inner).clone())])
+        }
+        other => (other.clone(), Vec::new()),
+    }
+}
+
+/// Split a goal into hard conjuncts and (name, formula) preferences. A
+/// `(forall (vars) ... preference ...)` is expanded into one preference INSTANCE
+/// per object binding, all sharing the preference name (so `(is-violated name)`
+/// counts violated instances — the PDDL3 semantics).
+fn split_goal(
+    g: &Formula,
+    hard: &mut Vec<Formula>,
+    prefs: &mut Vec<(String, Formula)>,
+    ctr: &mut usize,
+    objs: &HashMap<Sym, Vec<Sym>>,
+) {
     match g {
-        Formula::And(v) => v.iter().for_each(|f| split_goal(f, hard, prefs, ctr)),
+        Formula::And(v) => v.iter().for_each(|f| split_goal(f, hard, prefs, ctr, objs)),
+        Formula::Forall(vars, inner) if contains_pref(inner) => {
+            for b in combos(vars, objs) {
+                split_goal(&subst_formula(inner, &b), hard, prefs, ctr, objs);
+            }
+        }
         Formula::Pref(name, inner) => {
             let n = name.clone().unwrap_or_else(|| {
                 let s = format!("PREF{}", *ctr);
@@ -115,18 +227,19 @@ fn extract(e: &Expr, scale: f64, w: &mut HashMap<String, f64>, tc: &mut f64, oth
     }
 }
 
-/// Extract the (name, formula) preferences from a goal (for independent scoring).
-pub fn preferences(goal: &Formula) -> Vec<(String, Formula)> {
+/// Extract the (name, formula) preference INSTANCES from a goal (forall-expanded
+/// over `objs`) — for independent scoring and compilation.
+pub fn preferences(goal: &Formula, objs: &HashMap<Sym, Vec<Sym>>) -> Vec<(String, Formula)> {
     let mut hard = Vec::new();
     let mut prefs = Vec::new();
     let mut ctr = 0;
-    split_goal(goal, &mut hard, &mut prefs, &mut ctr);
+    split_goal(goal, &mut hard, &mut prefs, &mut ctr, objs);
     prefs
 }
 
-/// Effective metric weight per preference name (default 1 with no metric, else
-/// the `(is-violated name)` coefficient, 0 if unreferenced).
-pub fn pref_weights(problem: &Problem) -> HashMap<String, f64> {
+/// Effective metric weight per preference INSTANCE name (default 1 with no
+/// metric, else the `(is-violated name)` coefficient, 0 if unreferenced).
+pub fn pref_weights(domain: &Domain, problem: &Problem) -> HashMap<String, f64> {
     let mut w = HashMap::new();
     let mut tc = 0.0;
     let mut other = false;
@@ -134,8 +247,9 @@ pub fn pref_weights(problem: &Problem) -> HashMap<String, f64> {
     if let Some((_, e)) = &problem.metric {
         extract(e, 1.0, &mut w, &mut tc, &mut other);
     }
+    let objs = crate::ground::objects_by_type(domain, problem);
     let mut out = HashMap::new();
-    for (n, _) in preferences(&problem.goal) {
+    for (n, _) in preferences(&problem.goal, &objs) {
         let wn = w.get(&n).copied().unwrap_or(if absent { 1.0 } else { 0.0 });
         out.insert(n, wn);
     }
@@ -181,10 +295,11 @@ fn cost_monotone(domain: &Domain) -> bool {
 
 /// Compile soft goals away into a classical+cost problem (Keyder–Geffner).
 pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
+    let objs = crate::ground::objects_by_type(domain, problem);
     let mut hard = Vec::new();
     let mut prefs = Vec::new();
     let mut ctr = 0;
-    split_goal(&problem.goal, &mut hard, &mut prefs, &mut ctr);
+    split_goal(&problem.goal, &mut hard, &mut prefs, &mut ctr, &objs);
 
     let mut w = HashMap::new();
     let mut tc = 0.0;
@@ -211,6 +326,58 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     if !p.init_fluents.iter().any(|((n, _), _)| n == COST) {
         p.init_fluents.push(((COST.to_string(), vec![]), 0.0));
     }
+
+    // Precondition preferences: split each action with soft preconditions into
+    // satisfied/violated variants (same name). The satisfied variant requires the
+    // soft condition (free); the violated variant requires its negation and pays
+    // the weight. Because the variants are mutually exclusive and the planner
+    // applies exactly one per use, `(is-violated p)` counts per-application
+    // violations EXACTLY (no over-count from disjunctive negations — applying one
+    // grounded op charges the weight once).
+    let mut pp_negative = false;
+    let mut pp_overflow = false;
+    let mut new_actions = Vec::new();
+    let mut pctr = 0usize;
+    for a in &d.actions {
+        let (hard_pre, pprefs) = extract_precond_prefs(&a.precond, &mut pctr);
+        if pprefs.is_empty() {
+            new_actions.push(a.clone());
+            continue;
+        }
+        let k = pprefs.len();
+        if k > 6 {
+            pp_overflow = true;
+            new_actions.push(Action { precond: hard_pre, ..a.clone() });
+            continue;
+        }
+        for mask in 0u32..(1u32 << k) {
+            let mut conj = vec![hard_pre.clone()];
+            let mut cost = 0.0;
+            for (i, (name, phi)) in pprefs.iter().enumerate() {
+                if mask & (1 << i) != 0 {
+                    conj.push(Formula::Not(Box::new(phi.clone()))); // violated
+                    let raw = w.get(name).copied().unwrap_or(if metric_absent { 1.0 } else { 0.0 });
+                    if raw < 0.0 {
+                        pp_negative = true;
+                    }
+                    cost += raw.max(0.0);
+                } else {
+                    conj.push(phi.clone()); // satisfied
+                }
+            }
+            let mut eff = vec![a.effect.clone()];
+            if cost != 0.0 {
+                eff.push(Effect::Num(AssignOp::Increase, COST.to_string(), vec![], Expr::Num(cost)));
+            }
+            new_actions.push(Action {
+                name: a.name.clone(),
+                params: a.params.clone(),
+                precond: Formula::And(conj),
+                effect: Effect::And(eff),
+            });
+        }
+    }
+    d.actions = new_actions;
 
     // End-marker phasing (Keyder–Geffner): simple preferences are evaluated in
     // the FINAL state, so collect/forgo must run only after planning ends — else
@@ -280,8 +447,10 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     // determine whether the metric is inside the supported (optimizable) class
     let unsupported = if !minimize {
         Some("metric maximization is not supported (phase 1: minimize only)".into())
-    } else if any_negative {
+    } else if any_negative || pp_negative {
         Some("negative preference weight (cannot be encoded monotonically)".into())
+    } else if pp_overflow {
+        Some("an action has too many precondition preferences (>6)".into())
     } else if !(tc == 0.0 || tc == 1.0) {
         Some(format!("scaled total-cost coefficient ({}) is not supported", tc))
     } else if !cost_monotone(domain) {
