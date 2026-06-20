@@ -133,3 +133,48 @@ fn compiles_durative_to_snaps_and_grounds() {
         _ => panic!("compiled temporal domain should ground to a task"),
     }
 }
+
+#[test]
+fn t3_decision_epoch_solves_simple_durative() {
+    let dom = parse_domain(DUR_DOM).expect("domain");
+    let prob = parse_problem(DUR_PROB).expect("problem");
+    let plan = temporal::solve(&dom, &prob, 1).expect("temporal plan");
+    // one durative step: ACT at time 0 with duration 3; makespan 3
+    assert_eq!(plan.steps.len(), 1, "one durative action, end implied");
+    assert_eq!(plan.steps[0].action, "ACT");
+    assert!((plan.steps[0].time - 0.0).abs() < 1e-9);
+    assert_eq!(plan.steps[0].duration, Some(3.0));
+    assert!(
+        (plan.makespan - 3.0).abs() < 1e-9,
+        "makespan {}",
+        plan.makespan
+    );
+}
+
+#[test]
+fn t3_required_concurrency_match_fuse() {
+    // classic required-concurrency: mend-fuse must run *while* the match is lit;
+    // the match (duration 5) provides (light) over its interval, mend (duration 2)
+    // needs (light) over all. Sequential ordering can't work; concurrency must.
+    let dom = "
+    (define (domain mf)
+      (:requirements :strips :durative-actions :numeric-fluents)
+      (:predicates (light) (mended) (unused))
+      (:durative-action light-match
+        :parameters ()
+        :duration (= ?duration 5)
+        :condition (at start (unused))
+        :effect (and (at start (and (light) (not (unused)))) (at end (not (light)))))
+      (:durative-action mend-fuse
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (over all (light))
+        :effect (at end (mended))))";
+    let prob = "(define (problem p) (:domain mf) (:init (unused)) (:goal (mended)))";
+    let d = parse_domain(dom).expect("domain");
+    let p = parse_problem(prob).expect("problem");
+    let plan = temporal::solve(&d, &p, 1).expect("must find a concurrent plan");
+    // both durative actions appear; mend-fuse runs within light-match's interval
+    assert!(plan.steps.iter().any(|s| s.action == "LIGHT-MATCH"));
+    assert!(plan.steps.iter().any(|s| s.action == "MEND-FUSE"));
+}
