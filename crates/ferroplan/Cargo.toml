@@ -18,3 +18,8 @@ thiserror = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+criterion = "0.5"
+
+[[bench]]
+name = "planning"
+harness = false

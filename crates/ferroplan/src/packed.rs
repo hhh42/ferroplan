@@ -40,16 +40,28 @@ pub struct CsrBuilder<T> {
     pub flat: Vec<T>,
     pub off: Vec<u32>,
 }
+impl<T> Default for CsrBuilder<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T> CsrBuilder<T> {
     pub fn new() -> Self {
-        CsrBuilder { flat: Vec::new(), off: vec![0] }
+        CsrBuilder {
+            flat: Vec::new(),
+            off: vec![0],
+        }
     }
     pub fn push_row(&mut self, items: impl IntoIterator<Item = T>) {
         self.flat.extend(items);
         self.off.push(self.flat.len() as u32);
     }
     pub fn finish(self) -> Csr<T> {
-        Csr { flat: self.flat, off: self.off }
+        Csr {
+            flat: self.flat,
+            off: self.off,
+        }
     }
 }
 
@@ -118,9 +130,17 @@ impl PackedTask {
     /// Does conditional effect `ce` fire in source state `s`?
     #[inline]
     fn cond_holds(&self, ce: &CondEff, s: &State) -> bool {
-        ce.cond_pos.iter().all(|&f| bitset::test(&s.bits, f as usize))
-            && ce.cond_neg.iter().all(|&f| !bitset::test(&s.bits, f as usize))
-            && ce.cond_num.iter().all(|np| eval_numpre(np, &s.fv, &s.fdef).unwrap_or(false))
+        ce.cond_pos
+            .iter()
+            .all(|&f| bitset::test(&s.bits, f as usize))
+            && ce
+                .cond_neg
+                .iter()
+                .all(|&f| !bitset::test(&s.bits, f as usize))
+            && ce
+                .cond_num
+                .iter()
+                .all(|np| eval_numpre(np, &s.fv, &s.fdef).unwrap_or(false))
     }
 
     /// Apply op `oi` to `s`, returning the successor (assumes applicable).
@@ -137,12 +157,22 @@ impl PackedTask {
             .num_eff
             .slice(oi)
             .iter()
-            .map(|ne| (ne.target as usize, ne.op, ne.value.eval(&s.fv, &s.fdef).unwrap_or(0.0)))
+            .map(|ne| {
+                (
+                    ne.target as usize,
+                    ne.op,
+                    ne.value.eval(&s.fv, &s.fdef).unwrap_or(0.0),
+                )
+            })
             .collect();
         for (ce, &fire) in conds.iter().zip(&firing) {
             if fire {
                 for ne in &ce.num {
-                    deltas.push((ne.target as usize, ne.op, ne.value.eval(&s.fv, &s.fdef).unwrap_or(0.0)));
+                    deltas.push((
+                        ne.target as usize,
+                        ne.op,
+                        ne.value.eval(&s.fv, &s.fdef).unwrap_or(0.0),
+                    ));
                 }
             }
         }
@@ -245,7 +275,11 @@ impl PackedTask {
     pub fn state_key_with_cost(&self, s: &State, cost_fluent: Option<usize>) -> StateKey {
         let mut k = self.state_key(s);
         if let Some(cf) = cost_fluent {
-            k.vals.push(if s.fdef[cf] { (s.fv[cf] * 1e6).round() as i64 } else { 0 });
+            k.vals.push(if s.fdef[cf] {
+                (s.fv[cf] * 1e6).round() as i64
+            } else {
+                0
+            });
         }
         k
     }

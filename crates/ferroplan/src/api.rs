@@ -40,7 +40,10 @@ pub struct Options {
 
 impl Default for Options {
     fn default() -> Self {
-        Options { mode: Mode::Auto, threads: 0 }
+        Options {
+            mode: Mode::Auto,
+            threads: 0,
+        }
     }
 }
 
@@ -95,7 +98,11 @@ pub enum SolveError {
     #[error("problem parse error: {0}")]
     ProblemParse(String),
     #[error("{kind} {pred} uses an unknown or empty type {ty}")]
-    EmptyType { kind: String, pred: String, ty: String },
+    EmptyType {
+        kind: String,
+        pred: String,
+        ty: String,
+    },
 }
 
 enum Grounded {
@@ -131,7 +138,7 @@ fn steps_of(task: &PackedTask, ops: &[usize], synthetic: Option<&HashSet<String>
         let mut it = disp.split_whitespace();
         let action = it.next().unwrap_or("").to_string();
         // strip the artificial goal-closer + PDDL3 bookkeeping actions
-        if action == "REACH-GOAL" || synthetic.map_or(false, |s| s.contains(&action)) {
+        if action == "REACH-GOAL" || synthetic.is_some_and(|s| s.contains(&action)) {
             continue;
         }
         steps.push(Step {
@@ -157,21 +164,38 @@ fn trivial(mode: Mode, threads: usize) -> Solution {
     Solution {
         solved: true,
         mode,
-        plan: Some(Plan { steps: Vec::new(), length: 0, metric: None }),
-        statistics: Statistics { threads, ..Default::default() },
+        plan: Some(Plan {
+            steps: Vec::new(),
+            length: 0,
+            metric: None,
+        }),
+        statistics: Statistics {
+            threads,
+            ..Default::default()
+        },
         notes: vec!["goal already satisfied; the empty plan solves it".into()],
     }
 }
 
 fn unsolved(mode: Mode, stats: Statistics, notes: Vec<String>) -> Solution {
-    Solution { solved: false, mode, plan: None, statistics: stats, notes }
+    Solution {
+        solved: false,
+        mode,
+        plan: None,
+        statistics: stats,
+        notes,
+    }
 }
 
 /// Ground and plan, returning a structured [`Solution`].
 pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solution, SolveError> {
     let domain = parser::parse_domain(domain_src).map_err(SolveError::DomainParse)?;
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
-    let threads = if opts.threads == 0 { crate::par::num_threads() } else { opts.threads };
+    let threads = if opts.threads == 0 {
+        crate::par::num_threads()
+    } else {
+        opts.threads
+    };
 
     let mode = match opts.mode {
         Mode::Auto => {
@@ -201,7 +225,14 @@ fn solve_classic(
         Grounded::Task(t) => t,
         Grounded::Trivial => return Ok(trivial(mode, threads)),
         Grounded::Unsolvable => {
-            return Ok(unsolved(mode, Statistics { threads, ..Default::default() }, extra_notes))
+            return Ok(unsolved(
+                mode,
+                Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                extra_notes,
+            ))
         }
     };
 
@@ -223,12 +254,20 @@ fn solve_classic(
             Ok(Solution {
                 solved: true,
                 mode,
-                plan: Some(Plan { length: steps.len(), steps, metric: None }),
+                plan: Some(Plan {
+                    length: steps.len(),
+                    steps,
+                    metric: None,
+                }),
                 statistics: stats(&task, evaluated, threads),
                 notes: extra_notes,
             })
         }
-        None => Ok(unsolved(mode, stats(&task, evaluated, threads), extra_notes)),
+        None => Ok(unsolved(
+            mode,
+            stats(&task, evaluated, threads),
+            extra_notes,
+        )),
     }
 }
 
@@ -241,7 +280,10 @@ fn solve_pddl3(
 
     // metric outside the supported class -> satisficing plan over the hard goals
     if let Some(reason) = c.unsupported.clone() {
-        let note = format!("PDDL3 metric not optimized ({}); returning a satisficing plan", reason);
+        let note = format!(
+            "PDDL3 metric not optimized ({}); returning a satisficing plan",
+            reason
+        );
         return solve_classic(domain, problem, threads, Mode::Pddl3, vec![note]);
     }
 
@@ -249,7 +291,14 @@ fn solve_pddl3(
         Grounded::Task(t) => t,
         Grounded::Trivial => return Ok(trivial(Mode::Pddl3, threads)),
         Grounded::Unsolvable => {
-            return Ok(unsolved(Mode::Pddl3, Statistics { threads, ..Default::default() }, Vec::new()))
+            return Ok(unsolved(
+                Mode::Pddl3,
+                Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                Vec::new(),
+            ))
         }
     };
 
@@ -261,7 +310,10 @@ fn solve_pddl3(
         Some(r) => {
             let mut notes = Vec::new();
             if c.warn_other {
-                notes.push("metric has terms beyond is-violated/total-cost; optimized the supported part".into());
+                notes.push(
+                    "metric has terms beyond is-violated/total-cost; optimized the supported part"
+                        .into(),
+                );
             }
             if !r.proven {
                 notes.push("search bound hit; metric is best-found, not proven optimal".into());
@@ -270,7 +322,11 @@ fn solve_pddl3(
             Ok(Solution {
                 solved: true,
                 mode: Mode::Pddl3,
-                plan: Some(Plan { length: steps.len(), steps, metric: Some(r.cost) }),
+                plan: Some(Plan {
+                    length: steps.len(),
+                    steps,
+                    metric: Some(r.cost),
+                }),
                 statistics: stats(&task, 0, threads),
                 notes,
             })

@@ -1,12 +1,11 @@
 //! PDDL3.0 soft-goal preferences + metric optimization (phase 1).
 //!
 //! Compilation (Keyder & Geffner, "Soft goals can be compiled away", JAIR 2009):
-//! each `(preference p phi)` in the goal becomes
-//!   - a 0-ary fact `collected_p`,
-//!   - `collect_p`: precond `phi`, effect `collected_p`, cost 0   (satisfy it), and
-//!   - `forgo_p`:   effect `collected_p` + `(increase (total-cost) w_p)`  (pay to skip),
-//! with `collected_p` added to the HARD goal. Minimizing `total-cost` then
-//! minimizes the weighted preference violation (+ any existing action costs).
+//! each `(preference p phi)` in the goal becomes a 0-ary fact `collected_p`, a
+//! `collect_p` action (precond `phi`, effect `collected_p`, cost 0), and a
+//! `forgo_p` action (effect `collected_p` + `(increase (total-cost) w_p)`).
+//! `collected_p` is added to the HARD goal, so minimizing `total-cost` minimizes
+//! the weighted preference violation (plus any existing action costs).
 //!
 //! `w_p` is the coefficient of `(is-violated p)` in the `:metric`; preferences not
 //! referenced by the metric get weight 0 (free to forgo); with no metric at all,
@@ -21,7 +20,9 @@ use std::collections::{HashMap, HashSet};
 
 use crate::packed::PackedTask;
 use crate::search::solve_subgoal_bounded;
-use crate::types::{Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term};
+use crate::types::{
+    Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term,
+};
 
 pub const COST: &str = "TOTAL-COST";
 pub const COST_DISP: &str = "(TOTAL-COST)";
@@ -61,14 +62,17 @@ pub fn has_preferences(problem: &Problem) -> bool {
         || problem
             .metric
             .as_ref()
-            .map_or(false, |(_, e)| expr_has_is_violated(e))
+            .is_some_and(|(_, e)| expr_has_is_violated(e))
 }
 
 // ---- formula substitution + quantifier combos (for forall-preferences) ----
 
 fn subst_term(t: &Term, b: &HashMap<Sym, Sym>) -> Term {
     match t {
-        Term::Var(v) => b.get(v).map(|o| Term::Const(o.clone())).unwrap_or_else(|| t.clone()),
+        Term::Var(v) => b
+            .get(v)
+            .map(|o| Term::Const(o.clone()))
+            .unwrap_or_else(|| t.clone()),
         Term::Const(_) => t.clone(),
     }
 }
@@ -88,7 +92,9 @@ fn subst_formula(f: &Formula, b: &HashMap<Sym, Sym>) -> Formula {
         Formula::And(v) => Formula::And(v.iter().map(|x| subst_formula(x, b)).collect()),
         Formula::Or(v) => Formula::Or(v.iter().map(|x| subst_formula(x, b)).collect()),
         Formula::Not(a) => Formula::Not(Box::new(subst_formula(a, b))),
-        Formula::Atom(p, a) => Formula::Atom(p.clone(), a.iter().map(|t| subst_term(t, b)).collect()),
+        Formula::Atom(p, a) => {
+            Formula::Atom(p.clone(), a.iter().map(|t| subst_term(t, b)).collect())
+        }
         Formula::Comp(op, l, r) => Formula::Comp(*op, subst_expr(l, b), subst_expr(r, b)),
         Formula::Eq(x, y) => Formula::Eq(subst_term(x, b), subst_term(y, b)),
         Formula::Pref(n, inner) => Formula::Pref(n.clone(), Box::new(subst_formula(inner, b))),
@@ -278,7 +284,8 @@ fn cost_monotone(domain: &Domain) -> bool {
         match e {
             Effect::And(v) => v.iter().for_each(|x| walk(x, ok)),
             Effect::Num(op, name, _, val) if name == COST => {
-                let good = matches!(op, AssignOp::Increase) && matches!(val, Expr::Num(n) if *n >= 0.0);
+                let good =
+                    matches!(op, AssignOp::Increase) && matches!(val, Expr::Num(n) if *n >= 0.0);
                 if !good {
                     *ok = false;
                 }
@@ -347,7 +354,10 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         let k = pprefs.len();
         if k > 6 {
             pp_overflow = true;
-            new_actions.push(Action { precond: hard_pre, ..a.clone() });
+            new_actions.push(Action {
+                precond: hard_pre,
+                ..a.clone()
+            });
             continue;
         }
         for mask in 0u32..(1u32 << k) {
@@ -356,7 +366,10 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
             for (i, (name, phi)) in pprefs.iter().enumerate() {
                 if mask & (1 << i) != 0 {
                     conj.push(Formula::Not(Box::new(phi.clone()))); // violated
-                    let raw = w.get(name).copied().unwrap_or(if metric_absent { 1.0 } else { 0.0 });
+                    let raw = w
+                        .get(name)
+                        .copied()
+                        .unwrap_or(if metric_absent { 1.0 } else { 0.0 });
                     if raw < 0.0 {
                         pp_negative = true;
                     }
@@ -367,7 +380,12 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
             }
             let mut eff = vec![a.effect.clone()];
             if cost != 0.0 {
-                eff.push(Effect::Num(AssignOp::Increase, COST.to_string(), vec![], Expr::Num(cost)));
+                eff.push(Effect::Num(
+                    AssignOp::Increase,
+                    COST.to_string(),
+                    vec![],
+                    Expr::Num(cost),
+                ));
             }
             new_actions.push(Action {
                 name: a.name.clone(),
@@ -425,7 +443,10 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         });
         // forgo: skip it, paying its weight (clamped >= 0 to keep cost monotone;
         // a negative weight is flagged unsupported below, not silently applied)
-        let raw = w.get(name).copied().unwrap_or(if metric_absent { 1.0 } else { 0.0 });
+        let raw = w
+            .get(name)
+            .copied()
+            .unwrap_or(if metric_absent { 1.0 } else { 0.0 });
         if raw < 0.0 {
             any_negative = true;
         }
@@ -435,7 +456,12 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
             precond: Formula::Atom(ENDED.to_string(), vec![]),
             effect: Effect::And(vec![
                 Effect::Add(col.clone(), vec![]),
-                Effect::Num(AssignOp::Increase, COST.to_string(), vec![], Expr::Num(raw.max(0.0))),
+                Effect::Num(
+                    AssignOp::Increase,
+                    COST.to_string(),
+                    vec![],
+                    Expr::Num(raw.max(0.0)),
+                ),
             ]),
         });
         goal_parts.push(Formula::Atom(col, vec![]));
@@ -452,7 +478,10 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     } else if pp_overflow {
         Some("an action has too many precondition preferences (>6)".into())
     } else if !(tc == 0.0 || tc == 1.0) {
-        Some(format!("scaled total-cost coefficient ({}) is not supported", tc))
+        Some(format!(
+            "scaled total-cost coefficient ({}) is not supported",
+            tc
+        ))
     } else if !cost_monotone(domain) {
         Some("non-monotone total-cost (decrease/scale effects) breaks branch-and-bound".into())
     } else {
@@ -496,7 +525,11 @@ pub struct MetricResult {
 /// Anytime branch-and-bound: minimize `cost_fluent` by repeatedly solving with a
 /// tightening upper bound. Returns the best plan found, or None if the hard goal
 /// is unreachable. Bounded by `MAX_ITERS`.
-pub fn metric_optimize(task: &PackedTask, cost_fluent: usize, threads: usize) -> Option<MetricResult> {
+pub fn metric_optimize(
+    task: &PackedTask,
+    cost_fluent: usize,
+    threads: usize,
+) -> Option<MetricResult> {
     const MAX_ITERS: usize = 10_000;
     let init = task.initial();
     let mut bound = f64::INFINITY;
@@ -506,8 +539,15 @@ pub fn metric_optimize(task: &PackedTask, cost_fluent: usize, threads: usize) ->
 
     while iterations < MAX_ITERS {
         iterations += 1;
-        let (opt, capped) =
-            solve_subgoal_bounded(task, &init, &task.goal_pos, &task.goal_num, cost_fluent, bound, threads);
+        let (opt, capped) = solve_subgoal_bounded(
+            task,
+            &init,
+            &task.goal_pos,
+            &task.goal_num,
+            cost_fluent,
+            bound,
+            threads,
+        );
         match opt {
             Some(ops) => {
                 let cost = plan_cost(task, &ops, cost_fluent);
@@ -526,5 +566,10 @@ pub fn metric_optimize(task: &PackedTask, cost_fluent: usize, threads: usize) ->
             }
         }
     }
-    best.map(|(ops, cost)| MetricResult { ops, cost, iterations, proven })
+    best.map(|(ops, cost)| MetricResult {
+        ops,
+        cost,
+        iterations,
+        proven,
+    })
 }

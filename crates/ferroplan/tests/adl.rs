@@ -28,7 +28,11 @@ fn parse_ff_plan(out: &str) -> Vec<(String, Vec<String>)> {
         if !started {
             continue;
         }
-        let t = l.trim_start().strip_prefix("step").unwrap_or(l.trim_start()).trim_start();
+        let t = l
+            .trim_start()
+            .strip_prefix("step")
+            .unwrap_or(l.trim_start())
+            .trim_start();
         if let Some(c) = t.find(':') {
             if t[..c].chars().all(|x| x.is_ascii_digit()) && !t[..c].is_empty() {
                 let rest = t[c + 1..].trim();
@@ -60,7 +64,12 @@ fn solve_validate(dom: &str, prob: &str) -> usize {
                 it.next() == Some(name.as_str()) && it.eq(want.iter().copied())
             })
             .unwrap_or_else(|| panic!("op {} {:?} not found", name, args));
-        assert!(task.op_applicable(oi, &s), "step {} {:?} not applicable", name, args);
+        assert!(
+            task.op_applicable(oi, &s),
+            "step {} {:?} not applicable",
+            name,
+            args
+        );
         s = task.apply(oi, &s);
     }
     assert!(task.goal_met(&s), "plan did not reach the goal");
@@ -131,8 +140,16 @@ fn disjunctive_goal_picks_reachable_disjunct() {
     let prob = "(define (problem p) (:domain disj) (:init (start)) (:goal (or (b) (a))))";
     let (out, code) = ferroplan::run_ff(dom, prob, 1);
     assert_eq!(code, 0, "{}", out);
-    assert!(out.contains("found legal plan"), "must solve via the (a) disjunct\n{}", out);
-    assert!(out.contains("MKA"), "plan must include the real action\n{}", out);
+    assert!(
+        out.contains("found legal plan"),
+        "must solve via the (a) disjunct\n{}",
+        out
+    );
+    assert!(
+        out.contains("MKA"),
+        "plan must include the real action\n{}",
+        out
+    );
 }
 
 #[test]
@@ -145,7 +162,11 @@ fn negated_numeric_equality_solved() {
     let prob = "(define (problem p) (:domain ctr) (:init (= (n) 0)) (:goal (not (= (n) 0))))";
     let (out, code) = ferroplan::run_ff(dom, prob, 1);
     assert_eq!(code, 0, "{}", out);
-    assert!(out.contains("found legal plan"), "(not (= n 0)) reachable by inc\n{}", out);
+    assert!(
+        out.contains("found legal plan"),
+        "(not (= n 0)) reachable by inc\n{}",
+        out
+    );
     assert!(out.contains("INC"), "{}", out);
 }
 
@@ -164,7 +185,11 @@ fn complement_fact_semantics_match_metric_ff() {
     let prob = "(define (problem p) (:domain comp) (:init (p) (c)) (:goal (not (p))))";
     let (out, code) = ferroplan::run_ff(dom, prob, 1);
     assert_eq!(code, 0, "{}", out);
-    assert!(out.contains("found legal plan"), "must match the oracle (solvable via ACT)\n{}", out);
+    assert!(
+        out.contains("found legal plan"),
+        "must match the oracle (solvable via ACT)\n{}",
+        out
+    );
 }
 
 #[test]

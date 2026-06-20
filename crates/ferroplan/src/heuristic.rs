@@ -75,7 +75,13 @@ impl Scratch {
 /// (effects on fluents that no precondition/goal reads cannot change the
 /// heuristic, so skipping them is exact and also stops irrelevant unbounded
 /// growth). Returns whether any relevant bound changed.
-fn widen(neffs: &[NumEff], relevant: &[bool], lb: &mut [f64], ub: &mut [f64], def: &[bool]) -> bool {
+fn widen(
+    neffs: &[NumEff],
+    relevant: &[bool],
+    lb: &mut [f64],
+    ub: &mut [f64],
+    def: &[bool],
+) -> bool {
     let mut changed = false;
     for ne in neffs {
         let t = ne.target as usize;
@@ -224,7 +230,13 @@ pub fn relaxed_to(
         // (a) re-widen bounds from previously-applied relevant-numeric ops
         for idx in 0..sc.num_applied.len() {
             let oi = sc.num_applied[idx] as usize;
-            if widen(task.num_eff.slice(oi), &task.relevant_fluent, &mut sc.lb, &mut sc.ub, def) {
+            if widen(
+                task.num_eff.slice(oi),
+                &task.relevant_fluent,
+                &mut sc.lb,
+                &mut sc.ub,
+                def,
+            ) {
                 changed = true;
             }
         }
@@ -236,7 +248,10 @@ pub fn relaxed_to(
             let oi = sc.cond_ops[idx] as usize;
             for ce in task.cond.slice(oi) {
                 let pos_ok = ce.cond_pos.iter().all(|&c| sc.reached[c as usize]);
-                let num_ok = ce.cond_num.iter().all(|np| num_sat(np, &sc.lb, &sc.ub, def));
+                let num_ok = ce
+                    .cond_num
+                    .iter()
+                    .all(|np| num_sat(np, &sc.lb, &sc.ub, def));
                 if pos_ok && num_ok {
                     for &f in &ce.add {
                         let f = f as usize;
@@ -261,8 +276,16 @@ pub fn relaxed_to(
             if sc.op_layer[oi] != INF {
                 continue;
             }
-            let ok = task.pre_pos.slice(oi).iter().all(|&f| sc.reached[f as usize])
-                && task.pre_num.slice(oi).iter().all(|np| num_sat(np, &sc.lb, &sc.ub, def));
+            let ok = task
+                .pre_pos
+                .slice(oi)
+                .iter()
+                .all(|&f| sc.reached[f as usize])
+                && task
+                    .pre_num
+                    .slice(oi)
+                    .iter()
+                    .all(|np| num_sat(np, &sc.lb, &sc.ub, def));
             if ok {
                 sc.op_layer[oi] = layer;
                 sc.applicable.push(oi as u32);
@@ -282,7 +305,13 @@ pub fn relaxed_to(
                 }
             }
             if op_has_relevant_neff(task, oi) {
-                if widen(task.num_eff.slice(oi), &task.relevant_fluent, &mut sc.lb, &mut sc.ub, def) {
+                if widen(
+                    task.num_eff.slice(oi),
+                    &task.relevant_fluent,
+                    &mut sc.lb,
+                    &mut sc.ub,
+                    def,
+                ) {
                     changed = true;
                 }
                 sc.num_applied.push(oi as u32);
@@ -349,7 +378,13 @@ pub fn relaxed_to(
 }
 
 /// Convenience: relaxed-plan heuristic toward the task's own goal.
-pub fn relaxed(task: &PackedTask, sc: &mut Scratch, bits: &[u64], fv: &[f64], def: &[bool]) -> Option<i32> {
+pub fn relaxed(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+) -> Option<i32> {
     relaxed_to(task, sc, bits, fv, def, &task.goal_pos, &task.goal_num)
 }
 
@@ -437,7 +472,11 @@ fn numeric_achiever(
         NExpr::Num(n) => *n,
         _ => return None,
     };
-    let cur = if def[target as usize] { fv[target as usize] } else { 0.0 };
+    let cur = if def[target as usize] {
+        fv[target as usize]
+    } else {
+        0.0
+    };
     let need_raise = cur < want;
     let mut best: Option<(usize, i32)> = None;
     // only ops with a numeric effect on `target` can help (op-id order preserved,

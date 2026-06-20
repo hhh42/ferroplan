@@ -53,7 +53,15 @@ fn unsolvable_goal_reports_unsolved() {
 #[test]
 fn explicit_modes_run() {
     for m in [Mode::Ff, Mode::Partition] {
-        let sol = solve(GRID, &prob("(at z)"), &Options { mode: m, threads: 1 }).unwrap();
+        let sol = solve(
+            GRID,
+            &prob("(at z)"),
+            &Options {
+                mode: m,
+                threads: 1,
+            },
+        )
+        .unwrap();
         assert!(sol.solved, "mode {:?} should solve", m);
         assert_eq!(sol.mode, m);
     }

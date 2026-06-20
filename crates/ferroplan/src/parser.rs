@@ -107,7 +107,7 @@ fn parse_typed_list(p: &mut P) -> Result<Vec<(String, String)>, String> {
         match p.peek().cloned() {
             Some(Tok::Dash) => {
                 p.next()?; // consume '-'
-                // a type follows; it may be `(either t1 t2)` — take the first.
+                           // a type follows; it may be `(either t1 t2)` — take the first.
                 let ty = match p.next()? {
                     Tok::Name(s) => s,
                     Tok::LParen => {
@@ -233,8 +233,8 @@ fn parse_formula(p: &mut P) -> Result<Formula, String> {
                 p.expect_rparen()?;
                 return Ok(Formula::Eq(a, b));
             }
-            let c = comp_of(&op)
-                .ok_or_else(|| format!("unexpected operator `{}` in formula", op))?;
+            let c =
+                comp_of(&op).ok_or_else(|| format!("unexpected operator `{}` in formula", op))?;
             let a = parse_expr(p)?;
             let b = parse_expr(p)?;
             p.expect_rparen()?;
@@ -556,7 +556,10 @@ pub fn parse_domain(src: &str) -> Result<Domain, String> {
                 while !p.at_rparen() {
                     let r = p.name()?;
                     if !SUPPORTED.contains(&r.as_str()) {
-                        return Err(format!("requirement {} not supported by this FF version", r));
+                        return Err(format!(
+                            "requirement {} not supported by this FF version",
+                            r
+                        ));
                     }
                     d.requirements.push(r);
                 }

@@ -4,7 +4,7 @@
 
 #[inline]
 pub fn words_for(n_bits: usize) -> usize {
-    (n_bits + 63) / 64
+    n_bits.div_ceil(64)
 }
 
 #[inline]

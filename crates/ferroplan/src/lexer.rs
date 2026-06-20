@@ -26,8 +26,7 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
     let mut out = Vec::new();
 
     let is_name_start = |c: u8| c.is_ascii_alphabetic() || c == b':';
-    let is_name_cont =
-        |c: u8| c.is_ascii_alphanumeric() || c == b'-' || c == b'_' || c == b':';
+    let is_name_cont = |c: u8| c.is_ascii_alphanumeric() || c == b'-' || c == b'_' || c == b':';
 
     while i < n {
         let c = b[i];

@@ -56,14 +56,13 @@ pub fn solve(task: &PackedTask, threads: usize) -> Solved {
         // One thread per subplanner when there are many groups (coarse
         // parallelism); all threads for the single monolithic fallback.
         let sub_threads = if monolithic { threads } else { 1 };
-        let subplans: Vec<Option<Vec<usize>>> =
-            par::par_map(&groups, threads, |g| {
-                if g.is_empty() {
-                    Some(Vec::new())
-                } else {
-                    solve_subgoal(task, &init, &g.pos, &g.num, sub_threads)
-                }
-            });
+        let subplans: Vec<Option<Vec<usize>>> = par::par_map(&groups, threads, |g| {
+            if g.is_empty() {
+                Some(Vec::new())
+            } else {
+                solve_subgoal(task, &init, &g.pos, &g.num, sub_threads)
+            }
+        });
 
         // A group unsolvable in isolation → it likely needs a sibling's effects
         // first; merge and retry (or, if monolithic, genuinely unsolvable).
@@ -105,8 +104,8 @@ pub fn solve(task: &PackedTask, threads: usize) -> Solved {
             for &oi in &ops {
                 ns = task.apply(oi, &ns);
             }
-            let breaks = (0..i)
-                .any(|j| done[j] && !task.goal_met_with(&ns, &groups[j].pos, &groups[j].num));
+            let breaks =
+                (0..i).any(|j| done[j] && !task.goal_met_with(&ns, &groups[j].pos, &groups[j].num));
             if breaks {
                 conflict = Some(i);
                 break;

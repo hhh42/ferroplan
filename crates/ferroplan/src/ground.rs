@@ -15,12 +15,17 @@ use crate::packed::{CondEff, CsrBuilder, PackedTask, State};
 use crate::par;
 use crate::types::*;
 
+#[allow(clippy::large_enum_variant)]
 pub enum Outcome {
     Task(PackedTask),
     GoalTrue,
     GoalFalse,
     GoalUndefinedFluent,
-    EmptyType { kind: &'static str, pred: String, ty: String },
+    EmptyType {
+        kind: &'static str,
+        pred: String,
+        ty: String,
+    },
 }
 
 // ----- DNF over ground formulas (string atoms) -----------------------------
@@ -65,7 +70,11 @@ fn subst_expr(e: &Expr, b: &HashMap<Sym, Sym>) -> Expr {
 }
 
 fn empty_conj() -> Conjunct {
-    Conjunct { pos: vec![], neg: vec![], num: vec![] }
+    Conjunct {
+        pos: vec![],
+        neg: vec![],
+        num: vec![],
+    }
 }
 
 fn merge_conj(a: &Conjunct, b: &Conjunct) -> Conjunct {
@@ -121,11 +130,19 @@ fn quant_expand(
         }
         acc
     } else {
-        combos.iter().flat_map(|cb| to_dnf(inner, cb, neg, objs)).collect()
+        combos
+            .iter()
+            .flat_map(|cb| to_dnf(inner, cb, neg, objs))
+            .collect()
     }
 }
 
-fn to_dnf(f: &Formula, b: &HashMap<Sym, Sym>, negated: bool, objs: &HashMap<Sym, Vec<Sym>>) -> Vec<Conjunct> {
+fn to_dnf(
+    f: &Formula,
+    b: &HashMap<Sym, Sym>,
+    negated: bool,
+    objs: &HashMap<Sym, Vec<Sym>>,
+) -> Vec<Conjunct> {
     match (f, negated) {
         (Formula::True, false) | (Formula::False, true) => vec![empty_conj()],
         (Formula::False, false) | (Formula::True, true) => vec![],
@@ -145,8 +162,16 @@ fn to_dnf(f: &Formula, b: &HashMap<Sym, Sym>, negated: bool, objs: &HashMap<Sym,
             let le = subst_expr(l, b);
             let re = subst_expr(r, b);
             vec![
-                Conjunct { pos: vec![], neg: vec![], num: vec![(CompOp::Lt, le.clone(), re.clone())] },
-                Conjunct { pos: vec![], neg: vec![], num: vec![(CompOp::Gt, le, re)] },
+                Conjunct {
+                    pos: vec![],
+                    neg: vec![],
+                    num: vec![(CompOp::Lt, le.clone(), re.clone())],
+                },
+                Conjunct {
+                    pos: vec![],
+                    neg: vec![],
+                    num: vec![(CompOp::Gt, le, re)],
+                },
             ]
         }
         (Formula::Comp(op, l, r), neg) => {
@@ -305,10 +330,8 @@ fn static_top_atoms(f: &Formula, add_preds: &HashSet<Sym>) -> Vec<(Sym, Vec<Term
     fn rec(f: &Formula, add_preds: &HashSet<Sym>, out: &mut Vec<(Sym, Vec<Term>)>) {
         match f {
             Formula::And(v) => v.iter().for_each(|x| rec(x, add_preds, out)),
-            Formula::Atom(p, a) => {
-                if !add_preds.contains(p) {
-                    out.push((p.clone(), a.clone()));
-                }
+            Formula::Atom(p, a) if !add_preds.contains(p) => {
+                out.push((p.clone(), a.clone()));
             }
             _ => {}
         }
@@ -458,16 +481,29 @@ impl Interner {
                 reads.push(id);
                 NExpr::Fluent(id)
             }
-            Expr::Add(x, y) => NExpr::Add(Box::new(self.resolve_expr(x, reads)), Box::new(self.resolve_expr(y, reads))),
-            Expr::Sub(x, y) => NExpr::Sub(Box::new(self.resolve_expr(x, reads)), Box::new(self.resolve_expr(y, reads))),
-            Expr::Mul(x, y) => NExpr::Mul(Box::new(self.resolve_expr(x, reads)), Box::new(self.resolve_expr(y, reads))),
-            Expr::Div(x, y) => NExpr::Div(Box::new(self.resolve_expr(x, reads)), Box::new(self.resolve_expr(y, reads))),
+            Expr::Add(x, y) => NExpr::Add(
+                Box::new(self.resolve_expr(x, reads)),
+                Box::new(self.resolve_expr(y, reads)),
+            ),
+            Expr::Sub(x, y) => NExpr::Sub(
+                Box::new(self.resolve_expr(x, reads)),
+                Box::new(self.resolve_expr(y, reads)),
+            ),
+            Expr::Mul(x, y) => NExpr::Mul(
+                Box::new(self.resolve_expr(x, reads)),
+                Box::new(self.resolve_expr(y, reads)),
+            ),
+            Expr::Div(x, y) => NExpr::Div(
+                Box::new(self.resolve_expr(x, reads)),
+                Box::new(self.resolve_expr(y, reads)),
+            ),
             Expr::Neg(x) => NExpr::Neg(Box::new(self.resolve_expr(x, reads))),
         }
     }
 }
 
 /// A mid-form operator: fact ids interned, numeric resolved, neg still string.
+#[allow(clippy::type_complexity)]
 struct MidOp {
     display: String,
     pre_pos: Vec<u32>,
@@ -555,7 +591,12 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     let objects_of_type = objects_by_type(domain, problem);
 
     // ---- empty-type check (predicates then functions) ----
-    let empty = |ty: &Sym| objects_of_type.get(ty).map(|v| v.is_empty()).unwrap_or(true);
+    let empty = |ty: &Sym| {
+        objects_of_type
+            .get(ty)
+            .map(|v| v.is_empty())
+            .unwrap_or(true)
+    };
     for (pname, argtypes) in &domain.predicates {
         for ty in argtypes {
             if empty(ty) {
@@ -602,7 +643,12 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     // ---- Phase B: parallel per-action grounding ----
     let action_idx: Vec<usize> = (0..domain.actions.len()).collect();
     let raw_chunks: Vec<Vec<RawOp>> = par::par_map(&action_idx, threads, |&ai| {
-        ground_action(&domain.actions[ai], &objects_of_type, &init_atom_set, &add_predicates)
+        ground_action(
+            &domain.actions[ai],
+            &objects_of_type,
+            &init_atom_set,
+            &add_predicates,
+        )
     });
     let raws: Vec<RawOp> = raw_chunks.into_iter().flatten().collect();
     let n_easy = raws.iter().filter(|r| !r.multi).count();
@@ -633,7 +679,11 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 reads.push(target);
             }
             let value = intern.resolve_expr(val, &mut reads);
-            num_eff.push(NumEff { op: *op, target, value });
+            num_eff.push(NumEff {
+                op: *op,
+                target,
+                value,
+            });
         }
         // intern conditional effects. Condition reads are NOT added to `reads`:
         // an undefined fluent in a condition means it simply won't fire, it does
@@ -657,9 +707,20 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 let target = intern.fluent(fname, fargs);
                 let mut rd = Vec::new();
                 let value = intern.resolve_expr(val, &mut rd);
-                cnum.push(NumEff { op: *op, target, value });
+                cnum.push(NumEff {
+                    op: *op,
+                    target,
+                    value,
+                });
             }
-            cond.push(CondEff { cond_pos, cond_neg, cond_num, add: cadd, del: cdel, num: cnum });
+            cond.push(CondEff {
+                cond_pos,
+                cond_neg,
+                cond_num,
+                add: cadd,
+                del: cdel,
+                num: cnum,
+            });
             cond_atoms.push((rc.add.clone(), rc.del.clone()));
         }
         mids.push(MidOp {
@@ -852,7 +913,11 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 cond: vec![],
             });
         }
-        goal_conj_owned = Conjunct { pos: vec![gatom], neg: vec![], num: vec![] };
+        goal_conj_owned = Conjunct {
+            pos: vec![gatom],
+            neg: vec![],
+            num: vec![],
+        };
         &goal_conj_owned
     } else {
         &goal_dnf[0]
@@ -901,7 +966,12 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
             break;
         }
     }
-    let reach_ops: Vec<&FinalOp> = fops.iter().enumerate().filter(|(i, _)| live[*i]).map(|(_, o)| o).collect();
+    let reach_ops: Vec<&FinalOp> = fops
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| live[*i])
+        .map(|(_, o)| o)
+        .collect();
 
     // ---- goal analysis ----
     let mut goal_num: Vec<NumPre> = Vec::new();
@@ -934,7 +1004,12 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     // inertia-based goal simplification
     let deletable: HashSet<u32> = reach_ops
         .iter()
-        .flat_map(|o| o.del.iter().copied().chain(o.cond.iter().flat_map(|c| c.del.iter().copied())))
+        .flat_map(|o| {
+            o.del
+                .iter()
+                .copied()
+                .chain(o.cond.iter().flat_map(|c| c.del.iter().copied()))
+        })
         .collect();
     let modified_fluents: HashSet<u32> = reach_ops
         .iter()
@@ -945,16 +1020,25 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 .chain(o.cond.iter().flat_map(|c| c.num.iter().map(|ne| ne.target)))
         })
         .collect();
-    let inertia_pos = |f: u32| init_true.get(f as usize).copied().unwrap_or(false) && !deletable.contains(&f);
+    let inertia_pos =
+        |f: u32| init_true.get(f as usize).copied().unwrap_or(false) && !deletable.contains(&f);
     let mut np_reads = Vec::new();
     let inertia_num = |np: &NumPre, scratch: &mut Vec<u32>| {
         scratch.clear();
         np.lhs.collect_fluents(scratch);
         np.rhs.collect_fluents(scratch);
-        eval_numpre(np, &fv, &fdef).unwrap_or(false) && scratch.iter().all(|fl| !modified_fluents.contains(fl))
+        eval_numpre(np, &fv, &fdef).unwrap_or(false)
+            && scratch.iter().all(|fl| !modified_fluents.contains(fl))
     };
-    let remaining_pos: Vec<u32> = goal_pos.iter().copied().filter(|&f| !inertia_pos(f)).collect();
-    let remaining_num = goal_num.iter().filter(|np| !inertia_num(np, &mut np_reads)).count();
+    let remaining_pos: Vec<u32> = goal_pos
+        .iter()
+        .copied()
+        .filter(|&f| !inertia_pos(f))
+        .collect();
+    let remaining_num = goal_num
+        .iter()
+        .filter(|np| !inertia_num(np, &mut np_reads))
+        .count();
     if remaining_pos.is_empty() && remaining_num == 0 && !validate {
         return Outcome::GoalTrue;
     }
@@ -1049,7 +1133,10 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     loop {
         let mut changed = false;
         for op in &reach_ops {
-            let neffs = op.num_eff.iter().chain(op.cond.iter().flat_map(|c| c.num.iter()));
+            let neffs = op
+                .num_eff
+                .iter()
+                .chain(op.cond.iter().flat_map(|c| c.num.iter()));
             for ne in neffs {
                 if relevant_fluent[ne.target as usize] {
                     let mut v = Vec::new();

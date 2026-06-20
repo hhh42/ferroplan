@@ -28,7 +28,10 @@ const PROBLEM: &str = "(define (problem g1) (:domain gripper)
  (:goal (and (at ball1 roomb) (at ball2 roomb))))";
 
 fn main() {
-    let opts = Options { mode: Mode::Auto, threads: 0 };
+    let opts = Options {
+        mode: Mode::Auto,
+        threads: 0,
+    };
     let solution = solve(DOMAIN, PROBLEM, &opts).expect("solve");
 
     // the whole Solution is serde-serializable

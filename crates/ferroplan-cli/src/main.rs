@@ -13,7 +13,11 @@ use ferroplan::{Mode, Options};
 use serde::Deserialize;
 
 #[derive(Parser, Debug)]
-#[command(name = "ff", version, about = "ferroplan — a fast, data-parallel PDDL planner")]
+#[command(
+    name = "ff",
+    version,
+    about = "ferroplan — a fast, data-parallel PDDL planner"
+)]
 struct Cli {
     /// Domain file (PDDL).
     #[arg(short = 'o', long = "domain", value_name = "DOMAIN")]
@@ -123,7 +127,10 @@ fn main() -> Result<()> {
     };
 
     if cli.json {
-        let opts = Options { mode: cli.mode.into(), threads: cli.threads };
+        let opts = Options {
+            mode: cli.mode.into(),
+            threads: cli.threads,
+        };
         let sol = ferroplan::solve(&domain, &problem, &opts)?;
         println!("{}", serde_json::to_string_pretty(&sol)?);
         std::process::exit(if sol.solved { 0 } else { 1 });

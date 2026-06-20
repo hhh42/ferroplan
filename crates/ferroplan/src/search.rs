@@ -12,9 +12,9 @@ use std::collections::BinaryHeap;
 
 use crate::hash::FxHashSet;
 use crate::heuristic::{relaxed_to, Scratch};
-use crate::types::NumPre;
 use crate::packed::{PackedTask, State, StateKey};
 use crate::par;
+use crate::types::NumPre;
 
 const W_G: i32 = 1;
 const W_H: i32 = 5;
@@ -48,6 +48,7 @@ struct Node {
 /// Solve toward an ARBITRARY (sub)goal from an arbitrary start state over a
 /// shared grounded task — the reusable subplanner entry point for SGPlan-style
 /// partition-and-resolve. `search` is the whole-task convenience wrapper.
+#[allow(clippy::type_complexity)]
 pub fn search_from(
     task: &PackedTask,
     start: &State,
@@ -61,8 +62,21 @@ pub fn search_from(
 
     let init = start.clone();
     // early dead-end check: if the initial state is a relaxed dead end, unsolvable
-    if relaxed_to(task, &mut Scratch::new(task), &init.bits, &init.fv, &init.fdef, goal_pos, goal_num).is_none() {
-        return PlanResult::Unsolvable { evaluated: 1, capped: false };
+    if relaxed_to(
+        task,
+        &mut Scratch::new(task),
+        &init.bits,
+        &init.fv,
+        &init.fdef,
+        goal_pos,
+        goal_num,
+    )
+    .is_none()
+    {
+        return PlanResult::Unsolvable {
+            evaluated: 1,
+            capped: false,
+        };
     }
 
     let mut nodes: Vec<Node> = vec![Node {
@@ -116,11 +130,24 @@ pub fn search_from(
             &popped,
             threads,
             || Scratch::new(task),
-            |sc, &ni| relaxed_to(task, sc, &nodes[ni].state.bits, &nodes[ni].state.fv, &nodes[ni].state.fdef, goal_pos, goal_num),
+            |sc, &ni| {
+                relaxed_to(
+                    task,
+                    sc,
+                    &nodes[ni].state.bits,
+                    &nodes[ni].state.fv,
+                    &nodes[ni].state.fdef,
+                    goal_pos,
+                    goal_num,
+                )
+            },
         );
         evaluated += popped.len();
         if evaluated > MAX_EVAL {
-            return PlanResult::Unsolvable { evaluated, capped: true };
+            return PlanResult::Unsolvable {
+                evaluated,
+                capped: true,
+            };
         }
         for h in hs.iter().flatten() {
             if *h < best {
@@ -173,7 +200,10 @@ pub fn search_from(
         }
     }
 
-    PlanResult::Unsolvable { evaluated, capped: false }
+    PlanResult::Unsolvable {
+        evaluated,
+        capped: false,
+    }
 }
 
 fn reconstruct(nodes: &[Node], mut ni: usize) -> Vec<usize> {
@@ -188,7 +218,15 @@ fn reconstruct(nodes: &[Node], mut ni: usize) -> Vec<usize> {
 
 /// Whole-task search (start = initial state, goal = task goal).
 pub fn search(task: &PackedTask, threads: usize) -> PlanResult {
-    search_from(task, &task.initial(), &task.goal_pos, &task.goal_num, None, f64::INFINITY, threads)
+    search_from(
+        task,
+        &task.initial(),
+        &task.goal_pos,
+        &task.goal_num,
+        None,
+        f64::INFINITY,
+        threads,
+    )
 }
 
 /// Subplanner API: return the op sequence achieving `(goal_pos, goal_num)` from
@@ -200,7 +238,15 @@ pub fn solve_subgoal(
     goal_num: &[NumPre],
     threads: usize,
 ) -> Option<Vec<usize>> {
-    match search_from(task, start, goal_pos, goal_num, None, f64::INFINITY, threads) {
+    match search_from(
+        task,
+        start,
+        goal_pos,
+        goal_num,
+        None,
+        f64::INFINITY,
+        threads,
+    ) {
         PlanResult::Plan { ops, .. } => Some(ops),
         PlanResult::Unsolvable { .. } => None,
     }
@@ -219,7 +265,15 @@ pub fn solve_subgoal_bounded(
     bound: f64,
     threads: usize,
 ) -> (Option<Vec<usize>>, bool) {
-    match search_from(task, start, goal_pos, goal_num, Some(cost_fluent), bound, threads) {
+    match search_from(
+        task,
+        start,
+        goal_pos,
+        goal_num,
+        Some(cost_fluent),
+        bound,
+        threads,
+    ) {
         PlanResult::Plan { ops, .. } => (Some(ops), false),
         PlanResult::Unsolvable { capped, .. } => (None, capped),
     }

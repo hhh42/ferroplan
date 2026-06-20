@@ -44,10 +44,10 @@ where
 {
     let n = items.len();
     if threads <= 1 || n < MIN_PAR {
-        return items.iter().map(|x| f(x)).collect();
+        return items.iter().map(&f).collect();
     }
     let t = threads.min(n);
-    let chunk = (n + t - 1) / t;
+    let chunk = n.div_ceil(t);
     let chunks: Vec<&[T]> = items.chunks(chunk).collect();
     let f = &f;
     let mut parts: Vec<Vec<R>> = Vec::with_capacity(chunks.len());
@@ -79,7 +79,7 @@ where
         return items.iter().map(|x| f(&mut s, x)).collect();
     }
     let t = threads.min(n);
-    let chunk = (n + t - 1) / t;
+    let chunk = n.div_ceil(t);
     let chunks: Vec<&[T]> = items.chunks(chunk).collect();
     let init = &init;
     let f = &f;

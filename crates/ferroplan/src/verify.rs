@@ -95,10 +95,15 @@ fn eval_formula(task: &PackedTask, s: &State, f: &Formula) -> bool {
 }
 
 /// Independently verify a plan and compute its true PDDL3 metric.
-/// `plan` is the executed action sequence as (NAME, [ARGS]) (uppercased).
-pub fn verify(domain_src: &str, problem_src: &str, plan: &[(String, Vec<String>)]) -> Result<Verified, String> {
+/// `plan` is the executed action sequence as `(NAME, [ARGS])` (uppercased).
+pub fn verify(
+    domain_src: &str,
+    problem_src: &str,
+    plan: &[(String, Vec<String>)],
+) -> Result<Verified, String> {
     let domain = crate::parser::parse_domain(domain_src).map_err(|e| format!("domain: {}", e))?;
-    let problem = crate::parser::parse_problem(problem_src).map_err(|e| format!("problem: {}", e))?;
+    let problem =
+        crate::parser::parse_problem(problem_src).map_err(|e| format!("problem: {}", e))?;
     // ground the ORIGINAL problem (soft goals ignored), forcing a Task even when
     // the hard goal is trivial/empty (preference-only problems) so we can replay.
     let task = match ground_task(&domain, &problem, 1) {
@@ -117,10 +122,20 @@ pub fn verify(domain_src: &str, problem_src: &str, plan: &[(String, Vec<String>)
         });
         let oi = match oi {
             Some(oi) => oi,
-            None => return Err(format!("plan action `{} {}` not a grounded op", name, args.join(" "))),
+            None => {
+                return Err(format!(
+                    "plan action `{} {}` not a grounded op",
+                    name,
+                    args.join(" ")
+                ))
+            }
         };
         if !task.op_applicable(oi, &s) {
-            return Err(format!("plan action `{} {}` not applicable", name, args.join(" ")));
+            return Err(format!(
+                "plan action `{} {}` not applicable",
+                name,
+                args.join(" ")
+            ));
         }
         s = task.apply(oi, &s);
     }
@@ -141,6 +156,10 @@ pub fn verify(domain_src: &str, problem_src: &str, plan: &[(String, Vec<String>)
             metric += weights.get(name).copied().unwrap_or(0.0);
         }
     }
-    Ok(Verified { metric, hard_goal_met, satisfied: sat, violated: vio })
+    Ok(Verified {
+        metric,
+        hard_goal_met,
+        satisfied: sat,
+        violated: vio,
+    })
 }
-

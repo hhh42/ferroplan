@@ -5,7 +5,15 @@
 use ferroplan::{solve, Mode, Options};
 
 fn pddl3(dom: &str, prob: &str) -> ferroplan::Solution {
-    solve(dom, prob, &Options { mode: Mode::Pddl3, threads: 1 }).unwrap()
+    solve(
+        dom,
+        prob,
+        &Options {
+            mode: Mode::Pddl3,
+            threads: 1,
+        },
+    )
+    .unwrap()
 }
 
 const MARK: &str = "(define (domain mk)
@@ -27,7 +35,11 @@ fn forall_preference_counts_violated_instances() {
     let sol = pddl3(MARK, prob);
     assert!(sol.solved);
     assert_eq!(sol.mode, Mode::Pddl3);
-    assert_eq!(sol.plan.unwrap().metric, Some(1.0), "one unsatisfiable instance -> 1");
+    assert_eq!(
+        sol.plan.unwrap().metric,
+        Some(1.0),
+        "one unsatisfiable instance -> 1"
+    );
 }
 
 #[test]

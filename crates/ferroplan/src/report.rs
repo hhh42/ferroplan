@@ -46,12 +46,22 @@ pub fn timing(stats: &Stats, threads: usize) -> String {
         stats.init_groups,
         stats.final_groups,
         stats.merges,
-        if stats.fallback { " (monolithic fallback)" } else { "" },
+        if stats.fallback {
+            " (monolithic fallback)"
+        } else {
+            ""
+        },
     )
 }
 
 /// Footer for the PDDL3 metric-optimization path (classic-FF mode).
-pub fn metric_footer(cost: f64, iterations: usize, n_prefs: usize, threads: usize, warn_other: bool) -> String {
+pub fn metric_footer(
+    cost: f64,
+    iterations: usize,
+    n_prefs: usize,
+    threads: usize,
+    warn_other: bool,
+) -> String {
     let warn = if warn_other {
         "\n               note: metric has terms beyond is-violated/total-cost; optimized the supported part"
     } else {

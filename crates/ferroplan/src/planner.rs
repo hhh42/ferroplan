@@ -1,6 +1,6 @@
 // planner orchestration (ported from sgp) — a data-parallel SGPlan-style partition-and-resolve meta-planner that
 // reuses `ffdp` as its modified-Metric-FF subplanner.
-//!
+//
 // `run_planner` parses + grounds via `ffdp`, partitions the goal, solves
 // subproblems in parallel with `crate::solve_subgoal`, resolves cross-subplan
 // conflicts by merge-on-stuck (monolithic `ffdp` fallback), and renders the
@@ -8,12 +8,16 @@
 // message contract as `ffdp`/`metricff`, so it is a drop-in and shares the
 // differential test harness.
 
-
 use crate::ground::{ground, Outcome};
-use crate::{pddl3, report, resolve};
 use crate::resolve::Solved;
+use crate::{pddl3, report, resolve};
 
-pub fn run_planner(domain_src: &str, problem_src: &str, threads: usize, ipc: bool) -> (String, i32) {
+pub fn run_planner(
+    domain_src: &str,
+    problem_src: &str,
+    threads: usize,
+    ipc: bool,
+) -> (String, i32) {
     let threads = threads.max(1);
     let mut out = String::new();
 
@@ -131,7 +135,9 @@ fn plan_pddl3(
     };
 
     out.push_str(&report::preamble(threads));
-    let cf = task.fluent_id(pddl3::COST_DISP).expect("compile injects total-cost");
+    let cf = task
+        .fluent_id(pddl3::COST_DISP)
+        .expect("compile injects total-cost");
     match pddl3::metric_optimize(&task, cf, threads) {
         Some(r) => {
             let mut note = String::new();
@@ -141,7 +147,17 @@ fn plan_pddl3(
             if !r.proven {
                 note.push_str(" search bound hit; value is best-found, not proven optimal.");
             }
-            render_plan(out, &task, &r.ops, Some(r.cost), threads, &c, r.iterations, ipc, &note);
+            render_plan(
+                out,
+                &task,
+                &r.ops,
+                Some(r.cost),
+                threads,
+                &c,
+                r.iterations,
+                ipc,
+                &note,
+            );
             0
         }
         None => {
@@ -178,7 +194,10 @@ fn satisficing_fallback(
         }
     };
     out.push_str(&report::preamble(threads));
-    let note = format!(" PDDL3 metric NOT optimized ({}); returning a satisficing plan.", reason);
+    let note = format!(
+        " PDDL3 metric NOT optimized ({}); returning a satisficing plan.",
+        reason
+    );
     match resolve::solve(&task, threads) {
         Solved::Plan(ops, stats) => {
             if ipc {
@@ -252,26 +271,46 @@ pub fn run_ff(domain_src: &str, problem_src: &str, threads: usize) -> (String, i
     out.push_str("\nff: parsing domain file\n");
     let domain = match crate::parser::parse_domain(domain_src) {
         Ok(d) => d,
-        Err(e) => { out.push_str(&format!("\nff: parse error in domain file: {}\n", e)); return (out, 1); }
+        Err(e) => {
+            out.push_str(&format!("\nff: parse error in domain file: {}\n", e));
+            return (out, 1);
+        }
     };
     out.push_str(&format!("domain '{}' defined\n ... done.\n", domain.name));
     out.push_str("ff: parsing problem file\n");
     let problem = match crate::parser::parse_problem(problem_src) {
         Ok(p) => p,
-        Err(e) => { out.push_str(&format!("\nff: parse error in problem file: {}\n", e)); return (out, 1); }
+        Err(e) => {
+            out.push_str(&format!("\nff: parse error in problem file: {}\n", e));
+            return (out, 1);
+        }
     };
     out.push_str(&format!("problem '{}' defined\n ... done.\n", problem.name));
     match ground(&domain, &problem, threads) {
         Outcome::EmptyType { kind, pred, ty } => {
-            out.push_str(&format!("\n\n{} {} is declared to use unknown or empty type {}\n", kind, pred, ty)); (out, 1)
+            out.push_str(&format!(
+                "\n\n{} {} is declared to use unknown or empty type {}\n",
+                kind, pred, ty
+            ));
+            (out, 1)
         }
-        Outcome::GoalTrue => { out.push_str("\n\nff: goal can be simplified to TRUE. The empty plan solves it\n\n"); (out, 1) }
-        Outcome::GoalFalse => { out.push_str("\n\nff: goal can be simplified to FALSE. No plan will solve it\n\n"); (out, 1) }
-        Outcome::GoalUndefinedFluent => { out.push_str("\n\nff: goal accesses a fluent that will never have a defined value. Problem unsolvable.\n\n"); (out, 1) }
+        Outcome::GoalTrue => {
+            out.push_str("\n\nff: goal can be simplified to TRUE. The empty plan solves it\n\n");
+            (out, 1)
+        }
+        Outcome::GoalFalse => {
+            out.push_str("\n\nff: goal can be simplified to FALSE. No plan will solve it\n\n");
+            (out, 1)
+        }
+        Outcome::GoalUndefinedFluent => {
+            out.push_str("\n\nff: goal accesses a fluent that will never have a defined value. Problem unsolvable.\n\n");
+            (out, 1)
+        }
         Outcome::Task(task) => {
             let result = crate::search::search(&task, threads);
             let (body, code) = crate::output::render(&task, &result, threads);
-            out.push_str(&body); (out, code)
+            out.push_str(&body);
+            (out, code)
         }
     }
 }
