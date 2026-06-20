@@ -8,17 +8,26 @@ A fast, data-parallel **PDDL planner** in Rust.
 
 `ferroplan` is a from-scratch reimplementation of the FF family of planners with a
 data-oriented core (bitset states, structure-of-arrays / CSR operator tables),
-parallel grounding and parallel heuristic evaluation, plus an SGPlan-style
-partition-and-resolve mode and PDDL3 preference/metric optimization. It ships
-both a **library** (with a structured, JSON-serializable API) and the **`ff`**
-command-line binary — a drop-in for Metric-FF's `ff -o domain -f problem`.
+**enforced hill-climbing** (EHC) with a best-first fallback, parallel grounding
+and parallel heuristic evaluation, plus an SGPlan-style partition-and-resolve mode
+and PDDL3 preference/metric optimization. It ships both a **library** (with a
+structured, JSON-serializable API) and the **`ff`** command-line binary — a
+drop-in for Metric-FF's `ff -o domain -f problem`.
+
+On classical and ADL benchmarks it runs within ~1.4× of the heavily-optimized C
+Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
+trails and IPC-5 preference quality is competitive-not-winning — see
+[Benchmarks](#benchmarks).
 
 > Status: **v0.1**, not yet on crates.io. APIs may shift before 1.0.
 
 ## Features
 
-- **FF heuristic search** — delete-relaxation relaxed-plan heuristic over a
-  data-oriented task, weighted best-first (`1·g + 5·h`), deferred evaluation.
+- **EHC + best-first** — enforced hill-climbing with helpful actions (the FF
+  speed default), falling back to weighted best-first when it stalls. Selectable
+  per solve (`--search auto|ehc|best-first|…`).
+- **FF heuristic** — delete-relaxation relaxed-plan heuristic over a
+  data-oriented task, deferred evaluation, tunable `g`/`h` weights.
 - **Data parallelism** — parallel grounding and parallel batch heuristic
   evaluation (`std::thread`); the plan found is identical for any thread count.
 - **PDDL coverage** — STRIPS, typing, negative/disjunctive preconditions,
@@ -48,12 +57,16 @@ ff -o domain.pddl -f problem.pddl
 # structured JSON solution
 ff -o domain.pddl -f problem.pddl --json
 
-# pick a strategy: auto (default) | ff | partition | pddl3
+# pick a mode / search strategy
 ff -o domain.pddl -f problem.pddl --mode partition
+ff -o domain.pddl -f problem.pddl --search best-first --weight-h 3
 
 # self-contained JSON job: {"domain": "...", "problem": "...", "options": {...}}
 ff --json-request job.json
 ```
+
+Run `ff --help` for all flags (`--search`, `--weight-g/--weight-h`,
+`--max-evaluated`, `--satisfice`, `--threads`, …).
 
 ## Library
 
@@ -75,6 +88,30 @@ if let Some(plan) = solution.plan {
 
 See [`examples/`](crates/ferroplan/examples) for `solve` and `json_api`.
 
+## Configuration
+
+Every solver knob lives on one `Options` struct (library-first, `serde`-
+serializable). The CLI flags and JSON job options map to the same fields; omitted
+JSON fields fall back to the defaults shown.
+
+```rust
+ferroplan::solve(&domain, &problem, &ferroplan::Options {
+    mode:            Mode::Auto,        // auto | ff | partition | pddl3
+    search:          Search::Auto,      // auto | ehc | best-first | ehc-then-best-first
+    helpful_actions: true,              // helpful-action pruning (EHC)
+    weight_g:        1.0,               // best-first path-length weight
+    weight_h:        5.0,               // best-first heuristic weight  (1·g + 5·h)
+    threads:         0,                 // 0 = auto
+    max_evaluated:   None,              // search node cap
+    optimize:        true,              // PDDL3: optimize metric vs. satisfice
+    ..Default::default()                // every field is optional
+})?;
+```
+
+CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
+`--max-evaluated`, `--satisfice`, `--threads`. Via JSON:
+`{"domain": "...", "problem": "...", "options": {"search": "best-first"}}`.
+
 ## Workspace layout
 
 | crate | what |
@@ -84,16 +121,27 @@ See [`examples/`](crates/ferroplan/examples) for `solve` and `json_api`.
 
 ## Benchmarks
 
-`ferroplan` is differentially tested against the C **Metric-FF** and **SGPlan6**
-binaries over a curated subset of the IPC contest suites (classical, numeric,
-ADL, and IPC-5 simple-preferences). See [`benchmarks/`](benchmarks) and the
-[project site](https://haroldhhersey.github.io/ferroplan) for results.
+Compared against the C **Metric-FF** and **SGPlan6** planners over a subset of
+the IPC contest suites. Headline (native Metric-FF, EHC default):
+
+| category | ferroplan solved | speed vs Metric-FF |
+|---|---:|---|
+| STRIPS | 40/40 | 0.71× (~1.4× slower) |
+| ADL | 23/24 | 0.77× (~1.3× slower) |
+| numeric | 36/40 | 0.22× |
+
+Full results + the IPC-5 preference scoreboard: [`benchmarks/results.md`](benchmarks/results.md)
+(and the [project site](https://haroldhhersey.github.io/ferroplan)). The oracles
+are not bundled (GPL / non-commercial licences) — reproduce per
+[`benchmarks/COMPARING.md`](benchmarks/COMPARING.md).
 
 ## Limitations
 
-- PDDL3 metric optimization is exact branch-and-bound; on the largest IPC-5
-  instances it returns a best-found plan (flagged *not proven optimal*) rather
-  than the true optimum within the time bound.
+- **Numeric** trails Metric-FF: EHC's helpful-action lookahead stalls on some
+  numeric domains and falls back to (complete, slower) best-first.
+- **IPC-5 preferences**: compiled away + anytime branch-and-bound — matches
+  SGPlan6's optimum on small instances, but does not beat its specialised search
+  on the largest (best-found, flagged *not proven optimal*).
 - Temporal/durative actions and derived predicates are not supported.
 
 ## License
