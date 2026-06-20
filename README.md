@@ -1,5 +1,9 @@
 # ferroplan
 
+[![CI](https://github.com/haroldhhersey/ferroplan/actions/workflows/ci.yml/badge.svg)](https://github.com/haroldhhersey/ferroplan/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/badge/docs-mdbook-blue)](https://haroldhhersey.github.io/ferroplan)
+[![license](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
+
 A fast, data-parallel **PDDL planner** in Rust.
 
 `ferroplan` is a from-scratch reimplementation of the FF family of planners with a
