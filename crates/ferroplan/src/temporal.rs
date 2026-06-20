@@ -97,20 +97,29 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
         let run_types: Vec<Sym> = da.params.iter().map(|(_, t)| t.clone()).collect();
 
         d.predicates.push((running.clone(), run_types));
+        let invariant = pick_conditions(da, TimeSpec::All);
 
-        // start snap: at-start conditions -> effect = at-start effects + token
+        // start snap: (at-start conditions + invariant) -> at-start effects + token.
+        // The invariant is also checked at both endpoints (a sound approximation
+        // of `over all`: an interval violation surfaces when the END precondition
+        // fails, e.g. a concurrent action removing the invariant fact).
+        let start_pre = and_formulas(vec![
+            pick_conditions(da, TimeSpec::Start),
+            invariant.clone(),
+        ]);
         let mut start_eff = pick_effects(da, TimeSpec::Start);
         start_eff.push(Effect::Add(running.clone(), run_args.clone()));
         d.actions.push(Action {
             name: start_name.clone(),
             params: da.params.clone(),
-            precond: pick_conditions(da, TimeSpec::Start),
+            precond: start_pre,
             effect: and_effects(start_eff),
         });
 
-        // end snap: at-end conditions + token -> at-end effects, drop token
+        // end snap: (at-end conditions + invariant + token) -> at-end effects, drop token
         let end_pre = and_formulas(vec![
             pick_conditions(da, TimeSpec::End),
+            invariant.clone(),
             Formula::Atom(running.clone(), run_args.clone()),
         ]);
         let mut end_eff = pick_effects(da, TimeSpec::End);
@@ -127,7 +136,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
             end_action: end_name,
             running_pred: running,
             duration: da.duration.clone(),
-            invariant: pick_conditions(da, TimeSpec::All),
+            invariant,
             params: da.params.clone(),
         });
     }
