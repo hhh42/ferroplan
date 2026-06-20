@@ -38,14 +38,20 @@ EHC reaches the goal in *dozens* of evaluations where plain best-first needs
 
 (`--search best-first` selects the old behaviour; EHC is the default.)
 
-## IPC-5 simple-preferences — plan quality vs SGPlan6
+## IPC-5 simple-preferences
 
 ferroplan compiles preferences away (Keyder & Geffner) and runs anytime
-branch-and-bound on the metric. It **matches SGPlan6's optimum on small
-instances** (e.g. `pathways/p01`, metric = 2) but does **not** beat SGPlan6's
-specialised penalty / constraint-partitioning search on the largest instances —
-ferroplan is *not* the IPC-5 winner. Honest scoreboard: competitive on small
-preference tasks, behind on the hardest.
+branch-and-bound on the metric. Of the three planners, **only ferroplan handles
+PDDL3 here**: Metric-FF is PDDL2.1-only and errors on every preference problem,
+and SGPlan6 (the IPC-5 winner) is the relevant comparison but is not bundled.
+
+Over the 48-problem set (20 s budget): ferroplan **solves ~16** with sensible
+metrics — `pathways/p01` = **2** (matching SGPlan6's optimum), `trucks/p01–p05`
+= **0** (all preferences satisfied) — and **times out on the hardest ~2/3**
+(`openstacks`, `tpp`, `storage`). So: competitive and optimal on small/medium
+preference tasks, but the anytime B&B does **not** beat SGPlan6's specialised
+penalty / constraint-partitioning search on the largest — ferroplan is *not* the
+IPC-5 winner.
 
 ## Reproduce
 
