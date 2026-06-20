@@ -193,15 +193,16 @@ impl TimedPlan {
 
 #[derive(Clone, Copy)]
 enum Kind {
-    /// durative start: fixed duration + the matching end op index
+    /// durative start: resolved duration (constant or parameter-dependent) + the
+    /// matching end op index
     Start {
         dur: f64,
         end_op: usize,
     },
     End,
     Classical,
-    /// a start whose duration/end we can't resolve (e.g. non-constant duration);
-    /// never applied (the domain feature is unsupported in this first cut)
+    /// a start whose duration/end can't be resolved (undefined duration fluent,
+    /// non-positive value, or missing end op); never applied
     Skip,
 }
 
@@ -224,10 +225,63 @@ fn tkey(task: &PackedTask, n: &TNode) -> (StateKey, Vec<(i64, usize)>) {
     (task.state_key(&n.state), ag)
 }
 
+/// Evaluate a (possibly parameter-dependent) duration for one grounded
+/// snap-action. The action's parameters are bound positionally to the grounded
+/// args; fluents are read from the INITIAL state — IPC temporal durations depend
+/// on static fluents like `(= ?duration (/ (distance ?a ?b) (speed ?v)))`, which
+/// keep their init value. Returns None for a non-positive duration, an undefined
+/// fluent, or division by zero (the caller then skips the action).
+fn eval_duration(snap: &SnapInfo, args: &[&str], task: &PackedTask, init: &State) -> Option<f64> {
+    let bind: HashMap<&str, &str> = snap
+        .params
+        .iter()
+        .map(|(p, _)| p.as_str())
+        .zip(args.iter().copied())
+        .collect();
+    let d = eval_expr(&snap.duration, &bind, task, init)?;
+    if d.is_finite() && d > 0.0 {
+        Some(d)
+    } else {
+        None
+    }
+}
+
+fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &State) -> Option<f64> {
+    match e {
+        Expr::Num(n) => Some(*n),
+        Expr::Fluent(name, terms) => {
+            let mut disp = String::from("(");
+            disp.push_str(name);
+            for t in terms {
+                disp.push(' ');
+                match t {
+                    Term::Const(c) => disp.push_str(c),
+                    Term::Var(v) => disp.push_str(bind.get(v.as_str())?),
+                }
+            }
+            disp.push(')');
+            let id = task.fluent_id(&disp)?;
+            init.fdef[id].then(|| init.fv[id])
+        }
+        Expr::Add(a, b) => Some(eval_expr(a, bind, task, init)? + eval_expr(b, bind, task, init)?),
+        Expr::Sub(a, b) => Some(eval_expr(a, bind, task, init)? - eval_expr(b, bind, task, init)?),
+        Expr::Mul(a, b) => Some(eval_expr(a, bind, task, init)? * eval_expr(b, bind, task, init)?),
+        Expr::Div(a, b) => {
+            let d = eval_expr(b, bind, task, init)?;
+            if d == 0.0 {
+                return None;
+            }
+            Some(eval_expr(a, bind, task, init)? / d)
+        }
+        Expr::Neg(a) => Some(-eval_expr(a, bind, task, init)?),
+    }
+}
+
 /// Solve a temporal (durative-action) problem by decision-epoch forward search.
-/// Returns a timed plan, or None if unsolved within the node budget. First cut:
-/// fixed (constant) durations; the `over all` invariant is enforced at the start
-/// and end happenings via the snap preconditions.
+/// Returns a timed plan, or None if unsolved within the node budget. Durations
+/// may be constants or parameter-dependent (evaluated against the initial state);
+/// the `over all` invariant is enforced at the start and end happenings via the
+/// snap preconditions.
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
     let c = compile(domain, problem);
@@ -242,14 +296,14 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         _ => return None,
     };
 
-    // fixed duration per start-action name
-    let mut dur_by_start: HashMap<&str, f64> = HashMap::new();
-    for s in &c.snaps {
-        if let Expr::Num(n) = s.duration {
-            dur_by_start.insert(s.start_action.as_str(), n);
-        }
-    }
-    let start_names: HashSet<&str> = c.snaps.iter().map(|s| s.start_action.as_str()).collect();
+    // Resolve each grounded snap-action's duration (constant OR parameter-dependent,
+    // evaluated against the initial state) and pair starts with their end op.
+    let init = task.initial();
+    let snap_by_start: HashMap<&str, &SnapInfo> = c
+        .snaps
+        .iter()
+        .map(|s| (s.start_action.as_str(), s))
+        .collect();
     let end_names: HashSet<&str> = c.snaps.iter().map(|s| s.end_action.as_str()).collect();
     let by_display: HashMap<&str, usize> = task
         .op_display
@@ -262,10 +316,14 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         .map(|oi| {
             let disp = &task.op_display[oi];
             let head = disp.split_whitespace().next().unwrap_or("");
-            if start_names.contains(head) {
+            if let Some(snap) = snap_by_start.get(head) {
+                let args: Vec<&str> = disp.split_whitespace().skip(1).collect();
                 let end_disp = disp.replacen("-START", "-END", 1);
-                match (dur_by_start.get(head), by_display.get(end_disp.as_str())) {
-                    (Some(&dur), Some(&end_op)) => Kind::Start { dur, end_op },
+                match (
+                    eval_duration(snap, &args, &task, &init),
+                    by_display.get(end_disp.as_str()),
+                ) {
+                    (Some(dur), Some(&end_op)) => Kind::Start { dur, end_op },
                     _ => Kind::Skip,
                 }
             } else if end_names.contains(head) {
@@ -277,7 +335,6 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         .collect();
 
     let mut sc = Scratch::new(&task);
-    let init = task.initial();
     relaxed(&task, &mut sc, &init.bits, &init.fv, &init.fdef)?; // dead end -> None
     let mut nodes = vec![TNode {
         state: init,
@@ -308,7 +365,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
 
     while let Some(Reverse((_h, ni))) = heap.pop() {
         if task.goal_met(&nodes[ni].state) && nodes[ni].agenda.is_empty() {
-            return Some(reconstruct(&task, &nodes, ni, &c));
+            return Some(reconstruct(&task, &nodes, ni, &kind));
         }
         if nodes.len() > MAX_NODES {
             break;
@@ -391,18 +448,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
 /// Walk the father chain into a timed plan: each START becomes a durative step
 /// with its duration (the END is implied); END events are dropped; classical
 /// actions appear instantaneously.
-fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, c: &TemporalCompiled) -> TimedPlan {
-    let dur_by_start: HashMap<&str, f64> = c
-        .snaps
-        .iter()
-        .filter_map(|s| match s.duration {
-            Expr::Num(n) => Some((s.start_action.as_str(), n)),
-            _ => None,
-        })
-        .collect();
-    let start_names: HashSet<&str> = c.snaps.iter().map(|s| s.start_action.as_str()).collect();
-    let end_names: HashSet<&str> = c.snaps.iter().map(|s| s.end_action.as_str()).collect();
-
+fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, kind: &[Kind]) -> TimedPlan {
     let mut events: Vec<(usize, f64)> = Vec::new();
     let mut cur = goal;
     while let Some((op, t)) = nodes[cur].ev {
@@ -421,22 +467,24 @@ fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, c: &TemporalComp
             .skip(1)
             .collect::<Vec<_>>()
             .join(" ");
-        if end_names.contains(head) {
-            // implied by the matching start's duration
-            makespan = makespan.max(t);
-            continue;
-        }
-        let (name, duration) = if start_names.contains(head) {
-            let base = head.trim_end_matches("-START");
-            let dur = dur_by_start.get(head).copied();
-            makespan = makespan.max(t + dur.unwrap_or(0.0));
-            (base.to_string(), dur)
-        } else {
-            makespan = makespan.max(t);
-            (head.to_string(), None)
+        // Use the durations resolved in `solve` so constant and parameter-dependent
+        // durative actions render identically. END events are implied by their start.
+        let (name, duration) = match kind[op] {
+            Kind::End => {
+                makespan = makespan.max(t);
+                continue;
+            }
+            Kind::Start { dur, .. } => {
+                makespan = makespan.max(t + dur);
+                (head.trim_end_matches("-START"), Some(dur))
+            }
+            _ => {
+                makespan = makespan.max(t);
+                (head, None)
+            }
         };
         let action = if args.is_empty() {
-            name
+            name.to_string()
         } else {
             format!("{} {}", name, args)
         };

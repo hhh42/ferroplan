@@ -191,3 +191,47 @@ fn t4_public_api_routes_durative_to_temporal() {
     assert_eq!(p.steps[0].time, Some(0.0));
     assert_eq!(p.steps[0].duration, Some(3.0));
 }
+
+#[test]
+fn t3_parameter_dependent_duration() {
+    // duration = (dist ?from ?to) — a per-grounding value read from the init.
+    // Two hops with different distances prove the duration is evaluated per
+    // grounded action, not as a single constant.
+    let dom = "
+    (define (domain fly)
+      (:requirements :typing :durative-actions :numeric-fluents)
+      (:types loc)
+      (:predicates (at ?l - loc))
+      (:functions (dist ?a ?b - loc))
+      (:durative-action fly
+        :parameters (?from ?to - loc)
+        :duration (= ?duration (dist ?from ?to))
+        :condition (at start (at ?from))
+        :effect (and (at start (not (at ?from))) (at end (at ?to)))))";
+    let prob = "
+    (define (problem p) (:domain fly)
+      (:objects a b c - loc)
+      (:init (at a) (= (dist a b) 7) (= (dist b c) 4))
+      (:goal (at c)))";
+    let d = parse_domain(dom).expect("domain");
+    let p = parse_problem(prob).expect("problem");
+    let plan = temporal::solve(&d, &p, 1).expect("temporal plan with param durations");
+    let fly_ab = plan
+        .steps
+        .iter()
+        .find(|s| s.action == "FLY A B")
+        .expect("fly a b");
+    let fly_bc = plan
+        .steps
+        .iter()
+        .find(|s| s.action == "FLY B C")
+        .expect("fly b c");
+    assert_eq!(fly_ab.duration, Some(7.0), "dist a b = 7");
+    assert_eq!(fly_bc.duration, Some(4.0), "dist b c = 4");
+    // a then b then c, sequential: makespan = 7 + 4 = 11
+    assert!(
+        (plan.makespan - 11.0).abs() < 1e-9,
+        "makespan {}",
+        plan.makespan
+    );
+}
