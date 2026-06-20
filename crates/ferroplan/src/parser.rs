@@ -28,12 +28,21 @@ const SUPPORTED: &[&str] = &[
 
 struct P {
     t: Vec<Tok>,
+    lines: Vec<u32>,
     i: usize,
 }
 
 impl P {
-    fn new(t: Vec<Tok>) -> Self {
-        P { t, i: 0 }
+    fn new(t: Vec<Tok>, lines: Vec<u32>) -> Self {
+        P { t, lines, i: 0 }
+    }
+    /// 1-based source line at the current position (for error reporting).
+    fn line(&self) -> u32 {
+        self.lines
+            .get(self.i)
+            .or_else(|| self.lines.last())
+            .copied()
+            .unwrap_or(1)
     }
     fn peek(&self) -> Option<&Tok> {
         self.t.get(self.i)
@@ -527,8 +536,13 @@ fn parse_constraint(p: &mut P) -> Result<Constraint, String> {
     Ok(c)
 }
 
-pub fn parse_domain(src: &str) -> Result<Domain, String> {
-    let mut p = P::new(lex(src)?);
+pub fn parse_domain(src: &str) -> Result<Domain, ParseError> {
+    let (toks, lines) = lex(src)?;
+    let mut p = P::new(toks, lines);
+    domain_inner(&mut p).map_err(|m| ParseError::new(p.line(), m))
+}
+
+fn domain_inner(p: &mut P) -> Result<Domain, String> {
     p.expect_lparen()?;
     p.expect_kw("DEFINE")?;
     p.expect_lparen()?;
@@ -566,7 +580,7 @@ pub fn parse_domain(src: &str) -> Result<Domain, String> {
                 p.expect_rparen()?;
             }
             ":TYPES" => {
-                let tl = parse_typed_list(&mut p)?;
+                let tl = parse_typed_list(p)?;
                 for (name, parent) in tl {
                     d.types.push(name.clone());
                     d.type_parent.push((name, parent));
@@ -574,21 +588,21 @@ pub fn parse_domain(src: &str) -> Result<Domain, String> {
                 p.expect_rparen()?;
             }
             ":CONSTANTS" => {
-                d.constants = parse_typed_list(&mut p)?;
+                d.constants = parse_typed_list(p)?;
                 p.expect_rparen()?;
             }
             ":PREDICATES" => {
-                d.predicates = parse_predicates(&mut p)?;
+                d.predicates = parse_predicates(p)?;
             }
             ":FUNCTIONS" => {
-                d.functions = parse_functions(&mut p)?;
+                d.functions = parse_functions(p)?;
             }
             ":ACTION" => {
-                d.actions.push(parse_action(&mut p)?);
+                d.actions.push(parse_action(p)?);
             }
             ":CONSTRAINTS" => {
                 if !p.at_rparen() {
-                    d.constraints.push(parse_constraint(&mut p)?);
+                    d.constraints.push(parse_constraint(p)?);
                 }
                 p.expect_rparen()?;
             }
@@ -652,8 +666,13 @@ fn name_or_const(t: Tok) -> Result<String, String> {
     }
 }
 
-pub fn parse_problem(src: &str) -> Result<Problem, String> {
-    let mut p = P::new(lex(src)?);
+pub fn parse_problem(src: &str) -> Result<Problem, ParseError> {
+    let (toks, lines) = lex(src)?;
+    let mut p = P::new(toks, lines);
+    problem_inner(&mut p).map_err(|m| ParseError::new(p.line(), m))
+}
+
+fn problem_inner(p: &mut P) -> Result<Problem, String> {
     p.expect_lparen()?;
     p.expect_kw("DEFINE")?;
     p.expect_lparen()?;
@@ -685,22 +704,22 @@ pub fn parse_problem(src: &str) -> Result<Problem, String> {
                 p.skip_balanced()?;
             }
             ":OBJECTS" => {
-                prob.objects = parse_typed_list(&mut p)?;
+                prob.objects = parse_typed_list(p)?;
                 p.expect_rparen()?;
             }
             ":INIT" => {
                 while !p.at_rparen() {
-                    parse_init_elt(&mut p, &mut prob.init_atoms, &mut prob.init_fluents)?;
+                    parse_init_elt(p, &mut prob.init_atoms, &mut prob.init_fluents)?;
                 }
                 p.expect_rparen()?;
             }
             ":GOAL" => {
-                prob.goal = parse_formula(&mut p)?;
+                prob.goal = parse_formula(p)?;
                 p.expect_rparen()?;
             }
             ":CONSTRAINTS" => {
                 if !p.at_rparen() {
-                    prob.constraints.push(parse_constraint(&mut p)?);
+                    prob.constraints.push(parse_constraint(p)?);
                 }
                 p.expect_rparen()?;
             }
@@ -712,7 +731,7 @@ pub fn parse_problem(src: &str) -> Result<Problem, String> {
                     "MAXIMIZE" => MetricDir::Maximize,
                     other => return Err(format!("unknown metric direction `{}`", other)),
                 };
-                let e = parse_expr(&mut p)?;
+                let e = parse_expr(p)?;
                 prob.metric = Some((dir, e));
                 p.expect_rparen()?;
             }

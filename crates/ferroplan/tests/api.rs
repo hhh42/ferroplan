@@ -73,3 +73,14 @@ fn parse_error_is_typed() {
     // it's a typed error, not a panic
     assert!(matches!(err, ferroplan::SolveError::DomainParse(_)));
 }
+
+#[test]
+fn parse_error_reports_line() {
+    // bad requirement on line 2 -> ParseError carries line 2
+    let dom = "(define (domain d)\n (:requirements :strips :bogus)\n (:predicates (x)))";
+    let prob = "(define (problem p) (:domain d) (:init) (:goal (x)))";
+    match solve(dom, prob, &Options::default()).unwrap_err() {
+        ferroplan::SolveError::DomainParse(pe) => assert_eq!(pe.line, 2, "{}", pe),
+        e => panic!("expected DomainParse, got {e:?}"),
+    }
+}

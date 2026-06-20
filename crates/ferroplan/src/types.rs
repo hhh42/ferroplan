@@ -4,6 +4,23 @@
 
 pub type Sym = String;
 
+/// A PDDL parse error with the 1-based source line it occurred on.
+#[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
+#[error("line {line}: {message}")]
+pub struct ParseError {
+    pub line: u32,
+    pub message: String,
+}
+
+impl ParseError {
+    pub fn new(line: u32, message: impl Into<String>) -> Self {
+        ParseError {
+            line,
+            message: message.into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Term {
     Var(Sym),

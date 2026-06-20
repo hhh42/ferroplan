@@ -94,9 +94,9 @@ pub type Metric = f64;
 #[derive(thiserror::Error, Debug)]
 pub enum SolveError {
     #[error("domain parse error: {0}")]
-    DomainParse(String),
+    DomainParse(crate::types::ParseError),
     #[error("problem parse error: {0}")]
-    ProblemParse(String),
+    ProblemParse(crate::types::ParseError),
     #[error("{kind} {pred} uses an unknown or empty type {ty}")]
     EmptyType {
         kind: String,

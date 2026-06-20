@@ -19,11 +19,20 @@ pub enum Tok {
     Op(String), // = < <= > >= + * /
 }
 
-pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
+/// Tokenize, returning the tokens and the parallel 1-based source line of each.
+pub fn lex(input: &str) -> Result<(Vec<Tok>, Vec<u32>), crate::types::ParseError> {
     let b = input.as_bytes();
     let n = b.len();
     let mut i = 0;
+    let mut line: u32 = 1;
     let mut out = Vec::new();
+    let mut lines = Vec::new();
+    macro_rules! push {
+        ($t:expr) => {{
+            out.push($t);
+            lines.push(line);
+        }};
+    }
 
     let is_name_start = |c: u8| c.is_ascii_alphabetic() || c == b':';
     let is_name_cont = |c: u8| c.is_ascii_alphanumeric() || c == b'-' || c == b'_' || c == b':';
@@ -31,7 +40,11 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
     while i < n {
         let c = b[i];
         match c {
-            b' ' | b'\t' | b'\r' | b'\n' | b',' => {
+            b'\n' => {
+                line += 1;
+                i += 1;
+            }
+            b' ' | b'\t' | b'\r' | b',' => {
                 i += 1;
             }
             b';' => {
@@ -41,9 +54,12 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
                 }
             }
             b'"' => {
-                // block comment until matching quote
+                // block comment until matching quote (may span lines)
                 i += 1;
                 while i < n && b[i] != b'"' {
+                    if b[i] == b'\n' {
+                        line += 1;
+                    }
                     i += 1;
                 }
                 if i < n {
@@ -51,11 +67,11 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
                 }
             }
             b'(' => {
-                out.push(Tok::LParen);
+                push!(Tok::LParen);
                 i += 1;
             }
             b')' => {
-                out.push(Tok::RParen);
+                push!(Tok::RParen);
                 i += 1;
             }
             b'?' => {
@@ -64,28 +80,27 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
                 while j < n && is_name_cont(b[j]) {
                     j += 1;
                 }
-                let name = input[start..j].to_ascii_uppercase();
-                out.push(Tok::Var(name));
+                push!(Tok::Var(input[start..j].to_ascii_uppercase()));
                 i = j;
             }
             b'-' => {
-                out.push(Tok::Dash);
+                push!(Tok::Dash);
                 i += 1;
             }
             b'+' | b'*' | b'/' => {
-                out.push(Tok::Op((c as char).to_string()));
+                push!(Tok::Op((c as char).to_string()));
                 i += 1;
             }
             b'=' => {
-                out.push(Tok::Op("=".to_string()));
+                push!(Tok::Op("=".to_string()));
                 i += 1;
             }
             b'<' | b'>' => {
                 if i + 1 < n && b[i + 1] == b'=' {
-                    out.push(Tok::Op(format!("{}=", c as char)));
+                    push!(Tok::Op(format!("{}=", c as char)));
                     i += 2;
                 } else {
-                    out.push(Tok::Op((c as char).to_string()));
+                    push!(Tok::Op((c as char).to_string()));
                     i += 1;
                 }
             }
@@ -96,10 +111,10 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
                     j += 1;
                 }
                 let s = &input[start..j];
-                let v: f64 = s
-                    .parse()
-                    .map_err(|_| format!("bad number literal `{}`", s))?;
-                out.push(Tok::Num(v));
+                let v: f64 = s.parse().map_err(|_| {
+                    crate::types::ParseError::new(line, format!("bad number literal `{}`", s))
+                })?;
+                push!(Tok::Num(v));
                 i = j;
             }
             _ if is_name_start(c) => {
@@ -108,8 +123,7 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
                 while j < n && is_name_cont(b[j]) {
                     j += 1;
                 }
-                let name = input[start..j].to_ascii_uppercase();
-                out.push(Tok::Name(name));
+                push!(Tok::Name(input[start..j].to_ascii_uppercase()));
                 i = j;
             }
             _ => {
@@ -118,5 +132,5 @@ pub fn lex(input: &str) -> Result<Vec<Tok>, String> {
             }
         }
     }
-    Ok(out)
+    Ok((out, lines))
 }
