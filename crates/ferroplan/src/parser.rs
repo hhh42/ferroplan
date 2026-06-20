@@ -24,6 +24,11 @@ const SUPPORTED: &[&str] = &[
     ":PREFERENCES",
     ":CONSTRAINTS",
     ":GOAL-UTILITIES",
+    // PDDL2.1 temporal
+    ":DURATIVE-ACTIONS",
+    ":DURATION-INEQUALITIES",
+    ":TIMED-INITIAL-LITERALS",
+    ":TIME",
 ];
 
 struct P {
@@ -467,6 +472,138 @@ fn parse_action(p: &mut P) -> Result<Action, String> {
     })
 }
 
+/// Parse `(:durative-action name :parameters (..) :duration (= ?duration e)
+/// :condition <timed> :effect <timed>)`. Cursor is just after the name token.
+fn parse_durative_action(p: &mut P) -> Result<DurativeAction, String> {
+    let name = p.name()?;
+    let mut params = Vec::new();
+    let mut duration = Expr::Num(0.0);
+    let mut conditions = Vec::new();
+    let mut effects = Vec::new();
+    while !p.at_rparen() {
+        let kw = p.name()?;
+        match kw.as_str() {
+            ":PARAMETERS" => {
+                p.expect_lparen()?;
+                params = parse_typed_list(p)?;
+                p.expect_rparen()?;
+            }
+            ":DURATION" => duration = parse_duration(p)?,
+            ":CONDITION" => conditions = parse_timed_conditions(p)?,
+            ":EFFECT" => effects = parse_timed_effects(p)?,
+            other => return Err(format!("unknown durative-action keyword `{}`", other)),
+        }
+    }
+    p.expect_rparen()?;
+    Ok(DurativeAction {
+        name,
+        params,
+        duration,
+        conditions,
+        effects,
+    })
+}
+
+/// `(= ?duration expr)`. Duration-inequalities (`(and (>= ?duration ..) ..)`) are
+/// not yet supported.
+fn parse_duration(p: &mut P) -> Result<Expr, String> {
+    p.expect_lparen()?;
+    match p.next()? {
+        Tok::Op(ref s) if s == "=" => {}
+        other => {
+            return Err(format!(
+                "expected '=' in :duration, found {:?} (duration-inequalities unsupported)",
+                other
+            ))
+        }
+    }
+    match p.next()? {
+        Tok::Var(_) => {}
+        other => {
+            return Err(format!(
+                "expected ?duration in :duration, found {:?}",
+                other
+            ))
+        }
+    }
+    let e = parse_expr(p)?;
+    p.expect_rparen()?;
+    Ok(e)
+}
+
+/// `h` is "AT" (followed by start/end) or "OVER" (followed by all).
+fn timespec_from(p: &mut P, h: &str) -> Result<TimeSpec, String> {
+    match h {
+        "AT" => match p.name()?.as_str() {
+            "START" => Ok(TimeSpec::Start),
+            "END" => Ok(TimeSpec::End),
+            x => Err(format!("expected start/end after 'at', found `{}`", x)),
+        },
+        "OVER" => match p.name()?.as_str() {
+            "ALL" => Ok(TimeSpec::All),
+            x => Err(format!("expected 'all' after 'over', found `{}`", x)),
+        },
+        x => Err(format!(
+            "expected at/over in durative condition, found `{}`",
+            x
+        )),
+    }
+}
+
+fn parse_timed_conditions(p: &mut P) -> Result<Vec<(TimeSpec, Formula)>, String> {
+    p.expect_lparen()?;
+    if p.at_rparen() {
+        p.next()?; // ()
+        return Ok(Vec::new());
+    }
+    let h = p.name()?;
+    if h == "AND" {
+        let mut v = Vec::new();
+        while !p.at_rparen() {
+            p.expect_lparen()?;
+            let hh = p.name()?;
+            let ts = timespec_from(p, &hh)?;
+            let f = parse_formula(p)?;
+            p.expect_rparen()?;
+            v.push((ts, f));
+        }
+        p.expect_rparen()?;
+        Ok(v)
+    } else {
+        let ts = timespec_from(p, &h)?;
+        let f = parse_formula(p)?;
+        p.expect_rparen()?;
+        Ok(vec![(ts, f)])
+    }
+}
+
+fn parse_timed_effects(p: &mut P) -> Result<Vec<(TimeSpec, Effect)>, String> {
+    p.expect_lparen()?;
+    if p.at_rparen() {
+        p.next()?; // ()
+        return Ok(Vec::new());
+    }
+    let h = p.name()?;
+    if h == "AND" {
+        let mut v = Vec::new();
+        while !p.at_rparen() {
+            p.expect_lparen()?;
+            let hh = p.name()?;
+            let ts = timespec_from(p, &hh)?;
+            let e = parse_effect(p)?;
+            p.expect_rparen()?;
+            v.push((ts, e));
+        }
+        p.expect_rparen()?;
+        Ok(v)
+    } else {
+        let ts = timespec_from(p, &h)?;
+        let e = parse_effect(p)?;
+        p.expect_rparen()?;
+        Ok(vec![(ts, e)])
+    }
+}
+
 /// Parse one PDDL3 `(:constraints ...)` constraint formula (modal operators).
 /// Phase 1 stores these in the AST; trajectory compilation is a later phase.
 fn parse_constraint(p: &mut P) -> Result<Constraint, String> {
@@ -559,6 +696,7 @@ fn domain_inner(p: &mut P) -> Result<Domain, String> {
         predicates: Vec::new(),
         functions: Vec::new(),
         actions: Vec::new(),
+        durative_actions: Vec::new(),
         constraints: Vec::new(),
     };
 
@@ -599,6 +737,9 @@ fn domain_inner(p: &mut P) -> Result<Domain, String> {
             }
             ":ACTION" => {
                 d.actions.push(parse_action(p)?);
+            }
+            ":DURATIVE-ACTION" => {
+                d.durative_actions.push(parse_durative_action(p)?);
             }
             ":CONSTRAINTS" => {
                 if !p.at_rparen() {

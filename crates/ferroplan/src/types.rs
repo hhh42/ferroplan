@@ -121,6 +121,30 @@ pub struct Action {
     pub effect: Effect,
 }
 
+/// When a PDDL2.1 durative-action condition/effect applies.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeSpec {
+    /// `at start`
+    Start,
+    /// `at end`
+    End,
+    /// `over all` — an invariant that must hold throughout (conditions only).
+    All,
+}
+
+/// A PDDL2.1 `:durative-action`.
+#[derive(Clone, Debug)]
+pub struct DurativeAction {
+    pub name: Sym,
+    pub params: Vec<(Sym, Sym)>,
+    /// Duration expression from `(= ?duration expr)`. (Duration-inequalities are
+    /// not yet supported; only a fixed `=` duration is parsed.)
+    pub duration: Expr,
+    pub conditions: Vec<(TimeSpec, Formula)>,
+    /// Effects are only `at start` / `at end` (`over all` is not a legal effect).
+    pub effects: Vec<(TimeSpec, Effect)>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Domain {
     pub name: Sym,
@@ -131,6 +155,7 @@ pub struct Domain {
     pub predicates: Vec<(Sym, Vec<Sym>)>,
     pub functions: Vec<(Sym, Vec<Sym>)>,
     pub actions: Vec<Action>,
+    pub durative_actions: Vec<DurativeAction>,
     pub constraints: Vec<Constraint>,
 }
 

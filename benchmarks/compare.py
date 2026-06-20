@@ -119,10 +119,13 @@ def main():
 
         scell = ""
         if have_sgp:
-            so, _ = run(["docker", "run", "--rm", "--platform", "linux/386", "-v", ROOT + "/..:/w",
+            # mount a common base and translate host paths with relpath (a literal
+            # string-replace breaks when the corpus isn't under ROOT itself).
+            base = os.path.commonpath([os.path.abspath(SGPLAN6), os.path.abspath(d), os.path.abspath(p)])
+            cp = lambda x: "/w/" + os.path.relpath(os.path.abspath(x), base)
+            so, _ = run(["docker", "run", "--rm", "--platform", "linux/386", "-v", base + ":/w",
                          "debian:bullseye-slim", "sh", "-c",
-                         f"cd /tmp && timeout {TIMEOUT} {SGPLAN6.replace(ROOT+'/..','/w')} "
-                         f"-o {d.replace(ROOT+'/..','/w')} -f {p.replace(ROOT+'/..','/w')} 2>&1"])
+                         f"cd /tmp && timeout {TIMEOUT} {cp(SGPLAN6)} -o {cp(d)} -f {cp(p)} 2>&1"])
             sst, slen, smetric = classify(so) if so != "__TIMEOUT__" else ("t/o", 0, None)
             scell = f"{sst[:3]} l={slen}" + (f" m={smetric:g}" if smetric is not None else "")
             # IPC-5 metric scoreboard (lower is better)
