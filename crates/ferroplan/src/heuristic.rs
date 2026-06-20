@@ -422,7 +422,77 @@ pub fn relaxed_helpful(
     goal_num: &[NumPre],
 ) -> Option<(i32, Vec<u32>)> {
     let h = relaxed_to(task, sc, bits, fv, def, goal_pos, goal_num)?;
-    Some((h, sc.helpful.clone()))
+    // really applicable in THIS state (op_layer 0 is only relaxed-applicable —
+    // numeric interval bounds are optimistic, so re-check exactly).
+    let applicable = |oi: usize| {
+        task.pre_pos
+            .slice(oi)
+            .iter()
+            .all(|&f| bitset::test(bits, f as usize))
+            && task
+                .pre_num
+                .slice(oi)
+                .iter()
+                .all(|np| eval_numpre(np, fv, def) == Some(true))
+    };
+    // helpful = the relaxed plan's applicable-now ops. Filter for REAL
+    // applicability: on numeric domains a selected op can be relaxed-applicable
+    // (op_layer 0) yet not actually applicable.
+    let mut helpful: Vec<u32> = sc
+        .helpful
+        .iter()
+        .copied()
+        .filter(|&oi| applicable(oi as usize))
+        .collect();
+    // If that leaves nothing (typical when the relaxed plan is gated by numeric
+    // preconditions), fall back to numeric subgoals: applicable ops whose numeric
+    // effects touch a fluent an unsatisfied numeric precondition of a relaxed-plan
+    // op reads.
+    if helpful.is_empty() && h > 0 {
+        let mut wanted = vec![false; fv.len()];
+        let mut any = false;
+        let mut tmp = Vec::new();
+        for oi in 0..task.n_ops {
+            if !sc.selected[oi] {
+                continue;
+            }
+            for np in task.pre_num.slice(oi) {
+                if eval_numpre(np, fv, def) == Some(true) {
+                    continue;
+                }
+                tmp.clear();
+                np.lhs.collect_fluents(&mut tmp);
+                np.rhs.collect_fluents(&mut tmp);
+                for &fl in &tmp {
+                    wanted[fl as usize] = true;
+                    any = true;
+                }
+            }
+        }
+        if any {
+            for oi in 0..task.n_ops {
+                if applicable(oi)
+                    && task
+                        .num_eff
+                        .slice(oi)
+                        .iter()
+                        .any(|ne| wanted[ne.target as usize])
+                {
+                    helpful.push(oi as u32);
+                }
+            }
+        }
+        // last resort: every really-applicable op, so EHC can act rather than
+        // instantly failing (still h-guided, just unpruned for this state).
+        if helpful.is_empty() {
+            for oi in 0..task.n_ops {
+                if applicable(oi) {
+                    helpful.push(oi as u32);
+                }
+            }
+        }
+    }
+    Some((h, helpful))
 }
 
 /// Lowest-layer op that adds fact `f` (FF prefers earliest achievers).
