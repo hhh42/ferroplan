@@ -229,9 +229,10 @@ fn t3_parameter_dependent_duration() {
         .expect("fly b c");
     assert_eq!(fly_ab.duration, Some(7.0), "dist a b = 7");
     assert_eq!(fly_bc.duration, Some(4.0), "dist b c = 4");
-    // a then b then c, sequential: makespan = 7 + 4 = 11
+    // a then b then c, sequential: 7 + 4 = 11, plus one ε gap (fly b->c starts
+    // just after fly a->b's at-end effect lands, for PDDL2.1 separation).
     assert!(
-        (plan.makespan - 11.0).abs() < 1e-9,
+        plan.makespan >= 11.0 && plan.makespan < 11.0 + 0.01,
         "makespan {}",
         plan.makespan
     );

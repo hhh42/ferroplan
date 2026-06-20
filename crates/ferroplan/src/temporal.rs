@@ -365,7 +365,8 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
 
     while let Some(Reverse((_h, ni))) = heap.pop() {
         if task.goal_met(&nodes[ni].state) && nodes[ni].agenda.is_empty() {
-            return Some(reconstruct(&task, &nodes, ni, &kind));
+            let plan = reconstruct(&task, &nodes, ni, &kind);
+            return Some(epsilon_separate(&task, plan));
         }
         if nodes.len() > MAX_NODES {
             break;
@@ -608,4 +609,182 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         return Err("the plan does not achieve the goal".into());
     }
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// ε-separation: make plans valid under PDDL2.1 continuous-time semantics.
+// ---------------------------------------------------------------------------
+
+/// PDDL2.1 separation between mutex happenings (the IPC convention).
+const EPS: f64 = 0.001;
+
+fn slices_intersect(a: &[u32], b: &[u32]) -> bool {
+    // slices are tiny (a handful of facts), so the quadratic scan is fine
+    a.iter().any(|x| b.contains(x))
+}
+
+/// Do two grounded happenings interfere (PDDL2.1 mutex)? True if one's add/del
+/// clashes with the other's precondition, add, or delete on a shared fact —
+/// requiring them to be ε-separated rather than simultaneous.
+fn ops_mutex(task: &PackedTask, o1: usize, o2: usize) -> bool {
+    let (p1, a1, d1) = (
+        task.pre_pos.slice(o1),
+        task.add.slice(o1),
+        task.del.slice(o1),
+    );
+    let (p2, a2, d2) = (
+        task.pre_pos.slice(o2),
+        task.add.slice(o2),
+        task.del.slice(o2),
+    );
+    slices_intersect(a1, d2)
+        || slices_intersect(d1, a2)
+        || slices_intersect(a1, p2)
+        || slices_intersect(p1, a2)
+        || slices_intersect(d1, p2)
+        || slices_intersect(p1, d2)
+}
+
+/// Re-time a plan so mutex happenings are ε-separated (PDDL2.1 / VAL validity):
+/// the decision-epoch search coincides dependent happenings (e.g. one action
+/// starting the instant another's at-end effect lands), which VAL rejects. We
+/// model the plan's happenings as a simple temporal network — preserve the
+/// execution order, pin each end at start+duration, force ε between mutex pairs —
+/// and solve the earliest-time schedule by longest paths (Bellman–Ford). On any
+/// inconsistency or for very large plans the original plan is returned unchanged.
+fn epsilon_separate(task: &PackedTask, plan: TimedPlan) -> TimedPlan {
+    // happening: (op id, owning step index, is_start)
+    struct H {
+        op: usize,
+        step: usize,
+        is_start: bool,
+        time: f64,
+    }
+    let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
+    let mut hs: Vec<H> = Vec::new();
+    for (si, step) in plan.steps.iter().enumerate() {
+        let mut it = step.action.splitn(2, ' ');
+        let head = it.next().unwrap_or("");
+        let rest = it.next();
+        match step.duration {
+            Some(dur) => {
+                let sd = match rest {
+                    Some(r) => format!("{head}-START {r}"),
+                    None => format!("{head}-START"),
+                };
+                let ed = match rest {
+                    Some(r) => format!("{head}-END {r}"),
+                    None => format!("{head}-END"),
+                };
+                match (find(&sd), find(&ed)) {
+                    (Some(so), Some(eo)) => {
+                        hs.push(H {
+                            op: so,
+                            step: si,
+                            is_start: true,
+                            time: step.time,
+                        });
+                        hs.push(H {
+                            op: eo,
+                            step: si,
+                            is_start: false,
+                            time: step.time + dur,
+                        });
+                    }
+                    _ => return plan, // can't map -> leave as-is
+                }
+            }
+            None => match find(&step.action) {
+                Some(o) => hs.push(H {
+                    op: o,
+                    step: si,
+                    is_start: true,
+                    time: step.time,
+                }),
+                None => return plan,
+            },
+        }
+    }
+    let n = hs.len();
+    if n == 0 || n > 600 {
+        return plan; // nothing to do, or too large to schedule cheaply
+    }
+    // execution order: by time, ends before starts at equal time
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by(|&a, &b| {
+        hs[a]
+            .time
+            .partial_cmp(&hs[b].time)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(hs[a].is_start.cmp(&hs[b].is_start))
+    });
+
+    // STN edges: t[v] >= t[u] + w
+    let mut edges: Vec<(usize, usize, f64)> = Vec::new();
+    // preserve order (weak)
+    for w in order.windows(2) {
+        edges.push((w[0], w[1], 0.0));
+    }
+    // ε between mutex happenings (in execution order)
+    for i in 0..n {
+        for j in (i + 1)..n {
+            let (u, v) = (order[i], order[j]);
+            if ops_mutex(task, hs[u].op, hs[v].op) {
+                edges.push((u, v, EPS));
+            }
+        }
+    }
+    // duration equality: end = start + dur  (two inequalities)
+    for si in 0..plan.steps.len() {
+        if let Some(dur) = plan.steps[si].duration {
+            let (mut s, mut e) = (None, None);
+            for (hi, h) in hs.iter().enumerate() {
+                if h.step == si {
+                    if h.is_start {
+                        s = Some(hi)
+                    } else {
+                        e = Some(hi)
+                    }
+                }
+            }
+            if let (Some(s), Some(e)) = (s, e) {
+                edges.push((s, e, dur));
+                edges.push((e, s, -dur));
+            }
+        }
+    }
+
+    // longest-path (earliest feasible times) via Bellman–Ford
+    let mut t = vec![0.0f64; n];
+    for _ in 0..n {
+        let mut changed = false;
+        for &(u, v, w) in &edges {
+            if t[v] < t[u] + w - 1e-12 {
+                t[v] = t[u] + w;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    // positive-cycle check: another pass must not improve
+    for &(u, v, w) in &edges {
+        if t[v] < t[u] + w - 1e-12 {
+            return plan; // inconsistent ordering -> keep original
+        }
+    }
+
+    // re-time the steps from the scheduled start happenings
+    let mut steps = plan.steps;
+    for (hi, h) in hs.iter().enumerate() {
+        if h.is_start {
+            steps[h.step].time = t[hi];
+        }
+    }
+    let makespan = steps
+        .iter()
+        .map(|s| s.time + s.duration.unwrap_or(0.0))
+        .fold(0.0f64, f64::max);
+    TimedPlan { steps, makespan }
 }
