@@ -200,20 +200,18 @@ fn goal_done(
         && goal_num.iter().all(|np| num_sat(np, lb, ub, def))
 }
 
-/// Relaxed-plan heuristic toward an ARBITRARY (sub)goal, using reusable `sc`.
-/// None == dead end. This is the subplanner heuristic SGPlan-style partitioning
-/// drives with per-subproblem goals.
-pub fn relaxed_to(
+/// Build the delete-relaxed planning graph into `sc` (op_layer / reached /
+/// bounds). With `to_fixpoint` it ignores the goal and runs to a fixpoint
+/// (so every reachable op gets a layer); otherwise it stops once the goal is
+/// relaxed-reached. `sc` must be reset first.
+fn build_rpg(
     task: &PackedTask,
     sc: &mut Scratch,
-    bits: &[u64],
-    fv: &[f64],
-    def: &[bool],
     goal_pos: &[u32],
     goal_num: &[NumPre],
-) -> Option<i32> {
-    sc.reset(task, bits, fv);
-
+    def: &[bool],
+    to_fixpoint: bool,
+) {
     // ---- build the relaxed planning graph (two-phase, incremental) ----
     // Only UNAPPLIED ops are re-scanned each layer; applied ops never lose
     // applicability (delete-relaxed), so they are skipped — except those with
@@ -222,7 +220,7 @@ pub fn relaxed_to(
     // reach numeric goals.
     let mut layer: u32 = 0;
     loop {
-        if goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
+        if !to_fixpoint && goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
             break;
         }
         let mut changed = false;
@@ -326,6 +324,47 @@ pub fn relaxed_to(
             break;
         }
     }
+}
+
+/// Cost-aware metric heuristic: an admissible lower bound on the remaining
+/// violation cost. Builds the RPG to fixpoint; a preference whose collect
+/// action is not relaxed-reachable from this state must be forgone, so its
+/// weight is unavoidable. `collectors` are (collect-op-id, weight). Returned
+/// scaled by 1e6 to match the integer cost key.
+pub fn relaxed_collect_cost(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    collectors: &[(usize, f64)],
+) -> i64 {
+    sc.reset(task, bits, fv);
+    build_rpg(task, sc, &[], &[], def, true);
+    let mut cost = 0.0;
+    for &(op, w) in collectors {
+        if sc.op_layer[op] == INF {
+            cost += w;
+        }
+    }
+    (cost * 1e6).round() as i64
+}
+
+/// Relaxed-plan heuristic toward an ARBITRARY (sub)goal, using reusable `sc`.
+/// None == dead end. This is the subplanner heuristic SGPlan-style partitioning
+/// drives with per-subproblem goals.
+pub fn relaxed_to(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+) -> Option<i32> {
+    sc.reset(task, bits, fv);
+
+    build_rpg(task, sc, goal_pos, goal_num, def, false);
 
     if !goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
         return None;

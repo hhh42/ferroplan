@@ -305,8 +305,18 @@ fn solve_pddl3(
     let cf = task
         .fluent_id(pddl3::COST_DISP)
         .expect("compile() always injects the total-cost fluent");
+    let collectors: Vec<(usize, f64)> = c
+        .collectors
+        .iter()
+        .filter_map(|(name, w)| {
+            task.op_display
+                .iter()
+                .position(|d| d == name)
+                .map(|oi| (oi, *w))
+        })
+        .collect();
 
-    match pddl3::metric_optimize(&task, cf, threads) {
+    match pddl3::metric_optimize(&task, cf, &collectors, threads) {
         Some(r) => {
             let mut notes = Vec::new();
             if c.warn_other {
