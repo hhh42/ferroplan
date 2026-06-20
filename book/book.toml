@@ -1,0 +1,10 @@
+[book]
+title = "ferroplan"
+authors = ["Harold Hersey"]
+description = "A fast, data-parallel PDDL planner in Rust"
+language = "en"
+src = "src"
+
+[output.html]
+default-theme = "rust"
+git-repository-url = "https://github.com/haroldhhersey/ferroplan"
