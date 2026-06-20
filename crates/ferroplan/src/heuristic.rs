@@ -326,30 +326,6 @@ fn build_rpg(
     }
 }
 
-/// Cost-aware metric heuristic: an admissible lower bound on the remaining
-/// violation cost. Builds the RPG to fixpoint; a preference whose collect
-/// action is not relaxed-reachable from this state must be forgone, so its
-/// weight is unavoidable. `collectors` are (collect-op-id, weight). Returned
-/// scaled by 1e6 to match the integer cost key.
-pub fn relaxed_collect_cost(
-    task: &PackedTask,
-    sc: &mut Scratch,
-    bits: &[u64],
-    fv: &[f64],
-    def: &[bool],
-    collectors: &[(usize, f64)],
-) -> i64 {
-    sc.reset(task, bits, fv);
-    build_rpg(task, sc, &[], &[], def, true);
-    let mut cost = 0.0;
-    for &(op, w) in collectors {
-        if sc.op_layer[op] == INF {
-            cost += w;
-        }
-    }
-    (cost * 1e6).round() as i64
-}
-
 /// Relaxed-plan heuristic toward an ARBITRARY (sub)goal, using reusable `sc`.
 /// None == dead end. This is the subplanner heuristic SGPlan-style partitioning
 /// drives with per-subproblem goals.

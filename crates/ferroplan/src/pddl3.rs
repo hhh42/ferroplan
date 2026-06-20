@@ -16,12 +16,9 @@
 //! Scope: metrics linear in `(is-violated …)` and `(total-cost)` (the IPC-5
 //! "simple-preferences" shape); other fluent terms are flagged, not optimized.
 
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 
-use crate::hash::FxHashSet;
-use crate::heuristic::{relaxed_collect_cost, Scratch};
-use crate::packed::{PackedTask, State, StateKey};
+use crate::packed::PackedTask;
 use crate::search::solve_subgoal_bounded;
 use crate::types::{
     Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term,
@@ -277,9 +274,6 @@ pub struct Compiled {
     pub unsupported: Option<String>,
     /// Names of the synthetic Keyder-Geffner actions (stripped from the plan).
     pub synthetic: HashSet<String>,
-    /// (collect-action name, weight) per preference instance — lets the
-    /// cost-aware heuristic estimate remaining violation cost.
-    pub collectors: Vec<(String, f64)>,
 }
 
 /// Is `total-cost` monotone non-decreasing across the domain? Branch-and-bound
@@ -433,8 +427,6 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
 
     let mut goal_parts = hard;
     let mut any_negative = false;
-    // (collect-action name, weight) per preference — for the cost-aware heuristic
-    let mut collectors: Vec<(String, f64)> = Vec::new();
     for (i, (name, phi)) in prefs.iter().enumerate() {
         let col = format!("P3COLLECTED-{}", i);
         d.predicates.push((col.clone(), vec![]));
@@ -458,7 +450,6 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         if raw < 0.0 {
             any_negative = true;
         }
-        collectors.push((format!("P3COLLECT-{}", i), raw.max(0.0)));
         d.actions.push(Action {
             name: forgo,
             params: vec![],
@@ -505,7 +496,6 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         warn_other: other,
         unsupported,
         synthetic,
-        collectors,
     }
 }
 
@@ -532,115 +522,9 @@ pub struct MetricResult {
     pub proven: bool,
 }
 
-/// Minimize the metric. Tries cost-first A* (guided by the cost-aware heuristic
-/// — optimal when it completes), then falls back to branch-and-bound if A* hits
-/// its evaluation cap before reaching the goal. `collectors` are
-/// (collect-op-id, weight) per preference.
+/// Anytime branch-and-bound: minimize `cost_fluent` by repeatedly solving with
+/// a tightening upper bound. Returns the best plan found.
 pub fn metric_optimize(
-    task: &PackedTask,
-    cost_fluent: usize,
-    collectors: &[(usize, f64)],
-    threads: usize,
-) -> Option<MetricResult> {
-    let _ = collectors; // reserved for the cost-first optimizer (see metric_astar)
-    metric_optimize_bnb(task, cost_fluent, threads)
-}
-
-/// EXPERIMENTAL cost-first A* (NOT yet the default). The cost-aware heuristic is
-/// admissible but NOT consistent (a zero-cost op can make several preferences
-/// reachable, dropping `h` by more than the edge cost), so a closed-set A*
-/// without node reopening returns sub-optimal plans; and evaluating the fixpoint
-/// heuristic eagerly per successor is too slow on large instances. A correct
-/// cost-first optimizer needs deferred-h + node reopening + parallel batch
-/// evaluation + anytime weighted-A*. Kept as groundwork.
-#[allow(dead_code)]
-fn metric_astar(
-    task: &PackedTask,
-    cost_fluent: usize,
-    collectors: &[(usize, f64)],
-) -> Option<MetricResult> {
-    const MAX_EVAL: usize = 2_000_000;
-    struct Node {
-        state: State,
-        father: usize,
-        op: usize,
-        g: i64,
-    }
-    let scaled = |s: &State| -> i64 {
-        if s.fdef[cost_fluent] {
-            (s.fv[cost_fluent] * 1e6).round() as i64
-        } else {
-            0
-        }
-    };
-    let init = task.initial();
-    let mut sc = Scratch::new(task);
-    let mut nodes = vec![Node {
-        state: init.clone(),
-        father: usize::MAX,
-        op: usize::MAX,
-        g: scaled(&init),
-    }];
-    // heap of (f, node) with f = g + h; min-first. h computed lazily on pop.
-    let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
-    heap.push(Reverse((nodes[0].g, 0)));
-    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
-    visited.insert(task.state_key_with_cost(&init, Some(cost_fluent)));
-    let mut evaluated = 0usize;
-
-    while let Some(Reverse((_f, ni))) = heap.pop() {
-        if task.goal_met(&nodes[ni].state) {
-            let cost = if nodes[ni].state.fdef[cost_fluent] {
-                nodes[ni].state.fv[cost_fluent]
-            } else {
-                0.0
-            };
-            let mut ops = Vec::new();
-            let mut cur = ni;
-            while nodes[cur].father != usize::MAX {
-                ops.push(nodes[cur].op);
-                cur = nodes[cur].father;
-            }
-            ops.reverse();
-            return Some(MetricResult {
-                ops,
-                cost,
-                iterations: evaluated,
-                proven: true, // admissible h -> first goal popped is optimal
-            });
-        }
-        evaluated += 1;
-        if evaluated > MAX_EVAL {
-            return None;
-        }
-        // expand
-        for oi in 0..task.n_ops {
-            if !task.op_applicable(oi, &nodes[ni].state) {
-                continue;
-            }
-            let ns = task.apply(oi, &nodes[ni].state);
-            let key = task.state_key_with_cost(&ns, Some(cost_fluent));
-            if !visited.insert(key) {
-                continue;
-            }
-            let g = scaled(&ns);
-            let h = relaxed_collect_cost(task, &mut sc, &ns.bits, &ns.fv, &ns.fdef, collectors);
-            let idx = nodes.len();
-            nodes.push(Node {
-                state: ns,
-                father: ni,
-                op: oi,
-                g,
-            });
-            heap.push(Reverse((g + h, idx)));
-        }
-    }
-    None // exhausted with no goal — shouldn't happen (forgo always reaches it)
-}
-
-/// Anytime branch-and-bound fallback: minimize `cost_fluent` by repeatedly
-/// solving with a tightening upper bound. Used when cost-first A* caps out.
-fn metric_optimize_bnb(
     task: &PackedTask,
     cost_fluent: usize,
     threads: usize,
