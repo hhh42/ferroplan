@@ -156,8 +156,12 @@ are not bundled (GPL / non-commercial licences) — reproduce per
   full ESPC penalty-coordination loop — specced in
   [`docs/espc-preferences-spec.md`](docs/espc-preferences-spec.md), not yet built.
 - **Temporal**: durative actions with constant or parameter-dependent durations
-  and required concurrency are supported; duration *inequalities*, timed initial
-  literals, and continuous (`#t`) effects are not yet.
+  and required concurrency are supported, and **plans are VAL-validated** on real
+  IPC temporal domains (44/45 produced plans valid — see
+  [`benchmarks/temporal-results.md`](benchmarks/temporal-results.md)). Coverage is
+  currently search-limited (the decision-epoch search times out on large
+  instances); duration *inequalities*, timed initial literals, and continuous
+  (`#t`) effects are not yet supported.
 - Derived predicates (`:derived`) are not supported.
 
 ## License

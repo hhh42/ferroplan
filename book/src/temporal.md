@@ -50,7 +50,20 @@ ff -o temporal-domain.pddl -f problem.pddl            # auto-detected
 ff -o temporal-domain.pddl -f problem.pddl --mode temporal --json
 ```
 
+## Validation against VAL
+
+Plans are validated with [VAL](https://github.com/KCL-Planning/VAL), the IPC plan
+validator, on real IPC temporal domains (2002–2014). **44 of 45 produced plans
+are VAL-valid** under PDDL2.1 continuous-time semantics — confirming the
+snap-action compilation, `over all` invariants, required concurrency, and
+ε-separation are correct. (Testing against VAL is what surfaced the ε-separation
+requirement in the first place.) Coverage is currently **search-limited**: at a
+short budget many instances time out or the decision-epoch search exhausts. See
+[`benchmarks/temporal-results.md`](https://github.com/haroldhhersey/ferroplan/blob/main/benchmarks/temporal-results.md).
+
 ## Not yet supported
 
-Duration **inequalities** (`(<= ?duration …)`), **timed initial literals**, and
-**continuous** (`#t`) numeric effects are not handled yet.
+Duration **inequalities** (`(<= ?duration …)`), **timed initial literals**,
+**continuous** (`#t`) / duration-dependent numeric effects, and ε-separation of
+*conditional*-effect mutexes are not handled yet. Temporal **search performance**
+(coverage on large instances) is the main open work item.

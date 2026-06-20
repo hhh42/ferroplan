@@ -46,3 +46,31 @@ larger problem set than the small vendored subset under [`ipc/`](ipc).
 > Absolute times are machine- and load-dependent; only same-run *ratios* are
 > meaningful. Metric-FF run under Rosetta carries ~10 ms/run emulation overhead —
 > use a native build for a fair speed comparison.
+
+## Temporal: validating plans with VAL
+
+For PDDL2.1 temporal domains, plans are validated with **VAL** (the IPC plan
+validator) under continuous-time ε-semantics — see
+[`temporal-results.md`](temporal-results.md).
+
+```sh
+# build VAL (modern cmake rejects its old minimum — pass the policy flag)
+git clone --depth 1 https://github.com/KCL-Planning/VAL
+cmake -S VAL -B VAL/out -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake --build VAL/out --target Validate -j
+
+# real IPC temporal instances (sparse-checkout just the temporal domains)
+git clone --no-checkout --depth 1 --filter=blob:none \
+    https://github.com/potassco/pddl-instances
+git -C pddl-instances sparse-checkout set \
+    ipc-2002/domains/driverlog-time-simple-automatic \
+    ipc-2011/domains/match-cellar-temporal-satisficing   # …etc
+git -C pddl-instances checkout
+
+# per-domain sweep: solve each instance + VAL-validate the plan
+FF=ferroplan/target/release/ff VAL=VAL/out/bin/Validate \
+    python3 benchmarks/bench_temporal.py <domain-dir> [max_instances] [timeout_s]
+```
+
+Emits a JSON summary (`solved`/`valid`/`invalid`/`unsolved`/`parse_error`). VAL
+and the instances are not vendored (licence/size).
