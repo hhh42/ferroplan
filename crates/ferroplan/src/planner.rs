@@ -347,7 +347,20 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
             (out, 1)
         }
         Outcome::Task(task) => {
-            let result = crate::search::search(&task, threads, cfg);
+            let o =
+                crate::search::plan(&task, threads, cfg, opts.search != crate::Search::BestFirst);
+            let result = match o.ops {
+                Some(ops) => crate::search::PlanResult::Plan {
+                    ops,
+                    advance: Vec::new(),
+                    evaluated: o.evaluated,
+                    max_g: 0,
+                },
+                None => crate::search::PlanResult::Unsolvable {
+                    evaluated: o.evaluated,
+                    capped: false,
+                },
+            };
             let (body, code) = crate::output::render(&task, &result, threads);
             out.push_str(&body);
             (out, code)

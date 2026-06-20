@@ -13,7 +13,7 @@ use crate::packed::PackedTask;
 use crate::parser;
 use crate::pddl3;
 use crate::resolve::{self, Solved};
-use crate::search::{self, PlanResult};
+use crate::search;
 
 /// Which planning strategy to use.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
@@ -109,15 +109,6 @@ impl Default for Options {
 impl Options {
     fn search_cfg(&self) -> crate::search::SearchCfg {
         crate::search::SearchCfg::from_weights(self.weight_g, self.weight_h, self.max_evaluated)
-    }
-    /// A note if an as-yet-unimplemented strategy was requested (so callers
-    /// always know what actually ran).
-    fn strategy_notes(&self) -> Vec<String> {
-        if matches!(self.search, Search::Ehc | Search::EhcThenBestFirst) {
-            vec!["enforced hill-climbing is not yet implemented; used weighted best-first".into()]
-        } else {
-            Vec::new()
-        }
     }
 }
 
@@ -285,14 +276,7 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     if mode == Mode::Pddl3 {
         return solve_pddl3(&domain, &problem, opts, threads);
     }
-    solve_classic(
-        &domain,
-        &problem,
-        opts,
-        threads,
-        mode,
-        opts.strategy_notes(),
-    )
+    solve_classic(&domain, &problem, opts, threads, mode, Vec::new())
 }
 
 fn solve_classic(
@@ -303,6 +287,7 @@ fn solve_classic(
     mode: Mode,
     extra_notes: Vec<String>,
 ) -> Result<Solution, SolveError> {
+    let mut notes = extra_notes;
     let task = match do_ground(domain, problem, threads)? {
         Grounded::Task(t) => t,
         Grounded::Trivial => return Ok(trivial(mode, threads)),
@@ -313,7 +298,7 @@ fn solve_classic(
                     threads,
                     ..Default::default()
                 },
-                extra_notes,
+                notes,
             ))
         }
     };
@@ -324,10 +309,12 @@ fn solve_classic(
             Solved::Unsolvable => (None, 0),
         }
     } else {
-        match search::search(&task, threads, opts.search_cfg()) {
-            PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
-            PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
+        let ehc_first = opts.search != Search::BestFirst;
+        let o = search::plan(&task, threads, opts.search_cfg(), ehc_first);
+        if o.ehc_fell_back && o.ops.is_some() {
+            notes.push("EHC found no improving state; used weighted best-first".into());
         }
+        (o.ops, o.evaluated)
     };
 
     match ops {
@@ -342,14 +329,10 @@ fn solve_classic(
                     metric: None,
                 }),
                 statistics: stats(&task, evaluated, threads),
-                notes: extra_notes,
+                notes,
             })
         }
-        None => Ok(unsolved(
-            mode,
-            stats(&task, evaluated, threads),
-            extra_notes,
-        )),
+        None => Ok(unsolved(mode, stats(&task, evaluated, threads), notes)),
     }
 }
 
@@ -361,21 +344,19 @@ fn solve_pddl3(
 ) -> Result<Solution, SolveError> {
     // caller opted out of metric optimization -> satisficing plan (hard goals).
     if !opts.optimize {
-        let mut notes = opts.strategy_notes();
-        notes.push("PDDL3 metric not optimized (optimize = false); satisficing plan".to_string());
-        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, notes);
+        let note = "PDDL3 metric not optimized (optimize = false); satisficing plan".to_string();
+        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, vec![note]);
     }
 
     let c = pddl3::compile(domain, problem);
 
     // metric outside the supported class -> satisficing plan over the hard goals
     if let Some(reason) = c.unsupported.clone() {
-        let mut notes = opts.strategy_notes();
-        notes.push(format!(
+        let note = format!(
             "PDDL3 metric not optimized ({}); returning a satisficing plan",
             reason
-        ));
-        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, notes);
+        );
+        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, vec![note]);
     }
 
     let task = match do_ground(&c.domain, &c.problem, threads)? {
@@ -399,7 +380,7 @@ fn solve_pddl3(
 
     match pddl3::metric_optimize(&task, cf, threads) {
         Some(r) => {
-            let mut notes = opts.strategy_notes();
+            let mut notes = Vec::new();
             if c.warn_other {
                 notes.push(
                     "metric has terms beyond is-violated/total-cost; optimized the supported part"

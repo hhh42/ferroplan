@@ -8,10 +8,10 @@
 //! heuristic evaluation changes.
 
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, VecDeque};
 
 use crate::hash::FxHashSet;
-use crate::heuristic::{relaxed_to, Scratch};
+use crate::heuristic::{relaxed_helpful, relaxed_to, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
 use crate::par;
 use crate::types::NumPre;
@@ -278,6 +278,161 @@ pub fn search(task: &PackedTask, threads: usize, cfg: SearchCfg) -> PlanResult {
         threads,
         cfg,
     )
+}
+
+/// Outcome of [`plan`]: the op sequence (if solved), states evaluated, and
+/// whether EHC gave up and best-first took over.
+pub struct PlanOutcome {
+    pub ops: Option<Vec<usize>>,
+    pub evaluated: usize,
+    pub ehc_fell_back: bool,
+}
+
+/// Plan the whole task. With `ehc_first`, run enforced hill-climbing (fast on
+/// most problems) and fall back to weighted best-first if it gets stuck;
+/// otherwise run best-first directly. EHC plans are valid but not length-optimal
+/// — this matches the FF/Metric-FF default and is the main speed lever.
+pub fn plan(task: &PackedTask, threads: usize, cfg: SearchCfg, ehc_first: bool) -> PlanOutcome {
+    if ehc_first {
+        if let Some((ops, evaluated)) = ehc(task) {
+            return PlanOutcome {
+                ops: Some(ops),
+                evaluated,
+                ehc_fell_back: false,
+            };
+        }
+    }
+    let (ops, evaluated) = match search(task, threads, cfg) {
+        PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
+        PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
+    };
+    PlanOutcome {
+        ops,
+        evaluated,
+        ehc_fell_back: ehc_first,
+    }
+}
+
+/// Enforced hill-climbing toward the task goal. From the current state, run a
+/// breadth-first lookahead restricted to HELPFUL actions until a strictly
+/// lower-h state is found, then jump to it and repeat. Returns the plan + states
+/// evaluated, or None if it gets stuck / hits a dead end (caller falls back to
+/// best-first, which is complete). Single-threaded and deterministic.
+fn ehc(task: &PackedTask) -> Option<(Vec<usize>, usize)> {
+    let init = task.initial();
+    let mut sc = Scratch::new(task);
+    let (mut cur_h, _) = relaxed_helpful(
+        task,
+        &mut sc,
+        &init.bits,
+        &init.fv,
+        &init.fdef,
+        &task.goal_pos,
+        &task.goal_num,
+    )?;
+    let mut evaluated = 1usize;
+    if task.goal_met(&init) {
+        return Some((Vec::new(), evaluated));
+    }
+    let mut current = init;
+    let mut plan: Vec<usize> = Vec::new();
+    loop {
+        match bfs_improve(task, &mut sc, &current, cur_h, &mut evaluated) {
+            Some((ops, next, next_h)) => {
+                plan.extend(ops);
+                current = next;
+                cur_h = next_h;
+                if task.goal_met(&current) {
+                    return Some((plan, evaluated));
+                }
+            }
+            None => return None, // stuck — let best-first take over
+        }
+    }
+}
+
+/// Breadth-first search from `start`, expanding each node with ITS helpful
+/// actions, until a state with `h < h_start` is found. Returns (path, state, h).
+fn bfs_improve(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    start: &State,
+    h_start: i32,
+    evaluated: &mut usize,
+) -> Option<(Vec<usize>, State, i32)> {
+    const BFS_CAP: usize = 300_000;
+    struct N {
+        state: State,
+        father: usize,
+        op: usize,
+    }
+    let (_, root_helpful) = relaxed_helpful(
+        task,
+        sc,
+        &start.bits,
+        &start.fv,
+        &start.fdef,
+        &task.goal_pos,
+        &task.goal_num,
+    )?;
+    let mut nodes = vec![N {
+        state: start.clone(),
+        father: usize::MAX,
+        op: usize::MAX,
+    }];
+    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
+    visited.insert(task.state_key(start));
+    let mut queue: VecDeque<(usize, Vec<u32>)> = VecDeque::new();
+    queue.push_back((0, root_helpful));
+    let mut expanded = 0usize;
+
+    while let Some((ni, helpful)) = queue.pop_front() {
+        for &oi in &helpful {
+            let oi = oi as usize;
+            if !task.op_applicable(oi, &nodes[ni].state) {
+                continue;
+            }
+            let ns = task.apply(oi, &nodes[ni].state);
+            if !visited.insert(task.state_key(&ns)) {
+                continue;
+            }
+            *evaluated += 1;
+            let (h_ns, helpful_ns) = match relaxed_helpful(
+                task,
+                sc,
+                &ns.bits,
+                &ns.fv,
+                &ns.fdef,
+                &task.goal_pos,
+                &task.goal_num,
+            ) {
+                Some(x) => x,
+                None => continue, // dead-end successor
+            };
+            let idx = nodes.len();
+            nodes.push(N {
+                state: ns.clone(),
+                father: ni,
+                op: oi,
+            });
+            if h_ns < h_start {
+                let mut ops = Vec::new();
+                let mut c = idx;
+                while nodes[c].father != usize::MAX {
+                    ops.push(nodes[c].op);
+                    c = nodes[c].father;
+                }
+                ops.reverse();
+                return Some((ops, ns, h_ns));
+            }
+            expanded += 1;
+            if expanded > BFS_CAP {
+                return None;
+            }
+            queue.push_back((idx, helpful_ns));
+        }
+    }
+    None
 }
 
 /// Subplanner API: return the op sequence achieving `(goal_pos, goal_num)` from

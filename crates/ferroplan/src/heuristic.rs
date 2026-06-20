@@ -33,6 +33,9 @@ pub struct Scratch {
     /// applied ops with ≥1 conditional effect (re-checked each layer; their
     /// conditional adds fire once the condition becomes relaxed-reached).
     cond_ops: Vec<u32>,
+    /// FF helpful actions: relaxed-plan ops applicable in the current state
+    /// (op_layer 0). Populated during extraction; read by EHC.
+    helpful: Vec<u32>,
 }
 
 impl Scratch {
@@ -50,6 +53,7 @@ impl Scratch {
             queue: Vec::with_capacity(task.n_facts),
             num_applied: Vec::with_capacity(task.n_ops),
             cond_ops: Vec::new(),
+            helpful: Vec::new(),
         }
     }
 
@@ -68,6 +72,7 @@ impl Scratch {
         self.queue.clear();
         self.num_applied.clear();
         self.cond_ops.clear();
+        self.helpful.clear();
     }
 }
 
@@ -403,6 +408,23 @@ pub fn relaxed(
     relaxed_to(task, sc, bits, fv, def, &task.goal_pos, &task.goal_num)
 }
 
+/// Relaxed-plan heuristic plus the FF helpful-action set (relaxed-plan ops
+/// applicable in this state). Used by enforced hill-climbing to restrict
+/// expansion. None == relaxed dead end. The returned op ids are in a
+/// deterministic order (relaxed-plan selection order).
+pub fn relaxed_helpful(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+) -> Option<(i32, Vec<u32>)> {
+    let h = relaxed_to(task, sc, bits, fv, def, goal_pos, goal_num)?;
+    Some((h, sc.helpful.clone()))
+}
+
 /// Lowest-layer op that adds fact `f` (FF prefers earliest achievers).
 /// Uses the precomputed add-by-fact index instead of scanning all ops.
 fn achiever(task: &PackedTask, op_layer: &[u32], fact_layer: &[u32], f: usize) -> Option<usize> {
@@ -462,6 +484,10 @@ fn select(task: &PackedTask, sc: &mut Scratch, oi: usize, reps: i32, count: &mut
         return;
     }
     sc.selected[oi] = true;
+    // a selected op applicable in the current state (layer 0) is a helpful action.
+    if sc.op_layer[oi] == 0 {
+        sc.helpful.push(oi as u32);
+    }
     *count += reps.max(1);
     for &pf in task.pre_pos.slice(oi) {
         let f = pf as usize;
