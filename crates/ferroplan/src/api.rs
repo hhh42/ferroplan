@@ -30,19 +30,93 @@ pub enum Mode {
     Pddl3,
 }
 
-/// Solver options.
+/// Which search strategy to use within a mode.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Search {
+    /// Let the engine choose (currently weighted best-first; will prefer
+    /// EHC-then-best-first once EHC lands).
+    #[default]
+    Auto,
+    /// Enforced hill-climbing (+ helpful actions). *(Not yet implemented; falls
+    /// back to best-first with a note.)*
+    Ehc,
+    /// Weighted best-first over the whole task.
+    BestFirst,
+    /// EHC first, fall back to best-first if it gets stuck. *(Not yet
+    /// implemented; falls back to best-first with a note.)*
+    EhcThenBestFirst,
+}
+
+fn default_weight_g() -> f64 {
+    1.0
+}
+fn default_weight_h() -> f64 {
+    5.0
+}
+fn default_true() -> bool {
+    true
+}
+
+/// Solver options — the single, library-first configuration surface. Every knob
+/// is settable from code and round-trips through JSON (`serde`); the CLI derives
+/// the same flags. Unspecified JSON fields fall back to these defaults.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct Options {
+    /// Planning mode (`auto` routes by problem features).
+    #[serde(default)]
     pub mode: Mode,
+    /// Search strategy within the mode.
+    #[serde(default)]
+    pub search: Search,
+    /// Restrict expansion to helpful actions (used by EHC; no effect on plain
+    /// best-first yet).
+    #[serde(default = "default_true")]
+    pub helpful_actions: bool,
+    /// Best-first `g` (path-length) weight.
+    #[serde(default = "default_weight_g")]
+    pub weight_g: f64,
+    /// Best-first `h` (heuristic) weight. Default `1·g + 5·h`.
+    #[serde(default = "default_weight_h")]
+    pub weight_h: f64,
     /// Worker threads; `0` = auto (`min(cores, 6)` or `FFDP_THREADS`).
+    #[serde(default)]
     pub threads: usize,
+    /// Cap on evaluated states; `None` = engine default.
+    #[serde(default)]
+    pub max_evaluated: Option<usize>,
+    /// PDDL3: optimize the metric (`true`) vs. return a satisficing plan over the
+    /// hard goals only (`false`).
+    #[serde(default = "default_true")]
+    pub optimize: bool,
 }
 
 impl Default for Options {
     fn default() -> Self {
         Options {
             mode: Mode::Auto,
+            search: Search::Auto,
+            helpful_actions: true,
+            weight_g: default_weight_g(),
+            weight_h: default_weight_h(),
             threads: 0,
+            max_evaluated: None,
+            optimize: true,
+        }
+    }
+}
+
+impl Options {
+    fn search_cfg(&self) -> crate::search::SearchCfg {
+        crate::search::SearchCfg::from_weights(self.weight_g, self.weight_h, self.max_evaluated)
+    }
+    /// A note if an as-yet-unimplemented strategy was requested (so callers
+    /// always know what actually ran).
+    fn strategy_notes(&self) -> Vec<String> {
+        if matches!(self.search, Search::Ehc | Search::EhcThenBestFirst) {
+            vec!["enforced hill-climbing is not yet implemented; used weighted best-first".into()]
+        } else {
+            Vec::new()
         }
     }
 }
@@ -209,14 +283,22 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     };
 
     if mode == Mode::Pddl3 {
-        return solve_pddl3(&domain, &problem, threads);
+        return solve_pddl3(&domain, &problem, opts, threads);
     }
-    solve_classic(&domain, &problem, threads, mode, Vec::new())
+    solve_classic(
+        &domain,
+        &problem,
+        opts,
+        threads,
+        mode,
+        opts.strategy_notes(),
+    )
 }
 
 fn solve_classic(
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
+    opts: &Options,
     threads: usize,
     mode: Mode,
     extra_notes: Vec<String>,
@@ -237,12 +319,12 @@ fn solve_classic(
     };
 
     let (ops, evaluated) = if mode == Mode::Partition {
-        match resolve::solve(&task, threads) {
+        match resolve::solve(&task, threads, opts.search_cfg()) {
             Solved::Plan(ops, _) => (Some(ops), 0),
             Solved::Unsolvable => (None, 0),
         }
     } else {
-        match search::search(&task, threads) {
+        match search::search(&task, threads, opts.search_cfg()) {
             PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
             PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
         }
@@ -274,17 +356,26 @@ fn solve_classic(
 fn solve_pddl3(
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
+    opts: &Options,
     threads: usize,
 ) -> Result<Solution, SolveError> {
+    // caller opted out of metric optimization -> satisficing plan (hard goals).
+    if !opts.optimize {
+        let mut notes = opts.strategy_notes();
+        notes.push("PDDL3 metric not optimized (optimize = false); satisficing plan".to_string());
+        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, notes);
+    }
+
     let c = pddl3::compile(domain, problem);
 
     // metric outside the supported class -> satisficing plan over the hard goals
     if let Some(reason) = c.unsupported.clone() {
-        let note = format!(
+        let mut notes = opts.strategy_notes();
+        notes.push(format!(
             "PDDL3 metric not optimized ({}); returning a satisficing plan",
             reason
-        );
-        return solve_classic(domain, problem, threads, Mode::Pddl3, vec![note]);
+        ));
+        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, notes);
     }
 
     let task = match do_ground(&c.domain, &c.problem, threads)? {
@@ -308,7 +399,7 @@ fn solve_pddl3(
 
     match pddl3::metric_optimize(&task, cf, threads) {
         Some(r) => {
-            let mut notes = Vec::new();
+            let mut notes = opts.strategy_notes();
             if c.warn_other {
                 notes.push(
                     "metric has terms beyond is-violated/total-cost; optimized the supported part"

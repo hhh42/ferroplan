@@ -36,6 +36,15 @@ PLAN = re.compile(r"^\s*(?:step\s+)?\d+:\s")
 IPC = re.compile(r"^\s*\d+\.\d+:\s")
 
 
+def metricff_cmd(binpath):
+    """Run Metric-FF directly if it's a native (arm64) build, else via Rosetta."""
+    try:
+        is_x86 = b"x86_64" in subprocess.run(["file", binpath], capture_output=True).stdout
+    except Exception:
+        is_x86 = False
+    return (["arch", "-x86_64", binpath] if is_x86 else [binpath])
+
+
 def classify(out):
     metric = None
     m = re.search(r"MetricValue\s+([0-9.]+)", out) or re.search(r"metric value\s+([0-9.]+)", out)
@@ -102,7 +111,7 @@ def main():
 
         mcell = ""
         if have_mff:
-            mo, mms = run(["arch", "-x86_64", METRICFF, "-o", d, "-f", p])
+            mo, mms = run(metricff_cmd(METRICFF) + ["-o", d, "-f", p])
             mst, mlen, _ = classify(mo) if mo != "__TIMEOUT__" else ("t/o", 0, None)
             mcell = f"{mst[:3]} {mms:.0f}ms"
             if fsolved and mst == "solved" and fms > 0 and mms > 0:

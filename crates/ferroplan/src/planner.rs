@@ -15,10 +15,17 @@ use crate::{pddl3, report, resolve};
 pub fn run_planner(
     domain_src: &str,
     problem_src: &str,
-    threads: usize,
+    opts: &crate::Options,
     ipc: bool,
 ) -> (String, i32) {
-    let threads = threads.max(1);
+    let threads = if opts.threads == 0 {
+        crate::par::num_threads()
+    } else {
+        opts.threads
+    }
+    .max(1);
+    let cfg =
+        crate::search::SearchCfg::from_weights(opts.weight_g, opts.weight_h, opts.max_evaluated);
     let mut out = String::new();
 
     out.push_str("\nff: parsing domain file\n");
@@ -43,7 +50,15 @@ pub fn run_planner(
 
     // PDDL3.0: soft-goal preferences / metric -> compile + anytime B&B optimize.
     if pddl3::is_pddl3(&problem) {
-        let code = plan_pddl3(&mut out, &domain, &problem, threads, ipc);
+        let code = plan_pddl3(
+            &mut out,
+            &domain,
+            &problem,
+            opts.optimize,
+            threads,
+            cfg,
+            ipc,
+        );
         return (out, code);
     }
 
@@ -73,7 +88,7 @@ pub fn run_planner(
     };
 
     out.push_str(&report::preamble(threads));
-    match resolve::solve(&task, threads) {
+    match resolve::solve(&task, threads, cfg) {
         Solved::Plan(ops, stats) => {
             if ipc {
                 out.push_str(&report::ipc_plan(&task, &ops, None));
@@ -94,19 +109,35 @@ pub fn run_planner(
 
 /// PDDL3 path: compile soft goals away, ground the augmented problem, and
 /// anytime branch-and-bound minimize the metric. Appends to `out`, returns exit.
+#[allow(clippy::too_many_arguments)]
 fn plan_pddl3(
     out: &mut String,
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
+    optimize: bool,
     threads: usize,
+    cfg: crate::search::SearchCfg,
     ipc: bool,
 ) -> i32 {
+    // caller opted out of metric optimization -> satisficing plan over hard goals.
+    if !optimize {
+        return satisficing_fallback(
+            out,
+            domain,
+            problem,
+            threads,
+            cfg,
+            ipc,
+            "optimize disabled (--satisfice)",
+        );
+    }
+
     let c = pddl3::compile(domain, problem);
 
     // metric outside the supported class -> don't silently optimize the wrong
     // objective; return a satisficing plan for the HARD goals + a clear note.
     if let Some(reason) = c.unsupported.clone() {
-        return satisficing_fallback(out, domain, problem, threads, ipc, &reason);
+        return satisficing_fallback(out, domain, problem, threads, cfg, ipc, &reason);
     }
 
     let task = match ground(&c.domain, &c.problem, threads) {
@@ -170,11 +201,13 @@ fn plan_pddl3(
 /// Satisficing fallback for unsupported metrics: solve the HARD goals only,
 /// emit the plan with an explicit "metric not optimized" note (never claims a
 /// metric it did not optimize).
+#[allow(clippy::too_many_arguments)]
 fn satisficing_fallback(
     out: &mut String,
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
     threads: usize,
+    cfg: crate::search::SearchCfg,
     ipc: bool,
     reason: &str,
 ) -> i32 {
@@ -198,7 +231,7 @@ fn satisficing_fallback(
         " PDDL3 metric NOT optimized ({}); returning a satisficing plan.",
         reason
     );
-    match resolve::solve(&task, threads) {
+    match resolve::solve(&task, threads, cfg) {
         Solved::Plan(ops, stats) => {
             if ipc {
                 out.push_str(&report::ipc_plan(&task, &ops, None));
@@ -265,8 +298,15 @@ fn render_plan(
     }
 }
 /// Plain FF best-first over the whole task (no partitioning) — the engine mode.
-pub fn run_ff(domain_src: &str, problem_src: &str, threads: usize) -> (String, i32) {
-    let threads = threads.max(1);
+pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (String, i32) {
+    let threads = if opts.threads == 0 {
+        crate::par::num_threads()
+    } else {
+        opts.threads
+    }
+    .max(1);
+    let cfg =
+        crate::search::SearchCfg::from_weights(opts.weight_g, opts.weight_h, opts.max_evaluated);
     let mut out = String::new();
     out.push_str("\nff: parsing domain file\n");
     let domain = match crate::parser::parse_domain(domain_src) {
@@ -307,7 +347,7 @@ pub fn run_ff(domain_src: &str, problem_src: &str, threads: usize) -> (String, i
             (out, 1)
         }
         Outcome::Task(task) => {
-            let result = crate::search::search(&task, threads);
+            let result = crate::search::search(&task, threads, cfg);
             let (body, code) = crate::output::render(&task, &result, threads);
             out.push_str(&body);
             (out, code)

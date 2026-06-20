@@ -44,6 +44,6 @@ pub mod verify;
 pub mod api;
 pub mod planner;
 
-pub use api::{solve, Metric, Mode, Options, Plan, Solution, SolveError, Statistics, Step};
+pub use api::{solve, Metric, Mode, Options, Plan, Search, Solution, SolveError, Statistics, Step};
 pub use planner::{run_ff, run_planner};
 pub use types::ParseError;

@@ -9,14 +9,14 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
-use ferroplan::{Mode, Options};
+use ferroplan::{Mode, Options, Search};
 use serde::Deserialize;
 
 #[derive(Parser, Debug)]
 #[command(
     name = "ff",
     version,
-    about = "ferroplan — a fast, data-parallel PDDL planner"
+    about = "ferroplan — a data-parallel PDDL planner"
 )]
 struct Cli {
     /// Domain file (PDDL).
@@ -35,9 +35,33 @@ struct Cli {
     #[arg(long)]
     json: bool,
 
-    /// Planning strategy.
+    /// Planning mode (`auto` routes by problem features).
     #[arg(long, value_enum, default_value_t = ModeArg::Auto)]
     mode: ModeArg,
+
+    /// Search strategy (applies to ff / library / --json paths).
+    #[arg(long, value_enum, default_value_t = SearchArg::Auto)]
+    search: SearchArg,
+
+    /// Disable helpful-action pruning (used by EHC).
+    #[arg(long = "no-helpful")]
+    no_helpful: bool,
+
+    /// Best-first g (path-length) weight.
+    #[arg(long, default_value_t = 1.0)]
+    weight_g: f64,
+
+    /// Best-first h (heuristic) weight.
+    #[arg(long, default_value_t = 5.0)]
+    weight_h: f64,
+
+    /// Cap on evaluated states (default: engine default).
+    #[arg(long, value_name = "N")]
+    max_evaluated: Option<usize>,
+
+    /// PDDL3: return a satisficing plan over hard goals instead of optimizing.
+    #[arg(long)]
+    satisfice: bool,
 
     /// Worker threads (0 = auto).
     #[arg(long, default_value_t = 0)]
@@ -46,6 +70,21 @@ struct Cli {
     /// IPC time-stamped plan format (classic text mode only).
     #[arg(long)]
     ipc: bool,
+}
+
+impl Cli {
+    fn to_options(&self) -> Options {
+        Options {
+            mode: self.mode.into(),
+            search: self.search.into(),
+            helpful_actions: !self.no_helpful,
+            weight_g: self.weight_g,
+            weight_h: self.weight_h,
+            threads: self.threads,
+            max_evaluated: self.max_evaluated,
+            optimize: !self.satisfice,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
@@ -67,22 +106,34 @@ impl From<ModeArg> for Mode {
     }
 }
 
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum SearchArg {
+    Auto,
+    Ehc,
+    BestFirst,
+    EhcThenBestFirst,
+}
+
+impl From<SearchArg> for Search {
+    fn from(s: SearchArg) -> Self {
+        match s {
+            SearchArg::Auto => Search::Auto,
+            SearchArg::Ehc => Search::Ehc,
+            SearchArg::BestFirst => Search::BestFirst,
+            SearchArg::EhcThenBestFirst => Search::EhcThenBestFirst,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct JobRequest {
     /// PDDL domain source text.
     domain: String,
     /// PDDL problem source text.
     problem: String,
+    /// Solver options (any subset; omitted fields use defaults).
     #[serde(default)]
-    options: Option<JobOptions>,
-}
-
-#[derive(Deserialize, Default)]
-struct JobOptions {
-    #[serde(default)]
-    mode: Option<String>,
-    #[serde(default)]
-    threads: Option<usize>,
+    options: Options,
 }
 
 fn read_source(path: &str) -> Result<String> {
@@ -102,17 +153,7 @@ fn main() -> Result<()> {
     if let Some(req_path) = &cli.json_request {
         let raw = read_source(req_path)?;
         let req: JobRequest = serde_json::from_str(&raw).context("parsing JSON job request")?;
-        let opts = Options {
-            mode: req
-                .options
-                .as_ref()
-                .and_then(|o| o.mode.as_deref())
-                .map(parse_mode)
-                .transpose()?
-                .unwrap_or(Mode::Auto),
-            threads: req.options.and_then(|o| o.threads).unwrap_or(0),
-        };
-        let sol = ferroplan::solve(&req.domain, &req.problem, &opts)?;
+        let sol = ferroplan::solve(&req.domain, &req.problem, &req.options)?;
         println!("{}", serde_json::to_string_pretty(&sol)?);
         std::process::exit(if sol.solved { 0 } else { 1 });
     }
@@ -126,40 +167,19 @@ fn main() -> Result<()> {
         _ => bail!("need both -o <domain> and -f <problem> (or --json-request <file>)"),
     };
 
+    let opts = cli.to_options();
+
     if cli.json {
-        let opts = Options {
-            mode: cli.mode.into(),
-            threads: cli.threads,
-        };
         let sol = ferroplan::solve(&domain, &problem, &opts)?;
         println!("{}", serde_json::to_string_pretty(&sol)?);
         std::process::exit(if sol.solved { 0 } else { 1 });
     }
 
     // classic text output (drop-in)
-    let threads = cli.threads;
     let (text, code) = match cli.mode {
-        ModeArg::Ff => ferroplan::run_ff(&domain, &problem, max1(threads)),
-        _ => ferroplan::run_planner(&domain, &problem, max1(threads), cli.ipc),
+        ModeArg::Ff => ferroplan::run_ff(&domain, &problem, &opts),
+        _ => ferroplan::run_planner(&domain, &problem, &opts, cli.ipc),
     };
     print!("{}", text);
     std::process::exit(code);
-}
-
-fn max1(t: usize) -> usize {
-    if t == 0 {
-        ferroplan::par::num_threads()
-    } else {
-        t
-    }
-}
-
-fn parse_mode(s: &str) -> Result<Mode> {
-    Ok(match s.to_ascii_lowercase().as_str() {
-        "auto" => Mode::Auto,
-        "ff" => Mode::Ff,
-        "partition" => Mode::Partition,
-        "pddl3" => Mode::Pddl3,
-        other => bail!("unknown mode `{}` (auto|ff|partition|pddl3)", other),
-    })
 }

@@ -28,9 +28,12 @@ const PROBLEM: &str = "(define (problem g1) (:domain gripper)
  (:goal (and (at ball1 roomb) (at ball2 roomb))))";
 
 fn main() {
+    // every field is optional thanks to Default — set only what you need.
     let opts = Options {
         mode: Mode::Auto,
+        weight_h: 5.0,
         threads: 0,
+        ..Default::default()
     };
     let solution = solve(DOMAIN, PROBLEM, &opts).expect("solve");
 

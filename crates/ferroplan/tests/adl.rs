@@ -47,7 +47,15 @@ fn parse_ff_plan(out: &str) -> Vec<(String, Vec<String>)> {
 }
 
 fn solve_validate(dom: &str, prob: &str) -> usize {
-    let (out, code) = ferroplan::run_ff(dom, prob, 1);
+    let (out, code) = ferroplan::run_ff(
+        dom,
+        prob,
+        &ferroplan::Options {
+            mode: ferroplan::Mode::Ff,
+            threads: 1,
+            ..Default::default()
+        },
+    );
     assert_eq!(code, 0, "should solve\n{}", out);
     assert!(out.contains("found legal plan as follows"), "{}", out);
     let plan = parse_ff_plan(&out);
@@ -138,7 +146,15 @@ fn disjunctive_goal_picks_reachable_disjunct() {
         (:predicates (a) (b) (start))
         (:action mka :parameters () :precondition (start) :effect (a)))";
     let prob = "(define (problem p) (:domain disj) (:init (start)) (:goal (or (b) (a))))";
-    let (out, code) = ferroplan::run_ff(dom, prob, 1);
+    let (out, code) = ferroplan::run_ff(
+        dom,
+        prob,
+        &ferroplan::Options {
+            mode: ferroplan::Mode::Ff,
+            threads: 1,
+            ..Default::default()
+        },
+    );
     assert_eq!(code, 0, "{}", out);
     assert!(
         out.contains("found legal plan"),
@@ -160,7 +176,15 @@ fn negated_numeric_equality_solved() {
         (:functions (n))
         (:action inc :parameters () :precondition (and) :effect (increase (n) 1)))";
     let prob = "(define (problem p) (:domain ctr) (:init (= (n) 0)) (:goal (not (= (n) 0))))";
-    let (out, code) = ferroplan::run_ff(dom, prob, 1);
+    let (out, code) = ferroplan::run_ff(
+        dom,
+        prob,
+        &ferroplan::Options {
+            mode: ferroplan::Mode::Ff,
+            threads: 1,
+            ..Default::default()
+        },
+    );
     assert_eq!(code, 0, "{}", out);
     assert!(
         out.contains("found legal plan"),
@@ -183,7 +207,15 @@ fn complement_fact_semantics_match_metric_ff() {
         (:action act :parameters () :precondition (c)
           :effect (and (not (p)) (when (c) (p)))))";
     let prob = "(define (problem p) (:domain comp) (:init (p) (c)) (:goal (not (p))))";
-    let (out, code) = ferroplan::run_ff(dom, prob, 1);
+    let (out, code) = ferroplan::run_ff(
+        dom,
+        prob,
+        &ferroplan::Options {
+            mode: ferroplan::Mode::Ff,
+            threads: 1,
+            ..Default::default()
+        },
+    );
     assert_eq!(code, 0, "{}", out);
     assert!(
         out.contains("found legal plan"),

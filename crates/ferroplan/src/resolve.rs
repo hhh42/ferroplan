@@ -44,7 +44,7 @@ fn replay_ok(task: &PackedTask, state: &State, ops: &[usize], g: &Subgoal) -> bo
     task.goal_met_with(&s, &g.pos, &g.num)
 }
 
-pub fn solve(task: &PackedTask, threads: usize) -> Solved {
+pub fn solve(task: &PackedTask, threads: usize, cfg: crate::search::SearchCfg) -> Solved {
     let init = task.initial();
     let mut groups = partition(task);
     let init_groups = groups.len();
@@ -60,7 +60,7 @@ pub fn solve(task: &PackedTask, threads: usize) -> Solved {
             if g.is_empty() {
                 Some(Vec::new())
             } else {
-                solve_subgoal(task, &init, &g.pos, &g.num, sub_threads)
+                solve_subgoal(task, &init, &g.pos, &g.num, sub_threads, cfg)
             }
         });
 
@@ -91,7 +91,7 @@ pub fn solve(task: &PackedTask, threads: usize) -> Solved {
             let ops = if replay_ok(task, &state, pre, &groups[i]) {
                 pre.clone()
             } else {
-                match solve_subgoal(task, &state, &groups[i].pos, &groups[i].num, threads) {
+                match solve_subgoal(task, &state, &groups[i].pos, &groups[i].num, threads, cfg) {
                     Some(o) => o,
                     None => {
                         conflict = Some(i);

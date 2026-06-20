@@ -59,6 +59,7 @@ fn explicit_modes_run() {
             &Options {
                 mode: m,
                 threads: 1,
+                ..Default::default()
             },
         )
         .unwrap();

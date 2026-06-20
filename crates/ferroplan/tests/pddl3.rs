@@ -11,6 +11,7 @@ fn pddl3(dom: &str, prob: &str) -> ferroplan::Solution {
         &Options {
             mode: Mode::Pddl3,
             threads: 1,
+            ..Default::default()
         },
     )
     .unwrap()

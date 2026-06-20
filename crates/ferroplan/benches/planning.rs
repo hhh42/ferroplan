@@ -38,7 +38,11 @@ fn bench(c: &mut Criterion) {
     for (name, d, p, mode) in cases {
         let dom = read(d);
         let prob = read(p);
-        let opts = Options { mode, threads: 1 };
+        let opts = Options {
+            mode,
+            threads: 1,
+            ..Default::default()
+        };
         g.bench_function(name, |b| {
             b.iter(|| solve(black_box(&dom), black_box(&prob), &opts).unwrap())
         });

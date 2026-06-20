@@ -16,14 +16,62 @@ use crate::packed::{PackedTask, State, StateKey};
 use crate::par;
 use crate::types::NumPre;
 
-const W_G: i32 = 1;
-const W_H: i32 = 5;
 /// Frontier batch size — FIXED (independent of thread count) so the search
 /// expansion order, and thus the plan AND the evaluated-state count, are
 /// identical for any worker count; threads only split each batch's h-eval.
 const BATCH: usize = 256;
-/// Safety cap on evaluated states (deterministic; preserves thread-determinism).
-const MAX_EVAL: usize = 5_000_000;
+/// Default safety cap on evaluated states (deterministic).
+pub const DEFAULT_MAX_EVAL: usize = 5_000_000;
+/// Fixed-point scale for fractional heuristic weights (keeps the priority key an
+/// integer, so the heap order — and thus the plan — stays deterministic).
+const WEIGHT_SCALE: f64 = 256.0;
+
+/// Tunable weighted-best-first parameters (exposed via the library `Options`).
+/// `w_g`/`w_h` are pre-scaled integers (`weight * WEIGHT_SCALE`), so the default
+/// `1·g + 5·h` ordering is preserved exactly while fractional weights still work.
+#[derive(Clone, Copy, Debug)]
+pub struct SearchCfg {
+    pub w_g: i64,
+    pub w_h: i64,
+    pub max_eval: usize,
+}
+
+impl Default for SearchCfg {
+    fn default() -> Self {
+        SearchCfg::from_weights(1.0, 5.0, None)
+    }
+}
+
+impl SearchCfg {
+    /// Build from human-facing f64 weights. `weight_g = 1.0, weight_h = 5.0`
+    /// reproduces the historical `1·g + 5·h` ordering bit-for-bit.
+    ///
+    /// Inputs are sanitized so a malformed weight can never collapse or overflow
+    /// the integer heap key: a non-finite or negative weight falls back to that
+    /// term's default, weights are clamped to a sane maximum, and if both round
+    /// to zero the defaults are restored (an all-zero key would degrade to
+    /// insertion order).
+    pub fn from_weights(weight_g: f64, weight_h: f64, max_eval: Option<usize>) -> Self {
+        let san = |w: f64, default: f64| {
+            if w.is_finite() && w >= 0.0 {
+                w.min(1e9)
+            } else {
+                default
+            }
+        };
+        let mut w_g = (san(weight_g, 1.0) * WEIGHT_SCALE).round() as i64;
+        let mut w_h = (san(weight_h, 5.0) * WEIGHT_SCALE).round() as i64;
+        if w_g == 0 && w_h == 0 {
+            w_g = WEIGHT_SCALE as i64;
+            w_h = (5.0 * WEIGHT_SCALE) as i64;
+        }
+        SearchCfg {
+            w_g,
+            w_h,
+            max_eval: max_eval.unwrap_or(DEFAULT_MAX_EVAL),
+        }
+    }
+}
 
 pub enum PlanResult {
     Plan {
@@ -48,7 +96,7 @@ struct Node {
 /// Solve toward an ARBITRARY (sub)goal from an arbitrary start state over a
 /// shared grounded task — the reusable subplanner entry point for SGPlan-style
 /// partition-and-resolve. `search` is the whole-task convenience wrapper.
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn search_from(
     task: &PackedTask,
     start: &State,
@@ -57,6 +105,7 @@ pub fn search_from(
     cost_fluent: Option<usize>,
     cost_bound: f64,
     threads: usize,
+    cfg: SearchCfg,
 ) -> PlanResult {
     let batch = BATCH;
 
@@ -91,7 +140,7 @@ pub fn search_from(
     // The visited key excludes irrelevant fluents (termination); under
     // branch-and-bound it also appends the cost fluent so equal-fact/different-cost
     // states stay distinct (see PackedTask::state_key_with_cost).
-    let mut heap: BinaryHeap<Reverse<(i32, usize)>> = BinaryHeap::new();
+    let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0))); // init popped first
     let mut visited: FxHashSet<StateKey> = FxHashSet::default();
     visited.insert(task.state_key_with_cost(&init, cost_fluent));
@@ -143,7 +192,7 @@ pub fn search_from(
             },
         );
         evaluated += popped.len();
-        if evaluated > MAX_EVAL {
+        if evaluated > cfg.max_eval {
             return PlanResult::Unsolvable {
                 evaluated,
                 capped: true,
@@ -194,7 +243,7 @@ pub fn search_from(
                         op: oi,
                         g,
                     });
-                    heap.push(Reverse((W_G * g as i32 + W_H * ph, idx)));
+                    heap.push(Reverse((cfg.w_g * g as i64 + cfg.w_h * ph as i64, idx)));
                 }
             }
         }
@@ -216,8 +265,9 @@ fn reconstruct(nodes: &[Node], mut ni: usize) -> Vec<usize> {
     ops
 }
 
-/// Whole-task search (start = initial state, goal = task goal).
-pub fn search(task: &PackedTask, threads: usize) -> PlanResult {
+/// Whole-task search (start = initial state, goal = task goal) with tunable
+/// weighted-best-first parameters.
+pub fn search(task: &PackedTask, threads: usize, cfg: SearchCfg) -> PlanResult {
     search_from(
         task,
         &task.initial(),
@@ -226,6 +276,7 @@ pub fn search(task: &PackedTask, threads: usize) -> PlanResult {
         None,
         f64::INFINITY,
         threads,
+        cfg,
     )
 }
 
@@ -237,6 +288,7 @@ pub fn solve_subgoal(
     goal_pos: &[u32],
     goal_num: &[NumPre],
     threads: usize,
+    cfg: SearchCfg,
 ) -> Option<Vec<usize>> {
     match search_from(
         task,
@@ -246,6 +298,7 @@ pub fn solve_subgoal(
         None,
         f64::INFINITY,
         threads,
+        cfg,
     ) {
         PlanResult::Plan { ops, .. } => Some(ops),
         PlanResult::Unsolvable { .. } => None,
@@ -273,6 +326,7 @@ pub fn solve_subgoal_bounded(
         Some(cost_fluent),
         bound,
         threads,
+        SearchCfg::default(),
     ) {
         PlanResult::Plan { ops, .. } => (Some(ops), false),
         PlanResult::Unsolvable { capped, .. } => (None, capped),
