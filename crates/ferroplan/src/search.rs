@@ -334,6 +334,10 @@ fn ehc(task: &PackedTask) -> Option<(Vec<usize>, usize)> {
     if task.goal_met(&init) {
         return Some((Vec::new(), evaluated));
     }
+    // Total work budget: if EHC hasn't solved it within this many evaluations it
+    // is likely stuck, so bail and leave the time budget to the complete
+    // best-first fallback (which often solves these much faster from scratch).
+    const TOTAL_CAP: usize = 30_000;
     let mut current = init;
     let mut plan: Vec<usize> = Vec::new();
     loop {
@@ -344,6 +348,9 @@ fn ehc(task: &PackedTask) -> Option<(Vec<usize>, usize)> {
                 cur_h = next_h;
                 if task.goal_met(&current) {
                     return Some((plan, evaluated));
+                }
+                if evaluated > TOTAL_CAP {
+                    return None; // taking too long — hand off to best-first
                 }
             }
             None => return None, // stuck — let best-first take over
@@ -360,7 +367,12 @@ fn bfs_improve(
     h_start: i32,
     evaluated: &mut usize,
 ) -> Option<(Vec<usize>, State, i32)> {
-    const BFS_CAP: usize = 300_000;
+    // Fail FAST: if a helpful-restricted lookahead can't improve h within this
+    // many expansions it is almost certainly on a plateau EHC won't escape, so
+    // bail and let the complete best-first fallback use the time budget. Kept
+    // small because per-evaluation cost is high on big numeric tasks — a large
+    // cap made EHC burn ~20s before falling back.
+    const BFS_CAP: usize = 5_000;
     struct N {
         state: State,
         father: usize,

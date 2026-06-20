@@ -34,17 +34,16 @@ pub enum Mode {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum Search {
-    /// Let the engine choose (currently weighted best-first; will prefer
-    /// EHC-then-best-first once EHC lands).
+    /// Let the engine choose: enforced hill-climbing, then weighted best-first if
+    /// EHC gets stuck (the FF/Metric-FF default — fast on most problems).
     #[default]
     Auto,
-    /// Enforced hill-climbing (+ helpful actions). *(Not yet implemented; falls
-    /// back to best-first with a note.)*
+    /// Enforced hill-climbing (+ helpful actions), falling back to best-first if
+    /// it finds no improving state (kept complete).
     Ehc,
-    /// Weighted best-first over the whole task.
+    /// Weighted best-first over the whole task (complete; ignores helpful actions).
     BestFirst,
-    /// EHC first, fall back to best-first if it gets stuck. *(Not yet
-    /// implemented; falls back to best-first with a note.)*
+    /// EHC first, fall back to best-first if it gets stuck (same as `auto`).
     EhcThenBestFirst,
 }
 
