@@ -1,0 +1,20 @@
+[package]
+name = "ferroplan-cli"
+description = "Command-line interface (the `ff` binary) for the ferroplan PDDL planner"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "ff"
+path = "src/main.rs"
+
+[dependencies]
+ferroplan = { path = "../ferroplan", version = "0.1.0" }
+clap = { version = "4", features = ["derive"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = "1"

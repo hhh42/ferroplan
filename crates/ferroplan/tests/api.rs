@@ -1,0 +1,67 @@
+//! Public-API + JSON round-trip tests for the smart `solve` surface.
+
+use ferroplan::{solve, Mode, Options, Solution};
+
+const GRID: &str = "(define (domain g)
+ (:requirements :strips :typing)
+ (:types loc)
+ (:predicates (at ?l - loc) (link ?a - loc ?b - loc))
+ (:action move :parameters (?a ?b - loc)
+   :precondition (and (at ?a) (link ?a ?b)) :effect (and (at ?b) (not (at ?a)))))";
+
+fn prob(goal: &str) -> String {
+    format!(
+        "(define (problem p) (:domain g) (:objects x y z - loc)
+         (:init (at x) (link x y) (link y z))
+         (:goal {goal}))"
+    )
+}
+
+#[test]
+fn solve_returns_structured_plan() {
+    let sol = solve(GRID, &prob("(at z)"), &Options::default()).unwrap();
+    assert!(sol.solved);
+    assert_eq!(sol.mode, Mode::Ff); // no preferences -> classic FF
+    let plan = sol.plan.unwrap();
+    assert_eq!(plan.length, 2);
+    assert_eq!(plan.steps[0].action, "MOVE");
+    assert_eq!(plan.steps[0].args, vec!["X", "Y"]);
+    assert!(sol.statistics.grounded_actions > 0);
+}
+
+#[test]
+fn solution_json_round_trips() {
+    let sol = solve(GRID, &prob("(at z)"), &Options::default()).unwrap();
+    let json = serde_json::to_string(&sol).unwrap();
+    let back: Solution = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.solved, sol.solved);
+    assert_eq!(back.plan.unwrap().length, 2);
+    // the serialized form carries structured steps
+    assert!(json.contains("\"action\":\"MOVE\""));
+}
+
+#[test]
+fn unsolvable_goal_reports_unsolved() {
+    // z has no link back; goal (at x) after forcing? use an unreachable fact
+    let p = "(define (problem p) (:domain g) (:objects x y - loc)
+             (:init (at x)) (:goal (at y)))"; // no link x->y
+    let sol = solve(GRID, p, &Options::default()).unwrap();
+    assert!(!sol.solved);
+    assert!(sol.plan.is_none());
+}
+
+#[test]
+fn explicit_modes_run() {
+    for m in [Mode::Ff, Mode::Partition] {
+        let sol = solve(GRID, &prob("(at z)"), &Options { mode: m, threads: 1 }).unwrap();
+        assert!(sol.solved, "mode {:?} should solve", m);
+        assert_eq!(sol.mode, m);
+    }
+}
+
+#[test]
+fn parse_error_is_typed() {
+    let err = solve("(define (domain", "(define (problem", &Options::default()).unwrap_err();
+    // it's a typed error, not a panic
+    assert!(matches!(err, ferroplan::SolveError::DomainParse(_)));
+}
