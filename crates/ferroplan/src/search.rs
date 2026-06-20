@@ -106,6 +106,7 @@ pub fn search_from(
     cost_bound: f64,
     threads: usize,
     cfg: SearchCfg,
+    forbidden: &[bool],
 ) -> PlanResult {
     let batch = BATCH;
 
@@ -217,6 +218,9 @@ pub fn search_from(
                 let st = &nodes[ni].state;
                 let mut v = Vec::new();
                 for oi in 0..task.n_ops {
+                    if forbidden.get(oi).copied().unwrap_or(false) {
+                        continue;
+                    }
                     if task.op_applicable(oi, st) {
                         let ns = task.apply(oi, st);
                         if let Some(cf) = cost_fluent {
@@ -277,6 +281,7 @@ pub fn search(task: &PackedTask, threads: usize, cfg: SearchCfg) -> PlanResult {
         f64::INFINITY,
         threads,
         cfg,
+        &[],
     )
 }
 
@@ -293,8 +298,21 @@ pub struct PlanOutcome {
 /// otherwise run best-first directly. EHC plans are valid but not length-optimal
 /// — this matches the FF/Metric-FF default and is the main speed lever.
 pub fn plan(task: &PackedTask, threads: usize, cfg: SearchCfg, ehc_first: bool) -> PlanOutcome {
+    plan_avoiding(task, threads, cfg, ehc_first, &[])
+}
+
+/// Like [`plan`], but never uses any op `oi` where `forbidden[oi]` is true. Used
+/// by the metric optimizer's force-collect tightening (forbid forgo actions to
+/// force their preferences to actually be satisfied).
+pub fn plan_avoiding(
+    task: &PackedTask,
+    threads: usize,
+    cfg: SearchCfg,
+    ehc_first: bool,
+    forbidden: &[bool],
+) -> PlanOutcome {
     if ehc_first {
-        if let Some((ops, evaluated)) = ehc(task) {
+        if let Some((ops, evaluated)) = ehc(task, forbidden) {
             return PlanOutcome {
                 ops: Some(ops),
                 evaluated,
@@ -302,7 +320,17 @@ pub fn plan(task: &PackedTask, threads: usize, cfg: SearchCfg, ehc_first: bool) 
             };
         }
     }
-    let (ops, evaluated) = match search(task, threads, cfg) {
+    let (ops, evaluated) = match search_from(
+        task,
+        &task.initial(),
+        &task.goal_pos,
+        &task.goal_num,
+        None,
+        f64::INFINITY,
+        threads,
+        cfg,
+        forbidden,
+    ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
         PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
     };
@@ -318,7 +346,7 @@ pub fn plan(task: &PackedTask, threads: usize, cfg: SearchCfg, ehc_first: bool) 
 /// lower-h state is found, then jump to it and repeat. Returns the plan + states
 /// evaluated, or None if it gets stuck / hits a dead end (caller falls back to
 /// best-first, which is complete). Single-threaded and deterministic.
-fn ehc(task: &PackedTask) -> Option<(Vec<usize>, usize)> {
+fn ehc(task: &PackedTask, forbidden: &[bool]) -> Option<(Vec<usize>, usize)> {
     let init = task.initial();
     let mut sc = Scratch::new(task);
     let (mut cur_h, _) = relaxed_helpful(
@@ -341,7 +369,7 @@ fn ehc(task: &PackedTask) -> Option<(Vec<usize>, usize)> {
     let mut current = init;
     let mut plan: Vec<usize> = Vec::new();
     loop {
-        match bfs_improve(task, &mut sc, &current, cur_h, &mut evaluated) {
+        match bfs_improve(task, &mut sc, &current, cur_h, &mut evaluated, forbidden) {
             Some((ops, next, next_h)) => {
                 plan.extend(ops);
                 current = next;
@@ -366,6 +394,7 @@ fn bfs_improve(
     start: &State,
     h_start: i32,
     evaluated: &mut usize,
+    forbidden: &[bool],
 ) -> Option<(Vec<usize>, State, i32)> {
     // Fail FAST: if a helpful-restricted lookahead can't improve h within this
     // many expansions it is almost certainly on a plateau EHC won't escape, so
@@ -401,6 +430,9 @@ fn bfs_improve(
     while let Some((ni, helpful)) = queue.pop_front() {
         for &oi in &helpful {
             let oi = oi as usize;
+            if forbidden.get(oi).copied().unwrap_or(false) {
+                continue;
+            }
             if !task.op_applicable(oi, &nodes[ni].state) {
                 continue;
             }
@@ -466,6 +498,7 @@ pub fn solve_subgoal(
         f64::INFINITY,
         threads,
         cfg,
+        &[],
     ) {
         PlanResult::Plan { ops, .. } => Some(ops),
         PlanResult::Unsolvable { .. } => None,
@@ -496,6 +529,7 @@ pub fn solve_subgoal_bounded(
         bound,
         threads,
         cfg,
+        &[],
     ) {
         PlanResult::Plan { ops, .. } => (Some(ops), false),
         PlanResult::Unsolvable { capped, .. } => (None, capped),

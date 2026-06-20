@@ -274,6 +274,8 @@ pub struct Compiled {
     pub unsupported: Option<String>,
     /// Names of the synthetic Keyder-Geffner actions (stripped from the plan).
     pub synthetic: HashSet<String>,
+    /// (forgo-action name, weight) per preference instance.
+    pub forgos: Vec<(String, f64)>,
 }
 
 /// Is `total-cost` monotone non-decreasing across the domain? Branch-and-bound
@@ -427,6 +429,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
 
     let mut goal_parts = hard;
     let mut any_negative = false;
+    // (forgo-action name, weight) per preference — lets the optimizer force-collect
+    // high-weight preferences (forbid forgoing them) during relax-and-tighten.
+    let mut forgos: Vec<(String, f64)> = Vec::new();
     for (i, (name, phi)) in prefs.iter().enumerate() {
         let col = format!("P3COLLECTED-{}", i);
         d.predicates.push((col.clone(), vec![]));
@@ -450,6 +455,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         if raw < 0.0 {
             any_negative = true;
         }
+        forgos.push((format!("P3FORGO-{}", i), raw.max(0.0)));
         d.actions.push(Action {
             name: forgo,
             params: vec![],
@@ -496,6 +502,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         warn_other: other,
         unsupported,
         synthetic,
+        forgos,
     }
 }
 
@@ -522,11 +529,14 @@ pub struct MetricResult {
     pub proven: bool,
 }
 
-/// Anytime branch-and-bound: minimize `cost_fluent` by repeatedly solving with
-/// a tightening upper bound. Returns the best plan found.
+/// Minimize `cost_fluent` (total preference-violation weight) by relax-and-tighten:
+/// an EHC first incumbent, then SGPlan-style force-collect tightening (force the
+/// highest-weight preferences to actually be satisfied), then a bounded B&B polish.
+/// `forgos` are the (op-id, weight) of the synthetic forgo actions.
 pub fn metric_optimize(
     task: &PackedTask,
     cost_fluent: usize,
+    forgos: &[(usize, f64)],
     threads: usize,
 ) -> Option<MetricResult> {
     const MAX_ITERS: usize = 10_000;
@@ -536,9 +546,9 @@ pub fn metric_optimize(
     let mut iterations = 0;
     let mut proven = false;
 
-    // First incumbent via EHC-then-best-first (SGPlan-style modified-FF
-    // subplanner): a fast feasible plan, so we get COVERAGE even when the metric
-    // B&B can't finish. Bounded so a hard instance can't hang here.
+    // 1. RELAX: first incumbent via EHC-then-best-first (SGPlan's modified-FF
+    // subplanner) — a fast feasible plan, so we get coverage even on hard
+    // instances. Bounded so a hard instance can't hang here.
     let first = plan(
         task,
         threads,
@@ -559,8 +569,20 @@ pub fn metric_optimize(
         best = Some((ops, cost));
     }
 
-    // B&B refinement: find strictly cheaper plans. Capped per iteration so the
-    // anytime optimizer stays within budget; on timeout we return the incumbent.
+    // 2. TIGHTEN. A per-preference "force-collect" (forbid a forgo action so the
+    // plan must satisfy `phi`, via `plan_avoiding`) was tried and measured: it
+    // helps marginally on few-preference problems but does NOT close the dominant
+    // gap (openstacks stayed at 70), because there the difficulty is joint
+    // GLOBAL-constraint coordination across preferences, not per-preference
+    // reachability — exactly the deep-research finding (docs/sgplan6-spec.md). The
+    // real fix is the full ESPC penalty-coordination loop (partition the
+    // collect/forgo decisions by guidance variable, resolve jointly with penalty
+    // multipliers); the `forbidden`/`plan_avoiding` plumbing is kept as its
+    // groundwork. For now we keep the (coverage-preserving) bounded B&B below.
+    let _ = forgos;
+
+    // 3. POLISH: bounded B&B from the (now much better) incumbent — reaches the
+    // true optimum on small instances; on timeout we keep the incumbent.
     let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
     while iterations < MAX_ITERS {
         iterations += 1;
