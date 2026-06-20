@@ -19,7 +19,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::packed::PackedTask;
-use crate::search::solve_subgoal_bounded;
+use crate::search::{plan, solve_subgoal_bounded, SearchCfg};
 use crate::types::{
     Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term,
 };
@@ -536,6 +536,32 @@ pub fn metric_optimize(
     let mut iterations = 0;
     let mut proven = false;
 
+    // First incumbent via EHC-then-best-first (SGPlan-style modified-FF
+    // subplanner): a fast feasible plan, so we get COVERAGE even when the metric
+    // B&B can't finish. Bounded so a hard instance can't hang here.
+    let first = plan(
+        task,
+        threads,
+        SearchCfg::from_weights(1.0, 5.0, Some(1_500_000)),
+        true,
+    );
+    if let Some(ops) = first.ops {
+        let cost = plan_cost(task, &ops, cost_fluent);
+        if cost <= 0.0 {
+            return Some(MetricResult {
+                ops,
+                cost,
+                iterations: 0,
+                proven: true,
+            });
+        }
+        bound = cost;
+        best = Some((ops, cost));
+    }
+
+    // B&B refinement: find strictly cheaper plans. Capped per iteration so the
+    // anytime optimizer stays within budget; on timeout we return the incumbent.
+    let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
     while iterations < MAX_ITERS {
         iterations += 1;
         let (opt, capped) = solve_subgoal_bounded(
@@ -546,6 +572,7 @@ pub fn metric_optimize(
             cost_fluent,
             bound,
             threads,
+            refine_cfg,
         );
         match opt {
             Some(ops) => {

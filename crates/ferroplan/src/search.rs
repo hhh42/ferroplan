@@ -476,6 +476,7 @@ pub fn solve_subgoal(
 /// reaching the goal whose final cost is < `bound`, or None if none exists under
 /// the bound. The anytime branch-and-bound metric optimizer (sgp) calls this
 /// with a tightening bound.
+#[allow(clippy::too_many_arguments)]
 pub fn solve_subgoal_bounded(
     task: &PackedTask,
     start: &State,
@@ -484,6 +485,7 @@ pub fn solve_subgoal_bounded(
     cost_fluent: usize,
     bound: f64,
     threads: usize,
+    cfg: SearchCfg,
 ) -> (Option<Vec<usize>>, bool) {
     match search_from(
         task,
@@ -493,7 +495,7 @@ pub fn solve_subgoal_bounded(
         Some(cost_fluent),
         bound,
         threads,
-        SearchCfg::default(),
+        cfg,
     ) {
         PlanResult::Plan { ops, .. } => (Some(ops), false),
         PlanResult::Unsolvable { capped, .. } => (None, capped),
