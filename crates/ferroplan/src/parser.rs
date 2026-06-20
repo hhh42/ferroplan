@@ -31,15 +31,44 @@ const SUPPORTED: &[&str] = &[
     ":TIME",
 ];
 
+/// Cap on formula/expression nesting depth. Real PDDL never approaches this;
+/// the bound turns a pathologically deep input into a parse error instead of a
+/// recursive-descent stack overflow (a published library must not crash on input).
+/// Kept well under what a 2 MiB worker-thread stack tolerates for the recursive
+/// descent here (each level is a couple of frames) AND for the downstream
+/// formula-recursive passes (grounding/normalization) on the parsed tree.
+const MAX_NEST_DEPTH: usize = 150;
+
 struct P {
     t: Vec<Tok>,
     lines: Vec<u32>,
     i: usize,
+    depth: usize,
 }
 
 impl P {
     fn new(t: Vec<Tok>, lines: Vec<u32>) -> Self {
-        P { t, lines, i: 0 }
+        P {
+            t,
+            lines,
+            i: 0,
+            depth: 0,
+        }
+    }
+    /// Enter one nesting level, erroring if the cap is exceeded. Pair with `pop`.
+    fn push_depth(&mut self) -> Result<(), String> {
+        self.depth += 1;
+        if self.depth > MAX_NEST_DEPTH {
+            self.depth -= 1;
+            Err(format!(
+                "formula/expression nested deeper than {MAX_NEST_DEPTH}"
+            ))
+        } else {
+            Ok(())
+        }
+    }
+    fn pop_depth(&mut self) {
+        self.depth -= 1;
     }
     /// 1-based source line at the current position (for error reporting).
     fn line(&self) -> u32 {
@@ -167,6 +196,13 @@ fn term_of(t: Tok) -> Result<Term, String> {
 }
 
 fn parse_expr(p: &mut P) -> Result<Expr, String> {
+    p.push_depth()?;
+    let r = parse_expr_inner(p);
+    p.pop_depth();
+    r
+}
+
+fn parse_expr_inner(p: &mut P) -> Result<Expr, String> {
     match p.next()? {
         Tok::Num(n) => Ok(Expr::Num(n)),
         Tok::LParen => {
@@ -236,6 +272,13 @@ fn comp_of(op: &str) -> Option<CompOp> {
 }
 
 fn parse_formula(p: &mut P) -> Result<Formula, String> {
+    p.push_depth()?;
+    let r = parse_formula_inner(p);
+    p.pop_depth();
+    r
+}
+
+fn parse_formula_inner(p: &mut P) -> Result<Formula, String> {
     p.expect_lparen()?;
     match p.peek().cloned() {
         Some(Tok::Op(op)) => {
@@ -329,6 +372,13 @@ fn parse_formula(p: &mut P) -> Result<Formula, String> {
 }
 
 fn parse_effect(p: &mut P) -> Result<Effect, String> {
+    p.push_depth()?;
+    let r = parse_effect_inner(p);
+    p.pop_depth();
+    r
+}
+
+fn parse_effect_inner(p: &mut P) -> Result<Effect, String> {
     p.expect_lparen()?;
     match p.peek().cloned() {
         Some(Tok::Name(head)) => {
