@@ -12,6 +12,9 @@ It combines:
 - **ADL** (conditional effects, `forall`/`exists`, equality) and **numeric
   fluents**;
 - **PDDL3 preferences** with anytime branch-and-bound metric optimization;
+- **PDDL2.1 temporal** planning — durative actions with constant or
+  parameter-dependent durations and required concurrency (see
+  [Temporal planning](./temporal.md));
 - an optional **SGPlan-style partition-and-resolve** mode.
 
 It is offered as a Rust **library** (with a structured, JSON-serializable API)

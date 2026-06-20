@@ -6,5 +6,6 @@
 - [Library API](./library.md)
 - [Architecture](./architecture.md)
 - [PDDL3 preferences](./pddl3.md)
+- [Temporal planning](./temporal.md)
 - [Benchmarks](./benchmarks.md)
 - [Benchmark results](./results.md)

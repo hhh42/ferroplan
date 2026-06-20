@@ -9,10 +9,11 @@ A fast, data-parallel **PDDL planner** in Rust.
 `ferroplan` is a from-scratch reimplementation of the FF family of planners with a
 data-oriented core (bitset states, structure-of-arrays / CSR operator tables),
 **enforced hill-climbing** (EHC) with a best-first fallback, parallel grounding
-and parallel heuristic evaluation, plus an SGPlan-style partition-and-resolve mode
-and PDDL3 preference/metric optimization. It ships both a **library** (with a
-structured, JSON-serializable API) and the **`ff`** command-line binary — a
-drop-in for Metric-FF's `ff -o domain -f problem`.
+and parallel heuristic evaluation, plus an SGPlan-style partition-and-resolve mode,
+PDDL3 preference/metric optimization, and **PDDL2.1 temporal** planning (durative
+actions). It ships both a **library** (with a structured, JSON-serializable API)
+and the **`ff`** command-line binary — a drop-in for Metric-FF's
+`ff -o domain -f problem`.
 
 On classical and ADL benchmarks it runs within ~1.4× of the heavily-optimized C
 Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
@@ -37,7 +38,13 @@ trails and IPC-5 preference quality is competitive-not-winning — see
   precondition preferences) compiled away, with anytime branch-and-bound metric
   optimization. *(Exact-optimal on small/medium instances; best-found, flagged,
   on the largest — see [Limitations](#limitations).)*
+- **PDDL2.1 temporal** — `:durative-action`s with `at start`/`over all`/`at end`
+  conditions & effects, **constant or parameter-dependent durations**, and
+  required concurrency, via a decision-epoch forward search; output in the IPC
+  temporal plan format (`t: (action) [dur]`) with a makespan.
 - **SGPlan-style partitioning** — an optional partition-and-resolve mode.
+- **Robust** — a published library shouldn't crash: malformed/pathological PDDL
+  (incl. deeply-nested forms) returns a typed error, never a panic.
 - **Structured output** — the library returns typed, `serde`-serializable
   results; the CLI emits classic FF text **or** JSON.
 
@@ -60,6 +67,9 @@ ff -o domain.pddl -f problem.pddl --json
 # pick a mode / search strategy
 ff -o domain.pddl -f problem.pddl --mode partition
 ff -o domain.pddl -f problem.pddl --search best-first --weight-h 3
+
+# temporal (durative actions) — auto-detected; prints the IPC temporal plan
+ff -o temporal-domain.pddl -f problem.pddl --mode temporal
 
 # self-contained JSON job: {"domain": "...", "problem": "...", "options": {...}}
 ff --json-request job.json
@@ -96,7 +106,7 @@ JSON fields fall back to the defaults shown.
 
 ```rust
 ferroplan::solve(&domain, &problem, &ferroplan::Options {
-    mode:            Mode::Auto,        // auto | ff | partition | pddl3
+    mode:            Mode::Auto,        // auto | ff | partition | pddl3 | temporal
     search:          Search::Auto,      // auto | ehc | best-first | ehc-then-best-first
     helpful_actions: true,              // helpful-action pruning (EHC)
     weight_g:        1.0,               // best-first path-length weight
@@ -139,10 +149,16 @@ are not bundled (GPL / non-commercial licences) — reproduce per
 
 - **Numeric** trails Metric-FF: EHC's helpful-action lookahead stalls on some
   numeric domains and falls back to (complete, slower) best-first.
-- **IPC-5 preferences**: compiled away + anytime branch-and-bound — matches
-  SGPlan6's optimum on small instances, but does not beat its specialised search
-  on the largest (best-found, flagged *not proven optimal*).
-- Temporal/durative actions and derived predicates are not supported.
+- **IPC-5 preferences**: compiled away + anytime branch-and-bound. Coverage is on
+  par with SGPlan6 (≈39/48 on the simple-preferences suite), but on the hardest
+  instances the *metric quality* trails SGPlan6's specialised partition-and-penalty
+  search (best-found, flagged *not proven optimal*). Closing that gap needs the
+  full ESPC penalty-coordination loop — specced in
+  [`docs/espc-preferences-spec.md`](docs/espc-preferences-spec.md), not yet built.
+- **Temporal**: durative actions with constant or parameter-dependent durations
+  and required concurrency are supported; duration *inequalities*, timed initial
+  literals, and continuous (`#t`) effects are not yet.
+- Derived predicates (`:derived`) are not supported.
 
 ## License
 
