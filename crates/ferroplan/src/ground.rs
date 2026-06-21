@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::bitset;
-use crate::hash::FxHashMap;
+use crate::hash::{FxHashMap, FxHashSet};
 use crate::packed::{CondEff, CsrBuilder, PackedTask, State};
 use crate::par;
 use crate::types::*;
@@ -352,15 +352,11 @@ struct RawOp {
 
 fn for_each_binding(
     params: &[(Sym, Sym)],
-    objects_of_type: &HashMap<Sym, Vec<Sym>>,
+    domains: &[Vec<Sym>],
     mut f: impl FnMut(&HashMap<Sym, Sym>),
 ) {
-    let mut domains: Vec<&Vec<Sym>> = Vec::with_capacity(params.len());
-    for (_, ty) in params {
-        match objects_of_type.get(ty) {
-            Some(v) if !v.is_empty() => domains.push(v),
-            _ => return,
-        }
+    if domains.iter().any(|d| d.is_empty()) {
+        return;
     }
     let mut idx = vec![0usize; params.len()];
     let mut binding: HashMap<Sym, Sym> = HashMap::new();
@@ -388,13 +384,37 @@ fn for_each_binding(
 fn ground_action(
     action: &Action,
     objects_of_type: &HashMap<Sym, Vec<Sym>>,
+    init_unary: &FxHashMap<Sym, FxHashSet<Sym>>,
     init_atom_set: &HashSet<(Sym, Vec<Sym>)>,
     add_predicates: &HashSet<Sym>,
 ) -> Vec<RawOp> {
     let static_lits = static_top_atoms(&action.precond, add_predicates);
     let param_vars: Vec<Sym> = action.params.iter().map(|(v, _)| v.clone()).collect();
+    // Restrict each parameter's domain by its STATIC UNARY preconditions before
+    // enumerating bindings: a precond `(P ?x)` with P static (never added by any
+    // action) means ?x must be an object with `(P ?x)` in init. This avoids
+    // enumerating the full cartesian product over an untyped `object` domain
+    // (e.g. gripper: 154^3 instead of 150*2*2). The post-filter below still
+    // checks every static literal, so the set of ground ops is identical.
+    let mut domains: Vec<Vec<Sym>> = action
+        .params
+        .iter()
+        .map(|(_, ty)| objects_of_type.get(ty).cloned().unwrap_or_default())
+        .collect();
+    for (p, pargs) in &static_lits {
+        if pargs.len() == 1 {
+            if let Term::Var(v) = &pargs[0] {
+                if let Some(pos) = param_vars.iter().position(|pv| pv == v) {
+                    match init_unary.get(p) {
+                        Some(allowed) => domains[pos].retain(|o| allowed.contains(o)),
+                        None => domains[pos].clear(),
+                    }
+                }
+            }
+        }
+    }
     let mut out = Vec::new();
-    for_each_binding(&action.params, objects_of_type, |b| {
+    for_each_binding(&action.params, &domains, |b| {
         for (p, a) in &static_lits {
             let ga = subst_args(a, b);
             if !init_atom_set.contains(&(p.clone(), ga)) {
@@ -639,6 +659,17 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         collect_add(&a.effect, &mut add_predicates);
     }
     let init_atom_set: HashSet<(Sym, Vec<Sym>)> = problem.init_atoms.iter().cloned().collect();
+    // predicate -> objects appearing in a unary init atom `(P o)`, for static
+    // parameter-domain restriction in `ground_action`.
+    let mut init_unary: FxHashMap<Sym, FxHashSet<Sym>> = FxHashMap::default();
+    for (p, args) in &problem.init_atoms {
+        if args.len() == 1 {
+            init_unary
+                .entry(p.clone())
+                .or_default()
+                .insert(args[0].clone());
+        }
+    }
 
     // ---- Phase B: parallel per-action grounding ----
     let action_idx: Vec<usize> = (0..domain.actions.len()).collect();
@@ -646,6 +677,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         ground_action(
             &domain.actions[ai],
             &objects_of_type,
+            &init_unary,
             &init_atom_set,
             &add_predicates,
         )
