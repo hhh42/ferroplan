@@ -16,8 +16,8 @@ use ferroplan::parser::{parse_domain, parse_problem};
 fn main() {
     let dirs: Vec<String> = std::env::args().skip(1).collect();
     println!(
-        "{:<26} {:>7} {:>7} {:>8} {:>6} {:>6}  {}",
-        "instance", "facts", "groups", "covered", "cov%", "maxsz", "biggest-group"
+        "{:<26} {:>7} {:>7} {:>8} {:>6} {:>6}  biggest-group",
+        "instance", "facts", "groups", "covered", "cov%", "maxsz"
     );
     println!("{}", "-".repeat(92));
     for dir in &dirs {
