@@ -9,5 +9,6 @@
 - [Metric quality & invariants](./metric-quality.md)
 - [Temporal planning](./temporal.md)
 - [GUI (ferroplan-bevy)](./gui.md)
+- [Performance](./performance.md)
 - [Benchmarks](./benchmarks.md)
 - [Benchmark results](./results.md)

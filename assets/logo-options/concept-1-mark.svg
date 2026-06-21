@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-label="ferroplan mark">
+  <title>ferroplan</title>
+  <g transform="translate(6 12)">
+    <!-- anvil silhouette -->
+    <g fill="#64748b">
+      <path d="M6 28 L52 28 L52 40 L70 40 L56 58 L42 58 L42 48 L26 48 L26 58 L12 58 Z"/>
+      <path d="M26 58 L54 58 L48 76 L32 76 Z"/>
+    </g>
+    <!-- forge spark accent -->
+    <g stroke="#f59e0b" stroke-width="5" stroke-linecap="round">
+      <path d="M40 22 L40 8 M40 22 L28 12 M40 22 L52 12"/>
+    </g>
+    <circle cx="40" cy="24" r="6" fill="#f59e0b"/>
+  </g>
+</svg>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="120" viewBox="0 0 440 120" role="img" aria-label="ferroplan">
+  <title>ferroplan</title>
+  <!-- Concept 1: Forged iron. An anvil/ingot mark with a struck spark accent.
+       Palette: molten-iron steel #4b5563 / #cbd5e1 with a forge-spark amber #f59e0b. -->
+  <g transform="translate(14 18)">
+    <!-- anvil silhouette, angular + forged -->
+    <g fill="#64748b">
+      <!-- top face / horn -->
+      <path d="M4 18 L70 18 L70 30 L84 30 L72 46 L58 46 L58 38 L26 38 L26 46 L12 46 Z"/>
+      <!-- waist -->
+      <path d="M30 46 L54 46 L50 64 L34 64 Z"/>
+      <!-- base -->
+      <path d="M18 64 L66 64 L74 84 L10 84 Z"/>
+    </g>
+    <!-- struck spark on the anvil face: the forged "plan" / target -->
+    <g stroke="#f59e0b" stroke-width="4" stroke-linecap="round">
+      <path d="M44 12 L44 2 M44 12 L34 5 M44 12 L54 5"/>
+    </g>
+    <circle cx="44" cy="14" r="5" fill="#f59e0b"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="116" y="76" font-family="system-ui, sans-serif" font-size="52" font-weight="700" letter-spacing="-1.5">
+    <tspan fill="#64748b">ferro</tspan><tspan fill="#f59e0b">plan</tspan>
+  </text>
+</svg>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="120" viewBox="0 0 440 120" role="img" aria-label="ferroplan">
+  <title>ferroplan</title>
+  <!-- Concept 2: The plan = a solution route. Faint candidate edges fan out;
+       one bold path threads start -> goal. Palette: indigo #6c5ce7 route,
+       slate #94a3b8 candidates, emerald #10b981 goal. -->
+  <g transform="translate(16 16)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- explored/candidate branches (pruned) -->
+    <g stroke="#94a3b8" stroke-width="4" opacity="0.45">
+      <path d="M10 70 L40 30 M40 70 L40 30 M40 30 L78 50 M40 70 L74 78"/>
+    </g>
+    <!-- the chosen solution path (start -> waypoint -> goal) -->
+    <path d="M10 70 L40 30 L78 8" stroke="#6c5ce7" stroke-width="7"/>
+    <!-- start node -->
+    <circle cx="10" cy="70" r="7" fill="#6c5ce7"/>
+    <!-- waypoint on the path -->
+    <circle cx="40" cy="30" r="6.5" fill="#6c5ce7"/>
+    <!-- goal node (flag-ish target) -->
+    <circle cx="78" cy="8" r="9" fill="#10b981"/>
+    <circle cx="78" cy="8" r="3.5" fill="#ffffff"/>
+  </g>
+  <!-- Wordmark -->
+  <text x="120" y="76" font-family="system-ui, sans-serif" font-size="52" font-weight="600" letter-spacing="-1.5">
+    <tspan fill="#6c5ce7">ferro</tspan><tspan fill="#10b981">plan</tspan>
+  </text>
+</svg>

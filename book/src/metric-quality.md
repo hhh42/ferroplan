@@ -6,11 +6,16 @@ synthesis that feeds the partition-and-resolve mode.
 
 ## IPC-5 / metric quality
 
-ferroplan handles the IPC-5 (2006) preference track — the *simple-preferences*
-soft-goal domains, where the `:metric` charges for violated preferences and
-**lower is better**. Preferences are compiled away (Keyder & Geffner) and the
-metric is driven by anytime branch-and-bound (see
-[PDDL3 preferences](./pddl3.md)).
+ferroplan handles all six IPC-5 (2006) *simple-preferences* soft-goal domains —
+openstacks, tpp, storage, trucks, rovers, pathways — where the `:metric` charges
+for violated preferences (and, in rovers, a numeric traverse cost) and **lower is
+better**. Preferences are compiled away (Keyder & Geffner) and the metric is
+driven by anytime branch-and-bound (see [PDDL3 preferences](./pddl3.md)).
+
+rovers was the last to fall in: its metric also charges a **monotone numeric
+quantity** (`sum-traverse-cost`), which the optimizer used to ignore — scoring a
+bogus `0`. Folding monotone numeric terms into total-cost lets it optimize the
+*full* metric (a real **935.3**); see [Performance](./performance.md).
 
 The hard part is that delete-relaxation hides the cost of *forgoing* a soft goal:
 the free Keyder–Geffner forgo makes every preference look reachable, so on
@@ -24,13 +29,18 @@ plan found), it is monotone by construction and never regresses.
 
 | openstacks | tpp | storage | trucks | rovers | pathways |
 |---|---|---|---|---|---|
-| 63 | 21 | 8 | 0 | 0 | 2 |
+| 63 | 21 | 8 | 0 | 935.3 | 2 |
 
-(trucks/rovers reach metric 0 — every preference satisfied.) The residual gap to
+(trucks reaches metric 0 — every preference satisfied; rovers' 935.3 is the
+folded numeric metric, not a preference-violation count.) The residual gap to
 SGPlan6's ~13 on openstacks is the *scheduling* of the shared `stacks-avail`
 resource, which the satisfaction term can't see because it appears in no
 preference — closing it needs the SAS+ mutex-group partition plus a resource
-penalty loop. Full table and reproduction:
+penalty loop.
+
+**IPC-5 retroactive ranking (in progress).** We're scoring ferroplan against the
+2006 contest entrants to see where it would have placed; the numbers are still
+being computed. Full per-instance table, ranking, and reproduction:
 [`benchmarks/ipc5-scoreboard.md`](https://github.com/haroldhhersey/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
 
 ## Mutex groups & SAS+

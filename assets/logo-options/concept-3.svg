@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="430" height="120" viewBox="0 0 430 120" role="img" aria-label="ferroplan">
+  <title>ferroplan</title>
+  <!-- Concept 3: Minimal "fp" monogram in a rounded square tile.
+       Geometric, stroke-built letters share a baseline. Palette: single
+       indigo #6c5ce7 tile + white glyphs; mono and legible either way. -->
+  <g transform="translate(14 16)">
+    <rect x="0" y="0" width="88" height="88" rx="20" fill="#6c5ce7"/>
+    <!-- 'f' and 'p' drawn as strokes sharing the mid bar -->
+    <g fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+      <!-- f: stem + curl + crossbar -->
+      <path d="M40 28 a12 12 0 0 0 -12 12 L28 70"/>
+      <path d="M18 44 L40 44"/>
+      <!-- p: stem + bowl -->
+      <path d="M52 36 L52 74"/>
+      <path d="M52 40 a12 12 0 0 1 0 24 L52 64"/>
+    </g>
+  </g>
+  <!-- Wordmark -->
+  <text x="118" y="76" font-family="system-ui, sans-serif" font-size="52" font-weight="600" letter-spacing="-1.5">
+    <tspan fill="#6c5ce7">ferro</tspan><tspan fill="#9aa0a6">plan</tspan>
+  </text>
+</svg>
