@@ -83,3 +83,43 @@ constraints + reachability:
 - Exact `update_penalty` schedule + the consecutive-violation threshold *K*.
 - Outer-loop termination beyond "no global violation".
 - Grain-size selection is a stated objective, not a precise algorithm.
+
+## Conclusion of the implementation study (decision: deferred)
+
+A 4-design / adversarial-critique / synthesis study was run on top of this spec,
+plus six measured implementation attempts. The honest finding:
+
+**A general ESPC-style preference optimizer is NOT tractable in ferroplan as it
+stands.** Every approach that fits the architecture (the Keyder–Geffner
+collect/forgo representation + delete-relaxation heuristic) reduces to a
+"force-collect" lever — forbid `forgo_i` so the search must achieve `phi_i` — and
+*all variants were built and measured to NOT improve the metric*:
+
+| variant | result |
+|---|---|
+| cost-aware heuristic + cost-first A*/WA* (×2) | suboptimal + timeouts; `h` blind |
+| 10× B&B budget | openstacks unchanged (70) — search *direction*, not budget |
+| per-preference greedy force-collect | no gain; timed out many-pref instances |
+| all-forgo coverage floor | slow base search; hollow metrics |
+| batch force-collect (top-{100/50/25}%) | no gain on pathways/rovers; regressed openstacks coverage via latency |
+
+Two root causes, both architectural:
+1. Under delete-relaxation the free `forgo_i` makes every `collected_i` trivially
+   reachable, so the heuristic is **blind to which preferences a plan satisfies**.
+2. The hardest gap (openstacks, 70 vs 13) is the **minimum-open-stacks scheduling**
+   problem; its coupling lives in the `stacks-avail` resource, which appears in no
+   preference `phi` and is **invisible to any phi-based partitioning**. A faithful
+   ESPC needs SAS+/mutex-group guidance variables over `stacks-avail`.
+
+**Two future paths (neither pursued now):**
+- *General:* build a SAS+/mutex-group translation layer, then the real partition +
+  penalty-resolution loop. Multi-week; the right architecture but a large build.
+- *Scoreboard-only:* a bespoke `openstacks` min-open-stacks oracle (detect the
+  structure, schedule outside the relaxation-blinded search, inject as a
+  fail-closed incumbent). ~3 days; reaches ~20 not 13; domain-specific code, **not
+  a general planner advance** — explicitly a scoreboard fix.
+
+Decision: **coverage is already on par with SGPlan6 (39/48); the remaining gap is
+metric quality on solved instances.** Neither future path is justified for the
+current milestone, so ESPC is deferred. The `forbidden`/`plan_avoiding` plumbing
+and `Compiled.forgos` are retained as groundwork for the general path.

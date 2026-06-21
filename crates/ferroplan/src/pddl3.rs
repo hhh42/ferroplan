@@ -569,16 +569,18 @@ pub fn metric_optimize(
         best = Some((ops, cost));
     }
 
-    // 2. TIGHTEN. A per-preference "force-collect" (forbid a forgo action so the
-    // plan must satisfy `phi`, via `plan_avoiding`) was tried and measured: it
-    // helps marginally on few-preference problems but does NOT close the dominant
-    // gap (openstacks stayed at 70), because there the difficulty is joint
-    // GLOBAL-constraint coordination across preferences, not per-preference
-    // reachability — exactly the deep-research finding (docs/sgplan6-spec.md). The
-    // real fix is the full ESPC penalty-coordination loop (partition the
-    // collect/forgo decisions by guidance variable, resolve jointly with penalty
-    // multipliers); the `forbidden`/`plan_avoiding` plumbing is kept as its
-    // groundwork. For now we keep the (coverage-preserving) bounded B&B below.
+    // 2. TIGHTEN — intentionally just the B&B below. Every "force-collect" variant
+    // (forbid forgo actions so the search must satisfy `phi`) has been built and
+    // measured and NONE improve the metric on ferroplan: per-preference forcing
+    // (too slow, no coordination), the all-forgo floor, and batched top-{100/50/25}%
+    // forcing all left pathways/rovers unchanged and merely added latency that
+    // regressed openstacks coverage. Root cause (confirmed by the ESPC design
+    // study, docs/espc-preferences-spec.md): under delete-relaxation the free
+    // forgo makes every preference look reachable, so the heuristic is blind to
+    // satisfaction; and the openstacks coupling lives in the `stacks-avail`
+    // resource, invisible to any phi-based partitioning. A faithful ESPC needs a
+    // SAS+/mutex-group layer ferroplan does not have. The `forbidden`/`plan_avoiding`
+    // plumbing is retained for a possible future SAS+-based optimizer.
     let _ = forgos;
 
     // 3. POLISH: bounded B&B from the (now much better) incumbent — reaches the
