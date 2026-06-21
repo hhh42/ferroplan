@@ -39,6 +39,7 @@ pub mod pddl3;
 pub mod report;
 pub mod resolve;
 pub mod temporal;
+pub mod trace;
 pub mod verify;
 
 // orchestration + smart public API
@@ -47,4 +48,5 @@ pub mod planner;
 
 pub use api::{solve, Metric, Mode, Options, Plan, Search, Solution, SolveError, Statistics, Step};
 pub use planner::{run_ff, run_planner};
+pub use trace::{trace, StateSnapshot};
 pub use types::ParseError;

@@ -75,8 +75,8 @@ pub struct VizModel {
     pub props_by_object: BTreeMap<String, Vec<String>>,
     /// object -> goal atoms it appears in.
     pub goal_by_object: BTreeMap<String, Vec<String>>,
-    /// predicate name -> classification (groundwork for a future override UI).
-    #[allow(dead_code)]
+    /// predicate name -> classification (used to read positions from a snapshot;
+    /// also groundwork for a future override UI).
     pub pred_kind: BTreeMap<String, PredKind>,
     /// inferred location/"node" types (groundwork for the override UI).
     #[allow(dead_code)]
@@ -258,6 +258,43 @@ impl VizModel {
 
     pub fn is_empty(&self) -> bool {
         self.nodes.is_empty() && self.mobiles.is_empty()
+    }
+
+    /// Given the true facts of a snapshot (display strings like `(AT T1 A)`), map
+    /// each mobile object to the node it sits on (resolving containment
+    /// transitively); `None` = off-graph. Used to animate a plan trace.
+    pub fn positions_at(&self, facts: &[String]) -> HashMap<String, Option<String>> {
+        let node_set: BTreeSet<&str> = self.nodes.iter().map(|n| n.object.as_str()).collect();
+        let mut pos_target: HashMap<String, String> = HashMap::new();
+        for f in facts {
+            let inner = f.trim().trim_start_matches('(').trim_end_matches(')');
+            let mut it = inner.split_whitespace();
+            let Some(pred) = it.next() else { continue };
+            if self.pred_kind.get(&pred.to_uppercase()) == Some(&PredKind::Position) {
+                if let (Some(m), Some(p)) = (it.next(), it.next()) {
+                    pos_target
+                        .entry(m.to_uppercase())
+                        .or_insert_with(|| p.to_uppercase());
+                }
+            }
+        }
+        let mut out = HashMap::new();
+        for m in &self.mobiles {
+            let mut cur = m.object.clone();
+            let mut node = None;
+            for _ in 0..64 {
+                if node_set.contains(cur.as_str()) {
+                    node = Some(cur.clone());
+                    break;
+                }
+                match pos_target.get(&cur) {
+                    Some(n) => cur = n.clone(),
+                    None => break,
+                }
+            }
+            out.insert(m.object.clone(), node);
+        }
+        out
     }
 }
 
