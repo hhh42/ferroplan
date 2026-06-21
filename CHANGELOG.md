@@ -17,15 +17,27 @@ Initial public release.
 - ADL: conditional effects, `forall`/`exists`, object equality.
 - Numeric fluents (Metric-FF style).
 - PDDL3 soft-goal preferences (incl. `forall`-quantified and precondition
-  preferences) with anytime branch-and-bound metric optimization.
+  preferences) with anytime branch-and-bound metric optimization. IPC-5 coverage
+  on par with SGPlan6 (39/48).
+- **PDDL2.1 temporal**: durative actions with `at start`/`over all`/`at end`
+  conditions & effects, constant or parameter-dependent durations, required
+  concurrency, and ε-separation; decision-epoch search; IPC temporal plan output
+  with makespan. Plans validated against VAL on real IPC domains (44/45 valid);
+  an independent in-crate validator (`temporal::validate`).
 - SGPlan-style partition-and-resolve mode.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.
-- mdBook documentation site; cross-planner comparison harness (`compare.py`) and
-  static benchmark results vs Metric-FF / SGPlan6.
+- **Robust** against malformed input — pathological/deeply-nested PDDL returns a
+  typed error, never a panic.
+- mdBook documentation site; cross-planner comparison harness (`compare.py`),
+  temporal+VAL harness (`bench_temporal.py`), and benchmark results vs
+  Metric-FF / SGPlan6 / VAL.
 
 ### Known limitations
 - Numeric domains trail Metric-FF (EHC falls back to best-first on some).
-- IPC-5 preference quality is competitive on small instances, not winning on the
-  largest; temporal/durative actions and derived predicates unsupported.
+- IPC-5 preference metric *quality* on the hardest instances trails SGPlan6 — the
+  general fix needs a SAS+ layer (see `docs/espc-preferences-spec.md`).
+- Temporal coverage is search-limited on large instances.
+- Not supported: duration inequalities, timed initial literals, continuous (`#t`)
+  effects, derived predicates.
