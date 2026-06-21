@@ -271,3 +271,56 @@ fn validate_accepts_and_rejects_plans() {
         "empty plan must not validate against a real goal"
     );
 }
+
+// A renewable resource (a worker/crew pool): consumed at-start, released at-end,
+// guarded by an at-start `>=` precondition. This is the durative resource-
+// allocation pattern (workers, tools, machines, bandwidth). The decision-epoch
+// search must hold the resource over each action's interval, so a tight pool
+// forces serialization and a larger pool allows overlap.
+const RESOURCE_DOM: &str = "
+(define (domain crew)
+  (:requirements :typing :durative-actions :numeric-fluents)
+  (:types task)
+  (:predicates (done ?t - task))
+  (:functions (avail))
+  (:durative-action do
+    :parameters (?t - task)
+    :duration (= ?duration 5)
+    :condition (at start (>= (avail) 1))
+    :effect (and (at start (decrease (avail) 1))
+                 (at end (increase (avail) 1))
+                 (at end (done ?t)))))
+";
+
+fn crew_makespan(capacity: u32) -> f64 {
+    let prob = format!(
+        "(define (problem c) (:domain crew) (:objects t1 t2 - task)
+           (:init (= (avail) {capacity})) (:goal (and (done t1) (done t2))))"
+    );
+    let d = parse_domain(RESOURCE_DOM).expect("resource domain parses");
+    let p = parse_problem(&prob).expect("resource problem parses");
+    temporal::solve(&d, &p, 1)
+        .expect("a resource-respecting plan exists")
+        .makespan
+}
+
+#[test]
+fn renewable_resource_limits_concurrency() {
+    // Pool of 1: the two unit-cost (dur 5) tasks cannot overlap -> serialized ~10.
+    let cap1 = crew_makespan(1);
+    assert!(
+        cap1 > 9.9 && cap1 < 10.5,
+        "cap=1 must serialize (~10), got {cap1}"
+    );
+    // Pool of 2: they run concurrently -> ~5.
+    let cap2 = crew_makespan(2);
+    assert!(
+        cap2 > 4.9 && cap2 < 5.5,
+        "cap=2 allows overlap (~5), got {cap2}"
+    );
+    // The pool actually constrains the schedule.
+    assert!(
+        cap1 > cap2 + 4.0,
+        "a larger resource pool must shorten the makespan ({cap1} vs {cap2})"
+    );
+}

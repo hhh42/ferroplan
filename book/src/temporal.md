@@ -50,6 +50,35 @@ ff -o temporal-domain.pddl -f problem.pddl            # auto-detected
 ff -o temporal-domain.pddl -f problem.pddl --mode temporal --json
 ```
 
+## Resource scheduling (renewable + consumable)
+
+Durative actions over numeric fluents give you **resource allocation over time**
+for free — the case that matters for scheduling crews, machines, tools, power, or
+mana. Model a **renewable** resource as a pool that is taken at start and returned
+at end, guarded by an at-start check:
+
+```pddl
+(:functions (workers))
+(:durative-action chop-tree
+  :duration (= ?duration 3)
+  :condition (at start (>= (workers) 1))
+  :effect (and (at start (decrease (workers) 1))     ; held over the interval…
+               (at end   (increase (workers) 1))     ; …released at the end
+               (at end   (increase (wood) 1))))
+```
+
+Because the decrement persists until the matching end fires, the decision-epoch
+search holds the resource across the whole `[start, end]` interval: a pool of 1
+forces tasks to serialize, a larger pool lets them overlap. **Consumable**
+resources (materials) are the same idea without the release — produced and
+consumed by a crafting chain (`wood → planks`, `planks + stone → house`).
+
+See [`examples/rpg/`](https://github.com/haroldhhersey/ferroplan/tree/main/examples/rpg)
+for a full gather → craft → build example; the same problem with `(= (workers) 1)`
+vs `3` plans serially (makespan ~19) vs in parallel (~13). Plans are satisficing,
+not makespan-optimal — a good plan fast, suited to an agent that plans, acts, and
+replans as the world changes.
+
 ## Validation against VAL
 
 Plans are validated with [VAL](https://github.com/KCL-Planning/VAL), the IPC plan
