@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](./intro.md)
+- [Try it in your browser](./try.md)
 - [Install & quick start](./install.md)
 - [Command line (`ff`)](./cli.md)
 - [Library API](./library.md)
