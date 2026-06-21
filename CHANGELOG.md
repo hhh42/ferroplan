@@ -30,14 +30,32 @@ Initial public release.
   strategy flags.
 - **Robust** against malformed input — pathological/deeply-nested PDDL returns a
   typed error, never a panic.
+- **SAS+ / mutex groups** — Helmert-style multi-predicate invariant synthesis,
+  feeding SGPlan-style subgoal partitioning + resolution.
+- **General metric terms** — the metric optimizer folds monotone numeric fluent
+  terms (e.g. rovers' `(sum-traverse-cost)`) into total-cost, so all six IPC-5
+  simple-preferences domains are scored, rovers included.
 - mdBook documentation site; cross-planner comparison harness (`compare.py`),
   temporal+VAL harness (`bench_temporal.py`), and benchmark results vs
   Metric-FF / SGPlan6 / VAL.
 
+### Performance
+- **Grounding** — restrict each parameter's domain by its static unary
+  preconditions before enumerating; fixes untyped cartesian-product blowup
+  (gripper p02 658µs→247µs, 2.65×; large untyped grounding 1.56s→~0). See
+  `docs/perf-notes.md`.
+- **EHC** — work cap scaled by op count so large-but-easy instances finish in
+  EHC's near-greedy arm instead of unpruned best-first (gripper-250 `--mode ff`
+  2.16M evals/33s → 32k/0.86s, 38×).
+
 ### Known limitations
 - Numeric domains trail Metric-FF (EHC falls back to best-first on some).
-- IPC-5 preference metric *quality* on the hardest instances trails SGPlan6 — the
-  general fix needs a SAS+ layer (see `docs/espc-preferences-spec.md`).
+- IPC-5 preference metric *quality* on the hardest instances trails SGPlan6;
+  retroactively, ferroplan places ~2nd in the field (SGPlan5 swept). The mutex /
+  partition groundwork is in; the openstacks resource-penalty loop is pending
+  (see `docs/espc-preferences-spec.md`).
+- The metric branch-and-bound does not scale to instances with hundreds of
+  preferences (e.g. storage p05+) — the Keyder–Geffner compilation grows large.
 - Temporal coverage is search-limited on large instances.
 - Not supported: duration inequalities, timed initial literals, continuous (`#t`)
   effects, derived predicates.
