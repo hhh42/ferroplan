@@ -4,6 +4,7 @@
 
 use bevy::prelude::*;
 
+mod anim;
 mod interact;
 mod scene;
 mod ui;
@@ -21,6 +22,8 @@ fn main() {
         .init_resource::<scene::Scene>()
         .init_resource::<interact::Selected>()
         .init_resource::<interact::DragState>()
+        .init_resource::<anim::Plan>()
+        .init_resource::<anim::SolveJob>()
         .add_systems(Startup, (scene::setup, ui::setup_ui))
         .add_systems(
             Update,
@@ -31,6 +34,10 @@ fn main() {
                 scene::camera_nav,
                 interact::interact,
                 interact::draw_selection,
+                anim::controls,
+                anim::poll_solve,
+                anim::advance,
+                anim::animate,
                 ui::update_info,
             ),
         )

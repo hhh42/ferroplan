@@ -83,6 +83,11 @@ pub struct MobileObj(pub String);
 #[derive(Component)]
 pub struct MainCamera;
 
+/// Per-mobile fan offset from its node center (so co-located mobiles don't stack);
+/// reused by the animation system.
+#[derive(Component)]
+pub struct FanOffset(pub Vec2);
+
 pub fn setup(mut commands: Commands) {
     commands.spawn((Camera2d, MainCamera));
 }
@@ -131,26 +136,28 @@ pub fn respawn_graph(
         let a = std::f32::consts::TAU * (i as f32) / n;
         let pos = Vec2::new(radius * a.cos(), radius * a.sin());
         node_pos.insert(node.object.clone(), pos);
-        commands.spawn((
-            GraphItem,
-            NodeObj(node.object.clone()),
-            Sprite {
-                color: color_for(&node.ty),
-                custom_size: Some(Vec2::splat(NODE_SIZE)),
-                ..default()
-            },
-            Transform::from_translation(pos.extend(0.0)),
-        ));
-        commands.spawn((
-            GraphItem,
-            Text2d::new(node.object.to_lowercase()),
-            TextFont {
-                font_size: 13.0,
-                ..default()
-            },
-            TextColor(Color::srgb(0.9, 0.9, 0.9)),
-            Transform::from_translation((pos + Vec2::new(0.0, -NODE_SIZE)).extend(1.0)),
-        ));
+        commands
+            .spawn((
+                GraphItem,
+                NodeObj(node.object.clone()),
+                Sprite {
+                    color: color_for(&node.ty),
+                    custom_size: Some(Vec2::splat(NODE_SIZE)),
+                    ..default()
+                },
+                Transform::from_translation(pos.extend(0.0)),
+            ))
+            .with_children(|p| {
+                p.spawn((
+                    Text2d::new(node.object.to_lowercase()),
+                    TextFont {
+                        font_size: 13.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                    Transform::from_xyz(0.0, -NODE_SIZE * 0.85, 1.0),
+                ));
+            });
     }
 
     for (mi, m) in g.mobiles.iter().enumerate() {
@@ -160,26 +167,29 @@ pub fn respawn_graph(
                 .unwrap_or_else(|| Vec2::new(-radius - 120.0, radius - mi as f32 * 40.0));
         let off = Vec2::from_angle(mi as f32 * GOLDEN) * (NODE_SIZE * 0.7);
         let pos = base + off;
-        commands.spawn((
-            GraphItem,
-            MobileObj(m.object.clone()),
-            Sprite {
-                color: color_for(&m.ty),
-                custom_size: Some(Vec2::splat(MOBILE_SIZE)),
-                ..default()
-            },
-            Transform::from_translation(pos.extend(2.0)),
-        ));
-        commands.spawn((
-            GraphItem,
-            Text2d::new(m.object.to_lowercase()),
-            TextFont {
-                font_size: 11.0,
-                ..default()
-            },
-            TextColor(Color::srgb(0.85, 0.85, 0.85)),
-            Transform::from_translation((pos + Vec2::new(0.0, -MOBILE_SIZE)).extend(3.0)),
-        ));
+        commands
+            .spawn((
+                GraphItem,
+                MobileObj(m.object.clone()),
+                FanOffset(off),
+                Sprite {
+                    color: color_for(&m.ty),
+                    custom_size: Some(Vec2::splat(MOBILE_SIZE)),
+                    ..default()
+                },
+                Transform::from_translation(pos.extend(2.0)),
+            ))
+            .with_children(|p| {
+                p.spawn((
+                    Text2d::new(m.object.to_lowercase()),
+                    TextFont {
+                        font_size: 11.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgb(0.85, 0.85, 0.85)),
+                    Transform::from_xyz(0.0, -MOBILE_SIZE, 1.0),
+                ));
+            });
     }
 }
 

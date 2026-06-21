@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 
+use crate::anim::Plan;
 use crate::interact::Selected;
 use crate::scene::Scene;
 
@@ -39,6 +40,7 @@ pub fn setup_ui(mut commands: Commands) {
 pub fn update_info(
     scene: Res<Scene>,
     selected: Res<Selected>,
+    plan: Res<Plan>,
     mut q: Query<&mut Text, With<InfoText>>,
 ) {
     let Ok(mut text) = q.get_single_mut() else {
@@ -51,7 +53,31 @@ pub fn update_info(
         s.push_str(&scene.status);
         s.push('\n');
     }
-    s.push_str("\nright-drag: pan · scroll: zoom\nclick: inspect · drag a node to move it\n");
+    s.push_str(
+        "\nright-drag: pan · scroll: zoom\nclick: inspect · drag a node to move it\n\
+         S: solve · Space: play/pause · ←/→: step · R: reset\n",
+    );
+
+    // plan / timeline
+    if !plan.status.is_empty() {
+        s.push_str(&format!("\n{}\n", plan.status));
+    }
+    if !plan.steps.is_empty() {
+        let k = (plan.t.floor() as usize).min(plan.steps.len().saturating_sub(1));
+        if (plan.t as usize) < plan.steps.len() {
+            let step = &plan.steps[k];
+            s.push_str(&format!(
+                "step {}/{}: {} {}{}\n",
+                k + 1,
+                plan.steps.len(),
+                step.action.to_lowercase(),
+                step.args.join(" ").to_lowercase(),
+                if plan.playing { "  [playing]" } else { "" },
+            ));
+        } else {
+            s.push_str(&format!("done ({} steps)\n", plan.steps.len()));
+        }
+    }
 
     if let Some(obj) = &selected.0 {
         s.push_str(&format!("\n[{}]\n", obj.to_lowercase()));

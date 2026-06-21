@@ -16,3 +16,4 @@ path = "src/main.rs"
 [dependencies]
 ferroplan = { path = "../ferroplan" }
 bevy = "0.15"
+futures-lite = "2"
