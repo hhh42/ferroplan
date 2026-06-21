@@ -81,7 +81,17 @@ pub fn update_info(
 
     if let Some(obj) = &selected.0 {
         s.push_str(&format!("\n[{}]\n", obj.to_lowercase()));
-        if let Some(ps) = scene.graph.props_by_object.get(obj) {
+        // Live facts from the current snapshot while a plan is loaded; otherwise
+        // the initial-state facts.
+        if !plan.snapshots.is_empty() {
+            let k = (plan.t.floor() as usize).min(plan.snapshots.len() - 1);
+            for f in &plan.snapshots[k].facts {
+                if fact_mentions(f, obj) {
+                    s.push_str(&f.to_lowercase());
+                    s.push('\n');
+                }
+            }
+        } else if let Some(ps) = scene.graph.props_by_object.get(obj) {
             for p in ps {
                 s.push_str(p);
                 s.push('\n');
@@ -96,4 +106,10 @@ pub fn update_info(
         }
     }
     *text = Text::new(s);
+}
+
+/// Does a fact display string (e.g. `(PKG-AT CRATE1 MARKET)`) name `obj` as one
+/// of its arguments/predicate tokens?
+fn fact_mentions(fact: &str, obj: &str) -> bool {
+    fact.split(['(', ')', ' ']).any(|t| t == obj)
 }

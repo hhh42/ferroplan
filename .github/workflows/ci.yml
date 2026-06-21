@@ -9,8 +9,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Core library + CLI. Excludes the desktop GUI (eframe needs system libs); the
-  # GUI has its own job below.
+  # Core library + CLI. Excludes the Bevy GUI (the engine needs heavy system
+  # libraries to build on Linux; it's built locally for now).
   test:
     runs-on: ubuntu-latest
     steps:
@@ -22,31 +22,12 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --workspace --exclude ferroplan-gui --exclude ferroplan-bevy --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --exclude ferroplan-bevy --all-targets --all-features -- -D warnings
       - name: Test
-        run: cargo test --workspace --exclude ferroplan-gui --exclude ferroplan-bevy
+        run: cargo test --workspace --exclude ferroplan-bevy
       - name: Docs
-        run: cargo doc --no-deps --all-features --workspace --exclude ferroplan-gui --exclude ferroplan-bevy
+        run: cargo doc --no-deps --all-features --workspace --exclude ferroplan-bevy
         env:
           RUSTDOCFLAGS: -D warnings
       - name: Bench compiles (perf gate)
         run: cargo bench --no-run -p ferroplan
-
-  # Desktop GUI (eframe) — needs windowing/system libraries to build on Linux.
-  gui:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: System deps (eframe/winit)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libxkbcommon-dev libxcb-render0-dev \
-            libxcb-shape0-dev libxcb-xfixes0-dev libwayland-dev libgl1-mesa-dev
-      - name: Clippy
-        run: cargo clippy -p ferroplan-gui --all-targets -- -D warnings
-      - name: Test
-        run: cargo test -p ferroplan-gui

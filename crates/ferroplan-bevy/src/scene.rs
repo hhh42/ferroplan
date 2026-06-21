@@ -152,7 +152,7 @@ pub fn respawn_graph(
                         ..default()
                     },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),
-                    Transform::from_xyz(0.0, -NODE_SIZE * 0.85, 1.0),
+                    Transform::from_xyz(0.0, NODE_SIZE * 0.72, 1.0), // label ABOVE the node
                 ));
             });
     }
@@ -162,7 +162,7 @@ pub fn respawn_graph(
             m.at.as_ref()
                 .and_then(|name| node_pos.get(name).copied())
                 .unwrap_or_else(|| Vec2::new(-radius - 120.0, radius - mi as f32 * 40.0));
-        let off = Vec2::from_angle(mi as f32 * GOLDEN) * (NODE_SIZE * 0.7);
+        let off = Vec2::from_angle(mi as f32 * GOLDEN) * (NODE_SIZE * 0.95);
         let pos = base + off;
         let mesh = icons::mesh_handle(
             &mut meshes,
@@ -188,7 +188,7 @@ pub fn respawn_graph(
                         ..default()
                     },
                     TextColor(Color::srgb(0.85, 0.85, 0.85)),
-                    Transform::from_xyz(0.0, -MOBILE_SIZE, 1.0),
+                    Transform::from_xyz(0.0, -MOBILE_SIZE * 1.5, 1.0),
                 ));
             });
     }
