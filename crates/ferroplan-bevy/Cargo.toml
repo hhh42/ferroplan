@@ -15,7 +15,21 @@ path = "src/main.rs"
 
 [dependencies]
 ferroplan = { path = "../ferroplan" }
-bevy = "0.15"
+# Slimmed feature set (no audio/gltf/3d/scene/animation) to shrink the wasm GUI.
+bevy = { version = "0.15", default-features = false, features = [
+    "bevy_winit",
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_sprite",
+    "bevy_text",
+    "bevy_ui",
+    "bevy_gizmos",
+    "bevy_asset",
+    "default_font",
+    "webgl2",
+    "x11",
+    "multi_threaded",
+] }
 futures-lite = "2"
 
 # WASM build (browser GUI): getrandom needs a JS backend on wasm32. Two versions
