@@ -677,10 +677,32 @@ pub struct MetricResult {
 /// an EHC first incumbent, then SGPlan-style force-collect tightening (force the
 /// highest-weight preferences to actually be satisfied), then a bounded B&B polish.
 /// `forgos` are the (op-id, weight) of the synthetic forgo actions.
+/// Default per-`occupancy²` weight for the renewable-resource guidance term.
+///
+/// **Off (0) by default — deliberately.** A swept experiment (FF_RES_WEIGHT ×
+/// FF_RES_THRESH on openstacks p01–p05) showed a soft occupancy penalty never
+/// lowers the metric: small weights *raise* it (penalizing live occupancy
+/// suppresses the necessary start→make→ship pipeline — a started-but-unshipped
+/// order carries both a forgone-pref penalty and occupancy cost), and large
+/// thresholds are inert. This is principled: openstacks is min-open-stacks
+/// scheduling (an order's products must be made while it is *started*, so orders
+/// sharing a product must be open simultaneously — the MOSP/pathwidth constraint),
+/// a combinatorial *peak/throughput* objective that no per-state penalty can
+/// express. Closing that gap needs the ESPC partition+penalty loop or a real
+/// scheduler, not this term.
+///
+/// The detection + concrete-state hook are kept as the **foundation** for
+/// capacity-aware scheduling (numeric resources, and renewable-resource
+/// feasibility in the temporal planner — where capacity is a *hard* constraint,
+/// the case that actually matters for durative resource allocation). Override at
+/// runtime with `FF_RES_WEIGHT` / `FF_RES_THRESH` to experiment.
+const RES_WEIGHT_DEFAULT: i64 = 0;
+
 pub fn metric_optimize(
     task: &PackedTask,
     cost_fluent: usize,
     forgos: &[(usize, f64)],
+    groups: &[Vec<u32>],
     threads: usize,
 ) -> Option<MetricResult> {
     const MAX_ITERS: usize = 10_000;
@@ -722,7 +744,34 @@ pub fn metric_optimize(
     // all-forgo floor. (It still can't see the openstacks `stacks-avail` resource —
     // that needs the SAS+ partition + penalty loop — so it narrows, not closes, the
     // gap.) Built from each preference's P3COLLECT-i `phi` precondition.
-    let sat = build_sat_guidance(task, forgos);
+    let mut sat = build_sat_guidance(task, forgos);
+    // Resource-aware guidance foundation: detect any renewable "counter" resource
+    // the delete-relaxed heuristic is blind to (e.g. openstacks' stacks-avail).
+    // The occupancy penalty in SatGuidance is OFF by default — see
+    // RES_WEIGHT_DEFAULT for why a soft penalty can't crack openstacks; this stays
+    // as the substrate for capacity-aware scheduling. Empty (no-op) on domains
+    // with no such resource. Tunable via FF_RES_WEIGHT / FF_RES_THRESH.
+    sat.res = crate::resource::detect_resources(task, groups, &task.init_bits);
+    if !sat.res.is_empty() {
+        sat.res_weight = std::env::var("FF_RES_WEIGHT")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(RES_WEIGHT_DEFAULT);
+        sat.res_thresh = std::env::var("FF_RES_THRESH")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        if std::env::var("FF_RES_DEBUG").is_ok() {
+            let caps: Vec<usize> = sat.res.iter().map(|r| r.members.len() - 1).collect();
+            eprintln!(
+                "[C3] {} renewable resource(s), capacities {:?}; w={} thresh={}",
+                sat.res.len(),
+                caps,
+                sat.res_weight,
+                sat.res_thresh
+            );
+        }
+    }
 
     // 3. POLISH: bounded B&B from the (now much better) incumbent — reaches the
     // true optimum on small instances; on timeout we keep the incumbent.
@@ -808,5 +857,10 @@ fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance
             prefs.push((phi, (weight * 100.0).round().max(1.0) as i64));
         }
     }
-    SatGuidance { prefs }
+    SatGuidance {
+        prefs,
+        res: Vec::new(),
+        res_weight: 0,
+        res_thresh: 0,
+    }
 }

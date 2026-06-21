@@ -31,6 +31,7 @@ pub mod output;
 pub mod packed;
 pub mod par;
 pub mod parser;
+pub mod resource;
 pub mod search;
 pub mod types;
 

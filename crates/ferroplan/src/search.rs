@@ -101,6 +101,17 @@ struct Node {
 /// changes node *ordering* only, never which nodes are legal.
 pub struct SatGuidance {
     pub prefs: Vec<(Vec<u32>, i64)>,
+    /// Renewable resources whose live occupancy is penalized on the concrete
+    /// state (what delete-relaxation hides). Empty unless a counter resource was
+    /// detected; see [`crate::resource`].
+    pub res: Vec<crate::resource::ResourceVar>,
+    /// Per-`occupancy²` weight for the resource term. 0 disables it (the heap key
+    /// is then bit-identical to the forgone-only behavior).
+    pub res_weight: i64,
+    /// Only occupancy ABOVE this threshold is penalized (penalize `(occ-thresh)²`).
+    /// 0 penalizes all occupancy; a value near capacity penalizes only the
+    /// dead-end zone (all stacks committed) without suppressing normal pipelining.
+    pub res_thresh: i64,
 }
 
 impl SatGuidance {
@@ -113,6 +124,23 @@ impl SatGuidance {
                 .all(|&f| crate::bitset::test(&s.bits, f as usize))
             {
                 pen += *p;
+            }
+        }
+        pen
+    }
+
+    /// Combined heap-ordering penalty: forgone preferences + a CONVEX renewable-
+    /// resource occupancy term (`w · occupancy²`, summed over detected resources).
+    /// Both are read off the concrete state, so the search sees the resource the
+    /// delete-relaxed heuristic cannot. Ordering only — never legality — so
+    /// completeness is preserved. The convex shape discourages high simultaneous
+    /// occupancy (the peak), steering toward "release before acquiring more".
+    fn penalty(&self, s: &State) -> i64 {
+        let mut pen = self.forgone(s);
+        if self.res_weight != 0 {
+            for r in &self.res {
+                let over = (r.occupancy(&s.bits) as i64 - self.res_thresh).max(0);
+                pen += self.res_weight * over * over;
             }
         }
         pen
@@ -267,9 +295,10 @@ pub fn search_from(
             for (pi, oi, s, k, ph) in chunk {
                 if visited.insert(k) {
                     let g = nodes[pi].g + 1;
-                    // metric guidance: forgone-preference penalty on the concrete
-                    // successor (steers toward genuinely satisfying states).
-                    let sat_pen = sat.map(|sg| sg.forgone(&s)).unwrap_or(0);
+                    // metric guidance: forgone-preference + renewable-resource
+                    // occupancy penalty on the concrete successor (steers toward
+                    // genuinely satisfying states that stay within resource pools).
+                    let sat_pen = sat.map(|sg| sg.penalty(&s)).unwrap_or(0);
                     let idx = nodes.len();
                     nodes.push(Node {
                         state: s,

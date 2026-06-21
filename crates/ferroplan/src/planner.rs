@@ -196,7 +196,9 @@ fn plan_pddl3(
                 .map(|oi| (oi, *w))
         })
         .collect();
-    match pddl3::metric_optimize(&task, cf, &forgos, threads) {
+    // Mutex groups feed the resource-aware guidance (renewable counter resources).
+    let groups = crate::invariants::synthesize(&c.domain, &task);
+    match pddl3::metric_optimize(&task, cf, &forgos, &groups, threads) {
         Some(r) => {
             let mut note = String::new();
             if c.warn_other {
