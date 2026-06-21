@@ -582,6 +582,10 @@ pub fn metric_optimize(
 
     // 3. POLISH: bounded B&B from the (now much better) incumbent — reaches the
     // true optimum on small instances; on timeout we keep the incumbent.
+    // (Measured: a 10x eval budget does NOT lower openstacks below the
+    // satisfaction-guided plateau — the residual gap is missing resource-
+    // coordination signal for `stacks-avail`, not search budget — so the cap
+    // stays modest.)
     let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
     while iterations < MAX_ITERS {
         iterations += 1;
