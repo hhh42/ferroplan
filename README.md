@@ -145,6 +145,11 @@ Full results + the IPC-5 preference scoreboard: [`benchmarks/results.md`](benchm
 are not bundled (GPL / non-commercial licences) — reproduce per
 [`benchmarks/COMPARING.md`](benchmarks/COMPARING.md).
 
+**Profiling & perf tracking:** [`PROFILING.md`](PROFILING.md) — a deterministic
+metrics harness (`benchmarks/perf.py run`/`compare` against a committed baseline,
+so improvement/regression is measurable across machines) plus the samply /
+flamegraph / criterion-baseline workflow for finding and tracking hotspots.
+
 ## Limitations
 
 - **Numeric** trails Metric-FF: EHC's helpful-action lookahead stalls on some

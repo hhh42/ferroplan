@@ -1,0 +1,78 @@
+{
+  "aggregate": {
+    "geomean_evaluated": 35.0,
+    "geomean_ms": 31.8,
+    "problems": 9,
+    "solved": 9,
+    "total_evaluated": 1784
+  },
+  "git": "8979c05",
+  "label": "v0.1.0 baseline",
+  "problems": {
+    "adl/gripper/p01.pddl": {
+      "evaluated": 20,
+      "length": 13,
+      "metric": null,
+      "ms": 23.0,
+      "solved": true
+    },
+    "numeric/rovers/p01.pddl": {
+      "evaluated": 1633,
+      "length": 10,
+      "metric": null,
+      "ms": 29.8,
+      "solved": true
+    },
+    "numeric/rovers/p02.pddl": {
+      "evaluated": 14,
+      "length": 8,
+      "metric": null,
+      "ms": 7.3,
+      "solved": true
+    },
+    "numeric/satellite/p01.pddl": {
+      "evaluated": 30,
+      "length": 11,
+      "metric": null,
+      "ms": 9.5,
+      "solved": true
+    },
+    "pref/pathways/p01.pddl": {
+      "evaluated": 0,
+      "length": 5,
+      "metric": 2.0,
+      "ms": 351.7,
+      "solved": true
+    },
+    "strips/blocks/p01.pddl": {
+      "evaluated": 14,
+      "length": 10,
+      "metric": null,
+      "ms": 37.1,
+      "solved": true
+    },
+    "strips/blocks/p02.pddl": {
+      "evaluated": 16,
+      "length": 14,
+      "metric": null,
+      "ms": 33.9,
+      "solved": true
+    },
+    "strips/gripper/p01.pddl": {
+      "evaluated": 20,
+      "length": 13,
+      "metric": null,
+      "ms": 44.5,
+      "solved": true
+    },
+    "strips/gripper/p02.pddl": {
+      "evaluated": 37,
+      "length": 21,
+      "metric": null,
+      "ms": 35.7,
+      "solved": true
+    }
+  },
+  "threads": 1,
+  "timeout_s": 30.0
+}

@@ -21,3 +21,9 @@ thiserror = "1"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Release-optimized but with debug symbols, for profiling (flamegraph / samply).
+# Build with `cargo build --profile profiling`.
+[profile.profiling]
+inherits = "release"
+debug = true
