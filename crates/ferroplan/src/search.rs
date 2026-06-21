@@ -93,6 +93,32 @@ struct Node {
     g: usize,
 }
 
+/// Metric search guidance: bias the open list toward states that satisfy more
+/// preferences. Each entry is `(conjunctive phi fact-ids, heap penalty while that
+/// preference is forgone)`. Evaluated on the concrete successor state, so it sees
+/// real satisfaction (unlike the delete-relaxed heuristic, which the free
+/// Keyder-Geffner forgo action blinds). Only the metric B&B passes this; it
+/// changes node *ordering* only, never which nodes are legal.
+pub struct SatGuidance {
+    pub prefs: Vec<(Vec<u32>, i64)>,
+}
+
+impl SatGuidance {
+    /// Total penalty of preferences not (yet) satisfied in `s`.
+    fn forgone(&self, s: &State) -> i64 {
+        let mut pen = 0;
+        for (atoms, p) in &self.prefs {
+            if !atoms
+                .iter()
+                .all(|&f| crate::bitset::test(&s.bits, f as usize))
+            {
+                pen += *p;
+            }
+        }
+        pen
+    }
+}
+
 /// Solve toward an ARBITRARY (sub)goal from an arbitrary start state over a
 /// shared grounded task — the reusable subplanner entry point for SGPlan-style
 /// partition-and-resolve. `search` is the whole-task convenience wrapper.
@@ -107,6 +133,7 @@ pub fn search_from(
     threads: usize,
     cfg: SearchCfg,
     forbidden: &[bool],
+    sat: Option<&SatGuidance>,
 ) -> PlanResult {
     let batch = BATCH;
 
@@ -240,6 +267,9 @@ pub fn search_from(
             for (pi, oi, s, k, ph) in chunk {
                 if visited.insert(k) {
                     let g = nodes[pi].g + 1;
+                    // metric guidance: forgone-preference penalty on the concrete
+                    // successor (steers toward genuinely satisfying states).
+                    let sat_pen = sat.map(|sg| sg.forgone(&s)).unwrap_or(0);
                     let idx = nodes.len();
                     nodes.push(Node {
                         state: s,
@@ -247,7 +277,10 @@ pub fn search_from(
                         op: oi,
                         g,
                     });
-                    heap.push(Reverse((cfg.w_g * g as i64 + cfg.w_h * ph as i64, idx)));
+                    heap.push(Reverse((
+                        cfg.w_g * g as i64 + cfg.w_h * ph as i64 + sat_pen,
+                        idx,
+                    )));
                 }
             }
         }
@@ -282,6 +315,7 @@ pub fn search(task: &PackedTask, threads: usize, cfg: SearchCfg) -> PlanResult {
         threads,
         cfg,
         &[],
+        None,
     )
 }
 
@@ -330,6 +364,7 @@ pub fn plan_avoiding(
         threads,
         cfg,
         forbidden,
+        None,
     ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
         PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
@@ -515,6 +550,7 @@ pub fn solve_subgoal_avoiding(
         threads,
         cfg,
         forbidden,
+        None,
     ) {
         PlanResult::Plan { ops, .. } => Some(ops),
         PlanResult::Unsolvable { .. } => None,
@@ -535,6 +571,7 @@ pub fn solve_subgoal_bounded(
     bound: f64,
     threads: usize,
     cfg: SearchCfg,
+    sat: Option<&SatGuidance>,
 ) -> (Option<Vec<usize>>, bool) {
     match search_from(
         task,
@@ -546,6 +583,7 @@ pub fn solve_subgoal_bounded(
         threads,
         cfg,
         &[],
+        sat,
     ) {
         PlanResult::Plan { ops, .. } => (Some(ops), false),
         PlanResult::Unsolvable { capped, .. } => (None, capped),

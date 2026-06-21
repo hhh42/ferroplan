@@ -19,7 +19,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::packed::PackedTask;
-use crate::search::{plan, solve_subgoal_bounded, SearchCfg};
+use crate::search::{plan, solve_subgoal_bounded, SatGuidance, SearchCfg};
 use crate::types::{
     Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term,
 };
@@ -569,19 +569,16 @@ pub fn metric_optimize(
         best = Some((ops, cost));
     }
 
-    // 2. TIGHTEN — intentionally just the B&B below. Every "force-collect" variant
-    // (forbid forgo actions so the search must satisfy `phi`) has been built and
-    // measured and NONE improve the metric on ferroplan: per-preference forcing
-    // (too slow, no coordination), the all-forgo floor, and batched top-{100/50/25}%
-    // forcing all left pathways/rovers unchanged and merely added latency that
-    // regressed openstacks coverage. Root cause (confirmed by the ESPC design
-    // study, docs/espc-preferences-spec.md): under delete-relaxation the free
-    // forgo makes every preference look reachable, so the heuristic is blind to
-    // satisfaction; and the openstacks coupling lives in the `stacks-avail`
-    // resource, invisible to any phi-based partitioning. A faithful ESPC needs a
-    // SAS+/mutex-group layer ferroplan does not have. The `forbidden`/`plan_avoiding`
-    // plumbing is retained for a possible future SAS+-based optimizer.
-    let _ = forgos;
+    // 2. SATISFACTION GUIDANCE — the earlier "force-collect" variants all failed
+    // because under delete-relaxation the free forgo action makes every preference
+    // look reachable, so the heuristic was blind to satisfaction (see
+    // docs/espc-preferences-spec.md). Instead, bias the B&B open list by a penalty
+    // that counts preferences forgone in the CONCRETE state — this sees real
+    // satisfaction and gives the search a gradient toward delivering, breaking the
+    // all-forgo floor. (It still can't see the openstacks `stacks-avail` resource —
+    // that needs the SAS+ partition + penalty loop — so it narrows, not closes, the
+    // gap.) Built from each preference's P3COLLECT-i `phi` precondition.
+    let sat = build_sat_guidance(task, forgos);
 
     // 3. POLISH: bounded B&B from the (now much better) incumbent — reaches the
     // true optimum on small instances; on timeout we keep the incumbent.
@@ -597,6 +594,7 @@ pub fn metric_optimize(
             bound,
             threads,
             refine_cfg,
+            Some(&sat),
         );
         match opt {
             Some(ops) => {
@@ -622,4 +620,45 @@ pub fn metric_optimize(
         iterations,
         proven,
     })
+}
+
+/// Build the metric satisfaction guidance: for each preference, the fact-ids of
+/// its `phi` (taken from the `P3COLLECT-i` action's precondition, minus the
+/// synthetic `P3*` control facts) and a heap penalty scaled from its forgo
+/// weight. Preferences with a non-atom `phi` simply contribute nothing (their
+/// `P3COLLECT` precondition still works; they're just unguided).
+fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance {
+    use std::collections::HashMap;
+    let mut collect_op: HashMap<usize, usize> = HashMap::new();
+    for oi in 0..task.n_ops {
+        if let Some(rest) = task.op_display[oi]
+            .to_ascii_uppercase()
+            .strip_prefix("P3COLLECT-")
+        {
+            if let Ok(i) = rest.trim().parse::<usize>() {
+                collect_op.insert(i, oi);
+            }
+        }
+    }
+    let mut prefs = Vec::new();
+    for (i, (_, weight)) in forgos.iter().enumerate() {
+        let Some(&oi) = collect_op.get(&i) else {
+            continue;
+        };
+        let phi: Vec<u32> = task
+            .pre_pos
+            .slice(oi)
+            .iter()
+            .copied()
+            .filter(|&f| {
+                !task.fact_names[f as usize]
+                    .to_ascii_uppercase()
+                    .starts_with("(P3")
+            })
+            .collect();
+        if !phi.is_empty() {
+            prefs.push((phi, (weight * 100.0).round().max(1.0) as i64));
+        }
+    }
+    SatGuidance { prefs }
 }

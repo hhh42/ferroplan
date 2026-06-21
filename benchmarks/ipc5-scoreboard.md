@@ -10,21 +10,35 @@ Run one: `ff -o pref/<domain>/domain.pddl -f pref/<domain>/pNN.pddl`
 
 ## openstacks-soft — the SGPlan/ESPC quality-gap target
 
-ferroplan baseline (current: a single plan, ~1 branch-and-bound iteration — the
-metric search can't reorder to reduce open stacks):
+The original baseline was the **all-forgo floor**: ferroplan delivered nothing
+(metric 70 on p01) because under delete-relaxation the free Keyder-Geffner forgo
+makes every preference look reachable, so the metric search had no gradient toward
+delivering. **Satisfaction guidance** (a heap penalty counting preferences forgone
+in the *concrete* state, `search::SatGuidance`, built from each `P3COLLECT-i` phi)
+breaks that floor:
 
-| instance | ferroplan metric | sgplan6 (ref) |
-|---|---|---|
-| p01 | 70 | ~13 |
-| p02 | 70 | — |
-| p03 | 90 | — |
-| p04 | 100 | — |
-| p05 | 140 | — |
+| instance | before (all-forgo) | + satisfaction guidance | sgplan6 (ref) |
+|---|---|---|---|
+| p01 | 70 | **63** | ~13 |
+| p02 | 70 | **66** | — |
+| p03 | 90 | **62** | — |
+| p04 | 100 | **66** | — |
+| p05 | 140 | **138** | — |
 
-The gap is large because minimizing open stacks is a *scheduling/ordering* problem
-over the shared `stacks-avail` resource — exactly the coupling the ESPC penalty
-loop (#63) is meant to coordinate across partitioned subgoals. The mutex-group /
-partitioning groundwork (committed) is the prerequisite; this table is the target
-to move.
+Monotone by construction (guidance changes node *ordering* only; B&B keeps the
+best plan), so it never regresses. Guarded by `tests/ipc5_pref_metric.rs`.
+
+The residual gap to ~13 is the *scheduling* of the shared `stacks-avail` resource,
+which the satisfaction term cannot see (it appears in no preference). Closing it
+needs the SAS+ mutex-group partition + a resource penalty loop — the next ESPC
+increment.
+
+## Other IPC-5 pref domains (p01, with satisfaction guidance)
+
+| openstacks | tpp | storage | trucks | rovers | pathways |
+|---|---|---|---|---|---|
+| 63 | 21 | 8 | 0 | 0 | 2 |
+
+(trucks/rovers reach metric 0 — all preferences satisfied.)
 
 > Reproduce: `for p in p01..p08; do ff -o pref/openstacks/domain.pddl -f pref/openstacks/$p.pddl; done`
