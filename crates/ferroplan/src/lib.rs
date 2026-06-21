@@ -25,6 +25,7 @@ pub mod bitset;
 pub mod ground;
 pub mod hash;
 pub mod heuristic;
+pub mod invariants;
 pub mod lexer;
 pub mod output;
 pub mod packed;
