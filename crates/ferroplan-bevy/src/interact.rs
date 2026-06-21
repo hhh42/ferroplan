@@ -18,15 +18,21 @@ fn cursor_world(window: &Window, cam: &Camera, cam_tf: &GlobalTransform) -> Opti
     cam.viewport_to_world_2d(cam_tf, cursor).ok()
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn interact(
     mouse: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
+    editor: Res<crate::blocks::Editor>,
     cam_q: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mut nodes: Query<(Entity, &NodeObj, &mut Transform)>,
     mobiles: Query<(&MobileObj, &Transform), Without<NodeObj>>,
     mut selected: ResMut<Selected>,
     mut drag: ResMut<DragState>,
 ) {
+    // The editor panel captures the pointer while open.
+    if editor.open {
+        return;
+    }
     let (Ok(window), Ok((cam, cam_tf))) = (windows.get_single(), cam_q.get_single()) else {
         return;
     };

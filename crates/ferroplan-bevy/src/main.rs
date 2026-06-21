@@ -27,6 +27,7 @@ fn main() {
         .init_resource::<anim::Plan>()
         .init_resource::<anim::SolveJob>()
         .init_resource::<blocks::Editor>()
+        .init_resource::<blocks::Drag>()
         .add_systems(Startup, (scene::setup, ui::setup_ui, startup_load))
         .add_systems(
             Update,
@@ -45,6 +46,7 @@ fn main() {
                 blocks::toggle_editor,
                 blocks::text_input,
                 blocks::scroll_editor,
+                blocks::editor_drag,
                 blocks::handle_clicks,
                 blocks::rebuild,
             ),

@@ -12,6 +12,7 @@ use std::collections::HashMap;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
+use bevy::ui::RelativeCursorPosition;
 
 use ferroplan::types::{Action, Domain, Effect, Formula, Term};
 use ferroplan::viz;
@@ -77,6 +78,48 @@ pub struct Editor {
 
 #[derive(Component)]
 pub struct EditorRoot;
+
+/// A draggable fact block (its list + index at build time).
+#[derive(Component, Clone, Copy)]
+pub enum DragKind {
+    Init(usize),
+    Goal(usize),
+}
+
+/// A drop target column.
+#[derive(Component, Clone, Copy, PartialEq, Eq)]
+pub enum Zone {
+    Init,
+    Goal,
+}
+
+/// The label that follows the cursor while dragging.
+#[derive(Component)]
+pub struct Ghost;
+
+#[derive(Resource, Default)]
+pub struct Drag {
+    held: Option<DragKind>,
+    ghost: Option<Entity>,
+}
+
+/// Move a dragged fact into the zone it was dropped on (cross-zone only; a drop
+/// back on the same zone is a no-op). Pure — unit-tested.
+fn resolve_drop(held: DragKind, zone: Zone, editor: &mut Editor) -> bool {
+    match (held, zone) {
+        (DragKind::Init(i), Zone::Goal) if i < editor.init.len() => {
+            let f = editor.init.remove(i);
+            editor.goal.push(f);
+            true
+        }
+        (DragKind::Goal(i), Zone::Init) if i < editor.goal.len() => {
+            let f = editor.goal.remove(i);
+            editor.init.push(f);
+            true
+        }
+        _ => false,
+    }
+}
 
 #[derive(Component, Clone)]
 pub enum Act {
@@ -197,6 +240,83 @@ pub fn text_input(mut evr: EventReader<KeyboardInput>, mut editor: ResMut<Editor
 enum TextEdit {
     Push(char),
     Pop,
+}
+
+/// Drag a fact block (by its grip) and drop it on the other zone to move it
+/// between Init and Goal. A ghost label follows the cursor while dragging.
+#[allow(clippy::too_many_arguments)]
+pub fn editor_drag(
+    mouse: Res<ButtonInput<MouseButton>>,
+    windows: Query<&Window>,
+    mut drag: ResMut<Drag>,
+    mut editor: ResMut<Editor>,
+    grips: Query<(&DragKind, &RelativeCursorPosition)>,
+    zones: Query<(&Zone, &RelativeCursorPosition)>,
+    mut ghosts: Query<&mut Node, With<Ghost>>,
+    mut commands: Commands,
+) {
+    if !editor.open || editor.focus.is_some() {
+        return;
+    }
+    let cursor = windows.get_single().ok().and_then(|w| w.cursor_position());
+
+    if mouse.just_pressed(MouseButton::Left) && drag.held.is_none() {
+        if let Some(pos) = cursor {
+            if let Some((kind, _)) = grips.iter().find(|(_, r)| r.mouse_over()) {
+                drag.held = Some(*kind);
+                let id = commands
+                    .spawn((
+                        Ghost,
+                        Text::new(ghost_text(&editor, *kind)),
+                        TextFont {
+                            font_size: 12.0,
+                            ..default()
+                        },
+                        TextColor(Color::srgb(1.0, 0.9, 0.5)),
+                        Node {
+                            position_type: PositionType::Absolute,
+                            left: Val::Px(pos.x + 8.0),
+                            top: Val::Px(pos.y + 4.0),
+                            ..default()
+                        },
+                        GlobalZIndex(1000),
+                    ))
+                    .id();
+                drag.ghost = Some(id);
+            }
+        }
+    }
+
+    if drag.held.is_some() {
+        if let (Some(pos), Some(g)) = (cursor, drag.ghost) {
+            if let Ok(mut node) = ghosts.get_mut(g) {
+                node.left = Val::Px(pos.x + 8.0);
+                node.top = Val::Px(pos.y + 4.0);
+            }
+        }
+    }
+
+    if mouse.just_released(MouseButton::Left) {
+        if let Some(held) = drag.held.take() {
+            if let Some((zone, _)) = zones.iter().find(|(_, r)| r.mouse_over()) {
+                if resolve_drop(held, *zone, &mut editor) {
+                    editor.dirty = true;
+                }
+            }
+            if let Some(g) = drag.ghost.take() {
+                commands.entity(g).despawn_recursive();
+            }
+        }
+    }
+}
+
+fn ghost_text(editor: &Editor, kind: DragKind) -> String {
+    let lit = match kind {
+        DragKind::Init(i) => editor.init.get(i),
+        DragKind::Goal(i) => editor.goal.get(i),
+    };
+    lit.map(|(p, a)| format!("({} {})", p, a.join(" ")))
+        .unwrap_or_default()
 }
 
 /// Scroll the editor panel with the mouse wheel (the panel can be taller than the
@@ -1023,17 +1143,63 @@ fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
     }
     btn(p, "+ object", Act::AddObject);
 
-    label(p, "INIT");
-    for (i, (pred, args)) in editor.init.iter().enumerate() {
-        fact_row(p, false, i, pred, args);
-    }
-    btn(p, "+ fact", Act::AddFact(false));
+    zone(p, Zone::Init, |z| {
+        label(z, "INIT  (drag :: between zones)");
+        for (i, (pred, args)) in editor.init.iter().enumerate() {
+            fact_row(z, false, i, pred, args);
+        }
+        btn(z, "+ fact", Act::AddFact(false));
+    });
 
-    label(p, "GOAL");
-    for (i, (pred, args)) in editor.goal.iter().enumerate() {
-        fact_row(p, true, i, pred, args);
-    }
-    btn(p, "+ goal", Act::AddFact(true));
+    zone(p, Zone::Goal, |z| {
+        label(z, "GOAL");
+        for (i, (pred, args)) in editor.goal.iter().enumerate() {
+            fact_row(z, true, i, pred, args);
+        }
+        btn(z, "+ goal", Act::AddFact(true));
+    });
+}
+
+/// A drop-zone container (tagged + cursor-tracked) holding a column of blocks.
+fn zone(p: &mut ChildBuilder, z: Zone, f: impl FnOnce(&mut ChildBuilder)) {
+    p.spawn((
+        Node {
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(3.0),
+            padding: UiRect::all(Val::Px(4.0)),
+            margin: UiRect::vertical(Val::Px(2.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.12, 0.12, 0.16, 0.6)),
+        z,
+        Interaction::default(),
+        RelativeCursorPosition::default(),
+    ))
+    .with_children(f);
+}
+
+/// The drag handle at the start of a fact row.
+fn grip(r: &mut ChildBuilder, kind: DragKind) {
+    r.spawn((
+        Node {
+            padding: UiRect::axes(Val::Px(4.0), Val::Px(2.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgb(0.32, 0.32, 0.38)),
+        kind,
+        Interaction::default(),
+        RelativeCursorPosition::default(),
+    ))
+    .with_children(|g| {
+        g.spawn((
+            Text::new("::"),
+            TextFont {
+                font_size: 12.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.85, 0.85, 0.9)),
+        ));
+    });
 }
 
 fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
@@ -1160,7 +1326,13 @@ fn name_label(name: &str, focused: bool) -> String {
 }
 
 fn fact_row(p: &mut ChildBuilder, goal: bool, i: usize, pred: &str, args: &[String]) {
+    let kind = if goal {
+        DragKind::Goal(i)
+    } else {
+        DragKind::Init(i)
+    };
     row(p, |r| {
+        grip(r, kind);
         btn(r, format!("({pred}"), Act::CyclePred(goal, i));
         for (s, a) in args.iter().enumerate() {
             btn(r, a.clone(), Act::CycleArg(goal, i, s));
@@ -1340,5 +1512,16 @@ mod tests {
         apply_act(&Act::AddLit(ai, true), &mut ed, &mut scene);
         let d = ferroplan::parser::parse_domain(&domain_pddl(&ed)).expect("new action parses");
         assert_eq!(d.actions.len(), 4);
+    }
+
+    #[test]
+    fn drag_moves_fact_between_zones() {
+        let (_s, mut ed) = loaded();
+        let (init0, goal0) = (ed.init.len(), ed.goal.len());
+        assert!(resolve_drop(DragKind::Init(0), Zone::Goal, &mut ed));
+        assert_eq!(ed.init.len(), init0 - 1);
+        assert_eq!(ed.goal.len(), goal0 + 1);
+        // dropping back on the same zone is a no-op
+        assert!(!resolve_drop(DragKind::Goal(0), Zone::Goal, &mut ed));
     }
 }
