@@ -6,6 +6,7 @@
 
 mod app;
 mod canvas;
+mod editor;
 mod inspect;
 mod model;
 

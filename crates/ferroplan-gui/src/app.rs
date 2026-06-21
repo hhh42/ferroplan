@@ -43,6 +43,8 @@ pub struct App {
     playing: bool,
     solve_rx: Option<Receiver<SolveOut>>,
     solve_status: String,
+
+    editor: crate::editor::Editor,
 }
 
 impl App {
@@ -56,6 +58,7 @@ impl App {
             self.timeline = 0.0;
             self.playing = false;
             self.solve_status.clear();
+            self.editor.reset_seed();
         }
     }
 
@@ -241,6 +244,7 @@ impl App {
 
         if self.domain.is_some() && self.problem.is_some() {
             ui.separator();
+            ui.checkbox(&mut self.editor.active, "Problem editor");
             ui.label("Objects");
             ui.add(
                 egui::TextEdit::singleline(&mut self.object_filter)
@@ -406,6 +410,27 @@ impl eframe::App for App {
             });
 
         egui::TopBottomPanel::bottom("timeline").show(ctx, |ui| self.timeline_bar(ui));
+
+        // problem editor (floating window)
+        if self.editor.active && self.domain.is_some() && self.problem.is_some() {
+            if let Some(p) = &self.problem {
+                self.editor.seed(p);
+            }
+            let domain = self.domain.clone().expect("checked above");
+            let mut apply: Option<String> = None;
+            egui::Window::new("Problem editor")
+                .default_width(360.0)
+                .show(ctx, |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        if let crate::editor::Action::Apply(pddl) = self.editor.ui(ui, &domain) {
+                            apply = Some(pddl);
+                        }
+                    });
+                });
+            if let Some(pddl) = apply {
+                self.set_problem(&pddl);
+            }
+        }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if self.model.is_empty() {
