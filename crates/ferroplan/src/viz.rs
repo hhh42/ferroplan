@@ -347,6 +347,23 @@ fn collect_eff_heads(e: &Effect, out: &mut BTreeSet<String>) {
     }
 }
 
+/// Flatten a problem's goal into positive ground atoms `(pred, [args])`
+/// (lowercased) — for seeding a visual editor.
+pub fn goal_facts(problem: &Problem) -> Vec<(String, Vec<String>)> {
+    let mut atoms = Vec::new();
+    collect_atoms(&problem.goal, false, &mut atoms);
+    atoms
+        .into_iter()
+        .filter(|(_, _, neg)| !neg)
+        .map(|(p, a, _)| {
+            (
+                p.to_lowercase(),
+                a.iter().map(|x| x.to_lowercase()).collect(),
+            )
+        })
+        .collect()
+}
+
 /// Generate a PDDL problem (objects grouped by type) — used by the editor.
 pub fn to_pddl(
     name: &str,

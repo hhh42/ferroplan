@@ -5,6 +5,7 @@
 use bevy::prelude::*;
 
 mod anim;
+mod blocks;
 mod icons;
 mod interact;
 mod scene;
@@ -25,6 +26,7 @@ fn main() {
         .init_resource::<interact::DragState>()
         .init_resource::<anim::Plan>()
         .init_resource::<anim::SolveJob>()
+        .init_resource::<blocks::Editor>()
         .add_systems(Startup, (scene::setup, ui::setup_ui, startup_load))
         .add_systems(
             Update,
@@ -40,6 +42,9 @@ fn main() {
                 anim::advance,
                 anim::animate,
                 ui::update_info,
+                blocks::toggle_editor,
+                blocks::handle_clicks,
+                blocks::rebuild,
             ),
         )
         .run();
