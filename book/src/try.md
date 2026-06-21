@@ -10,4 +10,14 @@ Paste a PDDL **domain** + **problem**, choose a mode (`auto` / `ff` / `pddl3` /
 Rust planner core compiled to WASM. It comes prefilled with a gripper example so
 you can see a plan immediately.
 
-For everything-else (the CLI, the library, the GUI), see the rest of the docs.
+## The visual GUI, in your browser
+
+The full Bevy GUI — graph visualizer, plan animation, and the color-coded block
+editor — also runs in the browser (it's a larger download; give it a moment).
+
+> ### [▶ Open the visualizer & block editor](./gui/index.html)
+
+Keys: **E** toggles the editor, **Tab** switches problem/domain, **S** solves,
+**Space** plays the plan; drag nodes, scroll to zoom, click to inspect.
+
+For everything-else (the CLI, the library, install), see the rest of the docs.

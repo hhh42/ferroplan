@@ -32,10 +32,14 @@ jobs:
           rustup target add wasm32-unknown-unknown
           cargo install wasm-bindgen-cli --version 0.2.106 --locked
           crates/ferroplan-wasm/build.sh
+      - name: Build the in-browser GUI (Bevy WASM)
+        run: crates/ferroplan-bevy/build-wasm.sh
       - name: Build book
         run: mdbook build book
-      - name: Bundle the WASM demo into the site (served at /demo/)
-        run: cp -r crates/ferroplan-wasm/web book/book/demo
+      - name: Bundle the WASM demos into the site (/demo/ planner, /gui/ visualizer)
+        run: |
+          cp -r crates/ferroplan-wasm/web book/book/demo
+          cp -r crates/ferroplan-bevy/web book/book/gui
       - uses: actions/upload-pages-artifact@v3
         with:
           path: book/book
