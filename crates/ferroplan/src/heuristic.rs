@@ -22,11 +22,16 @@ pub struct Scratch {
     reached: Vec<bool>,
     fact_layer: Vec<u32>,
     op_layer: Vec<u32>,
+    /// Generation stamp for `op_layer` / `selected` / `need_fact` membership: a
+    /// cell is "set this evaluation" iff its stamp == `gen`. Lets `reset()` bump
+    /// `gen` in O(1) instead of clearing these arrays every evaluation.
+    gen: u32,
+    op_stamp: Vec<u32>,
     applicable: Vec<u32>,
     lb: Vec<f64>,
     ub: Vec<f64>,
-    selected: Vec<bool>,
-    need_fact: Vec<bool>,
+    selected: Vec<u32>,
+    need_fact: Vec<u32>,
     queue: Vec<u32>,
     /// applied ops with ≥1 relevant numeric effect (re-widened each layer).
     num_applied: Vec<u32>,
@@ -45,11 +50,13 @@ impl Scratch {
             reached: vec![false; task.n_facts],
             fact_layer: vec![INF; task.n_facts],
             op_layer: vec![INF; task.n_ops],
+            gen: 0,
+            op_stamp: vec![0; task.n_ops],
             applicable: Vec::with_capacity(task.n_ops),
             lb: vec![0.0; nfl],
             ub: vec![0.0; nfl],
-            selected: vec![false; task.n_ops],
-            need_fact: vec![false; task.n_facts],
+            selected: vec![0; task.n_ops],
+            need_fact: vec![0; task.n_facts],
             queue: Vec::with_capacity(task.n_facts),
             num_applied: Vec::with_capacity(task.n_ops),
             cond_ops: Vec::new(),
@@ -64,11 +71,19 @@ impl Scratch {
         self.fact_layer.iter_mut().enumerate().for_each(|(f, l)| {
             *l = if self.reached[f] { 0 } else { INF };
         });
-        self.op_layer.fill(INF);
+        // Bump the generation instead of clearing op_layer/selected/need_fact —
+        // their stale values are unobservable because every read is stamp-gated
+        // (== gen). This removes 2*n_ops + n_facts dense writes per evaluation.
+        self.gen = self.gen.wrapping_add(1);
+        if self.gen == 0 {
+            // wrapped after ~4e9 evals: hard-clear once so stamps can't collide.
+            self.op_stamp.fill(0);
+            self.selected.fill(0);
+            self.need_fact.fill(0);
+            self.gen = 1;
+        }
         self.lb.copy_from_slice(fv);
         self.ub.copy_from_slice(fv);
-        self.selected.fill(false);
-        self.need_fact.fill(false);
         self.queue.clear();
         self.num_applied.clear();
         self.cond_ops.clear();
@@ -276,8 +291,8 @@ fn build_rpg(
         // (b) scan only unapplied ops for new applicability
         sc.applicable.clear();
         for oi in 0..task.n_ops {
-            if sc.op_layer[oi] != INF {
-                continue;
+            if sc.op_stamp[oi] == sc.gen {
+                continue; // already applied this evaluation
             }
             let ok = task
                 .pre_pos
@@ -290,6 +305,7 @@ fn build_rpg(
                     .iter()
                     .all(|np| num_sat(np, &sc.lb, &sc.ub, def));
             if ok {
+                sc.op_stamp[oi] = sc.gen;
                 sc.op_layer[oi] = layer;
                 sc.applicable.push(oi as u32);
                 changed = true;
@@ -356,8 +372,8 @@ pub fn relaxed_to(
     let mut head = 0usize;
     for &g in goal_pos {
         let f = g as usize;
-        if !sc.need_fact[f] {
-            sc.need_fact[f] = true;
+        if sc.need_fact[f] != sc.gen {
+            sc.need_fact[f] = sc.gen;
             sc.queue.push(g);
         }
     }
@@ -368,7 +384,7 @@ pub fn relaxed_to(
         if bitset::test(bits, f) {
             continue;
         }
-        if let Some(oi) = achiever(task, &sc.op_layer, &sc.fact_layer, f) {
+        if let Some(oi) = achiever(task, &sc.op_layer, &sc.op_stamp, sc.gen, &sc.fact_layer, f) {
             select(task, sc, oi, 1, &mut count);
             queue_cond_for(task, sc, oi, f);
         }
@@ -378,7 +394,7 @@ pub fn relaxed_to(
         if eval_numpre(np, fv, def).unwrap_or(false) {
             continue;
         }
-        if let Some((oi, reps)) = numeric_achiever(task, np, fv, def, &sc.op_layer) {
+        if let Some((oi, reps)) = numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen) {
             select(task, sc, oi, reps, &mut count);
             while head < sc.queue.len() {
                 let f = sc.queue[head] as usize;
@@ -386,7 +402,9 @@ pub fn relaxed_to(
                 if bitset::test(bits, f) {
                     continue;
                 }
-                if let Some(o2) = achiever(task, &sc.op_layer, &sc.fact_layer, f) {
+                if let Some(o2) =
+                    achiever(task, &sc.op_layer, &sc.op_stamp, sc.gen, &sc.fact_layer, f)
+                {
                     select(task, sc, o2, 1, &mut count);
                     queue_cond_for(task, sc, o2, f);
                 }
@@ -453,7 +471,7 @@ pub fn relaxed_helpful(
         let mut any = false;
         let mut tmp = Vec::new();
         for oi in 0..task.n_ops {
-            if !sc.selected[oi] {
+            if sc.selected[oi] != sc.gen {
                 continue;
             }
             for np in task.pre_num.slice(oi) {
@@ -497,7 +515,14 @@ pub fn relaxed_helpful(
 
 /// Lowest-layer op that adds fact `f` (FF prefers earliest achievers).
 /// Uses the precomputed add-by-fact index instead of scanning all ops.
-fn achiever(task: &PackedTask, op_layer: &[u32], fact_layer: &[u32], f: usize) -> Option<usize> {
+fn achiever(
+    task: &PackedTask,
+    op_layer: &[u32],
+    op_stamp: &[u32],
+    gen: u32,
+    fact_layer: &[u32],
+    f: usize,
+) -> Option<usize> {
     let fl = fact_layer[f];
     if fl == INF || fl == 0 {
         return None;
@@ -506,7 +531,7 @@ fn achiever(task: &PackedTask, op_layer: &[u32], fact_layer: &[u32], f: usize) -
     let mut best_layer = INF;
     for &oi in task.add_by_fact.slice(f) {
         let oi = oi as usize;
-        if op_layer[oi] != INF && op_layer[oi] < fl && op_layer[oi] < best_layer {
+        if op_stamp[oi] == gen && op_layer[oi] < fl && op_layer[oi] < best_layer {
             best_layer = op_layer[oi];
             best = Some(oi);
         }
@@ -540,8 +565,8 @@ fn queue_cond_for(task: &PackedTask, sc: &mut Scratch, oi: usize, f: usize) {
     if let Some(ci) = best {
         for &cf in &task.cond.slice(oi)[ci].cond_pos {
             let c = cf as usize;
-            if !sc.need_fact[c] {
-                sc.need_fact[c] = true;
+            if sc.need_fact[c] != sc.gen {
+                sc.need_fact[c] = sc.gen;
                 sc.queue.push(cf);
             }
         }
@@ -550,19 +575,19 @@ fn queue_cond_for(task: &PackedTask, sc: &mut Scratch, oi: usize, f: usize) {
 
 /// Select op `oi` (×`reps`) into the relaxed plan and queue its preconditions.
 fn select(task: &PackedTask, sc: &mut Scratch, oi: usize, reps: i32, count: &mut i32) {
-    if sc.selected[oi] {
+    if sc.selected[oi] == sc.gen {
         return;
     }
-    sc.selected[oi] = true;
+    sc.selected[oi] = sc.gen;
     // a selected op applicable in the current state (layer 0) is a helpful action.
-    if sc.op_layer[oi] == 0 {
+    if sc.op_stamp[oi] == sc.gen && sc.op_layer[oi] == 0 {
         sc.helpful.push(oi as u32);
     }
     *count += reps.max(1);
     for &pf in task.pre_pos.slice(oi) {
         let f = pf as usize;
-        if !sc.need_fact[f] {
-            sc.need_fact[f] = true;
+        if sc.need_fact[f] != sc.gen {
+            sc.need_fact[f] = sc.gen;
             sc.queue.push(pf);
         }
     }
@@ -573,7 +598,8 @@ fn numeric_achiever(
     np: &NumPre,
     fv: &[f64],
     def: &[bool],
-    op_layer: &[u32],
+    op_stamp: &[u32],
+    gen: u32,
 ) -> Option<(usize, i32)> {
     let target = match &np.lhs {
         NExpr::Fluent(i) => *i,
@@ -594,7 +620,7 @@ fn numeric_achiever(
     // so the min-reps tie-break is identical to the former full scan)
     for &oi in task.neff_by_fluent.slice(target as usize) {
         let oi = oi as usize;
-        if op_layer[oi] == INF {
+        if op_stamp[oi] != gen {
             continue;
         }
         for ne in task.num_eff.slice(oi) {
