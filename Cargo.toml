@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/ferroplan", "crates/ferroplan-cli"]
+members = ["crates/ferroplan", "crates/ferroplan-cli", "crates/ferroplan-gui"]
 
 [workspace.package]
 version = "0.1.0"

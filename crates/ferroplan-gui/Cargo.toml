@@ -1,0 +1,19 @@
+[package]
+name = "ferroplan-gui"
+description = "Native GUI (egui) for the ferroplan PDDL planner — visualize and inspect domains/problems"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "ferroplan-gui"
+path = "src/main.rs"
+
+[dependencies]
+ferroplan = { path = "../ferroplan" }
+eframe = "0.29"
+egui = "0.29"

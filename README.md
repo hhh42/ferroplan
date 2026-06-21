@@ -128,6 +128,7 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 |---|---|
 | [`ferroplan`](crates/ferroplan) | the library: engine + modes + `solve` API |
 | [`ferroplan-cli`](crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
+| [`ferroplan-gui`](crates/ferroplan-gui) | native egui app: visualize & inspect a domain+problem (`cargo run -p ferroplan-gui`) |
 
 ## Benchmarks
 
