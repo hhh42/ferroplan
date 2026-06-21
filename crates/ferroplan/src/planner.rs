@@ -48,6 +48,15 @@ pub fn run_planner(
     };
     out.push_str(&format!("problem '{}' defined\n ... done.\n", problem.name));
 
+    // Compile `:derived` axioms away (static rules -> init facts) before routing.
+    let (domain, problem) = match crate::derived::compile(&domain, &problem) {
+        Ok(dp) => dp,
+        Err(e) => {
+            out.push_str(&format!("\nff: {}\n", e));
+            return (out, 1);
+        }
+    };
+
     // PDDL2.1 temporal: durative actions -> decision-epoch search, IPC plan format.
     if crate::temporal::is_temporal(&domain) {
         match crate::temporal::solve(&domain, &problem, threads) {

@@ -157,6 +157,20 @@ pub struct Domain {
     pub actions: Vec<Action>,
     pub durative_actions: Vec<DurativeAction>,
     pub constraints: Vec<Constraint>,
+    /// `:derived` rules (axioms). Compiled away before grounding by
+    /// [`crate::derived::compile`]: static rules (body over static facts, e.g.
+    /// `reachable` from the map) become init facts; dynamic non-recursive rules
+    /// are inlined into preconditions/goals.
+    pub derived: Vec<DerivedRule>,
+}
+
+/// A PDDL `:derived` rule `(:derived (head ?params) body)`: the head predicate's
+/// truth is defined by `body` over its parameters, not by action effects.
+#[derive(Clone, Debug)]
+pub struct DerivedRule {
+    pub head: Sym,
+    pub params: Vec<(Sym, Sym)>,
+    pub body: Formula,
 }
 
 #[derive(Clone, Debug)]

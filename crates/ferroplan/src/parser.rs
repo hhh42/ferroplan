@@ -748,6 +748,7 @@ fn domain_inner(p: &mut P) -> Result<Domain, String> {
         actions: Vec::new(),
         durative_actions: Vec::new(),
         constraints: Vec::new(),
+        derived: Vec::new(),
     };
 
     while !p.at_rparen() {
@@ -798,7 +799,14 @@ fn domain_inner(p: &mut P) -> Result<Domain, String> {
                 p.expect_rparen()?;
             }
             ":DERIVED" => {
-                return Err("derived predicates are not supported by this FF port".to_string());
+                // (:derived (HEAD ?p - t ...) body)
+                p.expect_lparen()?;
+                let head = p.name()?;
+                let params = parse_typed_list(p)?;
+                p.expect_rparen()?; // close the head
+                let body = parse_formula(p)?;
+                p.expect_rparen()?; // close (:derived ...)
+                d.derived.push(DerivedRule { head, params, body });
             }
             _ => {
                 // unknown section: skip its remaining balanced content

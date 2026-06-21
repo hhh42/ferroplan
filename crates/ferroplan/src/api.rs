@@ -178,6 +178,8 @@ pub enum SolveError {
         pred: String,
         ty: String,
     },
+    #[error("derived predicate error: {0}")]
+    Derived(String),
 }
 
 enum Grounded {
@@ -269,6 +271,9 @@ fn unsolved(mode: Mode, stats: Statistics, notes: Vec<String>) -> Solution {
 pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solution, SolveError> {
     let domain = parser::parse_domain(domain_src).map_err(SolveError::DomainParse)?;
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
+    // Compile `:derived` axioms away (static rules -> init facts) before routing.
+    let (domain, problem) =
+        crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
     let threads = if opts.threads == 0 {
         crate::par::num_threads()
     } else {
