@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="ferroplan" width="360">
+</p>
+
 # ferroplan
 
 [![CI](https://github.com/haroldhhersey/ferroplan/actions/workflows/ci.yml/badge.svg)](https://github.com/haroldhhersey/ferroplan/actions/workflows/ci.yml)
@@ -47,6 +51,14 @@ trails and IPC-5 preference quality is competitive-not-winning — see
   (incl. deeply-nested forms) returns a typed error, never a panic.
 - **Structured output** — the library returns typed, `serde`-serializable
   results; the CLI emits classic FF text **or** JSON.
+
+## GUI
+
+[`ferroplan-bevy`](crates/ferroplan-bevy) is a Bevy app that visualizes a
+domain+problem as a typed graph, animates the plan, and edits both problems and
+domains in a Blockly-style block editor (`cargo run -p ferroplan-bevy`).
+
+![ferroplan-bevy visualizing a delivery problem as a typed graph](book/src/images/graph.png)
 
 ## Install / build
 
