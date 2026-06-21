@@ -49,3 +49,24 @@ documented "weeks" core the SAS+ investigation flagged.
 The single-predicate pass stays as a correct, useful base (it already nails the
 position variables); the multi-predicate refinement is the next increment if we
 commit to Plan B.
+
+## Update — multi-predicate refinement implemented
+
+`synthesize` now does Helmert-style branch-and-verify: when an action's add is
+unbalanced, it extends the candidate with a deleted-**and-required** fact (the
+precondition guarantees the removed unit was the true one — this is what keeps it
+sound) and re-verifies to a fixpoint. Coverage on the same instances:
+
+| domain | single-pred | multi-pred | biggest group |
+|---|---|---|---|
+| blocks | 0%, 0 grp | **100%, 9 grp** | block support `{on,ontable,holding}` |
+| logistics | 0%, 0 grp | **93%, 9 grp** | object location `{at,in}` |
+| gripper | 7%, 1 grp | **71%, 7 grp** | gripper hand `{free,carry}` |
+| rovers | 5% | 20% | `(at rover0 …)` |
+| trucks | 5% | 12% | `(time-now …)` |
+| elevator / satellite | 29% / 35% | 29% / 35% | (already single-pred) |
+
+The multi-predicate variables (block support, package/object location, the
+gripper hand) — exactly the guidance variables ESPC partitions on — are now
+recovered. **Verdict: Plan B is fed.** Next: consume these groups in the
+SGPlan/ESPC partitioning (`resolve`/`partition`).
