@@ -1199,7 +1199,7 @@ pub fn rebuild(
                 position_type: PositionType::Absolute,
                 left: Val::Px(0.0),
                 top: Val::Px(0.0),
-                width: Val::Px(300.0),
+                width: Val::Px(360.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(8.0)),
@@ -1232,7 +1232,7 @@ pub fn rebuild(
 }
 
 fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
-    label(p, "OBJECTS");
+    section_header(p, "OBJECTS");
     for (i, (name, ty)) in editor.objects.iter().enumerate() {
         block_card(p, ty, |r| {
             label(r, name);
@@ -1243,7 +1243,7 @@ fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
     btn(p, "+ object", Act::AddObject);
 
     zone(p, Zone::Init, |z| {
-        label(z, "INIT  (drag :: between zones)");
+        section_header(z, "INIT   \u{00b7}   drag :: to move");
         for (i, (pred, args)) in editor.init.iter().enumerate() {
             fact_row(z, false, i, pred, args);
         }
@@ -1251,7 +1251,7 @@ fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
     });
 
     zone(p, Zone::Goal, |z| {
-        label(z, "GOAL");
+        section_header(z, "GOAL");
         for (i, (pred, args)) in editor.goal.iter().enumerate() {
             fact_row(z, true, i, pred, args);
         }
@@ -1312,7 +1312,7 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
         );
     });
 
-    label(p, "TYPES");
+    section_header(p, "TYPES");
     for (i, (name, parent)) in editor.types.iter().enumerate() {
         row(p, |r| {
             btn(
@@ -1331,7 +1331,7 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
     }
     btn(p, "+ type", Act::AddType);
 
-    label(p, "PREDICATES");
+    section_header(p, "PREDICATES");
     for (i, (name, args)) in editor.dpreds.iter().enumerate() {
         block_card(p, name, |r| {
             label(r, "(");
@@ -1353,7 +1353,7 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
     }
     btn(p, "+ predicate", Act::AddPred);
 
-    label(p, "ACTIONS");
+    section_header(p, "ACTIONS");
     for (i, act) in editor.actions.iter().enumerate() {
         match act {
             EdAction::Raw(_) => {
@@ -1480,6 +1480,40 @@ fn label(p: &mut ChildBuilder, text: impl Into<String>) {
         },
         TextColor(Color::srgb(0.8, 0.8, 0.82)),
     ));
+}
+
+/// A prominent section heading (lavender accent + a thin divider) so the editor
+/// reads as grouped sections rather than one flat list.
+fn section_header(p: &mut ChildBuilder, text: &str) {
+    p.spawn(Node {
+        flex_direction: FlexDirection::Column,
+        width: Val::Percent(100.0),
+        margin: UiRect {
+            top: Val::Px(10.0),
+            bottom: Val::Px(2.0),
+            ..default()
+        },
+        row_gap: Val::Px(3.0),
+        ..default()
+    })
+    .with_children(|h| {
+        h.spawn((
+            Text::new(text.to_string()),
+            TextFont {
+                font_size: 13.0,
+                ..default()
+            },
+            TextColor(Color::srgb(0.72, 0.66, 0.98)),
+        ));
+        h.spawn((
+            Node {
+                width: Val::Percent(100.0),
+                height: Val::Px(1.0),
+                ..default()
+            },
+            BackgroundColor(Color::srgba(0.72, 0.66, 0.98, 0.30)),
+        ));
+    });
 }
 
 fn btn(p: &mut ChildBuilder, text: impl Into<String>, act: Act) {

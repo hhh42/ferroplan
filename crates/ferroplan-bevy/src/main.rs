@@ -17,6 +17,14 @@ fn main() {
             primary_window: Some(Window {
                 title: "ferroplan — domain visualizer (bevy)".into(),
                 resolution: (1280.0, 820.0).into(),
+                // In the browser: render into <canvas id="ferroplan-canvas">, size
+                // to its parent, and keep key/scroll events on the canvas.
+                #[cfg(target_arch = "wasm32")]
+                canvas: Some("#ferroplan-canvas".into()),
+                #[cfg(target_arch = "wasm32")]
+                fit_canvas_to_parent: true,
+                #[cfg(target_arch = "wasm32")]
+                prevent_default_event_handling: true,
                 ..default()
             }),
             ..default()
@@ -57,11 +65,18 @@ fn main() {
 /// Optionally load a domain + problem passed on the command line
 /// (`ferroplan-bevy domain.pddl problem.pddl`), and pre-select the first mobile.
 fn startup_load(mut scene: ResMut<scene::Scene>, mut selected: ResMut<interact::Selected>) {
+    #[cfg(not(target_arch = "wasm32"))]
     for path in std::env::args().skip(1) {
         match std::fs::read_to_string(&path) {
             Ok(src) => scene.load_src(&src),
             Err(e) => eprintln!("cannot read {path}: {e}"),
         }
+    }
+    // No filesystem or CLI args in the browser — load an embedded demo.
+    #[cfg(target_arch = "wasm32")]
+    {
+        scene.load_src(include_str!("../demo/domain.pddl"));
+        scene.load_src(include_str!("../demo/problem.pddl"));
     }
     if selected.0.is_none() {
         selected.0 = scene.graph.mobiles.first().map(|m| m.object.clone());

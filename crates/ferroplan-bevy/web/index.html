@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ferroplan — visualizer & block editor (in-browser)</title>
+<style>
+  :root { --bg:#0f0f14; --ink:#e8e8ee; --mut:#9aa0a6; --accent:#6c5ce7; --edge:#2a2a36; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+               font:14px/1.5 system-ui, sans-serif; overflow:hidden; }
+  #bar { position:fixed; top:0; left:0; right:0; height:42px; display:flex; align-items:center;
+         gap:14px; padding:0 16px; border-bottom:1px solid var(--edge); background:rgba(15,15,20,.85);
+         backdrop-filter:blur(6px); z-index:10; }
+  #bar h1 { margin:0; font-size:16px; letter-spacing:-.3px; }
+  #bar .fp { color:var(--accent); } #bar .pl { color:var(--mut); }
+  #bar .keys { color:var(--mut); font-size:12px; }
+  #bar .keys b { color:var(--ink); font-weight:600; }
+  #bar a { margin-left:auto; color:var(--accent); font-size:12px; }
+  #stage { position:fixed; inset:42px 0 0 0; }
+  #ferroplan-canvas { width:100%; height:100%; display:block; }
+  #loading { position:fixed; inset:42px 0 0 0; display:flex; align-items:center; justify-content:center;
+             color:var(--mut); flex-direction:column; gap:10px; }
+  .spin { width:28px; height:28px; border:3px solid var(--edge); border-top-color:var(--accent);
+          border-radius:50%; animation:r 1s linear infinite; } @keyframes r { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div id="bar">
+    <h1><span class="fp">ferro</span><span class="pl">plan</span></h1>
+    <span class="keys"><b>E</b> editor · <b>Tab</b> problem/domain · <b>S</b> solve · <b>Space</b> play ·
+      drag nodes · scroll zoom · click to inspect</span>
+    <a href="../">← docs</a>
+  </div>
+  <div id="stage"><canvas id="ferroplan-canvas"></canvas></div>
+  <div id="loading"><div class="spin"></div><div>loading the visualizer (WebAssembly)…</div></div>
+
+  <script type="module">
+    import init from './pkg/ferroplan-bevy.js';
+    // Bevy's winit throws a benign control-flow exception on the wasm event loop.
+    init()
+      .then(() => { const l = document.getElementById('loading'); if (l) l.remove(); })
+      .catch((e) => {
+        if (e && typeof e.message === 'string' && e.message.includes('control flow')) {
+          const l = document.getElementById('loading'); if (l) l.remove();
+        } else { throw e; }
+      });
+  </script>
+</body>
+</html>
