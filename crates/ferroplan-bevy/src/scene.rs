@@ -42,7 +42,7 @@ impl Scene {
         }
     }
 
-    fn load_src(&mut self, src: &str) {
+    pub fn load_src(&mut self, src: &str) {
         let up = src.to_ascii_uppercase();
         let is_problem = match (up.find("(PROBLEM"), up.find("(DOMAIN")) {
             (Some(p), Some(d)) => p < d,
