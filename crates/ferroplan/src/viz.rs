@@ -404,6 +404,59 @@ pub fn to_pddl(
     )
 }
 
+/// Generate a PDDL domain from editable parts (name, requirements, types,
+/// predicates) plus action blocks preserved verbatim — used by the editor.
+/// `types` is `(child, parent)` (empty parent = top-level); `predicates` is
+/// `(name, [arg_types])`; `requirements`/`actions_raw` are raw s-expressions.
+pub fn domain_to_pddl(
+    name: &str,
+    requirements: &str,
+    types: &[(String, String)],
+    predicates: &[(String, Vec<String>)],
+    actions_raw: &[String],
+) -> String {
+    let mut s = format!("(define (domain {})\n", name.to_lowercase());
+    let req = if requirements.trim().is_empty() {
+        "(:requirements :strips :typing)"
+    } else {
+        requirements.trim()
+    };
+    s.push_str(&format!("  {req}\n"));
+    if !types.is_empty() {
+        s.push_str("  (:types\n");
+        for (t, p) in types {
+            if p.trim().is_empty() {
+                s.push_str(&format!("    {}\n", t.to_lowercase()));
+            } else {
+                s.push_str(&format!(
+                    "    {} - {}\n",
+                    t.to_lowercase(),
+                    p.to_lowercase()
+                ));
+            }
+        }
+        s.push_str("  )\n");
+    }
+    if !predicates.is_empty() {
+        s.push_str("  (:predicates\n");
+        for (n, args) in predicates {
+            s.push_str(&format!("    ({}", n.to_lowercase()));
+            for (i, t) in args.iter().enumerate() {
+                s.push_str(&format!(" ?a{i} - {}", t.to_lowercase()));
+            }
+            s.push_str(")\n");
+        }
+        s.push_str("  )\n");
+    }
+    for a in actions_raw {
+        s.push_str("  ");
+        s.push_str(a.trim());
+        s.push('\n');
+    }
+    s.push_str(")\n");
+    s
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

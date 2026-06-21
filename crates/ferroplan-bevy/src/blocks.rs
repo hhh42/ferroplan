@@ -9,6 +9,7 @@
 
 use std::collections::HashMap;
 
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 
 use ferroplan::types::Domain;
@@ -16,17 +17,45 @@ use ferroplan::viz;
 
 use crate::scene::Scene;
 
+#[derive(Default, Clone, Copy, PartialEq, Eq)]
+pub enum Mode {
+    #[default]
+    Problem,
+    Domain,
+}
+
+/// Which text field currently captures keyboard input.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[allow(clippy::enum_variant_names)] // *Name fields are clearer than bare names here
+pub enum Focus {
+    DomainName,
+    TypeName(usize),
+    PredName(usize),
+}
+
 #[derive(Resource, Default)]
 pub struct Editor {
     pub open: bool,
+    pub focus: Option<Focus>,
+    mode: Mode,
+    dirty: bool,
+    status: String,
+
+    // problem side
     problem_name: String,
     objects: Vec<(String, String)>,   // (name, type)
     init: Vec<(String, Vec<String>)>, // (pred, args)
     goal: Vec<(String, Vec<String>)>, // (pred, args)
     counters: HashMap<String, u32>,
     seeded: bool,
-    dirty: bool,
-    status: String,
+
+    // domain side
+    dname: String,
+    requirements: String,               // raw s-expr, preserved
+    types: Vec<(String, String)>,       // (type, parent)
+    dpreds: Vec<(String, Vec<String>)>, // (name, arg types)
+    actions_raw: Vec<String>,           // raw (:action …) blocks, preserved
+    dseeded: bool,
 }
 
 #[derive(Component)]
@@ -34,6 +63,7 @@ pub struct EditorRoot;
 
 #[derive(Component, Clone)]
 pub enum Act {
+    // problem
     AddObject,
     RemoveObject(usize),
     CycleType(usize),
@@ -41,6 +71,18 @@ pub enum Act {
     RemoveFact(bool, usize),
     CyclePred(bool, usize),
     CycleArg(bool, usize, usize), // goal?, fact, slot
+    // domain
+    AddType,
+    RemoveType(usize),
+    CycleSuper(usize),
+    AddPred,
+    RemovePred(usize),
+    AddArg(usize),
+    RemoveArg(usize),
+    CycleArgType(usize, usize), // pred, slot
+    // shared
+    SetFocus(Focus),
+    ToggleMode,
     Apply,
     Export,
     Close,
@@ -51,6 +93,9 @@ pub fn toggle_editor(
     scene: Res<Scene>,
     mut editor: ResMut<Editor>,
 ) {
+    if editor.focus.is_some() {
+        return;
+    }
     if keys.just_pressed(KeyCode::KeyE) {
         editor.open = !editor.open;
         if editor.open && !editor.seeded {
@@ -58,9 +103,86 @@ pub fn toggle_editor(
         }
         editor.dirty = true;
     }
+    // Tab toggles Problem <-> Domain while the editor is open.
+    if editor.open && keys.just_pressed(KeyCode::Tab) {
+        editor.mode = if editor.mode == Mode::Problem {
+            Mode::Domain
+        } else {
+            Mode::Problem
+        };
+        if editor.mode == Mode::Domain && !editor.dseeded {
+            seed_domain(&mut editor, &scene);
+        }
+        editor.dirty = true;
+    }
+}
+
+/// Type into the focused text field (domain/type/predicate names). Captures all
+/// keys while a field is focused, so global shortcuts are suppressed meanwhile.
+pub fn text_input(mut evr: EventReader<KeyboardInput>, mut editor: ResMut<Editor>) {
+    if editor.focus.is_none() {
+        evr.clear();
+        return;
+    }
+    let mut changed = false;
+    let mut defocus = false;
+    let mut edits: Vec<TextEdit> = Vec::new();
+    for ev in evr.read() {
+        if !ev.state.is_pressed() {
+            continue;
+        }
+        match &ev.logical_key {
+            Key::Character(s) => {
+                for c in s.chars() {
+                    if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                        edits.push(TextEdit::Push(c.to_ascii_lowercase()));
+                    }
+                }
+            }
+            Key::Backspace => edits.push(TextEdit::Pop),
+            Key::Enter | Key::Escape => defocus = true,
+            _ => {}
+        }
+    }
+    if let Some(focus) = editor.focus {
+        if let Some(field) = focused_field_mut(&mut editor, focus) {
+            for e in edits {
+                match e {
+                    TextEdit::Push(c) => field.push(c),
+                    TextEdit::Pop => {
+                        field.pop();
+                    }
+                }
+                changed = true;
+            }
+        }
+    }
+    if defocus {
+        editor.focus = None;
+        changed = true;
+    }
+    if changed {
+        editor.dirty = true;
+    }
+}
+
+enum TextEdit {
+    Push(char),
+    Pop,
+}
+
+fn focused_field_mut(editor: &mut Editor, focus: Focus) -> Option<&mut String> {
+    match focus {
+        Focus::DomainName => Some(&mut editor.dname),
+        Focus::TypeName(i) => editor.types.get_mut(i).map(|t| &mut t.0),
+        Focus::PredName(i) => editor.dpreds.get_mut(i).map(|p| &mut p.0),
+    }
 }
 
 fn seed(editor: &mut Editor, scene: &Scene) {
+    if let Some(d) = &scene.domain {
+        editor.dname = d.name.to_lowercase();
+    }
     if let Some(p) = &scene.problem {
         editor.problem_name = p.name.to_lowercase();
         editor.objects = p
@@ -81,6 +203,93 @@ fn seed(editor: &mut Editor, scene: &Scene) {
         editor.goal = viz::goal_facts(p);
     }
     editor.seeded = true;
+}
+
+fn seed_domain(editor: &mut Editor, scene: &Scene) {
+    if let Some(d) = &scene.domain {
+        editor.dname = d.name.to_lowercase();
+        editor.types = d
+            .types
+            .iter()
+            .map(|t| {
+                let parent = d
+                    .type_parent
+                    .iter()
+                    .find(|(c, _)| c.eq_ignore_ascii_case(t))
+                    .map(|(_, p)| p.to_lowercase())
+                    .unwrap_or_default();
+                (t.to_lowercase(), parent)
+            })
+            .collect();
+        editor.dpreds = d
+            .predicates
+            .iter()
+            .map(|(n, a)| {
+                (
+                    n.to_lowercase(),
+                    a.iter().map(|x| x.to_lowercase()).collect(),
+                )
+            })
+            .collect();
+    }
+    editor.requirements = extract_block(&scene.domain_src, "(:requirements").unwrap_or_default();
+    editor.actions_raw = extract_all_blocks(&scene.domain_src, "(:action");
+    editor.dseeded = true;
+}
+
+/// First balanced `(...)` block beginning with `prefix` (case-insensitive).
+fn extract_block(src: &str, prefix: &str) -> Option<String> {
+    let low = src.to_lowercase();
+    let start = low.find(&prefix.to_lowercase())?;
+    balanced_from(src, start)
+}
+
+fn extract_all_blocks(src: &str, prefix: &str) -> Vec<String> {
+    let low = src.to_lowercase();
+    let p = prefix.to_lowercase();
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(rel) = low[from..].find(&p) {
+        let start = from + rel;
+        match balanced_from(src, start) {
+            Some(block) => {
+                from = start + block.len();
+                out.push(block);
+            }
+            None => break,
+        }
+    }
+    out
+}
+
+/// The balanced parenthesized block starting at/after `start` (skips `;` comments).
+fn balanced_from(src: &str, start: usize) -> Option<String> {
+    let b = src.as_bytes();
+    let mut i = start;
+    while i < b.len() && b[i] != b'(' {
+        i += 1;
+    }
+    let open = i;
+    let mut depth = 0i32;
+    while i < b.len() {
+        match b[i] {
+            b';' => {
+                while i < b.len() && b[i] != b'\n' {
+                    i += 1;
+                }
+            }
+            b'(' => depth += 1,
+            b')' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(src[open..=i].to_string());
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
 }
 
 // ---- click handling ----
@@ -169,34 +378,133 @@ fn apply_act(act: &Act, editor: &mut Editor, scene: &mut Scene) {
                 }
             }
         }
-        Act::Apply => {
-            let dn = domain.as_ref().map(|d| d.name.clone()).unwrap_or_default();
-            let pddl = viz::to_pddl(
-                &editor.problem_name,
-                &dn,
-                &editor.objects,
-                &editor.init,
-                &editor.goal,
-            );
-            scene.load_src(&pddl);
-            editor.status = "applied".into();
+        Act::AddType => {
+            let name = auto_name(editor, "type");
+            editor.types.push((name, String::new()));
+            editor.focus = Some(Focus::TypeName(editor.types.len() - 1));
         }
-        Act::Export => {
-            let dn = domain.as_ref().map(|d| d.name.clone()).unwrap_or_default();
-            let pddl = viz::to_pddl(
-                &editor.problem_name,
-                &dn,
-                &editor.objects,
-                &editor.init,
-                &editor.goal,
-            );
-            let path = format!("/tmp/{}.pddl", editor.problem_name);
-            editor.status = match std::fs::write(&path, pddl) {
-                Ok(()) => format!("wrote {path}"),
-                Err(e) => format!("error: {e}"),
+        Act::RemoveType(i) => {
+            if *i < editor.types.len() {
+                editor.types.remove(*i);
+            }
+            editor.focus = None;
+        }
+        Act::CycleSuper(i) => {
+            let names: Vec<String> = std::iter::once(String::new())
+                .chain(
+                    editor
+                        .types
+                        .iter()
+                        .enumerate()
+                        .filter(|(j, _)| *j != *i)
+                        .map(|(_, t)| t.0.clone()),
+                )
+                .collect();
+            if let Some(t) = editor.types.get_mut(*i) {
+                let cur = t.1.clone();
+                t.1 = next_in(&cur, &names);
+            }
+        }
+        Act::AddPred => {
+            let name = auto_name(editor, "pred");
+            editor.dpreds.push((name, vec![]));
+            editor.focus = Some(Focus::PredName(editor.dpreds.len() - 1));
+        }
+        Act::RemovePred(i) => {
+            if *i < editor.dpreds.len() {
+                editor.dpreds.remove(*i);
+            }
+            editor.focus = None;
+        }
+        Act::AddArg(i) => {
+            let ty = editor
+                .types
+                .first()
+                .map(|t| t.0.clone())
+                .unwrap_or_else(|| "object".into());
+            if let Some(p) = editor.dpreds.get_mut(*i) {
+                p.1.push(ty);
+            }
+        }
+        Act::RemoveArg(i) => {
+            if let Some(p) = editor.dpreds.get_mut(*i) {
+                p.1.pop();
+            }
+        }
+        Act::CycleArgType(i, slot) => {
+            let names: Vec<String> = editor.types.iter().map(|t| t.0.clone()).collect();
+            if let Some(a) = editor.dpreds.get_mut(*i).and_then(|p| p.1.get_mut(*slot)) {
+                *a = next_in(a, &names);
+            }
+        }
+        Act::SetFocus(f) => editor.focus = Some(*f),
+        Act::ToggleMode => {
+            editor.mode = if editor.mode == Mode::Problem {
+                Mode::Domain
+            } else {
+                Mode::Problem
             };
+            editor.focus = None;
+            if editor.mode == Mode::Domain && !editor.dseeded {
+                seed_domain(editor, scene);
+            }
+        }
+        Act::Apply => apply_changes(editor, scene),
+        Act::Export => export_changes(editor),
+    }
+}
+
+/// Regenerate PDDL from the editor and reload it. When the domain has been
+/// edited, the domain is reloaded first, then the problem against it.
+fn apply_changes(editor: &mut Editor, scene: &mut Scene) {
+    if editor.dseeded {
+        let dp = viz::domain_to_pddl(
+            &editor.dname,
+            &editor.requirements,
+            &editor.types,
+            &editor.dpreds,
+            &editor.actions_raw,
+        );
+        scene.load_src(&dp);
+    }
+    let pp = viz::to_pddl(
+        &editor.problem_name,
+        &editor.dname,
+        &editor.objects,
+        &editor.init,
+        &editor.goal,
+    );
+    scene.load_src(&pp);
+    editor.status = "applied".into();
+}
+
+fn export_changes(editor: &mut Editor) {
+    let mut wrote = Vec::new();
+    if editor.dseeded {
+        let dp = viz::domain_to_pddl(
+            &editor.dname,
+            &editor.requirements,
+            &editor.types,
+            &editor.dpreds,
+            &editor.actions_raw,
+        );
+        let path = format!("/tmp/{}-domain.pddl", editor.dname);
+        if std::fs::write(&path, dp).is_ok() {
+            wrote.push(path);
         }
     }
+    let pp = viz::to_pddl(
+        &editor.problem_name,
+        &editor.dname,
+        &editor.objects,
+        &editor.init,
+        &editor.goal,
+    );
+    let path = format!("/tmp/{}.pddl", editor.problem_name);
+    if std::fs::write(&path, pp).is_ok() {
+        wrote.push(path);
+    }
+    editor.status = format!("wrote {}", wrote.join(", "));
 }
 
 fn list_mut(editor: &mut Editor, goal: bool) -> &mut Vec<(String, Vec<String>)> {
@@ -302,36 +610,112 @@ pub fn rebuild(
         ))
         .with_children(|p| {
             row(p, |h| {
+                let toggle = match editor.mode {
+                    Mode::Problem => "Domain >",
+                    Mode::Domain => "< Problem",
+                };
+                btn(h, toggle, Act::ToggleMode);
                 btn(h, "Apply", Act::Apply);
                 btn(h, "Export", Act::Export);
                 btn(h, "Close", Act::Close);
             });
-            label(p, "OBJECTS");
-            for (i, (name, ty)) in editor.objects.iter().enumerate() {
-                row(p, |r| {
-                    label(r, name);
-                    btn(r, format!(": {ty}"), Act::CycleType(i));
-                    btn(r, "x", Act::RemoveObject(i));
-                });
+            match editor.mode {
+                Mode::Problem => build_problem(p, editor),
+                Mode::Domain => build_domain(p, editor),
             }
-            btn(p, "+ object", Act::AddObject);
-
-            label(p, "INIT");
-            for (i, (pred, args)) in editor.init.iter().enumerate() {
-                fact_row(p, false, i, pred, args);
-            }
-            btn(p, "+ fact", Act::AddFact(false));
-
-            label(p, "GOAL");
-            for (i, (pred, args)) in editor.goal.iter().enumerate() {
-                fact_row(p, true, i, pred, args);
-            }
-            btn(p, "+ goal", Act::AddFact(true));
-
             if !editor.status.is_empty() {
                 label(p, &editor.status);
             }
         });
+}
+
+fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
+    label(p, "OBJECTS");
+    for (i, (name, ty)) in editor.objects.iter().enumerate() {
+        row(p, |r| {
+            label(r, name);
+            btn(r, format!(": {ty}"), Act::CycleType(i));
+            btn(r, "x", Act::RemoveObject(i));
+        });
+    }
+    btn(p, "+ object", Act::AddObject);
+
+    label(p, "INIT");
+    for (i, (pred, args)) in editor.init.iter().enumerate() {
+        fact_row(p, false, i, pred, args);
+    }
+    btn(p, "+ fact", Act::AddFact(false));
+
+    label(p, "GOAL");
+    for (i, (pred, args)) in editor.goal.iter().enumerate() {
+        fact_row(p, true, i, pred, args);
+    }
+    btn(p, "+ goal", Act::AddFact(true));
+}
+
+fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
+    let focus = editor.focus;
+    row(p, |h| {
+        label(h, "domain:");
+        btn(
+            h,
+            name_label(&editor.dname, focus == Some(Focus::DomainName)),
+            Act::SetFocus(Focus::DomainName),
+        );
+    });
+
+    label(p, "TYPES");
+    for (i, (name, parent)) in editor.types.iter().enumerate() {
+        row(p, |r| {
+            btn(
+                r,
+                name_label(name, focus == Some(Focus::TypeName(i))),
+                Act::SetFocus(Focus::TypeName(i)),
+            );
+            let sup = if parent.is_empty() {
+                "- *".to_string()
+            } else {
+                format!("- {parent}")
+            };
+            btn(r, sup, Act::CycleSuper(i));
+            btn(r, "x", Act::RemoveType(i));
+        });
+    }
+    btn(p, "+ type", Act::AddType);
+
+    label(p, "PREDICATES");
+    for (i, (name, args)) in editor.dpreds.iter().enumerate() {
+        row(p, |r| {
+            label(r, "(");
+            btn(
+                r,
+                name_label(name, focus == Some(Focus::PredName(i))),
+                Act::SetFocus(Focus::PredName(i)),
+            );
+            for (s, t) in args.iter().enumerate() {
+                btn(r, t.clone(), Act::CycleArgType(i, s));
+            }
+            btn(r, "+arg", Act::AddArg(i));
+            if !args.is_empty() {
+                btn(r, "-arg", Act::RemoveArg(i));
+            }
+            label(r, ")");
+            btn(r, "x", Act::RemovePred(i));
+        });
+    }
+    btn(p, "+ predicate", Act::AddPred);
+
+    label(p, "(actions preserved; editable next)");
+}
+
+/// A name field's label; shows `?` when empty and a trailing `_` cursor when focused.
+fn name_label(name: &str, focused: bool) -> String {
+    let base = if name.is_empty() { "?" } else { name };
+    if focused {
+        format!("{base}_")
+    } else {
+        base.to_string()
+    }
 }
 
 fn fact_row(p: &mut ChildBuilder, goal: bool, i: usize, pred: &str, args: &[String]) {
@@ -442,5 +826,49 @@ mod tests {
         let after = ed.goal[gi].1[0].clone();
         assert!(["crate1", "crate2"].contains(&before.as_str()));
         assert!(["crate1", "crate2"].contains(&after.as_str()));
+    }
+
+    #[test]
+    fn seed_domain_reads_domain() {
+        let (mut scene, mut ed) = loaded();
+        seed_domain(&mut ed, &scene);
+        let _ = &mut scene;
+        assert_eq!(ed.dname, "driving");
+        assert_eq!(ed.types.len(), 3); // location, truck, package
+        assert!(ed.dpreds.iter().any(|(n, _)| n == "road"));
+        assert_eq!(ed.actions_raw.len(), 3); // drive, load, unload
+        assert!(ed.requirements.contains(":strips"));
+    }
+
+    #[test]
+    fn edited_domain_roundtrips_through_parser() {
+        let (mut scene, mut ed) = loaded();
+        seed_domain(&mut ed, &scene);
+
+        apply_act(&Act::AddType, &mut ed, &mut scene);
+        let f = ed.focus.unwrap();
+        focused_field_mut(&mut ed, f).unwrap().clear();
+        focused_field_mut(&mut ed, f).unwrap().push_str("widget");
+
+        apply_act(&Act::AddPred, &mut ed, &mut scene);
+        let f = ed.focus.unwrap();
+        focused_field_mut(&mut ed, f).unwrap().clear();
+        focused_field_mut(&mut ed, f).unwrap().push_str("shiny");
+        apply_act(&Act::AddArg(ed.dpreds.len() - 1), &mut ed, &mut scene);
+
+        let pddl = viz::domain_to_pddl(
+            &ed.dname,
+            &ed.requirements,
+            &ed.types,
+            &ed.dpreds,
+            &ed.actions_raw,
+        );
+        let d = ferroplan::parser::parse_domain(&pddl).expect("regenerated domain parses");
+        assert!(d.types.iter().any(|t| t.eq_ignore_ascii_case("widget")));
+        assert!(d
+            .predicates
+            .iter()
+            .any(|(n, _)| n.eq_ignore_ascii_case("shiny")));
+        assert_eq!(d.actions.len(), 3); // preserved verbatim
     }
 }

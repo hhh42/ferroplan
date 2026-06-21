@@ -34,9 +34,14 @@ pub struct SolveJob(Option<Task<SolveResult>>);
 pub fn controls(
     keys: Res<ButtonInput<KeyCode>>,
     scene: Res<Scene>,
+    editor: Res<crate::blocks::Editor>,
     mut plan: ResMut<Plan>,
     mut job: ResMut<SolveJob>,
 ) {
+    // Don't steal keystrokes while the editor is capturing text.
+    if editor.focus.is_some() {
+        return;
+    }
     if keys.just_pressed(KeyCode::KeyS)
         && job.0.is_none()
         && !scene.domain_src.is_empty()
