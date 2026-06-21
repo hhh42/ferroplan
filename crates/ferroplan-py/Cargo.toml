@@ -1,0 +1,28 @@
+# Standalone (its own workspace root) — built by maturin, not the parent workspace.
+[workspace]
+
+[package]
+name = "ferroplan-py"
+description = "Python bindings for the ferroplan PDDL planner"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.74"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/haroldhhersey/ferroplan"
+publish = false
+
+# Built with maturin (`maturin develop` / `maturin build`), not the workspace —
+# the `extension-module` feature doesn't link libpython, so a plain
+# `cargo build` would fail to link. The module is imported as `ferroplan`.
+[lib]
+name = "ferroplan"
+crate-type = ["cdylib"]
+
+[dependencies]
+# Aliased: the lib is named `ferroplan` (the Python module), so the planner crate
+# is imported as `ferroplan_core` to avoid the name clash.
+ferroplan_core = { package = "ferroplan", path = "../ferroplan" }
+serde_json = "1"
+# abi3-py38: build against Python's stable ABI -> one wheel works on 3.8+
+# (including 3.14 with PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1).
+pyo3 = { version = "0.24", features = ["extension-module", "abi3-py38"] }

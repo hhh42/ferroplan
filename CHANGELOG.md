@@ -35,6 +35,10 @@ Initial public release.
 - **General metric terms** — the metric optimizer folds monotone numeric fluent
   terms (e.g. rovers' `(sum-traverse-cost)`) into total-cost, so all six IPC-5
   simple-preferences domains are scored, rovers included.
+- **Bindings (reach)** — `ferroplan-wasm`: run the planner in the browser via
+  WebAssembly with a self-contained "try it" demo (no server/install);
+  `ferroplan-py`: a pyo3 **abi3** wheel (`import ferroplan; ferroplan.plan(domain,
+  problem)`), one wheel for CPython 3.8+. The core stays pure Rust.
 - mdBook documentation site; cross-planner comparison harness (`compare.py`),
   temporal+VAL harness (`bench_temporal.py`), and benchmark results vs
   Metric-FF / SGPlan6 / VAL.

@@ -6,6 +6,9 @@ members = [
     "crates/ferroplan-bevy",
     "crates/ferroplan-wasm",
 ]
+# Built standalone via maturin (pyo3 extension-module doesn't link libpython, so
+# a plain workspace `cargo build` would fail to link).
+exclude = ["crates/ferroplan-py"]
 
 [workspace.package]
 version = "0.1.0"
