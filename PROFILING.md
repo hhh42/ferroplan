@@ -64,6 +64,23 @@ Use `--threads 1` so the profile reflects single-core hotspots, not scheduling.
 `samply record --save-only -o profile.json.gz -- …` saves a profile without opening
 a browser (for CI/headless capture).
 
+### Turnkey text hotspots — `benchmarks/profile.py`
+
+For a quick, headless, no-browser hotspot list (builds the profiling binary, runs
+samply `--save-only`, symbolicates the hottest addresses with `atos`):
+
+```sh
+python3 benchmarks/profile.py <domain.pddl> <problem.pddl> -- --mode pddl3
+# -> "NN.N%  function" lines, hottest self-time first
+```
+
+> First measured run (openstacks p01, `--mode pddl3`) was *grounding-bound*:
+> ~15% string formatting + ~6% `HashMap::insert` (interning) + float formatting,
+> with the search heuristic <2% — i.e. building per-op/fact display strings and
+> interning during grounding dominate object-heavy instances. Profile a
+> search-heavy instance (many `evaluated` states) to see the search hotspots
+> instead.
+
 ### Linux / flamegraph alternative
 
 ```sh
