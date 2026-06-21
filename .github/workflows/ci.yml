@@ -22,11 +22,11 @@ jobs:
       - name: Format
         run: cargo fmt --all --check
       - name: Clippy
-        run: cargo clippy --workspace --exclude ferroplan-gui --all-targets --all-features -- -D warnings
+        run: cargo clippy --workspace --exclude ferroplan-gui --exclude ferroplan-bevy --all-targets --all-features -- -D warnings
       - name: Test
-        run: cargo test --workspace --exclude ferroplan-gui
+        run: cargo test --workspace --exclude ferroplan-gui --exclude ferroplan-bevy
       - name: Docs
-        run: cargo doc --no-deps --all-features --workspace --exclude ferroplan-gui
+        run: cargo doc --no-deps --all-features --workspace --exclude ferroplan-gui --exclude ferroplan-bevy
         env:
           RUSTDOCFLAGS: -D warnings
       - name: Bench compiles (perf gate)

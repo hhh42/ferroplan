@@ -1,0 +1,18 @@
+[package]
+name = "ferroplan-bevy"
+description = "Bevy-based GUI for the ferroplan PDDL planner — visualize, inspect, and animate domains/problems"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[[bin]]
+name = "ferroplan-bevy"
+path = "src/main.rs"
+
+[dependencies]
+ferroplan = { path = "../ferroplan" }
+bevy = "0.15"

@@ -41,6 +41,7 @@ pub mod resolve;
 pub mod temporal;
 pub mod trace;
 pub mod verify;
+pub mod viz;
 
 // orchestration + smart public API
 pub mod api;
