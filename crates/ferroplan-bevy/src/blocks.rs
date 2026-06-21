@@ -39,14 +39,29 @@ pub enum Focus {
 /// A literal in a precondition/effect: `(neg, predicate, [arg vars])`.
 type Lit = (bool, String, Vec<String>);
 
-/// An editor action. Flat actions (conjunction of literals) are modeled and
-/// editable; anything richer (or/when/forall/numeric) is preserved verbatim.
+/// A conditional effect: `(when-condition literals, when-effect literals)`.
+type When = (Vec<Lit>, Vec<Lit>);
+
+/// Where a literal lives inside an action (used by the edit actions).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum LitLoc {
+    Pre,
+    Eff,
+    WhenCond(usize),
+    WhenEff(usize),
+}
+
+/// An editor action. Actions built from literals + `or`-preconditions + flat
+/// `when` conditional effects are modeled and editable; anything richer
+/// (forall/exists/numeric/nested) is preserved verbatim.
 enum EdAction {
     Modeled {
         name: String,
         params: Vec<(String, String)>, // (?var, type)
         pre: Vec<Lit>,
+        pre_or: bool, // precondition is (or …) instead of (and …)
         eff: Vec<Lit>,
+        whens: Vec<When>, // (when (and cond) (and eff))
     },
     Raw(String),
 }
@@ -146,11 +161,14 @@ pub enum Act {
     AddParam(usize),
     RemoveParam(usize),
     CycleParamType(usize, usize), // action, param
-    AddLit(usize, bool),
-    RemoveLit(usize, bool, usize),
-    CycleLitPred(usize, bool, usize),
-    CycleLitArg(usize, bool, usize, usize), // action, eff, lit, slot
-    ToggleNeg(usize, bool, usize),
+    TogglePreKind(usize),         // and <-> or
+    AddWhen(usize),
+    RemoveWhen(usize, usize),
+    AddLit(usize, LitLoc),
+    RemoveLit(usize, LitLoc, usize),
+    CycleLitPred(usize, LitLoc, usize),
+    CycleLitArg(usize, LitLoc, usize, usize), // action, loc, lit, slot
+    ToggleNeg(usize, LitLoc, usize),
     // shared
     SetFocus(Focus),
     ToggleMode,
@@ -438,7 +456,7 @@ fn seed_domain(editor: &mut Editor, scene: &Scene) {
 /// otherwise keep the raw text.
 fn seed_action(a: &Action, raw: Option<&String>) -> EdAction {
     match (flatten_pre(&a.precond), flatten_eff(&a.effect)) {
-        (Some(pre), Some(eff)) => EdAction::Modeled {
+        (Some((pre_or, pre)), Some((eff, whens))) => EdAction::Modeled {
             name: a.name.to_lowercase(),
             params: a
                 .params
@@ -446,7 +464,9 @@ fn seed_action(a: &Action, raw: Option<&String>) -> EdAction {
                 .map(|(n, t)| (param_norm(n), t.to_lowercase()))
                 .collect(),
             pre,
+            pre_or,
             eff,
+            whens,
         },
         _ => EdAction::Raw(raw.cloned().unwrap_or_default()),
     }
@@ -468,52 +488,75 @@ fn term_str(t: &Term) -> String {
     }
 }
 
-fn flatten_pre(f: &Formula) -> Option<Vec<Lit>> {
+/// A single literal (atom or negated atom), else None.
+fn flat_lit(f: &Formula) -> Option<Lit> {
     match f {
-        Formula::True => Some(vec![]),
-        Formula::And(fs) => {
-            let mut out = Vec::new();
-            for x in fs {
-                out.extend(flatten_pre(x)?);
-            }
-            Some(out)
-        }
-        Formula::Atom(p, ts) => Some(vec![(
-            false,
-            p.to_lowercase(),
-            ts.iter().map(term_str).collect(),
-        )]),
+        Formula::Atom(p, ts) => Some((false, p.to_lowercase(), ts.iter().map(term_str).collect())),
         Formula::Not(b) => match &**b {
-            Formula::Atom(p, ts) => Some(vec![(
-                true,
-                p.to_lowercase(),
-                ts.iter().map(term_str).collect(),
-            )]),
+            Formula::Atom(p, ts) => {
+                Some((true, p.to_lowercase(), ts.iter().map(term_str).collect()))
+            }
             _ => None,
         },
         _ => None,
     }
 }
 
-fn flatten_eff(e: &Effect) -> Option<Vec<Lit>> {
+/// A flat precondition: `(is_or, literals)`. None if it nests beyond and/or of literals.
+fn flatten_pre(f: &Formula) -> Option<(bool, Vec<Lit>)> {
+    match f {
+        Formula::True => Some((false, vec![])),
+        Formula::And(fs) => fs
+            .iter()
+            .map(flat_lit)
+            .collect::<Option<_>>()
+            .map(|l| (false, l)),
+        Formula::Or(fs) => fs
+            .iter()
+            .map(flat_lit)
+            .collect::<Option<_>>()
+            .map(|l| (true, l)),
+        _ => flat_lit(f).map(|l| (false, vec![l])),
+    }
+}
+
+/// A flat effect: `(unconditional literals, [(when-cond, when-eff)])`. None if it
+/// uses forall / numeric / nested whens.
+fn flatten_eff(e: &Effect) -> Option<(Vec<Lit>, Vec<When>)> {
+    let mut lits = Vec::new();
+    let mut whens = Vec::new();
+    collect_eff(e, &mut lits, &mut whens)?;
+    Some((lits, whens))
+}
+
+fn collect_eff(e: &Effect, lits: &mut Vec<Lit>, whens: &mut Vec<When>) -> Option<()> {
     match e {
         Effect::And(es) => {
-            let mut out = Vec::new();
             for x in es {
-                out.extend(flatten_eff(x)?);
+                collect_eff(x, lits, whens)?;
             }
-            Some(out)
+            Some(())
         }
-        Effect::Add(p, ts) => Some(vec![(
-            false,
-            p.to_lowercase(),
-            ts.iter().map(term_str).collect(),
-        )]),
-        Effect::Del(p, ts) => Some(vec![(
-            true,
-            p.to_lowercase(),
-            ts.iter().map(term_str).collect(),
-        )]),
+        Effect::Add(p, ts) => {
+            lits.push((false, p.to_lowercase(), ts.iter().map(term_str).collect()));
+            Some(())
+        }
+        Effect::Del(p, ts) => {
+            lits.push((true, p.to_lowercase(), ts.iter().map(term_str).collect()));
+            Some(())
+        }
+        Effect::When(cond, eff) => {
+            let (or, clits) = flatten_pre(cond)?;
+            if or {
+                return None; // a when-condition must be a conjunction
+            }
+            let (elits, ewhens) = flatten_eff(eff)?;
+            if !ewhens.is_empty() {
+                return None; // no nested whens
+            }
+            whens.push((clits, elits));
+            Some(())
+        }
         _ => None,
     }
 }
@@ -532,12 +575,15 @@ fn lit_str(l: &Lit) -> String {
     }
 }
 
-fn lits_to_pddl(lits: &[Lit]) -> String {
+/// Render literals grouped under `and`/`or`. A single `and` literal is bare.
+fn lits_grouped(lits: &[Lit], or: bool) -> String {
+    let kw = if or { "or" } else { "and" };
     match lits.len() {
-        0 => "(and)".to_string(),
-        1 => lit_str(&lits[0]),
+        0 => format!("({kw})"),
+        1 if !or => lit_str(&lits[0]),
         _ => format!(
-            "(and {})",
+            "({} {})",
+            kw,
             lits.iter().map(lit_str).collect::<Vec<_>>().join(" ")
         ),
     }
@@ -550,21 +596,60 @@ fn action_to_pddl(a: &EdAction) -> String {
             name,
             params,
             pre,
+            pre_or,
             eff,
+            whens,
         } => {
             let ps = params
                 .iter()
                 .map(|(n, t)| format!("{n} - {t}"))
                 .collect::<Vec<_>>()
                 .join(" ");
+            let mut eff_parts: Vec<String> = eff.iter().map(lit_str).collect();
+            for (cond, weff) in whens {
+                eff_parts.push(format!(
+                    "(when {} {})",
+                    lits_grouped(cond, false),
+                    lits_grouped(weff, false)
+                ));
+            }
+            let eff_s = match eff_parts.len() {
+                0 => "(and)".to_string(),
+                1 => eff_parts.remove(0),
+                _ => format!("(and {})", eff_parts.join(" ")),
+            };
             format!(
                 "(:action {}\n   :parameters ({})\n   :precondition {}\n   :effect {})",
                 name,
                 ps,
-                lits_to_pddl(pre),
-                lits_to_pddl(eff)
+                lits_grouped(pre, *pre_or),
+                eff_s
             )
         }
+    }
+}
+
+/// The literal list addressed by `loc` within a modeled action.
+fn lits_at_mut(act: &mut EdAction, loc: LitLoc) -> Option<&mut Vec<Lit>> {
+    if let EdAction::Modeled {
+        pre, eff, whens, ..
+    } = act
+    {
+        match loc {
+            LitLoc::Pre => Some(pre),
+            LitLoc::Eff => Some(eff),
+            LitLoc::WhenCond(i) => whens.get_mut(i).map(|w| &mut w.0),
+            LitLoc::WhenEff(i) => whens.get_mut(i).map(|w| &mut w.1),
+        }
+    } else {
+        None
+    }
+}
+
+fn action_params(editor: &Editor, i: usize) -> Vec<(String, String)> {
+    match editor.actions.get(i) {
+        Some(EdAction::Modeled { params, .. }) => params.clone(),
+        _ => vec![],
     }
 }
 
@@ -815,7 +900,9 @@ fn apply_act(act: &Act, editor: &mut Editor, scene: &mut Scene) {
                 name,
                 params: vec![],
                 pre: vec![],
+                pre_or: false,
                 eff: vec![],
+                whens: vec![],
             });
             editor.focus = Some(Focus::ActionName(editor.actions.len() - 1));
         }
@@ -844,60 +931,74 @@ fn apply_act(act: &Act, editor: &mut Editor, scene: &mut Scene) {
                 }
             }
         }
-        Act::AddLit(i, eff) => {
-            let pred0 = editor.dpreds.first().cloned();
+        Act::TogglePreKind(i) => {
+            if let Some(EdAction::Modeled { pre_or, .. }) = editor.actions.get_mut(*i) {
+                *pre_or = !*pre_or;
+            }
+        }
+        Act::AddWhen(i) => {
+            if let Some(EdAction::Modeled { whens, .. }) = editor.actions.get_mut(*i) {
+                whens.push((vec![], vec![]));
+            }
+        }
+        Act::RemoveWhen(i, w) => {
+            if let Some(EdAction::Modeled { whens, .. }) = editor.actions.get_mut(*i) {
+                if *w < whens.len() {
+                    whens.remove(*w);
+                }
+            }
+        }
+        Act::AddLit(i, loc) => {
+            let params = action_params(editor, *i);
             let tys = editor.types.clone();
-            if let (
-                Some((pname, psig)),
-                Some(EdAction::Modeled {
-                    params,
-                    pre,
-                    eff: effv,
-                    ..
-                }),
-            ) = (pred0, editor.actions.get_mut(*i))
-            {
+            let pred0 = editor.dpreds.first().cloned();
+            if let (Some((pname, psig)), Some(list)) = (
+                pred0,
+                editor
+                    .actions
+                    .get_mut(*i)
+                    .and_then(|a| lits_at_mut(a, *loc)),
+            ) {
                 let args = psig
                     .iter()
-                    .map(|aty| first_compatible_param(params, &tys, aty))
+                    .map(|aty| first_compatible_param(&params, &tys, aty))
                     .collect();
-                let lit = (false, pname, args);
-                if *eff {
-                    effv.push(lit);
-                } else {
-                    pre.push(lit);
+                list.push((false, pname, args));
+            }
+        }
+        Act::RemoveLit(i, loc, k) => {
+            if let Some(list) = editor
+                .actions
+                .get_mut(*i)
+                .and_then(|a| lits_at_mut(a, *loc))
+            {
+                if *k < list.len() {
+                    list.remove(*k);
                 }
             }
         }
-        Act::RemoveLit(i, eff, k) => {
-            if let Some(EdAction::Modeled { pre, eff: effv, .. }) = editor.actions.get_mut(*i) {
-                let l = if *eff { effv } else { pre };
-                if *k < l.len() {
-                    l.remove(*k);
-                }
-            }
-        }
-        Act::ToggleNeg(i, eff, k) => {
-            if let Some(EdAction::Modeled { pre, eff: effv, .. }) = editor.actions.get_mut(*i) {
-                let l = if *eff { effv } else { pre };
-                if let Some(lit) = l.get_mut(*k) {
+        Act::ToggleNeg(i, loc, k) => {
+            if let Some(list) = editor
+                .actions
+                .get_mut(*i)
+                .and_then(|a| lits_at_mut(a, *loc))
+            {
+                if let Some(lit) = list.get_mut(*k) {
                     lit.0 = !lit.0;
                 }
             }
         }
-        Act::CycleLitPred(i, eff, k) => {
-            let dpreds = editor.dpreds.clone();
+        Act::CycleLitPred(i, loc, k) => {
+            let params = action_params(editor, *i);
             let tys = editor.types.clone();
+            let dpreds = editor.dpreds.clone();
             let preds: Vec<String> = dpreds.iter().map(|(n, _)| n.clone()).collect();
-            if let Some(EdAction::Modeled {
-                params,
-                pre,
-                eff: effv,
-                ..
-            }) = editor.actions.get_mut(*i)
+            if let Some(list) = editor
+                .actions
+                .get_mut(*i)
+                .and_then(|a| lits_at_mut(a, *loc))
             {
-                let l = if *eff { effv } else { pre };
-                if let Some(lit) = l.get_mut(*k) {
+                if let Some(lit) = list.get_mut(*k) {
                     let np = next_in(&lit.1, &preds);
                     let sig = dpreds
                         .iter()
@@ -907,30 +1008,28 @@ fn apply_act(act: &Act, editor: &mut Editor, scene: &mut Scene) {
                     lit.1 = np;
                     lit.2 = sig
                         .iter()
-                        .map(|aty| first_compatible_param(params, &tys, aty))
+                        .map(|aty| first_compatible_param(&params, &tys, aty))
                         .collect();
                 }
             }
         }
-        Act::CycleLitArg(i, eff, k, slot) => {
-            let dpreds = editor.dpreds.clone();
+        Act::CycleLitArg(i, loc, k, slot) => {
+            let params = action_params(editor, *i);
             let tys = editor.types.clone();
-            if let Some(EdAction::Modeled {
-                params,
-                pre,
-                eff: effv,
-                ..
-            }) = editor.actions.get_mut(*i)
+            let dpreds = editor.dpreds.clone();
+            if let Some(list) = editor
+                .actions
+                .get_mut(*i)
+                .and_then(|a| lits_at_mut(a, *loc))
             {
-                let l = if *eff { effv } else { pre };
-                if let Some(lit) = l.get_mut(*k) {
+                if let Some(lit) = list.get_mut(*k) {
                     let arg_ty = dpreds
                         .iter()
                         .find(|(n, _)| *n == lit.1)
                         .and_then(|(_, a)| a.get(*slot))
                         .cloned();
                     if let (Some(aty), Some(cur)) = (arg_ty, lit.2.get(*slot).cloned()) {
-                        let opts = compatible_params(params, &tys, &aty);
+                        let opts = compatible_params(&params, &tys, &aty);
                         lit.2[*slot] = next_in(&cur, &opts);
                     }
                 }
@@ -1267,7 +1366,9 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
                 name,
                 params,
                 pre,
+                pre_or,
                 eff,
+                whens,
             } => {
                 row(p, |r| {
                     label(r, "act");
@@ -1288,31 +1389,50 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
                         btn(r, "-", Act::RemoveParam(i));
                     }
                 });
-                lit_section(p, i, false, "  pre:", pre);
-                lit_section(p, i, true, "  eff:", eff);
+                row(p, |r| {
+                    label(r, "  pre");
+                    btn(
+                        r,
+                        if *pre_or { "any (or)" } else { "all (and)" },
+                        Act::TogglePreKind(i),
+                    );
+                });
+                lit_section(p, i, LitLoc::Pre, "", pre);
+                lit_section(p, i, LitLoc::Eff, "  eff:", eff);
+                for (wi, (cond, weff)) in whens.iter().enumerate() {
+                    row(p, |r| {
+                        label(r, "  when");
+                        btn(r, "x", Act::RemoveWhen(i, wi));
+                    });
+                    lit_section(p, i, LitLoc::WhenCond(wi), "    if:", cond);
+                    lit_section(p, i, LitLoc::WhenEff(wi), "    then:", weff);
+                }
+                btn(p, "  + when", Act::AddWhen(i));
             }
         }
     }
     btn(p, "+ action", Act::AddAction);
 }
 
-fn lit_section(p: &mut ChildBuilder, i: usize, eff: bool, title: &str, lits: &[Lit]) {
-    label(p, title);
+fn lit_section(p: &mut ChildBuilder, i: usize, loc: LitLoc, title: &str, lits: &[Lit]) {
+    if !title.is_empty() {
+        label(p, title);
+    }
     for (k, (neg, pred, args)) in lits.iter().enumerate() {
         row(p, |r| {
             btn(
                 r,
                 if *neg { "neg" } else { "pos" },
-                Act::ToggleNeg(i, eff, k),
+                Act::ToggleNeg(i, loc, k),
             );
-            btn(r, format!("({pred}"), Act::CycleLitPred(i, eff, k));
+            btn(r, format!("({pred}"), Act::CycleLitPred(i, loc, k));
             for (s, a) in args.iter().enumerate() {
-                btn(r, a.clone(), Act::CycleLitArg(i, eff, k, s));
+                btn(r, a.clone(), Act::CycleLitArg(i, loc, k, s));
             }
-            btn(r, ") x", Act::RemoveLit(i, eff, k));
+            btn(r, ") x", Act::RemoveLit(i, loc, k));
         });
     }
-    btn(p, "  + literal", Act::AddLit(i, eff));
+    btn(p, "  + literal", Act::AddLit(i, loc));
 }
 
 /// A name field's label; shows `?` when empty and a trailing `_` cursor when focused.
@@ -1508,9 +1628,35 @@ mod tests {
         apply_act(&Act::AddAction, &mut ed, &mut scene);
         let ai = ed.actions.len() - 1;
         apply_act(&Act::AddParam(ai), &mut ed, &mut scene);
-        apply_act(&Act::AddLit(ai, false), &mut ed, &mut scene);
-        apply_act(&Act::AddLit(ai, true), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, LitLoc::Pre), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, LitLoc::Eff), &mut ed, &mut scene);
         let d = ferroplan::parser::parse_domain(&domain_pddl(&ed)).expect("new action parses");
+        assert_eq!(d.actions.len(), 4);
+    }
+
+    #[test]
+    fn or_precondition_and_when_effect_roundtrip() {
+        let (mut scene, mut ed) = loaded();
+        seed_domain(&mut ed, &scene);
+        apply_act(&Act::AddAction, &mut ed, &mut scene);
+        let ai = ed.actions.len() - 1;
+        apply_act(&Act::AddParam(ai), &mut ed, &mut scene);
+        // or-precondition with two literals
+        apply_act(&Act::TogglePreKind(ai), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, LitLoc::Pre), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, LitLoc::Pre), &mut ed, &mut scene);
+        // a conditional effect
+        apply_act(&Act::AddWhen(ai), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, LitLoc::WhenCond(0)), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, LitLoc::WhenEff(0)), &mut ed, &mut scene);
+
+        let pddl = domain_pddl(&ed);
+        assert!(
+            pddl.contains("(or "),
+            "precondition should be a disjunction"
+        );
+        assert!(pddl.contains("(when "), "effect should be conditional");
+        let d = ferroplan::parser::parse_domain(&pddl).expect("or/when domain parses");
         assert_eq!(d.actions.len(), 4);
     }
 
