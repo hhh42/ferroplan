@@ -15,7 +15,7 @@
 
 use crate::packed::{PackedTask, State};
 use crate::par;
-use crate::search::solve_subgoal;
+use crate::search::{solve_subgoal, solve_subgoal_avoiding};
 
 use crate::partition::{interaction_partition, merge_at, merge_with_neighbor, Subgoal};
 
@@ -94,12 +94,39 @@ pub fn solve(
                 done[i] = true;
                 continue; // already achieved (e.g. by a sibling's subplan)
             }
-            // reuse the from-init subplan if it still applies, else re-solve
-            let pre = subplans[i].as_ref().unwrap();
-            let ops = if replay_ok(task, &state, pre, &groups[i]) {
-                pre.clone()
+            // Protect already-achieved siblings: forbid ops that would delete one
+            // of their goal facts (the ESPC hard-constraint / ∞-penalty form). If
+            // the subgoal is solvable under that protection it provably can't break
+            // a sibling; only if it's infeasible do we relax and let the conflict
+            // check below trigger a merge.
+            let protected: crate::hash::FxHashSet<u32> = (0..i)
+                .filter(|&j| done[j])
+                .flat_map(|j| groups[j].pos.iter().copied())
+                .collect();
+            let forbidden: Vec<bool> = if protected.is_empty() {
+                Vec::new()
             } else {
-                match solve_subgoal(task, &state, &groups[i].pos, &groups[i].num, threads, cfg) {
+                (0..task.n_ops)
+                    .map(|oi| task.del.slice(oi).iter().any(|f| protected.contains(f)))
+                    .collect()
+            };
+
+            let pre = subplans[i].as_ref().unwrap();
+            let ops = if protected.is_empty() && replay_ok(task, &state, pre, &groups[i]) {
+                pre.clone() // no siblings to protect yet — reuse the from-init plan
+            } else {
+                let protected_solve = solve_subgoal_avoiding(
+                    task,
+                    &state,
+                    &groups[i].pos,
+                    &groups[i].num,
+                    &forbidden,
+                    threads,
+                    cfg,
+                );
+                match protected_solve.or_else(|| {
+                    solve_subgoal(task, &state, &groups[i].pos, &groups[i].num, threads, cfg)
+                }) {
                     Some(o) => o,
                     None => {
                         conflict = Some((i, None));

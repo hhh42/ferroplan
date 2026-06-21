@@ -489,6 +489,22 @@ pub fn solve_subgoal(
     threads: usize,
     cfg: SearchCfg,
 ) -> Option<Vec<usize>> {
+    solve_subgoal_avoiding(task, start, goal_pos, goal_num, &[], threads, cfg)
+}
+
+/// `solve_subgoal` but never using any op `oi` where `forbidden[oi]` is true —
+/// the resolver's sibling-protection lever (forbid ops that delete an already-
+/// achieved sibling's facts). An empty mask forbids nothing.
+#[allow(clippy::too_many_arguments)]
+pub fn solve_subgoal_avoiding(
+    task: &PackedTask,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+    threads: usize,
+    cfg: SearchCfg,
+) -> Option<Vec<usize>> {
     match search_from(
         task,
         start,
@@ -498,7 +514,7 @@ pub fn solve_subgoal(
         f64::INFINITY,
         threads,
         cfg,
-        &[],
+        forbidden,
     ) {
         PlanResult::Plan { ops, .. } => Some(ops),
         PlanResult::Unsolvable { .. } => None,

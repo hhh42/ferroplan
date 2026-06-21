@@ -50,6 +50,41 @@ fn unsolvable_goal_reports_unsolved() {
     assert!(sol.plan.is_none());
 }
 
+const TRANSPORT: &str = "(define (domain t)
+ (:requirements :strips :typing)
+ (:types loc pkg)
+ (:predicates (truck-at ?l - loc) (pkg-at ?p - pkg ?l - loc) (in ?p - pkg) (road ?a ?b - loc))
+ (:action drive :parameters (?a ?b - loc)
+   :precondition (and (truck-at ?a) (road ?a ?b)) :effect (and (truck-at ?b) (not (truck-at ?a))))
+ (:action load :parameters (?p - pkg ?l - loc)
+   :precondition (and (pkg-at ?p ?l) (truck-at ?l)) :effect (and (in ?p) (not (pkg-at ?p ?l))))
+ (:action unload :parameters (?p - pkg ?l - loc)
+   :precondition (and (in ?p) (truck-at ?l)) :effect (and (pkg-at ?p ?l) (not (in ?p)))))";
+
+#[test]
+fn partition_solves_multi_goal_transport() {
+    // two packages share one truck — multiple interacting subgoals exercise the
+    // partition resolver (interaction-seeded groups + sibling protection).
+    let p = "(define (problem p) (:domain t)
+        (:objects a b c - loc p1 p2 - pkg)
+        (:init (truck-at a) (pkg-at p1 a) (pkg-at p2 b)
+               (road a b) (road b a) (road b c) (road c b) (road a c) (road c a))
+        (:goal (and (pkg-at p1 c) (pkg-at p2 c))))";
+    let sol = solve(
+        TRANSPORT,
+        p,
+        &Options {
+            mode: Mode::Partition,
+            threads: 1,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert!(sol.solved, "partition should deliver both packages");
+    assert_eq!(sol.mode, Mode::Partition);
+    assert!(sol.plan.unwrap().length >= 4); // at least load/drive/unload each pkg
+}
+
 #[test]
 fn explicit_modes_run() {
     for m in [Mode::Ff, Mode::Partition] {
