@@ -1234,7 +1234,7 @@ pub fn rebuild(
 fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
     label(p, "OBJECTS");
     for (i, (name, ty)) in editor.objects.iter().enumerate() {
-        row(p, |r| {
+        block_card(p, ty, |r| {
             label(r, name);
             btn(r, format!(": {ty}"), Act::CycleType(i));
             btn(r, "x", Act::RemoveObject(i));
@@ -1333,7 +1333,7 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
 
     label(p, "PREDICATES");
     for (i, (name, args)) in editor.dpreds.iter().enumerate() {
-        row(p, |r| {
+        block_card(p, name, |r| {
             label(r, "(");
             btn(
                 r,
@@ -1419,7 +1419,7 @@ fn lit_section(p: &mut ChildBuilder, i: usize, loc: LitLoc, title: &str, lits: &
         label(p, title);
     }
     for (k, (neg, pred, args)) in lits.iter().enumerate() {
-        row(p, |r| {
+        block_card(p, pred, |r| {
             btn(
                 r,
                 if *neg { "neg" } else { "pos" },
@@ -1451,7 +1451,7 @@ fn fact_row(p: &mut ChildBuilder, goal: bool, i: usize, pred: &str, args: &[Stri
     } else {
         DragKind::Init(i)
     };
-    row(p, |r| {
+    block_card(p, pred, |r| {
         grip(r, kind);
         btn(r, format!("({pred}"), Act::CyclePred(goal, i));
         for (s, a) in args.iter().enumerate() {
@@ -1486,10 +1486,11 @@ fn btn(p: &mut ChildBuilder, text: impl Into<String>, act: Act) {
     p.spawn((
         Button,
         Node {
-            padding: UiRect::axes(Val::Px(5.0), Val::Px(2.0)),
+            padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.2, 0.2, 0.26)),
+        BackgroundColor(Color::srgb(0.22, 0.22, 0.29)),
+        BorderRadius::all(Val::Px(5.0)),
         act,
     ))
     .with_children(|b| {
@@ -1502,6 +1503,52 @@ fn btn(p: &mut ChildBuilder, text: impl Into<String>, act: Act) {
             TextColor(Color::srgb(0.92, 0.92, 0.95)),
         ));
     });
+}
+
+/// A stable per-key color (fill, accent) so each predicate / type reads as its
+/// own kind of block — the Blockly-style visual cue.
+fn block_color(key: &str) -> (Color, Color) {
+    const P: [([f32; 3], [f32; 3]); 6] = [
+        ([0.10, 0.16, 0.27], [0.29, 0.62, 0.93]), // blue
+        ([0.09, 0.20, 0.13], [0.16, 0.77, 0.40]), // green
+        ([0.25, 0.17, 0.05], [0.96, 0.62, 0.05]), // orange
+        ([0.17, 0.12, 0.27], [0.58, 0.40, 0.96]), // purple
+        ([0.25, 0.10, 0.18], [0.93, 0.30, 0.62]), // pink
+        ([0.05, 0.19, 0.22], [0.05, 0.72, 0.84]), // teal
+    ];
+    let h = key
+        .bytes()
+        .fold(0u32, |a, b| a.wrapping_mul(31).wrapping_add(b as u32));
+    let (f, a) = P[(h as usize) % P.len()];
+    (
+        Color::srgba(f[0], f[1], f[2], 0.92),
+        Color::srgb(a[0], a[1], a[2]),
+    )
+}
+
+/// A rounded, color-coded block card with a thick left accent edge (Blockly look)
+/// wrapping a row of fields. `key` picks the color (predicate or type name).
+fn block_card(p: &mut ChildBuilder, key: &str, f: impl FnOnce(&mut ChildBuilder)) {
+    let (fill, accent) = block_color(key);
+    p.spawn((
+        Node {
+            flex_direction: FlexDirection::Row,
+            column_gap: Val::Px(4.0),
+            align_items: AlignItems::Center,
+            padding: UiRect::axes(Val::Px(6.0), Val::Px(4.0)),
+            border: UiRect {
+                left: Val::Px(4.0),
+                top: Val::Px(1.0),
+                right: Val::Px(1.0),
+                bottom: Val::Px(1.0),
+            },
+            ..default()
+        },
+        BackgroundColor(fill),
+        BorderColor(accent),
+        BorderRadius::all(Val::Px(6.0)),
+    ))
+    .with_children(f);
 }
 
 #[cfg(test)]
