@@ -400,7 +400,13 @@ fn ehc(task: &PackedTask, forbidden: &[bool]) -> Option<(Vec<usize>, usize)> {
     // Total work budget: if EHC hasn't solved it within this many evaluations it
     // is likely stuck, so bail and leave the time budget to the complete
     // best-first fallback (which often solves these much faster from scratch).
-    const TOTAL_CAP: usize = 30_000;
+    // Scaled by op count: EHC's cumulative evals grow ~quadratically in problem
+    // size, so a fixed 30k cap made large-but-easy instances (e.g. gripper) bail
+    // into the unpruned best-first and explode (2.16M evals). Scaling with n_ops
+    // lets EHC's near-greedy arm finish those, while the 30k floor keeps small/
+    // medium domains bit-identical and the finite cap still hands genuine
+    // plateaus off to the complete fallback.
+    let total_cap = (200 * task.n_ops).max(30_000);
     let mut current = init;
     let mut plan: Vec<usize> = Vec::new();
     loop {
@@ -412,7 +418,7 @@ fn ehc(task: &PackedTask, forbidden: &[bool]) -> Option<(Vec<usize>, usize)> {
                 if task.goal_met(&current) {
                     return Some((plan, evaluated));
                 }
-                if evaluated > TOTAL_CAP {
+                if evaluated > total_cap {
                     return None; // taking too long — hand off to best-first
                 }
             }
