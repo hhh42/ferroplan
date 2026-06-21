@@ -12,6 +12,8 @@ use ferroplan::parser::{parse_domain, parse_problem};
 use ferroplan::types::{Domain, Problem};
 use ferroplan::viz::VizGraph;
 
+use crate::icons;
+
 pub const NODE_SIZE: f32 = 44.0;
 pub const MOBILE_SIZE: f32 = 18.0;
 const GOLDEN: f32 = 2.399_963_2;
@@ -104,20 +106,14 @@ pub fn handle_drops(mut drops: EventReader<FileDragAndDrop>, mut scene: ResMut<S
     }
 }
 
-fn color_for(ty: &str) -> Color {
-    let mut h: u32 = 2166136261;
-    for b in ty.bytes() {
-        h = (h ^ b as u32).wrapping_mul(16777619);
-    }
-    let hue = (h % 360) as f32 / 360.0;
-    Color::hsl(hue * 360.0, 0.6, 0.6)
-}
-
 /// Despawn + respawn all graph entities when the scene changes. Nodes are laid
-/// out on a circle; mobiles sit (fanned) on their node.
+/// out on a circle; mobiles sit (fanned) on their node. Each gets a type icon
+/// (mesh shape + color).
 pub fn respawn_graph(
     mut commands: Commands,
     mut scene: ResMut<Scene>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
     existing: Query<Entity, With<GraphItem>>,
 ) {
     if !scene.dirty {
@@ -127,6 +123,8 @@ pub fn respawn_graph(
     for e in &existing {
         commands.entity(e).despawn_recursive();
     }
+    let mut mc = icons::MeshCache::new();
+    let mut matc = icons::MatCache::new();
 
     let g = &scene.graph;
     let n = g.nodes.len().max(1) as f32;
@@ -136,15 +134,14 @@ pub fn respawn_graph(
         let a = std::f32::consts::TAU * (i as f32) / n;
         let pos = Vec2::new(radius * a.cos(), radius * a.sin());
         node_pos.insert(node.object.clone(), pos);
+        let mesh = icons::mesh_handle(&mut meshes, &mut mc, icons::IconShape::Circle, NODE_SIZE);
+        let mat = icons::mat_handle(&mut materials, &mut matc, icons::color_for(&node.ty));
         commands
             .spawn((
                 GraphItem,
                 NodeObj(node.object.clone()),
-                Sprite {
-                    color: color_for(&node.ty),
-                    custom_size: Some(Vec2::splat(NODE_SIZE)),
-                    ..default()
-                },
+                Mesh2d(mesh),
+                MeshMaterial2d(mat),
                 Transform::from_translation(pos.extend(0.0)),
             ))
             .with_children(|p| {
@@ -167,16 +164,20 @@ pub fn respawn_graph(
                 .unwrap_or_else(|| Vec2::new(-radius - 120.0, radius - mi as f32 * 40.0));
         let off = Vec2::from_angle(mi as f32 * GOLDEN) * (NODE_SIZE * 0.7);
         let pos = base + off;
+        let mesh = icons::mesh_handle(
+            &mut meshes,
+            &mut mc,
+            icons::shape_for(&m.ty),
+            MOBILE_SIZE * 1.6,
+        );
+        let mat = icons::mat_handle(&mut materials, &mut matc, icons::color_for(&m.ty));
         commands
             .spawn((
                 GraphItem,
                 MobileObj(m.object.clone()),
                 FanOffset(off),
-                Sprite {
-                    color: color_for(&m.ty),
-                    custom_size: Some(Vec2::splat(MOBILE_SIZE)),
-                    ..default()
-                },
+                Mesh2d(mesh),
+                MeshMaterial2d(mat),
                 Transform::from_translation(pos.extend(2.0)),
             ))
             .with_children(|p| {

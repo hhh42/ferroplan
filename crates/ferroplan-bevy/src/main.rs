@@ -5,6 +5,7 @@
 use bevy::prelude::*;
 
 mod anim;
+mod icons;
 mod interact;
 mod scene;
 mod ui;
