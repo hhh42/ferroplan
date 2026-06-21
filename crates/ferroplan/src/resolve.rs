@@ -17,7 +17,7 @@ use crate::packed::{PackedTask, State};
 use crate::par;
 use crate::search::solve_subgoal;
 
-use crate::partition::{merge_with_neighbor, partition, Subgoal};
+use crate::partition::{interaction_partition, merge_at, merge_with_neighbor, Subgoal};
 
 #[derive(Clone, Copy)]
 pub struct Stats {
@@ -44,9 +44,16 @@ fn replay_ok(task: &PackedTask, state: &State, ops: &[usize], g: &Subgoal) -> bo
     task.goal_met_with(&s, &g.pos, &g.num)
 }
 
-pub fn solve(task: &PackedTask, threads: usize, cfg: crate::search::SearchCfg) -> Solved {
+pub fn solve(
+    task: &PackedTask,
+    threads: usize,
+    cfg: crate::search::SearchCfg,
+    mutex_groups: &[Vec<u32>],
+) -> Solved {
     let init = task.initial();
-    let mut groups = partition(task);
+    // Seed from the goal-interaction graph over guidance variables (mutex groups);
+    // falls back to the finest partition when no groups are supplied.
+    let mut groups = interaction_partition(task, mutex_groups);
     let init_groups = groups.len();
     let mut merges = 0usize;
 
@@ -79,7 +86,8 @@ pub fn solve(task: &PackedTask, threads: usize, cfg: crate::search::SearchCfg) -
         let mut state = init.clone();
         let mut plan: Vec<usize> = Vec::new();
         let mut done = vec![false; groups.len()];
-        let mut conflict: Option<usize> = None;
+        // (stuck group, the specific sibling it broke if any)
+        let mut conflict: Option<(usize, Option<usize>)> = None;
 
         for i in 0..groups.len() {
             if task.goal_met_with(&state, &groups[i].pos, &groups[i].num) {
@@ -94,7 +102,7 @@ pub fn solve(task: &PackedTask, threads: usize, cfg: crate::search::SearchCfg) -
                 match solve_subgoal(task, &state, &groups[i].pos, &groups[i].num, threads, cfg) {
                     Some(o) => o,
                     None => {
-                        conflict = Some(i);
+                        conflict = Some((i, None));
                         break;
                     }
                 }
@@ -104,10 +112,10 @@ pub fn solve(task: &PackedTask, threads: usize, cfg: crate::search::SearchCfg) -
             for &oi in &ops {
                 ns = task.apply(oi, &ns);
             }
-            let breaks =
-                (0..i).any(|j| done[j] && !task.goal_met_with(&ns, &groups[j].pos, &groups[j].num));
-            if breaks {
-                conflict = Some(i);
+            let breaker = (0..i)
+                .find(|&j| done[j] && !task.goal_met_with(&ns, &groups[j].pos, &groups[j].num));
+            if let Some(j) = breaker {
+                conflict = Some((i, Some(j)));
                 break;
             }
             state = ns;
@@ -127,14 +135,19 @@ pub fn solve(task: &PackedTask, threads: usize, cfg: crate::search::SearchCfg) -
             );
         }
 
-        // Resolve: merge the conflicting group (or the last) with a neighbor.
+        // Resolve: coalesce the actual conflicting pair (semantic merge); else the
+        // stuck group with a neighbor.
         if monolithic {
             // single group already = whole goal but compose didn't satisfy it:
             // treat as unsolvable (matches ffdp on the full problem).
             return Solved::Unsolvable;
         }
-        let c = conflict.unwrap_or(groups.len() - 1);
-        merge_with_neighbor(&mut groups, c);
+        let last = groups.len() - 1;
+        match conflict {
+            Some((i, Some(j))) => merge_at(&mut groups, i, j),
+            Some((i, None)) => merge_with_neighbor(&mut groups, i),
+            None => merge_with_neighbor(&mut groups, last),
+        };
         merges += 1;
     }
 }

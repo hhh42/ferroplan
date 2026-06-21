@@ -104,7 +104,8 @@ pub fn run_planner(
     };
 
     out.push_str(&report::preamble(threads));
-    match resolve::solve(&task, threads, cfg) {
+    let groups = crate::invariants::synthesize(&domain, &task);
+    match resolve::solve(&task, threads, cfg, &groups) {
         Solved::Plan(ops, stats) => {
             if ipc {
                 out.push_str(&report::ipc_plan(&task, &ops, None));
@@ -257,7 +258,8 @@ fn satisficing_fallback(
         " PDDL3 metric NOT optimized ({}); returning a satisficing plan.",
         reason
     );
-    match resolve::solve(&task, threads, cfg) {
+    let groups = crate::invariants::synthesize(domain, &task);
+    match resolve::solve(&task, threads, cfg, &groups) {
         Solved::Plan(ops, stats) => {
             if ipc {
                 out.push_str(&report::ipc_plan(&task, &ops, None));

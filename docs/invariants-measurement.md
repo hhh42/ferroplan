@@ -70,3 +70,29 @@ The multi-predicate variables (block support, package/object location, the
 gripper hand) — exactly the guidance variables ESPC partitions on — are now
 recovered. **Verdict: Plan B is fed.** Next: consume these groups in the
 SGPlan/ESPC partitioning (`resolve`/`partition`).
+
+## Update — wired into partitioning (ESPC consumer, increment 1)
+
+`synthesize` now feeds `resolve::solve`: the initial partition is seeded from a
+**goal-interaction graph** over the mutex variables (`partition::interaction_partition`
+— goals are linked when an operator achieves one's variable while disturbing
+another's; connected components become the initial groups), and on a conflict the
+resolver **merges the actual conflicting pair** (`merge_at`) instead of a
+positional neighbor. Sound throughout (the resolver still collapses to plain
+search in the worst case).
+
+Plan length, partition vs FF (release, in-repo benchmarks):
+
+| instance | ff | partition |
+|---|---|---|
+| blocks p01/p02/p03 | 14 / 18 / 14 | **10 / 14 / 10** |
+| gripper p01/p02/p03 | 17 / 25 / 33 | 19 / 27 / 35 |
+| logistics p01/p02/p03 | 24 / 23 / 19 | 32 / 29 / 20 |
+
+**Finding:** valid plans throughout; partitioning **shortens blocks ~25%** where
+goals share structure but aren't resource-coupled. On **resource-coupled** domains
+(gripper's two grippers, logistics' shared trucks) naive decomposition
+re-traverses the shared resource → longer plans. Fixing that — and the openstacks
+metric gap — needs **resource coordination across subproblems: the ESPC penalty
+loop** (multiplier updates on shared/global constraints). That is increment 2; the
+guidance variables are now wired end-to-end through the pipeline.

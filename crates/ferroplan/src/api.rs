@@ -369,7 +369,8 @@ fn solve_classic(
     };
 
     let (ops, evaluated) = if mode == Mode::Partition {
-        match resolve::solve(&task, threads, opts.search_cfg()) {
+        let groups = crate::invariants::synthesize(domain, &task);
+        match resolve::solve(&task, threads, opts.search_cfg(), &groups) {
             Solved::Plan(ops, _) => (Some(ops), 0),
             Solved::Unsolvable => (None, 0),
         }
