@@ -210,6 +210,7 @@ pub fn draw_edges(mut gizmos: Gizmos, scene: Res<Scene>, nodes: Query<(&NodeObj,
 /// Camera navigation: right-drag to pan, scroll to zoom.
 pub fn camera_nav(
     mouse: Res<ButtonInput<MouseButton>>,
+    editor: Res<crate::blocks::Editor>,
     mut motion: EventReader<bevy::input::mouse::MouseMotion>,
     mut wheel: EventReader<MouseWheel>,
     mut cam: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
@@ -224,6 +225,11 @@ pub fn camera_nav(
         }
     } else {
         motion.clear();
+    }
+    // While the editor is open the wheel scrolls its panel instead of zooming.
+    if editor.open {
+        wheel.clear();
+        return;
     }
     for ev in wheel.read() {
         let step = match ev.unit {

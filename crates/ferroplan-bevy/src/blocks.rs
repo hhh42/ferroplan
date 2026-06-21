@@ -10,6 +10,7 @@
 use std::collections::HashMap;
 
 use bevy::input::keyboard::{Key, KeyboardInput};
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 
 use ferroplan::types::{Action, Domain, Effect, Formula, Term};
@@ -196,6 +197,40 @@ pub fn text_input(mut evr: EventReader<KeyboardInput>, mut editor: ResMut<Editor
 enum TextEdit {
     Push(char),
     Pop,
+}
+
+/// Scroll the editor panel with the mouse wheel (the panel can be taller than the
+/// window). Only active while the editor is open.
+pub fn scroll_editor(
+    mut wheel: EventReader<MouseWheel>,
+    keys: Res<ButtonInput<KeyCode>>,
+    editor: Res<Editor>,
+    mut q: Query<&mut ScrollPosition, With<EditorRoot>>,
+) {
+    if !editor.open {
+        wheel.clear();
+        return;
+    }
+    let mut dy = 0.0;
+    for ev in wheel.read() {
+        dy += match ev.unit {
+            MouseScrollUnit::Line => ev.y * 24.0,
+            MouseScrollUnit::Pixel => ev.y,
+        };
+    }
+    if editor.focus.is_none() {
+        if keys.just_pressed(KeyCode::PageDown) {
+            dy -= 240.0;
+        }
+        if keys.just_pressed(KeyCode::PageUp) {
+            dy += 240.0;
+        }
+    }
+    if dy != 0.0 {
+        if let Ok(mut sp) = q.get_single_mut() {
+            sp.offset_y = (sp.offset_y - dy).max(0.0);
+        }
+    }
 }
 
 fn focused_field_mut(editor: &mut Editor, focus: Focus) -> Option<&mut String> {
@@ -950,8 +985,10 @@ pub fn rebuild(
                 flex_direction: FlexDirection::Column,
                 padding: UiRect::all(Val::Px(8.0)),
                 row_gap: Val::Px(3.0),
+                overflow: Overflow::scroll_y(),
                 ..default()
             },
+            ScrollPosition::default(),
             BackgroundColor(Color::srgba(0.06, 0.06, 0.08, 0.97)),
         ))
         .with_children(|p| {

@@ -44,6 +44,7 @@ fn main() {
                 ui::update_info,
                 blocks::toggle_editor,
                 blocks::text_input,
+                blocks::scroll_editor,
                 blocks::handle_clicks,
                 blocks::rebuild,
             ),
