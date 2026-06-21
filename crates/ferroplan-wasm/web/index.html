@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ferroplan — PDDL planner in your browser</title>
+<style>
+  :root { --bg:#0f0f14; --panel:#17171f; --edge:#2a2a36; --ink:#e8e8ee; --mut:#9aa0a6; --accent:#6c5ce7; --ok:#a8d24a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
+  header { padding:18px 22px; border-bottom:1px solid var(--edge); display:flex; align-items:baseline; gap:12px; }
+  h1 { margin:0; font-size:22px; letter-spacing:-.5px; }
+  h1 .fp { color:var(--accent); } h1 .pl { color:var(--mut); }
+  header .tag { color:var(--mut); font-size:13px; }
+  main { max-width:1100px; margin:0 auto; padding:18px 22px; }
+  .row { display:flex; gap:14px; flex-wrap:wrap; }
+  .col { flex:1 1 360px; min-width:300px; }
+  label { display:block; font-size:12px; color:var(--mut); margin:0 0 4px 2px; text-transform:uppercase; letter-spacing:.5px; }
+  textarea { width:100%; height:300px; background:var(--panel); color:var(--ink); border:1px solid var(--edge);
+             border-radius:8px; padding:10px 12px; font:13px/1.45 ui-monospace, Menlo, monospace; resize:vertical; }
+  .bar { display:flex; align-items:center; gap:12px; margin:14px 0; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 18px; font-size:15px;
+           font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:default; }
+  select { background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:8px; padding:8px 10px; }
+  .out { margin-top:6px; background:var(--panel); border:1px solid var(--edge); border-radius:8px; padding:12px 14px; }
+  .stat { color:var(--mut); font-size:13px; margin-bottom:8px; }
+  .stat b { color:var(--ink); }
+  .err { color:#ff8a8a; }
+  pre { margin:0; font:13px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; max-height:340px; overflow:auto; }
+  footer { color:var(--mut); font-size:12px; padding:16px 22px; border-top:1px solid var(--edge); }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="fp">ferro</span><span class="pl">plan</span></h1>
+  <span class="tag">a fast PDDL planner in Rust — running entirely in your browser via WebAssembly</span>
+</header>
+<main>
+  <div class="row">
+    <div class="col">
+      <label for="dom">Domain</label>
+      <textarea id="dom" spellcheck="false"></textarea>
+    </div>
+    <div class="col">
+      <label for="prob">Problem</label>
+      <textarea id="prob" spellcheck="false"></textarea>
+    </div>
+  </div>
+  <div class="bar">
+    <button id="go" disabled>Loading…</button>
+    <label for="mode" style="margin:0">mode</label>
+    <select id="mode">
+      <option value="auto">auto</option>
+      <option value="ff">ff (classical)</option>
+      <option value="pddl3">pddl3 (preferences)</option>
+      <option value="partition">partition</option>
+    </select>
+    <span id="took" class="stat"></span>
+  </div>
+  <div class="out"><div id="stat" class="stat">Paste a PDDL domain + problem and hit Plan.</div><pre id="plan"></pre></div>
+</main>
+<footer>
+  <span id="ver"></span> · No server, no install — the planner is compiled to WebAssembly and runs locally.
+  · <a href="https://github.com/haroldhhersey/ferroplan">source</a>
+</footer>
+
+<script type="module">
+import init, { plan, version } from './pkg/ferroplan_wasm.js';
+
+const DEMO_DOMAIN = `(define (domain gripper)
+  (:predicates (room ?r) (ball ?b) (gripper ?g)
+               (at-robby ?r) (at ?b ?r) (free ?g) (carry ?o ?g))
+  (:action move :parameters (?from ?to)
+    :precondition (and (room ?from) (room ?to) (at-robby ?from))
+    :effect (and (at-robby ?to) (not (at-robby ?from))))
+  (:action pick :parameters (?obj ?room ?gripper)
+    :precondition (and (ball ?obj) (room ?room) (gripper ?gripper)
+                       (at ?obj ?room) (at-robby ?room) (free ?gripper))
+    :effect (and (carry ?obj ?gripper) (not (at ?obj ?room)) (not (free ?gripper))))
+  (:action drop :parameters (?obj ?room ?gripper)
+    :precondition (and (ball ?obj) (room ?room) (gripper ?gripper)
+                       (carry ?obj ?gripper) (at-robby ?room))
+    :effect (and (at ?obj ?room) (free ?gripper) (not (carry ?obj ?gripper)))))`;
+
+const DEMO_PROBLEM = `(define (problem gripper-2)
+  (:domain gripper)
+  (:objects rooma roomb left right b1 b2 b3)
+  (:init (room rooma) (room roomb) (gripper left) (gripper right)
+         (at-robby rooma) (free left) (free right)
+         (ball b1) (ball b2) (ball b3)
+         (at b1 rooma) (at b2 rooma) (at b3 rooma))
+  (:goal (and (at b1 roomb) (at b2 roomb) (at b3 roomb))))`;
+
+const $ = (id) => document.getElementById(id);
+$('dom').value = DEMO_DOMAIN;
+$('prob').value = DEMO_PROBLEM;
+
+await init();
+$('ver').textContent = 'ferroplan v' + version();
+const go = $('go');
+go.disabled = false;
+go.textContent = 'Plan';
+
+go.addEventListener('click', () => {
+  go.disabled = true; go.textContent = 'Planning…';
+  $('took').textContent = '';
+  // let the button repaint before the (synchronous) solve
+  setTimeout(() => {
+    const t0 = performance.now();
+    let res;
+    try { res = JSON.parse(plan($('dom').value, $('prob').value, $('mode').value)); }
+    catch (e) { res = { error: String(e) }; }
+    const ms = (performance.now() - t0).toFixed(1);
+    render(res, ms);
+    go.disabled = false; go.textContent = 'Plan';
+  }, 10);
+});
+
+function render(res, ms) {
+  const stat = $('stat'), out = $('plan');
+  $('took').textContent = ms + ' ms';
+  if (res.error) {
+    stat.className = 'stat err'; stat.textContent = 'Error: ' + res.error; out.textContent = ''; return;
+  }
+  stat.className = 'stat';
+  const p = res.plan, s = res.statistics || {};
+  if (!res.solved || !p) {
+    stat.textContent = 'No plan found (' + (res.mode || '') + ').'; out.textContent = ''; return;
+  }
+  let head = `solved · ${p.length} steps`;
+  if (p.metric != null) head += ` · metric ${p.metric}`;
+  if (p.makespan != null) head += ` · makespan ${p.makespan}`;
+  head += ` · ${s.evaluated_states ?? '?'} states · ${s.grounded_actions ?? '?'} ground actions`;
+  stat.innerHTML = '<b>' + head + '</b>';
+  out.textContent = p.steps.map(st => {
+    const t = st.time != null ? st.time.toFixed(3) + ': ' : '';
+    const d = st.duration != null ? ' [' + st.duration + ']' : '';
+    return `${String(st.index).padStart(3)}: ${t}(${[st.action, ...st.args].join(' ')})${d}`;
+  }).join('\n');
+}
+
+go.click(); // auto-run the prefilled example on first load (handler now registered)
+</script>
+</body>
+</html>

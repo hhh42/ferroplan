@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["crates/ferroplan", "crates/ferroplan-cli", "crates/ferroplan-bevy"]
+members = [
+    "crates/ferroplan",
+    "crates/ferroplan-cli",
+    "crates/ferroplan-bevy",
+    "crates/ferroplan-wasm",
+]
 
 [workspace.package]
 version = "0.1.0"
