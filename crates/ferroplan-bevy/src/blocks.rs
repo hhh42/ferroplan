@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::prelude::*;
 
-use ferroplan::types::Domain;
+use ferroplan::types::{Action, Domain, Effect, Formula, Term};
 use ferroplan::viz;
 
 use crate::scene::Scene;
@@ -31,6 +31,22 @@ pub enum Focus {
     DomainName,
     TypeName(usize),
     PredName(usize),
+    ActionName(usize),
+}
+
+/// A literal in a precondition/effect: `(neg, predicate, [arg vars])`.
+type Lit = (bool, String, Vec<String>);
+
+/// An editor action. Flat actions (conjunction of literals) are modeled and
+/// editable; anything richer (or/when/forall/numeric) is preserved verbatim.
+enum EdAction {
+    Modeled {
+        name: String,
+        params: Vec<(String, String)>, // (?var, type)
+        pre: Vec<Lit>,
+        eff: Vec<Lit>,
+    },
+    Raw(String),
 }
 
 #[derive(Resource, Default)]
@@ -54,7 +70,7 @@ pub struct Editor {
     requirements: String,               // raw s-expr, preserved
     types: Vec<(String, String)>,       // (type, parent)
     dpreds: Vec<(String, Vec<String>)>, // (name, arg types)
-    actions_raw: Vec<String>,           // raw (:action …) blocks, preserved
+    actions: Vec<EdAction>,
     dseeded: bool,
 }
 
@@ -80,6 +96,17 @@ pub enum Act {
     AddArg(usize),
     RemoveArg(usize),
     CycleArgType(usize, usize), // pred, slot
+    // actions  (the bool is `eff`: false = precondition, true = effect)
+    AddAction,
+    RemoveAction(usize),
+    AddParam(usize),
+    RemoveParam(usize),
+    CycleParamType(usize, usize), // action, param
+    AddLit(usize, bool),
+    RemoveLit(usize, bool, usize),
+    CycleLitPred(usize, bool, usize),
+    CycleLitArg(usize, bool, usize, usize), // action, eff, lit, slot
+    ToggleNeg(usize, bool, usize),
     // shared
     SetFocus(Focus),
     ToggleMode,
@@ -176,6 +203,10 @@ fn focused_field_mut(editor: &mut Editor, focus: Focus) -> Option<&mut String> {
         Focus::DomainName => Some(&mut editor.dname),
         Focus::TypeName(i) => editor.types.get_mut(i).map(|t| &mut t.0),
         Focus::PredName(i) => editor.dpreds.get_mut(i).map(|p| &mut p.0),
+        Focus::ActionName(i) => match editor.actions.get_mut(i) {
+            Some(EdAction::Modeled { name, .. }) => Some(name),
+            _ => None,
+        },
     }
 }
 
@@ -233,8 +264,194 @@ fn seed_domain(editor: &mut Editor, scene: &Scene) {
             .collect();
     }
     editor.requirements = extract_block(&scene.domain_src, "(:requirements").unwrap_or_default();
-    editor.actions_raw = extract_all_blocks(&scene.domain_src, "(:action");
+    let raws = extract_all_blocks(&scene.domain_src, "(:action");
+    editor.actions = scene
+        .domain
+        .as_ref()
+        .map(|d| {
+            d.actions
+                .iter()
+                .enumerate()
+                .map(|(i, a)| seed_action(a, raws.get(i)))
+                .collect()
+        })
+        .unwrap_or_default();
     editor.dseeded = true;
+}
+
+/// Model an action if its precond/effect are flat (conjunction of literals);
+/// otherwise keep the raw text.
+fn seed_action(a: &Action, raw: Option<&String>) -> EdAction {
+    match (flatten_pre(&a.precond), flatten_eff(&a.effect)) {
+        (Some(pre), Some(eff)) => EdAction::Modeled {
+            name: a.name.to_lowercase(),
+            params: a
+                .params
+                .iter()
+                .map(|(n, t)| (param_norm(n), t.to_lowercase()))
+                .collect(),
+            pre,
+            eff,
+        },
+        _ => EdAction::Raw(raw.cloned().unwrap_or_default()),
+    }
+}
+
+fn param_norm(s: &str) -> String {
+    let s = s.to_lowercase();
+    if s.starts_with('?') {
+        s
+    } else {
+        format!("?{s}")
+    }
+}
+
+fn term_str(t: &Term) -> String {
+    match t {
+        Term::Var(s) => param_norm(s),
+        Term::Const(s) => s.to_lowercase(),
+    }
+}
+
+fn flatten_pre(f: &Formula) -> Option<Vec<Lit>> {
+    match f {
+        Formula::True => Some(vec![]),
+        Formula::And(fs) => {
+            let mut out = Vec::new();
+            for x in fs {
+                out.extend(flatten_pre(x)?);
+            }
+            Some(out)
+        }
+        Formula::Atom(p, ts) => Some(vec![(
+            false,
+            p.to_lowercase(),
+            ts.iter().map(term_str).collect(),
+        )]),
+        Formula::Not(b) => match &**b {
+            Formula::Atom(p, ts) => Some(vec![(
+                true,
+                p.to_lowercase(),
+                ts.iter().map(term_str).collect(),
+            )]),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn flatten_eff(e: &Effect) -> Option<Vec<Lit>> {
+    match e {
+        Effect::And(es) => {
+            let mut out = Vec::new();
+            for x in es {
+                out.extend(flatten_eff(x)?);
+            }
+            Some(out)
+        }
+        Effect::Add(p, ts) => Some(vec![(
+            false,
+            p.to_lowercase(),
+            ts.iter().map(term_str).collect(),
+        )]),
+        Effect::Del(p, ts) => Some(vec![(
+            true,
+            p.to_lowercase(),
+            ts.iter().map(term_str).collect(),
+        )]),
+        _ => None,
+    }
+}
+
+fn lit_str(l: &Lit) -> String {
+    let (neg, pred, args) = l;
+    let inner = if args.is_empty() {
+        format!("({pred})")
+    } else {
+        format!("({} {})", pred, args.join(" "))
+    };
+    if *neg {
+        format!("(not {inner})")
+    } else {
+        inner
+    }
+}
+
+fn lits_to_pddl(lits: &[Lit]) -> String {
+    match lits.len() {
+        0 => "(and)".to_string(),
+        1 => lit_str(&lits[0]),
+        _ => format!(
+            "(and {})",
+            lits.iter().map(lit_str).collect::<Vec<_>>().join(" ")
+        ),
+    }
+}
+
+fn action_to_pddl(a: &EdAction) -> String {
+    match a {
+        EdAction::Raw(s) => s.clone(),
+        EdAction::Modeled {
+            name,
+            params,
+            pre,
+            eff,
+        } => {
+            let ps = params
+                .iter()
+                .map(|(n, t)| format!("{n} - {t}"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            format!(
+                "(:action {}\n   :parameters ({})\n   :precondition {}\n   :effect {})",
+                name,
+                ps,
+                lits_to_pddl(pre),
+                lits_to_pddl(eff)
+            )
+        }
+    }
+}
+
+fn ed_is_subtype(types: &[(String, String)], ty: &str, of: &str) -> bool {
+    if of.eq_ignore_ascii_case("object") || ty.eq_ignore_ascii_case(of) {
+        return true;
+    }
+    let mut cur = ty.to_string();
+    for _ in 0..64 {
+        if cur.eq_ignore_ascii_case(of) {
+            return true;
+        }
+        match types.iter().find(|(c, _)| c.eq_ignore_ascii_case(&cur)) {
+            Some((_, p)) if !p.is_empty() => cur = p.clone(),
+            _ => return false,
+        }
+    }
+    false
+}
+
+/// Action params whose type fits an argument slot of type `arg_ty`.
+fn compatible_params(
+    params: &[(String, String)],
+    types: &[(String, String)],
+    arg_ty: &str,
+) -> Vec<String> {
+    params
+        .iter()
+        .filter(|(_, t)| ed_is_subtype(types, t, arg_ty))
+        .map(|(n, _)| n.clone())
+        .collect()
+}
+
+fn first_compatible_param(
+    params: &[(String, String)],
+    types: &[(String, String)],
+    arg_ty: &str,
+) -> String {
+    compatible_params(params, types, arg_ty)
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| "?".into())
 }
 
 /// First balanced `(...)` block beginning with `prefix` (case-insensitive).
@@ -437,6 +654,133 @@ fn apply_act(act: &Act, editor: &mut Editor, scene: &mut Scene) {
                 *a = next_in(a, &names);
             }
         }
+        Act::AddAction => {
+            let name = auto_name(editor, "action");
+            editor.actions.push(EdAction::Modeled {
+                name,
+                params: vec![],
+                pre: vec![],
+                eff: vec![],
+            });
+            editor.focus = Some(Focus::ActionName(editor.actions.len() - 1));
+        }
+        Act::RemoveAction(i) => {
+            if *i < editor.actions.len() {
+                editor.actions.remove(*i);
+            }
+            editor.focus = None;
+        }
+        Act::AddParam(i) => {
+            let ty = types.first().cloned().unwrap_or_else(|| "object".into());
+            if let Some(EdAction::Modeled { params, .. }) = editor.actions.get_mut(*i) {
+                let n = format!("?p{}", params.len());
+                params.push((n, ty));
+            }
+        }
+        Act::RemoveParam(i) => {
+            if let Some(EdAction::Modeled { params, .. }) = editor.actions.get_mut(*i) {
+                params.pop();
+            }
+        }
+        Act::CycleParamType(i, k) => {
+            if let Some(EdAction::Modeled { params, .. }) = editor.actions.get_mut(*i) {
+                if let Some(p) = params.get_mut(*k) {
+                    p.1 = next_in(&p.1, &types);
+                }
+            }
+        }
+        Act::AddLit(i, eff) => {
+            let pred0 = editor.dpreds.first().cloned();
+            let tys = editor.types.clone();
+            if let (
+                Some((pname, psig)),
+                Some(EdAction::Modeled {
+                    params,
+                    pre,
+                    eff: effv,
+                    ..
+                }),
+            ) = (pred0, editor.actions.get_mut(*i))
+            {
+                let args = psig
+                    .iter()
+                    .map(|aty| first_compatible_param(params, &tys, aty))
+                    .collect();
+                let lit = (false, pname, args);
+                if *eff {
+                    effv.push(lit);
+                } else {
+                    pre.push(lit);
+                }
+            }
+        }
+        Act::RemoveLit(i, eff, k) => {
+            if let Some(EdAction::Modeled { pre, eff: effv, .. }) = editor.actions.get_mut(*i) {
+                let l = if *eff { effv } else { pre };
+                if *k < l.len() {
+                    l.remove(*k);
+                }
+            }
+        }
+        Act::ToggleNeg(i, eff, k) => {
+            if let Some(EdAction::Modeled { pre, eff: effv, .. }) = editor.actions.get_mut(*i) {
+                let l = if *eff { effv } else { pre };
+                if let Some(lit) = l.get_mut(*k) {
+                    lit.0 = !lit.0;
+                }
+            }
+        }
+        Act::CycleLitPred(i, eff, k) => {
+            let dpreds = editor.dpreds.clone();
+            let tys = editor.types.clone();
+            let preds: Vec<String> = dpreds.iter().map(|(n, _)| n.clone()).collect();
+            if let Some(EdAction::Modeled {
+                params,
+                pre,
+                eff: effv,
+                ..
+            }) = editor.actions.get_mut(*i)
+            {
+                let l = if *eff { effv } else { pre };
+                if let Some(lit) = l.get_mut(*k) {
+                    let np = next_in(&lit.1, &preds);
+                    let sig = dpreds
+                        .iter()
+                        .find(|(n, _)| *n == np)
+                        .map(|(_, a)| a.clone())
+                        .unwrap_or_default();
+                    lit.1 = np;
+                    lit.2 = sig
+                        .iter()
+                        .map(|aty| first_compatible_param(params, &tys, aty))
+                        .collect();
+                }
+            }
+        }
+        Act::CycleLitArg(i, eff, k, slot) => {
+            let dpreds = editor.dpreds.clone();
+            let tys = editor.types.clone();
+            if let Some(EdAction::Modeled {
+                params,
+                pre,
+                eff: effv,
+                ..
+            }) = editor.actions.get_mut(*i)
+            {
+                let l = if *eff { effv } else { pre };
+                if let Some(lit) = l.get_mut(*k) {
+                    let arg_ty = dpreds
+                        .iter()
+                        .find(|(n, _)| *n == lit.1)
+                        .and_then(|(_, a)| a.get(*slot))
+                        .cloned();
+                    if let (Some(aty), Some(cur)) = (arg_ty, lit.2.get(*slot).cloned()) {
+                        let opts = compatible_params(params, &tys, &aty);
+                        lit.2[*slot] = next_in(&cur, &opts);
+                    }
+                }
+            }
+        }
         Act::SetFocus(f) => editor.focus = Some(*f),
         Act::ToggleMode => {
             editor.mode = if editor.mode == Mode::Problem {
@@ -458,12 +802,13 @@ fn apply_act(act: &Act, editor: &mut Editor, scene: &mut Scene) {
 /// edited, the domain is reloaded first, then the problem against it.
 fn apply_changes(editor: &mut Editor, scene: &mut Scene) {
     if editor.dseeded {
+        let actions: Vec<String> = editor.actions.iter().map(action_to_pddl).collect();
         let dp = viz::domain_to_pddl(
             &editor.dname,
             &editor.requirements,
             &editor.types,
             &editor.dpreds,
-            &editor.actions_raw,
+            &actions,
         );
         scene.load_src(&dp);
     }
@@ -481,12 +826,13 @@ fn apply_changes(editor: &mut Editor, scene: &mut Scene) {
 fn export_changes(editor: &mut Editor) {
     let mut wrote = Vec::new();
     if editor.dseeded {
+        let actions: Vec<String> = editor.actions.iter().map(action_to_pddl).collect();
         let dp = viz::domain_to_pddl(
             &editor.dname,
             &editor.requirements,
             &editor.types,
             &editor.dpreds,
-            &editor.actions_raw,
+            &actions,
         );
         let path = format!("/tmp/{}-domain.pddl", editor.dname);
         if std::fs::write(&path, dp).is_ok() {
@@ -705,7 +1051,65 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
     }
     btn(p, "+ predicate", Act::AddPred);
 
-    label(p, "(actions preserved; editable next)");
+    label(p, "ACTIONS");
+    for (i, act) in editor.actions.iter().enumerate() {
+        match act {
+            EdAction::Raw(_) => {
+                row(p, |r| {
+                    label(r, "(complex action - raw)");
+                    btn(r, "x", Act::RemoveAction(i));
+                });
+            }
+            EdAction::Modeled {
+                name,
+                params,
+                pre,
+                eff,
+            } => {
+                row(p, |r| {
+                    label(r, "act");
+                    btn(
+                        r,
+                        name_label(name, focus == Some(Focus::ActionName(i))),
+                        Act::SetFocus(Focus::ActionName(i)),
+                    );
+                    btn(r, "x", Act::RemoveAction(i));
+                });
+                row(p, |r| {
+                    label(r, "  params");
+                    for (k, (pn, pt)) in params.iter().enumerate() {
+                        btn(r, format!("{pn}:{pt}"), Act::CycleParamType(i, k));
+                    }
+                    btn(r, "+", Act::AddParam(i));
+                    if !params.is_empty() {
+                        btn(r, "-", Act::RemoveParam(i));
+                    }
+                });
+                lit_section(p, i, false, "  pre:", pre);
+                lit_section(p, i, true, "  eff:", eff);
+            }
+        }
+    }
+    btn(p, "+ action", Act::AddAction);
+}
+
+fn lit_section(p: &mut ChildBuilder, i: usize, eff: bool, title: &str, lits: &[Lit]) {
+    label(p, title);
+    for (k, (neg, pred, args)) in lits.iter().enumerate() {
+        row(p, |r| {
+            btn(
+                r,
+                if *neg { "neg" } else { "pos" },
+                Act::ToggleNeg(i, eff, k),
+            );
+            btn(r, format!("({pred}"), Act::CycleLitPred(i, eff, k));
+            for (s, a) in args.iter().enumerate() {
+                btn(r, a.clone(), Act::CycleLitArg(i, eff, k, s));
+            }
+            btn(r, ") x", Act::RemoveLit(i, eff, k));
+        });
+    }
+    btn(p, "  + literal", Act::AddLit(i, eff));
 }
 
 /// A name field's label; shows `?` when empty and a trailing `_` cursor when focused.
@@ -830,14 +1234,18 @@ mod tests {
 
     #[test]
     fn seed_domain_reads_domain() {
-        let (mut scene, mut ed) = loaded();
+        let (scene, mut ed) = loaded();
         seed_domain(&mut ed, &scene);
-        let _ = &mut scene;
         assert_eq!(ed.dname, "driving");
         assert_eq!(ed.types.len(), 3); // location, truck, package
         assert!(ed.dpreds.iter().any(|(n, _)| n == "road"));
-        assert_eq!(ed.actions_raw.len(), 3); // drive, load, unload
+        assert_eq!(ed.actions.len(), 3); // drive, load, unload
         assert!(ed.requirements.contains(":strips"));
+    }
+
+    fn domain_pddl(ed: &Editor) -> String {
+        let actions: Vec<String> = ed.actions.iter().map(action_to_pddl).collect();
+        viz::domain_to_pddl(&ed.dname, &ed.requirements, &ed.types, &ed.dpreds, &actions)
     }
 
     #[test]
@@ -856,19 +1264,44 @@ mod tests {
         focused_field_mut(&mut ed, f).unwrap().push_str("shiny");
         apply_act(&Act::AddArg(ed.dpreds.len() - 1), &mut ed, &mut scene);
 
-        let pddl = viz::domain_to_pddl(
-            &ed.dname,
-            &ed.requirements,
-            &ed.types,
-            &ed.dpreds,
-            &ed.actions_raw,
-        );
-        let d = ferroplan::parser::parse_domain(&pddl).expect("regenerated domain parses");
+        let d = ferroplan::parser::parse_domain(&domain_pddl(&ed)).expect("regenerated parses");
         assert!(d.types.iter().any(|t| t.eq_ignore_ascii_case("widget")));
         assert!(d
             .predicates
             .iter()
             .any(|(n, _)| n.eq_ignore_ascii_case("shiny")));
-        assert_eq!(d.actions.len(), 3); // preserved verbatim
+        assert_eq!(d.actions.len(), 3); // modeled + re-emitted
+    }
+
+    #[test]
+    fn modeled_action_roundtrips() {
+        let (scene, mut ed) = loaded();
+        seed_domain(&mut ed, &scene);
+        assert!(
+            ed.actions
+                .iter()
+                .all(|a| matches!(a, EdAction::Modeled { .. })),
+            "flat demo actions should be modeled, not raw"
+        );
+        let d = ferroplan::parser::parse_domain(&domain_pddl(&ed)).expect("parses");
+        let drive = d
+            .actions
+            .iter()
+            .find(|a| a.name.eq_ignore_ascii_case("drive"))
+            .expect("drive survives");
+        assert_eq!(drive.params.len(), 3); // ?t ?from ?to
+    }
+
+    #[test]
+    fn add_action_builds_valid_pddl() {
+        let (mut scene, mut ed) = loaded();
+        seed_domain(&mut ed, &scene);
+        apply_act(&Act::AddAction, &mut ed, &mut scene);
+        let ai = ed.actions.len() - 1;
+        apply_act(&Act::AddParam(ai), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, false), &mut ed, &mut scene);
+        apply_act(&Act::AddLit(ai, true), &mut ed, &mut scene);
+        let d = ferroplan::parser::parse_domain(&domain_pddl(&ed)).expect("new action parses");
+        assert_eq!(d.actions.len(), 4);
     }
 }
