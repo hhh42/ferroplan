@@ -13,8 +13,10 @@
 //!
 //! Optimization is ANYTIME branch-and-bound over `total-cost` via
 //! `crate::solve_subgoal_bounded` (sound because action costs are monotone).
-//! Scope: metrics linear in `(is-violated …)` and `(total-cost)` (the IPC-5
-//! "simple-preferences" shape); other fluent terms are flagged, not optimized.
+//! Scope: metrics linear in `(is-violated …)`, `(total-cost)`, and any other
+//! MONOTONE numeric fluent term (e.g. rovers' `(sum-traverse-cost)`), which
+//! `compile()` folds into `total-cost` so the single-cost B&B optimizes the FULL
+//! metric. Non-monotone / under-forall / divided terms are flagged, not optimized.
 
 use std::collections::{HashMap, HashSet};
 
@@ -199,9 +201,18 @@ fn split_goal(
     }
 }
 
-/// Accumulate metric weights: `is-violated p` -> w[p], `total-cost` coeff, and
-/// whether any unsupported fluent term appeared.
-fn extract(e: &Expr, scale: f64, w: &mut HashMap<String, f64>, tc: &mut f64, other: &mut bool) {
+/// Accumulate metric weights: `is-violated p` -> w[p], `total-cost` coeff,
+/// `others[f]` += coeff for any other 0-ary numeric fluent `(f)` (e.g.
+/// `(sum-traverse-cost)`), and `other` for genuinely unsupported shapes (n-ary
+/// metric fluents, division, non-constant products).
+fn extract(
+    e: &Expr,
+    scale: f64,
+    w: &mut HashMap<String, f64>,
+    tc: &mut f64,
+    others: &mut HashMap<String, f64>,
+    other: &mut bool,
+) {
     match e {
         Expr::Num(_) => {}
         Expr::Fluent(name, args) => {
@@ -211,25 +222,131 @@ fn extract(e: &Expr, scale: f64, w: &mut HashMap<String, f64>, tc: &mut f64, oth
                 }
             } else if name == COST {
                 *tc += scale;
+            } else if args.is_empty() {
+                *others.entry(name.clone()).or_insert(0.0) += scale;
             } else {
                 *other = true;
             }
         }
         Expr::Add(a, b) => {
-            extract(a, scale, w, tc, other);
-            extract(b, scale, w, tc, other);
+            extract(a, scale, w, tc, others, other);
+            extract(b, scale, w, tc, others, other);
         }
         Expr::Sub(a, b) => {
-            extract(a, scale, w, tc, other);
-            extract(b, -scale, w, tc, other);
+            extract(a, scale, w, tc, others, other);
+            extract(b, -scale, w, tc, others, other);
         }
-        Expr::Neg(a) => extract(a, -scale, w, tc, other),
+        Expr::Neg(a) => extract(a, -scale, w, tc, others, other),
         Expr::Mul(a, b) => match (&**a, &**b) {
-            (Expr::Num(c), _) => extract(b, scale * c, w, tc, other),
-            (_, Expr::Num(c)) => extract(a, scale * c, w, tc, other),
+            (Expr::Num(c), _) => extract(b, scale * c, w, tc, others, other),
+            (_, Expr::Num(c)) => extract(a, scale * c, w, tc, others, other),
             _ => *other = true,
         },
         Expr::Div(_, _) => *other = true,
+    }
+}
+
+/// Functions modified by some action effect (so the complement is "static").
+fn modified_functions(domain: &Domain) -> HashSet<String> {
+    fn walk(e: &Effect, out: &mut HashSet<String>) {
+        match e {
+            Effect::And(v) => v.iter().for_each(|x| walk(x, out)),
+            Effect::Num(_, name, _, _) => {
+                out.insert(name.clone());
+            }
+            Effect::When(_, e) | Effect::Forall(_, e) => walk(e, out),
+            _ => {}
+        }
+    }
+    let mut out = HashSet::new();
+    for a in &domain.actions {
+        walk(&a.effect, &mut out);
+    }
+    out
+}
+
+/// Can metric fluent `fname` be folded into total-cost (monotone non-decreasing)?
+/// Yes iff every effect on it is `(increase fname X)` where X is a non-negative
+/// constant, or a STATIC function whose init values are all non-negative. Returns
+/// `Some(reason)` if not foldable.
+fn fluent_foldable(domain: &Domain, problem: &Problem, fname: &str) -> Option<String> {
+    let modified = modified_functions(domain);
+    let static_nonneg = |g: &str| -> bool {
+        if modified.contains(g) {
+            return false;
+        }
+        // every init value of g must be >= 0 (default 0 if unspecified)
+        problem
+            .init_fluents
+            .iter()
+            .filter(|((n, _), _)| n == g)
+            .all(|(_, v)| *v >= 0.0)
+    };
+    let mut bad: Option<String> = None;
+    fn walk(
+        e: &Effect,
+        fname: &str,
+        in_forall: bool,
+        static_nonneg: &dyn Fn(&str) -> bool,
+        bad: &mut Option<String>,
+    ) {
+        match e {
+            Effect::And(v) => v
+                .iter()
+                .for_each(|x| walk(x, fname, in_forall, static_nonneg, bad)),
+            Effect::When(_, e) => walk(e, fname, in_forall, static_nonneg, bad),
+            Effect::Forall(_, e) => walk(e, fname, true, static_nonneg, bad),
+            Effect::Num(op, name, _, val) if name == fname => {
+                // an increase inside a forall can't be mirrored term-for-term, so
+                // treat it as not foldable.
+                let ok = !in_forall
+                    && matches!(op, AssignOp::Increase)
+                    && match val {
+                        Expr::Num(n) => *n >= 0.0,
+                        Expr::Fluent(g, _) => static_nonneg(g),
+                        _ => false,
+                    };
+                if !ok && bad.is_none() {
+                    *bad = Some(format!(
+                        "metric fluent ({fname}) is not foldable (not monotone, or under forall)"
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    for a in &domain.actions {
+        walk(&a.effect, fname, false, &static_nonneg, &mut bad);
+    }
+    bad
+}
+
+/// `coeff * x` as an Expr (avoids a `(* 1 x)` wrapper when coeff is 1).
+fn scaled_expr(coeff: f64, x: &Expr) -> Expr {
+    if coeff == 1.0 {
+        x.clone()
+    } else {
+        Expr::Mul(Box::new(Expr::Num(coeff)), Box::new(x.clone()))
+    }
+}
+
+/// Collect `(increase total-cost coeff*X)` mirrors for each `(increase fname X)`
+/// found inside `eff`.
+fn collect_cost_mirror(eff: &Effect, fname: &str, coeff: f64, out: &mut Vec<Effect>) {
+    match eff {
+        Effect::And(v) => v
+            .iter()
+            .for_each(|x| collect_cost_mirror(x, fname, coeff, out)),
+        Effect::When(_, e) => collect_cost_mirror(e, fname, coeff, out),
+        Effect::Num(AssignOp::Increase, name, _, val) if name == fname => {
+            out.push(Effect::Num(
+                AssignOp::Increase,
+                COST.to_string(),
+                vec![],
+                scaled_expr(coeff, val),
+            ));
+        }
+        _ => {}
     }
 }
 
@@ -248,10 +365,11 @@ pub fn preferences(goal: &Formula, objs: &HashMap<Sym, Vec<Sym>>) -> Vec<(String
 pub fn pref_weights(domain: &Domain, problem: &Problem) -> HashMap<String, f64> {
     let mut w = HashMap::new();
     let mut tc = 0.0;
+    let mut others = HashMap::new();
     let mut other = false;
     let absent = problem.metric.is_none();
     if let Some((_, e)) = &problem.metric {
-        extract(e, 1.0, &mut w, &mut tc, &mut other);
+        extract(e, 1.0, &mut w, &mut tc, &mut others, &mut other);
     }
     let objs = crate::ground::objects_by_type(domain, problem);
     let mut out = HashMap::new();
@@ -312,14 +430,15 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
 
     let mut w = HashMap::new();
     let mut tc = 0.0;
+    let mut others: HashMap<String, f64> = HashMap::new();
     let mut other = false;
     let minimize = match &problem.metric {
         Some((MetricDir::Minimize, e)) => {
-            extract(e, 1.0, &mut w, &mut tc, &mut other);
+            extract(e, 1.0, &mut w, &mut tc, &mut others, &mut other);
             true
         }
         Some((MetricDir::Maximize, e)) => {
-            extract(e, 1.0, &mut w, &mut tc, &mut other);
+            extract(e, 1.0, &mut w, &mut tc, &mut others, &mut other);
             false
         }
         None => true,
@@ -334,6 +453,31 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     }
     if !p.init_fluents.iter().any(|((n, _), _)| n == COST) {
         p.init_fluents.push(((COST.to_string(), vec![]), 0.0));
+    }
+
+    // FOLD monotone numeric metric terms (e.g. `(sum-traverse-cost)` in rovers)
+    // into total-cost: mirror every `(increase f X)` with `(increase total-cost
+    // coeff*X)`. Then total-cost == the FULL metric, and the existing single-cost
+    // B&B optimizes + reports it correctly. Terms that can't be folded (non-
+    // monotone, under forall) are left out and surfaced via `warn_other`.
+    let mut metric_other = other;
+    for (fname, &coeff) in &others {
+        if coeff == 0.0 {
+            continue;
+        }
+        if fluent_foldable(domain, problem, fname).is_some() {
+            metric_other = true; // optimize the supported part only
+            continue;
+        }
+        for a in &mut d.actions {
+            let mut mirror = Vec::new();
+            collect_cost_mirror(&a.effect, fname, coeff, &mut mirror);
+            if !mirror.is_empty() {
+                let mut v = vec![a.effect.clone()];
+                v.append(&mut mirror);
+                a.effect = Effect::And(v);
+            }
+        }
     }
 
     // Precondition preferences: split each action with soft preconditions into
@@ -499,7 +643,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         problem: p,
         minimize,
         n_prefs: prefs.len(),
-        warn_other: other,
+        warn_other: metric_other,
         unsupported,
         synthetic,
         forgos,

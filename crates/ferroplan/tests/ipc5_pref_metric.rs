@@ -32,7 +32,10 @@ fn ipc5_pref_metric_no_regression() {
         ("tpp", 21.0),
         ("storage", 8.0),
         ("trucks", 0.0),
-        ("rovers", 0.0),
+        // rovers is MetricSimplePreferences: weighted is-violated + the monotone
+        // (sum-traverse-cost) numeric term, which compile() now folds into
+        // total-cost (previously dropped -> a bogus 0). 935.3 is the real metric.
+        ("rovers", 935.3),
         ("pathways", 2.0),
     ] {
         let m = metric(d, "p01");
