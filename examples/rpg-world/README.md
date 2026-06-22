@@ -47,7 +47,14 @@ another, building another** — connected through the shared stockpile.
 
 ## Validated contracts (`contracts/`)
 
-Each is a self-contained sub-task, verified to solve against `domain.pddl`:
+**23 self-contained sub-tasks, all verified to solve** against `domain.pddl` —
+spanning every subsystem (gathering, smithing, masonry, textiles, cooking,
+alchemy, farming, husbandry, glass/pottery, carpentry, weapons, leatherworking,
+hunting, transport, defense, civic, trade, and full village builds). Below is a
+representative slice; see the directory for all of them. (Several multi-step
+crafting chains — `weapons`, `leatherworking`, `hunting`, `transport` — only became
+solvable after the [#45](../../) temporal-search improvement: weighted-`g` +
+two-phase helpful-action pruning, which raised the per-contract plan ceiling.)
 
 | contract | what it shows | makespan |
 |---|---|---|
