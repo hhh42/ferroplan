@@ -1,10 +1,21 @@
 # `rpg-world` — the universal RPG planning domain
 
 `domain.pddl` is the canonical low-level planning domain for a survival /
-village-building multiplayer RPG. It is **broad, not deep**: ~28 durative actions
-spanning gathering, processing, toolsmithing, alchemy/magic, construction, and
-trade, over ~18 numeric resource stockpiles, with worker **roles**, a **reachable**
-map axiom, and a forall-gated village square.
+village-building multiplayer RPG. It is **broad, not deep**: **~120 durative
+actions** over **~80 numeric resource stockpiles** and ~100 predicates, spanning a
+whole economy —
+
+> gathering · woodline · **metallurgy tiers** (copper/tin→bronze, iron→steel,
+> precious metals) · **farming** (till/plant/irrigate/harvest→flour) · **animal
+> husbandry** (graze/milk/butcher) · **hunting & fishing** · **leatherworking** ·
+> **glass & pottery** · **carpentry** · masonry · **weapons & armor** · **combat /
+> defense** (clear threats, train guards) · alchemy & **enchanting** · cooking
+> recipes · **transport** · construction (build your own workstations, towers,
+> temple) · **civic / skill-training** · trade —
+
+with worker **roles**, a **reachable** map axiom, and a forall-gated village square.
+You never plan the whole thing at once: a scheduler hands out **contract-sized
+sub-tasks** (see below).
 
 It exercises essentially the whole engine at once:
 
@@ -50,10 +61,25 @@ Each is a self-contained sub-task, verified to solve against `domain.pddl`:
 | `travel-gather.pddl` | travel a multi-hop map (reachable axiom) → mine | 8.0 |
 | `team-build.pddl` | 2 workers split one contract concurrently | 16.0 |
 | `trade.pddl` | turn surplus goods into coin at the market | 11.0 |
+| `farming.pddl` | till → plant → irrigate → harvest → mill flour | 15.0 |
+| `animal-husbandry.pddl` | tend livestock → produce | 3.0 |
+| `glass-pottery.pddl` | sand → glass / clay → fired pottery | 15.0 |
+| `carpentry-furniture.pddl` | planks → furniture / cart-parts | 11.0 |
+| `cooking-recipes.pddl` | ingredients → a cooked recipe | 9.0 |
+| `enchanting-magic.pddl` | meditate → enchant a tool with a potion | 12.0 |
+| `defense-combat.pddl` | arm a guard → clear a threat | 10.0 |
+| `construction-tiers.pddl` | bootstrap a workstation from materials | 35.0 |
+| `civic-skills.pddl` | train an apprentice into a role | 23.0 |
 
 ```sh
 ff -o examples/rpg-world/domain.pddl -f examples/rpg-world/contracts/smithing.pddl
 ```
+
+**Long chains need decomposing.** A few subsystems (metallurgy, weapons, leather,
+hunting, transport) have crafting chains long enough that a *single* contract
+trying to do the whole chain from raw inputs exceeds the temporal search — exactly
+the signal to split it: one contract gathers/refines the intermediate, another
+consumes it. The actions are all in the domain and work; keep each contract short.
 
 ## Authoring your own contracts — tips that keep them fast
 
