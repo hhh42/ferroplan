@@ -41,7 +41,7 @@ penalty loop.
 **IPC-5 retroactive ranking (in progress).** We're scoring ferroplan against the
 2006 contest entrants to see where it would have placed; the numbers are still
 being computed. Full per-instance table, ranking, and reproduction:
-[`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/master/benchmarks/ipc5-scoreboard.md).
+[`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
 
 ## Mutex groups & SAS+
 
@@ -71,4 +71,4 @@ merges the actual conflicting pair. The result shortens **blocks plans ~25%**
 where goals share structure but aren't resource-coupled; on resource-coupled
 domains naive decomposition still re-traverses the shared resource (the open
 ESPC penalty-loop work). Method, coverage numbers, and findings:
-[`docs/invariants-measurement.md`](https://github.com/hhh42/ferroplan/blob/master/docs/invariants-measurement.md).
+[`docs/invariants-measurement.md`](https://github.com/hhh42/ferroplan/blob/main/docs/invariants-measurement.md).
