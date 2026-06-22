@@ -1,0 +1,10 @@
+(define (problem trip)
+  (:domain fuel-travel)
+  (:objects home work shop - location)
+  (:init
+    (at home)
+    (= (fuel) 3)
+    (= (cost home) 0)
+    (= (cost work) 4)
+    (= (cost shop) 2))
+  (:goal (and (at work))))
