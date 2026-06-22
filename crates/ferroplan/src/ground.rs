@@ -610,35 +610,12 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     // ---- type system ----
     let objects_of_type = objects_by_type(domain, problem);
 
-    // ---- empty-type check (predicates then functions) ----
-    let empty = |ty: &Sym| {
-        objects_of_type
-            .get(ty)
-            .map(|v| v.is_empty())
-            .unwrap_or(true)
-    };
-    for (pname, argtypes) in &domain.predicates {
-        for ty in argtypes {
-            if empty(ty) {
-                return Outcome::EmptyType {
-                    kind: "predicate",
-                    pred: pname.clone(),
-                    ty: ty.clone(),
-                };
-            }
-        }
-    }
-    for (fname, argtypes) in &domain.functions {
-        for ty in argtypes {
-            if empty(ty) {
-                return Outcome::EmptyType {
-                    kind: "function",
-                    pred: fname.clone(),
-                    ty: ty.clone(),
-                };
-            }
-        }
-    }
+    // Empty types are TOLERATED (standard PDDL): a predicate, function, or action
+    // parameterized by a type with no objects simply grounds to zero instances.
+    // This lets a problem use a SUBSET of a broad "universal" domain's types (e.g.
+    // a smithing contract that declares no building `slot`s) without the whole task
+    // failing — important for decomposing one big domain into many sub-tasks.
+    // (The `EmptyType` outcome is retained for callers but no longer raised here.)
 
     let mut add_predicates: HashSet<Sym> = HashSet::new();
     fn collect_add(e: &Effect, out: &mut HashSet<Sym>) {
