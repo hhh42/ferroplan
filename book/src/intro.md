@@ -1,7 +1,17 @@
 # Introduction
 
 **ferroplan** is a fast, data-parallel [PDDL](https://en.wikipedia.org/wiki/Planning_Domain_Definition_Language)
-planner in Rust — a from-scratch reimplementation of the FF planner family.
+planner in Rust — a from-scratch reimplementation of the FF planner family, and a
+**deterministic planning core for the age of AI**.
+
+The bet behind it: an LLM should be the *author and supervisor* of a planner, not its
+runtime. You don't ask a model to add a column of numbers — you have it emit code that
+does the arithmetic deterministically and for free; the same applies one level up.
+Rather than running a whole village of agents' decisions through an LLM every tick —
+expensive, non-reproducible, unbounded — the model **authors a PDDL domain** that
+plans deterministically, cheaply, inspectably, and at scale, and only *nudges* it at
+runtime. PDDL is the auditable interface between intent, the model's authoring, and a
+fast solver. You can read a domain and an axiom; you can't read a model's weights.
 
 It combines:
 
