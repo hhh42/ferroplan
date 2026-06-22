@@ -1,0 +1,8 @@
+(define (problem vfloor) (:domain rpg-world)
+  (:objects c0 - agent hub - location s0 s1 - slot)
+  (:init (at c0 hub) (is-buildsite hub) (mason-skill c0)
+    (= (planks) 20) (= (bricks) 20) (= (blocks) 20)
+    (= (logs) 0) (= (ore) 0) (= (stone) 0) (= (clay) 0) (= (fiber) 0) (= (food) 0)
+    (= (water) 0) (= (herbs) 0) (= (charcoal) 0) (= (ingots) 0) (= (cloth) 0)
+    (= (clothing) 0) (= (meals) 0) (= (potions) 0) (= (coin) 0) (= (mana) 0))
+  (:goal (built-square)))
