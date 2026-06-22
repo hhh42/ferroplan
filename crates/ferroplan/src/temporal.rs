@@ -12,7 +12,10 @@
 //! temporal search (T3) consumes: it only lets `A-END` fire `duration` after the
 //! matching `A-START`, and checks the invariant holds across the interval.
 
-use crate::types::{Action, Domain, Effect, Expr, Formula, Problem, Sym, Term, TimeSpec};
+use crate::types::{
+    Action, AssignOp, CompOp, Domain, Effect, Expr, Formula, NExpr, NumPre, Problem, Sym, Term,
+    TimeSpec,
+};
 
 /// Temporal metadata for one durative action, paired with its snap-actions.
 #[derive(Clone, Debug)]
@@ -341,8 +344,97 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
     // Two-phase decision-epoch search: a fast pass that restricts start/classical
     // expansion to FF helpful actions (collapses the per-epoch AND per-idle-agent
     // branching), then the unrestricted pass on failure — so completeness holds by
-    // construction (phase 2 is the full search). Heap key = W_G*g + W_H*h + agenda.
-    temporal_search(&task, &kind, true).or_else(|| temporal_search(&task, &kind, false))
+    // construction (phase 2 is the full search). Phase-1 key = W_G*g + W_H*h +
+    // W_L*(unmet numeric landmarks); phase 2 is the original pure-h complete search.
+    let landmarks = extract_landmarks(&task);
+    temporal_search(&task, &kind, &landmarks, true)
+        .or_else(|| temporal_search(&task, &kind, &landmarks, false))
+}
+
+/// A numeric `>=`/`>` threshold `(fluent, value)`, or `None` if `np` isn't of that
+/// canonical recipe-gate shape.
+fn as_threshold(np: &NumPre) -> Option<(u32, f64)> {
+    match (&np.op, &np.lhs, &np.rhs) {
+        (CompOp::Ge | CompOp::Gt, NExpr::Fluent(t), NExpr::Num(w)) => Some((*t, *w)),
+        _ => None,
+    }
+}
+
+/// Numeric-threshold landmarks: the transitive closure of the `>=` preconditions of
+/// the ops that *increase* each goal fluent. The delete-relaxed extraction drops
+/// these (it never recurses on `pre_num`), so on a converging DAG — where two inputs
+/// are separate numeric thresholds feeding one join — `h` goes flat. Counting how
+/// many a state has NOT met gives each converging input its own descending term in
+/// the phase-1 key, restoring the gradient the FF count lacks.
+fn extract_landmarks(task: &PackedTask) -> Vec<NumPre> {
+    let mut out: Vec<NumPre> = Vec::new();
+    let mut seen: HashSet<(u32, u64)> = HashSet::new();
+    let mut work: Vec<NumPre> = task.goal_num.clone();
+    let mut iters = 0usize;
+    while let Some(np) = work.pop() {
+        iters += 1;
+        if iters > 8000 {
+            break; // safety cap against accumulator cycles
+        }
+        let Some((t, w)) = as_threshold(&np) else {
+            continue;
+        };
+        if !seen.insert((t, w.to_bits())) {
+            continue;
+        }
+        out.push(np.clone());
+        let add_pre_num = |oi: usize, work: &mut Vec<NumPre>| {
+            for pre in task.pre_num.slice(oi) {
+                if as_threshold(pre).is_some() {
+                    work.push(pre.clone());
+                }
+            }
+        };
+        // recurse toward the recipe inputs of ops that INCREASE fluent `t`.
+        for &oi in task.neff_by_fluent.slice(t as usize) {
+            let oi = oi as usize;
+            let increases = task
+                .num_eff
+                .slice(oi)
+                .iter()
+                .any(|ne| ne.target == t && matches!(ne.op, AssignOp::Increase));
+            if !increases {
+                continue;
+            }
+            // (a) classical case: numeric preconds sit on the increasing op itself.
+            add_pre_num(oi, &mut work);
+            // (b) snap-compiled case: the increase is on the END snap, but the
+            // recipe's numeric inputs are on the matching START snap — bridge via the
+            // RUNNING token (END requires it, START adds it).
+            for &f in task.pre_pos.slice(oi) {
+                for &start in task.add_by_fact.slice(f as usize) {
+                    add_pre_num(start as usize, &mut work);
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Summed DEFICIT of the landmark thresholds in `(fv, fdef)` — for each `(fluent >=
+/// want)` landmark, how far below `want` the fluent is. Unlike a binary met/unmet
+/// count this gives a gradient across MULTIPLE rounds (e.g. steel>=2 descends 2→1→0),
+/// so deep/wide converging accumulation gets guidance, not just single assembly.
+fn landmark_deficit(landmarks: &[NumPre], fv: &[f64], fdef: &[bool]) -> i64 {
+    landmarks
+        .iter()
+        .map(|np| match as_threshold(np) {
+            Some((t, want)) => {
+                let cur = if fdef[t as usize] {
+                    fv[t as usize]
+                } else {
+                    0.0
+                };
+                (want - cur).max(0.0).ceil() as i64
+            }
+            None => 0,
+        })
+        .sum()
 }
 
 /// `h`, plus — under `prune` — the Skip-filtered helpful start/classical ops for
@@ -384,25 +476,32 @@ fn push_node(
     nodes: &mut Vec<TNode>,
     heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
     visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
+    landmarks: &[NumPre],
     prune: bool,
     mut n: TNode,
 ) {
     // Gentle h-weight (1g + 3h, vs the classical 1g+5h) keeps required-concurrency
-    // branches in contention; the unit g breaks the flat-h plateau on long chains.
-    // AGENDA_W is 0: penalizing open intervals suppresses the very parallelism we
-    // want (it serialized the crew/floor cases) — keep it off.
+    // branches in contention; the unit g breaks the flat-h plateau on long chains;
+    // W_L counts unmet numeric-threshold landmarks, restoring a gradient on
+    // converging DAGs (where the FF count goes flat). AGENDA_W is 0: penalizing open
+    // intervals suppresses the very parallelism we want — keep it off.
     const W_G: i64 = 1;
     const W_H: i64 = 3;
+    const W_L: i64 = 3;
     const AGENDA_W: i64 = 0;
     if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, prune) {
         let k = tkey(task, &n);
         if visited.insert(k) {
             n.helpful = helpful;
-            // Phase 1 (prune): weighted g+h to break the flat-h plateau on long
-            // chains. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte the
-            // old complete search, so nothing it solved before can regress.
+            // Phase 1 (prune): weighted g+h plus the unmet-landmark term, to break
+            // the flat-h plateau on long chains AND converging DAGs. Phase 2 (full):
+            // the ORIGINAL pure-h key — byte-for-byte the old complete search, so
+            // nothing it solved before can regress.
             let key = if prune {
-                W_G * n.g as i64 + W_H * h as i64 + AGENDA_W * n.agenda.len() as i64
+                W_G * n.g as i64
+                    + W_H * h as i64
+                    + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
+                    + AGENDA_W * n.agenda.len() as i64
             } else {
                 h as i64
             };
@@ -416,7 +515,12 @@ fn push_node(
 /// One decision-epoch search pass. `prune` restricts block-(a) expansion to the
 /// node's helpful ops (with a per-node full-scan fallback so no node with a legal
 /// successor is stranded); `false` is the full, complete search.
-fn temporal_search(task: &PackedTask, kind: &[Kind], prune: bool) -> Option<TimedPlan> {
+fn temporal_search(
+    task: &PackedTask,
+    kind: &[Kind],
+    landmarks: &[NumPre],
+    prune: bool,
+) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
     let init = task.initial();
     let mut sc = Scratch::new(task);
@@ -470,6 +574,7 @@ fn temporal_search(task: &PackedTask, kind: &[Kind], prune: bool) -> Option<Time
                             &mut nodes,
                             &mut heap,
                             &mut visited,
+                            landmarks,
                             prune,
                             TNode {
                                 state: ns,
@@ -494,6 +599,7 @@ fn temporal_search(task: &PackedTask, kind: &[Kind], prune: bool) -> Option<Time
                             &mut nodes,
                             &mut heap,
                             &mut visited,
+                            landmarks,
                             prune,
                             TNode {
                                 state: ns,
@@ -523,6 +629,7 @@ fn temporal_search(task: &PackedTask, kind: &[Kind], prune: bool) -> Option<Time
                     &mut nodes,
                     &mut heap,
                     &mut visited,
+                    landmarks,
                     prune,
                     TNode {
                         state: ns,

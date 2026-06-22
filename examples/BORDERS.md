@@ -17,6 +17,17 @@ toward the rest. A contract is whole-able iff **(i)** it is one accumulating/
 processing chain within the op budget, **or (ii)** every goal quantity in it
 receives **at most one** converging contribution.
 
+> **Update (temporal landmark term).** The temporal search now adds a
+> numeric-threshold *landmark deficit* to its phase-1 key, which restores the
+> gradient for **single-round** converging DAGs — a join whose inputs are each
+> produced *once* from cold now solves (e.g. a from-scratch ingot, the metallurgy
+> benchmark), and big linear accumulations got much faster too. The border that
+> remains is **multi-round** convergence (a goal needing N of a product, so each
+> intermediate is needed N times — e.g. `steel ≥ 2` from cold) and the other shapes
+> below; those still want decomposition. So the rule for a subproblem-maker is
+> unchanged as a *safe* default (stage inputs), but the engine is now more forgiving
+> of a single converging step left in a contract.
+
 ## Border table (measured)
 
 | shape | safe to hand whole | first fail | split unit |
