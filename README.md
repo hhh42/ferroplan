@@ -36,8 +36,9 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 - **Data parallelism** — parallel grounding and parallel batch heuristic
   evaluation (`std::thread`); the plan found is identical for any thread count.
 - **PDDL coverage** — STRIPS, typing, negative/disjunctive preconditions,
-  numeric fluents (Metric-FF style), and **ADL** (conditional effects,
-  `forall`/`exists`, equality).
+  numeric fluents (Metric-FF style), **ADL** (conditional effects,
+  `forall`/`exists`, equality), and **derived predicates / axioms** (`:derived`,
+  static/stratified — closed into the initial state via a datalog fixpoint).
 - **PDDL3 preferences** — soft goal preferences (incl. `forall`-quantified and
   precondition preferences) compiled away, with anytime branch-and-bound metric
   optimization. *(Exact-optimal on small/medium instances; best-found, flagged,
@@ -142,6 +143,23 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 | [`ferroplan-cli`](crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
 | [`ferroplan-bevy`](crates/ferroplan-bevy) | Bevy app: visualize, inspect & animate a domain+problem (`cargo run -p ferroplan-bevy [domain.pddl problem.pddl]`) |
 
+## Examples
+
+[`examples/`](examples) collects worked domains that exercise the full feature set:
+
+- [`rpg-world`](examples/rpg-world) — a ~120-action crafting/economy domain
+  (durative actions, numeric resources, renewable capacities, a reachability
+  axiom) with a corpus of validated contracts, a flavor-×-scale [`suite/`](examples/rpg-world/suite),
+  an adversarial [`hard/`](examples/rpg-world/hard) batch, and an
+  [industrial-city](examples/rpg-world/industrial-city) showcase that runs a whole
+  metal/stone/wood industry as a pipeline of contracts.
+- [`logistics`](examples/logistics) — transshipment: per-location goods, trucks
+  with capacity, a train line.
+- [`jobshop`](examples/jobshop) — scheduling with machine-exclusion (scales to 100
+  concurrent jobs).
+- [`BORDERS.md`](examples/BORDERS.md) — a measured map of where one-shot planning
+  solves vs. where a goal must be decomposed into contracts.
+
 ## Benchmarks
 
 Compared against the C **Metric-FF** and **SGPlan6** planners over a subset of
@@ -180,7 +198,29 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   currently search-limited (the decision-epoch search times out on large
   instances); duration *inequalities*, timed initial literals, and continuous
   (`#t`) effects are not yet supported.
-- Derived predicates (`:derived`) are not supported.
+- **Derived predicates** (`:derived`): static/stratified axioms are supported
+  (closed into the initial state); *dynamic* derived predicates (bodies over
+  changing facts) are not yet.
+
+## Acknowledgments
+
+This project is built in deep respect for the planners that came before it.
+
+**SGPlan** (SGPlan5 / SGPlan6), by Chih-Wei Hsu and Benjamin W. Wah at the
+University of Illinois, has been the standard to beat in this corner of automated
+planning for the better part of two decades — the IPC-winning system whose
+constraint-partitioning and extended-saddle-point penalty-coordination ideas still
+define the state of the art for satisficing planning with preferences and with
+temporal/resource constraints. I've followed that line of research for many years,
+and to build something that even comes *close* to it on a slice of the benchmarks
+is, genuinely, an honor. Enormous credit to that team for the depth, rigor, and
+sheer durability of the work — ferroplan is in no small part an attempt to learn
+from it, in Rust.
+
+Equal thanks to Jörg Hoffmann's **FF / Metric-FF**, whose relaxed-plan heuristic
+and enforced hill-climbing are the backbone of this engine; to the IPC organizers
+and domain authors whose benchmarks make progress measurable; and to Derek Long and
+Maria Fox's **VAL**, used here to independently validate the temporal plans.
 
 ## License
 
