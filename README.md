@@ -6,6 +6,7 @@
 
 [![CI](https://github.com/hhh42/ferroplan/actions/workflows/ci.yml/badge.svg)](https://github.com/hhh42/ferroplan/actions/workflows/ci.yml)
 [![docs](https://img.shields.io/badge/docs-mdbook-blue)](https://hhh42.github.io/ferroplan)
+[![live demo](https://img.shields.io/badge/live_demo-try_in_browser-6c5ce7)](https://hhh42.github.io/ferroplan/demo/index.html)
 [![license](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 A fast, data-parallel **PDDL planner** in Rust — a deterministic planning core for
@@ -26,6 +27,11 @@ that solver.
 - **Determinism** — same problem, same plan; you can regression-test it.
 - **Inspectability** — you can read a domain and an axiom; you cannot read a model's weights.
 - **Scale** — a village of agents each replanning is tractable for a fast solver, not as a wall of LLM calls.
+
+> **[▶ Try it live in your browser](https://hhh42.github.io/ferroplan/demo/index.html)** —
+> pick a built-in example or paste your own PDDL; it plans entirely client-side via
+> WebAssembly, no install. There's also a
+> [browser visualizer + block editor](https://hhh42.github.io/ferroplan/gui/index.html).
 
 `ferroplan` is a from-scratch reimplementation of the FF family of planners with a
 data-oriented core (bitset states, structure-of-arrays / CSR operator tables),
