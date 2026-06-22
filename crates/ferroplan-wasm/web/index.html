@@ -38,6 +38,11 @@
   <span class="tag">a fast PDDL planner in Rust — running entirely in your browser via WebAssembly</span>
 </header>
 <main>
+  <div class="bar" style="margin:0 0 14px">
+    <label for="example" style="margin:0">load example</label>
+    <select id="example"></select>
+    <span class="stat">— or paste your own below</span>
+  </div>
   <div class="row">
     <div class="col">
       <label for="dom">Domain</label>
@@ -56,6 +61,7 @@
       <option value="ff">ff (classical)</option>
       <option value="pddl3">pddl3 (preferences)</option>
       <option value="partition">partition</option>
+      <option value="temporal">temporal</option>
     </select>
     <span id="took" class="stat"></span>
   </div>
@@ -68,38 +74,29 @@
 
 <script type="module">
 import init, { plan, version } from './pkg/ferroplan_wasm.js';
-
-const DEMO_DOMAIN = `(define (domain gripper)
-  (:predicates (room ?r) (ball ?b) (gripper ?g)
-               (at-robby ?r) (at ?b ?r) (free ?g) (carry ?o ?g))
-  (:action move :parameters (?from ?to)
-    :precondition (and (room ?from) (room ?to) (at-robby ?from))
-    :effect (and (at-robby ?to) (not (at-robby ?from))))
-  (:action pick :parameters (?obj ?room ?gripper)
-    :precondition (and (ball ?obj) (room ?room) (gripper ?gripper)
-                       (at ?obj ?room) (at-robby ?room) (free ?gripper))
-    :effect (and (carry ?obj ?gripper) (not (at ?obj ?room)) (not (free ?gripper))))
-  (:action drop :parameters (?obj ?room ?gripper)
-    :precondition (and (ball ?obj) (room ?room) (gripper ?gripper)
-                       (carry ?obj ?gripper) (at-robby ?room))
-    :effect (and (at ?obj ?room) (free ?gripper) (not (carry ?obj ?gripper)))))`;
-
-const DEMO_PROBLEM = `(define (problem gripper-2)
-  (:domain gripper)
-  (:objects rooma roomb left right b1 b2 b3)
-  (:init (room rooma) (room roomb) (gripper left) (gripper right)
-         (at-robby rooma) (free left) (free right)
-         (ball b1) (ball b2) (ball b3)
-         (at b1 rooma) (at b2 rooma) (at b3 rooma))
-  (:goal (and (at b1 roomb) (at b2 roomb) (at b3 roomb))))`;
+import { EXAMPLES } from './examples.js';
 
 const $ = (id) => document.getElementById(id);
-$('dom').value = DEMO_DOMAIN;
-$('prob').value = DEMO_PROBLEM;
+const go = $('go');
+
+// Example picker: each entry fills the editors (+ its mode); picking one re-plans.
+const sel = $('example');
+EXAMPLES.forEach((ex, i) => {
+  const o = document.createElement('option');
+  o.value = String(i); o.textContent = ex.label; sel.appendChild(o);
+});
+function loadExample(i) {
+  const ex = EXAMPLES[i];
+  if (!ex) return;
+  $('dom').value = ex.domain;
+  $('prob').value = ex.problem;
+  if (ex.mode) $('mode').value = ex.mode;
+}
+sel.addEventListener('change', () => { loadExample(+sel.value); if (!go.disabled) go.click(); });
+loadExample(0); // gripper by default
 
 await init();
 $('ver').textContent = 'ferroplan v' + version();
-const go = $('go');
 go.disabled = false;
 go.textContent = 'Plan';
 

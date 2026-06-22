@@ -5,10 +5,12 @@ server, no install, nothing leaves your machine.
 
 > ### [▶ Open the live planner demo](./demo/index.html)
 
-Paste a PDDL **domain** + **problem**, choose a mode (`auto` / `ff` / `pddl3` /
-`partition`), and hit **Plan** — the plan is computed in your browser by the same
-Rust planner core compiled to WASM. It comes prefilled with a gripper example so
-you can see a plan immediately.
+**Pick a built-in example** from the dropdown — gripper, numeric resources, ADL,
+derived axioms, PDDL3 preferences, temporal/durative, logistics, a job shop, or one
+of the RPG-world scenarios — or **paste your own** PDDL **domain** + **problem**.
+Choose a mode (`auto` routes by problem features), hit **Plan**, and the plan is
+computed in your browser by the same Rust planner core compiled to WASM. It runs the
+gripper example on load so you see a plan immediately.
 
 ## The visual GUI, in your browser
 

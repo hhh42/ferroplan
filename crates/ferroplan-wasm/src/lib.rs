@@ -14,7 +14,8 @@ use wasm_bindgen::prelude::*;
 
 /// Solve a PDDL domain+problem; returns a JSON string of the `Solution`, or
 /// `{"error": "..."}` on a parse/solve error. `mode` is one of "auto", "ff",
-/// "pddl3", "partition" (case-insensitive; unknown falls back to Auto).
+/// "pddl3", "partition", "temporal" (case-insensitive; unknown falls back to Auto,
+/// which itself routes durative-action problems to the temporal solver).
 #[wasm_bindgen]
 pub fn plan(domain: &str, problem: &str, mode: Option<String>) -> String {
     let opts = Options {
@@ -41,6 +42,7 @@ fn parse_mode(m: Option<&str>) -> Mode {
         Some("ff") => Mode::Ff,
         Some("pddl3") => Mode::Pddl3,
         Some("partition") => Mode::Partition,
+        Some("temporal") => Mode::Temporal,
         _ => Mode::Auto,
     }
 }
