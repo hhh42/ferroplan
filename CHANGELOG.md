@@ -68,8 +68,11 @@ Initial public release.
   2.16M evals/33s → 32k/0.86s, 38×).
 - **Temporal search** — a weighted-`g` heap key plus two-phase helpful-action
   pruning (a pruned `g+h` phase, then the original complete pure-`h` phase) takes
-  multi-step long-chain contracts from timeout to instant, with no regression on the
-  existing temporal suite.
+  multi-step long-chain contracts from timeout to instant. A numeric-threshold
+  landmark term (phase-1 key only, so the complete pass is byte-identical) then
+  restores the heuristic gradient on converging recipe DAGs — a from-scratch ingot
+  and the metallurgy benchmark go from no-plan to instant, and deep accumulations
+  get 10–60× faster. No regression on the existing temporal suite.
 
 ### Known limitations
 - Numeric domains trail Metric-FF (EHC falls back to best-first on some).
