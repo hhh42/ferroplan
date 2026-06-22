@@ -154,7 +154,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 // ---------------------------------------------------------------------------
 
 use crate::ground::{ground, Outcome};
-use crate::heuristic::{relaxed, Scratch};
+use crate::heuristic::{relaxed, relaxed_helpful, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -214,6 +214,11 @@ struct TNode {
     father: usize,
     /// (op applied, time) that produced this node; None for the root.
     ev: Option<(usize, f64)>,
+    /// number of happenings to reach this node (depth `g`, for the heap key).
+    g: u32,
+    /// FF helpful start/classical ops for this state under pruning (empty = no
+    /// restriction / fall back to a full scan). Only populated in the pruned pass.
+    helpful: Vec<u32>,
 }
 
 fn tkey(task: &PackedTask, n: &TNode) -> (StateKey, Vec<(i64, usize)>) {
@@ -283,7 +288,6 @@ fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &Sta
 /// the `over all` invariant is enforced at the start and end happenings via the
 /// snap preconditions.
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
-    const MAX_NODES: usize = 400_000;
     let c = compile(domain, problem);
     let task = match ground(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
@@ -334,48 +338,124 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         })
         .collect();
 
-    let mut sc = Scratch::new(&task);
-    relaxed(&task, &mut sc, &init.bits, &init.fv, &init.fdef)?; // dead end -> None
+    // Two-phase decision-epoch search: a fast pass that restricts start/classical
+    // expansion to FF helpful actions (collapses the per-epoch AND per-idle-agent
+    // branching), then the unrestricted pass on failure — so completeness holds by
+    // construction (phase 2 is the full search). Heap key = W_G*g + W_H*h + agenda.
+    temporal_search(&task, &kind, true).or_else(|| temporal_search(&task, &kind, false))
+}
+
+/// `h`, plus — under `prune` — the Skip-filtered helpful start/classical ops for
+/// `s`. `None` iff `s` is a relaxed dead end (so this also gates dead ends).
+fn eval_node(
+    task: &PackedTask,
+    kind: &[Kind],
+    sc: &mut Scratch,
+    s: &State,
+    prune: bool,
+) -> Option<(i32, Vec<u32>)> {
+    if prune {
+        let (h, helpful) = relaxed_helpful(
+            task,
+            sc,
+            &s.bits,
+            &s.fv,
+            &s.fdef,
+            &task.goal_pos,
+            &task.goal_num,
+        )?;
+        let hf = helpful
+            .into_iter()
+            .filter(|&oi| matches!(kind[oi as usize], Kind::Start { .. } | Kind::Classical))
+            .collect();
+        Some((h, hf))
+    } else {
+        let h = relaxed(task, sc, &s.bits, &s.fv, &s.fdef)?;
+        Some((h, Vec::new()))
+    }
+}
+
+/// Evaluate, dedup, and enqueue a candidate node with the weighted heap key.
+#[allow(clippy::too_many_arguments)]
+fn push_node(
+    task: &PackedTask,
+    kind: &[Kind],
+    sc: &mut Scratch,
+    nodes: &mut Vec<TNode>,
+    heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
+    visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
+    prune: bool,
+    mut n: TNode,
+) {
+    // Gentle h-weight (1g + 3h, vs the classical 1g+5h) keeps required-concurrency
+    // branches in contention; the unit g breaks the flat-h plateau on long chains.
+    // AGENDA_W is 0: penalizing open intervals suppresses the very parallelism we
+    // want (it serialized the crew/floor cases) — keep it off.
+    const W_G: i64 = 1;
+    const W_H: i64 = 3;
+    const AGENDA_W: i64 = 0;
+    if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, prune) {
+        let k = tkey(task, &n);
+        if visited.insert(k) {
+            n.helpful = helpful;
+            // Phase 1 (prune): weighted g+h to break the flat-h plateau on long
+            // chains. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte the
+            // old complete search, so nothing it solved before can regress.
+            let key = if prune {
+                W_G * n.g as i64 + W_H * h as i64 + AGENDA_W * n.agenda.len() as i64
+            } else {
+                h as i64
+            };
+            let idx = nodes.len();
+            nodes.push(n);
+            heap.push(Reverse((key, idx)));
+        }
+    }
+}
+
+/// One decision-epoch search pass. `prune` restricts block-(a) expansion to the
+/// node's helpful ops (with a per-node full-scan fallback so no node with a legal
+/// successor is stranded); `false` is the full, complete search.
+fn temporal_search(task: &PackedTask, kind: &[Kind], prune: bool) -> Option<TimedPlan> {
+    const MAX_NODES: usize = 400_000;
+    let init = task.initial();
+    let mut sc = Scratch::new(task);
+
+    let (_h0, hf0) = eval_node(task, kind, &mut sc, &init, prune)?; // also dead-end gate
     let mut nodes = vec![TNode {
         state: init,
         time: 0.0,
         agenda: Vec::new(),
         father: usize::MAX,
         ev: None,
+        g: 0,
+        helpful: hf0,
     }];
-    let mut heap: BinaryHeap<Reverse<(i32, usize)>> = BinaryHeap::new();
+    let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
     let mut visited: HashSet<(StateKey, Vec<(i64, usize)>)> = HashSet::new();
-    visited.insert(tkey(&task, &nodes[0]));
+    visited.insert(tkey(task, &nodes[0]));
 
-    let push = |nodes: &mut Vec<TNode>,
-                heap: &mut BinaryHeap<Reverse<(i32, usize)>>,
-                visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
-                sc: &mut Scratch,
-                n: TNode| {
-        if let Some(h) = relaxed(&task, sc, &n.state.bits, &n.state.fv, &n.state.fdef) {
-            let k = tkey(&task, &n);
-            if visited.insert(k) {
-                let idx = nodes.len();
-                nodes.push(n);
-                heap.push(Reverse((h, idx)));
-            }
-        }
-    };
-
-    while let Some(Reverse((_h, ni))) = heap.pop() {
+    while let Some(Reverse((_k, ni))) = heap.pop() {
         if task.goal_met(&nodes[ni].state) && nodes[ni].agenda.is_empty() {
-            let plan = reconstruct(&task, &nodes, ni, &kind);
-            return Some(epsilon_separate(&task, plan));
+            let plan = reconstruct(task, &nodes, ni, kind);
+            return Some(epsilon_separate(task, plan));
         }
         if nodes.len() > MAX_NODES {
             break;
         }
         let time = nodes[ni].time;
+        let pg = nodes[ni].g;
 
-        // (a) start a durative action / apply an instantaneous classical action
-        for (oi, k) in kind.iter().enumerate() {
-            match *k {
+        // (a) start a durative action / apply a classical action — restricted to
+        // the node's helpful set under pruning (else a full scan).
+        let candidates: Vec<usize> = if prune && !nodes[ni].helpful.is_empty() {
+            nodes[ni].helpful.iter().map(|&o| o as usize).collect()
+        } else {
+            (0..task.n_ops).collect()
+        };
+        for oi in candidates {
+            match kind[oi] {
                 Kind::Start { dur, end_op } => {
                     if task.op_applicable(oi, &nodes[ni].state) {
                         let ns = task.apply(oi, &nodes[ni].state);
@@ -383,17 +463,22 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                         let te = time + dur;
                         let pos = ag.partition_point(|x| x.0 <= te);
                         ag.insert(pos, (te, end_op));
-                        push(
+                        push_node(
+                            task,
+                            kind,
+                            &mut sc,
                             &mut nodes,
                             &mut heap,
                             &mut visited,
-                            &mut sc,
+                            prune,
                             TNode {
                                 state: ns,
                                 time,
                                 agenda: ag,
                                 father: ni,
                                 ev: Some((oi, time)),
+                                g: pg + 1,
+                                helpful: Vec::new(),
                             },
                         );
                     }
@@ -402,17 +487,22 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                     if task.op_applicable(oi, &nodes[ni].state) {
                         let ns = task.apply(oi, &nodes[ni].state);
                         let ag = nodes[ni].agenda.clone();
-                        push(
+                        push_node(
+                            task,
+                            kind,
+                            &mut sc,
                             &mut nodes,
                             &mut heap,
                             &mut visited,
-                            &mut sc,
+                            prune,
                             TNode {
                                 state: ns,
                                 time,
                                 agenda: ag,
                                 father: ni,
                                 ev: Some((oi, time)),
+                                g: pg + 1,
+                                helpful: Vec::new(),
                             },
                         );
                     }
@@ -421,23 +511,27 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
             }
         }
 
-        // (b) advance time: fire the earliest pending end (if its end conditions +
-        // invariant still hold). If not applicable, this schedule is invalid.
+        // (b) advance time: fire the earliest pending end (always considered).
         if let Some(&(te, end_op)) = nodes[ni].agenda.first() {
             if task.op_applicable(end_op, &nodes[ni].state) {
                 let ns = task.apply(end_op, &nodes[ni].state);
                 let ag = nodes[ni].agenda[1..].to_vec();
-                push(
+                push_node(
+                    task,
+                    kind,
+                    &mut sc,
                     &mut nodes,
                     &mut heap,
                     &mut visited,
-                    &mut sc,
+                    prune,
                     TNode {
                         state: ns,
                         time: te,
                         agenda: ag,
                         father: ni,
                         ev: Some((end_op, te)),
+                        g: pg + 1,
+                        helpful: Vec::new(),
                     },
                 );
             }
