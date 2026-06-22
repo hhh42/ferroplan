@@ -1,5 +1,17 @@
 # ESPC preference optimization — implementation spec (groundwork)
 
+> **Status update — ESPC is now implemented** (opt-in `FF_ESPC`), see `crate::espc`
+> and the CHANGELOG. The realization differs from the original sketch below in one
+> key way: rather than a soft *occupancy* penalty (which §"Conclusion" correctly
+> found inert), the loop penalizes — on the **concrete** state — once-only
+> conditional achievements that fire *without delivering* (a product made while its
+> orders still wait), and **adapts a per-trigger penalty** across the outer loop
+> with iteration 0 as a penalty-free floor. Measured: it narrows the openstacks gap
+> substantially (p01 63→42 … p08 608→227, ~11–63%) without regressing any instance,
+> but does **not** reach SGPlan's level — consistent with the conclusion below that
+> closing it fully needs a real min-open-stacks scheduler. The notes below are kept
+> as the original design record.
+
 How SGPlan5 (Hsu, Wah, Huang & Chen, IPC-2006) gets good metrics on hard PDDL3
 **preference** problems, distilled from deep research (primary sources: IJCAI-2007
 #310; AIJ-2006 Wah & Chen; IPC-2006 booklet; ICAPS-06 workshop). This is the

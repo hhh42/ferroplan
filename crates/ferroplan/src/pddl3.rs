@@ -651,7 +651,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
 }
 
 /// Final value of the cost fluent after executing `ops` from the initial state.
-fn plan_cost(task: &PackedTask, ops: &[usize], cf: usize) -> f64 {
+pub(crate) fn plan_cost(task: &PackedTask, ops: &[usize], cf: usize) -> f64 {
     let mut s = task.initial();
     for &oi in ops {
         s = task.apply(oi, &s);
@@ -773,13 +773,64 @@ pub fn metric_optimize(
         }
     }
 
+    // ESPC make-deadline guidance. Penalizes once-only conditional achievements
+    // that fire without delivering (openstacks: a product made while its orders
+    // still wait — a permanently locked metric loss the delete-relaxed RPG is blind
+    // to). Built unconditionally (pure analysis, inert on domains without the
+    // structure); only the heap WEIGHT is gated, so the default path stays
+    // bit-identical until a flag is set.
+    sat.deadline = build_deadline_guidance(task, forgos);
+    let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
+
+    // FULL ESPC (FF_ESPC): an adaptive per-trigger penalty-resolution outer loop.
+    // It re-solves under fixed penalties, raises the penalty on triggers whose
+    // deliveries were missed, and keeps the best plan as an anytime incumbent,
+    // terminating at a saddle point / stall / budget. Auto-tunes the penalty per
+    // instance (no manual weight) and never claims optimality. See `crate::espc`
+    // and docs/espc-preferences-spec.md.
+    if std::env::var("FF_ESPC").is_ok() && !sat.deadline.is_empty() {
+        return crate::espc::espc_optimize(
+            task,
+            cost_fluent,
+            &mut sat,
+            best.clone(),
+            threads,
+            refine_cfg,
+        )
+        .map(|r| MetricResult {
+            ops: r.ops,
+            cost: r.cost,
+            iterations: r.iterations,
+            proven: false, // anytime: a saddle point is not a global-optimality proof
+        })
+        .or_else(|| {
+            best.map(|(ops, cost)| MetricResult {
+                ops,
+                cost,
+                iterations: 0,
+                proven: false,
+            })
+        });
+    }
+
+    // Phase-0 lever (OFF by default): a FIXED deadline penalty for manual sweeps /
+    // ablation. With it unset the heap key is bit-identical to the non-ESPC path.
+    if !sat.deadline.is_empty() {
+        sat.deadline_weight = std::env::var("FF_DEADLINE_WEIGHT")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(0);
+        if std::env::var("FF_RES_DEBUG").is_ok() {
+            eprintln!(
+                "[ESPC] {} deadline pair(s), fixed lambda={}",
+                sat.deadline.len(),
+                sat.deadline_weight
+            );
+        }
+    }
+
     // 3. POLISH: bounded B&B from the (now much better) incumbent — reaches the
     // true optimum on small instances; on timeout we keep the incumbent.
-    // (Measured: a 10x eval budget does NOT lower openstacks below the
-    // satisfaction-guided plateau — the residual gap is missing resource-
-    // coordination signal for `stacks-avail`, not search budget — so the cap
-    // stays modest.)
-    let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
     while iterations < MAX_ITERS {
         iterations += 1;
         let (opt, capped) = solve_subgoal_bounded(
@@ -862,5 +913,76 @@ fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance
         res: Vec::new(),
         res_weight: 0,
         res_thresh: 0,
+        deadline: Vec::new(),
+        deadline_weight: 0,
     }
+}
+
+/// Build ESPC make-deadline guidance (see [`SatGuidance::deadline`]). For each
+/// preference deliverable fact `D` (extracted from each `P3COLLECT-i` `phi`, as in
+/// [`build_sat_guidance`]), locate the op whose CONDITIONAL effect adds `D` and that
+/// op's unique unconditional add `M` — the once-only "trigger" (e.g. `(made p)`),
+/// which fires at most once because the op requires its own trigger absent. Emit
+/// `(M, D, value)` where `value` is the summed weight of the preferences that
+/// require `D`, so a deliverable shared by the weight-1/2/4 chain is valued highest.
+/// Returns empty on domains without this conditional-achievement structure (⇒ inert),
+/// in a deterministic, hashmap-iteration-independent order.
+fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u32, u32, i64)> {
+    use std::collections::{HashMap, HashSet};
+    // P3COLLECT-i op per preference index (mirrors build_sat_guidance).
+    let mut collect_op: HashMap<usize, usize> = HashMap::new();
+    for oi in 0..task.n_ops {
+        if let Some(rest) = task.op_display[oi]
+            .to_ascii_uppercase()
+            .strip_prefix("P3COLLECT-")
+        {
+            if let Ok(i) = rest.trim().parse::<usize>() {
+                collect_op.insert(i, oi);
+            }
+        }
+    }
+    // value[D] = Σ weight over preferences whose phi (P3COLLECT precondition,
+    // minus synthetic P3* control facts) contains the deliverable fact D.
+    let mut value: HashMap<u32, i64> = HashMap::new();
+    for (i, (_, weight)) in forgos.iter().enumerate() {
+        let Some(&oi) = collect_op.get(&i) else {
+            continue;
+        };
+        let w = (*weight).round().max(1.0) as i64;
+        for &f in task.pre_pos.slice(oi) {
+            if task.fact_names[f as usize]
+                .to_ascii_uppercase()
+                .starts_with("(P3")
+            {
+                continue;
+            }
+            *value.entry(f).or_insert(0) += w;
+        }
+    }
+    if value.is_empty() {
+        return Vec::new();
+    }
+    // For each deliverable D, find its conditional achiever op and that op's
+    // UNIQUE unconditional trigger M (skip ops with non-unique unconditional adds —
+    // they aren't the clean once-only achiever this models).
+    let mut out: Vec<(u32, u32, i64)> = Vec::new();
+    let mut seen: HashSet<(u32, u32)> = HashSet::new();
+    for oi in 0..task.n_ops {
+        let uncond = task.add.slice(oi);
+        if uncond.len() != 1 {
+            continue;
+        }
+        let trigger = uncond[0];
+        for ce in task.cond.slice(oi) {
+            for &d in &ce.add {
+                if let Some(&val) = value.get(&d) {
+                    if seen.insert((trigger, d)) {
+                        out.push((trigger, d, val));
+                    }
+                }
+            }
+        }
+    }
+    out.sort_unstable();
+    out
 }

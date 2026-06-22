@@ -27,6 +27,18 @@ Initial public release.
   with makespan. Plans validated against VAL on real IPC domains (44/45 valid);
   an independent in-crate validator (`temporal::validate`).
 - SGPlan-style partition-and-resolve mode.
+- **ESPC penalty-resolution loop** (`FF_ESPC`, opt-in) — SGPlan's Extended
+  Saddle-Point Condition adaptive penalty coordination, applied to the PDDL3
+  preference metric path. It penalizes, on the *concrete* state, once-only
+  conditional achievements that fire without delivering (openstacks: a product
+  made while its orders still wait — a permanently lost preference the
+  delete-relaxed heuristic is blind to), and adapts a **per-trigger** penalty
+  across an outer loop, keeping the best plan as an anytime incumbent. Iteration 0
+  runs the penalty-free B&B as a floor, so the loop can only improve, never
+  regress. Substantially narrows the metric-quality gap on openstacks (p01 63→42,
+  p05 138→81, p07 278→142, p08 608→227); inert on domains without the structure
+  and bit-identical to the prior default when off. Auto-tunes per instance (no
+  manual weight); never claims optimality. See `docs/espc-preferences-spec.md`.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.
@@ -76,10 +88,13 @@ Initial public release.
 
 ### Known limitations
 - Numeric domains trail Metric-FF (EHC falls back to best-first on some).
-- IPC-5 preference metric *quality* on the hardest instances trails SGPlan6;
-  retroactively, ferroplan places ~2nd in the field (SGPlan5 swept). The mutex /
-  partition groundwork is in; the openstacks resource-penalty loop is pending
-  (see `docs/espc-preferences-spec.md`).
+- IPC-5 preference metric *quality* on the hardest instances still trails SGPlan6;
+  retroactively, ferroplan places ~2nd in the field (SGPlan5 swept). The opt-in
+  ESPC penalty-resolution loop (`FF_ESPC`, see above and
+  `docs/espc-preferences-spec.md`) narrows the openstacks gap substantially
+  (~11–63% per instance) but does not close it — reaching SGPlan's level needs a
+  dedicated minimum-open-stacks scheduler, not a relaxation-guided search. ESPC is
+  off by default while the cross-domain sweep matures.
 - The metric branch-and-bound does not scale to instances with hundreds of
   preferences (e.g. storage p05+) — the Keyder–Geffner compilation grows large.
 - Temporal coverage is search-limited on the largest *monolithic* instances; the

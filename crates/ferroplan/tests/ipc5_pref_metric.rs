@@ -25,6 +25,49 @@ fn openstacks_beats_all_forgo_floor() {
 }
 
 #[test]
+fn default_metric_matches_independent_verifier() {
+    // W1 oracle: every default plan must be valid (hard goal met), and where the
+    // independent verifier is authoritative the reported metric must equal the
+    // replay-scored metric. Exact-match is asserted only for openstacks — the ESPC
+    // target, whose preferences are simple atomic deliveries the phase-1 verifier
+    // scores exactly. The others are validity-only: rovers folds a monotone numeric
+    // term the preference-only verifier doesn't recompute, and tpp/storage/trucks/
+    // pathways have preference bodies with INNER quantifiers (e.g. tpp's p4A
+    // `(forall (?m) ...)`) that the verifier evaluates best-effort (verify.rs:74-76),
+    // so its count is not authoritative there.
+    let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../benchmarks/ipc/pref");
+    for (d, exact) in [
+        ("openstacks", true),
+        ("tpp", false),
+        ("storage", false),
+        ("trucks", false),
+        ("pathways", false),
+        ("rovers", false),
+    ] {
+        let dom = fs::read_to_string(format!("{base}/{d}/domain.pddl")).unwrap();
+        let prob = fs::read_to_string(format!("{base}/{d}/p01.pddl")).unwrap();
+        let sol = solve(&dom, &prob, &Options::default()).unwrap();
+        assert!(sol.solved, "{d}/p01 should solve");
+        let plan = sol.plan.expect("plan");
+        let reported = plan.metric.expect("metric");
+        let steps: Vec<(String, Vec<String>)> = plan
+            .steps
+            .iter()
+            .map(|s| (s.action.clone(), s.args.clone()))
+            .collect();
+        let v = ferroplan::verify::verify(&dom, &prob, &steps).unwrap();
+        assert!(v.hard_goal_met, "{d}/p01 plan must meet the hard goal");
+        if exact {
+            assert!(
+                (v.metric - reported).abs() < 1e-6,
+                "{d}/p01 reported {reported} != independently verified {}",
+                v.metric
+            );
+        }
+    }
+}
+
+#[test]
 fn ipc5_pref_metric_no_regression() {
     // p01 snapshot ceilings with satisfaction-guidance (must not regress upward)
     for (d, ceiling) in [

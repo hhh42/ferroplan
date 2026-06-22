@@ -112,6 +112,17 @@ pub struct SatGuidance {
     /// 0 penalizes all occupancy; a value near capacity penalizes only the
     /// dead-end zone (all stacks committed) without suppressing normal pipelining.
     pub res_thresh: i64,
+    /// ESPC make-deadline guidance: `(trigger fact, deliverable fact, value)`
+    /// triples. A **locked loss** — `trigger` present, `deliverable` absent — means
+    /// a once-only conditional achievement (e.g. openstacks' `make-product`, which
+    /// can fire only while `(not (made p))`) already fired WITHOUT delivering, so
+    /// `value` of metric is permanently forfeit. The delete-relaxed RPG is blind to
+    /// this (it can re-add the deliverable); reading it on the CONCRETE state steers
+    /// the search to satisfy the enabling condition (start the order) BEFORE the
+    /// trigger fires. Empty / weight 0 ⇒ inert (heap key bit-identical to today).
+    pub deadline: Vec<(u32, u32, i64)>,
+    /// λ multiplier for the deadline term (0 disables it; keeps the key integer).
+    pub deadline_weight: i64,
 }
 
 impl SatGuidance {
@@ -141,6 +152,15 @@ impl SatGuidance {
             for r in &self.res {
                 let over = (r.occupancy(&s.bits) as i64 - self.res_thresh).max(0);
                 pen += self.res_weight * over * over;
+            }
+        }
+        if self.deadline_weight != 0 {
+            for &(trigger, deliverable, val) in &self.deadline {
+                if crate::bitset::test(&s.bits, trigger as usize)
+                    && !crate::bitset::test(&s.bits, deliverable as usize)
+                {
+                    pen += self.deadline_weight * val;
+                }
             }
         }
         pen
