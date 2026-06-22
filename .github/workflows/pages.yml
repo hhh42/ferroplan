@@ -23,9 +23,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install mdBook
         run: cargo install mdbook --version "^0.4" --locked
-      - name: Generate benchmark results
-        run: python3 benchmarks/run.py --timeout 30
-      - name: Wire results into the book
+      # Publish the committed benchmark numbers as-is — they're machine-dependent
+      # (generated locally per benchmarks/COMPARING.md), so re-running the suite on a
+      # CI runner is slow and not meaningful. Regenerate locally + commit when needed.
+      - name: Wire benchmark results into the book
         run: cp benchmarks/results.md book/src/results.md
       - name: Build the in-browser planner demo (WASM)
         run: |
