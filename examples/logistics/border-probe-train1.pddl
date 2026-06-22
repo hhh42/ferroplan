@@ -1,0 +1,11 @@
+;; Border control: one train, one box already at railA, deliver to railB.
+(define (problem log-train1) (:domain logistics)
+  (:objects railA railB - location tn - train box - package)
+  (:init (is-train tn) (rail-depot railA) (rail-depot railB)
+    (rail railA railB) (rail railB railA)
+    (= (dist railA railB) 5) (= (dist railB railA) 5)
+    (at-veh tn railA)
+    (= (capacity tn) 8) (= (aboard tn) 0)
+    (= (stock railA box) 1) (= (stock railB box) 0)
+    (= (load tn box) 0))
+  (:goal (>= (stock railB box) 1)))

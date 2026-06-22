@@ -57,3 +57,8 @@ they land on the **temporal-heuristic** work in #45 (a landmark / non-delete-
 relaxation heuristic would restore the gradient on DAGs, conjunctions, and cycles).
 None are correctness bugs — every failure is a *coverage* limit on a
 solvable-in-principle problem, which is exactly the map we wanted.
+
+The **exact thresholds** for each shape (binary-searched), plus the decomposition
+ruleset for the subproblem-maker, are in [`../../BORDERS.md`](../../BORDERS.md) —
+e.g. linear accumulation solves to ~2000 ops, travel to ~100 hops, a converging
+recipe to exactly 1 fresh sub-chain.

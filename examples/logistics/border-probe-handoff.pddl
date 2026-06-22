@@ -1,0 +1,11 @@
+;; Border control: 1 box, truck1 a->m, drop at m, truck2 m->b. No rail at all.
+(define (problem log-handoff) (:domain logistics)
+  (:objects a m b - location t1 t2 - truck box - package)
+  (:init (is-truck t1) (is-truck t2)
+    (road a m) (road m a) (road m b) (road b m)
+    (= (dist a m) 3) (= (dist m a) 3) (= (dist m b) 3) (= (dist b m) 3)
+    (at-veh t1 a) (at-veh t2 m)
+    (= (capacity t1) 4) (= (aboard t1) 0) (= (capacity t2) 4) (= (aboard t2) 0)
+    (= (stock a box) 1) (= (stock m box) 0) (= (stock b box) 0)
+    (= (load t1 box) 0) (= (load t2 box) 0))
+  (:goal (>= (stock b box) 1)))

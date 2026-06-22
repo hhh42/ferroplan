@@ -1,0 +1,11 @@
+;; Border control: P4 with TWO boxes. Smallest multi-unit case.
+(define (problem log-p4b) (:domain logistics)
+  (:objects a b c - location t1 - truck box - package)
+  (:init (is-truck t1)
+    (road a b) (road b a) (road b c) (road c b)
+    (= (dist a b) 3) (= (dist b a) 3) (= (dist b c) 3) (= (dist c b) 3)
+    (at-veh t1 a)
+    (= (capacity t1) 3) (= (aboard t1) 0)
+    (= (stock a box) 2) (= (stock b box) 0) (= (stock c box) 0)
+    (= (load t1 box) 0))
+  (:goal (>= (stock c box) 2)))
