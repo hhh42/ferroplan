@@ -7,6 +7,8 @@ carrying packages, and load/unload happens at depots. Goal = packages delivered 
 their destinations. This is routing + capacity + transshipment — a distinct
 sub-problem type.
 
+![logistics in the ferroplan-bevy visualizer — location circles joined by gray road edges and a blue rail edge, with a package box and truck/train mobiles](../../book/src/images/logistics-graph.png)
+
 ## Problems & the border
 
 | problem | what | result |

@@ -21,6 +21,19 @@ scroll zooms, click inspects a node, and you can drag a node to reposition it.
 ![A delivery problem as a typed graph: location nodes (circles) joined by `road` edges, with package/truck mobiles (squares) sitting on the node they're currently at.](images/graph.png)
 *The problem as a typed graph — locations are circles, mobiles are squares, `road` predicates are edges. The side panel shows the inspected object and the goal.*
 
+The icons and edge colors are inferred from the PDDL — there's no per-domain
+config. A **logistics** problem shows the package as a box and trucks/train as
+mobiles, with rail legs drawn in blue and roads in gray:
+
+![A logistics problem: location nodes joined by gray road edges and a blue rail edge, a package box, and truck/train mobiles.](images/logistics-graph.png)
+*Logistics — rail (blue) vs road (gray) edges are distinguished automatically.*
+
+A **job-shop** schedule shows machines as octagons, jobs as boxes, and the stage
+routing (`s1→s2→s3`) in amber:
+
+![A job-shop problem: stage nodes joined by amber routing edges, machines as octagons, and jobs as boxes.](images/jobshop-graph.png)
+*Job-shop — machines (octagons), jobs (boxes), and stage routing (amber).*
+
 ## Animate the plan
 
 Press **S** to solve (it calls the same `ferroplan::solve` the CLI uses) and

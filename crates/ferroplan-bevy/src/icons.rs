@@ -14,6 +14,7 @@ pub enum IconShape {
     Box,     // packages / items
     Person,  // agents / people
     Robot,   // robots / rovers
+    Machine, // machines / workstations (job-shop, factories)
     Diamond, // default
 }
 
@@ -28,9 +29,21 @@ pub fn shape_for(ty: &str) -> IconShape {
         IconShape::Truck
     } else if has(&[
         "PACKAGE", "CRATE", "BOX", "PARCEL", "CARGO", "ITEM", "OBJ", "BALL", "BLOCK", "FUSE",
-        "TILE", "STONE",
+        "TILE", "STONE", "JOB", "TASK", "ORDER", "GOOD", "PRODUCT",
     ]) {
         IconShape::Box
+    } else if has(&[
+        "MACHINE",
+        "MILL",
+        "LATHE",
+        "FORGE",
+        "WORKSTATION",
+        "STATION",
+        "KILN",
+        "ANVIL",
+        "LOOM",
+    ]) {
+        IconShape::Machine
     } else if has(&[
         "PERSON",
         "AGENT",
@@ -66,6 +79,7 @@ fn mesh_for(shape: IconShape, s: f32) -> Mesh {
         IconShape::Box => Rectangle::new(s * 0.72, s * 0.72).into(),
         IconShape::Person => RegularPolygon::new(s * 0.6, 3).into(),
         IconShape::Robot => RegularPolygon::new(s * 0.58, 6).into(),
+        IconShape::Machine => RegularPolygon::new(s * 0.56, 8).into(),
         IconShape::Diamond => RegularPolygon::new(s * 0.6, 4).into(),
     }
 }

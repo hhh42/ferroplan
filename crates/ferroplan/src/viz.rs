@@ -32,8 +32,11 @@ const EDGE_NAMES: &[&str] = &[
     "CAN-MOVE",
     "CAN-TRAVERSE",
     "VISIBLE",
+    "RAIL",
 ];
-const POSITION_NAMES: &[&str] = &["AT", "IN", "ON", "LOCATED", "INSIDE", "AT-ROBBY", "HOLDING"];
+const POSITION_NAMES: &[&str] = &[
+    "AT", "IN", "ON", "LOCATED", "INSIDE", "AT-ROBBY", "HOLDING", "AT-VEH", "AT-STAGE",
+];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum PredKind {

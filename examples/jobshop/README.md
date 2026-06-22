@@ -8,6 +8,8 @@ Goal = all jobs complete; the planner overlaps different jobs on free machines.
 
 Regenerate the ladder with `../../benchmarks/scale/gen_jobshop.py`.
 
+![jobshop in the ferroplan-bevy visualizer — stage nodes joined by amber routing edges, machines as octagons, and jobs as boxes](../../book/src/images/jobshop-graph.png)
+
 ## The ladder & the border
 
 | problem | size (jobs×stages×machines ≈ groundings) | result |

@@ -202,7 +202,13 @@ pub fn draw_edges(mut gizmos: Gizmos, scene: Res<Scene>, nodes: Query<(&NodeObj,
         .collect();
     for e in &scene.graph.edges {
         if let (Some(&a), Some(&b)) = (pos.get(e.a.as_str()), pos.get(e.b.as_str())) {
-            gizmos.line_2d(a, b, Color::srgb(0.4, 0.4, 0.45));
+            // color by relation kind: rail line vs road vs job-shop stage order
+            let color = match e.pred.to_ascii_uppercase().as_str() {
+                "RAIL" => Color::srgb(0.45, 0.62, 0.88),
+                "NEXT" => Color::srgb(0.85, 0.66, 0.36),
+                _ => Color::srgb(0.4, 0.4, 0.45),
+            };
+            gizmos.line_2d(a, b, color);
         }
     }
 }
