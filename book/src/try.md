@@ -7,7 +7,9 @@ server, no install, nothing leaves your machine.
 
 **Pick a built-in example** from the dropdown — gripper, numeric resources, ADL,
 derived axioms, PDDL3 preferences, temporal/durative, logistics, a job shop, or one
-of the RPG-world scenarios — or **paste your own** PDDL **domain** + **problem**.
+of the RPG-world scenarios (including a **border** example that shows where a
+monolithic goal stops solving in one shot and must be decomposed) — or **paste your
+own** PDDL **domain** + **problem**.
 Choose a mode (`auto` routes by problem features), hit **Plan**, and the plan is
 computed in your browser by the same Rust planner core compiled to WASM. It runs the
 gripper example on load so you see a plan immediately.

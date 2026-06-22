@@ -38,11 +38,12 @@
   <span class="tag">a fast PDDL planner in Rust — running entirely in your browser via WebAssembly</span>
 </header>
 <main>
-  <div class="bar" style="margin:0 0 14px">
+  <div class="bar" style="margin:0 0 6px">
     <label for="example" style="margin:0">load example</label>
     <select id="example"></select>
     <span class="stat">— or paste your own below</span>
   </div>
+  <div id="hint" class="stat" style="margin:0 0 12px 2px"></div>
   <div class="row">
     <div class="col">
       <label for="dom">Domain</label>
@@ -91,6 +92,7 @@ function loadExample(i) {
   $('dom').value = ex.domain;
   $('prob').value = ex.problem;
   if (ex.mode) $('mode').value = ex.mode;
+  $('hint').textContent = ex.note || '';
 }
 sel.addEventListener('change', () => { loadExample(+sel.value); if (!go.disabled) go.click(); });
 loadExample(0); // gripper by default
