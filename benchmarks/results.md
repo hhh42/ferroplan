@@ -4,7 +4,7 @@
 subset of the IPC contest suites (classical STRIPS, numeric, ADL, and IPC-5
 simple-preferences). Generated locally with a native arm64 Metric-FF build and
 SGPlan6 under Docker — the oracles are **not bundled** (GPL / non-commercial
-licences); see [COMPARING.md](https://github.com/haroldhhersey/ferroplan/blob/master/benchmarks/COMPARING.md) to reproduce.
+licences); see [COMPARING.md](https://github.com/hhh42/ferroplan/blob/master/benchmarks/COMPARING.md) to reproduce.
 
 > Absolute times are machine- and load-dependent; only *ratios within a single
 > run* are meaningful. Default ferroplan search is enforced hill-climbing (EHC)
@@ -71,5 +71,5 @@ resolution) — or simply a longer/smarter metric optimizer — would help.
 ## Reproduce
 
 Vendored micro-suite: `cargo bench` (criterion, ferroplan-internal). Cross-planner
-comparison: [`compare.py`](https://github.com/haroldhhersey/ferroplan/blob/master/benchmarks/compare.py) with the oracles, per
-[COMPARING.md](https://github.com/haroldhhersey/ferroplan/blob/master/benchmarks/COMPARING.md).
+comparison: [`compare.py`](https://github.com/hhh42/ferroplan/blob/master/benchmarks/compare.py) with the oracles, per
+[COMPARING.md](https://github.com/hhh42/ferroplan/blob/master/benchmarks/COMPARING.md).

@@ -1,7 +1,7 @@
 # Install & quick start
 
 ```sh
-git clone https://github.com/haroldhhersey/ferroplan
+git clone https://github.com/hhh42/ferroplan
 cd ferroplan
 cargo build --release      # -> target/release/ff
 ```

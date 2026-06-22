@@ -4,8 +4,8 @@
 
 # ferroplan
 
-[![CI](https://github.com/haroldhhersey/ferroplan/actions/workflows/ci.yml/badge.svg)](https://github.com/haroldhhersey/ferroplan/actions/workflows/ci.yml)
-[![docs](https://img.shields.io/badge/docs-mdbook-blue)](https://haroldhhersey.github.io/ferroplan)
+[![CI](https://github.com/hhh42/ferroplan/actions/workflows/ci.yml/badge.svg)](https://github.com/hhh42/ferroplan/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/badge/docs-mdbook-blue)](https://hhh42.github.io/ferroplan)
 [![license](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 A fast, data-parallel **PDDL planner** in Rust — a deterministic planning core for
@@ -189,7 +189,7 @@ the IPC contest suites. Headline (native Metric-FF, EHC default):
 | numeric | 36/40 | 0.22× |
 
 Full results + the IPC-5 preference scoreboard: [`benchmarks/results.md`](benchmarks/results.md)
-(and the [project site](https://haroldhhersey.github.io/ferroplan)). The oracles
+(and the [project site](https://hhh42.github.io/ferroplan)). The oracles
 are not bundled (GPL / non-commercial licences) — reproduce per
 [`benchmarks/COMPARING.md`](benchmarks/COMPARING.md).
 

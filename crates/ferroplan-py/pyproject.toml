@@ -17,7 +17,7 @@ classifiers = [
 ]
 
 [project.urls]
-Repository = "https://github.com/haroldhhersey/ferroplan"
+Repository = "https://github.com/hhh42/ferroplan"
 
 [tool.maturin]
 # abi3 wheel — one build works across Python 3.8+

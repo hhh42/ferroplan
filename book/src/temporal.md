@@ -73,7 +73,7 @@ forces tasks to serialize, a larger pool lets them overlap. **Consumable**
 resources (materials) are the same idea without the release — produced and
 consumed by a crafting chain (`wood → planks`, `planks + stone → house`).
 
-See [`examples/rpg/`](https://github.com/haroldhhersey/ferroplan/tree/main/examples/rpg)
+See [`examples/rpg/`](https://github.com/hhh42/ferroplan/tree/master/examples/rpg)
 for a full gather → craft → build example; the same problem with `(= (workers) 1)`
 vs `3` plans serially (makespan ~19) vs in parallel (~13). Plans are satisficing,
 not makespan-optimal — a good plan fast, suited to an agent that plans, acts, and
@@ -88,7 +88,7 @@ snap-action compilation, `over all` invariants, required concurrency, and
 ε-separation are correct. (Testing against VAL is what surfaced the ε-separation
 requirement in the first place.) Coverage is currently **search-limited**: at a
 short budget many instances time out or the decision-epoch search exhausts. See
-[`benchmarks/temporal-results.md`](https://github.com/haroldhhersey/ferroplan/blob/main/benchmarks/temporal-results.md).
+[`benchmarks/temporal-results.md`](https://github.com/hhh42/ferroplan/blob/master/benchmarks/temporal-results.md).
 
 ## Not yet supported
 

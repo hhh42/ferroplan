@@ -74,7 +74,7 @@ Two harnesses, with a deliberate division of labor:
 
 The ranked backlog of remaining optimizations (generation-counter `Scratch`
 reset, preferred-operator best-first, `apply_into` clone-on-survival) lives in
-[`docs/perf-notes.md`](https://github.com/haroldhhersey/ferroplan/blob/main/docs/perf-notes.md),
+[`docs/perf-notes.md`](https://github.com/hhh42/ferroplan/blob/master/docs/perf-notes.md),
 along with the methodology caveats learned the hard way (notably: `atos`
 mis-attributes inlined hot code on optimized builds — trust the de-noised
 profile, not the raw top symbols).
