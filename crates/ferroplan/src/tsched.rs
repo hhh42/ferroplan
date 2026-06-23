@@ -15,9 +15,13 @@
 //! help, never produce a wrong plan.
 //!
 //! **Convention.** The *actor* is the first parameter of each durative action (e.g.
-//! `(?w - worker …)`); actors are the problem objects of that type. Effects that
-//! depend on *which* actor (a `(when (lumberjack ?w) …)`) would change when an action
-//! is reassigned, so a domain meant for this pass keeps workers interchangeable.
+//! `(?w - worker …)`); actors are the problem objects of that type. A task's
+//! actor-referencing PRECONDITIONS are its required **skills** (e.g. `(smith ?w)`) —
+//! a worker is eligible only if they hold for it in the init state, so skill-gated
+//! tasks go only to workers who can do them (location works the same way). Effects
+//! that depend on *which* actor (a `(when (lumberjack ?w) …)`) would change when an
+//! action is reassigned, so a domain meant for this pass keeps actor *effects*
+//! interchangeable — only preconditions/skills may differ between workers.
 
 use crate::temporal::{validate, TimedPlan, TimedStep};
 use crate::types::{AssignOp, Domain, Effect, Formula, Problem, Sym, Term, TimeSpec};
@@ -59,6 +63,12 @@ pub fn reschedule(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
         .iter()
         .map(|(p, a)| (atom_key(p, a), 0.0))
         .collect();
+    // static init facts — used to test which workers are eligible for a skill-gated task
+    let init_set: std::collections::HashSet<String> = problem
+        .init_atoms
+        .iter()
+        .map(|(p, a)| atom_key(p, a))
+        .collect();
     let mut actor_free = vec![0.0f64; actors.len()];
 
     let balance = |events: &[(f64, String, f64)], key: &str, t: f64| -> f64 {
@@ -99,16 +109,20 @@ pub fn reschedule(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
         let produces = collect_num(da, TimeSpec::End, AssignOp::Increase, &bind);
         let prereqs = collect_atoms(da, TimeSpec::Start, &bind, &actor_var);
         let adds = collect_added(da, TimeSpec::End, &bind, &actor_var);
+        // actor-referencing preconditions = this task's required SKILLS (and location):
+        // a worker may do it only if these hold for it in the init state.
+        let reqs = collect_actor_reqs(da, TimeSpec::Start, &actor_var);
 
         // earliest the prerequisites (build-order predicates) hold
         let prereq_t = prereqs
             .iter()
             .map(|a| fact_ready.get(a).copied().unwrap_or(0.0))
             .fold(0.0f64, f64::max);
-        // pick the actor that frees earliest
-        let ai = (0..actor_free.len())
-            .min_by(|&a, &b| actor_free[a].total_cmp(&actor_free[b]))
-            .unwrap();
+        // pick the earliest-free actor that is ELIGIBLE (has the required skills); if
+        // none qualifies, bail (`?` → None) so solve falls back to an honest search.
+        let ai = (0..actors.len())
+            .filter(|&i| eligible(&actors[i], &reqs, &bind, &actor_var, &init_set))
+            .min_by(|&a, &b| actor_free[a].total_cmp(&actor_free[b]))?;
         let lb = prereq_t.max(actor_free[ai]);
 
         // earliest time ≥ lb at which every consumed resource has enough balance
@@ -170,41 +184,137 @@ pub fn reschedule(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
         makespan,
     };
 
-    // only accept a genuine, *valid* improvement
-    if makespan + EPS < plan.makespan && validate(domain, problem, &rescheduled).is_ok() {
+    // accept any VALID schedule no worse than the input (the reassignment to real
+    // skilled workers is itself necessary when the search used a super-worker).
+    if makespan <= plan.makespan + EPS && validate(domain, problem, &rescheduled).is_ok() {
         Some(rescheduled)
     } else {
         None
     }
 }
 
-/// A copy of `problem` keeping only the FIRST actor object (and dropping any init
-/// facts that mention the others), so the causal search runs on a tractable, single-
-/// actor reduction — the search is flaky with many symmetric actors, but a lone
-/// worker can do the whole job sequentially. [`reschedule`] then distributes that
-/// plan across the full crew. Returns the problem unchanged if there's no actor type
-/// or fewer than two actors.
+/// Actor-referencing precondition atoms at `when` (the actor variable appears in the
+/// args). These are the task's required capabilities — skills, and the work location.
+fn collect_actor_reqs(
+    da: &crate::types::DurativeAction,
+    when: TimeSpec,
+    actor_var: &str,
+) -> Vec<(Sym, Vec<Term>)> {
+    let mut acc = Vec::new();
+    for (t, f) in &da.conditions {
+        if *t == when {
+            walk_reqs(f, actor_var, &mut acc);
+        }
+    }
+    acc
+}
+
+fn walk_reqs(f: &Formula, actor_var: &str, acc: &mut Vec<(Sym, Vec<Term>)>) {
+    match f {
+        Formula::And(fs) => fs.iter().for_each(|x| walk_reqs(x, actor_var, acc)),
+        Formula::Atom(p, args)
+            if args
+                .iter()
+                .any(|t| matches!(t, Term::Var(v) if up(v) == actor_var)) =>
+        {
+            acc.push((p.clone(), args.clone()));
+        }
+        _ => {}
+    }
+}
+
+/// Is `worker` eligible for a task — do all its actor-referencing preconditions hold
+/// (substituting this worker for the actor variable) as static init facts?
+fn eligible(
+    worker: &str,
+    reqs: &[(Sym, Vec<Term>)],
+    bind: &HashMap<String, String>,
+    actor_var: &str,
+    init_set: &std::collections::HashSet<String>,
+) -> bool {
+    reqs.iter().all(|(p, args)| {
+        let ground: Option<Vec<Sym>> = args
+            .iter()
+            .map(|t| match t {
+                Term::Var(v) if up(v) == actor_var => Some(worker.to_string()),
+                Term::Var(v) => bind.get(&up(v)).cloned(),
+                Term::Const(c) => Some(up(c)),
+            })
+            .collect();
+        ground
+            .map(|g| init_set.contains(&atom_key(p, &g)))
+            .unwrap_or(false)
+    })
+}
+
+/// Number of actor-typed objects in `problem` (0 if the domain has no durative
+/// actions / actor type).
+pub fn n_actors(domain: &Domain, problem: &Problem) -> usize {
+    match actor_type(domain) {
+        Some(at) => problem
+            .objects
+            .iter()
+            .filter(|(_, t)| up(t) == up(&at))
+            .count(),
+        None => 0,
+    }
+}
+
+/// A copy of `problem` reduced to a single **super-worker**: keep the first actor
+/// object, drop the rest, and grant the kept one the UNION of every actor's init
+/// properties (skills, location, …). The causal search is flaky with many symmetric
+/// actors, so it runs on this lone worker — who can do the whole job, including
+/// skill-gated tasks. [`reschedule`] then reassigns each task to a REAL worker that
+/// actually has the required skill. Returns the problem unchanged if there are fewer
+/// than two actors.
 pub fn single_actor_problem(domain: &Domain, problem: &Problem) -> Problem {
     let Some(at) = actor_type(domain) else {
         return problem.clone();
     };
-    let actors: Vec<&Sym> = problem
+    let actors: Vec<String> = problem
         .objects
         .iter()
         .filter(|(_, t)| up(t) == up(&at))
-        .map(|(o, _)| o)
+        .map(|(o, _)| up(o))
         .collect();
     if actors.len() < 2 {
         return problem.clone();
     }
-    let keep = up(actors[0]);
-    let dropped: std::collections::HashSet<String> = actors.iter().skip(1).map(|o| up(o)).collect();
+    let keep = actors[0].clone();
+    let others: std::collections::HashSet<String> = actors.iter().skip(1).cloned().collect();
     let mut p = problem.clone();
+
+    // Union every other actor's properties onto `keep` (replace the other-actor arg
+    // with `keep`), so the lone worker satisfies every skill precondition.
+    let mut have: std::collections::HashSet<String> =
+        p.init_atoms.iter().map(|(pr, a)| atom_key(pr, a)).collect();
+    let mut extra: Vec<(Sym, Vec<Sym>)> = Vec::new();
+    for (pr, args) in &p.init_atoms {
+        if args.iter().any(|a| others.contains(&up(a))) {
+            let na: Vec<Sym> = args
+                .iter()
+                .map(|a| {
+                    if others.contains(&up(a)) {
+                        keep.clone()
+                    } else {
+                        up(a)
+                    }
+                })
+                .collect();
+            let k = atom_key(pr, &na);
+            if have.insert(k) {
+                extra.push((pr.clone(), na));
+            }
+        }
+    }
+    p.init_atoms.extend(extra);
+
+    // drop the other actors + any remaining facts mentioning them
     p.objects.retain(|(o, t)| up(t) != up(&at) || up(o) == keep);
     p.init_atoms
-        .retain(|(_, args)| !args.iter().any(|a| dropped.contains(&up(a))));
+        .retain(|(_, args)| !args.iter().any(|a| others.contains(&up(a))));
     p.init_fluents
-        .retain(|((_, args), _)| !args.iter().any(|a| dropped.contains(&up(a))));
+        .retain(|((_, args), _)| !args.iter().any(|a| others.contains(&up(a))));
     p
 }
 

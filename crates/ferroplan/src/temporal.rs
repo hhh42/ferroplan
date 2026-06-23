@@ -302,9 +302,20 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
     // Validated + only-if-shorter inside `reschedule`, so it can only improve things;
     // if the reduction finds nothing we fall through to a normal solve.
     if crate::features::tconc() {
+        // ≥2 actors ⇒ the reduction is a *super-worker* (all skills), so its plan is
+        // only valid for `problem` once reassigned to real skilled workers; <2 ⇒ the
+        // reduction is `problem` itself, so its plan is valid as-is.
+        let reduced = crate::tsched::n_actors(domain, problem) >= 2;
         let solo = crate::tsched::single_actor_problem(domain, problem);
         if let Some(plan) = solve_inner(domain, &solo, threads) {
-            return Some(crate::tsched::reschedule(domain, problem, &plan).unwrap_or(plan));
+            if let Some(rp) = crate::tsched::reschedule(domain, problem, &plan) {
+                return Some(rp);
+            }
+            if !reduced {
+                return Some(plan);
+            }
+            // reduced but couldn't validly reschedule (e.g. a task needs a skill no
+            // single worker has) — fall through to an honest full-problem search.
         }
     }
     solve_inner(domain, problem, threads)
