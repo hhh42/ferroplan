@@ -58,8 +58,15 @@ pub fn run_planner(
     };
 
     // PDDL2.1 temporal: durative actions -> decision-epoch search, IPC plan format.
+    // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B);
+    // default is the monolithic temporal search, byte-identical when the flag is off.
     if crate::temporal::is_temporal(&domain) {
-        match crate::temporal::solve(&domain, &problem, threads) {
+        let solved = if std::env::var("FF_TDECOMP").is_ok() {
+            crate::tresolve::solve(&domain, &problem, threads)
+        } else {
+            crate::temporal::solve(&domain, &problem, threads)
+        };
+        match solved {
             Some(tp) => {
                 out.push_str("\nff: found legal plan as follows\n");
                 out.push_str(&tp.to_ipc());

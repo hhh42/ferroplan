@@ -158,7 +158,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 
 use crate::ground::{ground, Outcome};
 use crate::hash::FxHashMap;
-use crate::heuristic::{relaxed, relaxed_helpful, Scratch};
+use crate::heuristic::{relaxed_helpful, relaxed_to, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet};
@@ -196,7 +196,7 @@ impl TimedPlan {
 }
 
 #[derive(Clone, Copy)]
-enum Kind {
+pub(crate) enum Kind {
     /// durative start: resolved duration (constant or parameter-dependent) + the
     /// matching end op index
     Start {
@@ -308,8 +308,24 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         _ => return None,
     };
 
-    // Resolve each grounded snap-action's duration (constant OR parameter-dependent,
-    // evaluated against the initial state) and pair starts with their end op.
+    let kind = build_kind(&task, &c);
+    solve_from(
+        &task,
+        &kind,
+        &task.initial(),
+        &task.goal_pos,
+        &task.goal_num,
+        &[],
+        threads,
+    )
+}
+
+/// Classify every grounded op as a durative Start (with resolved duration + paired
+/// end op), End, Classical, or Skip (unresolvable). Shared by `solve` and the
+/// decomposer (`tresolve`), built once per grounded task.
+pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
+    // Durations are constant or parameter-dependent (evaluated against the initial
+    // state); pair each start snap with its matching end op.
     let init = task.initial();
     let snap_by_start: HashMap<&str, &SnapInfo> = c
         .snaps
@@ -323,8 +339,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         .enumerate()
         .map(|(i, d)| (d.as_str(), i))
         .collect();
-
-    let kind: Vec<Kind> = (0..task.n_ops)
+    (0..task.n_ops)
         .map(|oi| {
             let disp = &task.op_display[oi];
             let head = disp.split_whitespace().next().unwrap_or("");
@@ -332,7 +347,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                 let args: Vec<&str> = disp.split_whitespace().skip(1).collect();
                 let end_disp = disp.replacen("-START", "-END", 1);
                 match (
-                    eval_duration(snap, &args, &task, &init),
+                    eval_duration(snap, &args, task, &init),
                     by_display.get(end_disp.as_str()),
                 ) {
                     (Some(dur), Some(&end_op)) => Kind::Start { dur, end_op },
@@ -344,14 +359,33 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                 Kind::Classical
             }
         })
-        .collect();
+        .collect()
+}
 
-    // Two-phase decision-epoch search: a fast pass that restricts start/classical
-    // expansion to FF helpful actions (collapses the per-epoch AND per-idle-agent
-    // branching), then the unrestricted pass on failure — so completeness holds by
-    // construction (phase 2 is the full search). Phase-1 key = W_G*g + W_H*h +
-    // W_L*(unmet numeric landmarks); phase 2 is the original pure-h complete search.
-    let landmarks = extract_landmarks(&task);
+/// Solve toward an ARBITRARY `(goal_pos, goal_num)` from an arbitrary `start` state
+/// over a shared grounded temporal task — the reusable subplanner the decomposer
+/// (`tresolve`) calls per contract. `forbidden` masks ops (sibling protection; empty
+/// = none). `temporal::solve` is the whole-task wrapper (start = init, goal = task
+/// goal, no forbidden) and is byte-identical to the pre-refactor search.
+///
+/// Two-phase decision-epoch search: a fast pass restricting start/classical
+/// expansion to FF helpful actions, then the unrestricted complete pass on failure.
+/// Phase-1 key = W_G*g + W_H*h + W_L*(unmet numeric landmarks) + the converging-
+/// resource demand deficit; phase 2 is the original pure-h complete search.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn solve_from(
+    task: &PackedTask,
+    kind: &[Kind],
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+    _threads: usize,
+) -> Option<TimedPlan> {
+    // Landmarks are ALWAYS on (phase-1 key), so seed them from the numeric goal ONLY
+    // — keeping the default path byte-identical. The predicate-goal thresholds (which
+    // would change default ordering) ride the FF_TDEMAND-gated demand seed instead.
+    let landmarks = extract_landmarks(task, goal_num);
     // Converging-resource demand guidance (FF_TDEMAND, default OFF → empty → the
     // phase-1 key is bit-identical to the prior temporal search). Phase 2 (the
     // complete pure-h pass) is unaffected regardless, so completeness is preserved.
@@ -360,7 +394,11 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
             .ok()
             .and_then(|s| s.parse::<i64>().ok())
             .unwrap_or(3);
-        let d = compute_demand(&task, &kind, w);
+        // demand seed = numeric goal + numeric thresholds implied by PREDICATE goals'
+        // achievers (Stage 0), so `(built-wall)` drives the blocks>=4 chain.
+        let mut seed: Vec<NumPre> = goal_num.to_vec();
+        seed.extend(predicate_goal_thresholds(task, kind, goal_pos));
+        let d = compute_demand(task, kind, &seed, w);
         if std::env::var("FF_RES_DEBUG").is_ok() {
             let pretty: Vec<(String, i32)> = d
                 .res
@@ -373,8 +411,14 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
     } else {
         Demand::empty()
     };
-    temporal_search(&task, &kind, &landmarks, &demand, true)
-        .or_else(|| temporal_search(&task, &kind, &landmarks, &demand, false))
+    temporal_search(
+        task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, true,
+    )
+    .or_else(|| {
+        temporal_search(
+            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, false,
+        )
+    })
 }
 
 /// A numeric `>=`/`>` threshold `(fluent, value)`, or `None` if `np` isn't of that
@@ -386,16 +430,46 @@ fn as_threshold(np: &NumPre) -> Option<(u32, f64)> {
     }
 }
 
+/// Numeric `>=` thresholds implied by the achievers of the PREDICATE goal facts: for
+/// each goal fact, the op that adds it (the END snap) gates on numeric preconditions
+/// that live on the matching START snap — bridge END->START via the RUNNING token
+/// exactly as `extract_landmarks` does, and collect those `>=` preconds. Lets a
+/// predicate goal like `(built-wall)` seed the `blocks>=4` demand chain (Stage 0).
+fn predicate_goal_thresholds(task: &PackedTask, kind: &[Kind], goal_pos: &[u32]) -> Vec<NumPre> {
+    let mut out: Vec<NumPre> = Vec::new();
+    let collect_thr = |oi: usize, out: &mut Vec<NumPre>| {
+        for pre in task.pre_num.slice(oi) {
+            if as_threshold(pre).is_some() {
+                out.push(pre.clone());
+            }
+        }
+    };
+    for &gf in goal_pos {
+        for &oi in task.add_by_fact.slice(gf as usize) {
+            let oi = oi as usize;
+            collect_thr(oi, &mut out); // classical / direct numeric precond
+            for &f in task.pre_pos.slice(oi) {
+                for &start in task.add_by_fact.slice(f as usize) {
+                    if matches!(kind[start as usize], Kind::Start { .. }) {
+                        collect_thr(start as usize, &mut out); // bridged START precond
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Numeric-threshold landmarks: the transitive closure of the `>=` preconditions of
 /// the ops that *increase* each goal fluent. The delete-relaxed extraction drops
 /// these (it never recurses on `pre_num`), so on a converging DAG — where two inputs
 /// are separate numeric thresholds feeding one join — `h` goes flat. Counting how
 /// many a state has NOT met gives each converging input its own descending term in
 /// the phase-1 key, restoring the gradient the FF count lacks.
-fn extract_landmarks(task: &PackedTask) -> Vec<NumPre> {
+fn extract_landmarks(task: &PackedTask, seed: &[NumPre]) -> Vec<NumPre> {
     let mut out: Vec<NumPre> = Vec::new();
     let mut seen: HashSet<(u32, u64)> = HashSet::new();
-    let mut work: Vec<NumPre> = task.goal_num.clone();
+    let mut work: Vec<NumPre> = seed.to_vec();
     let mut iters = 0usize;
     while let Some(np) = work.pop() {
         iters += 1;
@@ -511,13 +585,12 @@ fn best_producer(task: &PackedTask, t: u32) -> Option<(usize, i32)> {
     best
 }
 
-fn compute_demand(task: &PackedTask, kind: &[Kind], weight: i64) -> Demand {
+fn compute_demand(task: &PackedTask, kind: &[Kind], seed: &[NumPre], weight: i64) -> Demand {
     use crate::hash::FxHashSet;
     const MAX_ITERS: usize = 20_000;
     const CAP: i32 = 100_000; // guard against cyclic/regenerating recipe blowup
     let mut need: FxHashMap<u32, i32> = FxHashMap::default();
-    let mut work: Vec<(u32, i32)> = task
-        .goal_num
+    let mut work: Vec<(u32, i32)> = seed
         .iter()
         .filter_map(|np| as_threshold(np).map(|(t, w)| (t, w.ceil().max(0.0) as i32)))
         .collect();
@@ -581,6 +654,17 @@ fn compute_demand(task: &PackedTask, kind: &[Kind], weight: i64) -> Demand {
     }
 }
 
+/// The set of resources in the demand-closure of `goal_num` (the recipe inputs that
+/// producing the goal consumes, transitively) — used by the decomposer to order
+/// contracts so a goal that is itself an input to another goal is produced LAST.
+pub(crate) fn demand_resources(task: &PackedTask, kind: &[Kind], goal_num: &[NumPre]) -> Vec<u32> {
+    compute_demand(task, kind, goal_num, 1)
+        .res
+        .into_iter()
+        .map(|(f, _)| f)
+        .collect()
+}
+
 /// Root availability: initial stock of each demand resource, clamped to its demand.
 fn met_root(demand: &Demand, task: &PackedTask) -> Vec<i32> {
     demand
@@ -625,30 +709,27 @@ fn demand_deficit(met: &[i32], demand: &Demand) -> i64 {
 
 /// `h`, plus — under `prune` — the Skip-filtered helpful start/classical ops for
 /// `s`. `None` iff `s` is a relaxed dead end (so this also gates dead ends).
+#[allow(clippy::too_many_arguments)]
 fn eval_node(
     task: &PackedTask,
     kind: &[Kind],
     sc: &mut Scratch,
     s: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
     prune: bool,
 ) -> Option<(i32, Vec<u32>)> {
     if prune {
-        let (h, helpful) = relaxed_helpful(
-            task,
-            sc,
-            &s.bits,
-            &s.fv,
-            &s.fdef,
-            &task.goal_pos,
-            &task.goal_num,
-        )?;
+        let (h, helpful) = relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num)?;
         let hf = helpful
             .into_iter()
             .filter(|&oi| matches!(kind[oi as usize], Kind::Start { .. } | Kind::Classical))
             .collect();
         Some((h, hf))
     } else {
-        let h = relaxed(task, sc, &s.bits, &s.fv, &s.fdef)?;
+        // relaxed_to with the task goal == the old `relaxed`; with a subgoal it
+        // targets the contract (used by solve_from). Byte-identical for the default.
+        let h = relaxed_to(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num)?;
         Some((h, Vec::new()))
     }
 }
@@ -664,6 +745,8 @@ fn push_node(
     visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
     landmarks: &[NumPre],
     demand: &Demand,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
     prune: bool,
     mut n: TNode,
 ) {
@@ -676,7 +759,7 @@ fn push_node(
     const W_H: i64 = 3;
     const W_L: i64 = 3;
     const AGENDA_W: i64 = 0;
-    if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, prune) {
+    if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, goal_pos, goal_num, prune) {
         let k = tkey(task, &n);
         if visited.insert(k) {
             n.helpful = helpful;
@@ -712,18 +795,26 @@ fn push_node(
 /// One decision-epoch search pass. `prune` restricts block-(a) expansion to the
 /// node's helpful ops (with a per-node full-scan fallback so no node with a legal
 /// successor is stranded); `false` is the full, complete search.
+#[allow(clippy::too_many_arguments)]
 fn temporal_search(
     task: &PackedTask,
     kind: &[Kind],
     landmarks: &[NumPre],
     demand: &Demand,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
     prune: bool,
 ) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
-    let init = task.initial();
+    // Root from the (possibly mid-composition) START state, but always at clock 0
+    // with an empty agenda: a contract is solved as a fresh interval and drains its
+    // agenda before returning, so it never inherits a parent's running durations.
+    let init = start.clone();
     let mut sc = Scratch::new(task);
 
-    let (_h0, hf0) = eval_node(task, kind, &mut sc, &init, prune)?; // also dead-end gate
+    let (_h0, hf0) = eval_node(task, kind, &mut sc, &init, goal_pos, goal_num, prune)?; // dead-end gate
     let mut nodes = vec![TNode {
         state: init,
         time: 0.0,
@@ -740,7 +831,7 @@ fn temporal_search(
     visited.insert(tkey(task, &nodes[0]));
 
     while let Some(Reverse((_k, ni))) = heap.pop() {
-        if task.goal_met(&nodes[ni].state) && nodes[ni].agenda.is_empty() {
+        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) && nodes[ni].agenda.is_empty() {
             let plan = reconstruct(task, &nodes, ni, kind);
             return Some(epsilon_separate(task, plan));
         }
@@ -751,11 +842,18 @@ fn temporal_search(
         let pg = nodes[ni].g;
 
         // (a) start a durative action / apply a classical action — restricted to
-        // the node's helpful set under pruning (else a full scan).
+        // the node's helpful set under pruning (else a full scan), minus any
+        // forbidden ops (sibling protection; forbidding a START suffices).
+        let allow = |oi: usize| !forbidden.get(oi).copied().unwrap_or(false);
         let candidates: Vec<usize> = if prune && !nodes[ni].helpful.is_empty() {
-            nodes[ni].helpful.iter().map(|&o| o as usize).collect()
+            nodes[ni]
+                .helpful
+                .iter()
+                .map(|&o| o as usize)
+                .filter(|&oi| allow(oi))
+                .collect()
         } else {
-            (0..task.n_ops).collect()
+            (0..task.n_ops).filter(|&oi| allow(oi)).collect()
         };
         for oi in candidates {
             match kind[oi] {
@@ -775,6 +873,8 @@ fn temporal_search(
                             &mut visited,
                             landmarks,
                             demand,
+                            goal_pos,
+                            goal_num,
                             prune,
                             TNode {
                                 state: ns,
@@ -802,6 +902,8 @@ fn temporal_search(
                             &mut visited,
                             landmarks,
                             demand,
+                            goal_pos,
+                            goal_num,
                             prune,
                             TNode {
                                 state: ns,
@@ -834,6 +936,8 @@ fn temporal_search(
                     &mut visited,
                     landmarks,
                     demand,
+                    goal_pos,
+                    goal_num,
                     prune,
                     TNode {
                         state: ns,
@@ -994,13 +1098,12 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         }
     }
 
-    // execute in time order; at equal time, ends (free tokens/resources) first
-    happenings.sort_by(|a, b| {
-        a.time
-            .partial_cmp(&b.time)
-            .unwrap_or(std::cmp::Ordering::Equal)
-            .then(a.is_start.cmp(&b.is_start))
-    });
+    // Execute in time order; at the SAME decision epoch, ends (which free
+    // tokens/resources) fire before starts (which consume them) — ferroplan's
+    // decision-epoch semantics. Key on the ε-grid-rounded time, not the raw float,
+    // so a producer-END and consumer-START at the same epoch order deterministically
+    // even when composition offsets introduce sub-ε float noise.
+    happenings.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
     let mut state = init.clone();
     for h in &happenings {
         if !task.op_applicable(h.op, &state) {
@@ -1015,6 +1118,61 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         return Err("the plan does not achieve the goal".into());
     }
     Ok(())
+}
+
+/// Replay a composed `TimedPlan` over `state` in global-time happening order (ends
+/// before starts at equal time) and return the post-state, or `None` if any
+/// happening is inapplicable on the running state (a shared-resource shortfall or
+/// stale precondition — the decomposer's conflict signal). Mirrors `validate`'s
+/// simulation loop, minus the duration cross-check and goal check, over the SAME
+/// grounded `task` whose `op_display` the plan's steps name.
+pub(crate) fn treplay(task: &PackedTask, state: &State, plan: &TimedPlan) -> Option<State> {
+    let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
+    struct H {
+        time: f64,
+        op: usize,
+        is_start: bool,
+    }
+    let mut hs: Vec<H> = Vec::new();
+    for step in &plan.steps {
+        let mut it = step.action.splitn(2, ' ');
+        let head = it.next().unwrap_or("");
+        let rest = it.next();
+        let with = |suffix: &str| match rest {
+            Some(r) => format!("{head}{suffix} {r}"),
+            None => format!("{head}{suffix}"),
+        };
+        match step.duration {
+            Some(dur) => {
+                hs.push(H {
+                    time: step.time,
+                    op: find(&with("-START"))?,
+                    is_start: true,
+                });
+                hs.push(H {
+                    time: step.time + dur,
+                    op: find(&with("-END"))?,
+                    is_start: false,
+                });
+            }
+            None => hs.push(H {
+                time: step.time,
+                op: find(&step.action)?,
+                is_start: true,
+            }),
+        }
+    }
+    // Same ε-grid-rounded ordering as `validate` (ends before starts at one epoch),
+    // so the decomposer's per-contract replay agrees with the global validator.
+    hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+    let mut s = state.clone();
+    for h in &hs {
+        if !task.op_applicable(h.op, &s) {
+            return None;
+        }
+        s = task.apply(h.op, &s);
+    }
+    Some(s)
 }
 
 // ---------------------------------------------------------------------------

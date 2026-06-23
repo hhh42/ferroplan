@@ -45,6 +45,7 @@ pub mod report;
 pub mod resolve;
 pub mod temporal;
 pub mod trace;
+pub mod tresolve;
 pub mod verify;
 pub mod viz;
 

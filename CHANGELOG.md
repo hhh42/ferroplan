@@ -56,8 +56,24 @@ Initial public release.
   all plans validated, no regressions**, cracking three shapes the relaxation went
   flat on — multi-round converging DAGs (tech-steel/bronze), cyclic resource regen
   (farmstead `grain≥10`), and multi-path numeric goals (mint-fortune/trade `coin≥N`).
-  Off by default (heap key bit-identical when unset). The next step is a temporal
-  partition-and-resolve decomposer for the remaining conjunctive/structural shapes.
+  Off by default (heap key bit-identical when unset).
+- **Temporal partition-and-resolve decomposer** (`FF_TDECOMP`, opt-in) — the SGPlan
+  partition loop (`resolve.rs`) brought to the durative/numeric path for the
+  conjunctive/structural goals the demand term can't crack. A reusable
+  `temporal::solve_from(start, goal, forbidden)` subplanner (the temporal analog of
+  `solve_subgoal_avoiding`) lets the decomposer partition the world goal into
+  contracts, solve each from the running composed state, splice the timed subplans
+  strictly sequentially (each offset past the prior makespan + an ε seam), and MERGE
+  groups on conflict down to a monolithic `temporal::solve` — so it is solvable
+  EXACTLY when the monolithic search is (completeness preserved). Same-epoch
+  happenings order on an ε-grid-rounded key (ends before starts) so the offset
+  concatenation validates without re-separation. Measured: solves the large mixed
+  conjunctive goals `order-8`/`order-12` (RPG temporal 34→36/39), every composed
+  plan validated, zero regressions, default path byte-identical. Remaining fails
+  (`found-village`, `gather-build`) reduce correctly to a *pre-existing* predicate-
+  build (`build-house`/village-shape) search blowup — the next target, separate from
+  the decomposer. Groundwork for it (predicate-goal demand seeding; predicate-
+  precondition contract regression) is in place behind the same flag.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.
