@@ -58,6 +58,7 @@
   </div>
   <div class="bar">
     <button id="go" disabled>Loading…</button>
+    <button id="cancel" style="display:none; background:#5a5a66">Cancel</button>
     <label for="mode" style="margin:0">mode</label>
     <select id="mode">
       <option value="auto">auto</option>
@@ -65,6 +66,11 @@
       <option value="pddl3">pddl3 (preferences)</option>
       <option value="partition">partition</option>
       <option value="temporal">temporal</option>
+    </select>
+    <label for="exec" style="margin:0">run on</label>
+    <select id="exec">
+      <option value="worker">Web Worker — responsive, cancelable</option>
+      <option value="main">main thread — no worker needed</option>
     </select>
     <span id="took" class="stat"></span>
   </div>
@@ -82,14 +88,19 @@ import { DOMAINS } from './examples.js';
 const $ = (id) => document.getElementById(id);
 const go = $('go');
 
-// Two-level picker: choose a DOMAIN, then a PROBLEM (ordered simplest -> most
-// complex). Each problem carries its own mode + feature flags; picking re-plans.
-const domSel = $('domain'), probSel = $('problem');
-let curFlags = '';
+// Two-level picker: choose a DOMAIN, then a PROBLEM (simplest -> most complex).
+// Picking only LOADS it into the editors — you hit Plan to solve (complex ones
+// can take a moment), so a heavy problem never auto-runs and freezes the page.
+const domSel = $('domain'), probSel = $('problem'), exec = $('exec'), cancelBtn = $('cancel');
+let curFlags = '', curSlow = false;
 DOMAINS.forEach((d, i) => {
   const o = document.createElement('option');
   o.value = String(i); o.textContent = d.label; domSel.appendChild(o);
 });
+function ready(msg) {
+  const s = $('stat'); s.className = 'stat'; s.textContent = msg;
+  $('plan').textContent = ''; $('took').textContent = '';
+}
 function loadDomain(di) {
   const d = DOMAINS[di];
   if (!d) return;
@@ -106,31 +117,79 @@ function loadProblem(di, pj) {
   if (!p) return;
   $('prob').value = p.problem;
   if (p.mode) $('mode').value = p.mode;
-  curFlags = p.flags || '';
+  curFlags = p.flags || ''; curSlow = !!p.slow;
   $('hint').textContent = (p.note || '') + (curFlags ? '  ·  features: ' + curFlags : '');
+  ready('Loaded — hit Plan' + (curSlow ? '  (heavy: ~25s — use Web Worker so the page stays responsive)' : ''));
 }
-domSel.addEventListener('change', () => { loadDomain(+domSel.value); if (!go.disabled) go.click(); });
-probSel.addEventListener('change', () => { loadProblem(+domSel.value, +probSel.value); if (!go.disabled) go.click(); });
+domSel.addEventListener('change', () => loadDomain(+domSel.value));
+probSel.addEventListener('change', () => loadProblem(+domSel.value, +probSel.value));
 loadDomain(0);
 
-await init();
-$('ver').textContent = 'ferroplan v' + version();
-go.disabled = false;
-go.textContent = 'Plan';
+// ---- Web Worker plumbing, with a main-thread fallback (workers can be blocked by
+// file:// origins or strict CSP — then we switch to main and disable the option). ----
+let worker = null, reqId = 0, pending = null, workerBroken = false;
+function disableWorkerOption() {
+  exec.value = 'main';
+  const opt = [...exec.options].find(o => o.value === 'worker');
+  if (opt) { opt.disabled = true; opt.textContent += ' (unavailable here)'; }
+}
+function makeWorker() {
+  if (workerBroken) return null;
+  let w;
+  try { w = new Worker('./worker.js', { type: 'module' }); }
+  catch (e) { workerBroken = true; disableWorkerOption(); return null; }
+  w.onmessage = (e) => {
+    if (pending && e.data.id === pending.id) { const p = pending; pending = null; p.resolve(e.data.res); }
+  };
+  w.onerror = () => {
+    workerBroken = true; disableWorkerOption(); if (worker === w) worker = null;
+    if (pending) { const p = pending; pending = null; p.resolve(p.fallback()); }
+  };
+  return w;
+}
+function solveWorker(domain, problem, mode, flags) {
+  if (!worker) worker = makeWorker();
+  if (!worker) return Promise.resolve(plan(domain, problem, mode, flags)); // no workers -> main
+  return new Promise((resolve) => {
+    const id = ++reqId;
+    pending = { id, resolve, fallback: () => plan(domain, problem, mode, flags) };
+    worker.postMessage({ id, domain, problem, mode, flags });
+  });
+}
 
-go.addEventListener('click', () => {
-  go.disabled = true; go.textContent = 'Planning…';
-  $('took').textContent = '';
-  // let the button repaint before the (synchronous) solve
-  setTimeout(() => {
-    const t0 = performance.now();
-    let res;
-    try { res = JSON.parse(plan($('dom').value, $('prob').value, $('mode').value, curFlags)); }
-    catch (e) { res = { error: String(e) }; }
-    const ms = (performance.now() - t0).toFixed(1);
-    render(res, ms);
-    go.disabled = false; go.textContent = 'Plan';
-  }, 10);
+await init(); // main-thread wasm instance (for main mode + the hard fallback)
+$('ver').textContent = 'ferroplan v' + version();
+go.disabled = false; go.textContent = 'Plan';
+ready('Pick a domain + problem (or paste your own), then hit Plan.');
+
+function setSolving(on) {
+  go.disabled = on; go.textContent = on ? 'Planning…' : 'Plan';
+  cancelBtn.style.display = (on && exec.value === 'worker' && !workerBroken) ? '' : 'none';
+}
+
+go.addEventListener('click', async () => {
+  setSolving(true);
+  const stat = $('stat'); stat.className = 'stat';
+  stat.textContent = 'Planning…' + (curSlow ? '  (this one is heavy — a few seconds)' : '');
+  const dom = $('dom').value, prob = $('prob').value, mode = $('mode').value, flags = curFlags;
+  const t0 = performance.now();
+  let raw;
+  if (exec.value === 'worker') {
+    raw = await solveWorker(dom, prob, mode, flags);
+  } else {
+    await new Promise(r => setTimeout(r, 10)); // let 'Planning…' paint before the sync solve
+    try { raw = plan(dom, prob, mode, flags); } catch (e) { raw = JSON.stringify({ error: String(e) }); }
+  }
+  if (raw == null) { setSolving(false); return; } // cancelled
+  let res; try { res = JSON.parse(raw); } catch (e) { res = { error: String(e) }; }
+  render(res, (performance.now() - t0).toFixed(1));
+  setSolving(false);
+});
+
+cancelBtn.addEventListener('click', () => {
+  if (worker) { worker.terminate(); worker = null; } // a fresh worker is made on next solve
+  if (pending) { const p = pending; pending = null; p.resolve(null); }
+  ready('Cancelled.');
 });
 
 function render(res, ms) {
@@ -155,8 +214,6 @@ function render(res, ms) {
     return `${String(st.index).padStart(3)}: ${t}(${[st.action, ...st.args].join(' ')})${d}`;
   }).join('\n');
 }
-
-go.click(); // auto-run the prefilled example on first load (handler now registered)
 </script>
 </body>
 </html>
