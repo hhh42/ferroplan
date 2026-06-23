@@ -21,7 +21,7 @@
 //! Anytime + monotone-ascent: λ never decreases, but the returned plan is the best
 //! seen across all iterations, so an overshooting λ can never regress the result.
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::hash::FxHashMap;
 use crate::packed::PackedTask;
@@ -74,12 +74,21 @@ fn solve_under_penalties(
     sat: &SatGuidance,
     threads: usize,
     cfg: SearchCfg,
+    deadline: Instant,
 ) -> Option<(Vec<usize>, f64)> {
     const INNER_MAX: usize = 200;
     let init = task.initial();
     let mut bound = f64::INFINITY;
     let mut best: Option<(Vec<usize>, f64)> = None;
-    for _ in 0..INNER_MAX {
+    for i in 0..INNER_MAX {
+        // Budget guard BETWEEN bounded calls: never start another (multi-second)
+        // tightening pass once the wall-clock budget is spent. The first pass (i==0,
+        // unbounded) always runs so this call yields a measurable plan; subsequent
+        // tightening is what gets cut. A single in-flight search is not preemptible,
+        // so the budget is honored to within one bounded-call duration.
+        if i > 0 && Instant::now() >= deadline {
+            break;
+        }
         let (opt, _capped) = solve_subgoal_bounded(
             task,
             &init,
@@ -140,7 +149,11 @@ pub fn espc_optimize(
     let outer_max = env_i64("FF_ESPC_OUTER", 16).max(1) as usize;
     let k_bump = env_i64("FF_ESPC_K", 2).max(1); // consecutive-violation rate bump
     let stall_max = env_i64("FF_ESPC_STALL", 4).max(1) as usize;
-    let time_ms = env_i64("FF_ESPC_TIME_MS", 60_000).max(0) as u128;
+    // Default budget kept conservative so ESPC reliably RETURNS its incumbent well
+    // inside common harness timeouts (run.py uses 30s): it is anytime internally but
+    // is killed wholesale by an EXTERNAL timeout, losing even the floor. Raise it
+    // (with more threads) for the headline-quality runs. Tunable via FF_ESPC_TIME_MS.
+    let time_ms = env_i64("FF_ESPC_TIME_MS", 15_000).max(0) as u64;
     let debug = std::env::var("FF_RES_DEBUG").is_ok();
 
     // Per-trigger penalty, monotone non-decreasing.
@@ -155,10 +168,13 @@ pub fn espc_optimize(
     let mut consec = 0i64;
     let mut stall = 0usize;
     let mut iterations = 0usize;
-    let start = Instant::now();
+    let deadline = Instant::now() + Duration::from_millis(time_ms);
 
     for outer in 0..outer_max {
-        if start.elapsed().as_millis() > time_ms {
+        // Don't START another outer iteration once the budget is spent — but iter 0
+        // (the penalty-free floor) always runs, so we never return worse than the
+        // plain B&B even under a tight budget.
+        if outer > 0 && Instant::now() >= deadline {
             break;
         }
         iterations += 1;
@@ -168,7 +184,9 @@ pub fn espc_optimize(
             pair.2 = lam.saturating_mul(b.2);
         }
 
-        let Some((ops, cost)) = solve_under_penalties(task, cost_fluent, sat, threads, cfg) else {
+        let Some((ops, cost)) =
+            solve_under_penalties(task, cost_fluent, sat, threads, cfg, deadline)
+        else {
             break; // no plan under this penalty setting (within budget)
         };
         let viol = measure_violation(task, &ops, &base);

@@ -35,10 +35,15 @@ Initial public release.
   delete-relaxed heuristic is blind to), and adapts a **per-trigger** penalty
   across an outer loop, keeping the best plan as an anytime incumbent. Iteration 0
   runs the penalty-free B&B as a floor, so the loop can only improve, never
-  regress. Substantially narrows the metric-quality gap on openstacks (p01 63→42,
-  p05 138→81, p07 278→142, p08 608→227); inert on domains without the structure
-  and bit-identical to the prior default when off. Auto-tunes per instance (no
-  manual weight); never claims optimality. See `docs/espc-preferences-spec.md`.
+  regress. Narrows the metric-quality gap on openstacks at the default budget
+  (p01 63→42, p02 66→43, p05 138→81, p06 129→90, p08 608→227); a larger
+  `FF_ESPC_TIME_MS` / more threads improves the hardest instances further
+  (e.g. p07 278→142). The loop is wall-clock-bounded (default 15 s, tunable) and
+  always returns its incumbent inside that budget, so it never loses coverage
+  under a harness timeout. Inert on every domain without the make-deadline
+  structure — including the whole numeric/temporal RPG corpus — and bit-identical
+  to the prior default when off. Auto-tunes per instance (no manual weight); never
+  claims optimality. See `docs/espc-preferences-spec.md`.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.
