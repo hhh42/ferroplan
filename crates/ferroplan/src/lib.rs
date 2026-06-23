@@ -47,6 +47,7 @@ pub mod resolve;
 pub mod temporal;
 pub mod trace;
 pub mod tresolve;
+pub mod tsched;
 pub mod verify;
 pub mod viz;
 

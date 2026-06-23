@@ -49,7 +49,11 @@ fn apply_flags(flags: Option<&str>) {
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect();
-    ferroplan::features::set_overrides(want.contains("tdemand"), want.contains("tdecomp"));
+    ferroplan::features::set_overrides(
+        want.contains("tdemand"),
+        want.contains("tdecomp"),
+        want.contains("tconc"),
+    );
 }
 
 /// ferroplan's version, for the demo footer.

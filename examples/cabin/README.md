@@ -45,8 +45,32 @@ ff -o examples/cabin/domain.pddl -f examples/cabin/raise-cabin.pddl
 In the web demo, "The whole log cabin" is flagged slow — run it in **Web Worker**
 mode so the page stays responsive while it solves (~7s).
 
+## Parallel crew — `crew.pddl` (makespan drops with more workers)
+
+`crew.pddl` is the **durative** twin: the same job, but actions take time and the
+planner's **scheduling phase** packs them onto a crew of workers (one job per worker
+at a time). Independent work — chopping, mining, digging, firing glass — then
+overlaps, so **more workers finish sooner**. Same 34-step job, different makespan:
+
+```sh
+ff -o examples/cabin/crew.pddl -f examples/cabin/crew-solo.pddl --mode temporal   # 1 worker  -> makespan 109
+ff -o examples/cabin/crew.pddl -f examples/cabin/crew-pair.pddl --mode temporal   # 2 workers -> makespan 63
+ff -o examples/cabin/crew.pddl -f examples/cabin/crew-trio.pddl --mode temporal   # 3 workers -> makespan 47
+```
+
+This needs the concurrent scheduler, which is gated: set `FF_TDEMAND=1 FF_TCONC=1`
+(or, in the web demo, the example carries flags `tdemand,tconc`). Why a separate
+phase? ferroplan's temporal *search* is guided by action count, not makespan, so on
+its own it lays actions out sequentially (makespan = the serial sum, regardless of
+crew size). The scheduler (`crate::tsched`) searches a single-actor reduction for
+*what* to do, then repacks it across the crew for *who does what, when* — validated,
+and only kept if it's genuinely shorter. The crew domain is **lockless** (workers
+interchangeable) so the search stays small and the scheduler owns the parallelism.
+
 ## Files
 - `domain.pddl` — the cabin domain (harvest + mill + smith + glass + masonry + the
-  9-stage linear build).
+  9-stage linear build), classical/numeric, solo.
 - `raise-frame.pddl` — goal `roof-on`: the weather-tight shell.
 - `raise-cabin.pddl` — goal `cabin-finished`: the complete cabin, door and windows.
+- `crew.pddl` — the durative twin; `crew-{solo,pair,trio}.pddl` — 1/2/3-worker crews
+  for the makespan comparison (run with `FF_TDEMAND=1 FF_TCONC=1`).

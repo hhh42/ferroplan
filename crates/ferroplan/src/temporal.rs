@@ -296,6 +296,22 @@ fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &Sta
 /// the `over all` invariant is enforced at the start and end happenings via the
 /// snap preconditions.
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    // Concurrent scheduling phase (gated). The multi-actor search is flaky, so we
+    // search a SINGLE-actor reduction (tractable) and then repack that plan onto the
+    // full crew — one job per worker, resources permitting — to minimise makespan.
+    // Validated + only-if-shorter inside `reschedule`, so it can only improve things;
+    // if the reduction finds nothing we fall through to a normal solve.
+    if crate::features::tconc() {
+        let solo = crate::tsched::single_actor_problem(domain, problem);
+        if let Some(plan) = solve_inner(domain, &solo, threads) {
+            return Some(crate::tsched::reschedule(domain, problem, &plan).unwrap_or(plan));
+        }
+    }
+    solve_inner(domain, problem, threads)
+}
+
+/// Search a temporal plan for `problem` as-is (no scheduling phase).
+fn solve_inner(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
     let c = compile(domain, problem);
     let task = match ground(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,

@@ -12,12 +12,14 @@ use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
 
 static TDEMAND: AtomicBool = AtomicBool::new(false);
 static TDECOMP: AtomicBool = AtomicBool::new(false);
+static TCONC: AtomicBool = AtomicBool::new(false);
 
-/// Set both overrides (e.g. from the WASM `flags` arg). Idempotent; `false` clears
+/// Set the overrides (e.g. from the WASM `flags` arg). Idempotent; `false` clears
 /// an override so a later `solve` doesn't inherit a previous caller's choice.
-pub fn set_overrides(tdemand: bool, tdecomp: bool) {
+pub fn set_overrides(tdemand: bool, tdecomp: bool, tconc: bool) {
     TDEMAND.store(tdemand, Relaxed);
     TDECOMP.store(tdecomp, Relaxed);
+    TCONC.store(tconc, Relaxed);
 }
 
 /// Converging-resource demand guidance + goal-relevance pruning (temporal path).
@@ -28,4 +30,10 @@ pub fn tdemand() -> bool {
 /// The partition-and-resolve decomposer (temporal path).
 pub fn tdecomp() -> bool {
     TDECOMP.load(Relaxed) || std::env::var("FF_TDECOMP").is_ok()
+}
+
+/// The concurrent scheduling phase: repack a temporal plan onto the domain's actor
+/// objects to minimise makespan (so more workers finish faster). See [`crate::tsched`].
+pub fn tconc() -> bool {
+    TCONC.load(Relaxed) || std::env::var("FF_TCONC").is_ok()
 }
