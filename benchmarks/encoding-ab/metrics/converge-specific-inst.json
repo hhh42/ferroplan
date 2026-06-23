@@ -1,0 +1,107 @@
+{
+  "aggregate": {
+    "geomean_evaluated": 125.2,
+    "geomean_makespan": 0.0,
+    "geomean_ms": 4.3,
+    "problems": 9,
+    "solved": 8,
+    "total_evaluated": 51465
+  },
+  "git": "dbb9bb9",
+  "label": "converge-specific-inst",
+  "max_evaluated": 2000000,
+  "problems": {
+    "d2/p_n01.pddl": {
+      "evaluated": 5,
+      "grounded_actions": 3,
+      "grounded_facts": 0,
+      "length": 3,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.8,
+      "solved": true
+    },
+    "d2/p_n02.pddl": {
+      "evaluated": 9,
+      "grounded_actions": 3,
+      "grounded_facts": 0,
+      "length": 6,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.3,
+      "solved": true
+    },
+    "d2/p_n04.pddl": {
+      "evaluated": 17,
+      "grounded_actions": 3,
+      "grounded_facts": 0,
+      "length": 12,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.2,
+      "solved": true
+    },
+    "d3/p_n01.pddl": {
+      "evaluated": 25,
+      "grounded_actions": 7,
+      "grounded_facts": 0,
+      "length": 7,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.3,
+      "solved": true
+    },
+    "d3/p_n02.pddl": {
+      "evaluated": 144,
+      "grounded_actions": 7,
+      "grounded_facts": 0,
+      "length": 14,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.4,
+      "solved": true
+    },
+    "d3/p_n04.pddl": {
+      "evaluated": 648,
+      "grounded_actions": 7,
+      "grounded_facts": 0,
+      "length": 28,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.9,
+      "solved": true
+    },
+    "d4/p_n01.pddl": {
+      "evaluated": 676,
+      "grounded_actions": 15,
+      "grounded_facts": 0,
+      "length": 15,
+      "makespan": null,
+      "metric": null,
+      "ms": 3.9,
+      "solved": true
+    },
+    "d4/p_n02.pddl": {
+      "evaluated": 49941,
+      "grounded_actions": 15,
+      "grounded_facts": 0,
+      "length": 30,
+      "makespan": null,
+      "metric": null,
+      "ms": 124.9,
+      "solved": true
+    },
+    "d4/p_n04.pddl": {
+      "evaluated": 2000041,
+      "grounded_actions": 15,
+      "grounded_facts": 0,
+      "length": null,
+      "makespan": null,
+      "metric": null,
+      "ms": 7736.1,
+      "solved": false
+    }
+  },
+  "threads": 1,
+  "timeout_s": 45.0
+}

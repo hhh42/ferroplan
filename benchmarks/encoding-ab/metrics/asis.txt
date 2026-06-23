@@ -1,0 +1,17 @@
+# Part A — as-is (CONFOUNDED) comparison
+
+WARNING: different content AND different mode (generic=instantaneous consumption, specific=durative crafting). Raw data point only — not the verdict.
+
+case                     style              solved       eval   len  makespan  g.acts       ms
+----------------------------------------------------------------------------------------------
+Prohibited/consume       generic-inst       True            6     5         -      11        4
+Prohibited/simple(shipped) generic-inst       False           -  None         -       0        6
+rpg/1worker              specific-durative  True            -     6    19.002       0        4
+rpg/3workers             specific-durative  True            -     6    13.001       0        4
+village/onesite          specific-durative  True            -     9    25.002       0        6
+village/graph            specific-durative  False           -  None         -       0      780
+rpg-world/woodlot        specific-durative  True            -     9    21.003       0        9
+rpg-world/grove          specific-durative  True            -     3     7.001       0        5
+rpg-world/woodline       specific-durative  True            -     7    16.002       0        4
+
+Reading: the generic (instantaneous) row reports `eval` (node expansions); the specific (durative) rows report `makespan` (eval is 0 on the temporal path). Because content and mode both differ, these numbers are NOT directly comparable — see RESULTS.md for the controlled matched experiment.

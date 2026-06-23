@@ -1,0 +1,137 @@
+{
+  "aggregate": {
+    "geomean_evaluated": 128.9,
+    "geomean_makespan": 0.0,
+    "geomean_ms": 6.1,
+    "problems": 12,
+    "solved": 12,
+    "total_evaluated": 8523
+  },
+  "git": "dbb9bb9",
+  "label": "chain-data-table-inst",
+  "max_evaluated": 2000000,
+  "problems": {
+    "k08/p_n01.pddl": {
+      "evaluated": 9,
+      "grounded_actions": 8,
+      "grounded_facts": 8,
+      "length": 8,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.5,
+      "solved": true
+    },
+    "k08/p_n02.pddl": {
+      "evaluated": 33,
+      "grounded_actions": 8,
+      "grounded_facts": 8,
+      "length": 16,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.5,
+      "solved": true
+    },
+    "k08/p_n04.pddl": {
+      "evaluated": 125,
+      "grounded_actions": 8,
+      "grounded_facts": 8,
+      "length": 32,
+      "makespan": null,
+      "metric": null,
+      "ms": 2.3,
+      "solved": true
+    },
+    "k16/p_n01.pddl": {
+      "evaluated": 17,
+      "grounded_actions": 16,
+      "grounded_facts": 16,
+      "length": 16,
+      "makespan": null,
+      "metric": null,
+      "ms": 3.6,
+      "solved": true
+    },
+    "k16/p_n02.pddl": {
+      "evaluated": 97,
+      "grounded_actions": 16,
+      "grounded_facts": 16,
+      "length": 32,
+      "makespan": null,
+      "metric": null,
+      "ms": 4.0,
+      "solved": true
+    },
+    "k16/p_n04.pddl": {
+      "evaluated": 658,
+      "grounded_actions": 16,
+      "grounded_facts": 16,
+      "length": 64,
+      "makespan": null,
+      "metric": null,
+      "ms": 4.8,
+      "solved": true
+    },
+    "k24/p_n01.pddl": {
+      "evaluated": 25,
+      "grounded_actions": 24,
+      "grounded_facts": 24,
+      "length": 24,
+      "makespan": null,
+      "metric": null,
+      "ms": 6.0,
+      "solved": true
+    },
+    "k24/p_n02.pddl": {
+      "evaluated": 193,
+      "grounded_actions": 24,
+      "grounded_facts": 24,
+      "length": 48,
+      "makespan": null,
+      "metric": null,
+      "ms": 6.3,
+      "solved": true
+    },
+    "k24/p_n04.pddl": {
+      "evaluated": 2058,
+      "grounded_actions": 24,
+      "grounded_facts": 24,
+      "length": 96,
+      "makespan": null,
+      "metric": null,
+      "ms": 14.1,
+      "solved": true
+    },
+    "k32/p_n01.pddl": {
+      "evaluated": 33,
+      "grounded_actions": 32,
+      "grounded_facts": 32,
+      "length": 32,
+      "makespan": null,
+      "metric": null,
+      "ms": 10.9,
+      "solved": true
+    },
+    "k32/p_n02.pddl": {
+      "evaluated": 321,
+      "grounded_actions": 32,
+      "grounded_facts": 32,
+      "length": 64,
+      "makespan": null,
+      "metric": null,
+      "ms": 11.6,
+      "solved": true
+    },
+    "k32/p_n04.pddl": {
+      "evaluated": 4954,
+      "grounded_actions": 32,
+      "grounded_facts": 32,
+      "length": 128,
+      "makespan": null,
+      "metric": null,
+      "ms": 39.6,
+      "solved": true
+    }
+  },
+  "threads": 1,
+  "timeout_s": 45.0
+}

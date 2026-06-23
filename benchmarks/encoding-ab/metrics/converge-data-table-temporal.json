@@ -1,0 +1,104 @@
+{
+  "aggregate": {
+    "geomean_evaluated": 0.0,
+    "geomean_makespan": 11.5,
+    "geomean_ms": 58.0,
+    "problems": 9,
+    "solved": 5,
+    "total_evaluated": 0
+  },
+  "git": "dbb9bb9",
+  "label": "converge-data-table-temporal",
+  "max_evaluated": 2000000,
+  "problems": {
+    "d2/p_n01.pddl": {
+      "evaluated": 0,
+      "grounded_actions": 0,
+      "grounded_facts": 0,
+      "length": 3,
+      "makespan": 6.0,
+      "metric": null,
+      "ms": 5.6,
+      "solved": true
+    },
+    "d2/p_n02.pddl": {
+      "evaluated": 0,
+      "grounded_actions": 0,
+      "grounded_facts": 0,
+      "length": 6,
+      "makespan": 12.0,
+      "metric": null,
+      "ms": 5.3,
+      "solved": true
+    },
+    "d2/p_n04.pddl": {
+      "evaluated": 0,
+      "grounded_actions": 0,
+      "grounded_facts": 0,
+      "length": 12,
+      "makespan": 20.000999999999998,
+      "metric": null,
+      "ms": 25.1,
+      "solved": true
+    },
+    "d3/p_n01.pddl": {
+      "evaluated": 0,
+      "grounded_actions": 0,
+      "grounded_facts": 0,
+      "length": 7,
+      "makespan": 14.0,
+      "metric": null,
+      "ms": 75.2,
+      "solved": true
+    },
+    "d3/p_n02.pddl": {
+      "evaluated": 0,
+      "grounded_actions": 0,
+      "grounded_facts": 0,
+      "length": 14,
+      "makespan": 10.0,
+      "metric": null,
+      "ms": 11698.6,
+      "solved": true
+    },
+    "d3/p_n04.pddl": {
+      "evaluated": 0,
+      "grounded_actions": 0,
+      "grounded_facts": 0,
+      "length": null,
+      "makespan": null,
+      "metric": null,
+      "ms": 12405.8,
+      "solved": false
+    },
+    "d4/p_n01.pddl": {
+      "evaluated": null,
+      "length": null,
+      "makespan": null,
+      "metric": null,
+      "ms": 45000.0,
+      "note": "timeout",
+      "solved": false
+    },
+    "d4/p_n02.pddl": {
+      "evaluated": null,
+      "length": null,
+      "makespan": null,
+      "metric": null,
+      "ms": 45000.0,
+      "note": "timeout",
+      "solved": false
+    },
+    "d4/p_n04.pddl": {
+      "evaluated": null,
+      "length": null,
+      "makespan": null,
+      "metric": null,
+      "ms": 45000.0,
+      "note": "timeout",
+      "solved": false
+    }
+  },
+  "threads": 1,
+  "timeout_s": 45.0
+}
