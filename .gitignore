@@ -1,3 +1,7 @@
 /target
 **/target
 *.tmp
+
+# Python bytecode cache (benchmark/harness scripts)
+__pycache__/
+*.pyc
