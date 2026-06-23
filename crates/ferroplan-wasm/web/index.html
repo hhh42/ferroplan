@@ -119,7 +119,7 @@ function loadProblem(di, pj) {
   if (p.mode) $('mode').value = p.mode;
   curFlags = p.flags || ''; curSlow = !!p.slow;
   $('hint').textContent = (p.note || '') + (curFlags ? '  ·  features: ' + curFlags : '');
-  ready('Loaded — hit Plan' + (curSlow ? '  (heavy: ~25s — use Web Worker so the page stays responsive)' : ''));
+  ready('Loaded — hit Plan' + (curSlow ? '  (heavy — use Web Worker so the page stays responsive)' : ''));
 }
 domSel.addEventListener('change', () => loadDomain(+domSel.value));
 probSel.addEventListener('change', () => loadProblem(+domSel.value, +probSel.value));
