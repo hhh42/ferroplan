@@ -27,6 +27,18 @@ receives **at most one** converging contribution.
 > below; those still want decomposition. So the rule for a subproblem-maker is
 > unchanged as a *safe* default (stage inputs), but the engine is now more forgiving
 > of a single converging step left in a contract.
+>
+> **Update 2 (`FF_TDEMAND` converging-resource demand term).** Opt-in, the temporal
+> search now regresses the numeric goal down the recipe DAG to a total per-resource
+> demand and guides on cumulative availability — the gradient the relaxation lacks
+> for **multi-round** convergence. Measured: it lifts RPG coverage 26→34/39 (all
+> validated), now solving multi-round converging DAGs (`steel≥2` from cold), cyclic
+> regen (`grain≥10`), and multi-path numeric goals (`coin≥15`). So with `FF_TDEMAND`
+> the **converging-contributions ceiling is no longer 1** for numeric goals — a
+> contract may carry a full multi-round numeric chain. What still wants the
+> decomposer: **predicate/structural conjunctions** (the monolithic "village shape"
+> `built-wall`, multi-structure `found-village`, big mixed `order-8/12`), which the
+> demand term — numeric-only — does not address.
 
 ## Border table (measured)
 

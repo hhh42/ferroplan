@@ -157,6 +157,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 // ---------------------------------------------------------------------------
 
 use crate::ground::{ground, Outcome};
+use crate::hash::FxHashMap;
 use crate::heuristic::{relaxed, relaxed_helpful, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
 use std::cmp::Reverse;
@@ -222,6 +223,10 @@ struct TNode {
     /// FF helpful start/classical ops for this state under pruning (empty = no
     /// restriction / fall back to a full scan). Only populated in the pruned pass.
     helpful: Vec<u32>,
+    /// Cumulative-availability per demand resource (init stock + everything produced
+    /// along this path, clamped to the demand). Empty unless FF_TDEMAND is on. Tracks
+    /// production rather than current stock so the gradient survives consumption.
+    met: Vec<i32>,
 }
 
 fn tkey(task: &PackedTask, n: &TNode) -> (StateKey, Vec<(i64, usize)>) {
@@ -347,8 +352,29 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
     // construction (phase 2 is the full search). Phase-1 key = W_G*g + W_H*h +
     // W_L*(unmet numeric landmarks); phase 2 is the original pure-h complete search.
     let landmarks = extract_landmarks(&task);
-    temporal_search(&task, &kind, &landmarks, true)
-        .or_else(|| temporal_search(&task, &kind, &landmarks, false))
+    // Converging-resource demand guidance (FF_TDEMAND, default OFF → empty → the
+    // phase-1 key is bit-identical to the prior temporal search). Phase 2 (the
+    // complete pure-h pass) is unaffected regardless, so completeness is preserved.
+    let demand = if std::env::var("FF_TDEMAND").is_ok() {
+        let w = std::env::var("FF_TDEMAND_W")
+            .ok()
+            .and_then(|s| s.parse::<i64>().ok())
+            .unwrap_or(3);
+        let d = compute_demand(&task, &kind, w);
+        if std::env::var("FF_RES_DEBUG").is_ok() {
+            let pretty: Vec<(String, i32)> = d
+                .res
+                .iter()
+                .map(|&(f, a)| (task.fluent_names[f as usize].clone(), a))
+                .collect();
+            eprintln!("[TDEMAND] w={w} total={} resources={:?}", d.total, pretty);
+        }
+        d
+    } else {
+        Demand::empty()
+    };
+    temporal_search(&task, &kind, &landmarks, &demand, true)
+        .or_else(|| temporal_search(&task, &kind, &landmarks, &demand, false))
 }
 
 /// A numeric `>=`/`>` threshold `(fluent, value)`, or `None` if `np` isn't of that
@@ -437,6 +463,166 @@ fn landmark_deficit(landmarks: &[NumPre], fv: &[f64], fdef: &[bool]) -> i64 {
         .sum()
 }
 
+/// Total resource DEMAND implied by the numeric goal, regressed down the recipe
+/// DAG. A `(fluent >= want)` goal needs `want` of that fluent; its best (highest-
+/// yield) producer needs `ceil(want / yield)` applications, each consuming its
+/// inputs — recurse. Unlike the per-recipe landmark thresholds (`ingots >= 1`), this
+/// captures the FULL multi-round quantity (`steel >= 2` ⇒ ingots/coal/ore ≥ 2,
+/// logs ≥ 4) that the delete-relaxed heuristic — which reuses each consumed unit —
+/// never demands. `weight` 0 / empty `res` ⇒ the whole term is inert (heap key
+/// bit-identical), so the default temporal path is unchanged.
+struct Demand {
+    res: Vec<(u32, i32)>,
+    idx: FxHashMap<u32, usize>,
+    total: i32,
+    weight: i64,
+}
+
+impl Demand {
+    fn empty() -> Self {
+        Demand {
+            res: Vec::new(),
+            idx: FxHashMap::default(),
+            total: 0,
+            weight: 0,
+        }
+    }
+}
+
+/// The highest base-yield op that increases fluent `t` (raw resources have a gather
+/// producer with no numeric inputs, so regression bottoms out there). Conditional
+/// (role-bonus) increases are ignored — the base yield is the safe estimate.
+fn best_producer(task: &PackedTask, t: u32) -> Option<(usize, i32)> {
+    let mut best: Option<(usize, i32)> = None;
+    for &oi in task.neff_by_fluent.slice(t as usize) {
+        let oi = oi as usize;
+        for ne in task.num_eff.slice(oi) {
+            if ne.target == t && matches!(ne.op, AssignOp::Increase) {
+                let y = ne.value.eval(&task.fv0, &task.fdef0).unwrap_or(0.0);
+                if y > 0.0 {
+                    let yi = y.ceil() as i32;
+                    if best.map_or(true, |(_, by)| yi > by) {
+                        best = Some((oi, yi));
+                    }
+                }
+            }
+        }
+    }
+    best
+}
+
+fn compute_demand(task: &PackedTask, kind: &[Kind], weight: i64) -> Demand {
+    use crate::hash::FxHashSet;
+    const MAX_ITERS: usize = 20_000;
+    const CAP: i32 = 100_000; // guard against cyclic/regenerating recipe blowup
+    let mut need: FxHashMap<u32, i32> = FxHashMap::default();
+    let mut work: Vec<(u32, i32)> = task
+        .goal_num
+        .iter()
+        .filter_map(|np| as_threshold(np).map(|(t, w)| (t, w.ceil().max(0.0) as i32)))
+        .collect();
+    let mut iters = 0usize;
+    while let Some((t, amt)) = work.pop() {
+        iters += 1;
+        if iters > MAX_ITERS {
+            break;
+        }
+        if amt <= 0 {
+            continue;
+        }
+        let cur = need.entry(t).or_insert(0);
+        let target = (*cur + amt).min(CAP);
+        let delta = target - *cur; // only propagate the marginal new demand
+        if delta <= 0 {
+            continue;
+        }
+        *cur = target;
+        let Some((oi, yield_t)) = best_producer(task, t) else {
+            continue; // raw resource — bottoms out (stays in `need`)
+        };
+        let apps = (delta + yield_t - 1) / yield_t; // ceil
+                                                    // Inputs = the producer's own decreases PLUS, for snap-compiled durative
+                                                    // recipes, the matching START snap's decreases (the increase is on the END
+                                                    // snap; the consume is on the START that adds a RUNNING token END requires).
+                                                    // Bridge exactly as extract_landmarks does, filtering adders to START snaps.
+        let mut consumers: FxHashSet<usize> = FxHashSet::default();
+        consumers.insert(oi);
+        for &f in task.pre_pos.slice(oi) {
+            for &start in task.add_by_fact.slice(f as usize) {
+                if matches!(kind[start as usize], Kind::Start { .. }) {
+                    consumers.insert(start as usize);
+                }
+            }
+        }
+        for op in consumers {
+            for ne in task.num_eff.slice(op) {
+                if matches!(ne.op, AssignOp::Decrease) {
+                    let c = ne.value.eval(&task.fv0, &task.fdef0).unwrap_or(0.0);
+                    if c > 0.0 {
+                        work.push((ne.target, apps.saturating_mul(c.ceil() as i32)));
+                    }
+                }
+            }
+        }
+    }
+    let mut res: Vec<(u32, i32)> = need.into_iter().collect();
+    res.sort_unstable(); // deterministic order, independent of hashmap iteration
+    let mut idx = FxHashMap::default();
+    let mut total = 0i32;
+    for (i, &(f, a)) in res.iter().enumerate() {
+        idx.insert(f, i);
+        total += a;
+    }
+    Demand {
+        res,
+        idx,
+        total,
+        weight,
+    }
+}
+
+/// Root availability: initial stock of each demand resource, clamped to its demand.
+fn met_root(demand: &Demand, task: &PackedTask) -> Vec<i32> {
+    demand
+        .res
+        .iter()
+        .map(|&(f, a)| {
+            let cur = if task.fdef0[f as usize] {
+                task.fv0[f as usize]
+            } else {
+                0.0
+            };
+            (cur.max(0.0) as i32).min(a)
+        })
+        .collect()
+}
+
+/// Child availability: parent's, plus op `oi`'s (unconditional) increases on demand
+/// resources, clamped. Production-only (consumption never lowers it) — so a consumed
+/// intermediate still counts as delivered, the key to the multi-round gradient.
+fn met_child(parent: &[i32], demand: &Demand, task: &PackedTask, oi: usize) -> Vec<i32> {
+    if demand.res.is_empty() {
+        return Vec::new();
+    }
+    let mut m = parent.to_vec();
+    for ne in task.num_eff.slice(oi) {
+        if matches!(ne.op, AssignOp::Increase) {
+            if let Some(&i) = demand.idx.get(&ne.target) {
+                let v = ne.value.eval(&task.fv0, &task.fdef0).unwrap_or(0.0);
+                if v > 0.0 {
+                    m[i] = (m[i] + v.ceil() as i32).min(demand.res[i].1);
+                }
+            }
+        }
+    }
+    m
+}
+
+#[inline]
+fn demand_deficit(met: &[i32], demand: &Demand) -> i64 {
+    (demand.total - met.iter().sum::<i32>()) as i64
+}
+
 /// `h`, plus — under `prune` — the Skip-filtered helpful start/classical ops for
 /// `s`. `None` iff `s` is a relaxed dead end (so this also gates dead ends).
 fn eval_node(
@@ -477,6 +663,7 @@ fn push_node(
     heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
     visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
     landmarks: &[NumPre],
+    demand: &Demand,
     prune: bool,
     mut n: TNode,
 ) {
@@ -493,14 +680,24 @@ fn push_node(
         let k = tkey(task, &n);
         if visited.insert(k) {
             n.helpful = helpful;
-            // Phase 1 (prune): weighted g+h plus the unmet-landmark term, to break
-            // the flat-h plateau on long chains AND converging DAGs. Phase 2 (full):
-            // the ORIGINAL pure-h key — byte-for-byte the old complete search, so
-            // nothing it solved before can regress.
+            // Cumulative-availability for the demand term: parent's plus this op's
+            // production. Empty (no-op) unless FF_TDEMAND is on.
+            let op = n.ev.map(|(o, _)| o).unwrap_or(usize::MAX);
+            n.met = if op == usize::MAX {
+                nodes[n.father].met.clone()
+            } else {
+                met_child(&nodes[n.father].met, demand, task, op)
+            };
+            // Phase 1 (prune): weighted g+h plus the unmet-landmark term AND the
+            // total converging-resource demand deficit (the multi-round gradient the
+            // relaxation is blind to), to break the flat-h plateau on long chains AND
+            // converging DAGs. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte
+            // the old complete search, so nothing it solved before can regress.
             let key = if prune {
                 W_G * n.g as i64
                     + W_H * h as i64
                     + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
+                    + demand.weight * demand_deficit(&n.met, demand)
                     + AGENDA_W * n.agenda.len() as i64
             } else {
                 h as i64
@@ -519,6 +716,7 @@ fn temporal_search(
     task: &PackedTask,
     kind: &[Kind],
     landmarks: &[NumPre],
+    demand: &Demand,
     prune: bool,
 ) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
@@ -534,6 +732,7 @@ fn temporal_search(
         ev: None,
         g: 0,
         helpful: hf0,
+        met: met_root(demand, task),
     }];
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
@@ -575,6 +774,7 @@ fn temporal_search(
                             &mut heap,
                             &mut visited,
                             landmarks,
+                            demand,
                             prune,
                             TNode {
                                 state: ns,
@@ -584,6 +784,7 @@ fn temporal_search(
                                 ev: Some((oi, time)),
                                 g: pg + 1,
                                 helpful: Vec::new(),
+                                met: Vec::new(),
                             },
                         );
                     }
@@ -600,6 +801,7 @@ fn temporal_search(
                             &mut heap,
                             &mut visited,
                             landmarks,
+                            demand,
                             prune,
                             TNode {
                                 state: ns,
@@ -609,6 +811,7 @@ fn temporal_search(
                                 ev: Some((oi, time)),
                                 g: pg + 1,
                                 helpful: Vec::new(),
+                                met: Vec::new(),
                             },
                         );
                     }
@@ -630,6 +833,7 @@ fn temporal_search(
                     &mut heap,
                     &mut visited,
                     landmarks,
+                    demand,
                     prune,
                     TNode {
                         state: ns,
@@ -639,6 +843,7 @@ fn temporal_search(
                         ev: Some((end_op, te)),
                         g: pg + 1,
                         helpful: Vec::new(),
+                        met: Vec::new(),
                     },
                 );
             }

@@ -44,6 +44,20 @@ Initial public release.
   structure — including the whole numeric/temporal RPG corpus — and bit-identical
   to the prior default when off. Auto-tunes per instance (no manual weight); never
   claims optimality. See `docs/espc-preferences-spec.md`.
+- **Temporal converging-resource demand guidance** (`FF_TDEMAND`, opt-in) — the
+  ESPC concrete-state idea ported to the durative/numeric (RPG) search. It regresses
+  the numeric goal down the recipe DAG to a TOTAL per-resource demand (`steel ≥ 2` ⇒
+  ingots/coal/ore ≥ 2, logs ≥ 4 — bridging snap-compiled start/end the way the
+  landmark extractor does) and guides on cumulative availability (init + produced,
+  clamped), which survives consumption across rounds. This is the gradient the
+  delete-relaxed heuristic lacks once ≥2 contributions converge on a goal quantity
+  (see `examples/BORDERS.md`). Phase-1 key only — phase 2 stays byte-identical, so
+  completeness holds. Measured on the RPG corpus: **+8 instances solved (26→34/39),
+  all plans validated, no regressions**, cracking three shapes the relaxation went
+  flat on — multi-round converging DAGs (tech-steel/bronze), cyclic resource regen
+  (farmstead `grain≥10`), and multi-path numeric goals (mint-fortune/trade `coin≥N`).
+  Off by default (heap key bit-identical when unset). The next step is a temporal
+  partition-and-resolve decomposer for the remaining conjunctive/structural shapes.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.
