@@ -82,12 +82,16 @@ Initial public release.
   (helpful actions) gets stuck under delete-relaxation (the agent is relaxed-
   omnipresent, so travel is never "helpful"), and the COMPLETE phase 2 then drowns in
   goal-irrelevant unbounded accumulators (`forage-food`/`gather-herbs` → food=1,2,3,…).
-  Pruning to the relevant subspace lets phase 2 solve instead of exploding. Sound (a
-  pruned op is on no path to the goal), so completeness holds; off by default (empty
-  mask ⇒ op set bit-identical). Solves `gather-build` (RPG temporal 36→37/39);
-  validated, no regressions. Known gap: `found-village` still needs tighter, single-
-  producer relevance — `planks` has two producers, so the sound closure pulls in the
-  whole logistics subsystem and still explodes.
+  Pruning to the relevant subspace lets the search solve instead of exploding. Two
+  masks drive three passes — helpful(sound) → full(TIGHT) → full(sound): the SOUND
+  mask keeps every producer of a relevant resource (completeness-preserving, the final
+  backstop); the TIGHT mask keeps only each resource's single best-yield producer, so
+  marking `planks` relevant pulls in `saw-planks` but NOT the alternative producer
+  `haul-cargo` (which would otherwise drag the whole logistics subsystem in and
+  re-explode). Off by default (empty masks ⇒ op set bit-identical, original two-pass
+  behavior). Solves `gather-build` AND `found-village` (RPG temporal 36→38/39); every
+  plan validated, no regressions, full suite green. The lone remaining miss,
+  `bread-line`, is a pre-existing relaxed dead-end unrelated to relevance.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.

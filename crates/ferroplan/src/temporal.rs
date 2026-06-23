@@ -376,12 +376,31 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
 /// the `del`-of-relevant clause conservatively keeps re-enablers of negative
 /// preconditions. Necessary travel is kept: a relevant op's `(at a l)` precond makes
 /// the travel achieving it relevant, transitively along the route.
-fn relevant_op_mask(task: &PackedTask, goal_pos: &[u32], goal_num: &[NumPre]) -> Vec<bool> {
+fn relevant_op_mask(
+    task: &PackedTask,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    tight: bool,
+) -> Vec<bool> {
     let mut rel_fact: crate::hash::FxHashSet<u32> = goal_pos.iter().copied().collect();
     let mut rel_res: crate::hash::FxHashSet<u32> = goal_num
         .iter()
         .filter_map(|np| as_threshold(np).map(|(t, _)| t))
         .collect();
+    // TIGHT mode: a resource is "produced" only by its single best-yield producer, so
+    // marking (say) `planks` relevant pulls in `saw-planks` but NOT the alternative
+    // producer `haul-cargo` — which would otherwise drag the whole logistics subsystem
+    // into the relevant set and re-explode. best_end[r] = that producer's op id.
+    let best_end: Vec<Option<usize>> = if tight {
+        (0..task.fv0.len())
+            .map(|r| best_producer(task, r as u32).map(|(o, _)| o))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let produces = |oi: usize, t: u32| -> bool {
+        !tight || best_end.get(t as usize).copied().flatten() == Some(oi)
+    };
     let mut relevant = vec![false; task.n_ops];
     loop {
         let mut changed = false;
@@ -393,11 +412,11 @@ fn relevant_op_mask(task: &PackedTask, goal_pos: &[u32], goal_num: &[NumPre]) ->
             }
             let touches_fact = task.add.slice(oi).iter().any(|f| rel_fact.contains(f))
                 || task.del.slice(oi).iter().any(|f| rel_fact.contains(f));
-            let inc_res = task
-                .num_eff
-                .slice(oi)
-                .iter()
-                .any(|ne| matches!(ne.op, AssignOp::Increase) && rel_res.contains(&ne.target));
+            let inc_res = task.num_eff.slice(oi).iter().any(|ne| {
+                matches!(ne.op, AssignOp::Increase)
+                    && rel_res.contains(&ne.target)
+                    && produces(oi, ne.target)
+            });
             let cond_rel = task.cond.slice(oi).iter().any(|ce| {
                 ce.add.iter().any(|f| rel_fact.contains(f))
                     || ce.del.iter().any(|f| rel_fact.contains(f))
@@ -489,31 +508,41 @@ pub(crate) fn solve_from(
     } else {
         Demand::empty()
     };
-    // Goal-relevance pruning (rides FF_TDEMAND; off => empty => no filter, default
-    // path unchanged). Applied to BOTH phases: it lets the complete phase 2 search
-    // the relevant subspace instead of drowning in irrelevant unbounded accumulation
-    // (forage/gather of resources outside the goal's recipe closure).
-    let relevant = if std::env::var("FF_TDEMAND").is_ok() && std::env::var("FF_NOREL").is_err() {
-        let m = relevant_op_mask(task, goal_pos, goal_num);
-        if std::env::var("FF_RES_DEBUG").is_ok() {
-            eprintln!(
-                "[TREL] {}/{} ops relevant",
-                m.iter().filter(|&&b| b).count(),
-                m.len()
-            );
-        }
-        m
+    // Goal-relevance pruning (rides FF_TDEMAND; off => empty masks => no filter,
+    // default path unchanged). Two masks: SOUND (every producer of each relevant
+    // resource — completeness-preserving) and TIGHT (only the single best-yield
+    // producer — drops alternative-recipe subsystems like logistics for `planks`).
+    // Three passes: helpful (sound) → full+tight → full+sound. The tight pass solves
+    // the conjunctive/structural builds without exploding; the final sound pass is the
+    // complete backstop (a pruned op is on no path to the goal).
+    let on = std::env::var("FF_TDEMAND").is_ok() && std::env::var("FF_NOREL").is_err();
+    let sound = if on {
+        relevant_op_mask(task, goal_pos, goal_num, false)
     } else {
         Vec::new()
     };
-    temporal_search(
-        task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, &relevant, true,
-    )
-    .or_else(|| {
+    let tight = if on {
+        relevant_op_mask(task, goal_pos, goal_num, true)
+    } else {
+        Vec::new()
+    };
+    if on && std::env::var("FF_RES_DEBUG").is_ok() {
+        eprintln!(
+            "[TREL] sound {}/{}  tight {}/{}",
+            sound.iter().filter(|&&b| b).count(),
+            sound.len(),
+            tight.iter().filter(|&&b| b).count(),
+            tight.len()
+        );
+    }
+    let go = |rel: &[bool], prune: bool| {
         temporal_search(
-            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, &relevant, false,
+            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel, prune,
         )
-    })
+    };
+    go(&sound, true)
+        .or_else(|| if on { go(&tight, false) } else { None })
+        .or_else(|| go(&sound, false))
 }
 
 /// A numeric `>=`/`>` threshold `(fluent, value)`, or `None` if `np` isn't of that
