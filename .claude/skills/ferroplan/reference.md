@@ -20,9 +20,15 @@ Lookup detail for the `ff` CLI, the library, and PDDL feature support. The
 | `--satisfice` | PDDL3: return a satisficing plan over hard goals (skip optimization) |
 | `--threads <N>` | worker threads (0 = auto) |
 | `--ipc` | IPC time-stamped plan format (classic text mode) |
+| `--validate <FILE>` | replay a plan FILE under ferroplan's own semantics; prints `Plan valid` / `Plan invalid: <reason>`, exit 0/1 |
 
-There is **no `--validate` and no `--debug`** flag. Validation = run it and read the
-plan; for an independent check use external **VAL** on `(domain, problem, plan)`.
+`--validate` auto-detects classical (`step N: NAME ARGS`) vs temporal (`t: (name args)
+[dur]`) from the domain and reuses the engine's `apply`/`op_applicable`/`goal_met`
+(via `verify::verify` / `temporal::validate`), so "valid" means "valid under the
+semantics that produced it". It applies happenings sequentially and does **not**
+impose VAL's strict PDDL2.1 concurrent-numeric mutex — so it accepts ferroplan's
+resource-parallel temporal plans that VAL rejects. There is **no `--debug`** flag.
+Library entry point: `ferroplan::plan::validate_plan(&dom_src, &prob_src, &plan_src)`.
 
 ## Output formats
 

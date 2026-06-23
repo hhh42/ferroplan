@@ -40,6 +40,7 @@ pub mod types;
 pub mod espc;
 pub mod partition;
 pub mod pddl3;
+pub mod plan;
 pub mod report;
 pub mod resolve;
 pub mod temporal;

@@ -70,6 +70,11 @@ struct Cli {
     /// IPC time-stamped plan format (classic text mode only).
     #[arg(long)]
     ipc: bool,
+
+    /// Validate a plan FILE against the domain/problem under ferroplan's own
+    /// semantics instead of solving. Auto-detects classical vs temporal.
+    #[arg(long, value_name = "FILE")]
+    validate: Option<PathBuf>,
 }
 
 impl Cli {
@@ -168,6 +173,23 @@ fn main() -> Result<()> {
         ),
         _ => bail!("need both -o <domain> and -f <problem> (or --json-request <file>)"),
     };
+
+    // (2a) validate a supplied plan instead of solving
+    if let Some(plan_path) = &cli.validate {
+        let plan_src = std::fs::read_to_string(plan_path)
+            .with_context(|| format!("reading {}", plan_path.display()))?;
+        match ferroplan::plan::validate_plan(&domain, &problem, &plan_src) {
+            Ok(ferroplan::plan::Validity::Valid) => {
+                println!("Plan valid");
+                std::process::exit(0);
+            }
+            Ok(ferroplan::plan::Validity::Invalid(why)) => {
+                println!("Plan invalid: {}", why);
+                std::process::exit(1);
+            }
+            Err(e) => bail!("validate: {}", e),
+        }
+    }
 
     let opts = cli.to_options();
 

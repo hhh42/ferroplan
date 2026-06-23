@@ -24,7 +24,7 @@ coverage — specific: 12/12 · data-table: 12/12 · forall: 12/12
 | k32/p_n02.pddl | 321 | 321 | 321 | all tie |
 | k32/p_n04.pddl | 4954 | 4954 | 4954 | all tie |
 
-aggregate — **specific** total_eval=8523, geomean_eval=128.9 · **data-table** total_eval=8523, geomean_eval=128.9 · **forall** total_eval=8523, geomean_eval=128.9
+aggregate — **specific** total_eval=8523, geomean_eval=128.9, geomean_ms=3.6 · **data-table** total_eval=8523, geomean_eval=128.9, geomean_ms=6.1 · **forall** total_eval=8523, geomean_eval=128.9, geomean_ms=13.0
 
 
 ## chain — temporal  ·  metric = makespan
@@ -65,7 +65,7 @@ coverage — specific: 8/9 · data-table: 8/9 · forall: 8/9
 | d4/p_n02.pddl | 49941 | 49941 | 49941 | all tie |
 | d4/p_n04.pddl | × | × | × | - |
 
-aggregate — **specific** total_eval=51465, geomean_eval=125.2 · **data-table** total_eval=51465, geomean_eval=125.2 · **forall** total_eval=51668, geomean_eval=145.8
+aggregate — **specific** total_eval=51465, geomean_eval=125.2, geomean_ms=4.3 · **data-table** total_eval=51465, geomean_eval=125.2, geomean_ms=12.2 · **forall** total_eval=51668, geomean_eval=145.8, geomean_ms=9.8
 
 
 ## converge — temporal  ·  metric = makespan
@@ -85,6 +85,28 @@ coverage — specific: 5/9 · data-table: 5/9 · forall: 5/9
 | d4/p_n04.pddl | × | × | × | - |
 
 aggregate — **specific** geomean_makespan=11.5, geomean_ms=13.0 · **data-table** geomean_makespan=11.5, geomean_ms=58.0 · **forall** geomean_makespan=8.2, geomean_ms=13.6
+
+
+## techtree — inst  ·  metric = evaluated_states (node expansions)
+
+coverage — specific: 1/1 · data-table: 1/1 · forall: 1/1
+
+| problem | specific | data-table | forall | winner |
+|---|---|---|---|---|
+| tree/p_n01.pddl | 187261 | 187261 | 187261 | all tie |
+
+aggregate — **specific** total_eval=187261, geomean_eval=187261.0, geomean_ms=17177.3 · **data-table** total_eval=187261, geomean_eval=187261.0, geomean_ms=14213.4 · **forall** total_eval=187261, geomean_eval=187261.0, geomean_ms=132868.4
+
+
+## techtree — temporal  ·  metric = makespan
+
+coverage — specific: 0/1 · data-table: 0/1 · forall: 0/1
+
+| problem | specific | data-table | forall | winner |
+|---|---|---|---|---|
+| tree/p_n01.pddl | × | × | × | - |
+
+aggregate — **specific** geomean_makespan=0.0, geomean_ms=0.0 · **data-table** geomean_makespan=0.0, geomean_ms=0.0 · **forall** geomean_makespan=0.0, geomean_ms=0.0
 
 
 ## Pairwise (instantaneous, via perf.py compare)
@@ -147,5 +169,31 @@ d4/p_n01.pddl                                          +1  +0.1%         +0
 
   improvements: 0   regressions: 5
   REGRESSED: d2/p_n02.pddl, d2/p_n04.pddl, d3/p_n01.pddl, d3/p_n02.pddl, d3/p_n04.pddl
+
+$ perf.py compare techtree-specific-inst techtree-data-table-inst
+problem                                                eval Δ      len Δ  verdict
+--------------------------------------------------------------------------------------
+
+=== aggregate (deterministic) ===
+  coverage:        1 -> 1
+  total_evaluated: 187261 -> 187261 (+0.0%)
+  geomean_eval:    187261.0 -> 187261.0 (+0.0%)
+  geomean_ms:      17177.3 -> 14213.4 (-17.3%)  [machine-dependent, informational]
+
+  improvements: 0   regressions: 0
+  no deterministic regressions ✓
+
+$ perf.py compare techtree-specific-inst techtree-forall-inst
+problem                                                eval Δ      len Δ  verdict
+--------------------------------------------------------------------------------------
+
+=== aggregate (deterministic) ===
+  coverage:        1 -> 1
+  total_evaluated: 187261 -> 187261 (+0.0%)
+  geomean_eval:    187261.0 -> 187261.0 (+0.0%)
+  geomean_ms:      17177.3 -> 132868.4 (+673.5%)  [machine-dependent, informational]
+
+  improvements: 0   regressions: 0
+  no deterministic regressions ✓
 ```
 

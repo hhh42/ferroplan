@@ -1,0 +1,26 @@
+{
+  "aggregate": {
+    "geomean_evaluated": 0.0,
+    "geomean_makespan": 0.0,
+    "geomean_ms": 0.0,
+    "problems": 1,
+    "solved": 0,
+    "total_evaluated": 0
+  },
+  "git": "1699e6d",
+  "label": "techtree-data-table-temporal",
+  "max_evaluated": 300000,
+  "problems": {
+    "tree/p_n01.pddl": {
+      "evaluated": null,
+      "length": null,
+      "makespan": null,
+      "metric": null,
+      "ms": 150000.0,
+      "note": "timeout",
+      "solved": false
+    }
+  },
+  "threads": 1,
+  "timeout_s": 150.0
+}

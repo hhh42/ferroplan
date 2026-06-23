@@ -166,7 +166,8 @@ def assemble_results(all_docs, args):
             if mode == "inst":
                 agg = " · ".join(
                     f"**{enc}** total_eval={docs[enc]['aggregate']['total_evaluated']}, "
-                    f"geomean_eval={docs[enc]['aggregate']['geomean_evaluated']}"
+                    f"geomean_eval={docs[enc]['aggregate']['geomean_evaluated']}, "
+                    f"geomean_ms={docs[enc]['aggregate']['geomean_ms']}"
                     for enc in ENCODINGS)
             else:
                 agg = " · ".join(
@@ -198,7 +199,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--build", action="store_true", help="cargo build --release first")
-    ap.add_argument("--contents", nargs="+", choices=["chain", "converge"],
+    ap.add_argument("--contents", nargs="+", choices=["chain", "converge", "techtree"],
                     default=["chain", "converge"])
     ap.add_argument("--max-evaluated", type=int, default=2_000_000)
     ap.add_argument("--timeout", type=float, default=60.0)

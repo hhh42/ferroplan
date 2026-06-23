@@ -23,15 +23,19 @@ ff -o domain.pddl -f problem.pddl                  # classic FF text output (def
 ff -o domain.pddl -f problem.pddl --json           # structured JSON solution
 ff -o domain.pddl -f problem.pddl --mode temporal  # durative actions -> IPC timed plan
 ff -o domain.pddl -f problem.pddl --mode pddl3     # optimize soft preferences
+ff -o domain.pddl -f problem.pddl --validate plan  # check a plan (ferroplan's own semantics)
 ```
 
 Build once: `cargo build --release -p ferroplan-cli` → `target/release/ff`.
 Modes: `auto` (routes by problem features — the default) · `ff` (classical/numeric) ·
 `pddl3` (preferences/metric) · `temporal` (durative) · `partition` (SGPlan-style).
-**There is no `--validate` or `--debug` flag** — "did it work" = a plan printed.
+**`--validate <plan>`** replays a plan file under ferroplan's OWN apply semantics
+(auto-detects classical `step N: …` vs temporal `t: (…) [d]`) and prints `Plan valid`
+/ `Plan invalid: <reason>` (exit 0/1) — a self-check that, unlike external VAL, does
+not impose strict PDDL2.1 concurrent-numeric mutex. (There is no `--debug` flag.)
 Other flags: `--search`, `--weight-g/--weight-h`, `--max-evaluated`, `--satisfice`,
 `--threads`, `--ipc` (see `reference.md`). Library: `ferroplan::solve(&domain,
-&problem, &Options)`.
+&problem, &Options)`, `ferroplan::plan::validate_plan(&dom, &prob, &plan)`.
 
 ## The loop (every time)
 
