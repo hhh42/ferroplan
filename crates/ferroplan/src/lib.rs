@@ -23,6 +23,7 @@
 // engine (data-oriented core)
 pub mod bitset;
 pub mod derived;
+pub mod features;
 pub mod ground;
 pub mod hash;
 pub mod heuristic;

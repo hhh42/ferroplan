@@ -16,8 +16,16 @@ use wasm_bindgen::prelude::*;
 /// `{"error": "..."}` on a parse/solve error. `mode` is one of "auto", "ff",
 /// "pddl3", "partition", "temporal" (case-insensitive; unknown falls back to Auto,
 /// which itself routes durative-action problems to the temporal solver).
+///
+/// `flags` is a comma-separated list of the planner's env-gated feature switches to
+/// enable for this solve (e.g. "tdemand,tdecomp"): `tdemand` = converging-resource
+/// demand guidance + goal-relevance pruning, `tdecomp` = the partition-and-resolve
+/// decomposer — what the genuinely-hard temporal problems need. They're env vars in
+/// the lib; WASM is single-threaded, so we set them in-process here and reset the
+/// whole managed set each call so one pick never leaks into the next.
 #[wasm_bindgen]
-pub fn plan(domain: &str, problem: &str, mode: Option<String>) -> String {
+pub fn plan(domain: &str, problem: &str, mode: Option<String>, flags: Option<String>) -> String {
+    apply_flags(flags.as_deref());
     let opts = Options {
         mode: parse_mode(mode.as_deref()),
         threads: 1,
@@ -29,6 +37,19 @@ pub fn plan(domain: &str, problem: &str, mode: Option<String>) -> String {
         }
         Err(e) => err_json(&e.to_string()),
     }
+}
+
+/// Map the demo's short feature names to ferroplan's feature overrides for this
+/// solve (env vars panic on wasm, so we use the in-process override instead).
+/// Resets the whole managed set each call so a previous pick can't carry over.
+fn apply_flags(flags: Option<&str>) {
+    let want: std::collections::HashSet<&str> = flags
+        .unwrap_or("")
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect();
+    ferroplan::features::set_overrides(want.contains("tdemand"), want.contains("tdecomp"));
 }
 
 /// ferroplan's version, for the demo footer.

@@ -39,9 +39,11 @@
 </header>
 <main>
   <div class="bar" style="margin:0 0 6px">
-    <label for="example" style="margin:0">load example</label>
-    <select id="example"></select>
-    <span class="stat">— or paste your own below</span>
+    <label for="domain" style="margin:0">domain</label>
+    <select id="domain"></select>
+    <label for="problem" style="margin:0">problem</label>
+    <select id="problem"></select>
+    <span class="stat">— simplest → most complex; or paste your own below</span>
   </div>
   <div id="hint" class="stat" style="margin:0 0 12px 2px"></div>
   <div class="row">
@@ -75,27 +77,41 @@
 
 <script type="module">
 import init, { plan, version } from './pkg/ferroplan_wasm.js';
-import { EXAMPLES } from './examples.js';
+import { DOMAINS } from './examples.js';
 
 const $ = (id) => document.getElementById(id);
 const go = $('go');
 
-// Example picker: each entry fills the editors (+ its mode); picking one re-plans.
-const sel = $('example');
-EXAMPLES.forEach((ex, i) => {
+// Two-level picker: choose a DOMAIN, then a PROBLEM (ordered simplest -> most
+// complex). Each problem carries its own mode + feature flags; picking re-plans.
+const domSel = $('domain'), probSel = $('problem');
+let curFlags = '';
+DOMAINS.forEach((d, i) => {
   const o = document.createElement('option');
-  o.value = String(i); o.textContent = ex.label; sel.appendChild(o);
+  o.value = String(i); o.textContent = d.label; domSel.appendChild(o);
 });
-function loadExample(i) {
-  const ex = EXAMPLES[i];
-  if (!ex) return;
-  $('dom').value = ex.domain;
-  $('prob').value = ex.problem;
-  if (ex.mode) $('mode').value = ex.mode;
-  $('hint').textContent = ex.note || '';
+function loadDomain(di) {
+  const d = DOMAINS[di];
+  if (!d) return;
+  $('dom').value = d.domain;
+  probSel.innerHTML = '';
+  d.problems.forEach((p, j) => {
+    const o = document.createElement('option');
+    o.value = String(j); o.textContent = p.label; probSel.appendChild(o);
+  });
+  loadProblem(di, 0);
 }
-sel.addEventListener('change', () => { loadExample(+sel.value); if (!go.disabled) go.click(); });
-loadExample(0); // gripper by default
+function loadProblem(di, pj) {
+  const d = DOMAINS[di], p = d && d.problems[pj];
+  if (!p) return;
+  $('prob').value = p.problem;
+  if (p.mode) $('mode').value = p.mode;
+  curFlags = p.flags || '';
+  $('hint').textContent = (p.note || '') + (curFlags ? '  ·  features: ' + curFlags : '');
+}
+domSel.addEventListener('change', () => { loadDomain(+domSel.value); if (!go.disabled) go.click(); });
+probSel.addEventListener('change', () => { loadProblem(+domSel.value, +probSel.value); if (!go.disabled) go.click(); });
+loadDomain(0);
 
 await init();
 $('ver').textContent = 'ferroplan v' + version();
@@ -109,7 +125,7 @@ go.addEventListener('click', () => {
   setTimeout(() => {
     const t0 = performance.now();
     let res;
-    try { res = JSON.parse(plan($('dom').value, $('prob').value, $('mode').value)); }
+    try { res = JSON.parse(plan($('dom').value, $('prob').value, $('mode').value, curFlags)); }
     catch (e) { res = { error: String(e) }; }
     const ms = (performance.now() - t0).toFixed(1);
     render(res, ms);

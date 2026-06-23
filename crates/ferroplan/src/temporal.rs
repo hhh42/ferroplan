@@ -486,7 +486,7 @@ pub(crate) fn solve_from(
     // Converging-resource demand guidance (FF_TDEMAND, default OFF → empty → the
     // phase-1 key is bit-identical to the prior temporal search). Phase 2 (the
     // complete pure-h pass) is unaffected regardless, so completeness is preserved.
-    let demand = if std::env::var("FF_TDEMAND").is_ok() {
+    let demand = if crate::features::tdemand() {
         let w = std::env::var("FF_TDEMAND_W")
             .ok()
             .and_then(|s| s.parse::<i64>().ok())
@@ -515,7 +515,7 @@ pub(crate) fn solve_from(
     // Three passes: helpful (sound) → full+tight → full+sound. The tight pass solves
     // the conjunctive/structural builds without exploding; the final sound pass is the
     // complete backstop (a pruned op is on no path to the goal).
-    let on = std::env::var("FF_TDEMAND").is_ok() && std::env::var("FF_NOREL").is_err();
+    let on = crate::features::tdemand() && std::env::var("FF_NOREL").is_err();
     let sound = if on {
         relevant_op_mask(task, goal_pos, goal_num, false)
     } else {

@@ -307,7 +307,7 @@ fn solve_temporal(
 ) -> Result<Solution, SolveError> {
     // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B), the
     // same gate as the text path (run_planner); default is the monolithic search.
-    let result = if std::env::var("FF_TDECOMP").is_ok() {
+    let result = if crate::features::tdecomp() {
         crate::tresolve::solve(domain, problem, threads)
     } else {
         crate::temporal::solve(domain, problem, threads)

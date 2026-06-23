@@ -61,7 +61,7 @@ pub fn run_planner(
     // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B);
     // default is the monolithic temporal search, byte-identical when the flag is off.
     if crate::temporal::is_temporal(&domain) {
-        let solved = if std::env::var("FF_TDECOMP").is_ok() {
+        let solved = if crate::features::tdecomp() {
             crate::tresolve::solve(&domain, &problem, threads)
         } else {
             crate::temporal::solve(&domain, &problem, threads)
