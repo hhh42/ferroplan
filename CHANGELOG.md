@@ -74,6 +74,20 @@ Initial public release.
   build (`build-house`/village-shape) search blowup — the next target, separate from
   the decomposer. Groundwork for it (predicate-goal demand seeding; predicate-
   precondition contract regression) is in place behind the same flag.
+- **Temporal goal-relevance pruning** (rides `FF_TDEMAND`; `FF_NOREL` disables) — a
+  backward closure from the goal marks every op that can contribute (adds/deletes a
+  relevant fact or increases a relevant resource, transitively pulling in its
+  preconditions and consumed resources); non-contributing ops are pruned from BOTH
+  search phases. Fixes the predicate-build blowup: the diagnosis showed phase 1
+  (helpful actions) gets stuck under delete-relaxation (the agent is relaxed-
+  omnipresent, so travel is never "helpful"), and the COMPLETE phase 2 then drowns in
+  goal-irrelevant unbounded accumulators (`forage-food`/`gather-herbs` → food=1,2,3,…).
+  Pruning to the relevant subspace lets phase 2 solve instead of exploding. Sound (a
+  pruned op is on no path to the goal), so completeness holds; off by default (empty
+  mask ⇒ op set bit-identical). Solves `gather-build` (RPG temporal 36→37/39);
+  validated, no regressions. Known gap: `found-village` still needs tighter, single-
+  producer relevance — `planks` has two producers, so the sound closure pulls in the
+  whole logistics subsystem and still explodes.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.

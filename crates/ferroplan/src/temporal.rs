@@ -362,6 +362,84 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
         .collect()
 }
 
+/// Goal-relevance op mask (`true` = keep). Backward closure from the goal: an op is
+/// relevant if it ADDS or DELETES a relevant fact, or INCREASES a relevant resource
+/// (incl. via a conditional effect); marking it pulls its preconditions (positive
+/// facts, numeric `>=` thresholds) and consumed resources into the relevant set,
+/// transitively. Ops that cannot contribute — e.g. `forage-food`/`gather-herbs` when
+/// food/herbs are in no recipe the goal needs: unbounded accumulators that otherwise
+/// explode the complete search with food=1,2,3,… states — are dropped. Applied to
+/// BOTH phases: phase 1 (helpful) is usually stuck under delete-relaxation anyway;
+/// the win is letting the COMPLETE phase 2 solve within the relevant subspace instead
+/// of drowning in irrelevant accumulation. Sound (completeness-preserving) because a
+/// pruned op neither produces nor consumes nor toggles anything any solution needs —
+/// the `del`-of-relevant clause conservatively keeps re-enablers of negative
+/// preconditions. Necessary travel is kept: a relevant op's `(at a l)` precond makes
+/// the travel achieving it relevant, transitively along the route.
+fn relevant_op_mask(task: &PackedTask, goal_pos: &[u32], goal_num: &[NumPre]) -> Vec<bool> {
+    let mut rel_fact: crate::hash::FxHashSet<u32> = goal_pos.iter().copied().collect();
+    let mut rel_res: crate::hash::FxHashSet<u32> = goal_num
+        .iter()
+        .filter_map(|np| as_threshold(np).map(|(t, _)| t))
+        .collect();
+    let mut relevant = vec![false; task.n_ops];
+    loop {
+        let mut changed = false;
+        // range loop: the body both reads task slices by `oi` and writes `relevant[oi]`.
+        #[allow(clippy::needless_range_loop)]
+        for oi in 0..task.n_ops {
+            if relevant[oi] {
+                continue;
+            }
+            let touches_fact = task.add.slice(oi).iter().any(|f| rel_fact.contains(f))
+                || task.del.slice(oi).iter().any(|f| rel_fact.contains(f));
+            let inc_res = task
+                .num_eff
+                .slice(oi)
+                .iter()
+                .any(|ne| matches!(ne.op, AssignOp::Increase) && rel_res.contains(&ne.target));
+            let cond_rel = task.cond.slice(oi).iter().any(|ce| {
+                ce.add.iter().any(|f| rel_fact.contains(f))
+                    || ce.del.iter().any(|f| rel_fact.contains(f))
+                    || ce.num.iter().any(|ne| {
+                        matches!(ne.op, AssignOp::Increase) && rel_res.contains(&ne.target)
+                    })
+            });
+            if touches_fact || inc_res || cond_rel {
+                relevant[oi] = true;
+                changed = true;
+                for &f in task.pre_pos.slice(oi) {
+                    rel_fact.insert(f);
+                }
+                for np in task.pre_num.slice(oi) {
+                    if let Some((t, _)) = as_threshold(np) {
+                        rel_res.insert(t);
+                    }
+                }
+                for ne in task.num_eff.slice(oi) {
+                    if matches!(ne.op, AssignOp::Decrease) {
+                        rel_res.insert(ne.target);
+                    }
+                }
+                for ce in task.cond.slice(oi) {
+                    for &f in &ce.cond_pos {
+                        rel_fact.insert(f);
+                    }
+                    for ne in &ce.num {
+                        if matches!(ne.op, AssignOp::Decrease) {
+                            rel_res.insert(ne.target);
+                        }
+                    }
+                }
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    relevant
+}
+
 /// Solve toward an ARBITRARY `(goal_pos, goal_num)` from an arbitrary `start` state
 /// over a shared grounded temporal task — the reusable subplanner the decomposer
 /// (`tresolve`) calls per contract. `forbidden` masks ops (sibling protection; empty
@@ -411,12 +489,29 @@ pub(crate) fn solve_from(
     } else {
         Demand::empty()
     };
+    // Goal-relevance pruning (rides FF_TDEMAND; off => empty => no filter, default
+    // path unchanged). Applied to BOTH phases: it lets the complete phase 2 search
+    // the relevant subspace instead of drowning in irrelevant unbounded accumulation
+    // (forage/gather of resources outside the goal's recipe closure).
+    let relevant = if std::env::var("FF_TDEMAND").is_ok() && std::env::var("FF_NOREL").is_err() {
+        let m = relevant_op_mask(task, goal_pos, goal_num);
+        if std::env::var("FF_RES_DEBUG").is_ok() {
+            eprintln!(
+                "[TREL] {}/{} ops relevant",
+                m.iter().filter(|&&b| b).count(),
+                m.len()
+            );
+        }
+        m
+    } else {
+        Vec::new()
+    };
     temporal_search(
-        task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, true,
+        task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, &relevant, true,
     )
     .or_else(|| {
         temporal_search(
-            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, false,
+            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, &relevant, false,
         )
     })
 }
@@ -805,6 +900,7 @@ fn temporal_search(
     goal_pos: &[u32],
     goal_num: &[NumPre],
     forbidden: &[bool],
+    relevant: &[bool],
     prune: bool,
 ) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
@@ -844,7 +940,14 @@ fn temporal_search(
         // (a) start a durative action / apply a classical action — restricted to
         // the node's helpful set under pruning (else a full scan), minus any
         // forbidden ops (sibling protection; forbidding a START suffices).
-        let allow = |oi: usize| !forbidden.get(oi).copied().unwrap_or(false);
+        // forbidden (sibling protection) + goal-relevance pruning, both phases.
+        // Empty relevance mask = keep all (default path). Sound: a non-relevant op
+        // can't be on any path to this goal, so phase 2 stays complete on the
+        // relevant subspace.
+        let allow = |oi: usize| {
+            !forbidden.get(oi).copied().unwrap_or(false)
+                && (relevant.is_empty() || relevant.get(oi).copied().unwrap_or(true))
+        };
         let candidates: Vec<usize> = if prune && !nodes[ni].helpful.is_empty() {
             nodes[ni]
                 .helpful
