@@ -88,6 +88,23 @@ ff -o examples/cabin/crew-skilled.pddl -f examples/cabin/skilled-crosstrained.pd
 scheduler then reassigns each task to a real worker who has the needed skill. If a
 task needs a skill no worker has, the problem is correctly unsolvable.
 
+### Skill scarcity bites — `forge-*.pddl` (forge 80 nails)
+
+When the skilled work is on the critical path, a missing specialist shows up in the
+makespan. These forge a keg of nails (smelt + forge are smith-only, mining is labour):
+
+| crew | makespan |
+|---|---|
+| `forge-1smith` — 1 smith, 3 workers | **65** |
+| `forge-1smith-crowd` — 1 smith, **5** workers | 62 |
+| `forge-2smith` — **2 smiths**, 3 workers | **44** |
+| `forge-3smith` — 3 smiths, 3 workers | 38 |
+
+Two extra *labourers* barely move it (65 → 62) — the lone smith caps the job. A
+second *smith*, same crew size, cuts ~a third (65 → 44). A third helps less (ore
+supply + the smelt→forge dependency start to bind). That's skill scarcity, not
+headcount.
+
 ## Files
 - `domain.pddl` — the cabin domain (harvest + mill + smith + glass + masonry + the
   9-stage linear build), classical/numeric, solo.
