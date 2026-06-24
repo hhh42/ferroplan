@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [0.1.0] - unreleased
+## [0.1.0] - 2026-06-24
 
 Initial public release.
 
@@ -92,6 +92,30 @@ Initial public release.
   behavior). Solves `gather-build` AND `found-village` (RPG temporal 36→38/39); every
   plan validated, no regressions, full suite green. The lone remaining miss,
   `bread-line`, is a pre-existing relaxed dead-end unrelated to relevance.
+- **Concurrent temporal scheduling** (`FF_TCONC`, opt-in) — a scheduling phase
+  (`tsched`) for durative plans. The decision-epoch search is action-count-guided, so
+  it lays actions out sequentially and more workers never shortened the makespan; this
+  repacks the found plan onto the domain's actor-objects — one job per worker at a
+  time, each action starting as early as its consumed resources and prerequisite
+  predicates allow — to minimize makespan. The multi-actor search is flaky, so it
+  searches a single-actor reduction and reassigns the plan across the real crew. Every
+  rescheduled plan is run through `temporal::validate` and kept only if shorter, so it
+  can only improve a plan, never produce a wrong one; default path byte-identical.
+  Showcase (`examples/cabin`): a durative crew build where 1→2→3 workers cut makespan
+  109→63→47 on the same job.
+- **Worker skills** — a task's actor-referencing precondition (e.g. `(smith ?w)`) is
+  read by the scheduler as a required capability, so skill-gated tasks are assigned
+  only to workers who have them (location is handled the same way); the single-actor
+  reduction becomes a super-worker (union of all skills) so the search still finds the
+  plan, and a task needing a skill no worker has is correctly unsolvable. Shown in
+  `examples/cabin/crew-skilled` (sawyer/smith routing) and a "forge order" where the
+  smith is the bottleneck — two extra labourers barely move it (65→62) but a second
+  smith at the same crew size cuts ~a third (65→44).
+- **WASM feature overrides** (`crate::features`) — the env-gated temporal switches
+  (`FF_TDEMAND`/`FF_TDECOMP`/`FF_TCONC`) reachable from non-CLI callers via a process
+  override OR'd with the env read (env *writes* panic on `wasm32`), surfaced through
+  the WASM `plan(domain, problem, mode, flags)` `flags` arg — so the browser demo runs
+  the demand guidance, decomposer, and concurrent scheduler too.
 - Library API returning structured, `serde`-serializable results.
 - `ff` CLI: drop-in `-o/-f` text, `--json`, `--json-request` job I/O, full
   strategy flags.
@@ -114,14 +138,22 @@ Initial public release.
   `suite/`, an adversarial `hard/` batch, and an `industrial-city` decomposition
   showcase; plus `logistics` (transshipment) and `jobshop` (machine-scheduling,
   scales to 100 jobs) domains. `examples/BORDERS.md` is a measured map of where
-  one-shot planning solves vs. where a goal must be decomposed into contracts.
+  one-shot planning solves vs. where a goal must be decomposed into contracts. Also
+  `villagers` — the generic, data-driven recipe model a live game embeds (3 actions:
+  walk/gather/craft, recipes as `:init` data; the abstract counterpart to rpg-world) —
+  and `cabin`, a deep linear build (fell→mill→smith→glaze→raise, ~52 steps) with a
+  durative "parallel crew" twin showing makespan vs. crew size and worker skills.
 - **Claude Code skill** (`.claude/skills/ferroplan`) — PDDL-authoring guidance, a
   CLI/feature reference, and six per-feature examples each re-verified to solve,
   enforcing an author → run → read-the-plan loop.
 - **GUI / web** — per-type procedural icons (incl. a machine icon for scheduling
-  domains) and relation-colored edges (rail vs road vs stage routing); the
-  in-browser WASM demo gains a selectable example picker, including a `border`
-  example that shows where one-shot planning gives out.
+  domains) and relation-colored edges (rail vs road vs stage routing). The in-browser
+  WASM demo is a **two-level picker** (choose a domain, then a problem graded
+  simplest→most-complex), with an execution toggle (**Web Worker** — responsive +
+  cancelable — or main thread, for environments that block workers), solve-on-button
+  so a heavy problem never auto-freezes the tab, and per-example **feature flags** that
+  enable the demand guidance / decomposer / concurrent scheduler in-browser. Includes a
+  `border` example that shows where one-shot planning gives out.
 
 ### Performance
 - **Grounding** — restrict each parameter's domain by its static unary
