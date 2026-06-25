@@ -221,8 +221,8 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   currently search-limited (the decision-epoch search times out on large
   instances). Duration *inequalities* (`(>= ?duration L)` / `(<= ?duration U)` /
   `and` ranges) are supported — the search commits to the shortest feasible
-  duration. Timed initial literals and continuous (`#t`) effects are not yet
-  supported.
+  duration — as are **timed initial literals** (`(at <time> <literal>)` in `:init`).
+  Continuous (`#t`) effects are not yet supported.
 - **Derived predicates** (`:derived`): static/stratified axioms are supported
   (closed into the initial state); *dynamic* derived predicates (bodies over
   changing facts) are not yet.

@@ -81,6 +81,10 @@ impl P {
     fn peek(&self) -> Option<&Tok> {
         self.t.get(self.i)
     }
+    /// Look `ahead` tokens past the cursor (0 == `peek`).
+    fn peek_at(&self, ahead: usize) -> Option<&Tok> {
+        self.t.get(self.i + ahead)
+    }
     fn next(&mut self) -> Result<Tok, String> {
         let t = self
             .t
@@ -859,8 +863,46 @@ fn parse_init_elt(
     p: &mut P,
     atoms: &mut Vec<(String, Vec<String>)>,
     fluents: &mut Vec<((String, Vec<String>), f64)>,
+    til: &mut Vec<TimedLiteral>,
 ) -> Result<(), String> {
     p.expect_lparen()?;
+    // Timed initial literal `(at <number> <literal>)` — disambiguated from the
+    // ordinary `(at ?x ?y)` predicate by a NUMBER immediately after `at`.
+    if matches!(p.peek(), Some(Tok::Name(n)) if n.eq_ignore_ascii_case("at"))
+        && matches!(p.peek_at(1), Some(Tok::Num(_)))
+    {
+        p.next()?; // `at`
+        let time = match p.next()? {
+            Tok::Num(n) => n,
+            other => return Err(format!("expected a time in a timed initial literal, found {:?}", other)),
+        };
+        // the literal: `(pred args)` or `(not (pred args))`
+        p.expect_lparen()?;
+        let add = if matches!(p.peek(), Some(Tok::Name(n)) if n.eq_ignore_ascii_case("not")) {
+            p.next()?; // `not`
+            p.expect_lparen()?;
+            false
+        } else {
+            true
+        };
+        let pred = p.name()?;
+        let mut args = Vec::new();
+        while !p.at_rparen() {
+            args.push(name_or_const(p.next()?)?);
+        }
+        p.expect_rparen()?; // close (pred args)
+        if !add {
+            p.expect_rparen()?; // close (not ...)
+        }
+        p.expect_rparen()?; // close (at ...)
+        til.push(TimedLiteral {
+            time,
+            add,
+            pred,
+            args,
+        });
+        return Ok(());
+    }
     match p.peek().cloned() {
         Some(Tok::Op(op)) if op == "=" => {
             p.next()?;
@@ -921,6 +963,7 @@ fn problem_inner(p: &mut P) -> Result<Problem, String> {
         objects: Vec::new(),
         init_atoms: Vec::new(),
         init_fluents: Vec::new(),
+        til: Vec::new(),
         goal: Formula::True,
         constraints: Vec::new(),
         metric: None,
@@ -944,7 +987,12 @@ fn problem_inner(p: &mut P) -> Result<Problem, String> {
             }
             ":INIT" => {
                 while !p.at_rparen() {
-                    parse_init_elt(p, &mut prob.init_atoms, &mut prob.init_fluents)?;
+                    parse_init_elt(
+                        p,
+                        &mut prob.init_atoms,
+                        &mut prob.init_fluents,
+                        &mut prob.til,
+                    )?;
                 }
                 p.expect_rparen()?;
             }

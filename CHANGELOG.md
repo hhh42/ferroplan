@@ -5,6 +5,15 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- **Timed initial literals (PDDL2.2)** — `(at <time> <literal>)` in `:init` (including
+  `(at <time> (not <literal>))`) now schedules an exogenous fact change at a fixed
+  absolute time, disambiguated from the ordinary `(at ?x ?y)` predicate by a numeric
+  first argument. Each TIL compiles to a synthetic 0-arg applier action (so its fact
+  is grounded and a goal reachable only via a TIL isn't pruned as a relaxed dead end);
+  the decision-epoch search fires it from a pre-seeded agenda at its time, the STN
+  re-timing floors TIL-gated actions at their scheduled instant so they can't slide
+  before their gate, and the in-crate validator replays TILs up to the plan horizon.
+  Off the temporal path, TILs are inert (heap key byte-identical).
 - **Temporal duration inequalities** — `:duration` now accepts `(>= ?duration L)`,
   `(<= ?duration U)`, and `(and ...)` ranges in addition to the fixed
   `(= ?duration e)`. The decision-epoch search commits to the **shortest feasible**

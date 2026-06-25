@@ -74,12 +74,18 @@ the old byte-identical behavior; CHANGELOG documents the default change.
 
 ## Phase 2 — Temporal depth: timed initial literals + duration inequalities
 
-**Progress:** duration inequalities done. `:duration` parses `=` / `>=` / `<=` /
+**Progress: done.** Duration inequalities — `:duration` parses `=` / `>=` / `<=` /
 `and`-ranges into a `types::Duration { min, max }`; the search commits to the
 shortest feasible duration (lower bound) and the validator accepts `[min, max]`.
-Self-contained tests cover parse, shortest-feasible solve, and range
-accept/reject; the fixed-duration RPG corpus is unchanged (26/27 suite, full lib
-suite green). **Still to do:** timed initial literals.
+Timed initial literals — `(at <time> <literal>)` parses (disambiguated from the
+`(at ?x ?y)` predicate by a numeric first arg), compiles to a synthetic applier
+(grounds the fact + keeps the relaxed heuristic from dead-ending), fires from a
+pre-seeded agenda, floors the STN re-timing so gated actions can't slide before
+their gate, and replays in the validator. Self-contained tests cover both; the
+fixed-duration RPG corpus is unchanged (26/27 suite, full lib suite green). IPC
+temporal domains aren't vendored (licences), so coverage is via crafted domains +
+the in-crate validator. **Remaining for a future pass:** the decision-epoch search
+timeout on large instances, and continuous (`#t`) effects.
 
 **Why:** the highest-credibility engine addition, and far more tractable than
 continuous `#t` effects. TILs (`(at <t> (fact))` in the init) and duration

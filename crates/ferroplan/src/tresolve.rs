@@ -90,6 +90,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                 &groups[i].pos,
                 &groups[i].num,
                 &forbidden,
+                &[], // the decomposer doesn't handle timed initial literals
                 threads,
             )
             .or_else(|| {
@@ -102,6 +103,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                         &state,
                         &groups[i].pos,
                         &groups[i].num,
+                        &[],
                         &[],
                         threads,
                     )
