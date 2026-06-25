@@ -39,6 +39,14 @@ receives **at most one** converging contribution.
 > decomposer: **predicate/structural conjunctions** (the monolithic "village shape"
 > `built-wall`, multi-structure `found-village`, big mixed `order-8/12`), which the
 > demand term — numeric-only — does not address.
+>
+> **Update 3 (numeric demand is now default-on).** The numeric half of Update 2 is
+> the **default** as of v0.2 (the `Numeric` tier) — so the multi-round numeric
+> ceiling lift above applies with no flag set. Only the *predicate/structural* half
+> (predicate-goal-threshold seeding + goal-relevance pruning) stays behind explicit
+> `FF_TDEMAND` (the `Full` tier), because seeding demand from a renewable-pool guard
+> (`(>= (avail) 1)`) serializes concurrency domains. Opt out of all demand guidance
+> with `FF_NO_TDEMAND`.
 
 ## Border table (measured)
 

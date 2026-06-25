@@ -2,6 +2,28 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Changed
+- **Temporal demand guidance is now on by default** (graduated from the opt-in
+  `FF_TDEMAND`). The default is a new **`Numeric`** tier: demand is seeded from
+  *numeric goals only* — the measured multi-round win (`steel ≥ 2`, `grain ≥ 10`,
+  `coin ≥ 15`). Validated on the RPG `suite/` + `hard/` corpus: **26 → 34/39
+  solved, no regression** vs. the old default, and crucially *without* the makespan
+  regression a blind graduation would cause — the previously-coupled
+  predicate-goal-threshold seeding reads a renewable-pool guard (`(>= (avail) 1)`,
+  net-zero) as accumulation demand and serializes concurrency domains (a unit
+  `crew` pool of 2 went concurrent-~5 → serialized-~10). That structural/predicate
+  half — plus goal-relevance pruning — now rides an explicit **`Full`** tier
+  (`FF_TDEMAND`), which additionally solves the one structural build
+  (`gather-build`) the numeric default gives up (decomposer territory per
+  `examples/BORDERS.md`).
+  - Opt out entirely with **`FF_NO_TDEMAND`** (heap key bit-identical to 0.1.0).
+  - Library / WASM callers: `features::set_overrides` is now tri-state-backed
+    (`true` / `false` are definitive; new `features::clear_overrides` returns to
+    default + env), and the active tier is queryable via `features::demand_mode()`
+    (`Off` / `Numeric` / `Full`).
+
 ## [0.1.0] - 2026-06-24
 
 Initial public release.

@@ -5,8 +5,12 @@
 //! produces a VALID timed plan.
 //!
 //! Self-contained domain (independent of the in-flux example corpus). One test in
-//! its own binary so the process-global FF_TDEMAND toggle can't race other suites.
+//! its own binary so the process-global feature toggle can't race other suites.
 //! Coverage gains on the real RPG corpus (+8 instances) are measured separately.
+//!
+//! As of v0.2 the demand term is **default ON** (graduated from the opt-in
+//! `FF_TDEMAND`), so this solves with no flag set; the test also pins the
+//! `FF_NO_TDEMAND` opt-out so the old bit-identical-off path stays recoverable.
 
 use ferroplan::temporal::{solve, validate};
 
@@ -32,15 +36,12 @@ const PROB: &str = "(define (problem mr3) (:domain mr)
   (:goal (>= (top) 3)))";
 
 #[test]
-fn tdemand_solves_and_validates_multiround() {
+fn tdemand_default_on_solves_validates_and_opt_out_honored() {
     let dom = ferroplan::parser::parse_domain(DOM).expect("domain parses");
     let prob = ferroplan::parser::parse_problem(PROB).expect("problem parses");
 
-    std::env::set_var("FF_TDEMAND", "1");
-    let plan = solve(&dom, &prob, 1);
-    std::env::remove_var("FF_TDEMAND");
-
-    let plan = plan.expect("FF_TDEMAND should solve the multi-round goal");
+    // Graduated to default ON in v0.2: solves with NO flag set.
+    let plan = solve(&dom, &prob, 1).expect("default-on demand should solve the multi-round goal");
     // Independent validator: the plan executes legally and reaches top >= 3.
     validate(&dom, &prob, &plan).expect("the demand-guided plan must validate");
     // 3 rounds of gather -> refine -> assemble.
@@ -49,4 +50,13 @@ fn tdemand_solves_and_validates_multiround() {
         "expected a real multi-round plan, got {} steps",
         plan.steps.len()
     );
+
+    // The opt-out is honored: FF_NO_TDEMAND flips the feature gate back off, and
+    // removing it restores the default. (Tested on the getter, not via a fragile
+    // "doesn't solve" assertion — the complete phase-2 pass can still solve slowly.)
+    assert!(ferroplan::features::tdemand(), "demand defaults on");
+    std::env::set_var("FF_NO_TDEMAND", "1");
+    assert!(!ferroplan::features::tdemand(), "FF_NO_TDEMAND opts out");
+    std::env::remove_var("FF_NO_TDEMAND");
+    assert!(ferroplan::features::tdemand(), "removing FF_NO_TDEMAND restores default-on");
 }

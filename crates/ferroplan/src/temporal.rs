@@ -518,10 +518,15 @@ pub(crate) fn solve_from(
             .ok()
             .and_then(|s| s.parse::<i64>().ok())
             .unwrap_or(3);
-        // demand seed = numeric goal + numeric thresholds implied by PREDICATE goals'
-        // achievers (Stage 0), so `(built-wall)` drives the blocks>=4 chain.
+        // demand seed = numeric goal (always) + numeric thresholds implied by
+        // PREDICATE goals' achievers (Full tier only — so `(built-wall)` drives the
+        // blocks>=4 chain). The predicate half is gated off by default because it
+        // reads a renewable-pool guard (e.g. `(>= (avail) 1)`) as accumulation demand
+        // and serializes concurrency domains; the numeric half is the measured win.
         let mut seed: Vec<NumPre> = goal_num.to_vec();
-        seed.extend(predicate_goal_thresholds(task, kind, goal_pos));
+        if crate::features::demand_mode() == crate::features::DemandMode::Full {
+            seed.extend(predicate_goal_thresholds(task, kind, goal_pos));
+        }
         let d = compute_demand(task, kind, &seed, w);
         if std::env::var("FF_RES_DEBUG").is_ok() {
             let pretty: Vec<(String, i32)> = d
@@ -542,7 +547,10 @@ pub(crate) fn solve_from(
     // Three passes: helpful (sound) → full+tight → full+sound. The tight pass solves
     // the conjunctive/structural builds without exploding; the final sound pass is the
     // complete backstop (a pruned op is on no path to the goal).
-    let on = crate::features::tdemand() && std::env::var("FF_NOREL").is_err();
+    // Relevance pruning rides the Full tier only (it pairs with predicate-threshold
+    // seeding for structural builds; the numeric default doesn't need it).
+    let on = crate::features::demand_mode() == crate::features::DemandMode::Full
+        && std::env::var("FF_NOREL").is_err();
     let sound = if on {
         relevant_op_mask(task, goal_pos, goal_num, false)
     } else {
