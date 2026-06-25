@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Temporal duration inequalities** — `:duration` now accepts `(>= ?duration L)`,
+  `(<= ?duration U)`, and `(and ...)` ranges in addition to the fixed
+  `(= ?duration e)`. The decision-epoch search commits to the **shortest feasible**
+  duration (the lower bound), and the in-crate temporal validator accepts any
+  duration within `[min, max]` (a fixed `=` collapses the range to a point,
+  recovering exact-equality). Durations remain constant or parameter-dependent.
+  (IPC temporal domains aren't vendored — licences — so this is exercised by
+  crafted inequality domains + `temporal::validate`; the fixed-duration RPG corpus
+  is unchanged, 26/27 suite.)
+
 ### Changed
 - **Temporal demand guidance is now on by default** (graduated from the opt-in
   `FF_TDEMAND`). The default is a new **`Numeric`** tier: demand is seeded from

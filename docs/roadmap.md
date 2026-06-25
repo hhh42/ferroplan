@@ -74,6 +74,13 @@ the old byte-identical behavior; CHANGELOG documents the default change.
 
 ## Phase 2 — Temporal depth: timed initial literals + duration inequalities
 
+**Progress:** duration inequalities done. `:duration` parses `=` / `>=` / `<=` /
+`and`-ranges into a `types::Duration { min, max }`; the search commits to the
+shortest feasible duration (lower bound) and the validator accepts `[min, max]`.
+Self-contained tests cover parse, shortest-feasible solve, and range
+accept/reject; the fixed-duration RPG corpus is unchanged (26/27 suite, full lib
+suite green). **Still to do:** timed initial literals.
+
 **Why:** the highest-credibility engine addition, and far more tractable than
 continuous `#t` effects. TILs (`(at <t> (fact))` in the init) and duration
 inequalities (`(<= ?duration N)` rather than `(= ?duration N)`) unlock a real slice

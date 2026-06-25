@@ -30,11 +30,15 @@ fn parses_durative_action() {
     assert_eq!(a.name, "MOVE");
     assert_eq!(a.params.len(), 2);
 
-    // duration = (dist ?from ?to)
+    // duration = (dist ?from ?to) — a fixed `=` collapses min == max to the fluent.
     assert!(
-        matches!(&a.duration, Expr::Fluent(f, _) if f == "DIST"),
+        matches!(a.duration.chosen(), Some(Expr::Fluent(f, _)) if f == "DIST"),
         "duration is the dist fluent, got {:?}",
         a.duration
+    );
+    assert!(
+        a.duration.min.is_some() && a.duration.max.is_some(),
+        "a fixed `=` duration bounds both sides"
     );
 
     // conditions: 2 at-start + 1 over-all
@@ -67,7 +71,7 @@ fn fixed_numeric_duration_and_single_clauses() {
             :effect (at end (q))))";
     let d = parse_domain(dom).expect("parse");
     let a = &d.durative_actions[0];
-    assert!(matches!(a.duration, Expr::Num(n) if (n - 5.0).abs() < 1e-9));
+    assert!(matches!(a.duration.chosen(), Some(Expr::Num(n)) if (n - 5.0).abs() < 1e-9));
     assert_eq!(a.conditions.len(), 1);
     assert_eq!(a.effects.len(), 1);
     assert_eq!(a.conditions[0].0, TimeSpec::Start);
@@ -106,7 +110,7 @@ fn compiles_durative_to_snaps_and_grounds() {
     let s = &c.snaps[0];
     assert_eq!(s.start_action, "ACT-START");
     assert_eq!(s.end_action, "ACT-END");
-    assert!(matches!(s.duration, Expr::Num(n) if (n - 3.0).abs() < 1e-9));
+    assert!(matches!(s.duration.chosen(), Some(Expr::Num(n)) if (n - 3.0).abs() < 1e-9));
     // the over-all invariant is captured (the (light) atom, not True)
     assert!(matches!(&s.invariant, Formula::Atom(p, _) if p == "LIGHT"));
     assert!(
@@ -323,4 +327,99 @@ fn renewable_resource_limits_concurrency() {
         cap1 > cap2 + 4.0,
         "a larger resource pool must shorten the makespan ({cap1} vs {cap2})"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Duration inequalities: `(and (>= ?duration L) (<= ?duration U))` and friends.
+// ---------------------------------------------------------------------------
+
+const INEQ_DOM: &str = "
+(define (domain ineq)
+  (:requirements :durative-actions)
+  (:predicates (done))
+  (:durative-action work
+    :parameters ()
+    :duration (and (>= ?duration 2) (<= ?duration 5))
+    :condition ()
+    :effect (at end (done))))
+";
+const INEQ_PROB: &str =
+    "(define (problem w) (:domain ineq) (:init) (:goal (done)))";
+
+#[test]
+fn duration_inequality_parses_both_bounds() {
+    let d = parse_domain(INEQ_DOM).expect("inequality domain parses");
+    let a = &d.durative_actions[0];
+    assert!(
+        matches!(&a.duration.min, Some(Expr::Num(n)) if (*n - 2.0).abs() < 1e-9),
+        "min bound 2, got {:?}",
+        a.duration.min
+    );
+    assert!(
+        matches!(&a.duration.max, Some(Expr::Num(n)) if (*n - 5.0).abs() < 1e-9),
+        "max bound 5, got {:?}",
+        a.duration.max
+    );
+}
+
+#[test]
+fn duration_inequality_solves_shortest_feasible() {
+    let d = parse_domain(INEQ_DOM).expect("parses");
+    let p = parse_problem(INEQ_PROB).expect("parses");
+    let plan = temporal::solve(&d, &p, 1).expect("a plan exists");
+    temporal::validate(&d, &p, &plan).expect("plan validates");
+    // The search commits to the lower bound (shortest feasible) -> makespan 2.
+    assert!(
+        (plan.makespan - 2.0).abs() < 1e-6,
+        "shortest-feasible duration is the lower bound 2, got makespan {}",
+        plan.makespan
+    );
+}
+
+#[test]
+fn validator_accepts_any_duration_in_range_and_rejects_outside() {
+    let d = parse_domain(INEQ_DOM).expect("parses");
+    let p = parse_problem(INEQ_PROB).expect("parses");
+    // Base the plan on a real solve, then re-time just the duration — so the action
+    // name/format matches exactly what the validator reconstructs snap names from.
+    let base = temporal::solve(&d, &p, 1).expect("solves");
+    let step = |dur: f64| {
+        let mut pl = base.clone();
+        pl.steps[0].duration = Some(dur);
+        pl.makespan = dur;
+        pl
+    };
+    // anywhere inside [2, 5] is legal
+    temporal::validate(&d, &p, &step(2.0)).expect("min bound valid");
+    temporal::validate(&d, &p, &step(3.5)).expect("interior duration valid");
+    temporal::validate(&d, &p, &step(5.0)).expect("max bound valid");
+    // outside the band is not
+    assert!(
+        temporal::validate(&d, &p, &step(1.0)).is_err(),
+        "below the minimum must be rejected"
+    );
+    assert!(
+        temporal::validate(&d, &p, &step(6.0)).is_err(),
+        "above the maximum must be rejected"
+    );
+}
+
+#[test]
+fn single_sided_lower_bound_parses_and_solves() {
+    let dom = "
+(define (domain lb)
+  (:requirements :durative-actions)
+  (:predicates (done))
+  (:durative-action work :parameters ()
+    :duration (>= ?duration 3)
+    :condition () :effect (at end (done))))
+";
+    let prob = "(define (problem w) (:domain lb) (:init) (:goal (done)))";
+    let d = parse_domain(dom).expect("parses");
+    let p = parse_problem(prob).expect("parses");
+    let a = &d.durative_actions[0];
+    assert!(a.duration.min.is_some() && a.duration.max.is_none(), "lower-only");
+    let plan = temporal::solve(&d, &p, 1).expect("solves");
+    temporal::validate(&d, &p, &plan).expect("validates");
+    assert!((plan.makespan - 3.0).abs() < 1e-6, "uses the lower bound 3");
 }
