@@ -29,6 +29,19 @@ default heuristics — exactly the kind of churn 0.x exists to absorb. 1.0 comes
 
 ## Phase 1 — Graduate the proven opt-in flags to defaults
 
+**Progress:** `FF_TDEMAND` graduated (the numeric half). It split into tiers rather
+than a blind flip: a blind default regressed makespan on renewable-resource
+concurrency domains (the `crew` pool serialized ~5→~10), because the
+predicate-goal-threshold seeding reads a net-zero pool guard as accumulation demand.
+The default is now the `Numeric` tier (numeric-goal demand only — the full measured
++8, RPG suite+hard 26→34/39, **no regression**); the predicate/structural half +
+relevance pruning rides explicit `FF_TDEMAND` (`Full`); `FF_NO_TDEMAND` opts out
+(bit-identical to 0.1.0). The override layer is now tri-state (`features::DemandMode`
+/ `clear_overrides`). **Still to do in Phase 1:** ESPC's latency trade (its outer
+loop is wall-clock-bounded, so "default on" is not free on deadline-structured
+domains — decide always-on-where-it-bites vs. a smaller default budget), and confirm
+the temporal landmark term needs nothing further (it is already always-on).
+
 **Why:** `FF_TDEMAND`, ESPC, and the temporal landmark term are all measured wins
 (`FF_TDEMAND`: RPG 26→34/39, all validated; ESPC: openstacks p08 608→227) carrying
 "bit-identical when off" guarantees. They sit behind env vars, which means (a) the

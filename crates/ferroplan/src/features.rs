@@ -1,39 +1,102 @@
 //! Process-global overrides for the env-gated planner features.
 //!
-//! The temporal demand/relevance + decomposer features are normally switched on by
-//! `FF_TDEMAND` / `FF_TDECOMP` env vars (great for the CLI). But **WASM can't set
-//! env vars** — `std::env::set_var` *panics* on `wasm32-unknown-unknown` — and
-//! embedded library callers (e.g. the `sim_core` game) may not want to either. So
-//! each feature getter is `override OR env`: the CLI keeps working via the vars, and
-//! a library/WASM caller flips the override instead (env *reads* are panic-free on
-//! wasm, so the OR is safe there). Single global state, mirroring env semantics; set
-//! it once before `solve`.
-use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+//! Each feature has a *default* (whether it's on when nothing is configured) and two
+//! ways to override it: an env var (great for the CLI) and an in-process override
+//! (for **WASM**, where `std::env::set_var` *panics* on `wasm32-unknown-unknown`, and
+//! embedded library callers like the `sim_core` game). Env *reads* are panic-free on
+//! wasm, so a getter that consults both is safe there.
+//!
+//! The override is **tri-state** (`Unset` / `On` / `Off`): `Unset` falls back to the
+//! default + env, while `On`/`Off` are definitive. This matters now that `tdemand`
+//! defaults ON — a WASM caller must be able to force it *off*, which a plain bool
+//! "override OR env" could not express. Set the override once before `solve`.
+use std::sync::atomic::{AtomicU8, Ordering::Relaxed};
 
-static TDEMAND: AtomicBool = AtomicBool::new(false);
-static TDECOMP: AtomicBool = AtomicBool::new(false);
-static TCONC: AtomicBool = AtomicBool::new(false);
+// Tri-state override packed into an AtomicU8.
+const UNSET: u8 = 0;
+const ON: u8 = 1;
+const OFF: u8 = 2;
 
-/// Set the overrides (e.g. from the WASM `flags` arg). Idempotent; `false` clears
-/// an override so a later `solve` doesn't inherit a previous caller's choice.
+static TDEMAND: AtomicU8 = AtomicU8::new(UNSET);
+static TDECOMP: AtomicU8 = AtomicU8::new(UNSET);
+static TCONC: AtomicU8 = AtomicU8::new(UNSET);
+
+/// Set the overrides (e.g. from the WASM `flags` arg). Each bool is definitive for
+/// this and subsequent solves — `true` forces the feature on, `false` forces it off
+/// (overriding the default), so a later `solve` can't inherit a previous caller's
+/// choice. To return a feature to its default + env behavior, use [`clear_overrides`].
 pub fn set_overrides(tdemand: bool, tdecomp: bool, tconc: bool) {
-    TDEMAND.store(tdemand, Relaxed);
-    TDECOMP.store(tdecomp, Relaxed);
-    TCONC.store(tconc, Relaxed);
+    TDEMAND.store(if tdemand { ON } else { OFF }, Relaxed);
+    TDECOMP.store(if tdecomp { ON } else { OFF }, Relaxed);
+    TCONC.store(if tconc { ON } else { OFF }, Relaxed);
 }
 
-/// Converging-resource demand guidance + goal-relevance pruning (temporal path).
+/// Clear all in-process overrides back to `Unset` (default + env decide).
+pub fn clear_overrides() {
+    TDEMAND.store(UNSET, Relaxed);
+    TDECOMP.store(UNSET, Relaxed);
+    TCONC.store(UNSET, Relaxed);
+}
+
+#[inline]
+fn resolve(state: &AtomicU8, default: bool) -> bool {
+    match state.load(Relaxed) {
+        ON => true,
+        OFF => false,
+        _ => default,
+    }
+}
+
+/// How much temporal demand guidance to apply. The feature graduated from a single
+/// opt-in `FF_TDEMAND` to a **default-on `Numeric`** tier in v0.2 — but only the
+/// numeric-goal half, because the predicate-goal-threshold half can regress makespan
+/// on renewable-resource concurrency domains (it reads a `(>= (avail) 1)` guard on a
+/// net-zero pool as accumulation demand and serializes). So the safe, measured win
+/// (multi-round *numeric* goals: `steel >= 2`, `grain >= 10`, `coin >= 15`) is on by
+/// default; the structural/predicate half stays explicit.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DemandMode {
+    /// No demand guidance — heap key bit-identical to the pre-v0.2 default.
+    Off,
+    /// Default (v0.2): seed demand from NUMERIC goals only. No predicate-threshold
+    /// seeding, no goal-relevance pruning.
+    Numeric,
+    /// Full opt-in (`FF_TDEMAND`): numeric + predicate-goal thresholds + goal-
+    /// relevance pruning — for the conjunctive/structural builds.
+    Full,
+}
+
+/// Resolve the active demand tier from the override / env / default.
+pub fn demand_mode() -> DemandMode {
+    match TDEMAND.load(Relaxed) {
+        ON => DemandMode::Full,
+        OFF => DemandMode::Off,
+        _ => {
+            if std::env::var("FF_TDEMAND").is_ok() {
+                DemandMode::Full
+            } else if std::env::var("FF_NO_TDEMAND").is_ok() {
+                DemandMode::Off
+            } else {
+                DemandMode::Numeric
+            }
+        }
+    }
+}
+
+/// Whether *any* demand seed is built (`Numeric` or `Full`). The relevance pruning
+/// and predicate-threshold seeding are gated separately on [`demand_mode`] `== Full`.
 pub fn tdemand() -> bool {
-    TDEMAND.load(Relaxed) || std::env::var("FF_TDEMAND").is_ok()
+    demand_mode() != DemandMode::Off
 }
 
-/// The partition-and-resolve decomposer (temporal path).
+/// The partition-and-resolve decomposer (temporal path). Opt-in via `FF_TDECOMP`.
 pub fn tdecomp() -> bool {
-    TDECOMP.load(Relaxed) || std::env::var("FF_TDECOMP").is_ok()
+    resolve(&TDECOMP, std::env::var("FF_TDECOMP").is_ok())
 }
 
 /// The concurrent scheduling phase: repack a temporal plan onto the domain's actor
 /// objects to minimise makespan (so more workers finish faster). See [`crate::tsched`].
+/// Opt-in via `FF_TCONC`.
 pub fn tconc() -> bool {
-    TCONC.load(Relaxed) || std::env::var("FF_TCONC").is_ok()
+    resolve(&TCONC, std::env::var("FF_TCONC").is_ok())
 }
