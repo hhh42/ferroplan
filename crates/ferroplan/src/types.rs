@@ -199,6 +199,17 @@ pub struct DerivedRule {
     pub body: Formula,
 }
 
+/// A PDDL2.2 timed initial literal: `(at <time> <literal>)` in `:init` — a fact
+/// that becomes true (`add`) or false (`!add`) at a fixed absolute `time`,
+/// independent of any action. Only meaningful under temporal planning.
+#[derive(Clone, Debug)]
+pub struct TimedLiteral {
+    pub time: f64,
+    pub add: bool,
+    pub pred: Sym,
+    pub args: Vec<Sym>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Problem {
     pub name: Sym,
@@ -206,6 +217,8 @@ pub struct Problem {
     pub objects: Vec<(Sym, Sym)>,
     pub init_atoms: Vec<(Sym, Vec<Sym>)>,
     pub init_fluents: Vec<((Sym, Vec<Sym>), f64)>,
+    /// Timed initial literals (PDDL2.2): exogenous facts scheduled at absolute times.
+    pub til: Vec<TimedLiteral>,
     pub goal: Formula,
     pub constraints: Vec<Constraint>,
     pub metric: Option<(MetricDir, Expr)>,

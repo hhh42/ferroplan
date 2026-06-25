@@ -423,3 +423,77 @@ fn single_sided_lower_bound_parses_and_solves() {
     temporal::validate(&d, &p, &plan).expect("validates");
     assert!((plan.makespan - 3.0).abs() < 1e-6, "uses the lower bound 3");
 }
+
+// ---------------------------------------------------------------------------
+// Timed initial literals: `(at <time> <literal>)` in :init.
+// ---------------------------------------------------------------------------
+
+// A gate opens at t=5 (a positive TIL). `pass` (dur 2) needs `(open)` at start, so
+// no plan can finish before t=7. The only achiever of `(open)` is the TIL — without
+// TIL support the goal would be a relaxed dead end.
+const TIL_DOM: &str = "
+(define (domain gate)
+  (:requirements :durative-actions)
+  (:predicates (open) (through))
+  (:durative-action pass
+    :parameters ()
+    :duration (= ?duration 2)
+    :condition (at start (open))
+    :effect (at end (through))))
+";
+const TIL_PROB: &str = "(define (problem g) (:domain gate)
+  (:init (at 5 (open)))
+  (:goal (through)))";
+
+#[test]
+fn timed_initial_literal_parses() {
+    let p = parse_problem(TIL_PROB).expect("problem with a TIL parses");
+    assert_eq!(p.til.len(), 1, "one timed initial literal");
+    let t = &p.til[0];
+    assert!((t.time - 5.0).abs() < 1e-9 && t.add && t.pred == "OPEN");
+    // the ordinary `(at ?x ?y)` predicate form must NOT be read as a TIL
+    let p2 = parse_problem(
+        "(define (problem q) (:domain d) (:init (at a0 hub)) (:goal (done)))",
+    )
+    .expect("parses");
+    assert!(p2.til.is_empty(), "`(at a0 hub)` is a predicate, not a TIL");
+    assert_eq!(p2.init_atoms.len(), 1);
+}
+
+#[test]
+fn timed_initial_literal_gates_the_action() {
+    let d = parse_domain(TIL_DOM).expect("parses");
+    let p = parse_problem(TIL_PROB).expect("parses");
+    let plan = temporal::solve(&d, &p, 1).expect("a TIL-enabled plan exists");
+    temporal::validate(&d, &p, &plan).expect("plan validates with the TIL replayed");
+    // `pass` can't start before the gate opens at 5, so it ends no earlier than 7.
+    assert!(
+        plan.makespan >= 7.0 - 1e-6,
+        "the action is gated behind the t=5 TIL, makespan {} should be >= 7",
+        plan.makespan
+    );
+}
+
+#[test]
+fn negative_timed_initial_literal_closes_a_window() {
+    // `(door)` is open from the start but a TIL shuts it at t=3. `pass` (dur 2) needs
+    // the door over-all, so it must start at 0 and finish by 2 — before the door shuts.
+    let dom = "
+(define (domain win)
+  (:requirements :durative-actions)
+  (:predicates (door) (through))
+  (:durative-action pass :parameters ()
+    :duration (= ?duration 2)
+    :condition (over all (door))
+    :effect (at end (through))))
+";
+    let prob = "(define (problem w) (:domain win)
+      (:init (door) (at 3 (not (door))))
+      (:goal (through)))";
+    let d = parse_domain(dom).expect("parses");
+    let p = parse_problem(prob).expect("parses");
+    assert_eq!(p.til.len(), 1);
+    assert!(!p.til[0].add, "a `(not ...)` TIL is a retraction");
+    let plan = temporal::solve(&d, &p, 1).expect("a plan within the window exists");
+    temporal::validate(&d, &p, &plan).expect("validates");
+}

@@ -42,6 +42,10 @@ pub struct TemporalCompiled {
     pub problem: Problem,
     /// One entry per original durative action.
     pub snaps: Vec<SnapInfo>,
+    /// Timed initial literals as `(absolute time, synthetic applier action name)`.
+    /// Each name is a 0-arg classical action added to `domain` whose effect asserts /
+    /// retracts the literal; the search fires it from the agenda at `time`.
+    pub til_ops: Vec<(f64, Sym)>,
 }
 
 /// Does this domain use durative actions (i.e. is it a temporal problem)?
@@ -146,10 +150,35 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
     }
 
     d.durative_actions.clear(); // now expressed as classical snap-actions
+
+    // Timed initial literals → one synthetic 0-arg classical action each (precond
+    // True, effect asserts/retracts the literal). This (a) registers the literal's
+    // fact with the grounder and (b) makes a positive TIL relaxed-reachable, so a goal
+    // achievable only via a TIL isn't pruned as a dead end. The search never *starts*
+    // these (classified `Kind::Til`); it fires them from a pre-seeded agenda at `time`.
+    let mut til_ops = Vec::new();
+    for (k, t) in problem.til.iter().enumerate() {
+        let name = format!("TIL-{k}");
+        let args: Vec<Term> = t.args.iter().map(|a| Term::Const(a.clone())).collect();
+        let eff = if t.add {
+            Effect::Add(t.pred.clone(), args)
+        } else {
+            Effect::Del(t.pred.clone(), args)
+        };
+        d.actions.push(Action {
+            name: name.clone(),
+            params: Vec::new(),
+            precond: Formula::True,
+            effect: eff,
+        });
+        til_ops.push((t.time, name));
+    }
+
     TemporalCompiled {
         domain: d,
         problem: problem.clone(),
         snaps,
+        til_ops,
     }
 }
 
@@ -206,6 +235,9 @@ pub(crate) enum Kind {
     },
     End,
     Classical,
+    /// a synthetic timed-initial-literal applier: never started by the search (block
+    /// (a) skips it), only fired from the pre-seeded agenda at its absolute time.
+    Til,
     /// a start whose duration/end can't be resolved (undefined duration fluent,
     /// non-positive value, or missing end op); never applied
     Skip,
@@ -359,6 +391,20 @@ fn solve_inner(domain: &Domain, problem: &Problem, threads: usize) -> Option<Tim
     };
 
     let kind = build_kind(&task, &c);
+    // Resolve each TIL's synthetic applier to its grounded op id (0-arg ⇒ op display
+    // is the action name). A TIL whose op didn't ground is silently dropped.
+    let by_display: HashMap<&str, usize> = task
+        .op_display
+        .iter()
+        .enumerate()
+        .map(|(i, d)| (d.as_str(), i))
+        .collect();
+    let til_events: Vec<(f64, usize)> = c
+        .til_ops
+        .iter()
+        .filter_map(|(t, name)| by_display.get(name.as_str()).map(|&oi| (*t, oi)))
+        .collect();
+
     solve_from(
         &task,
         &kind,
@@ -366,6 +412,7 @@ fn solve_inner(domain: &Domain, problem: &Problem, threads: usize) -> Option<Tim
         &task.goal_pos,
         &task.goal_num,
         &[],
+        &til_events,
         threads,
     )
 }
@@ -383,6 +430,7 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
         .map(|s| (s.start_action.as_str(), s))
         .collect();
     let end_names: HashSet<&str> = c.snaps.iter().map(|s| s.end_action.as_str()).collect();
+    let til_names: HashSet<&str> = c.til_ops.iter().map(|(_, n)| n.as_str()).collect();
     let by_display: HashMap<&str, usize> = task
         .op_display
         .iter()
@@ -405,6 +453,8 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
                 }
             } else if end_names.contains(head) {
                 Kind::End
+            } else if til_names.contains(head) {
+                Kind::Til
             } else {
                 Kind::Classical
             }
@@ -520,6 +570,7 @@ fn relevant_op_mask(
 /// Phase-1 key = W_G*g + W_H*h + W_L*(unmet numeric landmarks) + the converging-
 /// resource demand deficit; phase 2 is the original pure-h complete search.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_from(
     task: &PackedTask,
     kind: &[Kind],
@@ -527,6 +578,7 @@ pub(crate) fn solve_from(
     goal_pos: &[u32],
     goal_num: &[NumPre],
     forbidden: &[bool],
+    til_events: &[(f64, usize)],
     _threads: usize,
 ) -> Option<TimedPlan> {
     // Landmarks are ALWAYS on (phase-1 key), so seed them from the numeric goal ONLY
@@ -595,7 +647,8 @@ pub(crate) fn solve_from(
     }
     let go = |rel: &[bool], prune: bool| {
         temporal_search(
-            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel, prune,
+            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel,
+            til_events, prune,
         )
     };
     go(&sound, true)
@@ -988,20 +1041,24 @@ fn temporal_search(
     goal_num: &[NumPre],
     forbidden: &[bool],
     relevant: &[bool],
+    til_events: &[(f64, usize)],
     prune: bool,
 ) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
     // Root from the (possibly mid-composition) START state, but always at clock 0
-    // with an empty agenda: a contract is solved as a fresh interval and drains its
-    // agenda before returning, so it never inherits a parent's running durations.
+    // with an agenda holding only the timed initial literals (sorted ascending): a
+    // contract is solved as a fresh interval and drains its agenda before returning,
+    // so it never inherits a parent's running durations.
     let init = start.clone();
     let mut sc = Scratch::new(task);
 
     let (_h0, hf0) = eval_node(task, kind, &mut sc, &init, goal_pos, goal_num, prune)?; // dead-end gate
+    let mut root_agenda: Vec<(f64, usize)> = til_events.to_vec();
+    root_agenda.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     let mut nodes = vec![TNode {
         state: init,
         time: 0.0,
-        agenda: Vec::new(),
+        agenda: root_agenda,
         father: usize::MAX,
         ev: None,
         g: 0,
@@ -1014,9 +1071,15 @@ fn temporal_search(
     visited.insert(tkey(task, &nodes[0]));
 
     while let Some(Reverse((_k, ni))) = heap.pop() {
-        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) && nodes[ni].agenda.is_empty() {
+        // The goal is reached once no *action* end is still pending. Unfired future
+        // TILs may remain on the agenda — they're exogenous and don't gate completion.
+        let ends_pending = nodes[ni]
+            .agenda
+            .iter()
+            .any(|&(_, op)| !matches!(kind[op], Kind::Til));
+        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) && !ends_pending {
             let plan = reconstruct(task, &nodes, ni, kind);
-            return Some(epsilon_separate(task, plan));
+            return Some(epsilon_separate(task, plan, !til_events.is_empty()));
         }
         if nodes.len() > MAX_NODES {
             break;
@@ -1108,11 +1171,12 @@ fn temporal_search(
                         );
                     }
                 }
-                Kind::End | Kind::Skip => {}
+                Kind::End | Kind::Til | Kind::Skip => {}
             }
         }
 
-        // (b) advance time: fire the earliest pending end (always considered).
+        // (b) advance time: fire the earliest pending agenda event — an action END or
+        // a timed initial literal. Both apply their grounded op's effect at its time.
         if let Some(&(te, end_op)) = nodes[ni].agenda.first() {
             if task.op_applicable(end_op, &nodes[ni].state) {
                 let ns = task.apply(end_op, &nodes[ni].state);
@@ -1175,6 +1239,8 @@ fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, kind: &[Kind]) -
                 makespan = makespan.max(t);
                 continue;
             }
+            // exogenous TIL firings are not plan steps and don't define the makespan.
+            Kind::Til => continue,
             Kind::Start { dur, .. } => {
                 makespan = makespan.max(t + dur);
                 (head.trim_end_matches("-START"), Some(dur))
@@ -1299,6 +1365,22 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         }
     }
 
+    // Replay timed initial literals as exogenous happenings, up to the plan horizon
+    // (the last action happening). A TIL strictly after the plan's end is beyond the
+    // plan's interval and must not retroactively undo the end-state goal check.
+    let horizon = happenings.iter().map(|h| h.time).fold(0.0f64, f64::max);
+    for (t, name) in &c.til_ops {
+        if *t <= horizon + EPS {
+            happenings.push(Happening {
+                time: *t,
+                op: find(name)?,
+                // fire with ends (before starts) at the same epoch, so a gate the TIL
+                // opens is available to an action starting at that instant.
+                is_start: false,
+            });
+        }
+    }
+
     // Execute in time order; at the SAME decision epoch, ends (which free
     // tokens/resources) fire before starts (which consume them) — ferroplan's
     // decision-epoch semantics. Key on the ε-grid-rounded time, not the raw float,
@@ -1417,7 +1499,7 @@ fn ops_mutex(task: &PackedTask, o1: usize, o2: usize) -> bool {
 /// execution order, pin each end at start+duration, force ε between mutex pairs —
 /// and solve the earliest-time schedule by longest paths (Bellman–Ford). On any
 /// inconsistency or for very large plans the original plan is returned unchanged.
-fn epsilon_separate(task: &PackedTask, plan: TimedPlan) -> TimedPlan {
+fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -> TimedPlan {
     // happening: (op id, owning step index, is_start)
     struct H {
         op: usize,
@@ -1519,8 +1601,16 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan) -> TimedPlan {
         }
     }
 
-    // longest-path (earliest feasible times) via Bellman–Ford
-    let mut t = vec![0.0f64; n];
+    // longest-path (earliest feasible times) via Bellman–Ford. With timed initial
+    // literals present, seed each happening at its SEARCH-assigned time as a lower
+    // bound (the search already placed every happening at a TIL-feasible instant);
+    // relaxation only pushes later, so a TIL-gated action can't be slid before its
+    // gate. Without TILs, seed at 0 — byte-identical to the prior re-timing.
+    let mut t: Vec<f64> = if floor_to_search {
+        hs.iter().map(|h| h.time).collect()
+    } else {
+        vec![0.0f64; n]
+    };
     for _ in 0..n {
         let mut changed = false;
         for &(u, v, w) in &edges {
