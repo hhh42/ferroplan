@@ -527,7 +527,9 @@ fn parse_action(p: &mut P) -> Result<Action, String> {
 fn parse_durative_action(p: &mut P) -> Result<DurativeAction, String> {
     let name = p.name()?;
     let mut params = Vec::new();
-    let mut duration = Expr::Num(0.0);
+    // Default: a degenerate fixed-0 duration (evaluates non-positive ⇒ the action is
+    // skipped) for a malformed `:durative-action` missing `:duration`.
+    let mut duration = Duration::fixed(Expr::Num(0.0));
     let mut conditions = Vec::new();
     let mut effects = Vec::new();
     while !p.at_rparen() {
@@ -554,31 +556,65 @@ fn parse_durative_action(p: &mut P) -> Result<DurativeAction, String> {
     })
 }
 
-/// `(= ?duration expr)`. Duration-inequalities (`(and (>= ?duration ..) ..)`) are
-/// not yet supported.
-fn parse_duration(p: &mut P) -> Result<Expr, String> {
+/// A `:duration` constraint: a fixed `(= ?duration e)`, a single inequality
+/// `(>= ?duration e)` / `(<= ?duration e)`, or an `(and ...)` of inequalities.
+fn parse_duration(p: &mut P) -> Result<Duration, String> {
     p.expect_lparen()?;
-    match p.next()? {
-        Tok::Op(ref s) if s == "=" => {}
+    // `(and <constraint>+)`
+    if matches!(p.peek(), Some(Tok::Name(n)) if n.eq_ignore_ascii_case("and")) {
+        p.next()?; // consume `and`
+        let mut min = None;
+        let mut max = None;
+        while !p.at_rparen() {
+            let (lo, hi) = parse_duration_atom(p)?;
+            min = min.or(lo);
+            max = max.or(hi);
+        }
+        p.expect_rparen()?;
+        return Ok(Duration { min, max });
+    }
+    // a single `(= | >= | <=)` constraint — `parse_duration_atom` opened no paren, so
+    // re-dispatch on the already-open one.
+    let (lo, hi) = parse_duration_inner(p)?;
+    p.expect_rparen()?;
+    Ok(Duration { min: lo, max: hi })
+}
+
+/// Parse one parenthesized duration constraint `(<op> ?duration e)`, returning its
+/// `(lower, upper)` contribution. Used inside `(and ...)`.
+fn parse_duration_atom(p: &mut P) -> Result<(Option<Expr>, Option<Expr>), String> {
+    p.expect_lparen()?;
+    let r = parse_duration_inner(p)?;
+    p.expect_rparen()?;
+    Ok(r)
+}
+
+/// The body of one duration constraint, cursor just after the opening paren:
+/// `<op> ?duration e`, where `<op>` is `=`, `>=`, or `<=`.
+fn parse_duration_inner(p: &mut P) -> Result<(Option<Expr>, Option<Expr>), String> {
+    let op = match p.next()? {
+        Tok::Op(s) => s,
         other => {
             return Err(format!(
-                "expected '=' in :duration, found {:?} (duration-inequalities unsupported)",
+                "expected =, >=, or <= in :duration, found {:?}",
                 other
             ))
         }
-    }
+    };
     match p.next()? {
         Tok::Var(_) => {}
-        other => {
-            return Err(format!(
-                "expected ?duration in :duration, found {:?}",
-                other
-            ))
-        }
+        other => return Err(format!("expected ?duration in :duration, found {:?}", other)),
     }
     let e = parse_expr(p)?;
-    p.expect_rparen()?;
-    Ok(e)
+    match op.as_str() {
+        "=" => Ok((Some(e.clone()), Some(e))),
+        ">=" => Ok((Some(e), None)),
+        "<=" => Ok((None, Some(e))),
+        other => Err(format!(
+            "unsupported :duration operator `{}` (expected =, >=, or <=)",
+            other
+        )),
+    }
 }
 
 /// `h` is "AT" (followed by start/end) or "OVER" (followed by all).

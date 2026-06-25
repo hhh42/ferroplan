@@ -13,8 +13,8 @@
 //! matching `A-START`, and checks the invariant holds across the interval.
 
 use crate::types::{
-    Action, AssignOp, CompOp, Domain, Effect, Expr, Formula, NExpr, NumPre, Problem, Sym, Term,
-    TimeSpec,
+    Action, AssignOp, CompOp, Domain, Duration, Effect, Expr, Formula, NExpr, NumPre, Problem, Sym,
+    Term, TimeSpec,
 };
 
 /// Temporal metadata for one durative action, paired with its snap-actions.
@@ -26,8 +26,9 @@ pub struct SnapInfo {
     pub end_action: Sym,
     /// `RUNNING-…` token predicate that pairs a start with its end.
     pub running_pred: Sym,
-    /// Duration expression (over the action's parameters / fluents).
-    pub duration: Expr,
+    /// Duration constraint (fixed `=` or an inequality range) over the action's
+    /// parameters / fluents.
+    pub duration: Duration,
     /// `over all` invariant that must hold across the action's execution.
     pub invariant: Formula,
     /// The action's typed parameters (for grounding the duration/invariant).
@@ -245,18 +246,40 @@ fn tkey(task: &PackedTask, n: &TNode) -> (StateKey, Vec<(i64, usize)>) {
 /// keep their init value. Returns None for a non-positive duration, an undefined
 /// fluent, or division by zero (the caller then skips the action).
 fn eval_duration(snap: &SnapInfo, args: &[&str], task: &PackedTask, init: &State) -> Option<f64> {
-    let bind: HashMap<&str, &str> = snap
-        .params
-        .iter()
-        .map(|(p, _)| p.as_str())
-        .zip(args.iter().copied())
-        .collect();
-    let d = eval_expr(&snap.duration, &bind, task, init)?;
+    let bind = duration_bind(snap, args);
+    // Commit to the shortest feasible duration (the lower bound; the upper bound only
+    // for a sole `<=`). Inequality slack is given up here in exchange for a single
+    // resolved duration the decision-epoch search can schedule — see `validate`, which
+    // accepts the whole `[min, max]` range.
+    let d = eval_expr(snap.duration.chosen()?, &bind, task, init)?;
     if d.is_finite() && d > 0.0 {
         Some(d)
     } else {
         None
     }
+}
+
+/// Evaluate the `[min, max]` duration bounds against the initial state (for the
+/// validator). An open side stays `None` (unbounded). A bound that fails to evaluate
+/// (undefined fluent, div-by-zero) also yields `None` for that side.
+fn eval_duration_bounds(
+    snap: &SnapInfo,
+    args: &[&str],
+    task: &PackedTask,
+    init: &State,
+) -> (Option<f64>, Option<f64>) {
+    let bind = duration_bind(snap, args);
+    let ev = |o: &Option<Expr>| o.as_ref().and_then(|e| eval_expr(e, &bind, task, init));
+    (ev(&snap.duration.min), ev(&snap.duration.max))
+}
+
+/// Bind a snap-action's parameters positionally to the grounded args.
+fn duration_bind<'a>(snap: &'a SnapInfo, args: &[&'a str]) -> HashMap<&'a str, &'a str> {
+    snap.params
+        .iter()
+        .map(|(p, _)| p.as_str())
+        .zip(args.iter().copied())
+        .collect()
 }
 
 fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &State) -> Option<f64> {
@@ -1234,14 +1257,25 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
                 let snap = snap_by_start
                     .get(start_name.as_str())
                     .ok_or_else(|| format!("`{head}` is not a durative action"))?;
-                // cross-check the stated duration against the domain's expression
+                // cross-check the stated duration against the domain's constraint:
+                // it must fall within the `[min, max]` range (a fixed `=` collapses the
+                // range to a point, recovering exact-equality).
                 let args: Vec<&str> = rest
                     .map(|r| r.split_whitespace().collect())
                     .unwrap_or_default();
-                if let Some(expected) = eval_duration(snap, &args, &task, &init) {
-                    if (expected - dur).abs() > 1e-6 {
+                let (lo, hi) = eval_duration_bounds(snap, &args, &task, &init);
+                if let Some(min) = lo {
+                    if dur < min - 1e-6 {
                         return Err(format!(
-                            "`{}` has duration {dur} but the domain says {expected}",
+                            "`{}` has duration {dur} below the domain minimum {min}",
+                            step.action
+                        ));
+                    }
+                }
+                if let Some(max) = hi {
+                    if dur > max + 1e-6 {
+                        return Err(format!(
+                            "`{}` has duration {dur} above the domain maximum {max}",
                             step.action
                         ));
                     }
