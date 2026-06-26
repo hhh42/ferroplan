@@ -9,8 +9,68 @@ use std::path::PathBuf;
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
-use ferroplan::{Mode, Options, Search};
+use ferroplan::{Decomposition, Mode, Options, Search};
 use serde::Deserialize;
+
+/// Human-readable rendering of a [`Decomposition`]: the ordered contracts (each goal
+/// + its sub-plan) and the stitched whole-goal plan.
+fn render_decomposition(d: &Decomposition) -> String {
+    use std::fmt::Write;
+    let mut s = String::new();
+    if !d.solved {
+        let _ = writeln!(s, "No plan found.");
+        for n in &d.notes {
+            let _ = writeln!(s, "note: {n}");
+        }
+        return s;
+    }
+    if d.monolithic {
+        let _ = writeln!(
+            s,
+            "Goal not decomposable — solved as 1 monolithic contract.\n"
+        );
+    } else {
+        let _ = writeln!(s, "Decomposed into {} contracts:\n", d.contracts.len());
+    }
+    for c in &d.contracts {
+        let _ = writeln!(
+            s,
+            "── contract {} @ offset {:.3}  ⟶  {}",
+            c.index, c.offset, c.goal
+        );
+        for st in &c.steps {
+            let args = if st.args.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", st.args.join(" "))
+            };
+            match (st.time, st.duration) {
+                (Some(t), Some(dur)) => {
+                    let _ = writeln!(s, "   {:.3}: ({}{}) [{:.3}]", t, st.action, args, dur);
+                }
+                (Some(t), None) => {
+                    let _ = writeln!(s, "   {:.3}: ({}{})", t, st.action, args);
+                }
+                _ => {
+                    let _ = writeln!(s, "   ({}{})", st.action, args);
+                }
+            }
+        }
+        let _ = writeln!(s, "   [contract makespan {:.3}]", c.makespan);
+    }
+    if let Some(plan) = &d.plan {
+        let _ = writeln!(
+            s,
+            "\nStitched plan: {} steps, makespan {:.3}",
+            plan.length,
+            plan.makespan.unwrap_or(0.0)
+        );
+    }
+    for n in &d.notes {
+        let _ = writeln!(s, "note: {n}");
+    }
+    s
+}
 
 #[derive(Parser, Debug)]
 #[command(
@@ -75,6 +135,11 @@ struct Cli {
     /// semantics instead of solving. Auto-detects classical vs temporal.
     #[arg(long, value_name = "FILE")]
     validate: Option<PathBuf>,
+
+    /// Decompose a (too-big) temporal goal into ordered, solvable contracts and print
+    /// the breakdown plus the stitched plan (`--json` for the structured form).
+    #[arg(long)]
+    decompose: bool,
 }
 
 impl Cli {
@@ -192,6 +257,17 @@ fn main() -> Result<()> {
     }
 
     let opts = cli.to_options();
+
+    // (2b) decompose a temporal goal into contracts instead of a flat solve
+    if cli.decompose {
+        let d = ferroplan::decompose(&domain, &problem, &opts)?;
+        if cli.json {
+            println!("{}", serde_json::to_string_pretty(&d)?);
+        } else {
+            print!("{}", render_decomposition(&d));
+        }
+        std::process::exit(if d.solved { 0 } else { 1 });
+    }
 
     if cli.json {
         let sol = ferroplan::solve(&domain, &problem, &opts)?;

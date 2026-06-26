@@ -119,6 +119,20 @@ README Limitations.
 
 ## Phase 3 — The bridge: the contract decomposer
 
+**Progress: first cut done.** `decompose(domain, problem, &Options)` and
+`ff --decompose` surface the partition-and-resolve engine (previously only the
+`FF_TDECOMP` flag, which returned just the flat plan) as a first-class, typed,
+serde-serializable `Decomposition { contracts, plan, monolithic }`: each `Contract`
+names its sub-goal, its sub-plan, and its offset in the stitched timeline; an
+un-splittable goal falls back to one monolithic contract, reported honestly.
+`tresolve::solve` now delegates to a recording `decompose` (the `FF_TDECOMP` plan
+path is byte-unchanged). Demonstrated on `hard/order-8` & `order-12` (8 / 12
+contracts, stitched + validated), which the one-shot search fails on; self-contained
+decompose tests + full suite green. **Possible follow-ups:** drive the split by the
+`BORDERS.md` op-count / converging-join rules directly (today it's the
+interaction-graph partition + conflict-merge), and a natural-language → PDDL front
+that emits the contracts.
+
 **Why:** this is the thesis. `examples/BORDERS.md` is already a *measured, precise*
 ruleset for when a single contract is solvable whole vs. must be split, and how to
 split it (op-count ceiling ≈2000; converging-contributions ceiling; per-shape split

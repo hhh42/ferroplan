@@ -107,6 +107,10 @@ ff -o domain.pddl -f problem.pddl --search best-first --weight-h 3
 # temporal (durative actions) — auto-detected; prints the IPC temporal plan
 ff -o temporal-domain.pddl -f problem.pddl --mode temporal
 
+# decompose a too-big temporal goal into ordered, individually-solved contracts
+# (the "LLM authors, planner decomposes" bet, made inspectable — text or --json)
+ff -o temporal-domain.pddl -f problem.pddl --mode temporal --decompose
+
 # self-contained JSON job: {"domain": "...", "problem": "...", "options": {...}}
 ff --json-request job.json
 ```
@@ -181,7 +185,11 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 - [`jobshop`](examples/jobshop) — scheduling with machine-exclusion (scales to 100
   concurrent jobs).
 - [`BORDERS.md`](examples/BORDERS.md) — a measured map of where one-shot planning
-  solves vs. where a goal must be decomposed into contracts.
+  solves vs. where a goal must be decomposed into contracts. The **`decompose` API /
+  `ff --decompose`** acts on that border: it splits a too-big temporal goal into
+  ordered, individually-solved contracts and stitches them into one validated plan
+  (e.g. `hard/order-8` → 8 named contracts), falling back to a monolithic solve when
+  a goal can't be split.
 
 ## Benchmarks
 
