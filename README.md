@@ -166,8 +166,9 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 
 | crate | what |
 |---|---|
-| [`ferroplan`](crates/ferroplan) | the library: engine + modes + `solve` API |
+| [`ferroplan`](crates/ferroplan) | the library: engine + modes + `solve` / `decompose` API |
 | [`ferroplan-cli`](crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
+| [`ferroplan-mcp`](crates/ferroplan-mcp) | an MCP server exposing `solve` / `validate` / `decompose` over stdio — so an LLM agent can author PDDL and drive the planner |
 | [`ferroplan-bevy`](crates/ferroplan-bevy) | Bevy app: visualize, inspect & animate a domain+problem (`cargo run -p ferroplan-bevy [domain.pddl problem.pddl]`) |
 
 ## Examples

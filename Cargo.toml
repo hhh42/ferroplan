@@ -5,6 +5,7 @@ members = [
     "crates/ferroplan-cli",
     "crates/ferroplan-bevy",
     "crates/ferroplan-wasm",
+    "crates/ferroplan-mcp",
 ]
 # Built standalone via maturin (pyo3 extension-module doesn't link libpython, so
 # a plain workspace `cargo build` would fail to link).

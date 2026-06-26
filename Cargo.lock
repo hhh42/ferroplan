@@ -1901,6 +1901,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferroplan-mcp"
+version = "0.2.0"
+dependencies = [
+ "ferroplan",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ferroplan-wasm"
 version = "0.2.0"
 dependencies = [

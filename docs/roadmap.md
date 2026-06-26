@@ -165,6 +165,17 @@ new `examples/` showcase, README ("make the thesis real").
 
 ## Phase 4 — The bridge, shipped: MCP server + publish
 
+**Progress.** *crates.io setup* — version bumped to 0.2.0, CLI dep pin synced,
+CHANGELOG cut to `[0.2.0]`, and the full `RELEASING.md` pre-flight is green
+(`fmt --check`, `clippy -D warnings`, `RUSTDOCFLAGS=-D warnings cargo doc`,
+`cargo package -p ferroplan` packages + verifies); the two crates are ready to
+publish but **not yet published** (deferred by request). *MCP server* — done:
+`crates/ferroplan-mcp` exposes `solve` / `validate` / `decompose` over stdio
+(self-contained newline-delimited JSON-RPC 2.0, no async runtime), returning the
+structured `Solution` / `Decomposition`; integration tests drive the built binary
+end to end; `publish = false` for now. **Remaining:** the actual `cargo publish` +
+`v0.2.0` tag, and the **PyPI** wheel for `ferroplan-py`.
+
 **Why:** the MCP server is the artifact that makes the whole bet *usable by an
 agent* — `solve` / `validate` / `decompose` as tools an LLM calls in the
 author→run→read→fix loop the `ferroplan` skill already describes. Packaging

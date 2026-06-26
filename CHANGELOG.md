@@ -11,6 +11,15 @@ big for the one-shot search is **automatically decomposed** into solvable,
 individually-verified contracts.
 
 ### Added
+- **MCP server (`ferroplan-mcp`)** — a Model Context Protocol server exposing
+  `solve`, `validate`, and `decompose` to an LLM agent over stdio, so the agent can
+  *author and supervise* PDDL and let the planner run deterministically (the README's
+  bet, made operational). A self-contained newline-delimited JSON-RPC 2.0 loop — no
+  async runtime, deps limited to `serde`/`serde_json` — that returns the structured
+  `Solution` / `Decomposition` as tool results, reports tool failures as `isError`
+  results (so the agent can correct its PDDL), and never panics on input. Integration
+  tests drive the built binary end to end. (`publish = false` for now; not in the
+  crates.io release set yet.)
 - **Goal decomposer — `decompose` API + `ff --decompose`** (the README's bet, made
   inspectable). A temporal goal too big for the one-shot search is split into ordered
   sub-contracts — each small enough to solve whole and individually verified — then
