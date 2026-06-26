@@ -5,6 +5,20 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- **Goal decomposer — `decompose` API + `ff --decompose`** (the README's bet, made
+  inspectable). A temporal goal too big for the one-shot search is split into ordered
+  sub-contracts — each small enough to solve whole and individually verified — then
+  stitched into one validated plan. This surfaces the partition-and-resolve engine
+  (previously only the `FF_TDECOMP` flag, which returned just the flat plan) as a
+  first-class, typed, serde-serializable `Decomposition { contracts, plan, monolithic }`
+  where each `Contract` names its sub-goal (`(order o1), (order o2)`, `coin >= 15`),
+  its sub-plan, and its offset in the stitched timeline. A goal that can't be split —
+  or whose split doesn't validate — falls back to a single monolithic contract,
+  reported honestly. `ff --decompose` prints the breakdown (text or `--json`).
+  Demonstrated on `examples/rpg-world/hard/order-8` & `order-12` (8 / 12 contracts),
+  which the one-shot temporal search fails on. `ferroplan::decompose(domain, problem,
+  &Options)`; `tresolve::solve` now delegates to the recording `decompose` (the
+  `FF_TDECOMP` plan path is unchanged).
 - **Timed initial literals (PDDL2.2)** — `(at <time> <literal>)` in `:init` (including
   `(at <time> (not <literal>))`) now schedules an exogenous fact change at a fixed
   absolute time, disambiguated from the ordinary `(at ?x ?y)` predicate by a numeric

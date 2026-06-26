@@ -99,3 +99,11 @@ recipe needs ≥2 fresh sub-chains (stage all-but-one input first), a depth≥2 
 conjoined with a sibling (one deliverable per contract), or you exceed the op budget.
 `../../../examples/rpg-world/industrial-city/` is a worked whole-city decomposition;
 `../../../examples/BORDERS.md` is the full ruleset.
+
+**Let the planner split it for you:** `ff --decompose -o domain -f problem --mode
+temporal` (or `ferroplan::decompose(...)`) partitions a too-big temporal goal into
+ordered, individually-solved contracts and stitches them into one validated plan —
+printing each contract's sub-goal and sub-plan (`--json` for the structured
+`Decomposition`). If a goal can't be split it says so and solves it monolithically.
+Reach for this before hand-authoring contracts; fall back to the manual ruleset above
+when you need control over the staging.

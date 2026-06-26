@@ -55,7 +55,10 @@ pub mod viz;
 pub mod api;
 pub mod planner;
 
-pub use api::{solve, Metric, Mode, Options, Plan, Search, Solution, SolveError, Statistics, Step};
+pub use api::{
+    decompose, solve, Contract, Decomposition, Metric, Mode, Options, Plan, Search, Solution,
+    SolveError, Statistics, Step,
+};
 pub use planner::{run_ff, run_planner};
 pub use trace::{trace, StateSnapshot};
 pub use types::ParseError;
