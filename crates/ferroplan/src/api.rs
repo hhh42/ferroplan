@@ -376,7 +376,9 @@ pub fn decompose(
 
     let mut notes = Vec::new();
     if !crate::temporal::is_temporal(&domain) {
-        notes.push("decomposition targets temporal (durative-action) goals; this domain has none".into());
+        notes.push(
+            "decomposition targets temporal (durative-action) goals; this domain has none".into(),
+        );
     }
 
     match crate::tresolve::decompose(&domain, &problem, threads) {

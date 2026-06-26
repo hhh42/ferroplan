@@ -343,8 +343,7 @@ const INEQ_DOM: &str = "
     :condition ()
     :effect (at end (done))))
 ";
-const INEQ_PROB: &str =
-    "(define (problem w) (:domain ineq) (:init) (:goal (done)))";
+const INEQ_PROB: &str = "(define (problem w) (:domain ineq) (:init) (:goal (done)))";
 
 #[test]
 fn duration_inequality_parses_both_bounds() {
@@ -418,7 +417,10 @@ fn single_sided_lower_bound_parses_and_solves() {
     let d = parse_domain(dom).expect("parses");
     let p = parse_problem(prob).expect("parses");
     let a = &d.durative_actions[0];
-    assert!(a.duration.min.is_some() && a.duration.max.is_none(), "lower-only");
+    assert!(
+        a.duration.min.is_some() && a.duration.max.is_none(),
+        "lower-only"
+    );
     let plan = temporal::solve(&d, &p, 1).expect("solves");
     temporal::validate(&d, &p, &plan).expect("validates");
     assert!((plan.makespan - 3.0).abs() < 1e-6, "uses the lower bound 3");
@@ -452,10 +454,8 @@ fn timed_initial_literal_parses() {
     let t = &p.til[0];
     assert!((t.time - 5.0).abs() < 1e-9 && t.add && t.pred == "OPEN");
     // the ordinary `(at ?x ?y)` predicate form must NOT be read as a TIL
-    let p2 = parse_problem(
-        "(define (problem q) (:domain d) (:init (at a0 hub)) (:goal (done)))",
-    )
-    .expect("parses");
+    let p2 = parse_problem("(define (problem q) (:domain d) (:init (at a0 hub)) (:goal (done)))")
+        .expect("parses");
     assert!(p2.til.is_empty(), "`(at a0 hub)` is a predicate, not a TIL");
     assert_eq!(p2.init_atoms.len(), 1);
 }

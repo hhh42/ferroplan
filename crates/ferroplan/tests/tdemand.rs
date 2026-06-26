@@ -58,5 +58,8 @@ fn tdemand_default_on_solves_validates_and_opt_out_honored() {
     std::env::set_var("FF_NO_TDEMAND", "1");
     assert!(!ferroplan::features::tdemand(), "FF_NO_TDEMAND opts out");
     std::env::remove_var("FF_NO_TDEMAND");
-    assert!(ferroplan::features::tdemand(), "removing FF_NO_TDEMAND restores default-on");
+    assert!(
+        ferroplan::features::tdemand(),
+        "removing FF_NO_TDEMAND restores default-on"
+    );
 }

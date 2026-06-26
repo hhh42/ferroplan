@@ -33,7 +33,11 @@ pub fn parse_classical(src: &str) -> Vec<(String, Vec<String>)> {
             Some(b) => b,
             None => continue,
         };
-        let body = body.trim().trim_start_matches('(').trim_end_matches(')').trim();
+        let body = body
+            .trim()
+            .trim_start_matches('(')
+            .trim_end_matches(')')
+            .trim();
         let mut toks = body.split_whitespace().map(|t| t.to_uppercase());
         let name = match toks.next() {
             Some(n) => n,
@@ -49,7 +53,10 @@ pub fn parse_classical(src: &str) -> Vec<(String, Vec<String>)> {
 
 /// If `line` is `[step ]<digits>: <rest>`, return `<rest>`. Else None.
 fn step_body(line: &str) -> Option<&str> {
-    let line = line.strip_prefix("step").map(str::trim_start).unwrap_or(line);
+    let line = line
+        .strip_prefix("step")
+        .map(str::trim_start)
+        .unwrap_or(line);
     let (head, rest) = line.split_once(':')?;
     if !head.trim().is_empty() && head.trim().chars().all(|c| c.is_ascii_digit()) {
         Some(rest)
@@ -94,10 +101,18 @@ pub fn parse_timed(src: &str) -> Result<TimedPlan, String> {
         let after = &rest[close + 1..];
         let duration = after
             .find('[')
-            .and_then(|i| after[i + 1..].find(']').map(|j| after[i + 1..i + 1 + j].trim()))
+            .and_then(|i| {
+                after[i + 1..]
+                    .find(']')
+                    .map(|j| after[i + 1..i + 1 + j].trim())
+            })
             .and_then(|d| d.parse::<f64>().ok());
         makespan = makespan.max(time + duration.unwrap_or(0.0));
-        steps.push(TimedStep { time, action, duration });
+        steps.push(TimedStep {
+            time,
+            action,
+            duration,
+        });
     }
     if steps.is_empty() {
         return Err("no plan steps found in plan file".into());

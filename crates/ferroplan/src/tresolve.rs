@@ -2,7 +2,7 @@
 //! ([`crate::resolve`]) brought to the durative/numeric path, gated by `FF_TDECOMP`.
 //!
 //! Partition the world goal into contracts, solve each as a TEMPORAL subproblem from
-//! the running composed state ([`temporal::solve_from`]), compose the timed subplans
+//! the running composed state (`temporal::solve_from`), compose the timed subplans
 //! strictly SEQUENTIALLY (each contract offset past the previous makespan + an ε seam),
 //! and MERGE groups on conflict down to a monolithic `temporal::solve` — so the
 //! decomposer is solvable EXACTLY when `temporal::solve` is. Each subplan is already

@@ -607,7 +607,12 @@ fn parse_duration_inner(p: &mut P) -> Result<(Option<Expr>, Option<Expr>), Strin
     };
     match p.next()? {
         Tok::Var(_) => {}
-        other => return Err(format!("expected ?duration in :duration, found {:?}", other)),
+        other => {
+            return Err(format!(
+                "expected ?duration in :duration, found {:?}",
+                other
+            ))
+        }
     }
     let e = parse_expr(p)?;
     match op.as_str() {
@@ -874,7 +879,12 @@ fn parse_init_elt(
         p.next()?; // `at`
         let time = match p.next()? {
             Tok::Num(n) => n,
-            other => return Err(format!("expected a time in a timed initial literal, found {:?}", other)),
+            other => {
+                return Err(format!(
+                    "expected a time in a timed initial literal, found {:?}",
+                    other
+                ))
+            }
         };
         // the literal: `(pred args)` or `(not (pred args))`
         p.expect_lparen()?;
