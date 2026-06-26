@@ -570,7 +570,6 @@ fn relevant_op_mask(
 /// Phase-1 key = W_G*g + W_H*h + W_L*(unmet numeric landmarks) + the converging-
 /// resource demand deficit; phase 2 is the original pure-h complete search.
 #[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_from(
     task: &PackedTask,
     kind: &[Kind],
@@ -647,8 +646,8 @@ pub(crate) fn solve_from(
     }
     let go = |rel: &[bool], prune: bool| {
         temporal_search(
-            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel,
-            til_events, prune,
+            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel, til_events,
+            prune,
         )
     };
     go(&sound, true)

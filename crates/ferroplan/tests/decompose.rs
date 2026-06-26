@@ -32,7 +32,11 @@ fn splits_a_conjunctive_goal_into_contracts() {
     );
     // every contract names a non-empty goal and carries a sub-plan
     for c in &d.contracts {
-        assert!(!c.goal.is_empty(), "contract {} has a rendered goal", c.index);
+        assert!(
+            !c.goal.is_empty(),
+            "contract {} has a rendered goal",
+            c.index
+        );
         assert!(!c.steps.is_empty(), "contract {} has a sub-plan", c.index);
     }
     // contracts are offset sequentially along the stitched timeline
@@ -82,8 +86,7 @@ const SINGLE: &str = "
   (:durative-action step :parameters () :duration (= ?duration 1)
     :condition () :effect (at end (increase (x) 1))))
 ";
-const SINGLE_PROB: &str =
-    "(define (problem p) (:domain acc) (:init (= (x) 0)) (:goal (>= (x) 3)))";
+const SINGLE_PROB: &str = "(define (problem p) (:domain acc) (:init (= (x) 0)) (:goal (>= (x) 3)))";
 
 #[test]
 fn single_goal_falls_back_to_one_monolithic_contract() {

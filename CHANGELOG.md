@@ -2,7 +2,13 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.2.0] - 2026-06-26 — "The Bridge"
+
+The engine release (0.1) made ferroplan fast and correct; 0.2 makes the README's
+bet real and inspectable: the proven temporal heuristics are on by default, temporal
+coverage goes deeper (duration inequalities + timed initial literals), and a goal too
+big for the one-shot search is **automatically decomposed** into solvable,
+individually-verified contracts.
 
 ### Added
 - **Goal decomposer — `decompose` API + `ff --decompose`** (the README's bet, made
