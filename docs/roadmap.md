@@ -1,4 +1,4 @@
-# Roadmap — the road to v0.2.0 ("The Bridge")
+# Roadmap — the road to v0.2.1 ("The Bridge")
 
 ferroplan v0.1 is a mature FF-family engine whose README makes one central bet:
 **an LLM should be the author and supervisor of a planner, not its runtime.** Today
@@ -6,7 +6,7 @@ that bet is an argument, not an artifact — the engine is deep, but the *bridge
 thesis promises (natural-language goal → decomposed, solvable contracts → an agent
 running the author→run→read→fix loop over a real tool) isn't built yet.
 
-v0.2.0 closes that gap. It hardens what's already proven, adds one engine-depth win,
+v0.2.1 closes that gap. It hardens what's already proven, adds one engine-depth win,
 **builds the bridge**, and ships it. The four phases are ordered so each derisks the
 next: cheap hardening first (compounds, low risk), then a credibility win, then the
 bridge that depends on a solid engine underneath, then distribution last so we
@@ -20,7 +20,7 @@ Phase 1: Graduate proven flags ──► Phase 2: Temporal depth (TILs) ──�
                                                      (the bridge)            (reach)
 ```
 
-Why "0.2.0" and not "1.0": the README reserves 1.0 for API stability ("APIs may
+Why "0.2.1" and not "1.0": the README reserves 1.0 for API stability ("APIs may
 shift before 1.0"). This release adds a public `decompose` surface and changes
 default heuristics — exactly the kind of churn 0.x exists to absorb. 1.0 comes after
 0.2's APIs have settled in real use.
@@ -165,8 +165,8 @@ new `examples/` showcase, README ("make the thesis real").
 
 ## Phase 4 — The bridge, shipped: MCP server + publish
 
-**Progress.** *crates.io setup* — version bumped to 0.2.0, CLI dep pin synced,
-CHANGELOG cut to `[0.2.0]`, and the full `RELEASING.md` pre-flight is green
+**Progress.** *crates.io setup* — version bumped to 0.2.1, CLI dep pin synced,
+CHANGELOG cut to `[0.2.1]`, and the full `RELEASING.md` pre-flight is green
 (`fmt --check`, `clippy -D warnings`, `RUSTDOCFLAGS=-D warnings cargo doc`,
 `cargo package -p ferroplan` packages + verifies); the two crates are ready to
 publish but **not yet published** (deferred by request). *MCP server* — done:
@@ -174,27 +174,27 @@ publish but **not yet published** (deferred by request). *MCP server* — done:
 (self-contained newline-delimited JSON-RPC 2.0, no async runtime), returning the
 structured `Solution` / `Decomposition`; integration tests drive the built binary
 end to end; `publish = false` for now. **Remaining:** the actual `cargo publish` +
-`v0.2.0` tag, and the **PyPI** wheel for `ferroplan-py`.
+`v0.2.1` tag, and the **PyPI** wheel for `ferroplan-py`.
 
 **Why:** the MCP server is the artifact that makes the whole bet *usable by an
 agent* — `solve` / `validate` / `decompose` as tools an LLM calls in the
 author→run→read→fix loop the `ferroplan` skill already describes. Packaging
 (crates.io + PyPI) is the same "distribution" story, so ship them together as one
-release: the engine is published *and* an agent can drive it the moment 0.2.0 lands.
+release: the engine is published *and* an agent can drive it the moment 0.2.1 lands.
 
 **Scope:**
 - **MCP server** (likely a new `crates/ferroplan-mcp` or a mode of the CLI) exposing
   `solve`, `validate`, `decompose`, and the feature table from the skill, with the
   structured JSON the library already returns.
 - **crates.io:** publish `ferroplan` + `ferroplan-cli` (resolve the workspace
-  version bump to 0.2.0, doc-test the public API, dependency audit).
+  version bump to 0.2.1, doc-test the public API, dependency audit).
 - **PyPI:** publish the `ferroplan-py` wheel (maturin; it already builds standalone).
-- Release mechanics per `RELEASING.md`; tag `v0.2.0`; CHANGELOG release notes that
+- Release mechanics per `RELEASING.md`; tag `v0.2.1`; CHANGELOG release notes that
   tell the "bridge is real" story.
 
 **Acceptance:** `cargo install ferroplan` / `pip install ferroplan` work from a clean
 machine; an agent can `decompose` then `solve` a too-big goal end-to-end through the
-MCP server; `v0.2.0` tagged and released.
+MCP server; `v0.2.1` tagged and released.
 
 **Touches:** new `crates/ferroplan-mcp` (or CLI mode), `Cargo.toml` (version,
 publish metadata), `crates/ferroplan-py`, `RELEASING.md`, `CHANGELOG.md`, README
@@ -202,7 +202,7 @@ publish metadata), `crates/ferroplan-py`, `RELEASING.md`, `CHANGELOG.md`, README
 
 ---
 
-## The 0.2.0 story
+## The 0.2.1 story
 
 > v0.1 proved the engine. **v0.2 makes the bet real:** the proven heuristics are on
 > by default, temporal coverage goes deeper, a goal too big for one-shot search is
