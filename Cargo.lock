@@ -1870,7 +1870,7 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 
 [[package]]
 name = "ferroplan"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "criterion",
  "serde",
@@ -1880,7 +1880,7 @@ dependencies = [
 
 [[package]]
 name = "ferroplan-bevy"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "bevy",
  "ferroplan",
@@ -1891,7 +1891,7 @@ dependencies = [
 
 [[package]]
 name = "ferroplan-cli"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1902,7 +1902,7 @@ dependencies = [
 
 [[package]]
 name = "ferroplan-mcp"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ferroplan",
  "serde",
@@ -1911,7 +1911,7 @@ dependencies = [
 
 [[package]]
 name = "ferroplan-wasm"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ferroplan",
  "serde_json",

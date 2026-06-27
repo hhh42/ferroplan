@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [0.2.0] - 2026-06-26 — "The Bridge"
+## [0.2.1] - 2026-06-26 — "The Bridge"
 
 The engine release (0.1) made ferroplan fast and correct; 0.2 makes the README's
 bet real and inspectable: the proven temporal heuristics are on by default, temporal
