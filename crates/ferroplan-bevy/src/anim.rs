@@ -154,7 +154,9 @@ pub fn animate(
     let frac = if kn == k {
         0.0
     } else {
-        (plan.t - k as f32).clamp(0.0, 1.0)
+        // ease-in-out-cubic on the step-local progress (the redesign's motion curve),
+        // so mobiles accelerate out of a node and settle into the next.
+        ease_in_out_cubic((plan.t - k as f32).clamp(0.0, 1.0))
     };
     let from = scene.graph.positions_at(&plan.snapshots[k].facts);
     let to = scene.graph.positions_at(&plan.snapshots[kn].facts);
@@ -170,6 +172,15 @@ pub fn animate(
         let target = fp.lerp(tp, frac) + off.0;
         tf.translation.x = target.x;
         tf.translation.y = target.y;
+    }
+}
+
+/// Ease-in-out-cubic — smooth acceleration then deceleration over `t` in `0..=1`.
+fn ease_in_out_cubic(t: f32) -> f32 {
+    if t < 0.5 {
+        4.0 * t * t * t
+    } else {
+        1.0 - (-2.0 * t + 2.0).powi(3) / 2.0
     }
 }
 

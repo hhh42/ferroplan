@@ -290,7 +290,7 @@ pub fn editor_drag(
                             font_size: 12.0,
                             ..default()
                         },
-                        TextColor(Color::srgb(1.0, 0.9, 0.5)),
+                        TextColor(crate::palette::ACC),
                         Node {
                             position_type: PositionType::Absolute,
                             left: Val::Px(pos.x + 8.0),
@@ -1208,7 +1208,7 @@ pub fn rebuild(
                 ..default()
             },
             ScrollPosition::default(),
-            BackgroundColor(Color::srgba(0.06, 0.06, 0.08, 0.97)),
+            BackgroundColor(crate::palette::BG2),
         ))
         .with_children(|p| {
             row(p, |h| {
@@ -1269,7 +1269,7 @@ fn zone(p: &mut ChildBuilder, z: Zone, f: impl FnOnce(&mut ChildBuilder)) {
             margin: UiRect::vertical(Val::Px(2.0)),
             ..default()
         },
-        BackgroundColor(Color::srgba(0.12, 0.12, 0.16, 0.6)),
+        BackgroundColor(crate::palette::ZONE),
         z,
         Interaction::default(),
         RelativeCursorPosition::default(),
@@ -1284,7 +1284,7 @@ fn grip(r: &mut ChildBuilder, kind: DragKind) {
             padding: UiRect::axes(Val::Px(4.0), Val::Px(2.0)),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.32, 0.32, 0.38)),
+        BackgroundColor(crate::palette::EDGE2),
         kind,
         Interaction::default(),
         RelativeCursorPosition::default(),
@@ -1296,7 +1296,7 @@ fn grip(r: &mut ChildBuilder, kind: DragKind) {
                 font_size: 12.0,
                 ..default()
             },
-            TextColor(Color::srgb(0.85, 0.85, 0.9)),
+            TextColor(crate::palette::MUT),
         ));
     });
 }
@@ -1390,7 +1390,7 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
                     }
                 });
                 row(p, |r| {
-                    label(r, "  pre");
+                    label_colored(r, "  pre", crate::palette::CY);
                     btn(
                         r,
                         if *pre_or { "any (or)" } else { "all (and)" },
@@ -1398,7 +1398,8 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
                     );
                 });
                 lit_section(p, i, LitLoc::Pre, "", pre);
-                lit_section(p, i, LitLoc::Eff, "  eff:", eff);
+                label_colored(p, "  eff:", crate::palette::ACC);
+                lit_section(p, i, LitLoc::Eff, "", eff);
                 for (wi, (cond, weff)) in whens.iter().enumerate() {
                     row(p, |r| {
                         label(r, "  when");
@@ -1478,7 +1479,20 @@ fn label(p: &mut ChildBuilder, text: impl Into<String>) {
             font_size: 12.0,
             ..default()
         },
-        TextColor(Color::srgb(0.8, 0.8, 0.82)),
+        TextColor(crate::palette::MUT),
+    ));
+}
+
+/// A label in a specific colour (precondition cyan, effect molten — the redesign's
+/// pre/eff cue).
+fn label_colored(p: &mut ChildBuilder, text: impl Into<String>, color: Color) {
+    p.spawn((
+        Text::new(text.into()),
+        TextFont {
+            font_size: 12.0,
+            ..default()
+        },
+        TextColor(color),
     ));
 }
 
@@ -1500,10 +1514,10 @@ fn section_header(p: &mut ChildBuilder, text: &str) {
         h.spawn((
             Text::new(text.to_string()),
             TextFont {
-                font_size: 13.0,
+                font_size: 11.0,
                 ..default()
             },
-            TextColor(Color::srgb(0.72, 0.66, 0.98)),
+            TextColor(crate::palette::FAINT),
         ));
         h.spawn((
             Node {
@@ -1511,7 +1525,7 @@ fn section_header(p: &mut ChildBuilder, text: &str) {
                 height: Val::Px(1.0),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.72, 0.66, 0.98, 0.30)),
+            BackgroundColor(crate::palette::EDGE),
         ));
     });
 }
@@ -1523,7 +1537,7 @@ fn btn(p: &mut ChildBuilder, text: impl Into<String>, act: Act) {
             padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
             ..default()
         },
-        BackgroundColor(Color::srgb(0.22, 0.22, 0.29)),
+        BackgroundColor(crate::palette::PANEL2),
         BorderRadius::all(Val::Px(5.0)),
         act,
     ))
@@ -1534,7 +1548,7 @@ fn btn(p: &mut ChildBuilder, text: impl Into<String>, act: Act) {
                 font_size: 12.0,
                 ..default()
             },
-            TextColor(Color::srgb(0.92, 0.92, 0.95)),
+            TextColor(crate::palette::INK),
         ));
     });
 }
@@ -1542,13 +1556,16 @@ fn btn(p: &mut ChildBuilder, text: impl Into<String>, act: Act) {
 /// A stable per-key color (fill, accent) so each predicate / type reads as its
 /// own kind of block — the Blockly-style visual cue.
 fn block_color(key: &str) -> (Color, Color) {
+    // (dark fill, bright left-rail accent) in the forge palette — cyan / rig-green /
+    // crate-amber / node-purple / molten / cyan-teal, so block kinds read as the
+    // redesign's type tints rather than arbitrary hues.
     const P: [([f32; 3], [f32; 3]); 6] = [
-        ([0.10, 0.16, 0.27], [0.29, 0.62, 0.93]), // blue
-        ([0.09, 0.20, 0.13], [0.16, 0.77, 0.40]), // green
-        ([0.25, 0.17, 0.05], [0.96, 0.62, 0.05]), // orange
-        ([0.17, 0.12, 0.27], [0.58, 0.40, 0.96]), // purple
-        ([0.25, 0.10, 0.18], [0.93, 0.30, 0.62]), // pink
-        ([0.05, 0.19, 0.22], [0.05, 0.72, 0.84]), // teal
+        ([0.05, 0.19, 0.22], [0.27, 0.83, 0.78]), // cyan
+        ([0.10, 0.16, 0.08], [0.66, 0.82, 0.29]), // rig green
+        ([0.20, 0.15, 0.05], [0.91, 0.73, 0.29]), // crate amber
+        ([0.13, 0.11, 0.24], [0.43, 0.37, 0.84]), // node purple
+        ([0.22, 0.10, 0.06], [1.00, 0.42, 0.23]), // molten
+        ([0.05, 0.17, 0.20], [0.27, 0.83, 0.78]), // teal/cyan
     ];
     let h = key
         .bytes()
