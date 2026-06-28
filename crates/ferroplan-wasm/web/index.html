@@ -4,106 +4,330 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ferroplan — PDDL planner in your browser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#0f0f14; --panel:#17171f; --edge:#2a2a36; --ink:#e8e8ee; --mut:#9aa0a6; --accent:#6c5ce7; --ok:#a8d24a; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; }
-  header { padding:18px 22px; border-bottom:1px solid var(--edge); display:flex; align-items:baseline; gap:12px; }
-  h1 { margin:0; font-size:22px; letter-spacing:-.5px; }
-  h1 .fp { color:var(--accent); } h1 .pl { color:var(--mut); }
-  header .tag { color:var(--mut); font-size:13px; }
-  main { max-width:1100px; margin:0 auto; padding:18px 22px; }
-  .row { display:flex; gap:14px; flex-wrap:wrap; }
-  .col { flex:1 1 360px; min-width:300px; }
-  label { display:block; font-size:12px; color:var(--mut); margin:0 0 4px 2px; text-transform:uppercase; letter-spacing:.5px; }
-  textarea { width:100%; height:300px; background:var(--panel); color:var(--ink); border:1px solid var(--edge);
-             border-radius:8px; padding:10px 12px; font:13px/1.45 ui-monospace, Menlo, monospace; resize:vertical; }
-  .bar { display:flex; align-items:center; gap:12px; margin:14px 0; }
-  button { background:var(--accent); color:#fff; border:0; border-radius:8px; padding:9px 18px; font-size:15px;
-           font-weight:600; cursor:pointer; }
-  button:disabled { opacity:.5; cursor:default; }
-  select { background:var(--panel); color:var(--ink); border:1px solid var(--edge); border-radius:8px; padding:8px 10px; }
-  .out { margin-top:6px; background:var(--panel); border:1px solid var(--edge); border-radius:8px; padding:12px 14px; }
-  .stat { color:var(--mut); font-size:13px; margin-bottom:8px; }
-  .stat b { color:var(--ink); }
-  .err { color:#ff8a8a; }
-  pre { margin:0; font:13px/1.5 ui-monospace, Menlo, monospace; white-space:pre-wrap; max-height:340px; overflow:auto; }
-  footer { color:var(--mut); font-size:12px; padding:16px 22px; border-top:1px solid var(--edge); }
-  a { color:var(--accent); }
+  :root{
+    --bg:#0b0d11; --bg2:#0e1116; --panel:#12161d; --panel2:#161b23;
+    --edge:#222a34; --edge2:#313b48; --ink:#e8ebf0; --mut:#8b94a3; --faint:#525b69;
+    --acc:#ff6a3a; --cy:#46d3c6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{background:var(--bg); color:var(--ink); font:15px/1.5 'Space Grotesk',system-ui,sans-serif;}
+  ::selection{background:rgba(255,106,58,.28);}
+  a{color:var(--ink); text-decoration:none;}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace;}
+  /* blueprint grid */
+  .grid{position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+    background-image:linear-gradient(var(--edge) 1px,transparent 1px),linear-gradient(90deg,var(--edge) 1px,transparent 1px);
+    background-size:34px 34px;
+    -webkit-mask-image:radial-gradient(ellipse 120% 90% at 50% 0%, #000 35%, transparent 78%);
+    mask-image:radial-gradient(ellipse 120% 90% at 50% 0%, #000 35%, transparent 78%);}
+  .wrap{position:relative; z-index:1; max-width:1280px; margin:0 auto; padding:0 26px 80px;}
+  /* header */
+  header{display:flex; align-items:center; justify-content:space-between; gap:20px; padding:22px 4px 20px; border-bottom:1px solid var(--edge); flex-wrap:wrap;}
+  .brand{display:flex; align-items:center; gap:15px;}
+  .word{font-size:23px; font-weight:600; letter-spacing:-1px; line-height:1;}
+  .sub{font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.5px; color:var(--mut); text-transform:uppercase;}
+  nav{display:flex; gap:3px; background:var(--bg2); border:1px solid var(--edge); border-radius:9px; padding:4px; margin-left:14px;}
+  nav a{font-family:'JetBrains Mono',monospace; font-size:12px; padding:6px 13px; border-radius:6px; color:var(--mut); border:1px solid transparent; transition:color .12s,border-color .12s;}
+  nav a:hover{color:var(--ink);}
+  nav a.on{color:var(--ink); background:var(--panel2); border-color:var(--edge2);}
+  .chip{display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--mut); border:1px solid var(--edge); border-radius:7px; padding:6px 11px;}
+  .chip b{color:var(--ink); font-weight:500;}
+  .dot{width:6px; height:6px; border-radius:50%; background:var(--cy); box-shadow:0 0 7px var(--cy);}
+  .ghost{display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--mut); border:1px solid var(--edge); border-radius:7px; padding:6px 11px; transition:color .12s,border-color .12s;}
+  .ghost:hover{color:var(--ink); border-color:var(--edge2);}
+  /* intro */
+  .intro{display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; padding:26px 4px 18px;}
+  .intro h1{margin:0 0 10px; font-size:34px; font-weight:700; letter-spacing:-1.3px; line-height:1.06;}
+  .intro h1 .acc{color:var(--acc);}
+  .intro p{margin:0; max-width:640px; font-size:15px; line-height:1.55; color:var(--mut);}
+  .intro p b{color:var(--ink); font-weight:400;}
+  .stats{display:flex; gap:22px; font-family:'JetBrains Mono',monospace;}
+  .stats .n{font-size:26px; font-weight:700; color:var(--ink); letter-spacing:-.5px;}
+  .stats .n.cy{color:var(--cy);}
+  .stats .k{font-size:10px; letter-spacing:.5px; color:var(--faint); text-transform:uppercase; margin-top:3px;}
+  .vline{width:1px; background:var(--edge);}
+  /* labels + selects */
+  .lbl{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:1px; color:var(--faint); text-transform:uppercase;}
+  .sel{background:var(--bg2); color:var(--ink); border:1px solid var(--edge); border-radius:8px; padding:8px 11px; font-family:'JetBrains Mono',monospace; font-size:12px; cursor:pointer; max-width:340px;}
+  .sel:hover{border-color:var(--edge2);}
+  /* toolbar / panels */
+  .toolbar{display:flex; align-items:center; gap:14px; flex-wrap:wrap; padding:14px 16px; background:var(--panel); border:1px solid var(--edge); border-radius:11px 11px 0 0; border-bottom:none;}
+  .hint{display:flex; align-items:center; gap:10px; padding:11px 16px; background:var(--panel); border-left:1px solid var(--edge); border-right:1px solid var(--edge); font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--mut);}
+  .hint .tri{color:var(--acc);}
+  /* editors */
+  .editors{display:grid; grid-template-columns:1fr 1fr; background:var(--panel); border:1px solid var(--edge); position:relative;}
+  .tick{position:absolute; top:9px; width:9px; height:9px; pointer-events:none;}
+  .tick.l{left:9px; border-top:1.5px solid var(--edge2); border-left:1.5px solid var(--edge2);}
+  .tick.r{right:9px; border-top:1.5px solid var(--edge2); border-right:1.5px solid var(--edge2);}
+  .edcol{display:flex; flex-direction:column;}
+  .edcol.split{border-right:1px solid var(--edge);}
+  .edtitle{display:flex; align-items:center; justify-content:space-between; padding:11px 16px; border-bottom:1px solid var(--edge);}
+  .edtitle .name{display:flex; align-items:center; gap:9px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink); font-weight:500;}
+  .sq{width:8px; height:8px; border-radius:2px;}
+  .edmeta{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--faint);}
+  .edgrid{display:grid; grid-template-columns:auto 1fr; position:relative;}
+  .ed{font-family:'JetBrains Mono',monospace; font-size:13px; line-height:1.55;}
+  .ed::-webkit-scrollbar{width:10px; height:10px;}
+  .ed::-webkit-scrollbar-thumb{background:#2a323d; border-radius:6px; border:2px solid var(--panel);}
+  .ed::-webkit-scrollbar-track{background:transparent;}
+  .gutter{overflow:hidden; height:360px; padding:14px 10px 14px 14px; text-align:right; color:var(--faint); white-space:pre; user-select:none; background:var(--bg2);}
+  .edbox{position:relative; height:360px;}
+  .edbox pre{position:absolute; inset:0; margin:0; overflow:auto; padding:14px 16px; white-space:pre; color:var(--ink); pointer-events:none;}
+  .edbox textarea{position:absolute; inset:0; width:100%; height:100%; margin:0; resize:none; overflow:auto; padding:14px 16px; border:0; outline:none; background:transparent; color:transparent; white-space:pre; -webkit-text-fill-color:transparent;}
+  /* action bar */
+  .actionbar{display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:16px; background:var(--panel); border:1px solid var(--edge); border-top:none; border-radius:0 0 11px 11px;}
+  .blurb{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--faint); line-height:1.4;}
+  .took{font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--mut);}
+  /* buttons */
+  .btn{display:inline-flex; align-items:center; gap:10px; background:linear-gradient(180deg, color-mix(in oklab, var(--acc), white 20%), var(--acc)); color:#1a0d06; border:0; border-radius:9px; padding:12px 26px; font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:700; letter-spacing:-.2px; cursor:pointer; box-shadow:0 6px 22px -6px var(--acc); transition:filter .12s,transform .06s;}
+  .btn:hover{filter:brightness(1.06);}
+  .btn:active{transform:translateY(1px);}
+  .btn:disabled{filter:none; opacity:.65; cursor:default; box-shadow:none;}
+  .btn.sm{padding:9px 16px; font-size:13px; border-radius:8px; box-shadow:0 5px 18px -6px var(--acc);}
+  .btn.cancel{background:none; color:var(--mut); border:1px solid var(--edge); box-shadow:none;}
+  .btn.cancel:hover{color:var(--ink); border-color:var(--edge2);}
+  /* results */
+  .results{margin-top:18px;}
+  .idle{border:1px dashed var(--edge2); border-radius:11px; padding:46px 20px; text-align:center;}
+  .idle .a{font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--mut);}
+  .idle .a .acc{color:var(--acc);}
+  .idle .b{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--faint); margin-top:8px;}
+  .solving{border:1px solid var(--edge); border-radius:11px; padding:46px 20px; text-align:center; background:var(--panel);}
+  .spinner{display:inline-block; width:22px; height:22px; border:2.5px solid var(--edge2); border-top-color:var(--acc); border-radius:50%; animation:spin .7s linear infinite;}
+  .solving .t{font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--mut); margin-top:14px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  @keyframes rise{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:none;}}
+  .result{animation:rise .25s ease both;}
+  .rowtop{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:14px;}
+  .badge{display:inline-flex; align-items:center; gap:8px; background:rgba(70,211,198,.12); border:1px solid rgba(70,211,198,.35); color:var(--cy); border-radius:8px; padding:8px 14px; font-family:'JetBrains Mono',monospace; font-size:13px; font-weight:700; letter-spacing:.3px;}
+  .badge.err{background:rgba(255,106,58,.1); border-color:rgba(255,106,58,.4); color:var(--acc);}
+  .status{font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--mut);}
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:1px; background:var(--edge); border:1px solid var(--edge); border-radius:11px; overflow:hidden; margin-bottom:18px;}
+  .tile{background:var(--panel); padding:15px 16px;}
+  .tile .v{font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:700; letter-spacing:-.6px; line-height:1; color:var(--ink);}
+  .tile .v.cy{color:var(--cy);} .tile .v.acc{color:var(--acc);}
+  .tile .k{font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:.7px; color:var(--faint); text-transform:uppercase; margin-top:7px;}
+  .plan{border:1px solid var(--edge); border-radius:11px; background:var(--panel); overflow:hidden;}
+  .plan .h{display:flex; align-items:center; justify-content:space-between; padding:12px 18px; border-bottom:1px solid var(--edge);}
+  .plan .h .lbl{font-size:11px; color:var(--mut);}
+  .plan .h .meta{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--faint);}
+  .plan .list{padding:8px 0; max-height:420px; overflow:auto;}
+  .step{display:grid; align-items:center; gap:14px; padding:6px 18px; font-family:'JetBrains Mono',monospace; font-size:13px;}
+  .step:hover{background:var(--panel2);}
+  .step .i{color:var(--faint); text-align:right;}
+  .step .t{color:var(--cy);}
+  .step .act{color:var(--acc); font-weight:500;}
+  .step .arg{color:var(--mut);} .step .d{color:var(--faint);}
+  .bar{position:relative; height:9px; background:var(--bg2); border-radius:3px; min-width:80px;}
+  .bar .fill{position:absolute; top:0; bottom:0; background:linear-gradient(90deg, var(--acc), color-mix(in oklab, var(--acc), var(--cy) 60%)); border-radius:3px;}
+  footer{margin-top:30px; padding-top:18px; border-top:1px solid var(--edge); display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--faint);}
+  footer .sep{color:var(--edge2);}
 </style>
 </head>
 <body>
-<header>
-  <h1><span class="fp">ferro</span><span class="pl">plan</span></h1>
-  <span class="tag">a fast PDDL planner in Rust — running entirely in your browser via WebAssembly</span>
-</header>
-<main>
-  <div class="bar" style="margin:0 0 6px">
-    <label for="domain" style="margin:0">domain</label>
-    <select id="domain"></select>
-    <label for="problem" style="margin:0">problem</label>
-    <select id="problem"></select>
-    <span class="stat">— simplest → most complex; or paste your own below</span>
-  </div>
-  <div id="hint" class="stat" style="margin:0 0 12px 2px"></div>
-  <div class="row">
-    <div class="col">
-      <label for="dom">Domain</label>
-      <textarea id="dom" spellcheck="false"></textarea>
+<div class="grid"></div>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <a href="./" aria-label="ferroplan home" style="display:flex;">
+        <svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true" style="display:block;">
+          <g fill="none" stroke="var(--edge2)" stroke-width="2.2" stroke-linecap="round">
+            <path d="M9 11 L29 8 M9 11 L12 30 M29 8 L31 27 M12 30 L31 27 M29 8 L12 30"/>
+          </g>
+          <rect x="3.5" y="5.5" width="11" height="11" rx="2.5" transform="rotate(45 9 11)" fill="var(--cy)"/>
+          <circle cx="29" cy="8" r="4.6" fill="#7e8794"/>
+          <circle cx="12" cy="30" r="4.6" fill="#7e8794"/>
+          <rect x="25.5" y="22.5" width="11" height="11" rx="2.5" fill="var(--acc)"/>
+        </svg>
+      </a>
+      <div style="display:flex; flex-direction:column; gap:3px;">
+        <div class="word">ferroplan</div>
+        <div class="sub">data-parallel PDDL planner · Rust · WASM</div>
+      </div>
+      <nav>
+        <a class="on" href="./">Solver</a>
+        <a href="../gui/index.html">Visualizer</a>
+        <a href="../gui/index.html#animate">Animator</a>
+      </nav>
     </div>
-    <div class="col">
-      <label for="prob">Problem</label>
-      <textarea id="prob" spellcheck="false"></textarea>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <span class="chip"><span class="dot"></span> ferroplan&nbsp;<b id="ver">…</b></span>
+      <a class="ghost" href="https://github.com/hhh42/ferroplan" target="_blank" rel="noopener">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        source
+      </a>
+    </div>
+  </header>
+
+  <!-- INTRO -->
+  <div class="intro">
+    <div>
+      <h1>Plan a whole village of agents <span class="acc">deterministically.</span></h1>
+      <p>An LLM authors the PDDL; <b>ferroplan</b> solves it — fast, cheap, inspectable, identical every run. Pick a domain or paste your own. It plans entirely in your browser via WebAssembly.</p>
+    </div>
+    <div class="stats">
+      <div><div class="n">0.71×</div><div class="k">vs Metric-FF</div></div>
+      <div class="vline"></div>
+      <div><div class="n">40/40</div><div class="k">STRIPS solved</div></div>
+      <div class="vline"></div>
+      <div><div class="n cy">0</div><div class="k">server calls</div></div>
     </div>
   </div>
-  <div class="bar">
-    <button id="go" disabled>Loading…</button>
-    <button id="cancel" style="display:none; background:#5a5a66">Cancel</button>
-    <label for="mode" style="margin:0">mode</label>
-    <select id="mode">
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <span class="lbl">Example</span>
+    <select id="domain" class="sel" aria-label="domain"></select>
+    <select id="problem" class="sel" aria-label="problem"></select>
+    <div style="flex:1;"></div>
+    <span class="lbl">Mode</span>
+    <select id="mode" class="sel" aria-label="mode">
       <option value="auto">auto</option>
-      <option value="ff">ff (classical)</option>
-      <option value="pddl3">pddl3 (preferences)</option>
+      <option value="ff">ff · classical</option>
+      <option value="pddl3">pddl3 · preferences</option>
       <option value="partition">partition</option>
       <option value="temporal">temporal</option>
     </select>
-    <label for="exec" style="margin:0">run on</label>
-    <select id="exec">
-      <option value="worker">Web Worker — responsive, cancelable</option>
-      <option value="main">main thread — no worker needed</option>
+    <span class="lbl">Search</span>
+    <select id="search" class="sel" aria-label="search">
+      <option value="auto">auto</option>
+      <option value="ehc">ehc</option>
+      <option value="best-first">best-first</option>
+      <option value="ehc-then-bf">ehc → best-first</option>
     </select>
-    <span id="took" class="stat"></span>
+    <span class="lbl">Run on</span>
+    <select id="exec" class="sel" aria-label="run on">
+      <option value="worker">web worker</option>
+      <option value="main">main thread</option>
+    </select>
   </div>
-  <div class="out"><div id="stat" class="stat">Paste a PDDL domain + problem and hit Plan.</div><pre id="plan"></pre></div>
-</main>
-<footer>
-  <span id="ver"></span> · No server, no install — the planner is compiled to WebAssembly and runs locally.
-  · <a href="https://github.com/hhh42/ferroplan">source</a>
-</footer>
+
+  <!-- HINT -->
+  <div class="hint"><span class="tri">▸</span><span id="hint"></span></div>
+
+  <!-- EDITORS -->
+  <div class="editors">
+    <div class="tick l"></div><div class="tick r"></div>
+    <div class="edcol split">
+      <div class="edtitle">
+        <span class="name"><span class="sq" style="background:var(--acc);"></span>domain.pddl</span>
+        <span id="domMeta" class="edmeta"></span>
+      </div>
+      <div class="edgrid">
+        <div id="domGut" class="ed gutter"></div>
+        <div class="edbox">
+          <pre id="domHl" class="ed" aria-hidden="true"></pre>
+          <textarea id="dom" class="ed" spellcheck="false" style="caret-color:var(--acc);"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="edcol">
+      <div class="edtitle">
+        <span class="name"><span class="sq" style="background:var(--cy);"></span>problem.pddl</span>
+        <span id="probMeta" class="edmeta"></span>
+      </div>
+      <div class="edgrid">
+        <div id="probGut" class="ed gutter"></div>
+        <div class="edbox">
+          <pre id="probHl" class="ed" aria-hidden="true"></pre>
+          <textarea id="prob" class="ed" spellcheck="false" style="caret-color:var(--cy);"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION BAR -->
+  <div class="actionbar">
+    <button id="go" class="btn" disabled>
+      <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M9.5 1L2 9h4.5L6 15l7.5-8H9z"/></svg>
+      <span id="goLabel">Loading…</span>
+    </button>
+    <button id="cancel" class="btn cancel" style="display:none;">Cancel</button>
+    <div class="blurb">EHC + helpful actions, falling back to weighted best-first.<br>The plan found is identical for any thread count.</div>
+    <div style="flex:1;"></div>
+    <span id="took" class="took"></span>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results">
+    <div id="idle" class="idle">
+      <div class="a">Choose an example or paste your own, then hit <span class="acc">Plan</span>.</div>
+      <div class="b">solved domains plan essentially for free — no LLM call per decision per agent</div>
+    </div>
+    <div id="solving" class="solving" style="display:none;">
+      <div class="spinner"></div>
+      <div class="t">grounding · evaluating · searching…</div>
+    </div>
+    <div id="result" class="result" style="display:none;"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <span>compiled to WebAssembly · runs locally · no server, no install</span>
+    <span class="sep">·</span>
+    <span>PDDL is the auditable interface between intent, authoring, and a fast solver</span>
+  </footer>
+
+</div>
 
 <script type="module">
 import init, { plan, version } from './pkg/ferroplan_wasm.js';
 import { DOMAINS } from './examples.js';
 
 const $ = (id) => document.getElementById(id);
-const go = $('go');
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-// Two-level picker: choose a DOMAIN, then a PROBLEM (simplest -> most complex).
-// Picking only LOADS it into the editors — you hit Plan to solve (complex ones
-// can take a moment), so a heavy problem never auto-runs and freezes the page.
-const domSel = $('domain'), probSel = $('problem'), exec = $('exec'), cancelBtn = $('cancel');
+// ---- PDDL syntax highlighter (ported from the design prototype's hl()) ----
+function hl(src) {
+  let out = '', i = 0; const n = src.length;
+  const isW = (c) => /[a-z0-9_\-]/i.test(c);
+  while (i < n) {
+    const c = src[i];
+    if (c === ';') { let j = i; while (j < n && src[j] !== '\n') j++; out += '<span style="color:var(--faint);font-style:italic">' + esc(src.slice(i, j)) + '</span>'; i = j; continue; }
+    if (c === '(' || c === ')') { out += '<span style="color:var(--edge2)">' + c + '</span>'; i++; continue; }
+    if (c === ':') { let j = i + 1; while (j < n && /[a-z\-]/i.test(src[j])) j++; out += '<span style="color:var(--acc)">' + esc(src.slice(i, j)) + '</span>'; i = j; continue; }
+    if (c === '?') { let j = i + 1; while (j < n && isW(src[j])) j++; out += '<span style="color:var(--cy)">' + esc(src.slice(i, j)) + '</span>'; i = j; continue; }
+    if (/[0-9]/.test(c)) { let j = i; while (j < n && /[0-9.]/.test(src[j])) j++; out += '<span style="color:var(--cy)">' + esc(src.slice(i, j)) + '</span>'; i = j; continue; }
+    if (/[a-z]/i.test(c)) { let j = i; while (j < n && isW(src[j])) j++; const w = src.slice(i, j); out += /^(define|domain|problem)$/i.test(w) ? '<span style="color:var(--ink);font-weight:700">' + esc(w) + '</span>' : esc(w); i = j; continue; }
+    out += esc(c); i++;
+  }
+  return out;
+}
+
+// keep the highlight layer + line-number gutter synced with the textarea
+function refresh(side) {
+  const ta = $(side), pre = $(side + 'Hl'), gut = $(side + 'Gut'), meta = $(side + 'Meta');
+  pre.innerHTML = hl(ta.value);
+  const lines = ta.value.split('\n').length;
+  gut.textContent = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+  meta.textContent = lines + ' lines';
+}
+function syncScroll(side) {
+  const ta = $(side), pre = $(side + 'Hl'), gut = $(side + 'Gut');
+  pre.scrollTop = ta.scrollTop; pre.scrollLeft = ta.scrollLeft; gut.scrollTop = ta.scrollTop;
+}
+['dom', 'prob'].forEach((side) => {
+  const ta = $(side);
+  ta.addEventListener('input', () => { refresh(side); syncScroll(side); });
+  ta.addEventListener('scroll', () => syncScroll(side));
+});
+
+// ---- Two-level example picker over the real examples.js corpus ----
+const domSel = $('domain'), probSel = $('problem'), exec = $('exec'), cancelBtn = $('cancel'), goBtn = $('go');
 let curFlags = '', curSlow = false;
 DOMAINS.forEach((d, i) => {
   const o = document.createElement('option');
   o.value = String(i); o.textContent = d.label; domSel.appendChild(o);
 });
-function ready(msg) {
-  const s = $('stat'); s.className = 'stat'; s.textContent = msg;
-  $('plan').textContent = ''; $('took').textContent = '';
-}
 function loadDomain(di) {
-  const d = DOMAINS[di];
-  if (!d) return;
+  const d = DOMAINS[di]; if (!d) return;
   $('dom').value = d.domain;
   probSel.innerHTML = '';
   d.problems.forEach((p, j) => {
@@ -111,22 +335,22 @@ function loadDomain(di) {
     o.value = String(j); o.textContent = p.label; probSel.appendChild(o);
   });
   loadProblem(di, 0);
+  refresh('dom');
 }
 function loadProblem(di, pj) {
-  const d = DOMAINS[di], p = d && d.problems[pj];
-  if (!p) return;
-  $('prob').value = p.problem;
+  const d = DOMAINS[di], p = d && d.problems[pj]; if (!p) return;
+  $('prob').value = p.problem; refresh('prob');
+  $('dom').scrollTop = 0; $('prob').scrollTop = 0; syncScroll('dom'); syncScroll('prob');
   if (p.mode) $('mode').value = p.mode;
   curFlags = p.flags || ''; curSlow = !!p.slow;
   $('hint').textContent = (p.note || '') + (curFlags ? '  ·  features: ' + curFlags : '');
-  ready('Loaded — hit Plan' + (curSlow ? '  (heavy — use Web Worker so the page stays responsive)' : ''));
+  showIdle('Loaded — hit Plan' + (curSlow ? '  (heavy — use a web worker so the page stays responsive)' : ''));
 }
 domSel.addEventListener('change', () => loadDomain(+domSel.value));
 probSel.addEventListener('change', () => loadProblem(+domSel.value, +probSel.value));
 loadDomain(0);
 
-// ---- Web Worker plumbing, with a main-thread fallback (workers can be blocked by
-// file:// origins or strict CSP — then we switch to main and disable the option). ----
+// ---- Web Worker plumbing with a main-thread fallback (unchanged wiring) ----
 let worker = null, reqId = 0, pending = null, workerBroken = false;
 function disableWorkerOption() {
   exec.value = 'main';
@@ -147,73 +371,129 @@ function makeWorker() {
   };
   return w;
 }
-function solveWorker(domain, problem, mode, flags) {
+function solveWorker(domain, problem, mode, flags, search) {
   if (!worker) worker = makeWorker();
-  if (!worker) return Promise.resolve(plan(domain, problem, mode, flags)); // no workers -> main
+  if (!worker) return Promise.resolve(plan(domain, problem, mode, flags, search));
   return new Promise((resolve) => {
     const id = ++reqId;
-    pending = { id, resolve, fallback: () => plan(domain, problem, mode, flags) };
-    worker.postMessage({ id, domain, problem, mode, flags });
+    pending = { id, resolve, fallback: () => plan(domain, problem, mode, flags, search) };
+    worker.postMessage({ id, domain, problem, mode, flags, search });
   });
 }
 
-await init(); // main-thread wasm instance (for main mode + the hard fallback)
-$('ver').textContent = 'ferroplan v' + version();
-go.disabled = false; go.textContent = 'Plan';
-ready('Pick a domain + problem (or paste your own), then hit Plan.');
+await init(); // main-thread wasm instance (main mode + the hard fallback)
+$('ver').textContent = 'v' + version();
+goBtn.disabled = false; $('goLabel').textContent = 'Plan';
 
+// ---- result-state switching ----
+function show(which) {
+  $('idle').style.display = which === 'idle' ? '' : 'none';
+  $('solving').style.display = which === 'solving' ? '' : 'none';
+  $('result').style.display = which === 'result' ? '' : 'none';
+}
+function showIdle(msg) {
+  show('idle');
+  $('idle').querySelector('.a').textContent = msg || 'Choose an example or paste your own, then hit Plan.';
+  $('took').textContent = '';
+}
 function setSolving(on) {
-  go.disabled = on; go.textContent = on ? 'Planning…' : 'Plan';
+  goBtn.disabled = on; $('goLabel').textContent = on ? 'Planning…' : 'Plan';
   cancelBtn.style.display = (on && exec.value === 'worker' && !workerBroken) ? '' : 'none';
+  if (on) show('solving');
 }
 
-go.addEventListener('click', async () => {
+goBtn.addEventListener('click', async () => {
   setSolving(true);
-  const stat = $('stat'); stat.className = 'stat';
-  stat.textContent = 'Planning…' + (curSlow ? '  (this one is heavy — a few seconds)' : '');
-  const dom = $('dom').value, prob = $('prob').value, mode = $('mode').value, flags = curFlags;
+  const dom = $('dom').value, prob = $('prob').value;
+  const mode = $('mode').value, search = $('search').value, flags = curFlags;
   const t0 = performance.now();
   let raw;
   if (exec.value === 'worker') {
-    raw = await solveWorker(dom, prob, mode, flags);
+    raw = await solveWorker(dom, prob, mode, flags, search);
   } else {
-    await new Promise(r => setTimeout(r, 10)); // let 'Planning…' paint before the sync solve
-    try { raw = plan(dom, prob, mode, flags); } catch (e) { raw = JSON.stringify({ error: String(e) }); }
+    await new Promise(r => setTimeout(r, 10)); // let the spinner paint before the sync solve
+    try { raw = plan(dom, prob, mode, flags, search); } catch (e) { raw = JSON.stringify({ error: String(e) }); }
   }
   if (raw == null) { setSolving(false); return; } // cancelled
   let res; try { res = JSON.parse(raw); } catch (e) { res = { error: String(e) }; }
-  render(res, (performance.now() - t0).toFixed(1));
+  render(res, (performance.now() - t0).toFixed(1), { mode, search });
   setSolving(false);
 });
 
 cancelBtn.addEventListener('click', () => {
-  if (worker) { worker.terminate(); worker = null; } // a fresh worker is made on next solve
+  if (worker) { worker.terminate(); worker = null; }
   if (pending) { const p = pending; pending = null; p.resolve(null); }
-  ready('Cancelled.');
+  showIdle('Cancelled.');
 });
 
-function render(res, ms) {
-  const stat = $('stat'), out = $('plan');
+// ---- render the structured Solution into the new results UI ----
+function tile(v, k, cls) {
+  return `<div class="tile"><div class="v ${cls || ''}">${esc(String(v))}</div><div class="k">${esc(k)}</div></div>`;
+}
+function render(res, ms, run) {
   $('took').textContent = ms + ' ms';
+  const el = $('result');
   if (res.error) {
-    stat.className = 'stat err'; stat.textContent = 'Error: ' + res.error; out.textContent = ''; return;
+    el.innerHTML = `<div class="rowtop"><span class="badge err">ERROR</span><span class="status">${esc(res.error)}</span></div>`;
+    show('result'); return;
   }
-  stat.className = 'stat';
   const p = res.plan, s = res.statistics || {};
   if (!res.solved || !p) {
-    stat.textContent = 'No plan found (' + (res.mode || '') + ').'; out.textContent = ''; return;
+    el.innerHTML = `<div class="rowtop"><span class="badge err">NO PLAN</span><span class="status">no plan found · mode ${esc(res.mode || run.mode)}</span></div>`;
+    show('result'); return;
   }
-  let head = `solved · ${p.length} steps`;
-  if (p.metric != null) head += ` · metric ${p.metric}`;
-  if (p.makespan != null) head += ` · makespan ${p.makespan}`;
-  head += ` · ${s.evaluated_states ?? '?'} states · ${s.grounded_actions ?? '?'} ground actions`;
-  stat.innerHTML = '<b>' + head + '</b>';
-  out.textContent = p.steps.map(st => {
-    const t = st.time != null ? st.time.toFixed(3) + ': ' : '';
-    const d = st.duration != null ? ' [' + st.duration + ']' : '';
-    return `${String(st.index).padStart(3)}: ${t}(${[st.action, ...st.args].join(' ')})${d}`;
-  }).join('\n');
+  const isTemporal = p.makespan != null;
+  const status = `${isTemporal ? Number(p.makespan).toFixed(3) + ' makespan · ' : ''}${p.length} steps · ${esc(run.mode)}/${esc(run.search)} · ${s.evaluated_states ?? '?'} states evaluated`;
+
+  const tiles = [
+    tile(p.length, 'plan length'),
+    isTemporal ? tile(Number(p.makespan).toFixed(3), 'makespan', 'cy') : tile(s.evaluated_states ?? '?', 'states evaluated'),
+    tile(s.grounded_actions ?? '?', 'ground actions'),
+    tile(ms + ' ms', 'solve time', 'acc'),
+  ].join('');
+
+  const cols = isTemporal ? '46px 64px 1fr 160px' : '46px 1fr';
+  const rows = p.steps.map((st) => {
+    const idx = String(st.index).padStart(2, '0');
+    const args = (st.args || []).join(' ');
+    if (isTemporal) {
+      const t = st.time != null ? Number(st.time).toFixed(3) + ':' : '';
+      const d = st.duration != null ? '  [' + st.duration + ']' : '';
+      const ms = Number(p.makespan) || 1;
+      const left = (Number(st.time || 0) / ms * 100).toFixed(2) + '%';
+      const w = Math.max((Number(st.duration || 0) / ms) * 100, 2).toFixed(2) + '%';
+      const bar = st.duration != null
+        ? `<div class="bar"><div class="fill" style="left:${left}; width:${w};"></div></div>` : '<span></span>';
+      return `<div class="step" style="grid-template-columns:${cols};"><span class="i">${idx}</span><span class="t">${t}</span>` +
+        `<span><span class="act">${esc(st.action)}</span> <span class="arg">${esc(args)}</span><span class="d">${esc(d)}</span></span>${bar}</div>`;
+    }
+    return `<div class="step" style="grid-template-columns:${cols};"><span class="i">${idx}</span>` +
+      `<span><span class="act">${esc(st.action)}</span> <span class="arg">${esc(args)}</span></span></div>`;
+  }).join('');
+
+  el.innerHTML =
+    `<div class="rowtop">` +
+      `<span class="badge"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 11.5L3 8l1.2-1.2 2.3 2.3L11.8 4 13 5.2z"/></svg> SOLVED</span>` +
+      `<span class="status">${status}</span><div style="flex:1;"></div>` +
+      `<a class="btn sm" id="animate"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg> Animate this plan</a>` +
+    `</div>` +
+    `<div class="tiles">${tiles}</div>` +
+    `<div class="plan"><div class="h"><span class="lbl">Plan</span><span class="meta">${p.length} steps${isTemporal ? ' · ' + Number(p.makespan).toFixed(3) + ' makespan' : ''}</span></div><div class="list ed">${rows}</div></div>`;
+  show('result');
+
+  // hand the solved plan to the Animator (same-origin gui/), which reads it on load
+  $('animate').addEventListener('click', () => {
+    try {
+      localStorage.setItem('ferroplan.handoff', JSON.stringify({
+        domain: $('dom').value, problem: $('prob').value, solution: res,
+        mode: run.mode, search: run.search, at: Date.now(),
+      }));
+    } catch (e) { /* private mode / quota — the gui can still re-solve */ }
+    location.href = '../gui/index.html#animate';
+  });
 }
+
+showIdle('Pick a domain + problem (or paste your own), then hit Plan.');
 </script>
 </body>
 </html>
