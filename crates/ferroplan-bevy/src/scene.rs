@@ -151,7 +151,7 @@ pub fn respawn_graph(
                         font_size: 13.0,
                         ..default()
                     },
-                    TextColor(Color::srgb(0.9, 0.9, 0.9)),
+                    TextColor(crate::palette::INK),
                     Transform::from_xyz(0.0, NODE_SIZE * 0.72, 1.0), // label ABOVE the node
                 ));
             });
@@ -187,28 +187,36 @@ pub fn respawn_graph(
                         font_size: 11.0,
                         ..default()
                     },
-                    TextColor(Color::srgb(0.85, 0.85, 0.85)),
+                    TextColor(crate::palette::MUT),
                     Transform::from_xyz(0.0, -MOBILE_SIZE * 1.5, 1.0),
                 ));
             });
     }
 }
 
-/// Draw connection edges between node entities each frame.
+/// Draw connection edges between node entities each frame, plus a molten ring around
+/// each goal location (the redesign's "target" marker).
 pub fn draw_edges(mut gizmos: Gizmos, scene: Res<Scene>, nodes: Query<(&NodeObj, &Transform)>) {
+    use crate::palette;
     let pos: HashMap<&str, Vec2> = nodes
         .iter()
         .map(|(n, t)| (n.0.as_str(), t.translation.truncate()))
         .collect();
     for e in &scene.graph.edges {
         if let (Some(&a), Some(&b)) = (pos.get(e.a.as_str()), pos.get(e.b.as_str())) {
-            // color by relation kind: rail line vs road vs job-shop stage order
+            // colour by relation kind: rail/transit line vs road vs job-shop stage order
             let color = match e.pred.to_ascii_uppercase().as_str() {
-                "RAIL" => Color::srgb(0.45, 0.62, 0.88),
-                "NEXT" => Color::srgb(0.85, 0.66, 0.36),
-                _ => Color::srgb(0.4, 0.4, 0.45),
+                "RAIL" => palette::CY,
+                "NEXT" => palette::CRATE_AMBER,
+                _ => palette::EDGE2,
             };
             gizmos.line_2d(a, b, color);
+        }
+    }
+    // goal locations get a molten "target" ring just outside the node circle.
+    for (n, &p) in &pos {
+        if scene.graph.goal_by_object.contains_key(*n) {
+            gizmos.circle_2d(p, NODE_SIZE * 0.62, palette::ACC);
         }
     }
 }

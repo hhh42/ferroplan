@@ -9,7 +9,7 @@
 //! then `wasm-bindgen --target web --out-dir web/pkg target/wasm32-unknown-unknown/release/ferroplan_wasm.wasm`.
 //! See `web/index.html` for a self-contained demo.
 
-use ferroplan::{solve, Mode, Options};
+use ferroplan::{solve, Mode, Options, Search};
 use wasm_bindgen::prelude::*;
 
 /// Solve a PDDL domain+problem; returns a JSON string of the `Solution`, or
@@ -24,10 +24,17 @@ use wasm_bindgen::prelude::*;
 /// the lib; WASM is single-threaded, so we set them in-process here and reset the
 /// whole managed set each call so one pick never leaks into the next.
 #[wasm_bindgen]
-pub fn plan(domain: &str, problem: &str, mode: Option<String>, flags: Option<String>) -> String {
+pub fn plan(
+    domain: &str,
+    problem: &str,
+    mode: Option<String>,
+    flags: Option<String>,
+    search: Option<String>,
+) -> String {
     apply_flags(flags.as_deref());
     let opts = Options {
         mode: parse_mode(mode.as_deref()),
+        search: parse_search(search.as_deref()),
         threads: 1,
         ..Default::default()
     };
@@ -69,6 +76,16 @@ fn parse_mode(m: Option<&str>) -> Mode {
         Some("partition") => Mode::Partition,
         Some("temporal") => Mode::Temporal,
         _ => Mode::Auto,
+    }
+}
+
+/// Map the demo's search names to [`Search`]; unknown / `auto` ⇒ the engine default.
+fn parse_search(s: Option<&str>) -> Search {
+    match s.map(|s| s.to_ascii_lowercase()).as_deref() {
+        Some("ehc") => Search::Ehc,
+        Some("best-first") => Search::BestFirst,
+        Some("ehc-then-bf") => Search::EhcThenBestFirst,
+        _ => Search::Auto,
     }
 }
 

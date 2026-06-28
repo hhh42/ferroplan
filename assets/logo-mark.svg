@@ -2,15 +2,15 @@
   <title>ferroplan</title>
   <g transform="translate(18 18)" fill="none" stroke-linecap="round" stroke-linejoin="round">
     <!-- graph edges -->
-    <g stroke="#8a8f98" stroke-width="6" opacity="0.55">
+    <g stroke="#313b48" stroke-width="6" opacity="0.9">
       <path d="M6 6 L54 0 M6 6 L12 54 M54 0 L60 48 M12 54 L60 48 M54 0 L12 54"/>
     </g>
-    <!-- nodes -->
+    <!-- nodes: cyan diamond (start) · grey circles · molten square (target) -->
     <g>
-      <rect x="-4" y="-4" width="20" height="20" rx="4" transform="rotate(45 6 6)" fill="#6c5ce7"/>
-      <circle cx="54" cy="0" r="11" fill="#9aa0a6"/>
-      <circle cx="12" cy="54" r="11" fill="#9aa0a6"/>
-      <rect x="50" y="38" width="20" height="20" rx="3" fill="#a8d24a"/>
+      <rect x="-4" y="-4" width="20" height="20" rx="4" transform="rotate(45 6 6)" fill="#46d3c6"/>
+      <circle cx="54" cy="0" r="11" fill="#7e8794"/>
+      <circle cx="12" cy="54" r="11" fill="#7e8794"/>
+      <rect x="50" y="38" width="20" height="20" rx="3" fill="#ff6a3a"/>
     </g>
   </g>
 </svg>

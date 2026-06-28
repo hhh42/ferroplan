@@ -63,13 +63,18 @@ pub fn shape_for(ty: &str) -> IconShape {
     }
 }
 
-/// Stable color per type name (HSL from an FNV hash of the name).
+/// Colour per type, by its icon category, in the forge palette: locations purple,
+/// vehicles/rigs green, packages amber, everything else a steel grey (so the graph
+/// reads as the redesign intends rather than as arbitrary hashed hues).
 pub fn color_for(ty: &str) -> Color {
-    let mut h: u32 = 2166136261;
-    for b in ty.bytes() {
-        h = (h ^ b as u32).wrapping_mul(16777619);
+    use crate::palette;
+    match shape_for(ty) {
+        IconShape::Circle => palette::NODE_PURPLE, // places / locations
+        IconShape::Truck => palette::RIG_GREEN,    // vehicles / rigs
+        IconShape::Box => palette::CRATE_AMBER,    // packages / items
+        IconShape::Robot => palette::CY,           // robots / rovers
+        IconShape::Person | IconShape::Machine | IconShape::Diamond => palette::GREY_NODE,
     }
-    Color::hsl((h % 360) as f32, 0.62, 0.62)
 }
 
 fn mesh_for(shape: IconShape, s: f32) -> Mesh {
