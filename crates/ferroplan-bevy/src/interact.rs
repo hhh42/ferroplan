@@ -85,7 +85,7 @@ pub fn draw_selection(
     let Some(obj) = &selected.0 else {
         return;
     };
-    let ring = Color::srgb(1.0, 1.0, 1.0);
+    let ring = crate::palette::CY; // cyan selection ring (the redesign's "selected")
     for (n, tf) in &nodes {
         if &n.0 == obj {
             gizmos.circle_2d(tf.translation.truncate(), NODE_SIZE * 0.7, ring);
