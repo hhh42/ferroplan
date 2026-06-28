@@ -1,6 +1,6 @@
 [package]
-name = "ferroplan-cli"
-description = "Command-line interface (the `ff` binary) for the ferroplan PDDL planner"
+name = "ferroplan-mcp"
+description = "Model Context Protocol server for the ferroplan PDDL planner (solve / validate / decompose over stdio)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,15 +10,16 @@ homepage.workspace = true
 authors.workspace = true
 keywords.workspace = true
 categories.workspace = true
-readme = "../../README.md"
+readme = "README.md"
+# Not published to crates.io yet (the release ships `ferroplan` + `ferroplan-cli`);
+# flip this when we add it to the publish set.
+publish = false
 
 [[bin]]
-name = "ff"
+name = "ferroplan-mcp"
 path = "src/main.rs"
 
 [dependencies]
 ferroplan = { path = "../ferroplan", version = "0.2.1" }
-clap = { version = "4", features = ["derive"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-anyhow = "1"

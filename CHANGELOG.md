@@ -2,6 +2,77 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.1] - 2026-06-26 — "The Bridge"
+
+The engine release (0.1) made ferroplan fast and correct; 0.2 makes the README's
+bet real and inspectable: the proven temporal heuristics are on by default, temporal
+coverage goes deeper (duration inequalities + timed initial literals), and a goal too
+big for the one-shot search is **automatically decomposed** into solvable,
+individually-verified contracts.
+
+### Added
+- **MCP server (`ferroplan-mcp`)** — a Model Context Protocol server exposing
+  `solve`, `validate`, and `decompose` to an LLM agent over stdio, so the agent can
+  *author and supervise* PDDL and let the planner run deterministically (the README's
+  bet, made operational). A self-contained newline-delimited JSON-RPC 2.0 loop — no
+  async runtime, deps limited to `serde`/`serde_json` — that returns the structured
+  `Solution` / `Decomposition` as tool results, reports tool failures as `isError`
+  results (so the agent can correct its PDDL), and never panics on input. Integration
+  tests drive the built binary end to end. (`publish = false` for now; not in the
+  crates.io release set yet.)
+- **Goal decomposer — `decompose` API + `ff --decompose`** (the README's bet, made
+  inspectable). A temporal goal too big for the one-shot search is split into ordered
+  sub-contracts — each small enough to solve whole and individually verified — then
+  stitched into one validated plan. This surfaces the partition-and-resolve engine
+  (previously only the `FF_TDECOMP` flag, which returned just the flat plan) as a
+  first-class, typed, serde-serializable `Decomposition { contracts, plan, monolithic }`
+  where each `Contract` names its sub-goal (`(order o1), (order o2)`, `coin >= 15`),
+  its sub-plan, and its offset in the stitched timeline. A goal that can't be split —
+  or whose split doesn't validate — falls back to a single monolithic contract,
+  reported honestly. `ff --decompose` prints the breakdown (text or `--json`).
+  Demonstrated on `examples/rpg-world/hard/order-8` & `order-12` (8 / 12 contracts),
+  which the one-shot temporal search fails on. `ferroplan::decompose(domain, problem,
+  &Options)`; `tresolve::solve` now delegates to the recording `decompose` (the
+  `FF_TDECOMP` plan path is unchanged).
+- **Timed initial literals (PDDL2.2)** — `(at <time> <literal>)` in `:init` (including
+  `(at <time> (not <literal>))`) now schedules an exogenous fact change at a fixed
+  absolute time, disambiguated from the ordinary `(at ?x ?y)` predicate by a numeric
+  first argument. Each TIL compiles to a synthetic 0-arg applier action (so its fact
+  is grounded and a goal reachable only via a TIL isn't pruned as a relaxed dead end);
+  the decision-epoch search fires it from a pre-seeded agenda at its time, the STN
+  re-timing floors TIL-gated actions at their scheduled instant so they can't slide
+  before their gate, and the in-crate validator replays TILs up to the plan horizon.
+  Off the temporal path, TILs are inert (heap key byte-identical).
+- **Temporal duration inequalities** — `:duration` now accepts `(>= ?duration L)`,
+  `(<= ?duration U)`, and `(and ...)` ranges in addition to the fixed
+  `(= ?duration e)`. The decision-epoch search commits to the **shortest feasible**
+  duration (the lower bound), and the in-crate temporal validator accepts any
+  duration within `[min, max]` (a fixed `=` collapses the range to a point,
+  recovering exact-equality). Durations remain constant or parameter-dependent.
+  (IPC temporal domains aren't vendored — licences — so this is exercised by
+  crafted inequality domains + `temporal::validate`; the fixed-duration RPG corpus
+  is unchanged, 26/27 suite.)
+
+### Changed
+- **Temporal demand guidance is now on by default** (graduated from the opt-in
+  `FF_TDEMAND`). The default is a new **`Numeric`** tier: demand is seeded from
+  *numeric goals only* — the measured multi-round win (`steel ≥ 2`, `grain ≥ 10`,
+  `coin ≥ 15`). Validated on the RPG `suite/` + `hard/` corpus: **26 → 34/39
+  solved, no regression** vs. the old default, and crucially *without* the makespan
+  regression a blind graduation would cause — the previously-coupled
+  predicate-goal-threshold seeding reads a renewable-pool guard (`(>= (avail) 1)`,
+  net-zero) as accumulation demand and serializes concurrency domains (a unit
+  `crew` pool of 2 went concurrent-~5 → serialized-~10). That structural/predicate
+  half — plus goal-relevance pruning — now rides an explicit **`Full`** tier
+  (`FF_TDEMAND`), which additionally solves the one structural build
+  (`gather-build`) the numeric default gives up (decomposer territory per
+  `examples/BORDERS.md`).
+  - Opt out entirely with **`FF_NO_TDEMAND`** (heap key bit-identical to 0.1.0).
+  - Library / WASM callers: `features::set_overrides` is now tri-state-backed
+    (`true` / `false` are definitive; new `features::clear_overrides` returns to
+    default + env), and the active tier is queryable via `features::demand_mode()`
+    (`Off` / `Numeric` / `Full`).
+
 ## [0.1.0] - 2026-06-24
 
 Initial public release.

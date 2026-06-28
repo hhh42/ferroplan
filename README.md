@@ -107,6 +107,10 @@ ff -o domain.pddl -f problem.pddl --search best-first --weight-h 3
 # temporal (durative actions) — auto-detected; prints the IPC temporal plan
 ff -o temporal-domain.pddl -f problem.pddl --mode temporal
 
+# decompose a too-big temporal goal into ordered, individually-solved contracts
+# (the "LLM authors, planner decomposes" bet, made inspectable — text or --json)
+ff -o temporal-domain.pddl -f problem.pddl --mode temporal --decompose
+
 # self-contained JSON job: {"domain": "...", "problem": "...", "options": {...}}
 ff --json-request job.json
 ```
@@ -162,8 +166,9 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 
 | crate | what |
 |---|---|
-| [`ferroplan`](crates/ferroplan) | the library: engine + modes + `solve` API |
+| [`ferroplan`](crates/ferroplan) | the library: engine + modes + `solve` / `decompose` API |
 | [`ferroplan-cli`](crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
+| [`ferroplan-mcp`](crates/ferroplan-mcp) | an MCP server exposing `solve` / `validate` / `decompose` over stdio — so an LLM agent can author PDDL and drive the planner |
 | [`ferroplan-bevy`](crates/ferroplan-bevy) | Bevy app: visualize, inspect & animate a domain+problem (`cargo run -p ferroplan-bevy [domain.pddl problem.pddl]`) |
 
 ## Examples
@@ -181,7 +186,11 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 - [`jobshop`](examples/jobshop) — scheduling with machine-exclusion (scales to 100
   concurrent jobs).
 - [`BORDERS.md`](examples/BORDERS.md) — a measured map of where one-shot planning
-  solves vs. where a goal must be decomposed into contracts.
+  solves vs. where a goal must be decomposed into contracts. The **`decompose` API /
+  `ff --decompose`** acts on that border: it splits a too-big temporal goal into
+  ordered, individually-solved contracts and stitches them into one validated plan
+  (e.g. `hard/order-8` → 8 named contracts), falling back to a monolithic solve when
+  a goal can't be split.
 
 ## Benchmarks
 
@@ -219,8 +228,10 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   IPC temporal domains (44/45 produced plans valid — see
   [`benchmarks/temporal-results.md`](benchmarks/temporal-results.md)). Coverage is
   currently search-limited (the decision-epoch search times out on large
-  instances); duration *inequalities*, timed initial literals, and continuous
-  (`#t`) effects are not yet supported.
+  instances). Duration *inequalities* (`(>= ?duration L)` / `(<= ?duration U)` /
+  `and` ranges) are supported — the search commits to the shortest feasible
+  duration — as are **timed initial literals** (`(at <time> <literal>)` in `:init`).
+  Continuous (`#t`) effects are not yet supported.
 - **Derived predicates** (`:derived`): static/stratified axioms are supported
   (closed into the initial state); *dynamic* derived predicates (bodies over
   changing facts) are not yet.

@@ -12,7 +12,7 @@
 //! orders are still `waiting` permanently forfeits the delivery preference. The
 //! delete-relaxed RPG is blind to this (it can re-add the deliverable), so the
 //! penalty is read on the CONCRETE state (see [`crate::search::SatGuidance::deadline`]).
-//! The loop adapts a **per-trigger** penalty λ[M] — raising it only on the products
+//! The loop adapts a **per-trigger** penalty `λ[M]` — raising it only on the products
 //! whose deliveries were actually missed — so it auto-tunes per instance, which a
 //! single fixed penalty (the Phase-0 `FF_DEADLINE_WEIGHT` lever) cannot. Penalty
 //! multipliers are SEPARATE from preference weights: weights compute the reported
