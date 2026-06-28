@@ -69,7 +69,8 @@ if let Some(plan) = solution.plan { /* plan.steps, plan.metric, plan.makespan */
 | `:adl` | ✅ | umbrella for the ADL set above; also the token to declare for `:derived` rule bodies |
 | `:numeric-fluents` | ✅ | `(:functions ...)`, `>=`/`<`/… preconds, `increase`/`decrease`/`assign` |
 | `:preferences` | ✅ | needs a `(:metric minimize (is-violated <name>))` to take effect |
-| `:durative-actions` | ✅ | `at start`/`over all`/`at end`; constant or param-dependent `(= ?duration …)` |
+| `:durative-actions` | ✅ | `at start`/`over all`/`at end`; constant or param-dependent duration — fixed `(= ?duration …)` **or** inequalities `(>= …)`/`(<= …)`/`and`-ranges (search commits to the shortest feasible) |
+| `:timed-initial-literals` | ✅ | `(at <time> <literal>)` in `:init` (incl. `(not …)`); fires as an exogenous happening at its absolute time |
 | `:derived-predicates` | ❌ **token rejected** | declare `:adl` instead; ferroplan still parses `(:derived …)` — see below |
 
 ## Derived predicates (`:derived`)
@@ -85,6 +86,7 @@ if let Some(plan) = solution.plan { /* plan.steps, plan.metric, plan.makespan */
 ## Not yet supported
 
 - Dynamic (action-changed) derived predicates.
-- Temporal: duration *inequalities*, timed initial literals (TILs), continuous (`#t`) effects.
+- Temporal: continuous (`#t`) effects. (Duration inequalities and timed initial
+  literals are now supported.)
 - Coverage on the largest instances is search-limited — see `../../../examples/BORDERS.md`
   for where to decompose instead.

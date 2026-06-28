@@ -132,14 +132,40 @@ pub enum TimeSpec {
     All,
 }
 
+/// A durative action's duration constraint. A fixed `(= ?duration e)` sets both
+/// bounds to `e`; an inequality leaves the open side `None`. The decision-epoch
+/// search commits to the **shortest feasible** duration (the lower bound), and the
+/// validator accepts any duration in `[min, max]`.
+#[derive(Clone, Debug)]
+pub struct Duration {
+    /// Lower bound (`>=` / `=`). `None` = unbounded below (only an upper bound given).
+    pub min: Option<Expr>,
+    /// Upper bound (`<=` / `=`). `None` = unbounded above (only a lower bound given).
+    pub max: Option<Expr>,
+}
+
+impl Duration {
+    /// A fixed duration `(= ?duration e)`.
+    pub fn fixed(e: Expr) -> Self {
+        Duration {
+            min: Some(e.clone()),
+            max: Some(e),
+        }
+    }
+    /// The bound the search commits to: the lower bound (shortest feasible) if given,
+    /// otherwise the upper bound. `None` only if the duration is entirely unconstrained.
+    pub fn chosen(&self) -> Option<&Expr> {
+        self.min.as_ref().or(self.max.as_ref())
+    }
+}
+
 /// A PDDL2.1 `:durative-action`.
 #[derive(Clone, Debug)]
 pub struct DurativeAction {
     pub name: Sym,
     pub params: Vec<(Sym, Sym)>,
-    /// Duration expression from `(= ?duration expr)`. (Duration-inequalities are
-    /// not yet supported; only a fixed `=` duration is parsed.)
-    pub duration: Expr,
+    /// Duration constraint: a fixed `(= ?duration e)` or an inequality range.
+    pub duration: Duration,
     pub conditions: Vec<(TimeSpec, Formula)>,
     /// Effects are only `at start` / `at end` (`over all` is not a legal effect).
     pub effects: Vec<(TimeSpec, Effect)>,
@@ -173,6 +199,17 @@ pub struct DerivedRule {
     pub body: Formula,
 }
 
+/// A PDDL2.2 timed initial literal: `(at <time> <literal>)` in `:init` — a fact
+/// that becomes true (`add`) or false (`!add`) at a fixed absolute `time`,
+/// independent of any action. Only meaningful under temporal planning.
+#[derive(Clone, Debug)]
+pub struct TimedLiteral {
+    pub time: f64,
+    pub add: bool,
+    pub pred: Sym,
+    pub args: Vec<Sym>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Problem {
     pub name: Sym,
@@ -180,6 +217,8 @@ pub struct Problem {
     pub objects: Vec<(Sym, Sym)>,
     pub init_atoms: Vec<(Sym, Vec<Sym>)>,
     pub init_fluents: Vec<((Sym, Vec<Sym>), f64)>,
+    /// Timed initial literals (PDDL2.2): exogenous facts scheduled at absolute times.
+    pub til: Vec<TimedLiteral>,
     pub goal: Formula,
     pub constraints: Vec<Constraint>,
     pub metric: Option<(MetricDir, Expr)>,

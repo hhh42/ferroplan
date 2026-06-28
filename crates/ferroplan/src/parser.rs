@@ -81,6 +81,10 @@ impl P {
     fn peek(&self) -> Option<&Tok> {
         self.t.get(self.i)
     }
+    /// Look `ahead` tokens past the cursor (0 == `peek`).
+    fn peek_at(&self, ahead: usize) -> Option<&Tok> {
+        self.t.get(self.i + ahead)
+    }
     fn next(&mut self) -> Result<Tok, String> {
         let t = self
             .t
@@ -527,7 +531,9 @@ fn parse_action(p: &mut P) -> Result<Action, String> {
 fn parse_durative_action(p: &mut P) -> Result<DurativeAction, String> {
     let name = p.name()?;
     let mut params = Vec::new();
-    let mut duration = Expr::Num(0.0);
+    // Default: a degenerate fixed-0 duration (evaluates non-positive ⇒ the action is
+    // skipped) for a malformed `:durative-action` missing `:duration`.
+    let mut duration = Duration::fixed(Expr::Num(0.0));
     let mut conditions = Vec::new();
     let mut effects = Vec::new();
     while !p.at_rparen() {
@@ -554,19 +560,51 @@ fn parse_durative_action(p: &mut P) -> Result<DurativeAction, String> {
     })
 }
 
-/// `(= ?duration expr)`. Duration-inequalities (`(and (>= ?duration ..) ..)`) are
-/// not yet supported.
-fn parse_duration(p: &mut P) -> Result<Expr, String> {
+/// A `:duration` constraint: a fixed `(= ?duration e)`, a single inequality
+/// `(>= ?duration e)` / `(<= ?duration e)`, or an `(and ...)` of inequalities.
+fn parse_duration(p: &mut P) -> Result<Duration, String> {
     p.expect_lparen()?;
-    match p.next()? {
-        Tok::Op(ref s) if s == "=" => {}
+    // `(and <constraint>+)`
+    if matches!(p.peek(), Some(Tok::Name(n)) if n.eq_ignore_ascii_case("and")) {
+        p.next()?; // consume `and`
+        let mut min = None;
+        let mut max = None;
+        while !p.at_rparen() {
+            let (lo, hi) = parse_duration_atom(p)?;
+            min = min.or(lo);
+            max = max.or(hi);
+        }
+        p.expect_rparen()?;
+        return Ok(Duration { min, max });
+    }
+    // a single `(= | >= | <=)` constraint — `parse_duration_atom` opened no paren, so
+    // re-dispatch on the already-open one.
+    let (lo, hi) = parse_duration_inner(p)?;
+    p.expect_rparen()?;
+    Ok(Duration { min: lo, max: hi })
+}
+
+/// Parse one parenthesized duration constraint `(<op> ?duration e)`, returning its
+/// `(lower, upper)` contribution. Used inside `(and ...)`.
+fn parse_duration_atom(p: &mut P) -> Result<(Option<Expr>, Option<Expr>), String> {
+    p.expect_lparen()?;
+    let r = parse_duration_inner(p)?;
+    p.expect_rparen()?;
+    Ok(r)
+}
+
+/// The body of one duration constraint, cursor just after the opening paren:
+/// `<op> ?duration e`, where `<op>` is `=`, `>=`, or `<=`.
+fn parse_duration_inner(p: &mut P) -> Result<(Option<Expr>, Option<Expr>), String> {
+    let op = match p.next()? {
+        Tok::Op(s) => s,
         other => {
             return Err(format!(
-                "expected '=' in :duration, found {:?} (duration-inequalities unsupported)",
+                "expected =, >=, or <= in :duration, found {:?}",
                 other
             ))
         }
-    }
+    };
     match p.next()? {
         Tok::Var(_) => {}
         other => {
@@ -577,8 +615,15 @@ fn parse_duration(p: &mut P) -> Result<Expr, String> {
         }
     }
     let e = parse_expr(p)?;
-    p.expect_rparen()?;
-    Ok(e)
+    match op.as_str() {
+        "=" => Ok((Some(e.clone()), Some(e))),
+        ">=" => Ok((Some(e), None)),
+        "<=" => Ok((None, Some(e))),
+        other => Err(format!(
+            "unsupported :duration operator `{}` (expected =, >=, or <=)",
+            other
+        )),
+    }
 }
 
 /// `h` is "AT" (followed by start/end) or "OVER" (followed by all).
@@ -823,8 +868,51 @@ fn parse_init_elt(
     p: &mut P,
     atoms: &mut Vec<(String, Vec<String>)>,
     fluents: &mut Vec<((String, Vec<String>), f64)>,
+    til: &mut Vec<TimedLiteral>,
 ) -> Result<(), String> {
     p.expect_lparen()?;
+    // Timed initial literal `(at <number> <literal>)` — disambiguated from the
+    // ordinary `(at ?x ?y)` predicate by a NUMBER immediately after `at`.
+    if matches!(p.peek(), Some(Tok::Name(n)) if n.eq_ignore_ascii_case("at"))
+        && matches!(p.peek_at(1), Some(Tok::Num(_)))
+    {
+        p.next()?; // `at`
+        let time = match p.next()? {
+            Tok::Num(n) => n,
+            other => {
+                return Err(format!(
+                    "expected a time in a timed initial literal, found {:?}",
+                    other
+                ))
+            }
+        };
+        // the literal: `(pred args)` or `(not (pred args))`
+        p.expect_lparen()?;
+        let add = if matches!(p.peek(), Some(Tok::Name(n)) if n.eq_ignore_ascii_case("not")) {
+            p.next()?; // `not`
+            p.expect_lparen()?;
+            false
+        } else {
+            true
+        };
+        let pred = p.name()?;
+        let mut args = Vec::new();
+        while !p.at_rparen() {
+            args.push(name_or_const(p.next()?)?);
+        }
+        p.expect_rparen()?; // close (pred args)
+        if !add {
+            p.expect_rparen()?; // close (not ...)
+        }
+        p.expect_rparen()?; // close (at ...)
+        til.push(TimedLiteral {
+            time,
+            add,
+            pred,
+            args,
+        });
+        return Ok(());
+    }
     match p.peek().cloned() {
         Some(Tok::Op(op)) if op == "=" => {
             p.next()?;
@@ -885,6 +973,7 @@ fn problem_inner(p: &mut P) -> Result<Problem, String> {
         objects: Vec::new(),
         init_atoms: Vec::new(),
         init_fluents: Vec::new(),
+        til: Vec::new(),
         goal: Formula::True,
         constraints: Vec::new(),
         metric: None,
@@ -908,7 +997,12 @@ fn problem_inner(p: &mut P) -> Result<Problem, String> {
             }
             ":INIT" => {
                 while !p.at_rparen() {
-                    parse_init_elt(p, &mut prob.init_atoms, &mut prob.init_fluents)?;
+                    parse_init_elt(
+                        p,
+                        &mut prob.init_atoms,
+                        &mut prob.init_fluents,
+                        &mut prob.til,
+                    )?;
                 }
                 p.expect_rparen()?;
             }

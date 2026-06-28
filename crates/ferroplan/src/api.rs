@@ -162,6 +162,40 @@ pub struct Solution {
     pub notes: Vec<String>,
 }
 
+/// One contract in a [`Decomposition`]: a sub-goal small enough for the temporal
+/// search to solve whole, the sub-plan that achieves it, and where that sub-plan sits
+/// in the stitched global timeline.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Contract {
+    pub index: usize,
+    /// The sub-goal this contract discharges, rendered for inspection
+    /// (e.g. `(order o1), (order o2)` or `coin >= 15`).
+    pub goal: String,
+    /// The contract's sub-plan, timed relative to its own start.
+    pub steps: Vec<Step>,
+    /// Sub-plan makespan.
+    pub makespan: f64,
+    /// Offset of this contract's sub-plan in the stitched whole-goal timeline.
+    pub offset: f64,
+}
+
+/// The inspectable result of decomposing a temporal goal into solvable contracts:
+/// the ordered contracts, the stitched whole-goal plan, and whether the goal had to
+/// fall back to a single monolithic solve (un-splittable, or the split didn't
+/// validate — then there is exactly one contract: the whole goal).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Decomposition {
+    pub solved: bool,
+    pub contracts: Vec<Contract>,
+    /// The stitched, validated whole-goal plan.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plan: Option<Plan>,
+    /// True when the goal couldn't be split — `contracts` is then the single whole goal.
+    pub monolithic: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
+}
+
 /// Re-exported so callers can name the PDDL3 metric type if needed.
 pub type Metric = f64;
 
@@ -228,6 +262,25 @@ fn steps_of(task: &PackedTask, ops: &[usize], synthetic: Option<&HashSet<String>
         idx += 1;
     }
     steps
+}
+
+/// Convert a temporal plan's timed steps to API [`Step`]s (action head + args + time
+/// + duration). Shared by the temporal solve and the decomposer.
+fn timed_steps(tp: &crate::temporal::TimedPlan) -> Vec<Step> {
+    tp.steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let mut it = s.action.split_whitespace();
+            Step {
+                index: i,
+                action: it.next().unwrap_or("").to_string(),
+                args: it.map(|x| x.to_string()).collect(),
+                time: Some(s.time),
+                duration: s.duration,
+            }
+        })
+        .collect()
 }
 
 fn stats(task: &PackedTask, evaluated: usize, threads: usize) -> Statistics {
@@ -300,6 +353,81 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     }
 }
 
+/// Decompose a temporal goal into solvable contracts, solve and stitch them, and
+/// return the inspectable [`Decomposition`]. This always runs the partition-and-
+/// resolve decomposer (independent of the `FF_TDECOMP` flag): a goal too big for the
+/// one-shot temporal search is split into ordered sub-contracts — each solved whole
+/// and verified — then stitched into one validated plan. A goal that can't be split
+/// (or whose split doesn't validate) falls back to a single monolithic contract.
+pub fn decompose(
+    domain_src: &str,
+    problem_src: &str,
+    opts: &Options,
+) -> Result<Decomposition, SolveError> {
+    let domain = parser::parse_domain(domain_src).map_err(SolveError::DomainParse)?;
+    let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
+    let (domain, problem) =
+        crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
+    let threads = if opts.threads == 0 {
+        crate::par::num_threads()
+    } else {
+        opts.threads
+    };
+
+    let mut notes = Vec::new();
+    if !crate::temporal::is_temporal(&domain) {
+        notes.push(
+            "decomposition targets temporal (durative-action) goals; this domain has none".into(),
+        );
+    }
+
+    match crate::tresolve::decompose(&domain, &problem, threads) {
+        Some(d) => {
+            let contracts = d
+                .contracts
+                .iter()
+                .enumerate()
+                .map(|(i, cr)| Contract {
+                    index: i,
+                    goal: cr.goal.clone(),
+                    steps: timed_steps(&cr.plan),
+                    makespan: cr.plan.makespan,
+                    offset: cr.offset,
+                })
+                .collect();
+            let steps = timed_steps(&d.plan);
+            if d.monolithic {
+                notes.push(
+                    "goal could not be split into independent contracts; solved monolithically"
+                        .into(),
+                );
+            }
+            Ok(Decomposition {
+                solved: true,
+                contracts,
+                plan: Some(Plan {
+                    length: steps.len(),
+                    steps,
+                    metric: None,
+                    makespan: Some(d.plan.makespan),
+                }),
+                monolithic: d.monolithic,
+                notes,
+            })
+        }
+        None => {
+            notes.push("no plan found (decomposed or monolithic)".into());
+            Ok(Decomposition {
+                solved: false,
+                contracts: Vec::new(),
+                plan: None,
+                monolithic: false,
+                notes,
+            })
+        }
+    }
+}
+
 fn solve_temporal(
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
@@ -314,21 +442,7 @@ fn solve_temporal(
     };
     match result {
         Some(tp) => {
-            let steps = tp
-                .steps
-                .iter()
-                .enumerate()
-                .map(|(i, s)| {
-                    let mut it = s.action.split_whitespace();
-                    Step {
-                        index: i,
-                        action: it.next().unwrap_or("").to_string(),
-                        args: it.map(|x| x.to_string()).collect(),
-                        time: Some(s.time),
-                        duration: s.duration,
-                    }
-                })
-                .collect::<Vec<_>>();
+            let steps = timed_steps(&tp);
             Ok(Solution {
                 solved: true,
                 mode: Mode::Temporal,

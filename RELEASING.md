@@ -4,6 +4,12 @@ The workspace publishes **two** crates to crates.io: the library `ferroplan` and
 the CLI `ferroplan-cli` (the `ff` binary), which depends on the library. They must
 be published **in that order**.
 
+> **TL;DR:** after `cargo login <token>`, run [`./publish.sh`](publish.sh) from a
+> machine with crates.io access — it runs the full pre-flight below, then publishes
+> both crates in order and tags `vX.Y.Z`. `./publish.sh --dry-run` does the
+> pre-flight + a packaging check without uploading. The steps below are the manual
+> equivalent.
+
 ## Pre-flight (all must pass)
 
 ```sh

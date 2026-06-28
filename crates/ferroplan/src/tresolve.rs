@@ -2,7 +2,7 @@
 //! ([`crate::resolve`]) brought to the durative/numeric path, gated by `FF_TDECOMP`.
 //!
 //! Partition the world goal into contracts, solve each as a TEMPORAL subproblem from
-//! the running composed state ([`temporal::solve_from`]), compose the timed subplans
+//! the running composed state (`temporal::solve_from`), compose the timed subplans
 //! strictly SEQUENTIALLY (each contract offset past the previous makespan + an ε seam),
 //! and MERGE groups on conflict down to a monolithic `temporal::solve` — so the
 //! decomposer is solvable EXACTLY when `temporal::solve` is. Each subplan is already
@@ -24,19 +24,109 @@ use crate::types::{Domain, Problem};
 /// PDDL2.1 ε-separation between mutex happenings (matches `temporal::EPS`).
 const EPS: f64 = 0.001;
 
+/// One solved contract in a [`Decomp`]: the sub-goal it discharges (rendered for
+/// inspection), the timed sub-plan that achieves it, and where that sub-plan sits in
+/// the stitched global timeline (`offset`).
+pub(crate) struct ContractRec {
+    pub goal: String,
+    pub plan: TimedPlan,
+    pub offset: f64,
+}
+
+/// The inspectable result of decomposing a temporal goal: the ordered contracts, the
+/// stitched whole-goal plan, and whether the goal had to fall back to a monolithic
+/// solve (un-splittable, or the split didn't validate).
+pub(crate) struct Decomp {
+    pub contracts: Vec<ContractRec>,
+    pub plan: TimedPlan,
+    pub monolithic: bool,
+}
+
+/// Render a contract's sub-goal (positive facts + numeric thresholds) for inspection,
+/// e.g. `(order o1), (order o2)` or `coin >= 15`.
+fn render_subgoal(task: &PackedTask, g: &crate::partition::Subgoal) -> String {
+    let mut parts: Vec<String> = g
+        .pos
+        .iter()
+        .map(|&f| task.fact_names[f as usize].clone())
+        .collect();
+    for np in &g.num {
+        parts.push(render_numpre(task, np));
+    }
+    if parts.is_empty() {
+        "(empty)".to_string()
+    } else {
+        parts.join(", ")
+    }
+}
+
+/// Render a numeric goal. The canonical recipe-gate shape `(fluent op number)` reads
+/// as `fluent op number`; anything else falls back to a compact debug form.
+fn render_numpre(task: &PackedTask, np: &crate::types::NumPre) -> String {
+    use crate::types::{CompOp, NExpr};
+    let op = match np.op {
+        CompOp::Lt => "<",
+        CompOp::Le => "<=",
+        CompOp::Eq => "=",
+        CompOp::Ge => ">=",
+        CompOp::Gt => ">",
+    };
+    match (&np.lhs, &np.rhs) {
+        (NExpr::Fluent(t), NExpr::Num(v)) => {
+            let name = task
+                .fluent_names
+                .get(*t as usize)
+                .cloned()
+                .unwrap_or_else(|| format!("fluent#{t}"));
+            format!("{name} {op} {v}")
+        }
+        _ => format!("{:?} {op} {:?}", np.lhs, np.rhs),
+    }
+}
+
+/// Monolithic fallback as a single-contract [`Decomp`] (the goal couldn't be split, or
+/// the split didn't validate). `plan` is the whole-goal plan from `temporal::solve`.
+fn monolithic_decomp(goal: String, plan: TimedPlan) -> Decomp {
+    Decomp {
+        contracts: vec![ContractRec {
+            goal,
+            offset: 0.0,
+            plan: plan.clone(),
+        }],
+        plan,
+        monolithic: true,
+    }
+}
+
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    decompose(domain, problem, threads).map(|d| d.plan)
+}
+
+/// Decompose `problem`'s temporal goal into ordered contracts, solve and stitch them,
+/// and return the full inspectable [`Decomp`] (or `None` if even the monolithic
+/// fallback fails). `solve` is this minus the contract breakdown.
+pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> Option<Decomp> {
     let c = temporal::compile(domain, problem);
     let task = match ground(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
-            return Some(TimedPlan {
+            let empty = TimedPlan {
                 steps: Vec::new(),
                 makespan: 0.0,
-            })
+            };
+            return Some(monolithic_decomp("(goal already satisfied)".into(), empty));
         }
         _ => return None,
     };
     let kind = build_kind(&task, &c);
+    // Rendered whole-goal description for the monolithic-fallback contract.
+    let whole_goal = render_subgoal(
+        &task,
+        &crate::partition::Subgoal {
+            pos: task.goal_pos.clone(),
+            num: task.goal_num.clone(),
+        },
+    );
     let mutex = crate::invariants::synthesize(domain, &task);
     let mut groups = partition_temporal(&task, &kind, &mutex);
     let init = task.initial();
@@ -50,7 +140,8 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         // (the monolithic fallback); calling it directly keeps the bit-identical
         // completeness guarantee and terminates the merge cascade.
         if groups.len() == 1 {
-            return temporal::solve(domain, problem, threads);
+            return temporal::solve(domain, problem, threads)
+                .map(|p| monolithic_decomp(whole_goal.clone(), p));
         }
 
         // Sequential validated composition over the evolving (state, offset).
@@ -59,6 +150,9 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         let mut composed: Vec<TimedStep> = Vec::new();
         let mut done = vec![false; groups.len()];
         let mut conflict: Option<(usize, Option<usize>)> = None;
+        // Per-pass record of solved contracts (goal + sub-plan + offset) for the
+        // inspectable decomposition; only the final successful pass is returned.
+        let mut record: Vec<ContractRec> = Vec::new();
 
         for i in 0..groups.len() {
             if groups[i].is_empty() || task.goal_met_with(&state, &groups[i].pos, &groups[i].num) {
@@ -90,6 +184,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                 &groups[i].pos,
                 &groups[i].num,
                 &forbidden,
+                &[], // the decomposer doesn't handle timed initial literals
                 threads,
             )
             .or_else(|| {
@@ -102,6 +197,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                         &state,
                         &groups[i].pos,
                         &groups[i].num,
+                        &[],
                         &[],
                         threads,
                     )
@@ -143,6 +239,11 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                     duration: st.duration,
                 });
             }
+            record.push(ContractRec {
+                goal: render_subgoal(&task, &groups[i]),
+                offset,
+                plan: plan_i.clone(),
+            });
             offset += plan_i.makespan + EPS;
             state = ns;
             done[i] = true;
@@ -159,9 +260,14 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
                 makespan: offset,
             };
             if validate(domain, problem, &plan).is_ok() {
-                return Some(plan);
+                return Some(Decomp {
+                    contracts: record,
+                    plan,
+                    monolithic: false,
+                });
             }
-            return temporal::solve(domain, problem, threads);
+            return temporal::solve(domain, problem, threads)
+                .map(|p| monolithic_decomp(whole_goal.clone(), p));
         }
 
         // Resolve: coalesce the actual conflicting pair, else the stuck group with a
