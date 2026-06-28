@@ -8,6 +8,7 @@ mod anim;
 mod blocks;
 mod icons;
 mod interact;
+mod palette;
 mod scene;
 mod ui;
 
@@ -29,6 +30,7 @@ fn main() {
             }),
             ..default()
         }))
+        .insert_resource(ClearColor(palette::BG))
         .init_resource::<scene::Scene>()
         .init_resource::<interact::Selected>()
         .init_resource::<interact::DragState>()

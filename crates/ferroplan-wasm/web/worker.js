@@ -7,10 +7,10 @@ import init, { plan } from './pkg/ferroplan_wasm.js';
 const ready = init();
 
 self.onmessage = async (e) => {
-  const { id, domain, problem, mode, flags } = e.data;
+  const { id, domain, problem, mode, flags, search } = e.data;
   try {
     await ready;
-    const res = plan(domain, problem, mode, flags);
+    const res = plan(domain, problem, mode, flags, search);
     self.postMessage({ id, res });
   } catch (err) {
     self.postMessage({ id, res: JSON.stringify({ error: String(err) }) });

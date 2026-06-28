@@ -16,22 +16,37 @@ pub fn setup_ui(mut commands: Commands) {
                 position_type: PositionType::Absolute,
                 top: Val::Px(0.0),
                 right: Val::Px(0.0),
-                width: Val::Px(320.0),
+                width: Val::Px(340.0),
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
-                padding: UiRect::all(Val::Px(10.0)),
+                padding: UiRect::all(Val::Px(16.0)),
+                border: UiRect::left(Val::Px(1.0)),
                 ..default()
             },
-            BackgroundColor(Color::srgba(0.07, 0.07, 0.09, 0.9)),
+            BackgroundColor(crate::palette::PANEL_BLUR),
+            BorderColor(crate::palette::EDGE2),
         ))
         .with_children(|p| {
+            // "INSPECTOR" section label
+            p.spawn((
+                Text::new("INSPECTOR"),
+                TextFont {
+                    font_size: 10.0,
+                    ..default()
+                },
+                TextColor(crate::palette::FAINT),
+            ));
             p.spawn((
                 Text::new("drag-drop a domain + problem .pddl here"),
                 TextFont {
                     font_size: 14.0,
                     ..default()
                 },
-                TextColor(Color::srgb(0.9, 0.9, 0.92)),
+                TextColor(crate::palette::INK),
+                Node {
+                    margin: UiRect::top(Val::Px(10.0)),
+                    ..default()
+                },
                 InfoText,
             ));
         });
