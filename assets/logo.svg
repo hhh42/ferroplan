@@ -3,19 +3,19 @@
   <!-- Mark: an angular iron node-graph. Edges first (behind), nodes on top. -->
   <g transform="translate(12 12)" fill="none" stroke-linecap="round" stroke-linejoin="round">
     <!-- graph edges -->
-    <g stroke="#8a8f98" stroke-width="5" opacity="0.55">
+    <g stroke="#313b48" stroke-width="5" opacity="0.9">
       <path d="M24 24 L72 18 M24 24 L30 72 M72 18 L78 66 M30 72 L78 66 M72 18 L30 72"/>
     </g>
-    <!-- nodes: two iron-grey, one accent (the "planned" target) -->
+    <!-- nodes: cyan diamond (start) · grey circles · molten square (target) -->
     <g>
-      <rect x="14" y="14" width="20" height="20" rx="4" transform="rotate(45 24 24)" fill="#6c5ce7"/>
-      <circle cx="72" cy="18" r="10" fill="#9aa0a6"/>
-      <circle cx="30" cy="72" r="10" fill="#9aa0a6"/>
-      <rect x="68" y="56" width="20" height="20" rx="3" fill="#a8d24a"/>
+      <rect x="14" y="14" width="20" height="20" rx="4" transform="rotate(45 24 24)" fill="#46d3c6"/>
+      <circle cx="72" cy="18" r="10" fill="#7e8794"/>
+      <circle cx="30" cy="72" r="10" fill="#7e8794"/>
+      <rect x="68" y="56" width="20" height="20" rx="3" fill="#ff6a3a"/>
     </g>
   </g>
   <!-- Wordmark -->
-  <text x="120" y="74" font-family="system-ui, sans-serif" font-size="52" font-weight="600" letter-spacing="-1.5">
-    <tspan fill="#6c5ce7">ferro</tspan><tspan fill="#9aa0a6">plan</tspan>
+  <text x="120" y="74" font-family="'Space Grotesk', system-ui, sans-serif" font-size="52" font-weight="600" letter-spacing="-1.5">
+    <tspan fill="#e8ebf0">ferro</tspan><tspan fill="#8b94a3">plan</tspan>
   </text>
 </svg>
