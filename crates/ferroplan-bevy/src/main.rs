@@ -6,6 +6,7 @@ use bevy::prelude::*;
 
 mod anim;
 mod blocks;
+mod gantt;
 mod icons;
 mod interact;
 mod palette;
@@ -40,12 +41,14 @@ fn main() {
         .init_resource::<blocks::Editor>()
         .init_resource::<blocks::Drag>()
         .init_resource::<transport::Transport>()
+        .init_resource::<gantt::GanttState>()
         .add_systems(
             Startup,
             (
                 scene::setup,
                 ui::setup_ui,
                 transport::setup_transport,
+                gantt::setup_gantt,
                 startup_load,
             ),
         )
@@ -78,6 +81,10 @@ fn main() {
                 transport::rebuild_notches,
                 transport::transport_sync,
                 transport::transport_input,
+                gantt::toggle_gantt,
+                gantt::gantt_visibility,
+                gantt::rebuild_gantt,
+                gantt::gantt_now,
             ),
         )
         .run();

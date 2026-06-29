@@ -70,14 +70,16 @@ pub fn update_info(
     }
     s.push_str(
         "\nright-drag: pan · scroll: zoom\nclick: inspect · drag a node to move it\n\
-         S: solve · Space: play/pause · ←/→: step · R: reset\n",
+         S: solve · Space: play/pause · ←/→: step · R: reset\n\
+         E: editor · T: timescale (temporal plans)\n",
     );
 
     // plan / timeline
     if !plan.status.is_empty() {
         s.push_str(&format!("\n{}\n", plan.status));
     }
-    if !plan.steps.is_empty() {
+    // Temporal plans are read off the transport bar + timescale, not a step index.
+    if !plan.steps.is_empty() && !plan.temporal {
         let k = (plan.t.floor() as usize).min(plan.steps.len().saturating_sub(1));
         if (plan.t as usize) < plan.steps.len() {
             let step = &plan.steps[k];

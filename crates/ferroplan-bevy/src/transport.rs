@@ -186,15 +186,24 @@ pub fn rebuild_notches(
     if !(2..=MAX_NOTCHES).contains(&n) {
         return;
     }
+    // One notch per action start — evenly spaced for classic plans, placed by
+    // start time for temporal plans (so the spacing mirrors the Gantt).
+    let fracs: Vec<f32> = plan
+        .steps
+        .iter()
+        .enumerate()
+        .map(|(i, s)| plan.start_frac(s, i))
+        .filter(|&f| f > 0.001)
+        .collect();
     commands.entity(track).with_children(|t| {
-        for i in 1..n {
+        for f in fracs {
             t.spawn((
                 StepNotch,
                 Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(0.0),
                     bottom: Val::Px(0.0),
-                    left: Val::Percent(100.0 * i as f32 / n as f32),
+                    left: Val::Percent(100.0 * f),
                     width: Val::Px(1.0),
                     ..default()
                 },
@@ -212,8 +221,7 @@ pub fn transport_sync(
     mut icon: Query<&mut Text, (With<PlayIcon>, Without<TransportLabel>)>,
     mut label: Query<&mut Text, (With<TransportLabel>, Without<PlayIcon>)>,
 ) {
-    let n = plan.steps.len().max(1) as f32;
-    let frac = (plan.t / n).clamp(0.0, 1.0) * 100.0;
+    let frac = plan.frac() * 100.0;
     if let Ok(mut f) = fill.single_mut() {
         f.width = Val::Percent(frac);
     }
@@ -231,24 +239,40 @@ pub fn transport_sync(
     }
 }
 
-/// `step k/n · <action>` plus the temporal time/duration when the plan carries it.
+/// Temporal: `t=…/makespan · k active · <action>` (the actions in flight at the
+/// current time). Classic: `step k/n · <action>`.
 fn readout(plan: &Plan) -> String {
     let n = plan.steps.len();
     if n == 0 {
         return String::new();
+    }
+    if plan.temporal {
+        let now = plan.t;
+        let active: Vec<&str> = plan
+            .steps
+            .iter()
+            .filter(|s| {
+                let st = s.time.unwrap_or(0.0) as f32;
+                let en = st + s.duration.unwrap_or(0.0) as f32;
+                now + 1e-3 >= st && now <= en + 1e-3
+            })
+            .map(|s| s.action.as_str())
+            .collect();
+        let lead = active.first().copied().unwrap_or("—").to_lowercase();
+        return format!(
+            "t={:.2}/{:.2}  ·  {} active  ·  {}",
+            now,
+            plan.span(),
+            active.len(),
+            lead
+        );
     }
     let k = (plan.t.floor() as usize).min(n - 1);
     if plan.t as usize >= n {
         return format!("done · {n} steps");
     }
     let step = &plan.steps[k];
-    let mut s = format!("step {}/{} · {}", k + 1, n, step.action.to_lowercase());
-    match (step.time, step.duration) {
-        (Some(t), Some(d)) => s.push_str(&format!("  ·  t={t:.2} dur={d:.2}")),
-        (Some(t), None) => s.push_str(&format!("  ·  t={t:.2}")),
-        _ => {}
-    }
-    s
+    format!("step {}/{} · {}", k + 1, n, step.action.to_lowercase())
 }
 
 /// Handle the play button and scrubbing on the track.
@@ -263,12 +287,12 @@ pub fn transport_input(
         transport.hovering = false;
         return;
     }
-    let n = plan.steps.len() as f32;
+    let span = plan.span();
 
     // play / pause toggle
     for it in &play_btn {
         if *it == Interaction::Pressed {
-            if plan.t >= n {
+            if plan.t >= span {
                 plan.t = 0.0;
             }
             plan.playing = !plan.playing;
@@ -282,7 +306,7 @@ pub fn transport_input(
         hovering = rel.cursor_over();
         if hovering && mouse.pressed(MouseButton::Left) {
             if let Some(p) = rel.normalized {
-                plan.t = (p.x.clamp(0.0, 1.0) * n).min(n);
+                plan.t = (p.x.clamp(0.0, 1.0) * span).min(span);
                 plan.playing = false;
             }
         }
