@@ -17,7 +17,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "ferroplan — domain visualizer (bevy)".into(),
-                resolution: (1280.0, 820.0).into(),
+                resolution: (1280, 820).into(),
                 // In the browser: render into <canvas id="ferroplan-canvas">, size
                 // to its parent, and keep key/scroll events on the canvas.
                 #[cfg(target_arch = "wasm32")]

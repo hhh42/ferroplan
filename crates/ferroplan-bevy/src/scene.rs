@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
+use bevy::sprite_render::{ColorMaterial, MeshMaterial2d};
 
 use ferroplan::parser::{parse_domain, parse_problem};
 use ferroplan::types::{Domain, Problem};
@@ -95,7 +96,7 @@ pub fn setup(mut commands: Commands) {
 }
 
 /// Read dropped `.pddl` files and load them (content-routed domain vs problem).
-pub fn handle_drops(mut drops: EventReader<FileDragAndDrop>, mut scene: ResMut<Scene>) {
+pub fn handle_drops(mut drops: MessageReader<FileDragAndDrop>, mut scene: ResMut<Scene>) {
     for ev in drops.read() {
         if let FileDragAndDrop::DroppedFile { path_buf, .. } = ev {
             match std::fs::read_to_string(path_buf) {
@@ -121,7 +122,7 @@ pub fn respawn_graph(
     }
     scene.dirty = false;
     for e in &existing {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
     let mut mc = icons::MeshCache::new();
     let mut matc = icons::MatCache::new();
@@ -148,7 +149,7 @@ pub fn respawn_graph(
                 p.spawn((
                     Text2d::new(node.object.to_lowercase()),
                     TextFont {
-                        font_size: 13.0,
+                        font_size: 13.0_f32.into(),
                         ..default()
                     },
                     TextColor(crate::palette::INK),
@@ -184,7 +185,7 @@ pub fn respawn_graph(
                 p.spawn((
                     Text2d::new(m.object.to_lowercase()),
                     TextFont {
-                        font_size: 11.0,
+                        font_size: 11.0_f32.into(),
                         ..default()
                     },
                     TextColor(crate::palette::MUT),
@@ -225,17 +226,21 @@ pub fn draw_edges(mut gizmos: Gizmos, scene: Res<Scene>, nodes: Query<(&NodeObj,
 pub fn camera_nav(
     mouse: Res<ButtonInput<MouseButton>>,
     editor: Res<crate::blocks::Editor>,
-    mut motion: EventReader<bevy::input::mouse::MouseMotion>,
-    mut wheel: EventReader<MouseWheel>,
-    mut cam: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
+    mut motion: MessageReader<bevy::input::mouse::MouseMotion>,
+    mut wheel: MessageReader<MouseWheel>,
+    mut cam: Query<(&mut Transform, &mut Projection), With<MainCamera>>,
 ) {
-    let Ok((mut tf, mut proj)) = cam.get_single_mut() else {
+    let Ok((mut tf, mut proj)) = cam.single_mut() else {
+        return;
+    };
+    // Bevy 0.16+ wraps the camera projection in a `Projection` enum.
+    let Projection::Orthographic(ortho) = &mut *proj else {
         return;
     };
     if mouse.pressed(MouseButton::Right) {
         for m in motion.read() {
-            tf.translation.x -= m.delta.x * proj.scale;
-            tf.translation.y += m.delta.y * proj.scale;
+            tf.translation.x -= m.delta.x * ortho.scale;
+            tf.translation.y += m.delta.y * ortho.scale;
         }
     } else {
         motion.clear();
@@ -250,6 +255,6 @@ pub fn camera_nav(
             MouseScrollUnit::Line => ev.y,
             MouseScrollUnit::Pixel => ev.y * 0.02,
         };
-        proj.scale = (proj.scale * (1.0 - step * 0.1)).clamp(0.1, 10.0);
+        ortho.scale = (ortho.scale * (1.0 - step * 0.1)).clamp(0.1, 10.0);
     }
 }

@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
+use bevy::sprite_render::ColorMaterial;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum IconShape {

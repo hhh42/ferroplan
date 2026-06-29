@@ -160,14 +160,16 @@ impl VizGraph {
                 props.entry(a.clone()).or_default().push(atom.clone());
             }
             match pred_kind.get(pred) {
-                Some(PredKind::Edge) if args.len() == 2 => {
-                    if node_set.contains(args[0].as_str()) && node_set.contains(args[1].as_str()) {
-                        edges.push(VizEdge {
-                            a: args[0].clone(),
-                            b: args[1].clone(),
-                            pred: pred.clone(),
-                        });
-                    }
+                Some(PredKind::Edge)
+                    if args.len() == 2
+                        && node_set.contains(args[0].as_str())
+                        && node_set.contains(args[1].as_str()) =>
+                {
+                    edges.push(VizEdge {
+                        a: args[0].clone(),
+                        b: args[1].clone(),
+                        pred: pred.clone(),
+                    });
                 }
                 Some(PredKind::Position) if args.len() == 2 => {
                     pos_target.entry(args[0].clone()).or_insert(args[1].clone());

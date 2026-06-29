@@ -16,11 +16,12 @@ path = "src/main.rs"
 [dependencies]
 ferroplan = { path = "../ferroplan" }
 # Slimmed feature set (no audio/gltf/3d/scene/animation) to shrink the wasm GUI.
-bevy = { version = "0.15", default-features = false, features = [
+bevy = { version = "0.19", default-features = false, features = [
     "bevy_winit",
     "bevy_render",
     "bevy_core_pipeline",
     "bevy_sprite",
+    "bevy_sprite_render",
     "bevy_text",
     "bevy_ui",
     "bevy_gizmos",
