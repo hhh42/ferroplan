@@ -208,7 +208,7 @@ pub fn toggle_editor(
 
 /// Type into the focused text field (domain/type/predicate names). Captures all
 /// keys while a field is focused, so global shortcuts are suppressed meanwhile.
-pub fn text_input(mut evr: EventReader<KeyboardInput>, mut editor: ResMut<Editor>) {
+pub fn text_input(mut evr: MessageReader<KeyboardInput>, mut editor: ResMut<Editor>) {
     if editor.focus.is_none() {
         evr.clear();
         return;
@@ -276,18 +276,18 @@ pub fn editor_drag(
     if !editor.open || editor.focus.is_some() {
         return;
     }
-    let cursor = windows.get_single().ok().and_then(|w| w.cursor_position());
+    let cursor = windows.single().ok().and_then(|w| w.cursor_position());
 
     if mouse.just_pressed(MouseButton::Left) && drag.held.is_none() {
         if let Some(pos) = cursor {
-            if let Some((kind, _)) = grips.iter().find(|(_, r)| r.mouse_over()) {
+            if let Some((kind, _)) = grips.iter().find(|(_, r)| r.cursor_over()) {
                 drag.held = Some(*kind);
                 let id = commands
                     .spawn((
                         Ghost,
                         Text::new(ghost_text(&editor, *kind)),
                         TextFont {
-                            font_size: 12.0,
+                            font_size: 12.0_f32.into(),
                             ..default()
                         },
                         TextColor(crate::palette::ACC),
@@ -316,13 +316,13 @@ pub fn editor_drag(
 
     if mouse.just_released(MouseButton::Left) {
         if let Some(held) = drag.held.take() {
-            if let Some((zone, _)) = zones.iter().find(|(_, r)| r.mouse_over()) {
+            if let Some((zone, _)) = zones.iter().find(|(_, r)| r.cursor_over()) {
                 if resolve_drop(held, *zone, &mut editor) {
                     editor.dirty = true;
                 }
             }
             if let Some(g) = drag.ghost.take() {
-                commands.entity(g).despawn_recursive();
+                commands.entity(g).despawn();
             }
         }
     }
@@ -340,7 +340,7 @@ fn ghost_text(editor: &Editor, kind: DragKind) -> String {
 /// Scroll the editor panel with the mouse wheel (the panel can be taller than the
 /// window). Only active while the editor is open.
 pub fn scroll_editor(
-    mut wheel: EventReader<MouseWheel>,
+    mut wheel: MessageReader<MouseWheel>,
     keys: Res<ButtonInput<KeyCode>>,
     editor: Res<Editor>,
     mut q: Query<&mut ScrollPosition, With<EditorRoot>>,
@@ -365,8 +365,8 @@ pub fn scroll_editor(
         }
     }
     if dy != 0.0 {
-        if let Ok(mut sp) = q.get_single_mut() {
-            sp.offset_y = (sp.offset_y - dy).max(0.0);
+        if let Ok(mut sp) = q.single_mut() {
+            sp.y = (sp.y - dy).max(0.0);
         }
     }
 }
@@ -1186,7 +1186,7 @@ pub fn rebuild(
     }
     editor.dirty = false;
     for e in &roots {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
     if !editor.open {
         return;
@@ -1231,7 +1231,7 @@ pub fn rebuild(
         });
 }
 
-fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
+fn build_problem(p: &mut ChildSpawnerCommands, editor: &Editor) {
     section_header(p, "OBJECTS");
     for (i, (name, ty)) in editor.objects.iter().enumerate() {
         block_card(p, ty, |r| {
@@ -1260,7 +1260,7 @@ fn build_problem(p: &mut ChildBuilder, editor: &Editor) {
 }
 
 /// A drop-zone container (tagged + cursor-tracked) holding a column of blocks.
-fn zone(p: &mut ChildBuilder, z: Zone, f: impl FnOnce(&mut ChildBuilder)) {
+fn zone(p: &mut ChildSpawnerCommands, z: Zone, f: impl FnOnce(&mut ChildSpawnerCommands)) {
     p.spawn((
         Node {
             flex_direction: FlexDirection::Column,
@@ -1278,7 +1278,7 @@ fn zone(p: &mut ChildBuilder, z: Zone, f: impl FnOnce(&mut ChildBuilder)) {
 }
 
 /// The drag handle at the start of a fact row.
-fn grip(r: &mut ChildBuilder, kind: DragKind) {
+fn grip(r: &mut ChildSpawnerCommands, kind: DragKind) {
     r.spawn((
         Node {
             padding: UiRect::axes(Val::Px(4.0), Val::Px(2.0)),
@@ -1293,7 +1293,7 @@ fn grip(r: &mut ChildBuilder, kind: DragKind) {
         g.spawn((
             Text::new("::"),
             TextFont {
-                font_size: 12.0,
+                font_size: 12.0_f32.into(),
                 ..default()
             },
             TextColor(crate::palette::MUT),
@@ -1301,7 +1301,7 @@ fn grip(r: &mut ChildBuilder, kind: DragKind) {
     });
 }
 
-fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
+fn build_domain(p: &mut ChildSpawnerCommands, editor: &Editor) {
     let focus = editor.focus;
     row(p, |h| {
         label(h, "domain:");
@@ -1415,7 +1415,7 @@ fn build_domain(p: &mut ChildBuilder, editor: &Editor) {
     btn(p, "+ action", Act::AddAction);
 }
 
-fn lit_section(p: &mut ChildBuilder, i: usize, loc: LitLoc, title: &str, lits: &[Lit]) {
+fn lit_section(p: &mut ChildSpawnerCommands, i: usize, loc: LitLoc, title: &str, lits: &[Lit]) {
     if !title.is_empty() {
         label(p, title);
     }
@@ -1446,7 +1446,7 @@ fn name_label(name: &str, focused: bool) -> String {
     }
 }
 
-fn fact_row(p: &mut ChildBuilder, goal: bool, i: usize, pred: &str, args: &[String]) {
+fn fact_row(p: &mut ChildSpawnerCommands, goal: bool, i: usize, pred: &str, args: &[String]) {
     let kind = if goal {
         DragKind::Goal(i)
     } else {
@@ -1462,7 +1462,7 @@ fn fact_row(p: &mut ChildBuilder, goal: bool, i: usize, pred: &str, args: &[Stri
     });
 }
 
-fn row(p: &mut ChildBuilder, f: impl FnOnce(&mut ChildBuilder)) {
+fn row(p: &mut ChildSpawnerCommands, f: impl FnOnce(&mut ChildSpawnerCommands)) {
     p.spawn(Node {
         flex_direction: FlexDirection::Row,
         column_gap: Val::Px(4.0),
@@ -1472,11 +1472,11 @@ fn row(p: &mut ChildBuilder, f: impl FnOnce(&mut ChildBuilder)) {
     .with_children(f);
 }
 
-fn label(p: &mut ChildBuilder, text: impl Into<String>) {
+fn label(p: &mut ChildSpawnerCommands, text: impl Into<String>) {
     p.spawn((
         Text::new(text.into()),
         TextFont {
-            font_size: 12.0,
+            font_size: 12.0_f32.into(),
             ..default()
         },
         TextColor(crate::palette::MUT),
@@ -1485,11 +1485,11 @@ fn label(p: &mut ChildBuilder, text: impl Into<String>) {
 
 /// A label in a specific colour (precondition cyan, effect molten — the redesign's
 /// pre/eff cue).
-fn label_colored(p: &mut ChildBuilder, text: impl Into<String>, color: Color) {
+fn label_colored(p: &mut ChildSpawnerCommands, text: impl Into<String>, color: Color) {
     p.spawn((
         Text::new(text.into()),
         TextFont {
-            font_size: 12.0,
+            font_size: 12.0_f32.into(),
             ..default()
         },
         TextColor(color),
@@ -1498,7 +1498,7 @@ fn label_colored(p: &mut ChildBuilder, text: impl Into<String>, color: Color) {
 
 /// A prominent section heading (lavender accent + a thin divider) so the editor
 /// reads as grouped sections rather than one flat list.
-fn section_header(p: &mut ChildBuilder, text: &str) {
+fn section_header(p: &mut ChildSpawnerCommands, text: &str) {
     p.spawn(Node {
         flex_direction: FlexDirection::Column,
         width: Val::Percent(100.0),
@@ -1514,7 +1514,7 @@ fn section_header(p: &mut ChildBuilder, text: &str) {
         h.spawn((
             Text::new(text.to_string()),
             TextFont {
-                font_size: 11.0,
+                font_size: 11.0_f32.into(),
                 ..default()
             },
             TextColor(crate::palette::FAINT),
@@ -1530,22 +1530,22 @@ fn section_header(p: &mut ChildBuilder, text: &str) {
     });
 }
 
-fn btn(p: &mut ChildBuilder, text: impl Into<String>, act: Act) {
+fn btn(p: &mut ChildSpawnerCommands, text: impl Into<String>, act: Act) {
     p.spawn((
         Button,
         Node {
             padding: UiRect::axes(Val::Px(7.0), Val::Px(3.0)),
+            border_radius: BorderRadius::all(Val::Px(5.0)),
             ..default()
         },
         BackgroundColor(crate::palette::PANEL2),
-        BorderRadius::all(Val::Px(5.0)),
         act,
     ))
     .with_children(|b| {
         b.spawn((
             Text::new(text.into()),
             TextFont {
-                font_size: 12.0,
+                font_size: 12.0_f32.into(),
                 ..default()
             },
             TextColor(crate::palette::INK),
@@ -1579,7 +1579,7 @@ fn block_color(key: &str) -> (Color, Color) {
 
 /// A rounded, color-coded block card with a thick left accent edge (Blockly look)
 /// wrapping a row of fields. `key` picks the color (predicate or type name).
-fn block_card(p: &mut ChildBuilder, key: &str, f: impl FnOnce(&mut ChildBuilder)) {
+fn block_card(p: &mut ChildSpawnerCommands, key: &str, f: impl FnOnce(&mut ChildSpawnerCommands)) {
     let (fill, accent) = block_color(key);
     p.spawn((
         Node {
@@ -1593,11 +1593,11 @@ fn block_card(p: &mut ChildBuilder, key: &str, f: impl FnOnce(&mut ChildBuilder)
                 right: Val::Px(1.0),
                 bottom: Val::Px(1.0),
             },
+            border_radius: BorderRadius::all(Val::Px(6.0)),
             ..default()
         },
         BackgroundColor(fill),
-        BorderColor(accent),
-        BorderRadius::all(Val::Px(6.0)),
+        BorderColor::all(accent),
     ))
     .with_children(f);
 }

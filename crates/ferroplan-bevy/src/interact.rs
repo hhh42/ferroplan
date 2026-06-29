@@ -33,7 +33,7 @@ pub fn interact(
     if editor.open {
         return;
     }
-    let (Ok(window), Ok((cam, cam_tf))) = (windows.get_single(), cam_q.get_single()) else {
+    let (Ok(window), Ok((cam, cam_tf))) = (windows.single(), cam_q.single()) else {
         return;
     };
     let Some(world) = cursor_world(window, cam, cam_tf) else {

@@ -24,14 +24,14 @@ pub fn setup_ui(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(crate::palette::PANEL_BLUR),
-            BorderColor(crate::palette::EDGE2),
+            BorderColor::all(crate::palette::EDGE2),
         ))
         .with_children(|p| {
             // "INSPECTOR" section label
             p.spawn((
                 Text::new("INSPECTOR"),
                 TextFont {
-                    font_size: 10.0,
+                    font_size: 10.0_f32.into(),
                     ..default()
                 },
                 TextColor(crate::palette::FAINT),
@@ -39,7 +39,7 @@ pub fn setup_ui(mut commands: Commands) {
             p.spawn((
                 Text::new("drag-drop a domain + problem .pddl here"),
                 TextFont {
-                    font_size: 14.0,
+                    font_size: 14.0_f32.into(),
                     ..default()
                 },
                 TextColor(crate::palette::INK),
@@ -58,7 +58,7 @@ pub fn update_info(
     plan: Res<Plan>,
     mut q: Query<&mut Text, With<InfoText>>,
 ) {
-    let Ok(mut text) = q.get_single_mut() else {
+    let Ok(mut text) = q.single_mut() else {
         return;
     };
     let mut s = String::new();
