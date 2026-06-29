@@ -127,10 +127,19 @@ pub fn poll_solve(mut job: ResMut<SolveJob>, mut plan: ResMut<Plan>) {
     }
 }
 
+/// Baseline playback rate, in (unit-duration) steps per second.
+const PLAY_RATE: f32 = 1.5;
+
 pub fn advance(time: Res<Time>, mut plan: ResMut<Plan>) {
     if plan.playing && !plan.steps.is_empty() {
         let n = plan.steps.len() as f32;
-        plan.t = (plan.t + time.delta_secs() * 1.5).min(n);
+        // Per-step-duration timing: the playhead dwells on each step in proportion
+        // to that step's `duration` (temporal plans), so a 4s action takes 4× as
+        // long on screen as a 1s one. Plain STRIPS steps have no duration → 1.0,
+        // i.e. uniform playback as before.
+        let k = (plan.t.floor() as usize).min(plan.steps.len() - 1);
+        let dur = plan.steps[k].duration.unwrap_or(1.0).max(0.05) as f32;
+        plan.t = (plan.t + time.delta_secs() * PLAY_RATE / dur).min(n);
         if plan.t >= n {
             plan.playing = false;
         }

@@ -10,6 +10,7 @@ mod icons;
 mod interact;
 mod palette;
 mod scene;
+mod transport;
 mod ui;
 
 fn main() {
@@ -38,7 +39,16 @@ fn main() {
         .init_resource::<anim::SolveJob>()
         .init_resource::<blocks::Editor>()
         .init_resource::<blocks::Drag>()
-        .add_systems(Startup, (scene::setup, ui::setup_ui, startup_load))
+        .init_resource::<transport::Transport>()
+        .add_systems(
+            Startup,
+            (
+                scene::setup,
+                ui::setup_ui,
+                transport::setup_transport,
+                startup_load,
+            ),
+        )
         .add_systems(
             Update,
             (
@@ -59,6 +69,15 @@ fn main() {
                 blocks::editor_drag,
                 blocks::handle_clicks,
                 blocks::rebuild,
+            ),
+        )
+        .add_systems(
+            Update,
+            (
+                transport::transport_visibility,
+                transport::rebuild_notches,
+                transport::transport_sync,
+                transport::transport_input,
             ),
         )
         .run();
