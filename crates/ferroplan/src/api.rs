@@ -196,6 +196,143 @@ pub struct Decomposition {
     pub notes: Vec<String>,
 }
 
+/// A "just parse" report: validate PDDL **syntax** and summarize the structure
+/// *without* grounding or solving. Auto-detects domain vs problem. `ok` is `false`
+/// with `error` set on a parse failure. Serde-serializable — for editor tooling, an
+/// LLM authoring loop that wants fast syntax feedback, or the MCP `parse` tool. For
+/// the full typed AST, use [`crate::parser::parse_domain`] / `parse_problem`.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ParseReport {
+    pub ok: bool,
+    /// `"domain"` or `"problem"` (best-effort classification, set even on error).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requirements: Vec<String>,
+    /// Parse error (with line number) when `ok` is false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub domain: Option<DomainSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub problem: Option<ProblemSummary>,
+}
+
+/// Structure summary of a parsed domain (signatures rendered as `name argtypes…`).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct DomainSummary {
+    pub types: Vec<String>,
+    pub predicates: Vec<String>,
+    pub functions: Vec<String>,
+    pub actions: Vec<String>,
+    pub durative_actions: Vec<String>,
+    pub derived: usize,
+}
+
+/// Structure summary of a parsed problem.
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ProblemSummary {
+    /// The domain name this problem references.
+    pub domain: String,
+    pub objects: usize,
+    pub init_facts: usize,
+    pub init_fluents: usize,
+    pub timed_initial_literals: usize,
+    pub has_goal: bool,
+    pub has_metric: bool,
+}
+
+/// Parse a PDDL source string (auto-detecting domain vs problem) into a structured
+/// [`ParseReport`] — syntax validation + a structure summary, no grounding or solving.
+pub fn parse(src: &str) -> ParseReport {
+    // Same content-routing heuristic the visualizer uses: whichever of `(problem` /
+    // `(domain` appears first wins.
+    let up = src.to_ascii_uppercase();
+    let is_problem = match (up.find("(PROBLEM"), up.find("(DOMAIN")) {
+        (Some(p), Some(d)) => p < d,
+        (Some(_), None) => true,
+        _ => false,
+    };
+    if is_problem {
+        match parser::parse_problem(src) {
+            Ok(p) => ParseReport {
+                ok: true,
+                kind: Some("problem".into()),
+                name: Some(p.name.to_lowercase()),
+                requirements: Vec::new(), // problem-file requirements are over-read
+                error: None,
+                domain: None,
+                problem: Some(ProblemSummary {
+                    domain: p.domain_name.to_lowercase(),
+                    objects: p.objects.len(),
+                    init_facts: p.init_atoms.len(),
+                    init_fluents: p.init_fluents.len(),
+                    timed_initial_literals: p.til.len(),
+                    has_goal: !matches!(p.goal, crate::types::Formula::True),
+                    has_metric: p.metric.is_some(),
+                }),
+            },
+            Err(e) => parse_err("problem", e),
+        }
+    } else {
+        match parser::parse_domain(src) {
+            Ok(d) => ParseReport {
+                ok: true,
+                kind: Some("domain".into()),
+                name: Some(d.name.to_lowercase()),
+                requirements: d
+                    .requirements
+                    .iter()
+                    .map(|r| format!(":{}", r.trim_start_matches(':').to_lowercase()))
+                    .collect(),
+                error: None,
+                domain: Some(DomainSummary {
+                    types: d.types.iter().map(|t| t.to_lowercase()).collect(),
+                    predicates: d.predicates.iter().map(|(n, a)| render_sig(n, a)).collect(),
+                    functions: d.functions.iter().map(|(n, a)| render_sig(n, a)).collect(),
+                    actions: d.actions.iter().map(|a| a.name.to_lowercase()).collect(),
+                    durative_actions: d
+                        .durative_actions
+                        .iter()
+                        .map(|a| a.name.to_lowercase())
+                        .collect(),
+                    derived: d.derived.len(),
+                }),
+                problem: None,
+            },
+            Err(e) => parse_err("domain", e),
+        }
+    }
+}
+
+/// `name argtype1 argtype2 …` (just `name` for a 0-arity predicate/function).
+fn render_sig(name: &str, arg_types: &[String]) -> String {
+    if arg_types.is_empty() {
+        name.to_lowercase()
+    } else {
+        let args = arg_types
+            .iter()
+            .map(|t| t.to_lowercase())
+            .collect::<Vec<_>>()
+            .join(" ");
+        format!("{} {}", name.to_lowercase(), args)
+    }
+}
+
+fn parse_err(kind: &str, e: crate::types::ParseError) -> ParseReport {
+    ParseReport {
+        ok: false,
+        kind: Some(kind.to_string()),
+        name: None,
+        requirements: Vec::new(),
+        error: Some(e.to_string()),
+        domain: None,
+        problem: None,
+    }
+}
+
 /// Re-exported so callers can name the PDDL3 metric type if needed.
 pub type Metric = f64;
 

@@ -11,6 +11,7 @@ iterates.
 | tool | what it does |
 |---|---|
 | `solve` | Plan a domain + problem; returns the structured `Solution` (typed steps, makespan/metric, statistics). Mode is auto-detected (STRIPS / typing / ADL / numeric / derived axioms / PDDL3 preferences / PDDL2.1 temporal). |
+| `parse` | Syntax-check a single PDDL string (domain *or* problem, auto-detected) and return a structure summary — name, requirements, counts — without grounding or solving. Fast feedback while authoring. |
 | `validate` | Independently check a plan against a domain + problem under ferroplan's own semantics (classical or temporal); returns valid / invalid-with-reason. |
 | `decompose` | Split a temporal goal too big for one-shot search into ordered, individually-solved contracts and stitch them into one validated plan; returns the inspectable `Decomposition` (each contract's named sub-goal + sub-plan + offset). Falls back to a monolithic contract when a goal can't be split. |
 

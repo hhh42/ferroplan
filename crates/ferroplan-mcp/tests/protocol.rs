@@ -54,7 +54,20 @@ fn initialize_advertises_server_and_tools() {
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["solve", "validate", "decompose"]);
+    assert_eq!(names, ["solve", "parse", "validate", "decompose"]);
+}
+
+#[test]
+fn parse_tool_summarizes_a_domain() {
+    let resp = drive(&[json!({
+        "jsonrpc":"2.0","id":1,"method":"tools/call",
+        "params":{"name":"parse","arguments":{"pddl":DOM}}
+    })]);
+    let text = resp[0]["result"]["content"][0]["text"].as_str().unwrap();
+    let report: Value = serde_json::from_str(text).expect("parse returns a JSON report");
+    assert_eq!(report["ok"], true);
+    assert_eq!(report["kind"], "domain");
+    assert_eq!(report["name"], "d");
 }
 
 #[test]
