@@ -1,16 +1,36 @@
 //! # ferroplan
 //!
 //! A fast, data-parallel [PDDL](https://en.wikipedia.org/wiki/Planning_Domain_Definition_Language)
-//! planner in Rust. The core is a delete-relaxation FF heuristic over a
-//! data-oriented (bitset / structure-of-arrays) task representation, with
-//! parallel grounding and parallel batch heuristic evaluation. On top of the
-//! engine it offers an SGPlan-style **partition-and-resolve** mode and a
-//! **PDDL3** preferences/metric mode.
+//! planner in Rust — a deterministic planning core for the age of AI. The engine is a
+//! delete-relaxation FF heuristic over a data-oriented (bitset / structure-of-arrays)
+//! task representation, with enforced hill-climbing + best-first fallback and parallel
+//! grounding / heuristic evaluation.
+//!
+//! PDDL coverage: STRIPS, typing, ADL (conditional/`forall` effects, equality),
+//! numeric fluents, derived axioms, **PDDL3** soft-goal preferences/metric, and
+//! **PDDL2.1 temporal** durative actions (constant / parameter-dependent durations,
+//! duration inequalities, timed initial literals). Plus an SGPlan-style
+//! **partition-and-resolve** mode.
+//!
+//! ## The public API (all `serde`-serializable)
+//!
+//! - [`solve`] — plan a domain + problem; returns a [`Solution`] (mode auto-detected).
+//! - [`decompose`] — split a temporal goal too big for one-shot search into ordered,
+//!   individually-solved [`Contract`]s, stitched into one validated plan
+//!   ([`Decomposition`]).
+//! - [`parse`] — syntax-check PDDL and summarize its structure ([`ParseReport`])
+//!   *without* grounding or solving — fast feedback for an authoring loop.
+//! - [`plan::validate_plan`] — independently check a plan under ferroplan's semantics.
 //!
 //! ## Quick start
 //! ```no_run
 //! let domain = std::fs::read_to_string("domain.pddl").unwrap();
 //! let problem = std::fs::read_to_string("problem.pddl").unwrap();
+//!
+//! // Catch syntax mistakes before solving.
+//! let report = ferroplan::parse(&domain);
+//! assert!(report.ok, "{:?}", report.error);
+//!
 //! let solution = ferroplan::solve(&domain, &problem, &ferroplan::Options::default()).unwrap();
 //! if let Some(plan) = solution.plan {
 //!     for step in &plan.steps { println!("{}", step.action); }
