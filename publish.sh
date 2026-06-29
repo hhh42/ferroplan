@@ -30,9 +30,12 @@ VERSION="$(grep -m1 '^version' Cargo.toml | sed -E 's/.*"([^"]+)".*/\1/')"
 TAG="v${VERSION}"
 echo "==> Releasing ferroplan ${VERSION} (tag ${TAG})"
 
-echo "==> Pre-flight"
+echo "==> Pre-flight (scoped to the published crates — does NOT build ferroplan-bevy)"
 cargo fmt --all --check
-cargo clippy --all-targets --all-features -- -D warnings
+# Scope clippy to the two crates we publish; a bare `--all-targets` would compile the
+# whole workspace, including the Bevy GUI (minutes of build for nothing — the library
+# itself has no graphics dependency).
+cargo clippy -p ferroplan -p ferroplan-cli --all-targets -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -p ferroplan -p ferroplan-cli
 cargo test -p ferroplan -p ferroplan-cli
 # Build the library tarball and verify it compiles in isolation.
