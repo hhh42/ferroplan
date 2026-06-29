@@ -77,9 +77,15 @@ done
 echo "==> Publishing the CLI"
 cargo publish -p ferroplan-cli
 
-echo "==> Tagging ${TAG}"
-git tag -a "$TAG" -m "ferroplan ${VERSION}"
-git push origin "$TAG"
+# Tag the release — but skip if it already exists on the remote (e.g. you cut the
+# GitHub Release from the web UI first, which creates the tag).
+if [[ -n "$(git ls-remote --tags origin "$TAG" 2>/dev/null)" ]]; then
+  echo "==> Tag ${TAG} already on the remote — leaving it as-is."
+else
+  echo "==> Tagging ${TAG}"
+  git tag -a "$TAG" -m "ferroplan ${VERSION}" 2>/dev/null || true # may exist locally
+  git push origin "$TAG"
+fi
 
 echo "==> Done. Published ferroplan + ferroplan-cli ${VERSION}, tagged ${TAG}."
-echo "    (Push the tag triggers the pages.yml mdBook rebuild.)"
+echo "    (Pushing the tag / cutting the GitHub Release triggers the pages.yml rebuild.)"
