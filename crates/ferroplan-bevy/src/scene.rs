@@ -196,22 +196,37 @@ pub fn respawn_graph(
 }
 
 /// Draw connection edges between node entities each frame, plus a molten ring around
-/// each goal location (the redesign's "target" marker).
-pub fn draw_edges(mut gizmos: Gizmos, scene: Res<Scene>, nodes: Query<(&NodeObj, &Transform)>) {
+/// each goal location (the redesign's "target" marker). Edges a mobile is currently
+/// traversing (per the animation timeline) are recoloured molten and drawn thicker.
+pub fn draw_edges(
+    mut gizmos: Gizmos,
+    scene: Res<Scene>,
+    plan: Res<crate::anim::Plan>,
+    nodes: Query<(&NodeObj, &Transform)>,
+) {
     use crate::palette;
     let pos: HashMap<&str, Vec2> = nodes
         .iter()
         .map(|(n, t)| (n.0.as_str(), t.translation.truncate()))
         .collect();
+    let active = active_edges(&scene, &plan);
     for e in &scene.graph.edges {
         if let (Some(&a), Some(&b)) = (pos.get(e.a.as_str()), pos.get(e.b.as_str())) {
             // colour by relation kind: rail/transit line vs road vs job-shop stage order
-            let color = match e.pred.to_ascii_uppercase().as_str() {
+            let base = match e.pred.to_ascii_uppercase().as_str() {
                 "RAIL" => palette::CY,
                 "NEXT" => palette::CRATE_AMBER,
                 _ => palette::EDGE2,
             };
-            gizmos.line_2d(a, b, color);
+            if is_active(&active, &e.a, &e.b) {
+                // thicken by drawing parallel offset lines around the molten centre.
+                let perp = (b - a).perp().normalize_or_zero() * 1.3;
+                gizmos.line_2d(a - perp, b - perp, palette::ACC);
+                gizmos.line_2d(a, b, palette::ACC);
+                gizmos.line_2d(a + perp, b + perp, palette::ACC);
+            } else {
+                gizmos.line_2d(a, b, base);
+            }
         }
     }
     // goal locations get a molten "target" ring just outside the node circle.
@@ -220,6 +235,41 @@ pub fn draw_edges(mut gizmos: Gizmos, scene: Res<Scene>, nodes: Query<(&NodeObj,
             gizmos.circle_2d(p, NODE_SIZE * 0.62, palette::ACC);
         }
     }
+}
+
+/// The (unordered) node pairs some mobile is moving along at the current timeline
+/// position — the edges to highlight while the animation plays/scrubs.
+fn active_edges(scene: &Scene, plan: &crate::anim::Plan) -> Vec<(String, String)> {
+    if plan.snapshots.is_empty() {
+        return Vec::new();
+    }
+    let count = plan.snapshots.len();
+    let k = (plan.t.floor() as usize).min(count - 1);
+    let kn = (k + 1).min(count - 1);
+    if kn == k {
+        return Vec::new();
+    }
+    let from = scene.graph.positions_at(&plan.snapshots[k].facts);
+    let to = scene.graph.positions_at(&plan.snapshots[kn].facts);
+    let mut out = Vec::new();
+    for (obj, fnode) in &from {
+        let Some(fnode) = fnode.as_deref() else {
+            continue;
+        };
+        let Some(tnode) = to.get(obj).and_then(|o| o.as_deref()) else {
+            continue;
+        };
+        if fnode != tnode {
+            out.push((fnode.to_string(), tnode.to_string()));
+        }
+    }
+    out
+}
+
+fn is_active(active: &[(String, String)], a: &str, b: &str) -> bool {
+    active
+        .iter()
+        .any(|(x, y)| (x == a && y == b) || (x == b && y == a))
 }
 
 /// Camera navigation: right-drag to pan, scroll to zoom.

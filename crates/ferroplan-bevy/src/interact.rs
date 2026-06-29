@@ -26,11 +26,13 @@ pub fn interact(
     cam_q: Query<(&Camera, &GlobalTransform), With<MainCamera>>,
     mut nodes: Query<(Entity, &NodeObj, &mut Transform)>,
     mobiles: Query<(&MobileObj, &Transform), Without<NodeObj>>,
+    transport: Res<crate::transport::Transport>,
     mut selected: ResMut<Selected>,
     mut drag: ResMut<DragState>,
 ) {
-    // The editor panel captures the pointer while open.
-    if editor.open {
+    // The editor panel captures the pointer while open; the transport bar captures
+    // it while scrubbing the timeline.
+    if editor.open || transport.hovering {
         return;
     }
     let (Ok(window), Ok((cam, cam_tf))) = (windows.single(), cam_q.single()) else {
