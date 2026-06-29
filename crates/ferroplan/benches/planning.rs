@@ -1,8 +1,9 @@
 //! End-to-end planning micro-benchmarks (parse + ground + search) over a few
 //! vendored IPC problems. Run with `cargo bench`.
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use ferroplan::{solve, Mode, Options};
+use std::hint::black_box; // criterion 0.8 deprecated its re-export
 
 fn read(rel: &str) -> String {
     let path = format!(
