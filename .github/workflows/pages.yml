@@ -31,7 +31,7 @@ jobs:
       - name: Build the in-browser planner demo (WASM)
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo install wasm-bindgen-cli --version 0.2.106 --locked
+          cargo install wasm-bindgen-cli --version 0.2.126 --locked
           crates/ferroplan-wasm/build.sh
       - name: Build the in-browser GUI (Bevy WASM)
         run: crates/ferroplan-bevy/build-wasm.sh
