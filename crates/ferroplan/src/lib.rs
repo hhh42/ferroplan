@@ -56,8 +56,8 @@ pub mod api;
 pub mod planner;
 
 pub use api::{
-    decompose, solve, Contract, Decomposition, Metric, Mode, Options, Plan, Search, Solution,
-    SolveError, Statistics, Step,
+    decompose, parse, solve, Contract, Decomposition, DomainSummary, Metric, Mode, Options,
+    ParseReport, Plan, ProblemSummary, Search, Solution, SolveError, Statistics, Step,
 };
 pub use planner::{run_ff, run_planner};
 pub use trace::{trace, StateSnapshot};

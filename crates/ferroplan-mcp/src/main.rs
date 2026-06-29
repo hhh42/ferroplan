@@ -129,6 +129,24 @@ fn tool_specs() -> Value {
             }
         },
         {
+            "name": "parse",
+            "description": "Syntax-check a PDDL source string and return a structure \
+                summary WITHOUT grounding or solving — fast feedback while authoring. \
+                Auto-detects domain vs problem; reports ok/error (with a line number) \
+                plus name, requirements, and counts (types/predicates/actions, or \
+                objects/init/goal/metric). Use to catch PDDL mistakes before `solve`.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "pddl": {
+                        "type": "string",
+                        "description": "A PDDL domain OR problem source string."
+                    }
+                },
+                "required": ["pddl"]
+            }
+        },
+        {
             "name": "validate",
             "description": "Independently validate a plan against a domain + problem \
                 under ferroplan's own execution semantics (auto-detects classical vs \
@@ -175,6 +193,7 @@ fn call_tool(params: Value) -> Outcome {
     let args = params.get("arguments").cloned().unwrap_or(Value::Null);
     let result = match name {
         "solve" => tool_solve(&args),
+        "parse" => tool_parse(&args),
         "validate" => tool_validate(&args),
         "decompose" => tool_decompose(&args),
         other => return Outcome::Err(-32602, format!("unknown tool: {other}")),
@@ -191,6 +210,11 @@ fn tool_solve(args: &Value) -> Result<String, String> {
     let opts = parse_options(args)?;
     let sol = ferroplan::solve(domain, problem, &opts).map_err(|e| e.to_string())?;
     pretty(&sol)
+}
+
+fn tool_parse(args: &Value) -> Result<String, String> {
+    let pddl = require_str(args, "pddl")?;
+    pretty(&ferroplan::parse(pddl))
 }
 
 fn tool_validate(args: &Value) -> Result<String, String> {
