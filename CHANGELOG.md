@@ -11,6 +11,12 @@ big for the one-shot search is **automatically decomposed** into solvable,
 individually-verified contracts.
 
 ### Added
+- **`parse` API — syntax-check PDDL without solving.** `ferroplan::parse(src)`
+  auto-detects domain vs problem, validates syntax, and returns a serde-serializable
+  `ParseReport` (ok/error-with-line, name, requirements, and a structure summary:
+  types/predicates/functions/actions or objects/init/goal/metric/TIL counts) — fast
+  feedback for an authoring loop or editor tooling, no grounding or solving. Exposed
+  as a **`parse` MCP tool** too.
 - **MCP server (`ferroplan-mcp`)** — a Model Context Protocol server exposing
   `solve`, `validate`, and `decompose` to an LLM agent over stdio, so the agent can
   *author and supervise* PDDL and let the planner run deterministically (the README's

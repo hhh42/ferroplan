@@ -126,6 +126,10 @@ use ferroplan::{solve, Options};
 let domain  = std::fs::read_to_string("domain.pddl")?;
 let problem = std::fs::read_to_string("problem.pddl")?;
 
+// Syntax-check before solving (no grounding/solving) — fast authoring feedback.
+let report = ferroplan::parse(&domain);
+assert!(report.ok, "{:?}", report.error);
+
 let solution = ferroplan::solve(&domain, &problem, &Options::default())?;
 if let Some(plan) = solution.plan {
     for step in &plan.steps {
@@ -136,7 +140,11 @@ if let Some(plan) = solution.plan {
 # Ok::<(), ferroplan::SolveError>(())
 ```
 
-See [`examples/`](crates/ferroplan/examples) for `solve` and `json_api`.
+The public, `serde`-serializable surface: **`solve`** (plan a domain+problem),
+**`decompose`** (split a too-big temporal goal into validated contracts),
+**`parse`** (syntax-check + summarize PDDL without solving), and
+**`plan::validate_plan`** (independently check a plan). See
+[`examples/`](crates/ferroplan/examples) for `solve`, `parse`, and `json_api`.
 
 ## Configuration
 

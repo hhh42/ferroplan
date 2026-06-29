@@ -1,6 +1,6 @@
 [package]
 name = "ferroplan"
-description = "A fast, data-parallel PDDL planner (FF heuristic + SGPlan-style partitioning) in Rust"
+description = "A fast, data-parallel PDDL planner in Rust — FF heuristic with ADL, numeric, derived axioms, PDDL3 preferences, PDDL2.1 temporal, and a goal decomposer"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
