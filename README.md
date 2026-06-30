@@ -49,6 +49,14 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 
 > Status: **v0.2.2** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
+> **What's new in 0.2.2** *(GUI & tooling)* — the Solver, visualizer, and animator
+> share a new "forge" look; the [browser
+> animator](https://hhh42.github.io/ferroplan/gui/index.html) gains a scrubbable
+> **transport bar** and a **temporal timescale (Gantt) view** that lays durative
+> actions out on a plan-time axis; the GUI moves to **Bevy 0.19** and dependencies are
+> brought current. No solver/library API changes since 0.2.1. See the
+> [CHANGELOG](CHANGELOG.md).
+
 ## Features
 
 - **EHC + best-first** — enforced hill-climbing with helpful actions (the FF
