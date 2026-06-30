@@ -25,6 +25,11 @@ jobs:
         run: cargo clippy --workspace --exclude ferroplan-bevy --all-targets --all-features -- -D warnings
       - name: Test
         run: cargo test --workspace --exclude ferroplan-bevy
+      # The IPC-benchmark regression guards (espc / ipc5_pref_metric) are `#[ignore]`d
+      # so they don't bloat the default `cargo test` (and the publish pre-flight) with
+      # multi-minute solves. Run them here in release, where they're ~3× faster.
+      - name: Heavy IPC regression guards (release)
+        run: cargo test --release -p ferroplan -- --ignored
       - name: Docs
         run: cargo doc --no-deps --all-features --workspace --exclude ferroplan-bevy
         env:

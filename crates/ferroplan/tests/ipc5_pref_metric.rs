@@ -15,6 +15,7 @@ fn metric(domain: &str, problem: &str) -> f64 {
 }
 
 #[test]
+#[ignore = "heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)"]
 fn openstacks_beats_all_forgo_floor() {
     // before satisfaction-guidance ferroplan emitted the all-forgo plan (metric 70)
     let m = metric("openstacks", "p01");
@@ -25,6 +26,7 @@ fn openstacks_beats_all_forgo_floor() {
 }
 
 #[test]
+#[ignore = "heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)"]
 fn default_metric_matches_independent_verifier() {
     // W1 oracle: every default plan must be valid (hard goal met), and where the
     // independent verifier is authoritative the reported metric must equal the
@@ -68,6 +70,7 @@ fn default_metric_matches_independent_verifier() {
 }
 
 #[test]
+#[ignore = "heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)"]
 fn ipc5_pref_metric_no_regression() {
     // p01 snapshot ceilings with satisfaction-guidance (must not regress upward)
     for (d, ceiling) in [
