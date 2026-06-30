@@ -2,6 +2,53 @@
 
 All notable changes to this project are documented here.
 
+## [0.2.2] - 2026-06-30 — GUI & tooling
+
+A GUI- and tooling-focused release: the web surfaces and the native Bevy app get a
+shared "forge" visual identity, the animator gains a real timeline UI plus a temporal
+timescale view, the engine is brought up to current dependencies, and the publish
+pre-flight is fast again. **No solver/library API changes** — `ferroplan` /
+`ferroplan-cli` are functionally identical to 0.2.1 (dependency refresh only).
+
+### Added
+- **Animator transport bar** (native Bevy GUI) — a play/pause button, a scrubbable
+  timeline (click or drag to seek, one notch per step), a molten progress fill +
+  playhead, and a step/time readout. Mirrors the keyboard controls so the animator is
+  usable with the mouse alone.
+- **Temporal timescale (Gantt) view** — temporal plans (overlapping durative actions
+  the graph can't tween) are now legible: each durative action is a bar on a shared
+  plan-time axis, greedily lane-packed so non-overlapping actions share a row, coloured
+  by the acting object, with a cyan "now" line swept by the transport playhead. Toggle
+  with **T**.
+- **Duration-aware playback + active-edge highlight** — classic plans dwell on each
+  step in proportion to its `duration`; temporal plans sweep their whole makespan in a
+  fixed wall-clock time (relative durations preserved); the edge a mobile is traversing
+  at the current timeline position is recoloured molten and thickened.
+
+### Changed
+- **"Forge" visual identity** across all three surfaces — the Solver web demo, the
+  Bevy visualizer/animator web shell, and the native GUI are restyled to a shared
+  dark / molten / cyan palette, and the logo is retinted to match (cyan start, molten
+  target).
+- **Bevy 0.15 → 0.19** — the GUI is migrated to current Bevy (rendering split into
+  `*_render` feature crates, the `Projection` enum, and the `BorderColor` /
+  `BorderRadius` / `FontSize` / `ScrollPosition` API changes). Building the GUI now
+  needs Rust ≥ 1.95; the published library keeps its 1.74 MSRV (it has no Bevy
+  dependency).
+- **Dependencies modernized** — `thiserror` 1 → 2, `criterion` 0.5 → 0.8, `pyo3`
+  0.24 → 0.29, `wasm-bindgen` pinned to 0.2.126, and the rest brought current.
+
+### Fixed
+- **Fast publish pre-flight / `cargo test`** — two IPC-benchmark regression guards
+  (`espc` ~346 s, `ipc5_pref_metric` ~175 s) are now `#[ignore]`d, so the default test
+  run (and `publish.sh`) finishes in seconds. They remain gated: CI runs them in
+  release (`cargo test --release -p ferroplan -- --ignored`), and `RUN_HEAVY=1
+  ./publish.sh` (or `cargo test -- --include-ignored`) includes them on demand. No
+  assertions changed — only when they run.
+- **Bevy GUI black screen on launch** — the 0.19 render features (`bevy_ui_render`,
+  `bevy_gizmos_render`, `bevy_sprite_render`) weren't enabled, so the ECS data was
+  there but nothing drew.
+
 ## [0.2.1] - 2026-06-26 — "The Bridge"
 
 The engine release (0.1) made ferroplan fast and correct; 0.2 makes the README's
