@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="ferroplan" width="360">
+  <img src="https://raw.githubusercontent.com/hhh42/ferroplan/main/assets/logo.svg" alt="ferroplan" width="360">
 </p>
 
 # ferroplan
@@ -90,7 +90,7 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 domain+problem as a typed graph, animates the plan, and edits both problems and
 domains in a Blockly-style block editor (`cargo run -p ferroplan-bevy`).
 
-![ferroplan-bevy visualizing a delivery problem as a typed graph](book/src/images/graph.png)
+![ferroplan-bevy visualizing a delivery problem as a typed graph](https://raw.githubusercontent.com/hhh42/ferroplan/main/book/src/images/graph.png)
 
 ## Install / build
 
