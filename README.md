@@ -47,7 +47,7 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.2.1** ("The Bridge"), not yet on crates.io. APIs may shift before 1.0.
+> Status: **v0.2.2** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
 ## Features
 
