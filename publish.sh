@@ -37,7 +37,13 @@ cargo fmt --all --check
 # itself has no graphics dependency).
 cargo clippy -p ferroplan -p ferroplan-cli --all-targets -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -p ferroplan -p ferroplan-cli
-cargo test -p ferroplan -p ferroplan-cli
+# Skips the `#[ignore]`d IPC-benchmark regression guards (multi-minute solves); those
+# are CI-gated on every push. Set RUN_HEAVY=1 to include them here too (release-built).
+if [[ "${RUN_HEAVY:-0}" == 1 ]]; then
+  cargo test --release -p ferroplan -p ferroplan-cli -- --include-ignored
+else
+  cargo test -p ferroplan -p ferroplan-cli
+fi
 # Build the library tarball and verify it compiles in isolation.
 cargo package -p ferroplan
 

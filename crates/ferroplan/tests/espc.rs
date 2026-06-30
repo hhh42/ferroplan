@@ -29,6 +29,8 @@ fn steps(plan: &Plan) -> Vec<(String, Vec<String>)> {
 }
 
 #[test]
+#[ignore = "heavy IPC solve (~2-6 min): ESPC penalty-resolution loop on openstacks/p01. \
+            Opt-in via `cargo test -- --include-ignored`; CI runs it in release."]
 fn espc_openstacks_p01_improves_verifies_and_is_deterministic() {
     let (d, p) = read("p01");
 
