@@ -24,13 +24,20 @@ only; MIPS-BDD is optimal-but-very-low-coverage.)
 
 ## ferroplan vs SGPlan5, p01–p08 (lower is better; **bold** = ferroplan ≤ SGPlan5)
 
-**openstacks** — satisfaction guidance broke the all-forgo floor (70→63), but the
-shared `stacks-avail` resource scheduling is still unsolved (the #63 gap):
+**openstacks** — satisfaction guidance broke the all-forgo floor (70→63), and the
+opt-in ESPC penalty loop (`FF_ESPC`, see `docs/espc-preferences-spec.md`) narrows
+the gap further — but the shared `stacks-avail` resource scheduling is still
+unsolved (the remaining ~3× gap to SGPlan):
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
 | ferroplan | 63 | 66 | 62 | 66 | 138 | 129 | 278 | 608 |
+| + `FF_ESPC`¹ | 42 | 43 | 55 | 66 | 81 | 90 | 151 | 227 |
 | SGPlan5 | 13 | 16 | 12 | 26 | 36 | 33 | 67 | 123 |
+
+¹ `FF_ESPC=1 FF_ESPC_TIME_MS=90000`, 4 cores (2026-07). The loop is
+wall-clock-bounded and anytime, so quality scales with budget/cores: at the
+default 15 s on the same box only p01/p02/p06 improve (42/43/100).
 
 **tpp** (the whole field ties SGPlan at 16/24/29/35 on p01–p04 — ferroplan trails):
 
@@ -84,8 +91,12 @@ openstacks, low coverage). A credible retroactive 2nd — not a win.
 
 ## Path to climb
 
-1. **openstacks resource loop (#63)** — the headline quality gap (63 → ~13);
-   needs `stacks-avail` resource coordination the satisfaction term can't see.
+1. **openstacks resource loop** — the headline quality gap (42 → ~13 with
+   `FF_ESPC` on); needs `stacks-avail` resource coordination the satisfaction
+   term can't see. The mutex-group synthesis (`invariants.rs`) now recovers
+   `stacks-avail` as a guidance variable on every instance, so the next step is
+   coupling the ESPC penalty loop to the partitioned search ("increment 2" —
+   see the 2026-07 revisit in `docs/espc-preferences-spec.md`).
 2. **tpp/storage quality** — ferroplan trails the field even on *small* instances
    (tpp p01 21 vs 16); a metric-B&B convergence / guidance fix.
 3. **B&B scalability** — make the soft-goal compilation + B&B handle hundreds of
