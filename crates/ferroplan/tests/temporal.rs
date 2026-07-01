@@ -619,3 +619,25 @@ fn validate_plan_compiles_derived_axioms() {
         other => panic!("valid corridor-12 plan must validate, got {other:?}"),
     }
 }
+
+#[test]
+#[ignore = "escalation-ladder integration (~20 s release): rung-0 failure must burn its \
+            node budget before the Full-tier rung solves. CI runs it via --ignored."]
+fn escalation_ladder_rescues_predicate_build() {
+    // cabin/crew-solo's goal (roof-on, door-hung, windows-glazed) needs the Full
+    // tier's predicate-goal demand seeding — its own header documents
+    // `FF_TDEMAND=1`. Under plain defaults the rung-0 search fails; the ladder's
+    // Full rung must rescue it (measured makespan 109) without any flag.
+    let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/cabin");
+    let d_src = std::fs::read_to_string(format!("{base}/crew.pddl")).unwrap();
+    let p_src = std::fs::read_to_string(format!("{base}/crew-solo.pddl")).unwrap();
+    let d = parse_domain(&d_src).expect("parses");
+    let p = parse_problem(&p_src).expect("parses");
+    let plan = temporal::solve(&d, &p, 1).expect("the escalation ladder must rescue crew-solo");
+    temporal::validate(&d, &p, &plan).expect("escalated plan validates");
+    assert!(
+        (plan.makespan - 109.0).abs() < 2.0,
+        "expected the documented ~109 makespan, got {}",
+        plan.makespan
+    );
+}
