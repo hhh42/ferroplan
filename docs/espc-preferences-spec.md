@@ -135,3 +135,32 @@ Decision: **coverage is already on par with SGPlan6 (39/48); the remaining gap i
 metric quality on solved instances.** Neither future path is justified for the
 current milestone, so ESPC is deferred. The `forbidden`/`plan_avoiding` plumbing
 and `Compiled.forgos` are retained as groundwork for the general path.
+
+## Revisit (2026-07) — the general path's blocker has since been built
+
+Two facts have changed since the "deferred" decision above, re-verified live:
+
+1. **Root cause 2 no longer holds.** The multi-predicate (Helmert-style)
+   monotonicity-invariant synthesis in `crates/ferroplan/src/invariants.rs`
+   (see `docs/invariants-measurement.md`) recovers **exactly one mutex group on
+   every openstacks instance: `(STACKS-AVAIL n)`** — the precise guidance
+   variable this study said a faithful ESPC needs and phi-based partitioning
+   can't see (verified: `cargo run --release -p ferroplan --example
+   invariants_coverage -- benchmarks/ipc/pref/openstacks`). The groups are
+   already consumed by classical partitioning
+   (`partition::interaction_partition` → `resolve::solve`).
+
+2. **The penalty loop exists** (`crate::espc`, opt-in `FF_ESPC`) but is still
+   coupled to the bespoke make-deadline trigger on the *monolithic* search, and
+   its win is **budget-bound**: on a 4-core box at the default 15 s budget only
+   p01/p02/p06 improve (42/43/100); at `FF_ESPC_TIME_MS=90000` the loop
+   reproduces the recorded quality (e.g. p05 135→81).
+
+So the "multi-week translation layer" half of the general path is done and wired;
+what remains is **increment 2** (named at the end of
+`docs/invariants-measurement.md`): couple the `espc.rs` penalty schedule to the
+partitioned search — subproblems from the goal-interaction components, global
+constraints = cross-partition transitions of shared mutex variables
+(openstacks: `stacks-avail`), λ raised per the existing per-trigger schedule.
+That is also the fix the classical measurement predicts for the
+resource-coupled partition regressions (gripper/logistics re-traversal).
