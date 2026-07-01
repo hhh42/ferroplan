@@ -186,6 +186,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 // T3: decision-epoch temporal search.
 // ---------------------------------------------------------------------------
 
+use crate::features::DemandMode;
 use crate::ground::{ground, Outcome};
 use crate::hash::FxHashMap;
 use crate::heuristic::{relaxed_helpful, relaxed_to, Scratch};
@@ -351,6 +352,40 @@ fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &Sta
 /// the `over all` invariant is enforced at the start and end happenings via the
 /// snap preconditions.
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    let ambient = crate::features::demand_mode();
+    if let Some(plan) = solve_monolithic(domain, problem, threads, ambient) {
+        return Some(plan);
+    }
+    // On-failure escalation ladder (see `features::escalate`). Each rung runs only
+    // after the previous failed, so nothing that solves above can change — the
+    // ladder converts failures into solves at the cost of extra time on failures.
+    // Gated off by FF_NO_ESCALATE, and by FF_NO_TDEMAND (the master pre-v0.2
+    // opt-out — escalating from `Off` would contradict it). Measured (cabin):
+    // crew-solo/pair + skilled-specialists solve at the Full rung; order-8/12
+    // solve at the decomposer rung.
+    if ambient == DemandMode::Off || !crate::features::escalate() {
+        return None;
+    }
+    if ambient != DemandMode::Full {
+        if let Some(plan) = solve_monolithic(domain, problem, threads, DemandMode::Full) {
+            return Some(plan);
+        }
+    }
+    // Decomposer rung. Its single-group fallback calls `solve_monolithic`, NOT
+    // `solve`, so the ladder cannot recurse.
+    crate::tresolve::solve(domain, problem, threads)
+}
+
+/// The monolithic temporal search at an explicit demand `tier` — the scheduling
+/// phase + the plain decision-epoch search, WITHOUT the escalation ladder. This is
+/// the primitive `solve` builds its ladder from and the decomposer's single-group
+/// fallback (`tresolve`) terminates on.
+pub(crate) fn solve_monolithic(
+    domain: &Domain,
+    problem: &Problem,
+    threads: usize,
+    tier: DemandMode,
+) -> Option<TimedPlan> {
     // Concurrent scheduling phase (gated). The multi-actor search is flaky, so we
     // search a SINGLE-actor reduction (tractable) and then repack that plan onto the
     // full crew — one job per worker, resources permitting — to minimise makespan.
@@ -362,7 +397,7 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
         // reduction is `problem` itself, so its plan is valid as-is.
         let reduced = crate::tsched::n_actors(domain, problem) >= 2;
         let solo = crate::tsched::single_actor_problem(domain, problem);
-        if let Some(plan) = solve_inner(domain, &solo, threads) {
+        if let Some(plan) = solve_inner(domain, &solo, threads, tier) {
             if let Some(rp) = crate::tsched::reschedule(domain, problem, &plan) {
                 return Some(rp);
             }
@@ -373,11 +408,16 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
             // single worker has) — fall through to an honest full-problem search.
         }
     }
-    solve_inner(domain, problem, threads)
+    solve_inner(domain, problem, threads, tier)
 }
 
 /// Search a temporal plan for `problem` as-is (no scheduling phase).
-fn solve_inner(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+fn solve_inner(
+    domain: &Domain,
+    problem: &Problem,
+    threads: usize,
+    tier: DemandMode,
+) -> Option<TimedPlan> {
     let c = compile(domain, problem);
     let task = match ground(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
@@ -414,6 +454,7 @@ fn solve_inner(domain: &Domain, problem: &Problem, threads: usize) -> Option<Tim
         &[],
         &til_events,
         threads,
+        tier,
     )
 }
 
@@ -579,6 +620,7 @@ pub(crate) fn solve_from(
     forbidden: &[bool],
     til_events: &[(f64, usize)],
     _threads: usize,
+    tier: DemandMode,
 ) -> Option<TimedPlan> {
     // Fail fast on statically unproducible goals — nothing any pass could reach.
     if statically_unsolvable(task, start, goal_pos, goal_num) {
@@ -591,7 +633,7 @@ pub(crate) fn solve_from(
     // Converging-resource demand guidance (FF_TDEMAND, default OFF → empty → the
     // phase-1 key is bit-identical to the prior temporal search). Phase 2 (the
     // complete pure-h pass) is unaffected regardless, so completeness is preserved.
-    let demand = if crate::features::tdemand() {
+    let demand = if tier != DemandMode::Off {
         let w = std::env::var("FF_TDEMAND_W")
             .ok()
             .and_then(|s| s.parse::<i64>().ok())
@@ -602,7 +644,7 @@ pub(crate) fn solve_from(
         // reads a renewable-pool guard (e.g. `(>= (avail) 1)`) as accumulation demand
         // and serializes concurrency domains; the numeric half is the measured win.
         let mut seed: Vec<NumPre> = goal_num.to_vec();
-        if crate::features::demand_mode() == crate::features::DemandMode::Full {
+        if tier == DemandMode::Full {
             seed.extend(predicate_goal_thresholds(task, kind, goal_pos));
         }
         let d = compute_demand(task, kind, &seed, w);
@@ -631,8 +673,7 @@ pub(crate) fn solve_from(
     // Graduated from the Full tier in v0.2.2: `flour >= 2` on a fully-featured hub
     // (rpg-world bread-line) needs pruning to solve at all — the default search
     // exhausted its node budget in the irrelevant-accumulator swamp.
-    let on = crate::features::demand_mode() != crate::features::DemandMode::Off
-        && std::env::var("FF_NOREL").is_err();
+    let on = tier != DemandMode::Off && std::env::var("FF_NOREL").is_err();
     let sound = if on {
         relevant_op_mask(task, goal_pos, goal_num, false)
     } else {

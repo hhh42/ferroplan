@@ -136,12 +136,19 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
     }
 
     loop {
-        // A single group IS the whole goal solved from init = `temporal::solve`
-        // (the monolithic fallback); calling it directly keeps the bit-identical
-        // completeness guarantee and terminates the merge cascade.
+        // A single group IS the whole goal solved from init = the monolithic search
+        // (the fallback); calling `solve_monolithic` directly keeps the bit-identical
+        // completeness guarantee, terminates the merge cascade, AND cannot recurse
+        // into `temporal::solve`'s escalation ladder (whose decomposer rung is how
+        // we may have gotten here).
         if groups.len() == 1 {
-            return temporal::solve(domain, problem, threads)
-                .map(|p| monolithic_decomp(whole_goal.clone(), p));
+            return temporal::solve_monolithic(
+                domain,
+                problem,
+                threads,
+                crate::features::demand_mode(),
+            )
+            .map(|p| monolithic_decomp(whole_goal.clone(), p));
         }
 
         // Sequential validated composition over the evolving (state, offset).
@@ -186,6 +193,7 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
                 &forbidden,
                 &[], // the decomposer doesn't handle timed initial literals
                 threads,
+                crate::features::demand_mode(),
             )
             .or_else(|| {
                 if forbidden.is_empty() {
@@ -200,6 +208,7 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
                         &[],
                         &[],
                         threads,
+                        crate::features::demand_mode(),
                     )
                 }
             }) {

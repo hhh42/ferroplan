@@ -97,6 +97,17 @@ pub fn tdecomp() -> bool {
     resolve(&TDECOMP, std::env::var("FF_TDECOMP").is_ok())
 }
 
+/// The on-failure escalation ladder in [`crate::temporal::solve`]: when the
+/// default-tier monolithic search fails, retry at the `Full` demand tier, then
+/// hand the goal to the decomposer. Each rung runs ONLY after the previous one
+/// failed, so no instance that solves today can change its plan — escalation
+/// spends extra time on (would-be) failures to convert them into solves.
+/// Default ON; `FF_NO_ESCALATE` disables the ladder alone, and `FF_NO_TDEMAND`
+/// (the master "pristine pre-v0.2 path" switch) disables it too.
+pub fn escalate() -> bool {
+    std::env::var("FF_NO_ESCALATE").is_err()
+}
+
 /// The concurrent scheduling phase: repack a temporal plan onto the domain's actor
 /// objects to minimise makespan (so more workers finish faster). See [`crate::tsched`].
 /// Opt-in via `FF_TCONC`.
