@@ -13,8 +13,8 @@
 //! matching `A-START`, and checks the invariant holds across the interval.
 
 use crate::types::{
-    Action, AssignOp, CompOp, Domain, Duration, Effect, Expr, Formula, NExpr, NumPre, Problem, Sym,
-    Term, TimeSpec,
+    eval_numpre, Action, AssignOp, CompOp, Domain, Duration, Effect, Expr, Formula, NExpr, NumEff,
+    NumPre, Problem, Sym, Term, TimeSpec,
 };
 
 /// Temporal metadata for one durative action, paired with its snap-actions.
@@ -580,6 +580,10 @@ pub(crate) fn solve_from(
     til_events: &[(f64, usize)],
     _threads: usize,
 ) -> Option<TimedPlan> {
+    // Fail fast on statically unproducible goals — nothing any pass could reach.
+    if statically_unsolvable(task, start, goal_pos, goal_num) {
+        return None;
+    }
     // Landmarks are ALWAYS on (phase-1 key), so seed them from the numeric goal ONLY
     // — keeping the default path byte-identical. The predicate-goal thresholds (which
     // would change default ordering) ride the FF_TDEMAND-gated demand seed instead.
@@ -614,16 +618,20 @@ pub(crate) fn solve_from(
     } else {
         Demand::empty()
     };
-    // Goal-relevance pruning (rides FF_TDEMAND; off => empty masks => no filter,
-    // default path unchanged). Two masks: SOUND (every producer of each relevant
-    // resource — completeness-preserving) and TIGHT (only the single best-yield
-    // producer — drops alternative-recipe subsystems like logistics for `planks`).
-    // Three passes: helpful (sound) → full+tight → full+sound. The tight pass solves
-    // the conjunctive/structural builds without exploding; the final sound pass is the
-    // complete backstop (a pruned op is on no path to the goal).
-    // Relevance pruning rides the Full tier only (it pairs with predicate-threshold
-    // seeding for structural builds; the numeric default doesn't need it).
-    let on = crate::features::demand_mode() == crate::features::DemandMode::Full
+    // Goal-relevance pruning (default-on with the demand tiers; `FF_NOREL` disables
+    // pruning alone, `FF_NO_TDEMAND` restores the pristine pre-v0.2 path entirely).
+    // Two masks: SOUND (every producer of each relevant resource) and TIGHT (only the
+    // single best-yield producer — drops alternative-recipe subsystems like logistics
+    // for `planks`). Four passes: helpful (sound) → full+tight → full+sound →
+    // full+unmasked. The tight pass solves the conjunctive/structural builds without
+    // exploding; the sound pass solves within the relevant subspace instead of
+    // drowning in irrelevant unbounded accumulators (food=1,2,3,…); the final
+    // unmasked pass makes completeness UNCONDITIONAL — even a hypothetical mask bug
+    // cannot lose coverage, it can only cost time on unsolvable inputs.
+    // Graduated from the Full tier in v0.2.2: `flour >= 2` on a fully-featured hub
+    // (rpg-world bread-line) needs pruning to solve at all — the default search
+    // exhausted its node budget in the irrelevant-accumulator swamp.
+    let on = crate::features::demand_mode() != crate::features::DemandMode::Off
         && std::env::var("FF_NOREL").is_err();
     let sound = if on {
         relevant_op_mask(task, goal_pos, goal_num, false)
@@ -653,6 +661,70 @@ pub(crate) fn solve_from(
     go(&sound, true)
         .or_else(|| if on { go(&tight, false) } else { None })
         .or_else(|| go(&sound, false))
+        // Unmasked complete backstop — only distinct from the previous pass when
+        // pruning is on (off ⇒ `sound` is already empty ⇒ pass 3 was unmasked).
+        .or_else(|| if on { go(&[], false) } else { None })
+}
+
+/// Static unproducibility: is some goal conjunct impossible to ever achieve because
+/// NOTHING in the grounded task can move it? Two sound, instant checks:
+/// - a positive goal fact not true in `start` that **no op adds** (plain or
+///   conditional effect — TIL appliers are ops too, so exogenous adds count);
+/// - a `>=`/`>` numeric threshold not met in `start` whose fluent **no op can
+///   possibly raise** (an effect "can raise" unless it provably never does:
+///   `increase` by a constant ≤ 0 or `decrease` by a constant ≥ 0; `assign`/
+///   `scale-up`/`scale-down`/non-constant deltas all count as potential raisers).
+///
+/// A `true` here means every search pass would exhaust its budget and fail anyway —
+/// e.g. rpg-world `bread-line` goals on `(bread) >= 2` but no action produces
+/// `bread`, and the search burned ~45 s across passes proving it. This check makes
+/// such instances (and decomposer contracts) fail in microseconds. It never changes
+/// a *found* plan, only converts an exhaustive failure into an instant one.
+fn statically_unsolvable(
+    task: &PackedTask,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+) -> bool {
+    let fact_true = |f: u32| (start.bits[f as usize / 64] >> (f as usize % 64)) & 1 == 1;
+    let never_raises = |ne: &NumEff| match (&ne.op, &ne.value) {
+        (AssignOp::Increase, NExpr::Num(w)) => w <= &0.0,
+        (AssignOp::Decrease, NExpr::Num(w)) => w >= &0.0,
+        _ => false,
+    };
+    let some_op_adds = |g: u32| {
+        (0..task.n_ops).any(|oi| {
+            task.add.slice(oi).contains(&g)
+                || task.cond.slice(oi).iter().any(|ce| ce.add.contains(&g))
+        })
+    };
+    let some_op_raises = |t: u32| {
+        (0..task.n_ops).any(|oi| {
+            task.num_eff
+                .slice(oi)
+                .iter()
+                .any(|ne| ne.target == t && !never_raises(ne))
+                || task
+                    .cond
+                    .slice(oi)
+                    .iter()
+                    .any(|ce| ce.num.iter().any(|ne| ne.target == t && !never_raises(ne)))
+        })
+    };
+    for &g in goal_pos {
+        if !fact_true(g) && !some_op_adds(g) {
+            return true;
+        }
+    }
+    for np in goal_num {
+        if let Some((t, _)) = as_threshold(np) {
+            let already = eval_numpre(np, &start.fv, &start.fdef) == Some(true);
+            if !already && !some_op_raises(t) {
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// A numeric `>=`/`>` threshold `(fluent, value)`, or `None` if `np` isn't of that

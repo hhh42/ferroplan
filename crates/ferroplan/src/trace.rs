@@ -30,6 +30,9 @@ pub fn trace(
 ) -> Result<Vec<StateSnapshot>, String> {
     let domain = parse_domain(domain_src).map_err(|e| format!("domain: {e}"))?;
     let problem = parse_problem(problem_src).map_err(|e| format!("problem: {e}"))?;
+    // Compile `:derived` axioms away, like the solve that produced the plan —
+    // replaying against the raw problem would miss the derived init facts.
+    let (domain, problem) = crate::derived::compile(&domain, &problem)?;
     let task = ground_task(&domain, &problem, 1)
         .ok_or_else(|| "grounding failed (empty type)".to_string())?;
 

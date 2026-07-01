@@ -130,6 +130,10 @@ pub fn validate_plan(
     let domain = parser::parse_domain(domain_src).map_err(|e| format!("domain: {}", e))?;
     if temporal::is_temporal(&domain) {
         let problem = parser::parse_problem(problem_src).map_err(|e| format!("problem: {}", e))?;
+        // Compile `:derived` axioms away first, exactly like every solve path —
+        // validating the raw problem grounds the goal/ops without the derived
+        // facts and wrongly rejects valid plans ("grounds to unsolvable").
+        let (domain, problem) = crate::derived::compile(&domain, &problem)?;
         let plan = parse_timed(plan_src)?;
         Ok(match temporal::validate(&domain, &problem, &plan) {
             Ok(()) => Validity::Valid,
