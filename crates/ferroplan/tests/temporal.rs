@@ -497,3 +497,125 @@ fn negative_timed_initial_literal_closes_a_window() {
     let plan = temporal::solve(&d, &p, 1).expect("a plan within the window exists");
     temporal::validate(&d, &p, &plan).expect("validates");
 }
+
+// ---------------------------------------------------------------------------
+// Goal-relevance pruning (default-on, v0.2.2) + static unproducibility.
+// ---------------------------------------------------------------------------
+
+/// The rpg-world bread-line setup: a single fully-featured hub whose dozens of
+/// unbounded accumulator actions (forage-food, gather-herbs, …) drowned the
+/// unpruned complete search. Read from examples/ like the espc test reads
+/// benchmarks/.
+fn bread_line_srcs() -> (String, String) {
+    let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/rpg-world");
+    (
+        std::fs::read_to_string(format!("{base}/domain.pddl")).unwrap(),
+        std::fs::read_to_string(format!("{base}/hard/bread-line.pddl")).unwrap(),
+    )
+}
+
+#[test]
+fn relevance_pruning_solves_deep_chain_on_featureful_hub() {
+    // `flour >= 2` is a 5-step chain (till -> plant -> irrigate -> harvest -> mill),
+    // but before pruning graduated to the default tier the search exhausted its
+    // node budget (~45 s in release) in the irrelevant-accumulator swamp and FAILED.
+    // With default options it must now solve fast; the pass structure keeps an
+    // unmasked complete backstop, so this asserts pure gain.
+    let (d_src, p_src) = bread_line_srcs();
+    let p_src = p_src.replace("(>= (bread) 2)", "(>= (flour) 2)");
+    let d = parse_domain(&d_src).expect("rpg-world parses");
+    let p = parse_problem(&p_src).expect("flour problem parses");
+    let plan = temporal::solve(&d, &p, 1).expect("flour >= 2 must solve under defaults");
+    temporal::validate(&d, &p, &plan).expect("flour plan validates");
+    assert!(
+        plan.steps.len() <= 8,
+        "the chain is ~5 steps, got {}",
+        plan.steps.len()
+    );
+}
+
+#[test]
+fn statically_unproducible_goal_fails_fast() {
+    // A numeric goal whose fluent nothing can raise (`gold` only ever decreases)
+    // must be rejected by the static no-producer check immediately, not by
+    // exhausting every search pass' node budget. (This was rpg-world bread-line's
+    // real story pre-v0.2.2: `bake-bread` yielded meals, so `(bread) >= 2` was
+    // unproducible and the search burned ~45 s in release proving the inevitable.)
+    let dom = "
+(define (domain nogold)
+  (:requirements :durative-actions :numeric-fluents)
+  (:predicates (idle))
+  (:functions (gold) (grain))
+  (:durative-action spend :parameters ()
+    :duration (= ?duration 1)
+    :condition (at start (>= (gold) 1))
+    :effect (at start (decrease (gold) 1)))
+  (:durative-action farm :parameters ()
+    :duration (= ?duration 1)
+    :condition ()
+    :effect (at end (increase (grain) 1))))
+";
+    let prob = "(define (problem g) (:domain nogold)
+      (:init (= (gold) 1) (= (grain) 0))
+      (:goal (and (>= (gold) 5))))";
+    let d = parse_domain(dom).expect("parses");
+    let p = parse_problem(prob).expect("parses");
+    assert!(
+        temporal::solve(&d, &p, 1).is_none(),
+        "no action raises `gold` — must be unsolvable"
+    );
+}
+
+#[test]
+fn bread_line_solves_after_economy_fix() {
+    // With `bake-bread` producing bread (the v0.2.2 domain fix), bread-line is the
+    // deep DAG its name promises — farm -> grind -> bake — and must solve under
+    // default options thanks to default-on relevance pruning.
+    let (d_src, p_src) = bread_line_srcs();
+    let d = parse_domain(&d_src).expect("rpg-world parses");
+    let p = parse_problem(&p_src).expect("bread-line parses");
+    let plan = temporal::solve(&d, &p, 1).expect("bread >= 2 must solve under defaults");
+    temporal::validate(&d, &p, &plan).expect("bread plan validates");
+}
+
+#[test]
+fn statically_unproducible_fact_goal_fails_fast() {
+    // Same check for the predicate side: a goal fact with no adder anywhere.
+    let dom = "
+(define (domain nofact)
+  (:requirements :durative-actions)
+  (:predicates (a) (b))
+  (:durative-action doa :parameters ()
+    :duration (= ?duration 1)
+    :condition ()
+    :effect (at end (a))))
+";
+    let prob = "(define (problem n) (:domain nofact) (:init) (:goal (and (a) (b))))";
+    let d = parse_domain(dom).expect("parses");
+    let p = parse_problem(prob).expect("parses");
+    assert!(
+        temporal::solve(&d, &p, 1).is_none(),
+        "goal fact `b` has no adder — must be unsolvable"
+    );
+}
+
+#[test]
+fn validate_plan_compiles_derived_axioms() {
+    // The rpg-world domain has a `:derived (reachable ...)` axiom. Every solve path
+    // compiles axioms away before grounding, but `plan::validate_plan` (the CLI
+    // `--validate` entry) used the raw problem — grounding then missed the derived
+    // init facts and rejected VALID plans ("problem grounds to unsolvable" /
+    // "unknown action"). Solve corridor-12 and round-trip its IPC text through the
+    // string-level validator.
+    let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/rpg-world");
+    let d_src = std::fs::read_to_string(format!("{base}/domain.pddl")).unwrap();
+    let p_src = std::fs::read_to_string(format!("{base}/hard/corridor-12.pddl")).unwrap();
+    let d = parse_domain(&d_src).expect("parses");
+    let p = parse_problem(&p_src).expect("parses");
+    let (dc, pc) = ferroplan::derived::compile(&d, &p).expect("axioms compile");
+    let plan = temporal::solve(&dc, &pc, 1).expect("corridor-12 solves");
+    match ferroplan::plan::validate_plan(&d_src, &p_src, &plan.to_ipc()) {
+        Ok(ferroplan::plan::Validity::Valid) => {}
+        other => panic!("valid corridor-12 plan must validate, got {other:?}"),
+    }
+}

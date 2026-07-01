@@ -2,13 +2,53 @@
 
 All notable changes to this project are documented here.
 
-## [0.2.2] - 2026-06-30 — GUI & tooling
+## [0.2.2] - 2026-06-30 — Solver depth, GUI & tooling
 
-A GUI- and tooling-focused release: the web surfaces and the native Bevy app get a
-shared "forge" visual identity, the animator gains a real timeline UI plus a temporal
-timescale view, the engine is brought up to current dependencies, and the publish
-pre-flight is fast again. **No solver/library API changes** — `ferroplan` /
-`ferroplan-cli` are functionally identical to 0.2.1 (dependency refresh only).
+Two solver-coverage wins measured on the RPG temporal corpus, plus a GUI/tooling
+sweep: the web surfaces and the native Bevy app get a shared "forge" visual
+identity, the animator gains a real timeline UI plus a temporal timescale view,
+the engine is brought up to current dependencies, and the publish pre-flight is
+fast again. No public API signatures changed.
+
+### Solver
+- **Goal-relevance pruning graduated to the default tier.** Previously it rode the
+  opt-in `FF_TDEMAND` Full tier only; the default search could exhaust its node
+  budget in goal-irrelevant unbounded accumulators (`food=1,2,3,…`) on
+  feature-rich domains. Measured trigger: on the rpg-world bread-line hub,
+  `flour >= 2` — a 5-step till→plant→irrigate→harvest→mill chain — **failed after
+  ~45 s; it now solves in ~30 ms** under defaults. The pass structure gains an
+  **unmasked complete backstop** (helpful/sound → full/tight → full/sound →
+  full/unmasked), so completeness is now *unconditional* — a hypothetical mask bug
+  can cost time, never coverage. `FF_NOREL` disables pruning alone;
+  `FF_NO_TDEMAND` still restores the pristine pre-v0.2 path.
+- **Static unproducibility check — fail unsolvable goals in microseconds.** If a
+  positive goal fact has no adder anywhere in the grounded task, or a `>=`/`>`
+  numeric goal's fluent has no effect that could ever raise it, the temporal
+  search (and every decomposer contract) now reports unsolvable immediately
+  instead of exhausting every pass — bread-line's unproducible goal went from a
+  **~45 s** exhaustive failure to **~9 ms**. Sound and conservative: an effect
+  counts as a potential raiser unless it provably never raises; the check never
+  changes a found plan.
+- **Validator/replay fix: `:derived` domains.** Every solve path compiles derived
+  axioms into init facts before grounding — but `plan::validate_plan` (the CLI
+  `--validate`), `verify::verify`, and `trace::trace` replayed against the **raw**
+  problem, so on axiom-using domains (e.g. rpg-world's `(:derived (reachable …))`)
+  they wrongly rejected valid plans ("problem grounds to unsolvable" / "unknown
+  action") and the GUI animator couldn't trace them. All three now run
+  `derived::compile` first (identity when a domain has no axioms).
+- **rpg-world domain fix: the bread economy.** `bake-bread` produced `meals`
+  directly, leaving the `bread` fluent with **no producer** — so `hard/bread-line`
+  was unsolvable-by-construction (violating the hard-set's "solvable in principle"
+  contract) and `plate-spread` was dead code. `bake-bread` now yields bread
+  (cook bonus included); meals keep their direct path via `cook-meal`, and the
+  bread→plate-spread→meals chain is live. `bread-line` now solves and validates
+  under default options.
+
+**Measured** on the full temporal corpus (rpg suite + hard + contracts, cabin,
+villagers — 75 instances): **65 → 67 solved, zero losses, zero makespan changes**.
+The hard set is now 10/12 under plain defaults (was 3/12 when authored); the two
+big conjunctive orders remain decomposer territory and both solve via
+`ff --decompose`.
 
 ### Added
 - **Animator transport bar** (native Bevy GUI) — a play/pause button, a scrubbable

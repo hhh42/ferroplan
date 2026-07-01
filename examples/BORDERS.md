@@ -47,6 +47,21 @@ receives **at most one** converging contribution.
 > `FF_TDEMAND` (the `Full` tier), because seeding demand from a renewable-pool guard
 > (`(>= (avail) 1)`) serializes concurrency domains. Opt out of all demand guidance
 > with `FF_NO_TDEMAND`.
+>
+> **Update 4 (goal-relevance pruning is now default-on, v0.2.2).** Pruning was
+> decoupled from the `Full` tier: it now rides the default (`FF_NOREL` disables
+> pruning alone; `FF_NO_TDEMAND` still restores the pristine pre-v0.2 path). The
+> trigger: on a fully-featured hub, even a 5-step chain (`flour ≥ 2`:
+> till→plant→irrigate→harvest→mill) exhausted the node budget in goal-irrelevant
+> unbounded accumulators; pruned, it solves in ~30 ms. The pass structure gained an
+> **unmasked complete backstop** (helpful/sound → full/tight → full/sound →
+> full/unmasked), so completeness no longer depends on the mask at all. Measured on
+> the full corpus (suite + hard + contracts + cabin + villagers): **65/75 → 67/75,
+> zero losses, zero makespan changes** — the `gather-build` village shape now
+> solves under plain defaults, and only the *predicate demand seeding* half of the
+> `Full` tier remains opt-in. Statically unproducible goals (a goal fact with no
+> adder / a threshold no effect can raise) now fail in microseconds instead of
+> exhausting every pass.
 
 ## Border table (measured)
 

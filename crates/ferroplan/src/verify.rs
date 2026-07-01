@@ -104,6 +104,9 @@ pub fn verify(
     let domain = crate::parser::parse_domain(domain_src).map_err(|e| format!("domain: {}", e))?;
     let problem =
         crate::parser::parse_problem(problem_src).map_err(|e| format!("problem: {}", e))?;
+    // Compile `:derived` axioms away, like every solve path — replaying against the
+    // raw problem would miss the derived init facts and reject valid plans.
+    let (domain, problem) = crate::derived::compile(&domain, &problem)?;
     // ground the ORIGINAL problem (soft goals ignored), forcing a Task even when
     // the hard goal is trivial/empty (preference-only problems) so we can replay.
     let task = match ground_task(&domain, &problem, 1) {

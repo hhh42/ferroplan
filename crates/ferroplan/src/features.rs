@@ -56,13 +56,15 @@ fn resolve(state: &AtomicU8, default: bool) -> bool {
 /// default; the structural/predicate half stays explicit.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum DemandMode {
-    /// No demand guidance — heap key bit-identical to the pre-v0.2 default.
+    /// No demand guidance and no relevance pruning — bit-identical to the pre-v0.2
+    /// default.
     Off,
-    /// Default (v0.2): seed demand from NUMERIC goals only. No predicate-threshold
-    /// seeding, no goal-relevance pruning.
+    /// Default (v0.2): seed demand from NUMERIC goals only (no predicate-threshold
+    /// seeding). Goal-relevance pruning is also on (v0.2.2), with an unmasked
+    /// complete backstop pass; `FF_NOREL` disables pruning alone.
     Numeric,
-    /// Full opt-in (`FF_TDEMAND`): numeric + predicate-goal thresholds + goal-
-    /// relevance pruning — for the conjunctive/structural builds.
+    /// Full opt-in (`FF_TDEMAND`): additionally seed demand from predicate-goal
+    /// thresholds — for the conjunctive/structural builds.
     Full,
 }
 
@@ -83,8 +85,9 @@ pub fn demand_mode() -> DemandMode {
     }
 }
 
-/// Whether *any* demand seed is built (`Numeric` or `Full`). The relevance pruning
-/// and predicate-threshold seeding are gated separately on [`demand_mode`] `== Full`.
+/// Whether *any* demand seed is built (`Numeric` or `Full`). Predicate-threshold
+/// seeding is gated separately on [`demand_mode`] `== Full`; goal-relevance pruning
+/// rides any non-`Off` tier (minus `FF_NOREL`).
 pub fn tdemand() -> bool {
     demand_mode() != DemandMode::Off
 }
