@@ -21,6 +21,7 @@ static TDEMAND: AtomicU8 = AtomicU8::new(UNSET);
 static TDECOMP: AtomicU8 = AtomicU8::new(UNSET);
 static TCONC: AtomicU8 = AtomicU8::new(UNSET);
 static ESCALATE: AtomicU8 = AtomicU8::new(UNSET);
+static ESPC: AtomicU8 = AtomicU8::new(UNSET);
 
 /// Set the overrides (e.g. from the WASM `flags` arg). Each bool is definitive for
 /// this and subsequent solves — `true` forces the feature on, `false` forces it off
@@ -39,12 +40,20 @@ pub fn set_escalate_override(on: bool) {
     ESCALATE.store(if on { ON } else { OFF }, Relaxed);
 }
 
+/// In-process override for the ESPC penalty loop (see [`espc`]) — the WASM /
+/// embedded analog of setting/unsetting `FF_ESPC`. Definitive until
+/// [`clear_overrides`].
+pub fn set_espc_override(on: bool) {
+    ESPC.store(if on { ON } else { OFF }, Relaxed);
+}
+
 /// Clear all in-process overrides back to `Unset` (default + env decide).
 pub fn clear_overrides() {
     TDEMAND.store(UNSET, Relaxed);
     TDECOMP.store(UNSET, Relaxed);
     TCONC.store(UNSET, Relaxed);
     ESCALATE.store(UNSET, Relaxed);
+    ESPC.store(UNSET, Relaxed);
 }
 
 #[inline]
@@ -125,4 +134,12 @@ pub fn escalate() -> bool {
 /// Opt-in via `FF_TCONC`.
 pub fn tconc() -> bool {
     resolve(&TCONC, std::env::var("FF_TCONC").is_ok())
+}
+
+/// The ESPC penalty-resolution loop on the PDDL3 metric path (see [`crate::espc`]).
+/// Opt-in via `FF_ESPC` (any value); it engages only when the compiled task carries
+/// once-only conditional-achievement deadline pairs (openstacks-shaped domains) —
+/// otherwise the plain metric B&B runs regardless of this flag.
+pub fn espc() -> bool {
+    resolve(&ESPC, std::env::var("FF_ESPC").is_ok())
 }

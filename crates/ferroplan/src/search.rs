@@ -644,3 +644,38 @@ pub fn solve_subgoal_bounded(
         PlanResult::Unsolvable { capped, .. } => (None, capped),
     }
 }
+
+/// [`solve_subgoal_avoiding`] + [`SatGuidance`]: the partitioned-ESPC per-stage
+/// subplanner (`crate::espc`). Combines a forbidden-op mask (sibling protection)
+/// with the λ-weighted penalty guidance — `search_from` supports both, but no
+/// other wrapper exposes the combination. No cost bound: on the openstacks shape
+/// the metric only accrues in the post-composition collect/forgo tail, so a
+/// per-stage bound could never prune; bounds stay global (composed-plan cost vs
+/// the incumbent).
+#[allow(clippy::too_many_arguments)]
+pub fn solve_subgoal_guided(
+    task: &PackedTask,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+    threads: usize,
+    cfg: SearchCfg,
+    sat: Option<&SatGuidance>,
+) -> Option<Vec<usize>> {
+    match search_from(
+        task,
+        start,
+        goal_pos,
+        goal_num,
+        None,
+        f64::INFINITY,
+        threads,
+        cfg,
+        forbidden,
+        sat,
+    ) {
+        PlanResult::Plan { ops, .. } => Some(ops),
+        PlanResult::Unsolvable { .. } => None,
+    }
+}
