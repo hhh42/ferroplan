@@ -13,7 +13,7 @@ use ferroplan::{Mode, Options, StateSnapshot, Step};
 
 use crate::scene::{FanOffset, MobileObj, NodeObj, Scene};
 
-struct SolveResult {
+pub(crate) struct SolveResult {
     steps: Vec<Step>,
     snapshots: Vec<StateSnapshot>,
     status: String,
@@ -147,43 +147,7 @@ fn prev_mark(plan: &Plan, t: f32) -> f32 {
 
 fn solve_blocking(domain: String, problem: String) -> SolveResult {
     match ferroplan::solve(&domain, &problem, &Options::default()) {
-        Ok(sol) => match sol.plan {
-            Some(plan) => {
-                let pairs: Vec<(String, Vec<String>)> = plan
-                    .steps
-                    .iter()
-                    .map(|s| (s.action.clone(), s.args.clone()))
-                    .collect();
-                let snapshots = if sol.mode == Mode::Temporal {
-                    Vec::new()
-                } else {
-                    ferroplan::trace(&domain, &problem, &pairs).unwrap_or_default()
-                };
-                let temporal = sol.mode == Mode::Temporal;
-                let makespan = plan.makespan.unwrap_or(0.0) as f32;
-                let mut status = format!("solved: {} steps", plan.steps.len());
-                if let Some(m) = plan.metric {
-                    status.push_str(&format!(", metric {m}"));
-                }
-                if temporal {
-                    status.push_str(&format!(" (temporal: makespan {makespan:.2})"));
-                }
-                SolveResult {
-                    steps: plan.steps,
-                    snapshots,
-                    status,
-                    temporal,
-                    makespan,
-                }
-            }
-            None => SolveResult {
-                steps: vec![],
-                snapshots: vec![],
-                status: "no plan found".into(),
-                temporal: false,
-                makespan: 0.0,
-            },
-        },
+        Ok(sol) => result_from_solution(&domain, &problem, sol),
         Err(e) => SolveResult {
             steps: vec![],
             snapshots: vec![],
@@ -194,17 +158,73 @@ fn solve_blocking(domain: String, problem: String) -> SolveResult {
     }
 }
 
+/// Build the animator's [`SolveResult`] (steps + replayed snapshots) from an
+/// already-computed [`ferroplan::Solution`] — shared by the native `S`-key solve
+/// path and the web Solver page's "Animate this plan" handoff (`webhandoff`),
+/// which hands over a plan already solved there instead of resolving it.
+pub(crate) fn result_from_solution(
+    domain: &str,
+    problem: &str,
+    sol: ferroplan::Solution,
+) -> SolveResult {
+    match sol.plan {
+        Some(plan) => {
+            let pairs: Vec<(String, Vec<String>)> = plan
+                .steps
+                .iter()
+                .map(|s| (s.action.clone(), s.args.clone()))
+                .collect();
+            let snapshots = if sol.mode == Mode::Temporal {
+                Vec::new()
+            } else {
+                ferroplan::trace(domain, problem, &pairs).unwrap_or_default()
+            };
+            let temporal = sol.mode == Mode::Temporal;
+            let makespan = plan.makespan.unwrap_or(0.0) as f32;
+            let mut status = format!("solved: {} steps", plan.steps.len());
+            if let Some(m) = plan.metric {
+                status.push_str(&format!(", metric {m}"));
+            }
+            if temporal {
+                status.push_str(&format!(" (temporal: makespan {makespan:.2})"));
+            }
+            SolveResult {
+                steps: plan.steps,
+                snapshots,
+                status,
+                temporal,
+                makespan,
+            }
+        }
+        None => SolveResult {
+            steps: vec![],
+            snapshots: vec![],
+            status: "no plan found".into(),
+            temporal: false,
+            makespan: 0.0,
+        },
+    }
+}
+
+/// Load a [`SolveResult`] straight into the timeline, as if it had just finished
+/// solving — used by both `poll_solve` (native solve completion) and the web
+/// handoff (a plan already solved on the Solver page). `autoplay` starts playback
+/// immediately (the handoff path: the user explicitly clicked "Animate this plan").
+pub(crate) fn load_result(plan: &mut Plan, res: SolveResult, autoplay: bool) {
+    plan.steps = res.steps;
+    plan.snapshots = res.snapshots;
+    plan.status = res.status;
+    plan.temporal = res.temporal;
+    plan.makespan = res.makespan;
+    plan.t = 0.0;
+    plan.playing = autoplay && !plan.steps.is_empty();
+}
+
 pub fn poll_solve(mut job: ResMut<SolveJob>, mut plan: ResMut<Plan>) {
     if let Some(task) = job.0.as_mut() {
         if let Some(res) = block_on(future::poll_once(task)) {
             job.0 = None;
-            plan.steps = res.steps;
-            plan.snapshots = res.snapshots;
-            plan.status = res.status;
-            plan.temporal = res.temporal;
-            plan.makespan = res.makespan;
-            plan.t = 0.0;
-            plan.playing = false;
+            load_result(&mut plan, res, false);
         }
     }
 }

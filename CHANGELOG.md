@@ -2,6 +2,21 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Fixed
+- **Bevy Animator: "Animate this plan" always showed the embedded demo.** The
+  Solver web page writes the domain, problem, and already-solved plan to
+  `localStorage['ferroplan.handoff']` before navigating to the Animator — but no
+  Rust code ever read it back, so the Animator always loaded its embedded demo
+  regardless of what was actually solved and selected. `webhandoff.rs` now reads,
+  parses, and applies the handoff at startup (scene + the pre-solved plan,
+  autoplaying immediately — no re-solve, so it can't disagree with what the
+  Solver page reported); falls back to the embedded demo if there is no handoff
+  or it fails to parse. Verified in headless Chromium: no handoff → embedded
+  demo; a real handoff → the handed-off domain/problem with its plan already
+  playing; a corrupted handoff → clean fallback, no panic.
+
 ## [0.3.0] - 2026-07-02 — Solver depth: escalation, parallelism, sessions
 
 A temporal goal that used to fail in ~45 s can now solve in ~30 ms (default-on

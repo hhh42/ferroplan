@@ -13,6 +13,8 @@ mod palette;
 mod scene;
 mod transport;
 mod ui;
+#[cfg(target_arch = "wasm32")]
+mod webhandoff;
 
 fn main() {
     App::new()
@@ -92,7 +94,11 @@ fn main() {
 
 /// Optionally load a domain + problem passed on the command line
 /// (`ferroplan-bevy domain.pddl problem.pddl`), and pre-select the first mobile.
-fn startup_load(mut scene: ResMut<scene::Scene>, mut selected: ResMut<interact::Selected>) {
+fn startup_load(
+    mut scene: ResMut<scene::Scene>,
+    mut selected: ResMut<interact::Selected>,
+    #[cfg(target_arch = "wasm32")] mut plan: ResMut<anim::Plan>,
+) {
     #[cfg(not(target_arch = "wasm32"))]
     for path in std::env::args().skip(1) {
         match std::fs::read_to_string(&path) {
@@ -100,9 +106,11 @@ fn startup_load(mut scene: ResMut<scene::Scene>, mut selected: ResMut<interact::
             Err(e) => eprintln!("cannot read {path}: {e}"),
         }
     }
-    // No filesystem or CLI args in the browser — load an embedded demo.
+    // No filesystem or CLI args in the browser. Prefer the Solver page's "Animate
+    // this plan" handoff (a domain+problem+already-solved plan in localStorage —
+    // see webhandoff.rs); fall back to the embedded demo if there isn't one.
     #[cfg(target_arch = "wasm32")]
-    {
+    if !webhandoff::try_load(&mut scene, &mut plan) {
         scene.load_src(include_str!("../demo/domain.pddl"));
         scene.load_src(include_str!("../demo/problem.pddl"));
     }
