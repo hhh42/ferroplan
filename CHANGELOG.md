@@ -83,6 +83,18 @@ corpus misses are `crew-trio` and `skilled-crosstrained`, which resist every
 rung — the honest border.
 
 ### Added
+- **`Session` — ground once, replan many.** The embedding API for callers that
+  re-solve the same world every tick (a game's villagers, a simulation loop):
+  `Session::new` parses, compiles `:derived` axioms, and grounds ONCE; the session
+  then holds the *current world state* — mutate it with `set_fact`/`set_fluent`
+  (plus `fact`/`fluent` readbacks) as the world evolves and `replan()` solves from
+  wherever it stands, paying only the search. Measured on `villagers`: a
+  tick-sized contract (`errand`) drops **223 µs → 22 µs per replan (~10×)**; a
+  search-dominated instance (`township`) is break-even, as expected — size
+  per-agent contracts small (the decomposer's whole job) and the tax vanishes.
+  Static facts are rejected with an explanatory error (grounding bakes them in;
+  flipping one could require never-enumerated operators), as are temporal and
+  PDDL3-preference inputs (v1 scope). See `examples/replan.rs`.
 - **Animator transport bar** (native Bevy GUI) — a play/pause button, a scrubbable
   timeline (click or drag to seek, one notch per step), a molten progress fill +
   playhead, and a step/time readout. Mirrors the keyboard controls so the animator is

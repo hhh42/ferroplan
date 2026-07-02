@@ -20,6 +20,9 @@
 //!   ([`Decomposition`]).
 //! - [`parse`] — syntax-check PDDL and summarize its structure ([`ParseReport`])
 //!   *without* grounding or solving — fast feedback for an authoring loop.
+//! - [`Session`] — ground once, **replan many**: hold a mutable world state
+//!   (`set_fact`/`set_fluent`) and re-solve per tick paying only the search
+//!   (~10x per-tick on small contracts) — the embedding API for games/simulations.
 //! - [`plan::validate_plan`] — independently check a plan under ferroplan's semantics.
 //!
 //! ## Quick start
@@ -74,11 +77,13 @@ pub mod viz;
 // orchestration + smart public API
 pub mod api;
 pub mod planner;
+pub mod session;
 
 pub use api::{
     decompose, parse, solve, Contract, Decomposition, DomainSummary, Metric, Mode, Options,
     ParseReport, Plan, ProblemSummary, Search, Solution, SolveError, Statistics, Step,
 };
 pub use planner::{run_ff, run_planner};
+pub use session::Session;
 pub use trace::{trace, StateSnapshot};
 pub use types::ParseError;
