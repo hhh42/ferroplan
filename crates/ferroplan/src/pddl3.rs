@@ -788,12 +788,14 @@ pub fn metric_optimize(
     // terminating at a saddle point / stall / budget. Auto-tunes the penalty per
     // instance (no manual weight) and never claims optimality. See `crate::espc`
     // and docs/espc-preferences-spec.md.
-    if std::env::var("FF_ESPC").is_ok() && !sat.deadline.is_empty() {
+    if crate::features::espc() && !sat.deadline.is_empty() {
+        let part = build_espc_partition(task, forgos, groups, &sat);
         return crate::espc::espc_optimize(
             task,
             cost_fluent,
             &mut sat,
             best.clone(),
+            part,
             threads,
             refine_cfg,
         )
@@ -870,14 +872,11 @@ pub fn metric_optimize(
     })
 }
 
-/// Build the metric satisfaction guidance: for each preference, the fact-ids of
-/// its `phi` (taken from the `P3COLLECT-i` action's precondition, minus the
-/// synthetic `P3*` control facts) and a heap penalty scaled from its forgo
-/// weight. Preferences with a non-atom `phi` simply contribute nothing (their
-/// `P3COLLECT` precondition still works; they're just unguided).
-fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance {
-    use std::collections::HashMap;
-    let mut collect_op: HashMap<usize, usize> = HashMap::new();
+/// `P3COLLECT-i` op id per preference index — the shared scan behind the
+/// satisfaction guidance, the deadline guidance, and the partitioned-ESPC
+/// phase tail.
+fn collect_ops(task: &PackedTask) -> std::collections::HashMap<usize, usize> {
+    let mut collect_op = std::collections::HashMap::new();
     for oi in 0..task.n_ops {
         if let Some(rest) = task.op_display[oi]
             .to_ascii_uppercase()
@@ -888,6 +887,143 @@ fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance
             }
         }
     }
+    collect_op
+}
+
+/// Op ids for the deterministic post-composition **phase tail** (partitioned
+/// ESPC, `crate::espc`): `P3END` freezes the state, then each preference is
+/// closed in fixed order — `P3COLLECT-i` when its `phi` holds (free), else
+/// `P3FORGO-i` (pays the weight). Exact, not heuristic: after `P3END` the state
+/// is frozen and each preference's collected fact is independent, so
+/// collect-iff-applicable is the optimal closure of whatever final state the
+/// composition reached. `None` when any preference lacks a collect op (never
+/// expected on a supported compile — the caller falls back to monolithic).
+pub struct PhaseTail {
+    pub end_op: usize,
+    /// `(collect_op, forgo_op)` per preference, in preference order.
+    pub prefs: Vec<(usize, usize)>,
+}
+
+pub(crate) fn build_phase_tail(task: &PackedTask, forgos: &[(usize, f64)]) -> Option<PhaseTail> {
+    let end_op = (0..task.n_ops).find(|&oi| task.op_display[oi].eq_ignore_ascii_case("P3END"))?;
+    let collect = collect_ops(task);
+    let mut prefs = Vec::with_capacity(forgos.len());
+    for (i, &(forgo_op, _)) in forgos.iter().enumerate() {
+        prefs.push((*collect.get(&i)?, forgo_op));
+    }
+    Some(PhaseTail { end_op, prefs })
+}
+
+/// Build the partitioned-ESPC subproblems ("increment 2", see `crate::espc`):
+/// interaction components over the REAL goal (the compiled `P3*` bookkeeping
+/// goals are closed by the phase tail instead), with the detected renewable
+/// resource variables (openstacks' `stacks-avail` chain) excluded from edge
+/// formation — that shared coupling is priced by the λ schedule as a global
+/// constraint, not solved inside any one subproblem. `None` (→ monolithic loop)
+/// when the compile shape is unsupported: no phase tail, numeric goals present,
+/// no real positive goals, or fewer than 2 components.
+fn build_espc_partition(
+    task: &PackedTask,
+    forgos: &[(usize, f64)],
+    groups: &[Vec<u32>],
+    sat: &SatGuidance,
+) -> Option<crate::espc::EspcPartition> {
+    if !task.goal_num.is_empty() {
+        return None; // components carry positive facts only; don't drop a numeric goal
+    }
+    let tail = build_phase_tail(task, forgos)?;
+    let real_goals: Vec<u32> = task
+        .goal_pos
+        .iter()
+        .copied()
+        .filter(|&f| {
+            !task.fact_names[f as usize]
+                .to_ascii_uppercase()
+                .starts_with("(P3")
+        })
+        .collect();
+    if real_goals.is_empty() {
+        return None;
+    }
+    // Global-constraint variables: any mutex group carrying a detected renewable
+    // resource member (detect_resources accepts whole groups, so member-overlap
+    // identifies exactly the accepted group indices).
+    let res_member: crate::hash::FxHashSet<u32> = sat
+        .res
+        .iter()
+        .flat_map(|r| r.members.iter().map(|&(f, _)| f))
+        .collect();
+    let excluded: crate::hash::FxHashSet<usize> = groups
+        .iter()
+        .enumerate()
+        .filter(|(_, g)| g.iter().any(|f| res_member.contains(f)))
+        .map(|(gi, _)| gi)
+        .collect();
+    let mut comps =
+        crate::partition::interaction_partition_of(task, groups, &real_goals, &excluded);
+    // Deterministic composition order regardless of hash-map component order.
+    comps.sort_by_key(|c| c.pos.iter().min().copied().unwrap_or(u32::MAX));
+    if comps.len() < 2 {
+        return None;
+    }
+    // Stage-goal enrichment map: deliverable D → the real goals structurally
+    // tied to it. D's conditional-achievement CONDITION facts name the party the
+    // delivery is FOR (openstacks: `delivered(o,p)` fires on `started(o)`), and
+    // a goal fact claims D when one of the goal's ACHIEVER ops requires such a
+    // condition fact (`ship-order(o)` adds `shipped(o)` and requires
+    // `started(o)`), so the stage solving that goal also tries to earn its own
+    // preferences (see `EspcPartition::assoc`).
+    let deliverables: crate::hash::FxHashSet<u32> =
+        sat.deadline.iter().map(|&(_, d, _)| d).collect();
+    let mut by_cond: crate::hash::FxHashMap<u32, Vec<u32>> = crate::hash::FxHashMap::default();
+    for oi in 0..task.n_ops {
+        for ce in task.cond.slice(oi) {
+            for &d in &ce.add {
+                if !deliverables.contains(&d) {
+                    continue;
+                }
+                for &c in &ce.cond_pos {
+                    by_cond.entry(c).or_default().push(d);
+                }
+            }
+        }
+    }
+    let mut assoc: crate::hash::FxHashMap<u32, Vec<u32>> = crate::hash::FxHashMap::default();
+    for &g in &real_goals {
+        let mut ds: Vec<u32> = task
+            .add_by_fact
+            .slice(g as usize)
+            .iter()
+            .flat_map(|&oi| task.pre_pos.slice(oi as usize))
+            .filter_map(|p| by_cond.get(p))
+            .flatten()
+            .copied()
+            .collect();
+        if !ds.is_empty() {
+            ds.sort_unstable();
+            ds.dedup();
+            assoc.insert(g, ds);
+        }
+    }
+    if std::env::var("FF_RES_DEBUG").is_ok() {
+        eprintln!(
+            "[ESPC] partition: {} component(s) over {} real goal(s), {} excluded var(s), {} enriched goal(s)",
+            comps.len(),
+            real_goals.len(),
+            excluded.len(),
+            assoc.len()
+        );
+    }
+    Some(crate::espc::EspcPartition { comps, tail, assoc })
+}
+
+/// Build the metric satisfaction guidance: for each preference, the fact-ids of
+/// its `phi` (taken from the `P3COLLECT-i` action's precondition, minus the
+/// synthetic `P3*` control facts) and a heap penalty scaled from its forgo
+/// weight. Preferences with a non-atom `phi` simply contribute nothing (their
+/// `P3COLLECT` precondition still works; they're just unguided).
+fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance {
+    let collect_op = collect_ops(task);
     let mut prefs = Vec::new();
     for (i, (_, weight)) in forgos.iter().enumerate() {
         let Some(&oi) = collect_op.get(&i) else {
@@ -930,17 +1066,7 @@ fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance
 fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u32, u32, i64)> {
     use std::collections::{HashMap, HashSet};
     // P3COLLECT-i op per preference index (mirrors build_sat_guidance).
-    let mut collect_op: HashMap<usize, usize> = HashMap::new();
-    for oi in 0..task.n_ops {
-        if let Some(rest) = task.op_display[oi]
-            .to_ascii_uppercase()
-            .strip_prefix("P3COLLECT-")
-        {
-            if let Ok(i) = rest.trim().parse::<usize>() {
-                collect_op.insert(i, oi);
-            }
-        }
-    }
+    let collect_op = collect_ops(task);
     // value[D] = Σ weight over preferences whose phi (P3COLLECT precondition,
     // minus synthetic P3* control facts) contains the deliverable fact D.
     let mut value: HashMap<u32, i64> = HashMap::new();

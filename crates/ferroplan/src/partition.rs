@@ -8,7 +8,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::hash::FxHashMap;
+use crate::hash::{FxHashMap, FxHashSet};
 use crate::packed::PackedTask;
 use crate::types::NumPre;
 
@@ -107,6 +107,38 @@ pub fn interaction_partition(task: &PackedTask, groups: &[Vec<u32>]) -> Vec<Subg
     if groups.is_empty() || task.goal_pos.is_empty() {
         return partition(task);
     }
+    let mut out = interaction_partition_of(task, groups, &task.goal_pos, &FxHashSet::default());
+    for np in &task.goal_num {
+        out.push(Subgoal {
+            pos: vec![],
+            num: vec![np.clone()],
+        });
+    }
+    if out.is_empty() {
+        out.push(Subgoal {
+            pos: vec![],
+            num: vec![],
+        });
+    }
+    out
+}
+
+/// [`interaction_partition`]'s core, generalized for the partitioned-ESPC path
+/// (`crate::espc`): components over an EXPLICIT positive-goal subset, with
+/// designated **shared guidance variables excluded from edge formation** — a goal
+/// fact sitting on an excluded variable still becomes a component, but the shared
+/// variable is never a merge reason (it is priced as a global constraint by the
+/// λ schedule instead, per docs/espc-preferences-spec.md "increment 2"). Numeric
+/// goals and the empty-goal fallback are the caller's business. With
+/// `goals = &task.goal_pos` and no exclusions this is exactly the old
+/// `interaction_partition` body (unit-tested identical), preserving the component
+/// order the classical resolver iterates in.
+pub fn interaction_partition_of(
+    task: &PackedTask,
+    groups: &[Vec<u32>],
+    goals: &[u32],
+    excluded_vars: &FxHashSet<usize>,
+) -> Vec<Subgoal> {
     // fact id -> variable id (mutex group index); ungrouped facts are unique.
     let mut var_of: FxHashMap<u32, usize> = FxHashMap::default();
     for (gi, g) in groups.iter().enumerate() {
@@ -117,11 +149,16 @@ pub fn interaction_partition(task: &PackedTask, groups: &[Vec<u32>]) -> Vec<Subg
     let base = groups.len();
     let var = |f: u32| -> usize { var_of.get(&f).copied().unwrap_or(base + f as usize) };
 
-    // each goal fact is a node; map its variable -> node index
-    let n = task.goal_pos.len();
+    // each goal fact is a node; map its variable -> node index, EXCEPT excluded
+    // (shared/guidance) variables, which must never carry an interaction edge.
+    let n = goals.len();
     let mut var_to_goal: FxHashMap<usize, usize> = FxHashMap::default();
-    for (gi, &f) in task.goal_pos.iter().enumerate() {
-        var_to_goal.entry(var(f)).or_insert(gi);
+    for (gi, &f) in goals.iter().enumerate() {
+        let v = var(f);
+        if v < base && excluded_vars.contains(&v) {
+            continue;
+        }
+        var_to_goal.entry(v).or_insert(gi);
     }
 
     let mut uf: Vec<usize> = (0..n).collect();
@@ -148,25 +185,91 @@ pub fn interaction_partition(task: &PackedTask, groups: &[Vec<u32>]) -> Vec<Subg
     }
 
     let mut comp: FxHashMap<usize, Vec<u32>> = FxHashMap::default();
-    for gi in 0..n {
+    for (gi, &f) in goals.iter().enumerate() {
         let r = uf_find(&mut uf, gi);
-        comp.entry(r).or_default().push(task.goal_pos[gi]);
+        comp.entry(r).or_default().push(f);
     }
-    let mut out: Vec<Subgoal> = comp
-        .into_values()
+    comp.into_values()
         .map(|pos| Subgoal { pos, num: vec![] })
-        .collect();
-    for np in &task.goal_num {
-        out.push(Subgoal {
-            pos: vec![],
-            num: vec![np.clone()],
-        });
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ground::{ground, Outcome};
+    use crate::parser::{parse_domain, parse_problem};
+
+    // Two goals coupled ONLY through a token mutex variable: `grab` achieves
+    // (done1) while deleting (tok-a) — the variable that goal (tok-b) sits on.
+    const DOM: &str = "
+    (define (domain t) (:requirements :strips)
+      (:predicates (done1) (tok-a) (tok-b))
+      (:action grab :precondition (tok-a)
+        :effect (and (done1) (not (tok-a)) (tok-b)))
+      (:action swap :precondition (tok-b)
+        :effect (and (not (tok-b)) (tok-a))))";
+    const PRB: &str = "(define (problem p) (:domain t)
+      (:init (tok-a)) (:goal (and (done1) (tok-b))))";
+
+    fn task_and_ids() -> (crate::packed::PackedTask, u32, u32, u32) {
+        let d = parse_domain(DOM).expect("domain parses");
+        let p = parse_problem(PRB).expect("problem parses");
+        let task = match ground(&d, &p, 1) {
+            Outcome::Task(t) => t,
+            _ => panic!("grounds to a task"),
+        };
+        let fid = |name: &str| {
+            task.fact_names
+                .iter()
+                .position(|n| n == name)
+                .unwrap_or_else(|| panic!("fact {name} not found in {:?}", task.fact_names))
+                as u32
+        };
+        let (d1, ta, tb) = (fid("(DONE1)"), fid("(TOK-A)"), fid("(TOK-B)"));
+        (task, d1, ta, tb)
     }
-    if out.is_empty() {
-        out.push(Subgoal {
-            pos: vec![],
-            num: vec![],
-        });
+
+    #[test]
+    fn shared_variable_merges_goals_by_default() {
+        let (task, _d1, ta, tb) = task_and_ids();
+        let groups = vec![vec![ta, tb]]; // the token mutex variable
+                                         // grab adds (done1) [goal 1's var] and deletes (tok-a) [goal 2's var] -> edge.
+        let comps = interaction_partition_of(&task, &groups, &task.goal_pos, &FxHashSet::default());
+        assert_eq!(comps.len(), 1, "coupled goals merge into one component");
+        assert_eq!(comps[0].pos.len(), 2);
     }
-    out
+
+    #[test]
+    fn excluded_shared_variable_never_merges() {
+        let (task, _d1, ta, tb) = task_and_ids();
+        let groups = vec![vec![ta, tb]];
+        let mut excluded = FxHashSet::default();
+        excluded.insert(0usize); // the token variable is a global-constraint var
+        let comps = interaction_partition_of(&task, &groups, &task.goal_pos, &excluded);
+        assert_eq!(
+            comps.len(),
+            2,
+            "an excluded guidance variable must not be a merge reason"
+        );
+    }
+
+    #[test]
+    fn interaction_partition_matches_of_with_defaults() {
+        let (task, _d1, ta, tb) = task_and_ids();
+        let groups = vec![vec![ta, tb]];
+        let old = interaction_partition(&task, &groups);
+        let new = interaction_partition_of(&task, &groups, &task.goal_pos, &FxHashSet::default());
+        // no numeric goals in this task, so the wrapper adds nothing on top
+        let key = |sg: &Subgoal| {
+            let mut v = sg.pos.clone();
+            v.sort_unstable();
+            v
+        };
+        let mut a: Vec<_> = old.iter().map(key).collect();
+        let mut b: Vec<_> = new.iter().map(key).collect();
+        a.sort();
+        b.sort();
+        assert_eq!(a, b, "wrapper and core must produce identical components");
+    }
 }
