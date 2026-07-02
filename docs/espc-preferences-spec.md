@@ -164,3 +164,33 @@ constraints = cross-partition transitions of shared mutex variables
 (openstacks: `stacks-avail`), λ raised per the existing per-trigger schedule.
 That is also the fix the classical measurement predicts for the
 resource-coupled partition regressions (gripper/logistics re-traversal).
+
+## Closed (2026-07) — increment 2 built and measured
+
+Increment 2 shipped on the PDDL3 metric path (opt-in `FF_ESPC`, default path
+untouched). Each λ iteration now runs a **partitioned composition** instead of
+the monolithic tightening B&B:
+
+- Subproblems: interaction components over the real (non-`P3*`) goal
+  (`partition::interaction_partition_of`), with the detected renewable-resource
+  variables (`stacks-avail`) **excluded from edge formation** — priced as
+  global constraints by the per-trigger λ schedule, exactly as prescribed
+  above. On openstacks: one component per order.
+- Per-stage quality pressure: stage goals are **enriched with the component's
+  own preference deliverables** (a goal claims a deliverable when one of its
+  achiever ops requires the deliverable's conditional-achievement condition —
+  `ship-order(o)` requires `started(o)`, the condition under which
+  `delivered(o,p)` fires), skipping deliverables already locked out. This
+  replaces the monolithic B&B's cost bound, which cannot prune cost-flat stage
+  plans; infeasible enrichment degrades to the bare goal, never a conflict.
+- The `P3*` bookkeeping is closed by an exact phase tail (`P3END`, then
+  collect-iff-applicable-else-forgo per preference), and leftover budget goes
+  to a monolithic polish B&B bounded by the incumbent (restores the plain-B&B
+  floor). `FF_ESPC_MONO=1` reproduces the pre-increment monolithic loop.
+
+Measured (release, 4 threads, `FF_ESPC_TIME_MS=90000`, 3 identical runs per
+instance, stall/saddle-terminated well inside budget): openstacks p01–p08
+42/43/55/66/81/90/151/227 → **19/23/17/16/21/22/66/87** — ahead of SGPlan5
+(13/16/12/26/36/33/67/123) on p04–p08. The other five preference domains carry
+no deadline pairs, so `FF_ESPC=1` remains a verified no-op there. See
+`benchmarks/ipc5-scoreboard.md`.

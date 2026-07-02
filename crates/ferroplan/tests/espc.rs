@@ -80,8 +80,9 @@ fn espc_openstacks_p01_improves_verifies_and_is_deterministic() {
         "espc metric {m1} must strictly beat the default {bm}"
     );
     assert!(
-        m1 <= 46.0,
-        "espc openstacks/p01 metric {m1} regressed above the locked 46"
+        m1 <= 19.0,
+        "espc openstacks/p01 metric {m1} regressed above the locked 19 \
+         (partitioned coupling, increment 2)"
     );
 
     // Thread count must change neither the plan nor the metric.
@@ -95,5 +96,28 @@ fn espc_openstacks_p01_improves_verifies_and_is_deterministic() {
         m1,
         p8.metric.expect("espc metric t8"),
         "espc metric differs across thread counts"
+    );
+
+    // FF_ESPC_MONO debug hatch: the pre-partition monolithic loop must still
+    // run, verify, and hold the old quality floor (smoke, short budget).
+    std::env::set_var("FF_ESPC", "1");
+    std::env::set_var("FF_ESPC_MONO", "1");
+    std::env::set_var("FF_ESPC_TIME_MS", "10000");
+    let sm = solve(&d, &p, &Options::default()).unwrap();
+    std::env::remove_var("FF_ESPC");
+    std::env::remove_var("FF_ESPC_MONO");
+    std::env::remove_var("FF_ESPC_TIME_MS");
+    let pm = sm.plan.expect("espc mono plan");
+    let mm = pm.metric.expect("espc mono metric");
+    let vm = ferroplan::verify::verify(&d, &p, &steps(&pm)).unwrap();
+    assert!(vm.hard_goal_met, "espc mono plan must meet the hard goal");
+    assert!(
+        (vm.metric - mm).abs() < 1e-6,
+        "espc mono reported {mm} != independently verified {}",
+        vm.metric
+    );
+    assert!(
+        mm <= bm,
+        "espc mono metric {mm} must not regress above the default {bm}"
     );
 }

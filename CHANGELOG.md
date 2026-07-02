@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+- **Partitioned ESPC (opt-in `FF_ESPC`) — ferroplan now beats SGPlan5 on
+  openstacks p04–p08.** The PDDL3 preference-metric penalty loop
+  ("increment 2" of `docs/espc-preferences-spec.md`) couples its per-trigger λ
+  schedule to a partitioned search instead of one monolithic B&B per penalty
+  setting: subproblems come from the goal-interaction components of the real
+  (non-compiled) goal, the shared renewable-resource variable (openstacks'
+  `stacks-avail`) is excluded from component formation and priced as a global
+  constraint by λ, each stage's goal is enriched with its own preference
+  deliverables (the per-stage quality pressure a cost bound can't provide on
+  cost-flat stage plans), the compiled `P3*` bookkeeping is closed by an exact
+  phase tail, and leftover budget runs an incumbent-bounded monolithic polish
+  (the "never worse than the plain B&B" floor). IPC-5 openstacks p01–p08 at
+  the same 90 s budget: 42/43/55/66/81/90/151/227 →
+  **19/23/17/16/21/22/66/87**, ahead of the IPC-5 winner SGPlan5 on p04–p08
+  (26/36/33/67/123) — deterministic (3/3 identical runs, thread-count
+  independent) and typically stall-terminated in 4–60 s. The default path is
+  untouched (`FF_ESPC` stays opt-in; the other five IPC-5 preference domains
+  are verified no-ops); `FF_ESPC_MONO=1` reproduces the previous monolithic
+  loop. New WASM-safe toggle: `features::espc()` / `set_espc_override`.
+
 ### Fixed
 - **Bevy Animator: "Animate this plan" always showed the embedded demo.** The
   Solver web page writes the domain, problem, and already-solved plan to
