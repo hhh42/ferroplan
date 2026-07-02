@@ -49,9 +49,12 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 
 > Status: **v0.2.2** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
-> **What's new in 0.2.2** — two temporal-solver wins: **goal-relevance pruning is
+> **What's new in 0.2.2** — three temporal-solver wins, measured on a 75-instance
+> corpus as **65 → 73 solved with zero regressions**: **goal-relevance pruning is
 > on by default** (a 5-step chain that exhausted the search in ~45 s now solves in
-> ~30 ms, with an unmasked complete backstop so completeness is unconditional) and
+> ~30 ms, with an unmasked complete backstop so completeness is unconditional);
+> an **on-failure escalation ladder** (failed searches automatically retry at the
+> Full demand tier, then hand off to the goal decomposer — no flags); and
 > **statically unproducible goals fail in microseconds** instead of burning the
 > whole node budget. Plus: the Solver, visualizer, and animator share a new "forge"
 > look; the [browser animator](https://hhh42.github.io/ferroplan/gui/index.html)

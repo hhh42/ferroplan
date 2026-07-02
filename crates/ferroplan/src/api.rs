@@ -571,7 +571,8 @@ fn solve_temporal(
     threads: usize,
 ) -> Result<Solution, SolveError> {
     // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B), the
-    // same gate as the text path (run_planner); default is the monolithic search.
+    // same gate as the text path (run_planner); the default is `temporal::solve` —
+    // the monolithic search plus its on-failure escalation ladder.
     let result = if crate::features::tdecomp() {
         crate::tresolve::solve(domain, problem, threads)
     } else {

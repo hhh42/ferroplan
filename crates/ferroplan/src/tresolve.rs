@@ -102,10 +102,42 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
     decompose(domain, problem, threads).map(|d| d.plan)
 }
 
+/// The escalation ladder's decomposer rung ([`temporal::solve`]): decompose, but
+/// WITHOUT the monolithic fallbacks — by the time the ladder gets here it has
+/// already exhausted the monolithic search at both the ambient and `Full` tiers,
+/// so re-running it (single-group collapse, or a failed composition validate)
+/// would burn the same node budget a third time for a guaranteed `None`.
+pub(crate) fn solve_after_ladder(
+    domain: &Domain,
+    problem: &Problem,
+    threads: usize,
+    tier: crate::features::DemandMode,
+) -> Option<TimedPlan> {
+    // `tier` comes from the ladder itself (its rung-0 tier), not a fresh global
+    // read — so the "already exhausted" premise can't drift if a concurrent
+    // caller flips the process-global override mid-solve.
+    decompose_inner(domain, problem, threads, tier, false).map(|d| d.plan)
+}
+
 /// Decompose `problem`'s temporal goal into ordered contracts, solve and stitch them,
 /// and return the full inspectable [`Decomp`] (or `None` if even the monolithic
 /// fallback fails). `solve` is this minus the contract breakdown.
 pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> Option<Decomp> {
+    let tier = crate::features::demand_mode();
+    decompose_inner(domain, problem, threads, tier, true)
+}
+
+/// `monolithic_fallback`: whether a single-group collapse / failed composition
+/// validate falls back to the whole-goal search (direct `FF_TDECOMP` / `decompose`
+/// API calls — the completeness guarantee) or returns `None` (the ladder, which has
+/// already run the monolithic search at both tiers and failed).
+fn decompose_inner(
+    domain: &Domain,
+    problem: &Problem,
+    threads: usize,
+    tier: crate::features::DemandMode,
+    monolithic_fallback: bool,
+) -> Option<Decomp> {
     let c = temporal::compile(domain, problem);
     let task = match ground(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
@@ -118,6 +150,11 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
         }
         _ => return None,
     };
+    // A statically unproducible whole goal can't be solved by any contract split —
+    // fail here instead of grinding the O(n²) merge cascade to prove it.
+    if temporal::statically_unsolvable(&task, &task.initial(), &task.goal_pos, &task.goal_num) {
+        return None;
+    }
     let kind = build_kind(&task, &c);
     // Rendered whole-goal description for the monolithic-fallback contract.
     let whole_goal = render_subgoal(
@@ -136,19 +173,18 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
     }
 
     loop {
-        // A single group IS the whole goal solved from init = the monolithic search
-        // (the fallback); calling `solve_monolithic` directly keeps the bit-identical
-        // completeness guarantee, terminates the merge cascade, AND cannot recurse
-        // into `temporal::solve`'s escalation ladder (whose decomposer rung is how
-        // we may have gotten here).
+        // A single group IS the whole goal solved from init: fall back to the full
+        // `temporal::solve` (monolithic + escalation ladder — so a direct
+        // `FF_TDECOMP` / `decompose` call still gets the Full-tier rescue). This
+        // CANNOT recurse unboundedly: the ladder's decomposer rung re-enters here
+        // with `monolithic_fallback == false`, which returns `None` instead — the
+        // flag, not the callee, is what breaks the cycle.
         if groups.len() == 1 {
-            return temporal::solve_monolithic(
-                domain,
-                problem,
-                threads,
-                crate::features::demand_mode(),
-            )
-            .map(|p| monolithic_decomp(whole_goal.clone(), p));
+            if !monolithic_fallback {
+                return None;
+            }
+            return temporal::solve(domain, problem, threads)
+                .map(|p| monolithic_decomp(whole_goal.clone(), p));
         }
 
         // Sequential validated composition over the evolving (state, offset).
@@ -193,7 +229,7 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
                 &forbidden,
                 &[], // the decomposer doesn't handle timed initial literals
                 threads,
-                crate::features::demand_mode(),
+                tier,
             )
             .or_else(|| {
                 if forbidden.is_empty() {
@@ -208,7 +244,7 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
                         &[],
                         &[],
                         threads,
-                        crate::features::demand_mode(),
+                        tier,
                     )
                 }
             }) {
@@ -274,6 +310,13 @@ pub(crate) fn decompose(domain: &Domain, problem: &Problem, threads: usize) -> O
                     plan,
                     monolithic: false,
                 });
+            }
+            // Full `temporal::solve` (ladder included) for direct callers; on the
+            // ladder path skip outright (already exhausted). Recursion is broken
+            // by the `monolithic_fallback` flag — the ladder's rung re-enters with
+            // it false and gets `None`, never a cycle.
+            if !monolithic_fallback {
+                return None;
             }
             return temporal::solve(domain, problem, threads)
                 .map(|p| monolithic_decomp(whole_goal.clone(), p));
