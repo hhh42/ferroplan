@@ -499,7 +499,7 @@ fn negative_timed_initial_literal_closes_a_window() {
 }
 
 // ---------------------------------------------------------------------------
-// Goal-relevance pruning (default-on, v0.2.2) + static unproducibility.
+// Goal-relevance pruning (default-on, v0.3.0) + static unproducibility.
 // ---------------------------------------------------------------------------
 
 /// The rpg-world bread-line setup: a single fully-featured hub whose dozens of
@@ -539,7 +539,7 @@ fn statically_unproducible_goal_fails_fast() {
     // A numeric goal whose fluent nothing can raise (`gold` only ever decreases)
     // must be rejected by the static no-producer check immediately, not by
     // exhausting every search pass' node budget. (This was rpg-world bread-line's
-    // real story pre-v0.2.2: `bake-bread` yielded meals, so `(bread) >= 2` was
+    // real story pre-v0.3.0: `bake-bread` yielded meals, so `(bread) >= 2` was
     // unproducible and the search burned ~45 s in release proving the inevitable.)
     let dom = "
 (define (domain nogold)
@@ -568,7 +568,7 @@ fn statically_unproducible_goal_fails_fast() {
 
 #[test]
 fn bread_line_solves_after_economy_fix() {
-    // With `bake-bread` producing bread (the v0.2.2 domain fix), bread-line is the
+    // With `bake-bread` producing bread (the v0.3.0 domain fix), bread-line is the
     // deep DAG its name promises — farm -> grind -> bake — and must solve under
     // default options thanks to default-on relevance pruning.
     let (d_src, p_src) = bread_line_srcs();

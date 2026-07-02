@@ -47,19 +47,22 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.2.2** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.3.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
-> **What's new in 0.2.2** — three temporal-solver wins, measured on a 75-instance
-> corpus as **65 → 73 solved with zero regressions**: **goal-relevance pruning is
-> on by default** (a 5-step chain that exhausted the search in ~45 s now solves in
+> **What's new in 0.3.0** — solver depth, measured on a 75-instance temporal
+> corpus as **65 → 73 solved, zero regressions**: **goal-relevance pruning is on
+> by default** (a 5-step chain that exhausted the search in ~45 s now solves in
 > ~30 ms, with an unmasked complete backstop so completeness is unconditional);
-> an **on-failure escalation ladder** (failed searches automatically retry at the
-> Full demand tier, then hand off to the goal decomposer — no flags); and
-> **statically unproducible goals fail in microseconds** instead of burning the
-> whole node budget. Plus: the Solver, visualizer, and animator share a new "forge"
-> look; the [browser animator](https://hhh42.github.io/ferroplan/gui/index.html)
-> gains a scrubbable **transport bar** and a **temporal timescale (Gantt) view**;
-> the GUI moves to **Bevy 0.19**. See the [CHANGELOG](CHANGELOG.md).
+> an **on-failure escalation ladder** (a failed search automatically retries at
+> the Full demand tier, then hands off to the goal decomposer — no flags, though
+> it does mean a search that used to fail fast can now take longer before giving
+> up: `FF_NO_ESCALATE` restores the old behavior); **statically unproducible
+> goals fail in microseconds** instead of burning the whole node budget; and a
+> new **`Session` API** — ground once, replan many — for embedding the planner in
+> a live loop (~10× per-tick on small contracts). See the
+> [CHANGELOG](CHANGELOG.md) for the full breakdown, including 0.2.2's "forge"
+> visual identity, the browser animator's scrubbable **transport bar** and
+> **temporal timescale (Gantt) view**, and the move to **Bevy 0.19**.
 
 ## Features
 
@@ -154,9 +157,11 @@ if let Some(plan) = solution.plan {
 
 The public, `serde`-serializable surface: **`solve`** (plan a domain+problem),
 **`decompose`** (split a too-big temporal goal into validated contracts),
-**`parse`** (syntax-check + summarize PDDL without solving), and
-**`plan::validate_plan`** (independently check a plan). See
-[`examples/`](crates/ferroplan/examples) for `solve`, `parse`, and `json_api`.
+**`parse`** (syntax-check + summarize PDDL without solving),
+**`Session`** (ground once, replan many — for a live loop that re-solves the same
+world every tick), and **`plan::validate_plan`** (independently check a plan). See
+[`examples/`](crates/ferroplan/examples) for `solve`, `parse`, `json_api`, and
+`replan` (`Session` vs. re-solving from scratch, with timings).
 
 ## Configuration
 
@@ -186,7 +191,7 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 
 | crate | what |
 |---|---|
-| [`ferroplan`](crates/ferroplan) | the library: engine + modes + `solve` / `decompose` API |
+| [`ferroplan`](crates/ferroplan) | the library: engine + modes + `solve` / `decompose` / `Session` API |
 | [`ferroplan-cli`](crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
 | [`ferroplan-mcp`](crates/ferroplan-mcp) | an MCP server exposing `solve` / `validate` / `decompose` over stdio — so an LLM agent can author PDDL and drive the planner |
 | [`ferroplan-bevy`](crates/ferroplan-bevy) | Bevy app: visualize, inspect & animate a domain+problem (`cargo run -p ferroplan-bevy [domain.pddl problem.pddl]`) |

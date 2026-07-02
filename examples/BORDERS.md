@@ -48,7 +48,7 @@ receives **at most one** converging contribution.
 > (`(>= (avail) 1)`) serializes concurrency domains. Opt out of all demand guidance
 > with `FF_NO_TDEMAND`.
 >
-> **Update 4 (goal-relevance pruning is now default-on, v0.2.2).** Pruning was
+> **Update 4 (goal-relevance pruning is now default-on, v0.3.0).** Pruning was
 > decoupled from the `Full` tier: it now rides the default (`FF_NOREL` disables
 > pruning alone; `FF_NO_TDEMAND` still restores the pristine pre-v0.2 path). The
 > trigger: on a fully-featured hub, even a 5-step chain (`flour ≥ 2`:
@@ -63,7 +63,7 @@ receives **at most one** converging contribution.
 > adder / a threshold no effect can raise) now fail in microseconds instead of
 > exhausting every pass.
 >
-> **Update 5 (on-failure escalation ladder, v0.2.2).** A failed default-tier
+> **Update 5 (on-failure escalation ladder, v0.3.0).** A failed default-tier
 > monolithic search now retries at the `Full` tier, then hands the goal to the
 > decomposer — automatically, no flag. Each rung runs only on failure, so nothing
 > that solves changes; the would-be failure just gets more machinery. Corpus:

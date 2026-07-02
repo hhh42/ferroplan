@@ -462,6 +462,13 @@ fn unsolved(mode: Mode, stats: Statistics, notes: Vec<String>) -> Solution {
 }
 
 /// Ground and plan, returning a structured [`Solution`].
+///
+/// **Temporal domains, v0.3.0+:** on a failed default-tier search, this retries at
+/// the `Full` demand tier and then the goal decomposer before giving up (see
+/// [`crate::temporal::solve`]) — an instance that used to fail fast can now take
+/// substantially longer to return `solved: false`. Set `FF_NO_ESCALATE` (or
+/// [`crate::features::set_escalate_override`]`(false)` in-process) to restore the
+/// single-pass pre-0.3.0 behavior.
 pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solution, SolveError> {
     let domain = parser::parse_domain(domain_src).map_err(SolveError::DomainParse)?;
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
