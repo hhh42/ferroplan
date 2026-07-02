@@ -378,7 +378,11 @@ fn do_ground(
     }
 }
 
-fn steps_of(task: &PackedTask, ops: &[usize], synthetic: Option<&HashSet<String>>) -> Vec<Step> {
+pub(crate) fn steps_of(
+    task: &PackedTask,
+    ops: &[usize],
+    synthetic: Option<&HashSet<String>>,
+) -> Vec<Step> {
     let mut steps = Vec::new();
     let mut idx = 0;
     for &oi in ops {
@@ -420,7 +424,7 @@ fn timed_steps(tp: &crate::temporal::TimedPlan) -> Vec<Step> {
         .collect()
 }
 
-fn stats(task: &PackedTask, evaluated: usize, threads: usize) -> Statistics {
+pub(crate) fn stats(task: &PackedTask, evaluated: usize, threads: usize) -> Statistics {
     Statistics {
         grounded_facts: task.n_reach_facts,
         grounded_actions: task.n_reach_actions,
