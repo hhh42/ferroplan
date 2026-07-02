@@ -675,7 +675,7 @@ pub(crate) fn solve_from(
     // drowning in irrelevant unbounded accumulators (food=1,2,3,…); the final
     // unmasked pass makes completeness UNCONDITIONAL — even a hypothetical mask bug
     // cannot lose coverage, it can only cost time on unsolvable inputs.
-    // Graduated from the Full tier in v0.2.2: `flour >= 2` on a fully-featured hub
+    // Graduated from the Full tier in v0.3.0: `flour >= 2` on a fully-featured hub
     // (rpg-world bread-line) needs pruning to solve at all — the default search
     // exhausted its node budget in the irrelevant-accumulator swamp.
     let on = tier != DemandMode::Off && std::env::var("FF_NOREL").is_err();

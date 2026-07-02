@@ -2,13 +2,37 @@
 
 All notable changes to this project are documented here.
 
-## [0.2.2] - 2026-06-30 — Solver depth, GUI & tooling
+## [0.3.0] - 2026-07-02 — Solver depth: escalation, parallelism, sessions
 
-Two solver-coverage wins measured on the RPG temporal corpus, plus a GUI/tooling
-sweep: the web surfaces and the native Bevy app get a shared "forge" visual
-identity, the animator gains a real timeline UI plus a temporal timescale view,
-the engine is brought up to current dependencies, and the publish pre-flight is
-fast again. No public API signatures changed.
+A temporal goal that used to fail in ~45 s can now solve in ~30 ms (default-on
+goal-relevance pruning); a search that used to just fail now escalates through two
+more rungs before giving up (the Full demand tier, then the decomposer); and a
+caller embedding the planner in a live loop gets a proper `Session` API instead of
+re-grounding every tick. Measured on the 75-instance RPG temporal corpus:
+**65 → 73 solved, zero regressions on anything that already solved.**
+
+Bumped to 0.3.0, not 0.2.3: this release adds a new public API (`Session`) and
+changes default `solve()`/`ff` behavior for temporal domains — an instance that
+previously failed fast can now take substantially longer before returning
+`solved: false`, because the escalation ladder tries harder before giving up
+(`FF_NO_ESCALATE` restores the single-pass pre-ladder behavior). Two correctness
+fixes are included too: a validator/replay bug on `:derived`-axiom domains, and a
+domain-authoring bug in the `rpg-world` example (`bread-line` was unsolvable by
+construction).
+
+### Added
+- **`Session` — ground once, replan many.** The embedding API for callers that
+  re-solve the same world every tick (a game's villagers, a simulation loop):
+  `Session::new` parses, compiles `:derived` axioms, and grounds ONCE; the session
+  then holds the *current world state* — mutate it with `set_fact`/`set_fluent`
+  (plus `fact`/`fluent` readbacks) as the world evolves and `replan()` solves from
+  wherever it stands, paying only the search. Measured on `villagers`: a
+  tick-sized contract (`errand`) drops **223 µs → 22 µs per replan (~10×)**; a
+  search-dominated instance (`township`) is break-even, as expected — size
+  per-agent contracts small (the decomposer's whole job) and the tax vanishes.
+  Static facts are rejected with an explanatory error (grounding bakes them in;
+  flipping one could require never-enumerated operators), as are temporal and
+  PDDL3-preference inputs (v1 scope). See `examples/replan.rs`.
 
 ### Solver
 - **Goal-relevance pruning graduated to the default tier.** Previously it rode the
@@ -43,7 +67,6 @@ fast again. No public API signatures changed.
   (cook bonus included); meals keep their direct path via `cook-meal`, and the
   bread→plate-spread→meals chain is live. `bread-line` now solves and validates
   under default options.
-
 - **On-failure escalation ladder.** When the default-tier monolithic temporal
   search fails, `temporal::solve` now retries at the **Full demand tier**
   (predicate-goal seeding), then hands the goal to the **decomposer** — each rung
@@ -82,19 +105,33 @@ the two big conjunctive orders via the ladder's decomposer rung. The remaining
 corpus misses are `crew-trio` and `skilled-crosstrained`, which resist every
 rung — the honest border.
 
+### Benchmarks & docs
+- **IPC-5 openstacks: the opt-in `FF_ESPC` gap to SGPlan5 re-measured, ~5× → ~3×.**
+  A fresh measurement (`FF_ESPC=1 FF_ESPC_TIME_MS=90000`, 4 cores) narrows the
+  scoreboard's headline quality gap: 42/43/55/66/81/90/151/227 vs. the prior
+  default row 63/66/62/66/138/129/278/608 across p01–p08, no instance regresses.
+  The loop is budget-sensitive — at the *default* 15 s only p01/p02/p06 improve
+  on the same box.
+- **`docs/espc-preferences-spec.md`: the general-path ESPC blocker has been
+  built.** A 2026-07 revisit found that the multi-predicate mutex-group
+  synthesis added since the original "deferred" decision (`invariants.rs`) now
+  recovers exactly the `(STACKS-AVAIL n)` guidance variable a faithful
+  cross-domain ESPC needs — the specific gap the deferred design cited as
+  blocking. What remains is "increment 2": coupling the `espc.rs` penalty
+  schedule to the partitioned search (subproblems from goal-interaction
+  components, global constraints on shared mutex variables). Not yet
+  implemented; recorded as the concrete next step.
+
+## [0.2.2] - 2026-06-30 — GUI & tooling
+
+A GUI- and tooling-focused release: the web surfaces and the native Bevy app get a
+shared "forge" visual identity, the animator gains a real timeline UI (a scrubbable
+transport bar) plus a temporal timescale (Gantt) view, the engine is brought up to
+current dependencies, and the publish pre-flight is fast again. No solver/library
+API or behavior changes — `ferroplan` / `ferroplan-cli` are functionally identical
+to 0.2.1 (dependency refresh only).
+
 ### Added
-- **`Session` — ground once, replan many.** The embedding API for callers that
-  re-solve the same world every tick (a game's villagers, a simulation loop):
-  `Session::new` parses, compiles `:derived` axioms, and grounds ONCE; the session
-  then holds the *current world state* — mutate it with `set_fact`/`set_fluent`
-  (plus `fact`/`fluent` readbacks) as the world evolves and `replan()` solves from
-  wherever it stands, paying only the search. Measured on `villagers`: a
-  tick-sized contract (`errand`) drops **223 µs → 22 µs per replan (~10×)**; a
-  search-dominated instance (`township`) is break-even, as expected — size
-  per-agent contracts small (the decomposer's whole job) and the tax vanishes.
-  Static facts are rejected with an explanatory error (grounding bakes them in;
-  flipping one could require never-enumerated operators), as are temporal and
-  PDDL3-preference inputs (v1 scope). See `examples/replan.rs`.
 - **Animator transport bar** (native Bevy GUI) — a play/pause button, a scrubbable
   timeline (click or drag to seek, one notch per step), a molten progress fill +
   playhead, and a step/time readout. Mirrors the keyboard controls so the animator is

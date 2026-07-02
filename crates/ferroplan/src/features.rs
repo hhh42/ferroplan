@@ -69,7 +69,7 @@ pub enum DemandMode {
     /// default.
     Off,
     /// Default (v0.2): seed demand from NUMERIC goals only (no predicate-threshold
-    /// seeding). Goal-relevance pruning is also on (v0.2.2), with an unmasked
+    /// seeding). Goal-relevance pruning is also on (v0.3.0), with an unmasked
     /// complete backstop pass; `FF_NOREL` disables pruning alone.
     Numeric,
     /// Full (`FF_TDEMAND` for whole solves): additionally seed demand from
