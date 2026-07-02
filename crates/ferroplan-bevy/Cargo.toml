@@ -38,6 +38,14 @@ futures-lite = "2"
 # WASM build (browser GUI): getrandom needs a JS backend on wasm32. Two versions
 # are in the tree (bevy deps); the 0.3 `wasm_js` backend also needs RUSTFLAGS
 # `--cfg getrandom_backend="wasm_js"` (see build.sh).
+#
+# wasm-bindgen/web-sys read the Solver page's `ferroplan.handoff` localStorage
+# entry at startup (the "Animate this plan" handoff — see webhandoff.rs). Pinned
+# to the exact version already resolved workspace-wide (matches ferroplan-wasm's
+# pin and the installed `wasm-bindgen` CLI) so there's only one copy in the tree.
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
 getrandom_v3 = { package = "getrandom", version = "0.3", features = ["wasm_js"] }
+wasm-bindgen = "=0.2.126"
+web-sys = { version = "0.3", features = ["Window", "Storage", "console"] }
+serde_json = { workspace = true }
