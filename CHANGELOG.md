@@ -44,11 +44,43 @@ fast again. No public API signatures changed.
   bread→plate-spread→meals chain is live. `bread-line` now solves and validates
   under default options.
 
+- **On-failure escalation ladder.** When the default-tier monolithic temporal
+  search fails, `temporal::solve` now retries at the **Full demand tier**
+  (predicate-goal seeding), then hands the goal to the **decomposer** — each rung
+  runs only after the previous one failed, so no instance that solves today can
+  change its plan; the ladder spends extra time on would-be failures to convert
+  them into solves. Ladder gains (all plans independently `--validate`d):
+  `crew-solo`/`crew-pair`/`skilled-specialists` at the Full rung (makespans
+  109/152/198 — matching their documented flagged solves, now flag-free),
+  `order-8`/`order-12` and `found-village` at the decomposer rung. The tier is
+  now threaded explicitly through the search (no racy global overrides), the
+  decomposer's own monolithic fallbacks are **skipped on the ladder path** (the
+  ladder already exhausted that exact search at both tiers — and this is also
+  what makes the ladder recursion-free), and TIL-bearing compositions stay safe
+  (the decomposer hard-validates before returning). `FF_NO_ESCALATE` — or
+  `features::set_escalate_override(false)` in-process (WASM) — disables the
+  ladder alone; `FF_NO_TDEMAND` still restores the pristine pre-v0.2 path.
+- **Parallel temporal search.** The decision-epoch search now evaluates successor
+  heuristics **in parallel** (the `threads` option previously only parallelized
+  grounding on the temporal path). Successors are generated serially, batch-
+  evaluated across workers (one relaxation `Scratch` per worker; frontiers under
+  128 stay on the serial path with zero new allocation — per-round fan-out has to
+  amortize against a full unpruned op scan to win), then enqueued serially in
+  input order — so the heap and visited-set evolve exactly as before and **plans
+  are byte-identical for any thread count**, verified by a corpus-wide
+  determinism sweep at `--threads 1/2/4/8` (65 instances, 0 mismatches).
+  Measured honestly: the win is modest (~4% on exhaustion-bound searches, ~0 on
+  typical solves) — the temporal search is dominated by its serial successor-gen
+  / dedup / heap machinery, so this lays the plumbing without changing the
+  performance story; the corpus-visible speed lever remains the ladder + pruning.
+
 **Measured** on the full temporal corpus (rpg suite + hard + contracts, cabin,
-villagers — 75 instances): **65 → 67 solved, zero losses, zero makespan changes**.
-The hard set is now 10/12 under plain defaults (was 3/12 when authored); the two
-big conjunctive orders remain decomposer territory and both solve via
-`ff --decompose`.
+villagers — 75 instances): **65 → 73 solved, zero losses, zero makespan changes
+on previously-solving instances** (pruning graduation +2, escalation ladder +6).
+The hard set is now 12/12 — 10 under plain defaults (was 3/12 when authored) and
+the two big conjunctive orders via the ladder's decomposer rung. The remaining
+corpus misses are `crew-trio` and `skilled-crosstrained`, which resist every
+rung — the honest border.
 
 ### Added
 - **Animator transport bar** (native Bevy GUI) — a play/pause button, a scrubbable

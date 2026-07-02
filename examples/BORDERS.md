@@ -62,6 +62,18 @@ receives **at most one** converging contribution.
 > `Full` tier remains opt-in. Statically unproducible goals (a goal fact with no
 > adder / a threshold no effect can raise) now fail in microseconds instead of
 > exhausting every pass.
+>
+> **Update 5 (on-failure escalation ladder, v0.2.2).** A failed default-tier
+> monolithic search now retries at the `Full` tier, then hands the goal to the
+> decomposer — automatically, no flag. Each rung runs only on failure, so nothing
+> that solves changes; the would-be failure just gets more machinery. Corpus:
+> 67 → 73/75 (crew-solo/pair + skilled-specialists at the Full rung; order-8/12 +
+> found-village at the decomposer rung; all validated). Practical upshot for a
+> subproblem-maker: the "MUST SPLIT" rules below are now advisory for
+> *performance* rather than *coverage* — a too-big conjunction costs the ladder's
+> extra minutes instead of failing outright. `crew-trio` and
+> `skilled-crosstrained` remain the measured border (no rung reaches them).
+> `FF_NO_ESCALATE` restores single-rung behavior.
 
 ## Border table (measured)
 

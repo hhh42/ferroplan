@@ -58,8 +58,10 @@ pub fn run_planner(
     };
 
     // PDDL2.1 temporal: durative actions -> decision-epoch search, IPC plan format.
-    // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B);
-    // default is the monolithic temporal search, byte-identical when the flag is off.
+    // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B) FIRST;
+    // the default is `temporal::solve` — the monolithic search plus its on-failure
+    // escalation ladder (Full tier, then decomposer; `FF_NO_ESCALATE` restores the
+    // single-rung search).
     if crate::temporal::is_temporal(&domain) {
         let solved = if crate::features::tdecomp() {
             crate::tresolve::solve(&domain, &problem, threads)

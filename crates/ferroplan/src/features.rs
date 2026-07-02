@@ -20,6 +20,7 @@ const OFF: u8 = 2;
 static TDEMAND: AtomicU8 = AtomicU8::new(UNSET);
 static TDECOMP: AtomicU8 = AtomicU8::new(UNSET);
 static TCONC: AtomicU8 = AtomicU8::new(UNSET);
+static ESCALATE: AtomicU8 = AtomicU8::new(UNSET);
 
 /// Set the overrides (e.g. from the WASM `flags` arg). Each bool is definitive for
 /// this and subsequent solves — `true` forces the feature on, `false` forces it off
@@ -31,11 +32,19 @@ pub fn set_overrides(tdemand: bool, tdecomp: bool, tconc: bool) {
     TCONC.store(if tconc { ON } else { OFF }, Relaxed);
 }
 
+/// In-process override for the escalation ladder (see [`escalate`]) — the WASM /
+/// embedded analog of `FF_NO_ESCALATE`, since env *writes* panic on wasm32.
+/// Definitive until [`clear_overrides`].
+pub fn set_escalate_override(on: bool) {
+    ESCALATE.store(if on { ON } else { OFF }, Relaxed);
+}
+
 /// Clear all in-process overrides back to `Unset` (default + env decide).
 pub fn clear_overrides() {
     TDEMAND.store(UNSET, Relaxed);
     TDECOMP.store(UNSET, Relaxed);
     TCONC.store(UNSET, Relaxed);
+    ESCALATE.store(UNSET, Relaxed);
 }
 
 #[inline]
@@ -63,8 +72,10 @@ pub enum DemandMode {
     /// seeding). Goal-relevance pruning is also on (v0.2.2), with an unmasked
     /// complete backstop pass; `FF_NOREL` disables pruning alone.
     Numeric,
-    /// Full opt-in (`FF_TDEMAND`): additionally seed demand from predicate-goal
-    /// thresholds — for the conjunctive/structural builds.
+    /// Full (`FF_TDEMAND` for whole solves): additionally seed demand from
+    /// predicate-goal thresholds — for the conjunctive/structural builds. The
+    /// escalation ladder also retries failed default-tier searches at this tier
+    /// automatically (see [`escalate`]), so the flag now mainly forces it *first*.
     Full,
 }
 
@@ -102,10 +113,11 @@ pub fn tdecomp() -> bool {
 /// hand the goal to the decomposer. Each rung runs ONLY after the previous one
 /// failed, so no instance that solves today can change its plan — escalation
 /// spends extra time on (would-be) failures to convert them into solves.
-/// Default ON; `FF_NO_ESCALATE` disables the ladder alone, and `FF_NO_TDEMAND`
-/// (the master "pristine pre-v0.2 path" switch) disables it too.
+/// Default ON; `FF_NO_ESCALATE` (or [`set_escalate_override`]`(false)` in-process)
+/// disables the ladder alone, and `FF_NO_TDEMAND` (the master "pristine pre-v0.2
+/// path" switch) disables it too.
 pub fn escalate() -> bool {
-    std::env::var("FF_NO_ESCALATE").is_err()
+    resolve(&ESCALATE, std::env::var("FF_NO_ESCALATE").is_err())
 }
 
 /// The concurrent scheduling phase: repack a temporal plan onto the domain's actor

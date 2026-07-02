@@ -371,9 +371,11 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
             return Some(plan);
         }
     }
-    // Decomposer rung. Its single-group fallback calls `solve_monolithic`, NOT
-    // `solve`, so the ladder cannot recurse.
-    crate::tresolve::solve(domain, problem, threads)
+    // Decomposer rung — the ladder variant, which skips the decomposer's own
+    // monolithic fallbacks (this ladder already ran that exact search at both
+    // tiers) and thus also cannot recurse. Passes this ladder's own rung-0 tier
+    // so the premise can't drift with the process-global override.
+    crate::tresolve::solve_after_ladder(domain, problem, threads, ambient)
 }
 
 /// The monolithic temporal search at an explicit demand `tier` — the scheduling
@@ -603,13 +605,16 @@ fn relevant_op_mask(
 /// Solve toward an ARBITRARY `(goal_pos, goal_num)` from an arbitrary `start` state
 /// over a shared grounded temporal task — the reusable subplanner the decomposer
 /// (`tresolve`) calls per contract. `forbidden` masks ops (sibling protection; empty
-/// = none). `temporal::solve` is the whole-task wrapper (start = init, goal = task
-/// goal, no forbidden) and is byte-identical to the pre-refactor search.
+/// = none). `tier` is the demand tier this pass runs at — threaded explicitly so
+/// the escalation ladder can retry at `Full` without touching process-global state.
+/// `solve_monolithic` is the whole-task wrapper (start = init, goal = task goal, no
+/// forbidden); `temporal::solve` is that plus the on-failure escalation ladder.
 ///
-/// Two-phase decision-epoch search: a fast pass restricting start/classical
-/// expansion to FF helpful actions, then the unrestricted complete pass on failure.
+/// Multi-pass decision-epoch search: a fast pass restricting start/classical
+/// expansion to FF helpful actions, then unrestricted complete passes on failure
+/// (tight-masked → sound-masked → unmasked; see the pruning block below).
 /// Phase-1 key = W_G*g + W_H*h + W_L*(unmet numeric landmarks) + the converging-
-/// resource demand deficit; phase 2 is the original pure-h complete search.
+/// resource demand deficit; the complete passes use the original pure-h key.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn solve_from(
     task: &PackedTask,
@@ -619,7 +624,7 @@ pub(crate) fn solve_from(
     goal_num: &[NumPre],
     forbidden: &[bool],
     til_events: &[(f64, usize)],
-    _threads: usize,
+    threads: usize,
     tier: DemandMode,
 ) -> Option<TimedPlan> {
     // Fail fast on statically unproducible goals — nothing any pass could reach.
@@ -696,7 +701,7 @@ pub(crate) fn solve_from(
     let go = |rel: &[bool], prune: bool| {
         temporal_search(
             task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel, til_events,
-            prune,
+            prune, threads,
         )
     };
     go(&sound, true)
@@ -721,7 +726,7 @@ pub(crate) fn solve_from(
 /// `bread`, and the search burned ~45 s across passes proving it. This check makes
 /// such instances (and decomposer contracts) fail in microseconds. It never changes
 /// a *found* plan, only converts an exhaustive failure into an instant one.
-fn statically_unsolvable(
+pub(crate) fn statically_unsolvable(
     task: &PackedTask,
     start: &State,
     goal_pos: &[u32],
@@ -1081,6 +1086,63 @@ fn eval_node(
     }
 }
 
+/// Dedup and enqueue a candidate node whose heuristic `(h, helpful)` is already
+/// computed. Both the serial path ([`push_node`]) and the batched parallel path
+/// funnel through this on ONE thread, in input order — that serial funnel is what
+/// keeps parallel evaluation byte-identical to the sequential search.
+#[allow(clippy::too_many_arguments)]
+fn enqueue_evaluated(
+    task: &PackedTask,
+    nodes: &mut Vec<TNode>,
+    heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
+    visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
+    landmarks: &[NumPre],
+    demand: &Demand,
+    prune: bool,
+    mut n: TNode,
+    h: i32,
+    helpful: Vec<u32>,
+) {
+    // Gentle h-weight (1g + 3h, vs the classical 1g+5h) keeps required-concurrency
+    // branches in contention; the unit g breaks the flat-h plateau on long chains;
+    // W_L counts unmet numeric-threshold landmarks, restoring a gradient on
+    // converging DAGs (where the FF count goes flat). AGENDA_W is 0: penalizing open
+    // intervals suppresses the very parallelism we want — keep it off.
+    const W_G: i64 = 1;
+    const W_H: i64 = 3;
+    const W_L: i64 = 3;
+    const AGENDA_W: i64 = 0;
+    let k = tkey(task, &n);
+    if visited.insert(k) {
+        n.helpful = helpful;
+        // Cumulative-availability for the demand term: parent's plus this op's
+        // production. Empty (no-op) unless FF_TDEMAND is on.
+        let op = n.ev.map(|(o, _)| o).unwrap_or(usize::MAX);
+        n.met = if op == usize::MAX {
+            nodes[n.father].met.clone()
+        } else {
+            met_child(&nodes[n.father].met, demand, task, op)
+        };
+        // Phase 1 (prune): weighted g+h plus the unmet-landmark term AND the
+        // total converging-resource demand deficit (the multi-round gradient the
+        // relaxation is blind to), to break the flat-h plateau on long chains AND
+        // converging DAGs. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte
+        // the old complete search, so nothing it solved before can regress.
+        let key = if prune {
+            W_G * n.g as i64
+                + W_H * h as i64
+                + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
+                + demand.weight * demand_deficit(&n.met, demand)
+                + AGENDA_W * n.agenda.len() as i64
+        } else {
+            h as i64
+        };
+        let idx = nodes.len();
+        nodes.push(n);
+        heap.push(Reverse((key, idx)));
+    }
+}
+
 /// Evaluate, dedup, and enqueue a candidate node with the weighted heap key.
 #[allow(clippy::too_many_arguments)]
 fn push_node(
@@ -1095,47 +1157,12 @@ fn push_node(
     goal_pos: &[u32],
     goal_num: &[NumPre],
     prune: bool,
-    mut n: TNode,
+    n: TNode,
 ) {
-    // Gentle h-weight (1g + 3h, vs the classical 1g+5h) keeps required-concurrency
-    // branches in contention; the unit g breaks the flat-h plateau on long chains;
-    // W_L counts unmet numeric-threshold landmarks, restoring a gradient on
-    // converging DAGs (where the FF count goes flat). AGENDA_W is 0: penalizing open
-    // intervals suppresses the very parallelism we want — keep it off.
-    const W_G: i64 = 1;
-    const W_H: i64 = 3;
-    const W_L: i64 = 3;
-    const AGENDA_W: i64 = 0;
     if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, goal_pos, goal_num, prune) {
-        let k = tkey(task, &n);
-        if visited.insert(k) {
-            n.helpful = helpful;
-            // Cumulative-availability for the demand term: parent's plus this op's
-            // production. Empty (no-op) unless FF_TDEMAND is on.
-            let op = n.ev.map(|(o, _)| o).unwrap_or(usize::MAX);
-            n.met = if op == usize::MAX {
-                nodes[n.father].met.clone()
-            } else {
-                met_child(&nodes[n.father].met, demand, task, op)
-            };
-            // Phase 1 (prune): weighted g+h plus the unmet-landmark term AND the
-            // total converging-resource demand deficit (the multi-round gradient the
-            // relaxation is blind to), to break the flat-h plateau on long chains AND
-            // converging DAGs. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte
-            // the old complete search, so nothing it solved before can regress.
-            let key = if prune {
-                W_G * n.g as i64
-                    + W_H * h as i64
-                    + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
-                    + demand.weight * demand_deficit(&n.met, demand)
-                    + AGENDA_W * n.agenda.len() as i64
-            } else {
-                h as i64
-            };
-            let idx = nodes.len();
-            nodes.push(n);
-            heap.push(Reverse((key, idx)));
-        }
+        enqueue_evaluated(
+            task, nodes, heap, visited, landmarks, demand, prune, n, h, helpful,
+        );
     }
 }
 
@@ -1155,8 +1182,17 @@ fn temporal_search(
     relevant: &[bool],
     til_events: &[(f64, usize)],
     prune: bool,
+    threads: usize,
 ) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
+    // Worker count for batched successor evaluation (0 = auto, like the classical
+    // search). Parallelism only changes evaluation COST — see the funnel comment in
+    // the expansion block; plans are identical for any value.
+    let workers = if threads == 0 {
+        crate::par::num_threads()
+    } else {
+        threads
+    };
     // Root from the (possibly mid-composition) START state, but always at clock 0
     // with an agenda holding only the timed initial literals (sorted ascending): a
     // contract is solved as a fresh interval and drains its agenda before returning,
@@ -1220,6 +1256,12 @@ fn temporal_search(
         } else {
             (0..task.n_ops).filter(|&oi| allow(oi)).collect()
         };
+        // Successor prototypes first (cheap state application), heuristics second —
+        // batched across worker threads when the frontier is big enough, then
+        // funneled through `enqueue_evaluated` serially IN INPUT ORDER. The funnel
+        // order matches the old per-candidate loop exactly, so heap and visited-set
+        // evolve identically and the plan is byte-identical for any thread count.
+        let mut protos: Vec<TNode> = Vec::new();
         for oi in candidates {
             match kind[oi] {
                 Kind::Start { dur, end_op } => {
@@ -1229,61 +1271,83 @@ fn temporal_search(
                         let te = time + dur;
                         let pos = ag.partition_point(|x| x.0 <= te);
                         ag.insert(pos, (te, end_op));
-                        push_node(
-                            task,
-                            kind,
-                            &mut sc,
-                            &mut nodes,
-                            &mut heap,
-                            &mut visited,
-                            landmarks,
-                            demand,
-                            goal_pos,
-                            goal_num,
-                            prune,
-                            TNode {
-                                state: ns,
-                                time,
-                                agenda: ag,
-                                father: ni,
-                                ev: Some((oi, time)),
-                                g: pg + 1,
-                                helpful: Vec::new(),
-                                met: Vec::new(),
-                            },
-                        );
+                        protos.push(TNode {
+                            state: ns,
+                            time,
+                            agenda: ag,
+                            father: ni,
+                            ev: Some((oi, time)),
+                            g: pg + 1,
+                            helpful: Vec::new(),
+                            met: Vec::new(),
+                        });
                     }
                 }
                 Kind::Classical => {
                     if task.op_applicable(oi, &nodes[ni].state) {
                         let ns = task.apply(oi, &nodes[ni].state);
                         let ag = nodes[ni].agenda.clone();
-                        push_node(
-                            task,
-                            kind,
-                            &mut sc,
-                            &mut nodes,
-                            &mut heap,
-                            &mut visited,
-                            landmarks,
-                            demand,
-                            goal_pos,
-                            goal_num,
-                            prune,
-                            TNode {
-                                state: ns,
-                                time,
-                                agenda: ag,
-                                father: ni,
-                                ev: Some((oi, time)),
-                                g: pg + 1,
-                                helpful: Vec::new(),
-                                met: Vec::new(),
-                            },
-                        );
+                        protos.push(TNode {
+                            state: ns,
+                            time,
+                            agenda: ag,
+                            father: ni,
+                            ev: Some((oi, time)),
+                            g: pg + 1,
+                            helpful: Vec::new(),
+                            met: Vec::new(),
+                        });
                     }
                 }
                 Kind::End | Kind::Til | Kind::Skip => {}
+            }
+        }
+        // Small frontiers evaluate serially on the persistent Scratch (no per-round
+        // allocation); big ones fan out with one fresh Scratch per worker. The
+        // threshold is deliberately higher than the classical `par::MIN_PAR` (32):
+        // this fans out PER EXPANSION POP, so the scoped-spawn cost recurs every
+        // round — at 32-item frontiers it measurably loses (trade-bazaar +39% at
+        // t8); it has to amortize against a full unpruned op scan to win.
+        const PAR_FRONTIER: usize = 128;
+        if workers <= 1 || protos.len() < PAR_FRONTIER {
+            for n in protos {
+                push_node(
+                    task,
+                    kind,
+                    &mut sc,
+                    &mut nodes,
+                    &mut heap,
+                    &mut visited,
+                    landmarks,
+                    demand,
+                    goal_pos,
+                    goal_num,
+                    prune,
+                    n,
+                );
+            }
+        } else {
+            let evals: Vec<Option<(i32, Vec<u32>)>> = crate::par::par_map_with(
+                &protos,
+                workers,
+                || Scratch::new(task),
+                |wsc, n| eval_node(task, kind, wsc, &n.state, goal_pos, goal_num, prune),
+            );
+            for (n, ev) in protos.into_iter().zip(evals) {
+                if let Some((h, helpful)) = ev {
+                    enqueue_evaluated(
+                        task,
+                        &mut nodes,
+                        &mut heap,
+                        &mut visited,
+                        landmarks,
+                        demand,
+                        prune,
+                        n,
+                        h,
+                        helpful,
+                    );
+                }
             }
         }
 
