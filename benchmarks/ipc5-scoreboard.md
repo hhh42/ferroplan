@@ -25,19 +25,24 @@ only; MIPS-BDD is optimal-but-very-low-coverage.)
 ## ferroplan vs SGPlan5, p01–p08 (lower is better; **bold** = ferroplan ≤ SGPlan5)
 
 **openstacks** — satisfaction guidance broke the all-forgo floor (70→63), and the
-opt-in ESPC penalty loop (`FF_ESPC`, see `docs/espc-preferences-spec.md`) narrows
-the gap further — but the shared `stacks-avail` resource scheduling is still
-unsolved (the remaining ~3× gap to SGPlan):
+opt-in ESPC penalty loop (`FF_ESPC`, see `docs/espc-preferences-spec.md`) now
+couples its λ schedule to a **partitioned search** ("increment 2": one
+subproblem per order-interaction component, the shared `stacks-avail` variable
+priced as a global constraint instead of being solved inside any one stage) —
+**ferroplan beats SGPlan5 on p04–p08**, the first domain where it leads the
+IPC-5 winner on the larger half of the suite:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
 | ferroplan | 63 | 66 | 62 | 66 | 138 | 129 | 278 | 608 |
-| + `FF_ESPC`¹ | 42 | 43 | 55 | 66 | 81 | 90 | 151 | 227 |
+| + `FF_ESPC`¹ | 19 | 23 | 17 | **16** | **21** | **22** | **66** | **87** |
 | SGPlan5 | 13 | 16 | 12 | 26 | 36 | 33 | 67 | 123 |
 
-¹ `FF_ESPC=1 FF_ESPC_TIME_MS=90000`, 4 cores (2026-07). The loop is
-wall-clock-bounded and anytime, so quality scales with budget/cores: at the
-default 15 s on the same box only p01/p02/p06 improve (42/43/100).
+¹ `FF_ESPC=1 FF_ESPC_TIME_MS=90000`, 4 cores (2026-07, partitioned coupling).
+Deterministic across runs (3/3 identical per instance) and terminates by
+stall/saddle well inside the budget — worst case p04 at ~58 s wall, p01 in ~4 s.
+`FF_ESPC_MONO=1` reproduces the earlier monolithic loop
+(42/43/55/66/81/90/151/227 at the same budget).
 
 **tpp** (the whole field ties SGPlan at 16/24/29/35 on p01–p04 — ferroplan trails):
 
@@ -78,25 +83,30 @@ folding) — ferroplan is competitive and **edges p07/p08**:
 
 ## Verdict
 
-ferroplan does **not** beat SGPlan5 on any domain — SGPlan5 swept the subtrack
-(6/0) for real, and on our shared p01–p08 it leads on quality everywhere
-(ferroplan wins only scattered instances: trucks p01, rovers p07/p08, ties
-pathways p01 / trucks p05).
+On the **default path** ferroplan does not beat SGPlan5 on any domain — SGPlan5
+swept the subtrack (6/0) for real, and on our shared p01–p08 it leads on
+quality everywhere (ferroplan wins only scattered instances: trucks p01, rovers
+p07/p08, ties pathways p01 / trucks p05).
 
-But under the IPC-5 **coverage-first** rule, ferroplan would place **~2nd in the
-field**: it solves the subset with full coverage and real, second-best quality,
-ahead of the coverage- and quality-limited MIPS-XXL (bogus openstacks metrics,
-low coverage elsewhere), MIPS-BDD (very low coverage), and YochanPS (no
-openstacks, low coverage). A credible retroactive 2nd — not a win.
+With the opt-in partitioned ESPC loop (`FF_ESPC=1`), **openstacks flips**:
+ferroplan wins p04–p08 outright and totals 271 vs SGPlan5's 326 over p01–p08 —
+the first domain where ferroplan leads the IPC-5 winner on quality. Under the
+IPC-5 **coverage-first** rule the overall placement is still **~2nd in the
+field** (SGPlan5 leads the other five domains), but it is now a 2nd with one
+domain-level quality win, ahead of the coverage- and quality-limited MIPS-XXL
+(bogus openstacks metrics, low coverage elsewhere), MIPS-BDD (very low
+coverage), and YochanPS (no openstacks, low coverage).
 
 ## Path to climb
 
-1. **openstacks resource loop** — the headline quality gap (42 → ~13 with
-   `FF_ESPC` on); needs `stacks-avail` resource coordination the satisfaction
-   term can't see. The mutex-group synthesis (`invariants.rs`) now recovers
-   `stacks-avail` as a guidance variable on every instance, so the next step is
-   coupling the ESPC penalty loop to the partitioned search ("increment 2" —
-   see the 2026-07 revisit in `docs/espc-preferences-spec.md`).
+1. ~~**openstacks resource loop**~~ — **done** ("increment 2", 2026-07): the
+   ESPC λ schedule now drives a partitioned composition (one stage per order
+   component, `stacks-avail` excluded from edges and priced as a global
+   constraint, per-stage goals enriched with their own deliverables), taking
+   p01–p08 from 42/43/55/66/81/90/151/227 to 19/23/17/16/21/22/66/87 at the
+   same budget — ahead of SGPlan5 on p04–p08. Remaining gap: p01–p03 (small
+   instances, 19/23/17 vs 13/16/12) where the per-order grain is too coarse to
+   matter and the polish B&B is the binding mechanism.
 2. **tpp/storage quality** — ferroplan trails the field even on *small* instances
    (tpp p01 21 vs 16); a metric-B&B convergence / guidance fix.
 3. **B&B scalability** — make the soft-goal compilation + B&B handle hundreds of
