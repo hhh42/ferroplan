@@ -29,11 +29,21 @@ const WEIGHT_SCALE: f64 = 256.0;
 /// Tunable weighted-best-first parameters (exposed via the library `Options`).
 /// `w_g`/`w_h` are pre-scaled integers (`weight * WEIGHT_SCALE`), so the default
 /// `1·g + 5·h` ordering is preserved exactly while fractional weights still work.
+///
+/// Key units, for calibrating new terms: one h-unit = 1280 (5·256), one g-step
+/// = 256, one unsatisfied preference = `weight·100` (`SatGuidance::penalty`),
+/// one metric-cost unit = `w_c·256`. `w_c` (default 0.0 = term absent, key
+/// bit-identical to the historical one) adds the successor's accumulated
+/// metric cost `fv[cost_fluent]` to the ordering — used by the preference-
+/// metric B&B loops so a folded numeric metric (rovers' traverse costs) and
+/// forgo-vs-satisfy trade-offs order the open list instead of only pruning at
+/// the bound.
 #[derive(Clone, Copy, Debug)]
 pub struct SearchCfg {
     pub w_g: i64,
     pub w_h: i64,
     pub max_eval: usize,
+    pub w_c: f64,
 }
 
 impl Default for SearchCfg {
@@ -69,7 +79,19 @@ impl SearchCfg {
             w_g,
             w_h,
             max_eval: max_eval.unwrap_or(DEFAULT_MAX_EVAL),
+            w_c: 0.0,
         }
+    }
+
+    /// Add a metric-cost ordering weight (see the struct docs). Non-finite or
+    /// negative weights sanitize to 0.0 (term absent), like `from_weights`.
+    pub fn with_cost_weight(mut self, w_c: f64) -> Self {
+        self.w_c = if w_c.is_finite() && w_c > 0.0 {
+            w_c.min(1e9)
+        } else {
+            0.0
+        };
+        self
     }
 }
 
@@ -376,6 +398,16 @@ pub fn search_from(
                     // occupancy penalty on the concrete successor (steers toward
                     // genuinely satisfying states that stay within resource pools).
                     let sat_pen = sat.map(|sg| sg.penalty(&s)).unwrap_or(0);
+                    // metric-cost ordering (w_c, default 0.0 = exact zero term):
+                    // single deterministic rounding, 1/256 cost resolution.
+                    let cost_term = if cfg.w_c != 0.0 {
+                        let c = cost_fluent
+                            .map(|cf| if s.fdef[cf] { s.fv[cf] } else { 0.0 })
+                            .unwrap_or(0.0);
+                        (cfg.w_c * c * WEIGHT_SCALE).round() as i64
+                    } else {
+                        0
+                    };
                     let idx = nodes.len();
                     nodes.push(Node {
                         state: s,
@@ -384,7 +416,7 @@ pub fn search_from(
                         g,
                     });
                     heap.push(Reverse((
-                        cfg.w_g * g as i64 + cfg.w_h * ph as i64 + sat_pen,
+                        cfg.w_g * g as i64 + cfg.w_h * ph as i64 + sat_pen + cost_term,
                         idx,
                     )));
                 }
@@ -687,7 +719,7 @@ pub fn solve_subgoal_bounded(
     threads: usize,
     cfg: SearchCfg,
     sat: Option<&SatGuidance>,
-) -> (Option<Vec<usize>>, bool) {
+) -> (Option<Vec<usize>>, usize, bool) {
     match search_from(
         task,
         start,
@@ -701,8 +733,8 @@ pub fn solve_subgoal_bounded(
         sat,
         None,
     ) {
-        PlanResult::Plan { ops, .. } => (Some(ops), false),
-        PlanResult::Unsolvable { capped, .. } => (None, capped),
+        PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated, false),
+        PlanResult::Unsolvable { evaluated, capped } => (None, evaluated, capped),
     }
 }
 
