@@ -24,9 +24,9 @@
 use std::time::{Duration, Instant};
 
 use crate::hash::{FxHashMap, FxHashSet};
-use crate::packed::{PackedTask, State};
+use crate::packed::PackedTask;
 use crate::partition::{merge_at, merge_with_neighbor, Subgoal};
-use crate::pddl3::{plan_cost, PhaseTail};
+use crate::pddl3::{apply_tail, plan_cost, PhaseTail};
 use crate::search::{solve_subgoal_bounded, solve_subgoal_guided, SatGuidance, SearchCfg};
 
 pub struct EspcResult {
@@ -70,33 +70,6 @@ fn env_i64(key: &str, default: i64) -> i64 {
         .ok()
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(default)
-}
-
-/// Close the preference bookkeeping on `state` with the exact phase tail: apply
-/// `P3END` (freezing the planning phase), then per preference in fixed order
-/// `P3COLLECT-i` when applicable (free) else `P3FORGO-i` (pays the weight).
-/// Returns the tail ops and advances `state` through them. `None` when an op is
-/// inapplicable (e.g. a stage plan already fired `P3END`) — the caller treats
-/// the composition as invalid and falls back, so this can never corrupt a plan.
-fn apply_tail(task: &PackedTask, state: &mut State, tail: &PhaseTail) -> Option<Vec<usize>> {
-    let mut ops = Vec::with_capacity(1 + tail.prefs.len());
-    if !task.op_applicable(tail.end_op, state) {
-        return None;
-    }
-    *state = task.apply(tail.end_op, state);
-    ops.push(tail.end_op);
-    for &(collect, forgo) in &tail.prefs {
-        let oi = if task.op_applicable(collect, state) {
-            collect
-        } else if task.op_applicable(forgo, state) {
-            forgo
-        } else {
-            return None;
-        };
-        *state = task.apply(oi, state);
-        ops.push(oi);
-    }
-    Some(ops)
 }
 
 /// One sequential composition pass over the current components (the resolve.rs

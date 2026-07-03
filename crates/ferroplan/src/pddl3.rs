@@ -21,7 +21,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::packed::PackedTask;
-use crate::search::{plan, solve_subgoal_bounded, SatGuidance, SearchCfg};
+use crate::search::{plan, solve_subgoal_bounded, ClosureCost, PrefPhi, SatGuidance, SearchCfg};
 use crate::types::{
     Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term,
 };
@@ -512,6 +512,12 @@ pub struct Compiled {
     pub synthetic: HashSet<String>,
     /// (forgo-action name, weight) per preference instance.
     pub forgos: Vec<(String, f64)>,
+    /// True when a numeric metric term was FOLDED into total-cost (mirrored
+    /// `increase` effects on real actions, e.g. rovers' traverse costs). The
+    /// metric optimizer routes such tasks to the legacy compiled-goal B&B —
+    /// real-action cost gives it a genuine gradient, and the closure search
+    /// measures worse there (continuous tightening churn).
+    pub folded_metric: bool,
 }
 
 /// Is `total-cost` monotone non-decreasing across the domain? Branch-and-bound
@@ -610,6 +616,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     // B&B optimizes + reports it correctly. Terms that can't be folded (non-
     // monotone, under forall) are left out and surfaced via `warn_other`.
     let mut metric_other = other;
+    let mut folded_metric = false;
     for (fname, &coeff) in &others {
         if coeff == 0.0 {
             continue;
@@ -622,6 +629,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
             let mut mirror = Vec::new();
             collect_cost_mirror(&a.effect, fname, coeff, &mut mirror);
             if !mirror.is_empty() {
+                folded_metric = true;
                 let mut v = vec![a.effect.clone()];
                 v.append(&mut mirror);
                 a.effect = Effect::And(v);
@@ -798,6 +806,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         unsupported,
         synthetic,
         forgos,
+        folded_metric,
     }
 }
 
@@ -854,39 +863,14 @@ pub fn metric_optimize(
     cost_fluent: usize,
     forgos: &[(usize, f64)],
     groups: &[Vec<u32>],
+    folded_metric: bool,
     threads: usize,
 ) -> Option<MetricResult> {
     const MAX_ITERS: usize = 10_000;
     let init = task.initial();
-    let mut bound = f64::INFINITY;
-    let mut best: Option<(Vec<usize>, f64)> = None;
-    let mut iterations = 0;
-    let mut proven = false;
 
-    // 1. RELAX: first incumbent via EHC-then-best-first (SGPlan's modified-FF
-    // subplanner) — a fast feasible plan, so we get coverage even on hard
-    // instances. Bounded so a hard instance can't hang here.
-    let first = plan(
-        task,
-        threads,
-        SearchCfg::from_weights(1.0, 5.0, Some(1_500_000)),
-        true,
-    );
-    if let Some(ops) = first.ops {
-        let cost = plan_cost(task, &ops, cost_fluent);
-        if cost <= 0.0 {
-            return Some(MetricResult {
-                ops,
-                cost,
-                iterations: 0,
-                proven: true,
-            });
-        }
-        bound = cost;
-        best = Some((ops, cost));
-    }
-
-    // 2. SATISFACTION GUIDANCE — the earlier "force-collect" variants all failed
+    // 1. SATISFACTION GUIDANCE (pure analysis, built before any search) — the
+    // earlier "force-collect" variants all failed
     // because under delete-relaxation the free forgo action makes every preference
     // look reachable, so the heuristic was blind to satisfaction (see
     // docs/espc-preferences-spec.md). Instead, bias the B&B open list by a penalty
@@ -938,8 +922,28 @@ pub fn metric_optimize(
     // deliveries were missed, and keeps the best plan as an anytime incumbent,
     // terminating at a saddle point / stall / budget. Auto-tunes the penalty per
     // instance (no manual weight) and never claims optimality. See `crate::espc`
-    // and docs/espc-preferences-spec.md.
+    // and docs/espc-preferences-spec.md. Seeded by the same compiled-goal EHC
+    // pass as always — this branch is deliberately untouched by the closure path.
     if crate::features::espc() && !sat.deadline.is_empty() {
+        let mut best: Option<(Vec<usize>, f64)> = None;
+        let first = plan(
+            task,
+            threads,
+            SearchCfg::from_weights(1.0, 5.0, Some(1_500_000)),
+            true,
+        );
+        if let Some(ops) = first.ops {
+            let cost = plan_cost(task, &ops, cost_fluent);
+            if cost <= 0.0 {
+                return Some(MetricResult {
+                    ops,
+                    cost,
+                    iterations: 0,
+                    proven: true,
+                });
+            }
+            best = Some((ops, cost));
+        }
         let part = build_espc_partition(task, forgos, groups, &sat);
         return crate::espc::espc_optimize(
             task,
@@ -982,8 +986,55 @@ pub fn metric_optimize(
         }
     }
 
-    // 3. POLISH: bounded B&B from the (now much better) incumbent — reaches the
-    // true optimum on small instances; on timeout we keep the incumbent.
+    // 2. EXACT-CLOSURE METRIC SEARCH (the default for pure-preference metrics):
+    // search REAL states only and close the preference bookkeeping with the
+    // exact phase tail, instead of searching a hard goal made of hundreds/
+    // thousands of `P3COLLECTED-i` facts with a satisfaction-blind heuristic
+    // (the storage p03+ wall, and the tpp budget sink). Precondition-preference
+    // variant costs on real ops are fine — they accrue in `g`, which the
+    // acceptance test sums with the closure exactly. What is NOT routed here is
+    // a FOLDED numeric metric (rovers' mirrored traverse costs): continuous
+    // real-action cost gives the legacy compiled-goal B&B a genuine gradient,
+    // and there the closure search measures worse (tiny-epsilon tightening
+    // churn to MAX_ITERS and a poorer incumbent than the EHC seed). Also falls
+    // back when the closure search cannot even produce an incumbent, and under
+    // `FF_PREF_COMPILED=1`.
+    if !forgos.is_empty() && !folded_metric && std::env::var("FF_PREF_COMPILED").is_err() {
+        if let Some(tail) = build_phase_tail(task, forgos) {
+            if let Some(r) =
+                metric_optimize_closure(task, cost_fluent, forgos, &tail, &sat, threads, refine_cfg)
+            {
+                return Some(r);
+            }
+        }
+    }
+
+    // 3. LEGACY compiled-goal path: EHC seed on the full compiled goal, then the
+    // bounded polish B&B from the incumbent. Reached only via `FF_PREF_COMPILED=1`
+    // or the closure fallback above.
+    let mut bound = f64::INFINITY;
+    let mut best: Option<(Vec<usize>, f64)> = None;
+    let mut iterations = 0;
+    let mut proven = false;
+    let first = plan(
+        task,
+        threads,
+        SearchCfg::from_weights(1.0, 5.0, Some(1_500_000)),
+        true,
+    );
+    if let Some(ops) = first.ops {
+        let cost = plan_cost(task, &ops, cost_fluent);
+        if cost <= 0.0 {
+            return Some(MetricResult {
+                ops,
+                cost,
+                iterations: 0,
+                proven: true,
+            });
+        }
+        bound = cost;
+        best = Some((ops, cost));
+    }
     while iterations < MAX_ITERS {
         iterations += 1;
         let (opt, capped) = solve_subgoal_bounded(
@@ -1023,46 +1074,249 @@ pub fn metric_optimize(
     })
 }
 
-/// `P3COLLECT-i` op id per preference index — the shared scan behind the
-/// satisfaction guidance, the deadline guidance, and the partitioned-ESPC
-/// phase tail.
-fn collect_ops(task: &PackedTask) -> std::collections::HashMap<usize, usize> {
-    let mut collect_op = std::collections::HashMap::new();
+/// The exact-closure metric optimizer (see `metric_optimize` step 2): anytime
+/// B&B where each iteration searches REAL states under a metric-bounded
+/// acceptance test (`cost-so-far + closure(state) < bound`, closure = the exact
+/// weight the phase tail will forgo), then appends the tail. Every valid
+/// compiled plan is a real prefix + `P3END` + a collect/forgo permutation whose
+/// optimal closure IS the tail, so un-capped exhaustion proves optimality.
+///
+/// The first incumbent is the tail applied directly to the initial state
+/// (whenever the real hard goal already holds there — always, on the pure-
+/// preference IPC-5 tracks), so even the largest instances report a metric
+/// instantly. The tightening budget is a DETERMINISTIC evaluated-state count
+/// (`FF_PREF_EVAL_BUDGET`, default 2M) — never wall-clock — so results are
+/// thread-count independent. Returns `None` (→ legacy fallback) only when no
+/// incumbent could be produced at all.
+fn metric_optimize_closure(
+    task: &PackedTask,
+    cost_fluent: usize,
+    forgos: &[(usize, f64)],
+    tail: &PhaseTail,
+    sat: &SatGuidance,
+    threads: usize,
+    cfg: SearchCfg,
+) -> Option<MetricResult> {
+    const MAX_ITERS: usize = 10_000;
+    let real_pos: Vec<u32> = task
+        .goal_pos
+        .iter()
+        .copied()
+        .filter(|&f| {
+            !task.fact_names[f as usize]
+                .to_ascii_uppercase()
+                .starts_with("(P3")
+        })
+        .collect();
+    let closure = build_closure_cost(task, forgos);
+    // The search explores real states only: every synthetic op is masked.
+    let forbidden: Vec<bool> = (0..task.n_ops)
+        .map(|oi| {
+            let n = task.op_display[oi].to_ascii_uppercase();
+            n == "P3END" || n.starts_with("P3COLLECT-") || n.starts_with("P3FORGO-")
+        })
+        .collect();
+    let init = task.initial();
+
+    // Trivial incumbent: close the initial state directly. Instant coverage —
+    // this is what puts storage p05-p08 on the board at all.
+    let mut best: Option<(Vec<usize>, f64)> = None;
+    if task.goal_met_with(&init, &real_pos, &task.goal_num) {
+        let mut s = init.clone();
+        if let Some(tail_ops) = apply_tail(task, &mut s, tail) {
+            if task.goal_met_with(&s, &task.goal_pos, &task.goal_num) {
+                let cost = plan_cost(task, &tail_ops, cost_fluent);
+                if cost <= 0.0 {
+                    return Some(MetricResult {
+                        ops: tail_ops,
+                        cost,
+                        iterations: 0,
+                        proven: true,
+                    });
+                }
+                best = Some((tail_ops, cost));
+            }
+        }
+    }
+
+    let budget = std::env::var("FF_PREF_EVAL_BUDGET")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(2_000_000);
+    let mut spent = 0usize;
+    let mut iterations = 0usize;
+    let mut proven = false;
+    let mut bound = best.as_ref().map_or(f64::INFINITY, |(_, c)| *c);
+
+    while iterations < MAX_ITERS && spent < budget {
+        iterations += 1;
+        let iter_cfg = SearchCfg {
+            max_eval: cfg.max_eval.min(budget - spent),
+            ..cfg
+        };
+        let (opt, evaluated, capped) = crate::search::solve_closure_bounded(
+            task,
+            &real_pos,
+            &task.goal_num,
+            cost_fluent,
+            bound,
+            &closure,
+            &forbidden,
+            threads,
+            iter_cfg,
+            Some(sat),
+        );
+        spent += evaluated;
+        match opt {
+            Some(mut ops) => {
+                let mut s = init.clone();
+                for &oi in &ops {
+                    s = task.apply(oi, &s);
+                }
+                let Some(tail_ops) = apply_tail(task, &mut s, tail) else {
+                    break; // never expected (P3 ops are masked); keep the incumbent
+                };
+                if !task.goal_met_with(&s, &task.goal_pos, &task.goal_num) {
+                    break; // safety: an invalid composition must not become the incumbent
+                }
+                ops.extend(tail_ops);
+                let cost = plan_cost(task, &ops, cost_fluent);
+                best = Some((ops, cost));
+                if cost <= 0.0 {
+                    proven = true;
+                    break;
+                }
+                bound = cost;
+            }
+            None => {
+                proven = !capped;
+                break;
+            }
+        }
+    }
+
+    best.map(|(ops, cost)| MetricResult {
+        ops,
+        cost,
+        iterations,
+        proven,
+    })
+}
+
+/// `P3COLLECT-i` op ids per preference index (ascending) — the shared scan
+/// behind the satisfaction guidance, the deadline guidance, the phase tail,
+/// and the closure cost. A preference whose phi's DNF has several disjuncts
+/// grounds to SEVERAL ops all named `P3COLLECT-i` — one per disjunct — so the
+/// value is a Vec: phi holds iff ANY of them is applicable. (A single-op map
+/// here once silently kept an arbitrary disjunct, which would make the tail
+/// forgo satisfied preferences on `imply`/`exists` phis.)
+fn collect_ops(task: &PackedTask) -> std::collections::HashMap<usize, Vec<usize>> {
+    let mut collect_op: std::collections::HashMap<usize, Vec<usize>> =
+        std::collections::HashMap::new();
     for oi in 0..task.n_ops {
         if let Some(rest) = task.op_display[oi]
             .to_ascii_uppercase()
             .strip_prefix("P3COLLECT-")
         {
             if let Ok(i) = rest.trim().parse::<usize>() {
-                collect_op.insert(i, oi);
+                collect_op.entry(i).or_default().push(oi);
             }
         }
     }
     collect_op
 }
 
-/// Op ids for the deterministic post-composition **phase tail** (partitioned
-/// ESPC, `crate::espc`): `P3END` freezes the state, then each preference is
-/// closed in fixed order — `P3COLLECT-i` when its `phi` holds (free), else
-/// `P3FORGO-i` (pays the weight). Exact, not heuristic: after `P3END` the state
-/// is frozen and each preference's collected fact is independent, so
-/// collect-iff-applicable is the optimal closure of whatever final state the
-/// composition reached. `None` when any preference lacks a collect op (never
-/// expected on a supported compile — the caller falls back to monolithic).
+/// Op ids for the deterministic post-search **phase tail**: `P3END` freezes the
+/// state, then each preference is closed in fixed order — its first applicable
+/// `P3COLLECT-i` disjunct op when phi holds (free), else `P3FORGO-i` (pays the
+/// weight). Exact, not heuristic: after `P3END` the state is frozen and each
+/// preference's collected fact is independent, so collect-iff-applicable is the
+/// optimal closure of whatever final state the search reached. Used by the
+/// default closure-metric optimizer and the partitioned-ESPC composition.
+/// `None` only when the compile has no `P3END` (not a preference task).
 pub struct PhaseTail {
     pub end_op: usize,
-    /// `(collect_op, forgo_op)` per preference, in preference order.
-    pub prefs: Vec<(usize, usize)>,
+    /// `(collect_ops [one per phi disjunct, possibly empty = always-forgo],
+    /// forgo_op)` per preference, in preference order.
+    pub prefs: Vec<(Vec<usize>, usize)>,
 }
 
 pub(crate) fn build_phase_tail(task: &PackedTask, forgos: &[(usize, f64)]) -> Option<PhaseTail> {
     let end_op = (0..task.n_ops).find(|&oi| task.op_display[oi].eq_ignore_ascii_case("P3END"))?;
-    let collect = collect_ops(task);
+    let mut collect = collect_ops(task);
     let mut prefs = Vec::with_capacity(forgos.len());
     for (i, &(forgo_op, _)) in forgos.iter().enumerate() {
-        prefs.push((*collect.get(&i)?, forgo_op));
+        prefs.push((collect.remove(&i).unwrap_or_default(), forgo_op));
     }
     Some(PhaseTail { end_op, prefs })
+}
+
+/// Close the preference bookkeeping on `state` with the exact phase tail: apply
+/// `P3END` (freezing the planning phase), then per preference in fixed order the
+/// first applicable `P3COLLECT-i` disjunct (free) else `P3FORGO-i` (pays the
+/// weight). Returns the tail ops and advances `state` through them. `None` when
+/// an op is inapplicable (e.g. a searched plan already fired `P3END`) — callers
+/// treat the composition as invalid and fall back, so this can't corrupt a plan.
+/// Build the exact closure-cost table ([`ClosureCost`]) from the compiled
+/// `P3COLLECT-i` ops: one DNF disjunct per collect op (its positive
+/// precondition minus the `P3*` control facts, plus its numeric precondition),
+/// weighted by the preference's forgo cost. Zero-weight preferences are
+/// omitted — forgoing them is free, so they never contribute to the metric.
+pub(crate) fn build_closure_cost(task: &PackedTask, forgos: &[(usize, f64)]) -> ClosureCost {
+    let mut collect = collect_ops(task);
+    let mut prefs = Vec::new();
+    for (i, &(_, weight)) in forgos.iter().enumerate() {
+        if weight <= 0.0 {
+            continue;
+        }
+        let disjuncts: Vec<(Vec<u32>, Vec<crate::types::NumPre>)> = collect
+            .remove(&i)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|oi| {
+                let pos: Vec<u32> = task
+                    .pre_pos
+                    .slice(oi)
+                    .iter()
+                    .copied()
+                    .filter(|&f| {
+                        !task.fact_names[f as usize]
+                            .to_ascii_uppercase()
+                            .starts_with("(P3")
+                    })
+                    .collect();
+                (pos, task.pre_num.slice(oi).to_vec())
+            })
+            .collect();
+        prefs.push((weight, PrefPhi { disjuncts }));
+    }
+    ClosureCost { prefs }
+}
+
+pub(crate) fn apply_tail(
+    task: &PackedTask,
+    state: &mut crate::packed::State,
+    tail: &PhaseTail,
+) -> Option<Vec<usize>> {
+    let mut ops = Vec::with_capacity(1 + tail.prefs.len());
+    if !task.op_applicable(tail.end_op, state) {
+        return None;
+    }
+    *state = task.apply(tail.end_op, state);
+    ops.push(tail.end_op);
+    for (collects, forgo) in &tail.prefs {
+        let oi = collects
+            .iter()
+            .copied()
+            .find(|&c| task.op_applicable(c, state))
+            .unwrap_or(*forgo);
+        if !task.op_applicable(oi, state) {
+            return None;
+        }
+        *state = task.apply(oi, state);
+        ops.push(oi);
+    }
+    Some(ops)
 }
 
 /// Build the partitioned-ESPC subproblems ("increment 2", see `crate::espc`):
@@ -1177,7 +1431,10 @@ fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance
     let collect_op = collect_ops(task);
     let mut prefs = Vec::new();
     for (i, (_, weight)) in forgos.iter().enumerate() {
-        let Some(&oi) = collect_op.get(&i) else {
+        // Multi-disjunct phi: guide on the FIRST disjunct (deterministic; the
+        // pre-Vec map silently kept an arbitrary one). Stage C replaces this
+        // with disjunct-aware guidance.
+        let Some(&oi) = collect_op.get(&i).and_then(|v| v.first()) else {
             continue;
         };
         let phi: Vec<u32> = task
@@ -1222,7 +1479,7 @@ fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u
     // minus synthetic P3* control facts) contains the deliverable fact D.
     let mut value: HashMap<u32, i64> = HashMap::new();
     for (i, (_, weight)) in forgos.iter().enumerate() {
-        let Some(&oi) = collect_op.get(&i) else {
+        let Some(&oi) = collect_op.get(&i).and_then(|v| v.first()) else {
             continue;
         };
         let w = (*weight).round().max(1.0) as i64;
