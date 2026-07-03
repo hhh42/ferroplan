@@ -246,6 +246,124 @@ fn extract(
     }
 }
 
+/// Predicates never added nor deleted by any action effect — their truth is
+/// fixed by the initial state. The static complement of [`modified_functions`].
+fn static_predicates(domain: &Domain) -> HashSet<String> {
+    fn walk(e: &Effect, out: &mut HashSet<String>) {
+        match e {
+            Effect::And(v) => v.iter().for_each(|x| walk(x, out)),
+            Effect::Add(name, _) | Effect::Del(name, _) => {
+                out.insert(name.clone());
+            }
+            Effect::When(_, e) | Effect::Forall(_, e) => walk(e, out),
+            Effect::Num(..) => {}
+        }
+    }
+    let mut modified = HashSet::new();
+    for a in &domain.actions {
+        walk(&a.effect, &mut modified);
+    }
+    domain
+        .predicates
+        .iter()
+        .map(|(n, _)| n.clone())
+        .filter(|n| !modified.contains(n))
+        .collect()
+}
+
+/// Partially evaluate a (mostly ground) preference formula against the facts
+/// that can never change: fully-ground atoms of STATIC predicates are decided
+/// by init membership, ground `(= a b)` is decided by symbol equality, and the
+/// connectives fold. Everything else (numeric comparisons, atoms still carrying
+/// quantified variables, dynamic predicates) is left untouched — conservative,
+/// so the result is equivalent in every REACHABLE state. A preference whose phi
+/// folds to `True` can never be violated (metric contribution identically 0),
+/// which is what lets `compile()` drop it before the Keyder–Geffner expansion.
+fn peval_static(
+    f: &Formula,
+    statics: &HashSet<String>,
+    init: &HashSet<(Sym, Vec<Sym>)>,
+) -> Formula {
+    match f {
+        Formula::Atom(p, args) => {
+            if !statics.contains(p) {
+                return f.clone();
+            }
+            let consts: Option<Vec<Sym>> = args
+                .iter()
+                .map(|t| match t {
+                    Term::Const(c) => Some(c.clone()),
+                    Term::Var(_) => None,
+                })
+                .collect();
+            match consts {
+                Some(cs) => {
+                    if init.contains(&(p.clone(), cs)) {
+                        Formula::True
+                    } else {
+                        Formula::False
+                    }
+                }
+                None => f.clone(), // still quantified — leave for grounding
+            }
+        }
+        Formula::Eq(Term::Const(a), Term::Const(b)) => {
+            if a == b {
+                Formula::True
+            } else {
+                Formula::False
+            }
+        }
+        Formula::Not(inner) => match peval_static(inner, statics, init) {
+            Formula::True => Formula::False,
+            Formula::False => Formula::True,
+            other => Formula::Not(Box::new(other)),
+        },
+        Formula::And(v) => {
+            let mut rest = Vec::new();
+            for x in v {
+                match peval_static(x, statics, init) {
+                    Formula::True => {}
+                    Formula::False => return Formula::False,
+                    other => rest.push(other),
+                }
+            }
+            if rest.is_empty() {
+                Formula::True
+            } else {
+                Formula::And(rest)
+            }
+        }
+        Formula::Or(v) => {
+            let mut rest = Vec::new();
+            for x in v {
+                match peval_static(x, statics, init) {
+                    Formula::True => return Formula::True,
+                    Formula::False => {}
+                    other => rest.push(other),
+                }
+            }
+            if rest.is_empty() {
+                Formula::False
+            } else {
+                Formula::Or(rest)
+            }
+        }
+        // `forall . True` and `exists . False` hold/fail vacuously even over an
+        // empty binding domain; the dual cases depend on domain non-emptiness,
+        // so they stay wrapped (conservative).
+        Formula::Forall(vars, inner) => match peval_static(inner, statics, init) {
+            Formula::True => Formula::True,
+            other => Formula::Forall(vars.clone(), Box::new(other)),
+        },
+        Formula::Exists(vars, inner) => match peval_static(inner, statics, init) {
+            Formula::False => Formula::False,
+            other => Formula::Exists(vars.clone(), Box::new(other)),
+        },
+        _ => f.clone(),
+    }
+}
+
 /// Functions modified by some action effect (so the complement is "static").
 fn modified_functions(domain: &Domain) -> HashSet<String> {
     fn walk(e: &Effect, out: &mut HashSet<String>) {
@@ -427,6 +545,37 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     let mut prefs = Vec::new();
     let mut ctr = 0;
     split_goal(&problem.goal, &mut hard, &mut prefs, &mut ctr, &objs);
+    let n_prefs_total = prefs.len();
+
+    // STATIC SIMPLIFICATION: a preference whose phi is statically TRUE (e.g. an
+    // `imply` whose antecedent tests a static relation like storage's
+    // `(connected s1 s2)` on an unconnected pair) can never be violated —
+    // contributing exactly 0 to the metric in every reachable state — so it
+    // never needs collect/forgo ops or a hard-goal fact. IPC-5 storage's
+    // quadratic forall-preference expands to crates²·storeareas² instances, of
+    // which ~90%+ are statically satisfied; dropping them here is what makes
+    // p03+ (1601/4211 raw instances) searchable at all. Survivors keep the
+    // simplified phi (cheaper DNF at grounding). The independent verifier
+    // scores from the ORIGINAL goal, so reported metrics are unaffected.
+    // `FF_PREF_NO_STATIC=1` restores the blind expansion.
+    if std::env::var("FF_PREF_NO_STATIC").is_err() {
+        let statics = static_predicates(domain);
+        let init: HashSet<(Sym, Vec<Sym>)> = problem.init_atoms.iter().cloned().collect();
+        prefs = prefs
+            .into_iter()
+            .filter_map(|(name, phi)| match peval_static(&phi, &statics, &init) {
+                Formula::True => None,
+                simplified => Some((name, simplified)),
+            })
+            .collect();
+        if std::env::var("FF_RES_DEBUG").is_ok() && prefs.len() < n_prefs_total {
+            eprintln!(
+                "[P3] static simplification: dropped {} of {} preference instance(s)",
+                n_prefs_total - prefs.len(),
+                n_prefs_total
+            );
+        }
+    }
 
     let mut w = HashMap::new();
     let mut tc = 0.0;
@@ -642,7 +791,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         domain: d,
         problem: p,
         minimize,
-        n_prefs: prefs.len(),
+        // full pre-simplification count: statically-satisfied instances are
+        // still real preferences (satisfied ones), so reporting stays stable
+        n_prefs: n_prefs_total,
         warn_other: metric_other,
         unsupported,
         synthetic,
