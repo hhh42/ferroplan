@@ -47,22 +47,26 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.3.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.4.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
-> **What's new in 0.3.0** — solver depth, measured on a 75-instance temporal
-> corpus as **65 → 73 solved, zero regressions**: **goal-relevance pruning is on
-> by default** (a 5-step chain that exhausted the search in ~45 s now solves in
-> ~30 ms, with an unmasked complete backstop so completeness is unconditional);
-> an **on-failure escalation ladder** (a failed search automatically retries at
-> the Full demand tier, then hands off to the goal decomposer — no flags, though
-> it does mean a search that used to fail fast can now take longer before giving
-> up: `FF_NO_ESCALATE` restores the old behavior); **statically unproducible
-> goals fail in microseconds** instead of burning the whole node budget; and a
-> new **`Session` API** — ground once, replan many — for embedding the planner in
-> a live loop (~10× per-tick on small contracts). See the
-> [CHANGELOG](CHANGELOG.md) for the full breakdown, including 0.2.2's "forge"
-> visual identity, the browser animator's scrubbable **transport bar** and
-> **temporal timescale (Gantt) view**, and the move to **Bevy 0.19**.
+> **What's new in 0.4.0** — the PDDL3 preference-metric release, measured
+> against the official IPC-5 winner on the vendored simple-preferences suite
+> ([scoreboard](benchmarks/ipc5-scoreboard.md)): ferroplan now **leads SGPlan5
+> on two of the six domains** — openstacks (opt-in `FF_ESPC=1` partitioned
+> penalty loop: 19/23/17/**16/21/22/66/87** vs 13/16/12/26/36/33/67/123) and
+> storage (plain defaults: **3/5/6/9/46**/145/200/263 vs 5/8/14/17/87/…, up
+> from 2/8 coverage) — is **ahead on the trucks total**, and **ties SGPlan5 on
+> every tpp and pathways p01–p04 instance**. Under the hood: an
+> **exact-closure metric optimizer** (search real states, close the compiled
+> preference bookkeeping with a provably-optimal phase tail), **static
+> preference simplification** (storage's 62k-instance quadratic forall
+> collapses ~97% at compile), barrier-free full-DNF guidance, and a
+> **budget-escalating B&B** whose deterministic eval budget
+> (`FF_PREF_EVAL_BUDGET`) is a real quality dial. Every change has a restore
+> hatch. See the [CHANGELOG](CHANGELOG.md) for the full breakdown, including
+> 0.3.0's temporal solver depth (65 → 73/75 corpus, default goal-relevance
+> pruning, escalation ladder, `Session` API), the animator's transport bar and
+> Gantt view, and the move to **Bevy 0.19**.
 
 ## Features
 

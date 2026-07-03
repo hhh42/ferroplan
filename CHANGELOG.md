@@ -2,7 +2,24 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.4.0] - 2026-07-03 — Preference metrics: ferroplan takes on SGPlan5
+
+The PDDL3 preference-metric release. On the vendored IPC-5 simple-preferences
+suite (p01–p08, six domains, vs the official SGPlan5 results — see
+`benchmarks/ipc5-scoreboard.md`), ferroplan goes from a distant quality 2nd to
+**leading the IPC-5 winner on two domains** (openstacks via the opt-in
+`FF_ESPC` partitioned penalty loop; storage on the plain defaults), **ahead on
+the trucks total**, at **small-instance parity on tpp and pathways**, with
+**full 48/48 coverage** (storage was 2/8) — every result deterministic and
+thread-count independent.
+
+Bumped to 0.4.0, not 0.3.1: the preference-metric default path changed (the
+exact-closure optimizer replaces the compiled-goal B&B; wall time now scales
+with the eval budget instead of stopping at the first failed probe) and the
+public API grew (`SearchCfg::w_c`, `features::espc()` /
+`set_espc_override`). Every behavior change has a restore hatch:
+`FF_PREF_COMPILED`, `FF_PREF_NO_STATIC`, `FF_PREF_BARRIER`,
+`FF_PREF_NO_ESCALATE`, `FF_ESPC_MONO`; budget via `FF_PREF_EVAL_BUDGET`.
 
 ### Added
 - **Budget-escalating B&B retry — the eval budget becomes a real contract,
