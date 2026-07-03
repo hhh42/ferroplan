@@ -5,6 +5,45 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- **Exact-closure metric optimizer (new default for preference metrics) —
+  storage flips from 2/8 coverage to beating SGPlan5 on p01–p05; tpp and
+  pathways reach SGPlan5 parity on their small instances; trucks p08 drops
+  133 → 10.** Three coupled changes to the PDDL3 path, each with a restore
+  hatch:
+  - *Static preference simplification* (compile): a preference whose phi is
+    statically true (e.g. an `imply` over a static relation that never holds
+    for that binding) can never be violated, so it is dropped before the
+    Keyder–Geffner expansion — storage's quadratic forall-preference shrinks
+    ~90–97% (p03: 1601 → 53 live instances; p08: 62k raw). Reported metrics
+    are unaffected (the verifier scores from the original goal).
+    `FF_PREF_NO_STATIC=1` restores blind expansion.
+  - *Exact-closure metric search* (optimize): the anytime B&B now searches
+    REAL states only, accepting a state iff the real hard goal holds and
+    `cost-so-far + closure(state) < bound` — `closure` being the exact weight
+    the deterministic `P3END`/collect/forgo phase tail pays from that state —
+    instead of searching a compiled goal of hundreds/thousands of bookkeeping
+    facts with a satisfaction-blind heuristic. The first incumbent is the tail
+    applied to the initial state (instant coverage on any pure-preference
+    instance); the tightening budget is a deterministic evaluated-state count
+    (`FF_PREF_EVAL_BUDGET`, default 2M), so plans are thread-count
+    independent, and un-capped exhaustion still proves optimality. Folded
+    numeric metrics (rovers) deliberately stay on the legacy compiled-goal
+    B&B; `FF_PREF_COMPILED=1` forces it everywhere. Multi-disjunct phis
+    (`imply`/`exists`) now close correctly (the collect-op map kept one
+    arbitrary disjunct before).
+  - *Barrier-free DNF guidance*: the open-list satisfaction penalty now
+    evaluates each preference's full DNF (so `imply`/`exists` preferences
+    guide at all) and skips preferences already satisfied in the initial
+    state — penalizing their transient dips walled off every improving
+    trajectory (tpp's weight-16 `p4A` made metric 16 unreachable from 21).
+    `FF_PREF_BARRIER=1` restores the old shape.
+
+  IPC-5 defaults (release, 4 threads, all ≤ 60 s): tpp 16/24/29/36/101/116/
+  133/148 (ties SGPlan5 p01–p03), storage 3/5/6/9/48/148/200/272 (beats
+  SGPlan5 p01–p05; was 8/12 then nothing), trucks 0/0/1/0/0/6/19/10 (wins
+  p01/p07), pathways 2/3/3/2/8.5/12.9/12.5/20.2 (ties p01–p04), openstacks
+  default 49/40/29/41/67/86/153/370 (`FF_ESPC` row unchanged at 19/…/87),
+  rovers unchanged. See `benchmarks/ipc5-scoreboard.md`.
 - **Partitioned ESPC (opt-in `FF_ESPC`) — ferroplan now beats SGPlan5 on
   openstacks p04–p08.** The PDDL3 preference-metric penalty loop
   ("increment 2" of `docs/espc-preferences-spec.md`) couples its per-trigger λ
