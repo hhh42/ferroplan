@@ -5,6 +5,29 @@ All notable changes to this project are documented here.
 ## [Unreleased]
 
 ### Added
+- **Budget-escalating B&B retry — the eval budget becomes a real contract,
+  lifting five of six IPC-5 preference domains at the default settings.**
+  Both preference-metric optimizers (closure and legacy) treated one capped
+  300k-eval tightening probe that found no cheaper plan as terminal, abandoning
+  the optimization with most of `FF_PREF_EVAL_BUDGET` unspent — and the
+  per-iteration cap was pinned at 300k, so raising the budget changed nothing
+  (measured: 16x budget, identical results). A capped failure now retries the
+  same bound with ALL remaining budget (deterministic eval counts, so plans
+  stay thread-independent; `FF_PREF_NO_ESCALATE=1` restores the old behavior;
+  the legacy loop also gains the budget accounting it never had). Measured at
+  defaults: tpp p04 36 -> 35 (SGPlan5 tie, completing p01-p04 parity), tpp
+  p05/p07/p08 97/131/146; trucks p07 19 -> 12 (now ahead of SGPlan5's 24 by
+  half); storage p05/p06/p08 46/145/263; openstacks default p01 49 -> 42;
+  rovers p02 659.3 -> 596.7 and p05 649.9 -> 523.3. Wall time now scales with
+  the budget (trucks p08 ~163 s at 4 threads; lower `FF_PREF_EVAL_BUDGET` to
+  trade quality for speed).
+- **`SearchCfg::w_c` — experimental metric-cost open-list ordering** (default
+  0.0 = priority key bit-identical), settable via `FF_PREF_COST_WEIGHT`. Built
+  as the designed rovers lever and measured to be a dead end there: every
+  non-zero weight collapsed rovers to the all-forgo floor (accumulated cost
+  ordering buries deep goal-reaching prefixes), so the default stays 0
+  everywhere and the field is documented as experimental. Additive public-API
+  change to `SearchCfg` (constructors default it).
 - **Exact-closure metric optimizer (new default for preference metrics) —
   storage flips from 2/8 coverage to beating SGPlan5 on p01–p05; tpp and
   pathways reach SGPlan5 parity on their small instances; trucks p08 drops
