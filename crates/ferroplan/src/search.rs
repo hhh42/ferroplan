@@ -93,6 +93,51 @@ struct Node {
     g: usize,
 }
 
+/// A preference's phi in grounded DNF: it holds in a state iff ANY disjunct's
+/// positive facts all hold and its numeric comparisons all pass (negative
+/// literals arrive as compiled complementary facts, so positives suffice).
+/// Built from the `P3COLLECT-i` ops' preconditions — one disjunct per op. An
+/// EMPTY disjunct list means phi is unachievable (never holds).
+pub struct PrefPhi {
+    pub disjuncts: Vec<(Vec<u32>, Vec<NumPre>)>,
+}
+
+impl PrefPhi {
+    #[inline]
+    pub fn holds(&self, s: &State) -> bool {
+        self.disjuncts.iter().any(|(pos, num)| {
+            pos.iter()
+                .all(|&f| crate::bitset::test(&s.bits, f as usize))
+                && num
+                    .iter()
+                    .all(|np| crate::types::eval_numpre(np, &s.fv, &s.fdef).unwrap_or(false))
+        })
+    }
+}
+
+/// The EXACT preference-closure cost of a state: the summed weight of the
+/// preference instances whose phi does not hold — precisely what the phase
+/// tail ([`crate::pddl3::PhaseTail`]) will pay in forgo actions if the plan
+/// stops here (`P3END` only toggles phase facts, changing no phi). Passing
+/// this to [`search_from`] switches the goal test to metric-bounded
+/// acceptance: a popped state is accepted iff the real goal holds AND
+/// `cost-so-far + closure < bound` — the search then explores REAL states
+/// only and the compiled bookkeeping goals never enter the search at all.
+pub struct ClosureCost {
+    /// `(forgo weight, phi)` per preference instance with positive weight.
+    pub prefs: Vec<(f64, PrefPhi)>,
+}
+
+impl ClosureCost {
+    pub fn cost(&self, s: &State) -> f64 {
+        self.prefs
+            .iter()
+            .filter(|(_, phi)| !phi.holds(s))
+            .map(|(w, _)| w)
+            .sum()
+    }
+}
+
 /// Metric search guidance: bias the open list toward states that satisfy more
 /// preferences. Each entry is `(conjunctive phi fact-ids, heap penalty while that
 /// preference is forgone)`. Evaluated on the concrete successor state, so it sees
@@ -182,6 +227,7 @@ pub fn search_from(
     cfg: SearchCfg,
     forbidden: &[bool],
     sat: Option<&SatGuidance>,
+    closure: Option<&ClosureCost>,
 ) -> PlanResult {
     let batch = BATCH;
 
@@ -236,10 +282,22 @@ pub fn search_from(
             }
         }
 
-        // goal check (cheap, before any heuristic work)
+        // goal check (cheap, before any heuristic work). With `closure` set,
+        // acceptance is METRIC-BOUNDED: the real goal must hold AND the exact
+        // preference-closure completion must beat the incumbent bound — the
+        // phase tail appended by the caller pays exactly `closure.cost`, so
+        // this test accepts precisely the states that improve the metric.
         for &ni in &popped {
             max_g = max_g.max(nodes[ni].g);
-            if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
+            if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num)
+                && closure.map_or(true, |cl| {
+                    let s = &nodes[ni].state;
+                    let g = cost_fluent
+                        .map(|cf| if s.fdef[cf] { s.fv[cf] } else { 0.0 })
+                        .unwrap_or(0.0);
+                    g + cl.cost(s) < cost_bound
+                })
+            {
                 return PlanResult::Plan {
                     ops: reconstruct(&nodes, ni),
                     advance,
@@ -365,6 +423,7 @@ pub fn search(task: &PackedTask, threads: usize, cfg: SearchCfg) -> PlanResult {
         cfg,
         &[],
         None,
+        None,
     )
 }
 
@@ -413,6 +472,7 @@ pub fn plan_avoiding(
         threads,
         cfg,
         forbidden,
+        None,
         None,
     ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
@@ -606,6 +666,7 @@ pub fn solve_subgoal_avoiding(
         cfg,
         forbidden,
         None,
+        None,
     ) {
         PlanResult::Plan { ops, .. } => Some(ops),
         PlanResult::Unsolvable { .. } => None,
@@ -639,9 +700,49 @@ pub fn solve_subgoal_bounded(
         cfg,
         &[],
         sat,
+        None,
     ) {
         PlanResult::Plan { ops, .. } => (Some(ops), false),
         PlanResult::Unsolvable { capped, .. } => (None, capped),
+    }
+}
+
+/// The exact-closure metric subplanner (`crate::pddl3::metric_optimize`'s
+/// default path): search REAL states only — `forbidden` masks every synthetic
+/// `P3END`/collect/forgo op — accepting a state iff the real goal holds AND
+/// `cost-so-far + closure(state) < bound` (the caller appends the phase tail,
+/// which pays exactly `closure`). Returns the plan (sans tail) plus the number
+/// of states evaluated, so the caller can run a DETERMINISTIC eval-count
+/// budget across tightening iterations, and the capped flag (bound proven
+/// unbeatable iff un-capped exhaustion).
+#[allow(clippy::too_many_arguments)]
+pub fn solve_closure_bounded(
+    task: &PackedTask,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    cost_fluent: usize,
+    bound: f64,
+    closure: &ClosureCost,
+    forbidden: &[bool],
+    threads: usize,
+    cfg: SearchCfg,
+    sat: Option<&SatGuidance>,
+) -> (Option<Vec<usize>>, usize, bool) {
+    match search_from(
+        task,
+        &task.initial(),
+        goal_pos,
+        goal_num,
+        Some(cost_fluent),
+        bound,
+        threads,
+        cfg,
+        forbidden,
+        sat,
+        Some(closure),
+    ) {
+        PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated, false),
+        PlanResult::Unsolvable { evaluated, capped } => (None, evaluated, capped),
     }
 }
 
@@ -674,6 +775,7 @@ pub fn solve_subgoal_guided(
         cfg,
         forbidden,
         sat,
+        None,
     ) {
         PlanResult::Plan { ops, .. } => Some(ops),
         PlanResult::Unsolvable { .. } => None,

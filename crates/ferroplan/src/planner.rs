@@ -216,7 +216,7 @@ fn plan_pddl3(
         .collect();
     // Mutex groups feed the resource-aware guidance (renewable counter resources).
     let groups = crate::invariants::synthesize(&c.domain, &task);
-    match pddl3::metric_optimize(&task, cf, &forgos, &groups, threads) {
+    match pddl3::metric_optimize(&task, cf, &forgos, &groups, c.folded_metric, threads) {
         Some(r) => {
             let mut note = String::new();
             if c.warn_other {
