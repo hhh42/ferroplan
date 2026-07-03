@@ -194,3 +194,17 @@ instance, stall/saddle-terminated well inside budget): openstacks p01–p08
 (13/16/12/26/36/33/67/123) on p04–p08. The other five preference domains carry
 no deadline pairs, so `FF_ESPC=1` remains a verified no-op there. See
 `benchmarks/ipc5-scoreboard.md`.
+
+## Follow-on (2026-07) — the closure optimizer generalizes the tail to the default path
+
+The phase-tail machinery built for increment 2 became the core of the DEFAULT
+preference-metric optimizer (see CHANGELOG "exact-closure metric optimizer"):
+static preference simplification at compile, real-state search with
+metric-bounded acceptance (`cost + closure(state) < bound`), the exact tail as
+closure, and barrier-free full-DNF satisfaction guidance. Effects on the other
+IPC-5 preference domains: storage 2/8 coverage → 8/8 and ahead of SGPlan5 on
+p01–p05; tpp/pathways parity with SGPlan5 on their small instances; trucks
+lifted across the row. The `FF_ESPC` openstacks path is unchanged (verified:
+locked results, t1≡t8); the openstacks DEFAULT dropped 63 → 49 by riding the
+same closure optimizer. Remaining gaps and the next levers are tracked in
+`benchmarks/ipc5-scoreboard.md` ("Path to climb" items 4–5).

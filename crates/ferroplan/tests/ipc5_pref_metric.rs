@@ -72,11 +72,15 @@ fn default_metric_matches_independent_verifier() {
 #[test]
 #[ignore = "heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)"]
 fn ipc5_pref_metric_no_regression() {
-    // p01 snapshot ceilings with satisfaction-guidance (must not regress upward)
+    // p01 snapshot ceilings (must not regress upward). Re-derived 2026-07 for
+    // the exact-closure optimizer + static simplification + barrier-free
+    // guidance: tpp ties SGPlan5 (16), storage beats it (3 vs 5), openstacks'
+    // default dropped 63 -> 49 (the opt-in FF_ESPC row is separate, see
+    // tests/espc.rs). rovers rides the legacy folded-metric path, unchanged.
     for (d, ceiling) in [
-        ("openstacks", 63.0),
-        ("tpp", 21.0),
-        ("storage", 8.0),
+        ("openstacks", 49.0),
+        ("tpp", 16.0),
+        ("storage", 3.0),
         ("trucks", 0.0),
         // rovers is MetricSimplePreferences: weighted is-violated + the monotone
         // (sum-traverse-cost) numeric term, which compile() now folds into
@@ -87,4 +91,15 @@ fn ipc5_pref_metric_no_regression() {
         let m = metric(d, "p01");
         assert!(m <= ceiling, "{d}/p01 metric {m} regressed above {ceiling}");
     }
+}
+
+#[test]
+#[ignore = "heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)"]
+fn storage_p03_covered_with_sane_metric() {
+    // storage p03 compiles to 1601 preference instances and produced NOTHING at
+    // any timeout before static simplification + the exact-closure optimizer.
+    // Locks both coverage and quality (6 beats SGPlan5's 14; ceiling with slack
+    // for future search shifts, not for a coverage loss).
+    let m = metric("storage", "p03");
+    assert!(m <= 14.0, "storage/p03 metric {m} regressed above 14");
 }
