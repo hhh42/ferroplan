@@ -858,6 +858,13 @@ pub struct MetricResult {
 /// runtime with `FF_RES_WEIGHT` / `FF_RES_THRESH` to experiment.
 const RES_WEIGHT_DEFAULT: i64 = 0;
 
+/// Default `SearchCfg::w_c` for the FOLDED-numeric-metric legacy B&B (rovers'
+/// mirrored traverse costs). Measured 2026-07 on rovers p01–p08 (sweep
+/// {0, 0.25, 0.5, 1, 2, 5}); pure-preference paths keep 0.0 — their metric is
+/// priced by the closure acceptance, and the sweep showed no tail gains.
+/// Override with `FF_PREF_COST_WEIGHT` (0 disables).
+const COST_WEIGHT_FOLDED_DEFAULT: f64 = 1.0;
+
 pub fn metric_optimize(
     task: &PackedTask,
     cost_fluent: usize,
@@ -916,6 +923,21 @@ pub fn metric_optimize(
     // bit-identical until a flag is set.
     sat.deadline = build_deadline_guidance(task, forgos);
     let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
+    // Cost-aware open-list ordering (see `SearchCfg::w_c`). Folded numeric
+    // metrics (rovers' mirrored traverse costs) accrue on REAL actions, so a
+    // cost-blind step-count search over-satisfies: it never sees that a
+    // preference's forced round-trip costs more than its forgo weight. The
+    // measured default applies only to the folded-metric legacy loop; the
+    // pure-preference paths keep 0 (closure acceptance already prices the
+    // metric; measured no-help there). `FF_PREF_COST_WEIGHT` overrides both.
+    let cost_w = std::env::var("FF_PREF_COST_WEIGHT")
+        .ok()
+        .and_then(|s| s.parse::<f64>().ok())
+        .unwrap_or(if folded_metric {
+            COST_WEIGHT_FOLDED_DEFAULT
+        } else {
+            0.0
+        });
 
     // FULL ESPC (FF_ESPC): an adaptive per-trigger penalty-resolution outer loop.
     // It re-solves under fixed penalties, raises the penalty on triggers whose
@@ -1001,9 +1023,15 @@ pub fn metric_optimize(
     // `FF_PREF_COMPILED=1`.
     if !forgos.is_empty() && !folded_metric && std::env::var("FF_PREF_COMPILED").is_err() {
         if let Some(tail) = build_phase_tail(task, forgos) {
-            if let Some(r) =
-                metric_optimize_closure(task, cost_fluent, forgos, &tail, &sat, threads, refine_cfg)
-            {
+            if let Some(r) = metric_optimize_closure(
+                task,
+                cost_fluent,
+                forgos,
+                &tail,
+                &sat,
+                threads,
+                refine_cfg.with_cost_weight(cost_w),
+            ) {
                 return Some(r);
             }
         }
@@ -1011,7 +1039,10 @@ pub fn metric_optimize(
 
     // 3. LEGACY compiled-goal path: EHC seed on the full compiled goal, then the
     // bounded polish B&B from the incumbent. Reached only via `FF_PREF_COMPILED=1`
-    // or the closure fallback above.
+    // or the closure fallback above. The tightening loop shares the closure
+    // path's deterministic eval-count budget and capped-failure escalation
+    // (see `metric_optimize_closure`); the 1.5M EHC seed stays outside the
+    // budget, mirroring the closure path's free init-tail incumbent.
     let mut bound = f64::INFINITY;
     let mut best: Option<(Vec<usize>, f64)> = None;
     let mut iterations = 0;
@@ -1035,9 +1066,22 @@ pub fn metric_optimize(
         bound = cost;
         best = Some((ops, cost));
     }
-    while iterations < MAX_ITERS {
+    let budget = pref_eval_budget();
+    let no_escalate = std::env::var("FF_PREF_NO_ESCALATE").is_ok();
+    let mut spent = 0usize;
+    let mut escalated = false;
+    while iterations < MAX_ITERS && spent < budget {
         iterations += 1;
-        let (opt, capped) = solve_subgoal_bounded(
+        let cap = if escalated {
+            budget - spent
+        } else {
+            refine_cfg.max_eval.min(budget - spent)
+        };
+        let iter_cfg = SearchCfg {
+            max_eval: cap,
+            ..refine_cfg.with_cost_weight(cost_w)
+        };
+        let (opt, evaluated, capped) = solve_subgoal_bounded(
             task,
             &init,
             &task.goal_pos,
@@ -1045,11 +1089,13 @@ pub fn metric_optimize(
             cost_fluent,
             bound,
             threads,
-            refine_cfg,
+            iter_cfg,
             Some(&sat),
         );
+        spent += evaluated;
         match opt {
             Some(ops) => {
+                escalated = false;
                 let cost = plan_cost(task, &ops, cost_fluent);
                 best = Some((ops, cost));
                 if cost <= 0.0 {
@@ -1059,8 +1105,14 @@ pub fn metric_optimize(
                 bound = cost; // next plan must be strictly cheaper (prune cost >= bound)
             }
             None => {
-                // no plan cheaper than the incumbent: proven optimal IFF the
-                // search exhausted (not stopped by the MAX_EVAL safety cap).
+                // A capped failure is inconclusive: with budget remaining,
+                // retry the same bound with all of it (see the closure loop's
+                // escalation rationale). Proven optimal IFF a retry-exempt
+                // failure exhausted the space un-capped.
+                if capped && !no_escalate && budget.saturating_sub(spent) > cap {
+                    escalated = true;
+                    continue;
+                }
                 proven = !capped;
                 break;
             }
@@ -1072,6 +1124,15 @@ pub fn metric_optimize(
         iterations,
         proven,
     })
+}
+
+/// The shared deterministic tightening budget (evaluated-state count) for both
+/// metric B&B loops — never wall-clock, so results are thread-independent.
+fn pref_eval_budget() -> usize {
+    std::env::var("FF_PREF_EVAL_BUDGET")
+        .ok()
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(2_000_000)
 }
 
 /// The exact-closure metric optimizer (see `metric_optimize` step 2): anytime
@@ -1139,19 +1200,33 @@ fn metric_optimize_closure(
         }
     }
 
-    let budget = std::env::var("FF_PREF_EVAL_BUDGET")
-        .ok()
-        .and_then(|s| s.parse::<usize>().ok())
-        .unwrap_or(2_000_000);
+    let budget = pref_eval_budget();
     let mut spent = 0usize;
     let mut iterations = 0usize;
     let mut proven = false;
     let mut bound = best.as_ref().map_or(f64::INFINITY, |(_, c)| *c);
 
+    // ESCALATION: a tightening probe that hits its per-iteration eval cap
+    // without finding a cheaper plan is INCONCLUSIVE, not a reason to abandon
+    // the optimization — with budget remaining, retry the SAME bound with ALL
+    // of it (not a doubling ladder: a retry at the same bound+cfg re-treads a
+    // deterministic prefix, so intermediate rungs only re-pay it; `evaluated`
+    // is actual usage, so a large cap that succeeds early costs only what it
+    // used). This is what makes FF_PREF_EVAL_BUDGET the real contract — before
+    // it, one failed 300k sweep ended the loop with millions unspent. All
+    // quantities are deterministic eval counts, so t1≡t8 is preserved.
+    // `FF_PREF_NO_ESCALATE=1` restores break-on-first-capped-failure.
+    let no_escalate = std::env::var("FF_PREF_NO_ESCALATE").is_ok();
+    let mut escalated = false;
     while iterations < MAX_ITERS && spent < budget {
         iterations += 1;
+        let cap = if escalated {
+            budget - spent
+        } else {
+            cfg.max_eval.min(budget - spent)
+        };
         let iter_cfg = SearchCfg {
-            max_eval: cfg.max_eval.min(budget - spent),
+            max_eval: cap,
             ..cfg
         };
         let (opt, evaluated, capped) = crate::search::solve_closure_bounded(
@@ -1169,6 +1244,7 @@ fn metric_optimize_closure(
         spent += evaluated;
         match opt {
             Some(mut ops) => {
+                escalated = false;
                 let mut s = init.clone();
                 for &oi in &ops {
                     s = task.apply(oi, &s);
@@ -1189,6 +1265,10 @@ fn metric_optimize_closure(
                 bound = cost;
             }
             None => {
+                if capped && !no_escalate && budget.saturating_sub(spent) > cap {
+                    escalated = true; // retry the same bound with all remaining budget
+                    continue;
+                }
                 proven = !capped;
                 break;
             }

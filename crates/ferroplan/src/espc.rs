@@ -306,7 +306,7 @@ fn solve_under_penalties(
         if i > 0 && Instant::now() >= deadline {
             break;
         }
-        let (opt, _capped) = solve_subgoal_bounded(
+        let (opt, _evaluated, _capped) = solve_subgoal_bounded(
             task,
             &init,
             &task.goal_pos,
