@@ -25,7 +25,7 @@ only; MIPS-BDD is optimal-but-very-low-coverage.)
 ## ferroplan vs SGPlan5, p01–p08 (lower is better; **bold** = ferroplan ≤ SGPlan5)
 
 **openstacks** — satisfaction guidance broke the all-forgo floor (70→63), the
-exact-closure optimizer² pushed the default further (63→49 on p01), and the
+exact-closure optimizer² pushed the default further (63→42 on p01), and the
 opt-in ESPC penalty loop (`FF_ESPC`, see `docs/espc-preferences-spec.md`)
 couples its λ schedule to a **partitioned search** ("increment 2": one
 subproblem per order-interaction component, the shared `stacks-avail` variable
@@ -35,7 +35,7 @@ IPC-5 winner on the larger half of the suite:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | 49 | 40 | 29 | 41 | 67 | 86 | 153 | 370 |
+| ferroplan² | 42 | 34 | 28 | 39 | 67 | 85 | 153 | 370 |
 | + `FF_ESPC`¹ | 19 | 23 | 17 | **16** | **21** | **22** | **66** | **87** |
 | SGPlan5 | 13 | 16 | 12 | 26 | 36 | 33 | 67 | 123 |
 
@@ -48,18 +48,23 @@ stall/saddle well inside the budget — worst case p04 at ~58 s wall, p01 in ~4 
 ² Default path since 2026-07: the **exact-closure metric optimizer** (static
 preference simplification at compile + real-state search with metric-bounded
 acceptance + the exact `P3END`/collect/forgo phase tail + barrier-free DNF
-guidance). Deterministic eval-count budget (`FF_PREF_EVAL_BUDGET`, default 2M),
-thread-count independent; every row above completed in ≤ 60 s wall at 4 cores.
-`FF_PREF_COMPILED=1` / `FF_PREF_NO_STATIC=1` / `FF_PREF_BARRIER=1` restore the
-pre-2026-07 pieces. rovers routes to the legacy compiled-goal B&B by design
-(folded numeric metric), hence no ² there.
+guidance), with a **budget-escalating retry**: a tightening probe that hits its
+300k per-iteration eval cap without improvement retries the same bound with all
+remaining budget instead of ending the optimization — `FF_PREF_EVAL_BUDGET`
+(default 2M evals, deterministic, thread-count independent) is the real
+contract. Most instances finish in ≤ 65 s wall at 4 cores; the trucks tail is
+the slowest (p07 ~108 s, p08 ~163 s) because the escalated retries actually
+spend the budget. `FF_PREF_COMPILED=1` / `FF_PREF_NO_STATIC=1` /
+`FF_PREF_BARRIER=1` / `FF_PREF_NO_ESCALATE=1` restore the pre-2026-07 pieces.
+rovers routes to the legacy compiled-goal B&B by design (folded numeric
+metric) — it shares the budget/escalation but not the closure search.
 
-**tpp** — the exact-closure optimizer² **ties SGPlan5 on p01–p03** and lands one
-off on p04; the whole field ties SGPlan at 16/24/29/35 on p01–p04:
+**tpp** — the exact-closure optimizer² **ties SGPlan5 on p01–p04** (the whole
+field ties SGPlan there); SGPlan5 keeps the tail:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **16** | **24** | **29** | 36 | 101 | 116 | 133 | 148 |
+| ferroplan² | **16** | **24** | **29** | **35** | 97 | 116 | 131 | 146 |
 | SGPlan5 | 16 | 24 | 29 | 35 | 79 | 101 | 100 | 105 |
 
 **storage** — full coverage (was 2/8: the quadratic forall-preference compiled
@@ -69,23 +74,24 @@ states only — **ferroplan now beats SGPlan5 on p01–p05**:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **3** | **5** | **6** | **9** | **48** | 148 | 200 | 272 |
+| ferroplan² | **3** | **5** | **6** | **9** | **46** | 145 | 200 | 263 |
 | SGPlan5 | 5 | 8 | 14 | 17 | 87 | 124 | 160 | 132 |
 
-**trucks** — the closure optimizer² lifted the whole row (p08: 133 → 10);
-ferroplan **wins p01 and p07**, ties p02/p04/p05:
+**trucks** — the closure optimizer² lifted the whole row (p08: 133 → 10, p07:
+67 → 12); ferroplan **wins p01 and p07**, ties p02/p04/p05:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **0** | 0 | 1 | 0 | 0 | 6 | **19** | 10 |
+| ferroplan² | **0** | 0 | 1 | 0 | 0 | 6 | **12** | 10 |
 | SGPlan5 | 1 | 0 | 0 | 0 | 0 | 0 | 24 | 6 |
 
-**rovers** (MetricSimplePreferences — numeric metric, now optimized via numeric-term
-folding) — ferroplan is competitive and **edges p07/p08**:
+**rovers** (MetricSimplePreferences — numeric metric, optimized via numeric-term
+folding on the legacy B&B; the escalating retry bought p02/p05) — ferroplan is
+competitive and **edges p07/p08**:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan | 935.3 | 659.3 | 1018.2 | 559.9 | 649.9 | 664.6 | **402.2** | **979.9** |
+| ferroplan | 935.3 | 596.7 | 1018.2 | 559.9 | 523.3 | 664.6 | **402.2** | **979.9** |
 | SGPlan5 | 811.3 | 473.2 | 811.3 | 485.4 | 483.6 | 656.7 | 403.4 | 1007.6 |
 
 **pathways** — **ties SGPlan5 on p01–p04** (was p01 only); SGPlan5 better after:
@@ -104,10 +110,10 @@ everywhere:
   `FF_ESPC` partitioned penalty loop: wins p04–p08, totals 271 vs 326) and
   **storage** (default path: wins p01–p05, 5 of 8 instances; SGPlan5 keeps the
   three largest).
-- **Parity band**: **trucks** (wins p01/p07, ties p02/p04/p05; totals 36 vs
-  31), **pathways** (ties p01–p04), **tpp** (ties p01–p03, one off on p04),
-  and **rovers** (wins p07/p08) — SGPlan5 still ahead on each domain's larger
-  instances.
+- **Parity band**: **trucks** (wins p01/p07, ties p02/p04/p05; totals 29 vs
+  31 — now AHEAD on total too), **pathways** (ties p01–p04), **tpp** (ties
+  p01–p04 — the whole field does), and **rovers** (wins p07/p08) — SGPlan5
+  still ahead on each domain's larger instances.
 - SGPlan5's real 6/0 sweep is now, on this p01–p08 slice, roughly a **4/2**
   with three of its four domain leads carried by the p05–p08 tail.
 
@@ -137,12 +143,20 @@ p05–p08) and rovers' numeric metric.
    simplification (statically-satisfied instances dropped at compile) + the
    closure optimizer's instant init-tail incumbent give storage full 8/8
    coverage (62k raw instances on p08) with every instance ≤ 60 s.
-4. **Large-instance tails** — tpp/pathways/storage p05–p08: the eval budget is
-   the binding constraint now; candidate levers are a partitioned closure
-   search (the ESPC composition generalized beyond deadline domains) and
-   longer-horizon guidance.
-5. **rovers numeric metric** — the folded-metric path still trails SGPlan5 on
-   p01–p06; needs cost-aware search (e.g. bounded-suboptimal weighting on the
-   folded term) rather than preference machinery.
+4. **Large-instance tails** — partially closed (2026-07): the budget-escalating
+   retry converted the "abandon on first capped probe" plateau into real budget
+   consumption — tpp p04 35 (tie), p05 101→97, trucks p07 19→12, storage
+   p05/p06/p08 46/145/263, openstacks default 49→42, rovers p02/p05
+   596.7/523.3. What remains (tpp/pathways p05–p08, storage p06–p08) plateaus
+   at the 2M default budget with greedy first-improvement tightening; next
+   levers are a better-than-first-improvement iteration (e.g. exhaust-then-pick
+   or restarts) and partitioned closure search.
+5. **rovers numeric metric** — the residual p01–p06 gap is a subset-selection
+   problem (which preferences are worth their forced traverse cost). MEASURED
+   DEAD END (2026-07): cost-aware open-list ordering (`SearchCfg::w_c`,
+   `FF_PREF_COST_WEIGHT`) collapses quality at every weight tried — cost only
+   grows along a path, so cost-ordering buries goal-reaching prefixes; the
+   machinery stays for experiments, default 0. A working lever must price the
+   *completion* (cost-aware heuristic or forgo-aware seeding), not the prefix.
 
 > Reproduce: `for p in p01..p08; do ff -o pref/<domain>/domain.pddl -f pref/<domain>/$p.pddl; done`

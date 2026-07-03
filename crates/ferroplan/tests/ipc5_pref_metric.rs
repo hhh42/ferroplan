@@ -77,8 +77,9 @@ fn ipc5_pref_metric_no_regression() {
     // guidance: tpp ties SGPlan5 (16), storage beats it (3 vs 5), openstacks'
     // default dropped 63 -> 49 (the opt-in FF_ESPC row is separate, see
     // tests/espc.rs). rovers rides the legacy folded-metric path, unchanged.
+    // openstacks re-locked 49 -> 42 (2026-07, budget-escalating retry).
     for (d, ceiling) in [
-        ("openstacks", 49.0),
+        ("openstacks", 42.0),
         ("tpp", 16.0),
         ("storage", 3.0),
         ("trucks", 0.0),

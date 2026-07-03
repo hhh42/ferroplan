@@ -858,12 +858,17 @@ pub struct MetricResult {
 /// runtime with `FF_RES_WEIGHT` / `FF_RES_THRESH` to experiment.
 const RES_WEIGHT_DEFAULT: i64 = 0;
 
-/// Default `SearchCfg::w_c` for the FOLDED-numeric-metric legacy B&B (rovers'
-/// mirrored traverse costs). Measured 2026-07 on rovers p01–p08 (sweep
-/// {0, 0.25, 0.5, 1, 2, 5}); pure-preference paths keep 0.0 — their metric is
-/// priced by the closure acceptance, and the sweep showed no tail gains.
-/// Override with `FF_PREF_COST_WEIGHT` (0 disables).
-const COST_WEIGHT_FOLDED_DEFAULT: f64 = 1.0;
+/// Default `SearchCfg::w_c` for the FOLDED-numeric-metric legacy B&B. ZERO ON
+/// PURPOSE: the 2026-07 rovers p01–p08 sweep (w_c ∈ {0, 0.25, 0.5, 1, 2, 5})
+/// showed every non-zero weight COLLAPSES quality to the all-forgo floor
+/// (p01: 935.3 → 1162.1; p07: no result at all) — accumulated cost only grows
+/// along a path, so cost-ordering buries the deep goal-reaching prefixes the
+/// tightening B&B needs behind shallow cheap ones, and the bounded searches
+/// stop finding ANY plan under the incumbent. The closure-path probe was
+/// neutral (identical metrics). The rovers gains came from the escalating
+/// retry instead (p02 659.3→596.7, p05 649.9→523.3). `w_c` stays available
+/// for experiments via `FF_PREF_COST_WEIGHT`.
+const COST_WEIGHT_FOLDED_DEFAULT: f64 = 0.0;
 
 pub fn metric_optimize(
     task: &PackedTask,
@@ -923,13 +928,11 @@ pub fn metric_optimize(
     // bit-identical until a flag is set.
     sat.deadline = build_deadline_guidance(task, forgos);
     let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
-    // Cost-aware open-list ordering (see `SearchCfg::w_c`). Folded numeric
-    // metrics (rovers' mirrored traverse costs) accrue on REAL actions, so a
-    // cost-blind step-count search over-satisfies: it never sees that a
-    // preference's forced round-trip costs more than its forgo weight. The
-    // measured default applies only to the folded-metric legacy loop; the
-    // pure-preference paths keep 0 (closure acceptance already prices the
-    // metric; measured no-help there). `FF_PREF_COST_WEIGHT` overrides both.
+    // Cost-aware open-list ordering (see `SearchCfg::w_c`) — experimental,
+    // default OFF everywhere: the sweep that was meant to pick a folded-metric
+    // default found it collapses rovers instead (see COST_WEIGHT_FOLDED_DEFAULT
+    // for the measured post-mortem). `FF_PREF_COST_WEIGHT` enables it for
+    // experiments on either metric loop.
     let cost_w = std::env::var("FF_PREF_COST_WEIGHT")
         .ok()
         .and_then(|s| s.parse::<f64>().ok())
