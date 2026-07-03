@@ -139,13 +139,15 @@ impl ClosureCost {
 }
 
 /// Metric search guidance: bias the open list toward states that satisfy more
-/// preferences. Each entry is `(conjunctive phi fact-ids, heap penalty while that
-/// preference is forgone)`. Evaluated on the concrete successor state, so it sees
-/// real satisfaction (unlike the delete-relaxed heuristic, which the free
-/// Keyder-Geffner forgo action blinds). Only the metric B&B passes this; it
-/// changes node *ordering* only, never which nodes are legal.
+/// preferences. Each entry is `(phi, heap penalty while that preference is
+/// unsatisfied)` — phi in full DNF ([`PrefPhi`]), so `imply`/`exists`
+/// preferences guide correctly instead of being invisible. Evaluated on the
+/// concrete successor state, so it sees real satisfaction (unlike the
+/// delete-relaxed heuristic, which the free Keyder-Geffner forgo action
+/// blinds). Only the metric B&B passes this; it changes node *ordering* only,
+/// never which nodes are legal.
 pub struct SatGuidance {
-    pub prefs: Vec<(Vec<u32>, i64)>,
+    pub prefs: Vec<(PrefPhi, i64)>,
     /// Renewable resources whose live occupancy is penalized on the concrete
     /// state (what delete-relaxation hides). Empty unless a counter resource was
     /// detected; see [`crate::resource`].
@@ -174,11 +176,8 @@ impl SatGuidance {
     /// Total penalty of preferences not (yet) satisfied in `s`.
     fn forgone(&self, s: &State) -> i64 {
         let mut pen = 0;
-        for (atoms, p) in &self.prefs {
-            if !atoms
-                .iter()
-                .all(|&f| crate::bitset::test(&s.bits, f as usize))
-            {
+        for (phi, p) in &self.prefs {
+            if !phi.holds(s) {
                 pen += *p;
             }
         }

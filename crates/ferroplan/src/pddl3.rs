@@ -1251,12 +1251,6 @@ pub(crate) fn build_phase_tail(task: &PackedTask, forgos: &[(usize, f64)]) -> Op
     Some(PhaseTail { end_op, prefs })
 }
 
-/// Close the preference bookkeeping on `state` with the exact phase tail: apply
-/// `P3END` (freezing the planning phase), then per preference in fixed order the
-/// first applicable `P3COLLECT-i` disjunct (free) else `P3FORGO-i` (pays the
-/// weight). Returns the tail ops and advances `state` through them. `None` when
-/// an op is inapplicable (e.g. a searched plan already fired `P3END`) — callers
-/// treat the composition as invalid and fall back, so this can't corrupt a plan.
 /// Build the exact closure-cost table ([`ClosureCost`]) from the compiled
 /// `P3COLLECT-i` ops: one DNF disjunct per collect op (its positive
 /// precondition minus the `P3*` control facts, plus its numeric precondition),
@@ -1293,6 +1287,12 @@ pub(crate) fn build_closure_cost(task: &PackedTask, forgos: &[(usize, f64)]) -> 
     ClosureCost { prefs }
 }
 
+/// Close the preference bookkeeping on `state` with the exact phase tail: apply
+/// `P3END` (freezing the planning phase), then per preference in fixed order the
+/// first applicable `P3COLLECT-i` disjunct (free) else `P3FORGO-i` (pays the
+/// weight). Returns the tail ops and advances `state` through them. `None` when
+/// an op is inapplicable (e.g. a searched plan already fired `P3END`) — callers
+/// treat the composition as invalid and fall back, so this can't corrupt a plan.
 pub(crate) fn apply_tail(
     task: &PackedTask,
     state: &mut crate::packed::State,
@@ -1422,35 +1422,50 @@ fn build_espc_partition(
     Some(crate::espc::EspcPartition { comps, tail, assoc })
 }
 
-/// Build the metric satisfaction guidance: for each preference, the fact-ids of
-/// its `phi` (taken from the `P3COLLECT-i` action's precondition, minus the
-/// synthetic `P3*` control facts) and a heap penalty scaled from its forgo
-/// weight. Preferences with a non-atom `phi` simply contribute nothing (their
-/// `P3COLLECT` precondition still works; they're just unguided).
+/// Build the metric satisfaction guidance: for each preference, its full phi
+/// in DNF ([`PrefPhi`], one disjunct per `P3COLLECT-i` op — so `imply`/`exists`
+/// preferences guide correctly) and a heap penalty scaled from its forgo
+/// weight. Two exclusions keep the gradient honest:
+/// - phi unachievable (no collect ops) or trivially true — a constant penalty
+///   can't order anything;
+/// - phi already satisfied in the INITIAL state (unless `FF_PREF_BARRIER=1`) —
+///   penalizing its transient dips erects a wall in front of every improving
+///   trajectory (tpp: the weight-16 `p4A` must dip during any real delivery),
+///   while its real protection is the exact closure acceptance on the FINAL
+///   state. Guidance should pull toward the not-yet-earned, not punish transit.
 fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance {
-    let collect_op = collect_ops(task);
+    let mut collect_op = collect_ops(task);
+    let init = task.initial();
+    let keep_barrier = std::env::var("FF_PREF_BARRIER").is_ok();
     let mut prefs = Vec::new();
     for (i, (_, weight)) in forgos.iter().enumerate() {
-        // Multi-disjunct phi: guide on the FIRST disjunct (deterministic; the
-        // pre-Vec map silently kept an arbitrary one). Stage C replaces this
-        // with disjunct-aware guidance.
-        let Some(&oi) = collect_op.get(&i).and_then(|v| v.first()) else {
-            continue;
-        };
-        let phi: Vec<u32> = task
-            .pre_pos
-            .slice(oi)
-            .iter()
-            .copied()
-            .filter(|&f| {
-                !task.fact_names[f as usize]
-                    .to_ascii_uppercase()
-                    .starts_with("(P3")
+        let disjuncts: Vec<(Vec<u32>, Vec<crate::types::NumPre>)> = collect_op
+            .remove(&i)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|oi| {
+                let pos: Vec<u32> = task
+                    .pre_pos
+                    .slice(oi)
+                    .iter()
+                    .copied()
+                    .filter(|&f| {
+                        !task.fact_names[f as usize]
+                            .to_ascii_uppercase()
+                            .starts_with("(P3")
+                    })
+                    .collect();
+                (pos, task.pre_num.slice(oi).to_vec())
             })
             .collect();
-        if !phi.is_empty() {
-            prefs.push((phi, (weight * 100.0).round().max(1.0) as i64));
+        if disjuncts.is_empty() || disjuncts.iter().any(|(p, n)| p.is_empty() && n.is_empty()) {
+            continue; // unachievable or trivially-true phi: constant, can't guide
         }
+        let phi = PrefPhi { disjuncts };
+        if !keep_barrier && phi.holds(&init) {
+            continue; // init-satisfied: no barrier on its transient dips
+        }
+        prefs.push((phi, (weight * 100.0).round().max(1.0) as i64));
     }
     SatGuidance {
         prefs,
@@ -1479,17 +1494,26 @@ fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u
     // minus synthetic P3* control facts) contains the deliverable fact D.
     let mut value: HashMap<u32, i64> = HashMap::new();
     for (i, (_, weight)) in forgos.iter().enumerate() {
-        let Some(&oi) = collect_op.get(&i).and_then(|v| v.first()) else {
+        let Some(ops) = collect_op.get(&i) else {
             continue;
         };
         let w = (*weight).round().max(1.0) as i64;
-        for &f in task.pre_pos.slice(oi) {
-            if task.fact_names[f as usize]
-                .to_ascii_uppercase()
-                .starts_with("(P3")
-            {
-                continue;
-            }
+        // union of the pref's disjunct facts, deduped so a fact shared by
+        // several disjuncts of the SAME pref is valued once (single-disjunct
+        // phi — openstacks — is unchanged).
+        let mut facts: Vec<u32> = ops
+            .iter()
+            .flat_map(|&oi| task.pre_pos.slice(oi))
+            .copied()
+            .filter(|&f| {
+                !task.fact_names[f as usize]
+                    .to_ascii_uppercase()
+                    .starts_with("(P3")
+            })
+            .collect();
+        facts.sort_unstable();
+        facts.dedup();
+        for f in facts {
             *value.entry(f).or_insert(0) += w;
         }
     }
