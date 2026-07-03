@@ -96,3 +96,56 @@ fn precondition_preference_free_when_satisfied() {
         (:init (ready)) (:goal (done)) (:metric minimize (is-violated want)))";
     assert_eq!(pddl3(SOFTPRE, prob).plan.unwrap().metric, Some(0.0));
 }
+
+#[test]
+fn static_simplification_drops_never_violable_instances_metric_exact() {
+    // Storage-shaped quadratic forall-preference: `(imply (linked ?a ?b) (ok ?a ?b))`
+    // where `linked` is STATIC (no action touches it). Only (x,y) is linked, so
+    // 3 of the 4 instances are statically satisfied (antecedent false) and must
+    // be dropped at compile time without changing the metric. The remaining
+    // (x,y) instance is violable: `ok x y` is achievable, so the optimum
+    // collects it -> metric 0. A second pref `q` on a statically-UNLINKABLE
+    // pair keeps weight accounting honest when phi folds to True.
+    let dom = "(define (domain st)
+     (:requirements :strips :typing :adl :fluents)
+     (:types spot)
+     (:predicates (linked ?a - spot ?b - spot) (ok ?a - spot ?b - spot) (busy))
+     (:functions (total-cost))
+     (:action fix :parameters (?a - spot ?b - spot)
+       :precondition (linked ?a ?b) :effect (ok ?a ?b)))";
+    let prob = "(define (problem p) (:domain st)
+        (:objects x y - spot)
+        (:init (linked x y))
+        (:goal (and
+          (forall (?a - spot ?b - spot)
+            (preference p (imply (linked ?a ?b) (ok ?a ?b))))
+          (forall (?a - spot ?b - spot)
+            (preference q (imply (linked ?b ?a) (ok ?b ?a))))))
+        (:metric minimize (+ (* 2 (is-violated p)) (* 3 (is-violated q)))))";
+    let sol = pddl3(dom, prob);
+    assert!(sol.solved);
+    // both live instances ((x,y) for p; (x,y) via (?b,?a)=(y,x)... for q) are
+    // satisfied by one `fix x y` -> 0; the 6 statically-true instances add 0.
+    assert_eq!(sol.plan.unwrap().metric, Some(0.0));
+}
+
+#[test]
+fn static_simplification_keeps_violable_instances() {
+    // The linked pair CANNOT be fixed (no achiever precondition holds), so its
+    // preference instance must survive simplification and pay its weight.
+    let dom = "(define (domain st2)
+     (:requirements :strips :typing :adl :fluents)
+     (:types spot)
+     (:predicates (linked ?a - spot ?b - spot) (ok ?a - spot ?b - spot) (can))
+     (:functions (total-cost))
+     (:action fix :parameters (?a - spot ?b - spot)
+       :precondition (and (can) (linked ?a ?b)) :effect (ok ?a ?b)))";
+    let prob = "(define (problem p) (:domain st2)
+        (:objects x y - spot)
+        (:init (linked x y))
+        (:goal (forall (?a - spot ?b - spot)
+            (preference p (imply (linked ?a ?b) (ok ?a ?b)))))
+        (:metric minimize (* 5 (is-violated p))))";
+    // (can) never holds -> the one live instance is unavoidably violated -> 5.
+    assert_eq!(pddl3(dom, prob).plan.unwrap().metric, Some(5.0));
+}
