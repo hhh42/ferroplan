@@ -47,7 +47,13 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.4.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.4.1** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **0.4.1** (correctness point release) — PDDL3 trajectory `(:constraints …)` are
+> now **rejected with a clear error** instead of being silently parsed-and-dropped,
+> plus a documentation once-over (and `decompose`/`validate_plan` examples, an
+> `examples/` index, and an [`FF_*` tuning reference](https://hhh42.github.io/ferroplan/tuning.html)).
+> See the [CHANGELOG](CHANGELOG.md). The feature headline is still 0.4.0:
 
 > **What's new in 0.4.0** — the PDDL3 preference-metric release, measured
 > against the official IPC-5 winner on the vendored simple-preferences suite
