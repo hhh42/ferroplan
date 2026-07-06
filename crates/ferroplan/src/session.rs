@@ -65,6 +65,9 @@ impl Session {
         let problem =
             crate::parser::parse_problem(problem_src).map_err(|e| format!("problem: {e}"))?;
         let (domain, problem) = crate::derived::compile(&domain, &problem)?;
+        if let Some(reason) = crate::pddl3::unsupported_constraints(&domain, &problem) {
+            return Err(reason);
+        }
         if crate::temporal::is_temporal(&domain) {
             return Err(
                 "Session does not support temporal (durative-action) domains yet; \
