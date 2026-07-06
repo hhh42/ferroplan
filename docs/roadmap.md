@@ -1,4 +1,13 @@
-# Roadmap — the road to v0.2.1 ("The Bridge")
+# Roadmap — the road to v0.2.1 ("The Bridge") — HISTORICAL
+
+> **Archived (shipped in v0.2.1–v0.4.0).** Every phase below was delivered: the
+> proven flags graduated to defaults, temporal depth landed (TILs, duration
+> inequalities, the escalation ladder), the decomposer + `Session` API shipped, and
+> the MCP server + crates.io publishing followed. The 0.4.0 release then took on the
+> IPC-5 preference track (see the [scoreboard](../benchmarks/ipc5-scoreboard.md)).
+> This file is kept as the record of that plan. **Current forward work** lives in the
+> scoreboard's "Path to climb" (large-instance tails; rovers completion-aware
+> pricing) and the [ESPC spec](espc-preferences-spec.md).
 
 ferroplan v0.1 is a mature FF-family engine whose README makes one central bet:
 **an LLM should be the author and supervisor of a planner, not its runtime.** Today

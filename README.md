@@ -106,9 +106,15 @@ domains in a Blockly-style block editor (`cargo run -p ferroplan-bevy`).
 ## Install / build
 
 ```sh
+# install the `ff` CLI from crates.io
+cargo install ferroplan-cli    # puts `ff` on your PATH
+
+# …or build from a clone
 cargo build --release          # produces target/release/ff
 cargo run --release --bin ff -- -o domain.pddl -f problem.pddl
 ```
+
+As a library dependency: `cargo add ferroplan` (see [Library](#library) below).
 
 ## CLI (`ff`)
 
@@ -199,17 +205,31 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 | [`ferroplan-cli`](crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
 | [`ferroplan-mcp`](crates/ferroplan-mcp) | an MCP server exposing `solve` / `validate` / `decompose` over stdio — so an LLM agent can author PDDL and drive the planner |
 | [`ferroplan-bevy`](crates/ferroplan-bevy) | Bevy app: visualize, inspect & animate a domain+problem (`cargo run -p ferroplan-bevy [domain.pddl problem.pddl]`) |
+| [`ferroplan-wasm`](crates/ferroplan-wasm) | WebAssembly binding behind the client-side [browser demo](https://hhh42.github.io/ferroplan/demo/index.html) — `solve` a domain+problem entirely in-page |
+| [`ferroplan-py`](crates/ferroplan-py) | Python binding (`pip`-installable extension module) exposing `solve` for embedding in Python tools |
 
 ## Examples
 
-[`examples/`](examples) collects worked domains that exercise the full feature set:
+[`examples/`](examples) collects worked domains that exercise the full feature set
+— see the [examples index](examples/README.md) for a feature-by-feature map and a
+suggested reading order. Highlights:
 
+- [`rpg`](examples/rpg) — the clean intro: durative actions with renewable
+  (workers) and consumable resources, gather → craft → build.
 - [`rpg-world`](examples/rpg-world) — a ~120-action crafting/economy domain
   (durative actions, numeric resources, renewable capacities, a reachability
   axiom) with a corpus of validated contracts, a flavor-×-scale [`suite/`](examples/rpg-world/suite),
   an adversarial [`hard/`](examples/rpg-world/hard) batch, and an
   [industrial-city](examples/rpg-world/industrial-city) showcase that runs a whole
   metal/stone/wood industry as a pipeline of contracts.
+- [`cabin`](examples/cabin) — deep numeric build plus a durative "crew" twin
+  (makespan vs. crew size, skill-gated scheduling).
+- [`reachability`](examples/reachability) — the worked **derived-axiom**
+  (`:derived`) example: static transitive-closure reachability.
+- [`village`](examples/village) — a full-ADL stress test (`when`, `forall`+`when`,
+  `or`, negation) over durative + numeric state.
+- [`villagers`](examples/villagers) — a data-driven recipe planner with numeric
+  **PDDL3 metric** optimization; the "embed in a game" model.
 - [`logistics`](examples/logistics) — transshipment: per-location goods, trucks
   with capacity, a train line.
 - [`jobshop`](examples/jobshop) — scheduling with machine-exclusion (scales to 100
@@ -223,8 +243,9 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 
 ## Benchmarks
 
-Compared against the C **Metric-FF** and **SGPlan6** planners over a subset of
-the IPC contest suites. Headline (native Metric-FF, EHC default):
+Classical and ADL coverage/speed are measured against the C **Metric-FF**; the
+IPC-5 preference quality is measured against **SGPlan5** (the IPC-5 winner), over
+a subset of the IPC contest suites. Headline (native Metric-FF, EHC default):
 
 | category | ferroplan solved | speed vs Metric-FF |
 |---|---:|---|
@@ -232,9 +253,11 @@ the IPC contest suites. Headline (native Metric-FF, EHC default):
 | ADL | 23/24 | 0.77× (~1.3× slower) |
 | numeric | 36/40 | 0.22× |
 
-Full results + the IPC-5 preference scoreboard: [`benchmarks/results.md`](benchmarks/results.md)
-(and the [project site](https://hhh42.github.io/ferroplan)). The oracles
-are not bundled (GPL / non-commercial licences) — reproduce per
+The IPC-5 preference scoreboard (vs SGPlan5):
+[`benchmarks/ipc5-scoreboard.md`](benchmarks/ipc5-scoreboard.md); classical/numeric
+detail: [`benchmarks/results.md`](benchmarks/results.md) (and the
+[project site](https://hhh42.github.io/ferroplan)). The oracles are not bundled
+(GPL / non-commercial licences) — reproduce per
 [`benchmarks/COMPARING.md`](benchmarks/COMPARING.md).
 
 **Profiling & perf tracking:** [`PROFILING.md`](PROFILING.md) — a deterministic
@@ -246,12 +269,19 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
 
 - **Numeric** trails Metric-FF: EHC's helpful-action lookahead stalls on some
   numeric domains and falls back to (complete, slower) best-first.
-- **IPC-5 preferences**: compiled away + anytime branch-and-bound. Coverage is on
-  par with SGPlan6 (≈39/48 on the simple-preferences suite), but on the hardest
-  instances the *metric quality* trails SGPlan6's specialised partition-and-penalty
-  search (best-found, flagged *not proven optimal*). Closing that gap needs the
-  full ESPC penalty-coordination loop — specced in
-  [`docs/espc-preferences-spec.md`](docs/espc-preferences-spec.md), not yet built.
+- **IPC-5 preferences**: compiled away, then optimized by an **exact-closure
+  metric optimizer** (the default) with a budget-escalating branch-and-bound.
+  Coverage is **full (48/48)** on the vendored simple-preferences suite, and
+  ferroplan now **leads SGPlan5 on two of the six domains** (openstacks via the
+  opt-in `FF_ESPC` partitioned penalty loop; storage on plain defaults) — see the
+  [scoreboard](benchmarks/ipc5-scoreboard.md). On the largest tpp/pathways/storage
+  instances the *metric quality* still trails on the tail (best-found, flagged
+  *not proven optimal*); the design record for the remaining work is in
+  [`docs/espc-preferences-spec.md`](docs/espc-preferences-spec.md).
+- **PDDL3 trajectory constraints** (`(:constraints ...)` — `always`, `sometime`,
+  `within`, …) are parsed but not yet enforced; rather than silently drop a hard
+  constraint, ferroplan **rejects** any domain/problem that carries one. Model the
+  requirement as hard goals or goal preferences instead.
 - **Temporal**: durative actions with constant or parameter-dependent durations
   and required concurrency are supported, and **plans are VAL-validated** on real
   IPC temporal domains (44/45 produced plans valid — see

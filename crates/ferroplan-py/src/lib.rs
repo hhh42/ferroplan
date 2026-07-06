@@ -15,8 +15,9 @@ use pyo3::prelude::*;
 /// Solve a PDDL domain + problem. Returns a JSON string of the `Solution`
 /// (parse it with `json.loads`), or `{"error": "..."}` on a parse/solve error.
 ///
-/// `mode` ∈ "auto" | "ff" | "pddl3" | "partition" (default "auto"). `threads`
-/// defaults to the planner's auto count; pass 1 for deterministic single-thread.
+/// `mode` ∈ "auto" | "ff" | "pddl3" | "partition" | "temporal" (default "auto").
+/// `threads` defaults to the planner's auto count; pass 1 for deterministic
+/// single-thread.
 #[pyfunction]
 #[pyo3(signature = (domain, problem, mode=None, threads=None))]
 fn plan(domain: &str, problem: &str, mode: Option<&str>, threads: Option<usize>) -> String {
@@ -46,6 +47,7 @@ fn parse_mode(m: Option<&str>) -> Mode {
         Some("ff") => Mode::Ff,
         Some("pddl3") => Mode::Pddl3,
         Some("partition") => Mode::Partition,
+        Some("temporal") => Mode::Temporal,
         _ => Mode::Auto,
     }
 }

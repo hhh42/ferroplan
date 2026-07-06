@@ -1,16 +1,25 @@
 # ESPC preference optimization — implementation spec (groundwork)
 
-> **Status update — ESPC is now implemented** (opt-in `FF_ESPC`), see `crate::espc`
-> and the CHANGELOG. The realization differs from the original sketch below in one
-> key way: rather than a soft *occupancy* penalty (which §"Conclusion" correctly
-> found inert), the loop penalizes — on the **concrete** state — once-only
-> conditional achievements that fire *without delivering* (a product made while its
-> orders still wait), and **adapts a per-trigger penalty** across the outer loop
-> with iteration 0 as a penalty-free floor. Measured: it narrows the openstacks gap
-> substantially (p01 63→42 … p08 608→227, ~11–63%) without regressing any instance,
-> but does **not** reach SGPlan's level — consistent with the conclusion below that
-> closing it fully needs a real min-open-stacks scheduler. The notes below are kept
-> as the original design record.
+> **Status update — ESPC is implemented and now LEADS SGPlan5 on openstacks
+> p04–p08** (opt-in `FF_ESPC`), see `crate::espc`, `benchmarks/ipc5-scoreboard.md`,
+> and the CHANGELOG. Two increments:
+>
+> - *Increment 1 (0.3-era):* rather than a soft *occupancy* penalty (which
+>   §"Conclusion" correctly found inert), the loop penalizes — on the **concrete**
+>   state — once-only conditional achievements that fire *without delivering* (a
+>   product made while its orders still wait), adapting a per-trigger penalty across
+>   the outer loop with iteration 0 as a penalty-free floor. This narrowed the gap
+>   (p01 63→42 … p08 608→227) but did **not** reach SGPlan's level — the monolithic
+>   loop, reproducible today with `FF_ESPC_MONO=1`.
+> - *Increment 2 (0.4.0):* the λ schedule now drives a **partitioned composition** —
+>   one subproblem per order-interaction component, with the shared `stacks-avail`
+>   variable excluded from partition edges and priced as a **global constraint**
+>   instead of being solved inside any one stage. This took p01–p08 to
+>   19/23/17/16/21/22/66/87, **ahead of SGPlan5 (13/16/12/26/36/33/67/123) on
+>   p04–p08** — the shift the design record below anticipated. The remaining gap is
+>   p01–p03, where the per-order grain is too coarse to help.
+>
+> The notes below are kept as the original design record.
 
 How SGPlan5 (Hsu, Wah, Huang & Chen, IPC-2006) gets good metrics on hard PDDL3
 **preference** problems, distilled from deep research (primary sources: IJCAI-2007

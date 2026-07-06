@@ -34,4 +34,5 @@ print("ferroplan", ferroplan.version())
 ```
 
 `plan(domain, problem, mode=None, threads=None)` returns a JSON string of the
-`Solution` (or `{"error": "..."}`). `mode` ∈ `auto | ff | pddl3 | partition`.
+`Solution` (or `{"error": "..."}`). `mode` ∈ `auto | ff | pddl3 | partition |
+temporal` (`auto` routes durative-action problems to the temporal solver).

@@ -24,11 +24,15 @@ light the fire) solves end to end:
 ff -o examples/village/domain.pddl -f examples/village/onesite.pddl   # solves
 ```
 
-## What it surfaced ❌ (the honest limits)
+## What it surfaced (the honest limits)
 
-1. **No axioms / derived predicates.** `:derived` is rejected at parse time (this is
-   a Metric-FF-class engine). Derived predicates (`reachable`, `village-complete`
-   from its parts) would be a genuine engine addition — flagged for implementation.
+1. ~~**No axioms / derived predicates.**~~ **Resolved.** When this example was
+   written, `:derived` was rejected; ferroplan now supports static/stratified
+   derived predicates (closed into the initial state via a datalog fixpoint) — so
+   `reachable`- / `village-complete`-style consequences of static state are
+   expressible. See [`examples/reachability/`](../reachability) for the worked
+   derived-axiom example. (Dynamic derived predicates — bodies over facts actions
+   change — are still unsupported.)
 
 2. **Temporal search is the bottleneck on a *graph map*.** `graph.pddl` (the same
    goal across a 3-node forest/quarry/camp map, so the agent must **travel**) is
