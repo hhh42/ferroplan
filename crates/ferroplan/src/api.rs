@@ -351,6 +351,8 @@ pub enum SolveError {
     },
     #[error("derived predicate error: {0}")]
     Derived(String),
+    #[error("unsupported feature: {0}")]
+    Unsupported(String),
 }
 
 enum Grounded {
@@ -475,6 +477,9 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     // Compile `:derived` axioms away (static rules -> init facts) before routing.
     let (domain, problem) =
         crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
+    if let Some(reason) = pddl3::unsupported_constraints(&domain, &problem) {
+        return Err(SolveError::Unsupported(reason));
+    }
     let threads = if opts.threads == 0 {
         crate::par::num_threads()
     } else {
@@ -516,6 +521,9 @@ pub fn decompose(
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
     let (domain, problem) =
         crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
+    if let Some(reason) = pddl3::unsupported_constraints(&domain, &problem) {
+        return Err(SolveError::Unsupported(reason));
+    }
     let threads = if opts.threads == 0 {
         crate::par::num_threads()
     } else {

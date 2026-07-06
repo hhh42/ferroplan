@@ -67,6 +67,31 @@ pub fn has_preferences(problem: &Problem) -> bool {
             .is_some_and(|(_, e)| expr_has_is_violated(e))
 }
 
+/// PDDL3 *trajectory* constraints — the modal `(:constraints ...)` operators
+/// (`always`, `sometime`, `at-most-once`, `sometime-after`/`-before`, `within`,
+/// `hold-during`/`-after`) — are parsed into the AST (`Domain`/`Problem.constraints`)
+/// but not yet enforced by any solving path. Rather than silently accept and drop a
+/// user's hard constraint, every public entrypoint rejects a domain or problem that
+/// carries one. Returns the rejection message when trajectory constraints are
+/// present, or `None` when there are none to enforce.
+///
+/// This is distinct from goal `(preference ...)` SOFT goals (handled by the PDDL3
+/// metric path): those live in the goal formula, not in `.constraints`, and are
+/// unaffected.
+pub(crate) fn unsupported_constraints(domain: &Domain, problem: &Problem) -> Option<String> {
+    if domain.constraints.is_empty() && problem.constraints.is_empty() {
+        return None;
+    }
+    Some(
+        "PDDL3 trajectory constraints (:constraints — always / sometime / \
+         at-most-once / sometime-after / sometime-before / within / hold-during / \
+         hold-after) are parsed but not yet enforced; ferroplan cannot honor them \
+         and will not silently ignore them. Remove the (:constraints ...) block, or \
+         model the requirement as hard goals or PDDL3 goal preferences."
+            .to_string(),
+    )
+}
+
 // ---- formula substitution + quantifier combos (for forall-preferences) ----
 
 fn subst_term(t: &Term, b: &HashMap<Sym, Sym>) -> Term {

@@ -57,6 +57,11 @@ pub fn run_planner(
         }
     };
 
+    if let Some(reason) = crate::pddl3::unsupported_constraints(&domain, &problem) {
+        out.push_str(&format!("\nff: {}\n", reason));
+        return (out, 1);
+    }
+
     // PDDL2.1 temporal: durative actions -> decision-epoch search, IPC plan format.
     // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B) FIRST;
     // the default is `temporal::solve` — the monolithic search plus its on-failure
@@ -374,6 +379,10 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
         }
     };
     out.push_str(&format!("problem '{}' defined\n ... done.\n", problem.name));
+    if let Some(reason) = crate::pddl3::unsupported_constraints(&domain, &problem) {
+        out.push_str(&format!("\nff: {}\n", reason));
+        return (out, 1);
+    }
     match ground(&domain, &problem, threads) {
         Outcome::EmptyType { kind, pred, ty } => {
             out.push_str(&format!(

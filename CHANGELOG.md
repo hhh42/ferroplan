@@ -2,6 +2,30 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- **PDDL3 trajectory constraints are now rejected instead of silently ignored.**
+  The modal `(:constraints ...)` operators (`always`, `sometime`, `at-most-once`,
+  `sometime-after`/`-before`, `within`, `hold-during`/`-after`) were parsed into
+  the AST but enforced by no solving path, so a hard constraint was accepted and
+  dropped. Every public entrypoint (`solve`, `decompose`, `Session::new`, the `ff`
+  CLI) now returns a clear error (`SolveError::Unsupported`) when a domain or
+  problem carries one. Goal `(preference ...)` soft goals are unaffected — they
+  live in the goal formula, not in `:constraints`, and the PDDL3 metric path still
+  handles them.
+
+### Docs
+
+- Corrected stale/contradictory documentation left over from before 0.4.0: the
+  README's ESPC "not yet built" limitation (it shipped), the SGPlan5/SGPlan6
+  baseline mix, the book's `results`/`metric-quality`/`pddl3`/`temporal` pages
+  (which still told the pre-0.4.0 "we trail SGPlan6" story and marked timed
+  initial literals / duration inequalities unsupported), and the `village`
+  example's false "`:derived` is rejected" claim. Added an `examples/` index, an
+  `FF_*` env-knob reference, and `decompose`/`validate_plan` library examples.
+
 ## [0.4.0] - 2026-07-03 — Preference metrics: ferroplan takes on SGPlan5
 
 The PDDL3 preference-metric release. On the vendored IPC-5 simple-preferences
