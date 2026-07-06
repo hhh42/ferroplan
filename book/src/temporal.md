@@ -12,6 +12,11 @@ decision-epoch forward search; the CLI prints the IPC temporal plan format.
   `:duration (= ?duration (/ (distance ?a ?b) (speed ?v)))` — evaluated per
   grounded action against the initial state (the static fluents temporal
   durations usually read).
+- **Duration inequalities** — `(>= ?duration L)` / `(<= ?duration U)` and `and`
+  ranges; the search commits to the shortest feasible duration.
+- **Timed initial literals** — `(at <time> <literal>)` in `:init`; each becomes a
+  synthetic exogenous applier fired from a pre-seeded agenda at its time (so a goal
+  reachable only via a TIL is not pruned as a dead end).
 - **Required concurrency** — actions whose intervals must overlap (the classic
   "match / mend-fuse": the fuse can only be mended while the match is lit).
 
@@ -92,7 +97,8 @@ short budget many instances time out or the decision-epoch search exhausts. See
 
 ## Not yet supported
 
-Duration **inequalities** (`(<= ?duration …)`), **timed initial literals**,
-**continuous** (`#t`) / duration-dependent numeric effects, and ε-separation of
-*conditional*-effect mutexes are not handled yet. Temporal **search performance**
-(coverage on large instances) is the main open work item.
+**Continuous** (`#t`) / duration-dependent numeric effects and ε-separation of
+*conditional*-effect mutexes are not handled yet. PDDL3 trajectory constraints
+(`(:constraints …)`) are parsed but not enforced, so a domain that declares them is
+rejected rather than silently ignored. Temporal **search performance** (coverage on
+large instances) is the main open work item.

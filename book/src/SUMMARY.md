@@ -9,6 +9,7 @@
 - [PDDL3 preferences](./pddl3.md)
 - [Metric quality & invariants](./metric-quality.md)
 - [Temporal planning](./temporal.md)
+- [Tuning & environment knobs](./tuning.md)
 - [GUI (ferroplan-bevy)](./gui.md)
 - [Performance](./performance.md)
 - [Benchmarks](./benchmarks.md)

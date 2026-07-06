@@ -9,8 +9,9 @@ synthesis that feeds the partition-and-resolve mode.
 ferroplan handles all six IPC-5 (2006) *simple-preferences* soft-goal domains —
 openstacks, tpp, storage, trucks, rovers, pathways — where the `:metric` charges
 for violated preferences (and, in rovers, a numeric traverse cost) and **lower is
-better**. Preferences are compiled away (Keyder & Geffner) and the metric is
-driven by anytime branch-and-bound (see [PDDL3 preferences](./pddl3.md)).
+better**. Preferences are compiled away (Keyder & Geffner) and the metric is driven
+by an exact-closure optimizer with budget-escalating branch-and-bound (see
+[PDDL3 preferences](./pddl3.md)).
 
 rovers was the last to fall in: its metric also charges a **monotone numeric
 quantity** (`sum-traverse-cost`), which the optimizer used to ignore — scoring a
@@ -20,27 +21,31 @@ bogus `0`. Folding monotone numeric terms into total-cost lets it optimize the
 The hard part is that delete-relaxation hides the cost of *forgoing* a soft goal:
 the free Keyder–Geffner forgo makes every preference look reachable, so on
 `openstacks-soft` the metric search had no gradient toward actually delivering —
-it sat on the **all-forgo floor** (metric 70 on p01). A **satisfaction-guided**
-optimizer (`search::SatGuidance`) fixes this: a heap penalty counts the
-preferences forgone in the *concrete* state, giving the search a reason to
-deliver. It broke the floor — **70 → 63** on openstacks p01 — and, because the
-guidance only changes node *ordering* (branch-and-bound still keeps the best
-plan found), it is monotone by construction and never regresses.
+it sat on the **all-forgo floor** (metric 70 on p01). Two engine steps closed most
+of that gap:
 
-| openstacks | tpp | storage | trucks | rovers | pathways |
-|---|---|---|---|---|---|
-| 63 | 21 | 8 | 0 | 935.3 | 2 |
+1. **Satisfaction-guided ordering** (`search::SatGuidance`) — a heap penalty
+   counting the preferences forgone in the *concrete* state, giving the search a
+   reason to deliver. It broke the floor (70 → 63 on openstacks p01) without ever
+   regressing, since it only changes node ordering (branch-and-bound keeps the best
+   plan found).
+2. **The exact-closure metric optimizer** (0.4.0, now the default) — real-state
+   search with metric-bounded acceptance plus an exact `collect`/`forgo` phase
+   tail, static preference simplification at compile, barrier-free full-DNF
+   guidance, and a budget-escalating branch-and-bound. This pushed openstacks p01
+   further (63 → 42) and lifted whole domains (storage to full 8/8 coverage,
+   trucks p08 133 → 10).
 
-(trucks reaches metric 0 — every preference satisfied; rovers' 935.3 is the
-folded numeric metric, not a preference-violation count.) The residual gap to
-SGPlan6's ~13 on openstacks is the *scheduling* of the shared `stacks-avail`
-resource, which the satisfaction term can't see because it appears in no
-preference — closing it needs the SAS+ mutex-group partition plus a resource
-penalty loop.
+The last piece for openstacks was the *scheduling* of the shared `stacks-avail`
+resource, invisible to the satisfaction term because it appears in no preference.
+That is exactly what the opt-in **ESPC penalty loop** (`FF_ESPC`) now does: its λ
+schedule drives a partitioned composition that prices `stacks-avail` as a global
+constraint — taking openstacks **ahead of SGPlan5 on p04–p08**.
 
-**IPC-5 retroactive ranking (in progress).** We're scoring ferroplan against the
-2006 contest entrants to see where it would have placed; the numbers are still
-being computed. Full per-instance table, ranking, and reproduction:
+**Standing (vs SGPlan5, the IPC-5 winner):** full 48/48 coverage and a domain-level
+lead on two of six (openstacks with `FF_ESPC`; storage on defaults), parity on the
+small instances nearly everywhere else — a strong 2nd under the coverage-first
+rule. The full per-instance tables, the ESPC method, and reproduction commands:
 [`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
 
 ## Mutex groups & SAS+
@@ -69,6 +74,7 @@ These groups feed SGPlan-style partitioning: the initial partition is seeded fro
 a goal-interaction graph over the mutex variables, and on a conflict the resolver
 merges the actual conflicting pair. The result shortens **blocks plans ~25%**
 where goals share structure but aren't resource-coupled; on resource-coupled
-domains naive decomposition still re-traverses the shared resource (the open
-ESPC penalty-loop work). Method, coverage numbers, and findings:
+domains naive decomposition still re-traverses the shared resource — which the
+opt-in ESPC penalty loop (`FF_ESPC`) now prices as a global constraint. Method,
+coverage numbers, and findings:
 [`docs/invariants-measurement.md`](https://github.com/hhh42/ferroplan/blob/main/docs/invariants-measurement.md).

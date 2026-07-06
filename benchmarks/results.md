@@ -1,10 +1,10 @@
 # Benchmark results
 
-`ferroplan` vs the C reference planners **Metric-FF** and **SGPlan6**, over a
-subset of the IPC contest suites (classical STRIPS, numeric, ADL, and IPC-5
-simple-preferences). Generated locally with a native arm64 Metric-FF build and
-SGPlan6 under Docker — the oracles are **not bundled** (GPL / non-commercial
-licences); see [COMPARING.md](https://github.com/hhh42/ferroplan/blob/main/benchmarks/COMPARING.md) to reproduce.
+`ferroplan` vs the reference planners, over a subset of the IPC contest suites:
+classical STRIPS / numeric / ADL are measured against a native arm64 **Metric-FF**;
+the IPC-5 simple-preferences quality is measured against **SGPlan5** (the IPC-5
+winner), read from the official `IPC5-results.tgz` archive. The oracles are **not
+bundled** (GPL / non-commercial licences); see [COMPARING.md](https://github.com/hhh42/ferroplan/blob/main/benchmarks/COMPARING.md) to reproduce.
 
 > Absolute times are machine- and load-dependent; only *ratios within a single
 > run* are meaningful. Default ferroplan search is enforced hill-climbing (EHC)
@@ -38,35 +38,30 @@ EHC reaches the goal in *dozens* of evaluations where plain best-first needs
 
 (`--search best-first` selects the old behaviour; EHC is the default.)
 
-## IPC-5 simple-preferences
+## IPC-5 simple-preferences (vs SGPlan5)
 
-ferroplan compiles preferences away (Keyder & Geffner) and runs anytime
-branch-and-bound on the metric. Metric-FF is PDDL2.1-only and errors on every
-preference problem, so the real comparison is **SGPlan6, the IPC-5 winner**
-(measured head-to-head, 15 s budget, 48 problems):
+ferroplan compiles preferences away (Keyder & Geffner) and, as of 0.4.0, optimizes
+them with an **exact-closure metric optimizer** (the default) plus a
+budget-escalating branch-and-bound, and — opt-in via `FF_ESPC` — an ESPC-style
+partitioned penalty loop. Metric-FF is PDDL2.1-only and errors on every preference
+problem, so the benchmark is **SGPlan5, the IPC-5 winner** (per-instance metrics
+from the official archive; lower is better).
 
-**Coverage: on par with SGPlan6.** Adopting SGPlan's modified-FF idea — an
-EHC-then-best-first subplanner for the first incumbent, then a budget-capped
-branch-and-bound refinement — took ferroplan from **11/48 to 39/48** within 15 s,
-matching SGPlan6's ~38/48. By domain (ferroplan, after): openstacks 8/8, tpp 8/8,
-pathways 8/8, rovers 8/8, trucks 6/8, storage 1/8.
+The 0.4.0 headline: **full 48/48 coverage** (storage was 2/8) and ferroplan now
+**leads SGPlan5 on two of the six domains** —
 
-**Quality: SGPlan6 still leads on the hardest.** The capped refinement satisfices
-rather than fully optimizes, so metric values trail on the large instances:
+- **openstacks** (with `FF_ESPC`): wins p04–p08, totals 271 vs 326.
+- **storage** (default path): wins p01–p05.
 
-| | ferroplan | SGPlan6 | |
-|---|---:|---:|---|
-| trucks/p01 | **0** | 1 | win |
-| trucks (others) / pathways/p01 | 0 / 2 | 0 / 2 | tie |
-| pathways/p03, p04 | 5.7 / 6.7 | 3 / 2 | loss |
-| rovers/p02, p04, p05 | 725 / 699 / 1052 | 473 / 419 / 499 | loss |
-| openstacks/p01 | 70 | 13 | loss |
+…with a parity band on the rest — **trucks** (ahead on the total, wins p01/p07),
+**pathways** and **tpp** (tie on p01–p04), **rovers** (edges p07/p08) — where
+SGPlan5 keeps each domain's larger instances. Under the IPC-5 coverage-first rule
+this is a strong **2nd**, with the remaining gap concentrated in the
+tpp/pathways/storage p05–p08 tails and rovers' numeric metric.
 
-So coverage is now on par (we even solve tpp, which SGPlan6 errors on here), and
-we tie/beat it on small instances — but it remains the stronger preference
-planner on metric *quality* for the hard cases. Narrowing that quality gap is
-where the rest of the SGPlan-class work (constraint partitioning + penalty
-resolution) — or simply a longer/smarter metric optimizer — would help.
+**The full per-instance tables, the ESPC method, and the reproduction commands
+live in the scoreboard:**
+[`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
 
 ## Reproduce
 
