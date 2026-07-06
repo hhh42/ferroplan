@@ -2,7 +2,15 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.4.1] - 2026-07-06 — Trajectory-constraint safety and a docs correctness pass
+
+A correctness point release. It closes one silent-correctness footgun — PDDL3
+trajectory `(:constraints ...)` were parsed but enforced by nothing, so a hard
+constraint was accepted and dropped — and runs a documentation once-over that
+retires the pre-0.4.0 "we trail SGPlan6" story the docs still told in places. No
+engine or plan-quality change to any solve that succeeds today; the only behavior
+change is that a domain declaring trajectory constraints now errors instead of
+being silently mis-solved.
 
 ### Changed
 
@@ -11,10 +19,18 @@ All notable changes to this project are documented here.
   `sometime-after`/`-before`, `within`, `hold-during`/`-after`) were parsed into
   the AST but enforced by no solving path, so a hard constraint was accepted and
   dropped. Every public entrypoint (`solve`, `decompose`, `Session::new`, the `ff`
-  CLI) now returns a clear error (`SolveError::Unsupported`) when a domain or
+  CLI) now returns a clear error (new `SolveError::Unsupported`) when a domain or
   problem carries one. Goal `(preference ...)` soft goals are unaffected — they
   live in the goal formula, not in `:constraints`, and the PDDL3 metric path still
   handles them.
+
+### Added
+
+- `ferroplan-py`: `temporal` mode, for parity with the `ferroplan-wasm` binding.
+- Library examples `decompose.rs` and `validate_plan.rs` (the two advertised
+  public APIs that had no runnable Rust example).
+- An `examples/README.md` index (feature-by-feature map + reading order) and a
+  `book/src/tuning.md` reference collecting the full `FF_*` env-knob family.
 
 ### Docs
 
@@ -22,9 +38,9 @@ All notable changes to this project are documented here.
   README's ESPC "not yet built" limitation (it shipped), the SGPlan5/SGPlan6
   baseline mix, the book's `results`/`metric-quality`/`pddl3`/`temporal` pages
   (which still told the pre-0.4.0 "we trail SGPlan6" story and marked timed
-  initial literals / duration inequalities unsupported), and the `village`
-  example's false "`:derived` is rejected" claim. Added an `examples/` index, an
-  `FF_*` env-knob reference, and `decompose`/`validate_plan` library examples.
+  initial literals / duration inequalities unsupported), the non-compiling
+  `library.md` example, and the `village` example's false "`:derived` is rejected"
+  claim. Archived the 0.2.1 roadmap.
 
 ## [0.4.0] - 2026-07-03 — Preference metrics: ferroplan takes on SGPlan5
 
