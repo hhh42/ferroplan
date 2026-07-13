@@ -35,7 +35,7 @@ IPC-5 winner on the larger half of the suite:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | 42 | 34 | 28 | 39 | 67 | 85 | 153 | 370 |
+| ferroplan² | 23 | 24 | 29 | 39 | 66 | 65 | 126 | 370 |
 | + `FF_ESPC`¹ | 19 | 23 | 17 | **16** | **21** | **22** | **66** | **87** |
 | SGPlan5 | 13 | 16 | 12 | 26 | 36 | 33 | 67 | 123 |
 
@@ -52,78 +52,100 @@ guidance), with a **budget-escalating retry**: a tightening probe that hits its
 300k per-iteration eval cap without improvement retries the same bound with all
 remaining budget instead of ending the optimization — `FF_PREF_EVAL_BUDGET`
 (default 2M evals, deterministic, thread-count independent) is the real
-contract. Most instances finish in ≤ 65 s wall at 4 cores; the trucks tail is
-the slowest (p07 ~108 s, p08 ~163 s) because the escalated retries actually
-spend the budget. `FF_PREF_COMPILED=1` / `FF_PREF_NO_STATIC=1` /
-`FF_PREF_BARRIER=1` / `FF_PREF_NO_ESCALATE=1` restore the pre-2026-07 pieces.
-rovers routes to the legacy compiled-goal B&B by design (folded numeric
-metric) — it shares the budget/escalation but not the closure search.
+contract. Second pass (2026-07): **anytime in-sweep tightening** (each sweep
+tightens its bound in place on every acceptance instead of restarting per
+improvement — a restart now happens once per cap, not per improvement;
+`FF_PREF_GREEDY=1` restores first-improvement sweeps) and a **diversified
+restart ladder** — a capped no-improvement sweep says the current h-ordering
+can't reach a better plan (measured: same-direction retries re-tread the same
+prefix and change nothing), so the loop rotates the open-list weights through
+a fixed half-cap profile ladder (h-greedy → h-heavy → g-heavy → pure-h) under
+the same bound before the final all-remaining escalation
+(`FF_PREF_NO_RESTARTS=1` disables the ladder). Fully deterministic. Most
+instances finish in ≤ 65 s wall at 4 cores; the trucks tail is the slowest
+(p07 ~104 s, p08 ~154 s) because the escalated retries actually spend the
+budget. `FF_PREF_COMPILED=1` / `FF_PREF_NO_STATIC=1` / `FF_PREF_BARRIER=1` /
+`FF_PREF_NO_ESCALATE=1` restore the pre-2026-07 pieces. rovers routes to the
+legacy compiled-goal B&B by design (folded numeric metric) — it shares the
+budget/escalation/anytime/ladder machinery but not the closure search.
 
 **tpp** — the exact-closure optimizer² **ties SGPlan5 on p01–p04** (the whole
-field ties SGPlan there); SGPlan5 keeps the tail:
+field ties SGPlan there); the restart ladder cut the tail (97/116/131 →
+93/104/117) but SGPlan5 keeps it:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **16** | **24** | **29** | **35** | 97 | 116 | 131 | 146 |
+| ferroplan² | **16** | **24** | **29** | **35** | 93 | 104 | 117 | 147 |
 | SGPlan5 | 16 | 24 | 29 | 35 | 79 | 101 | 100 | 105 |
 
 **storage** — full coverage (was 2/8: the quadratic forall-preference compiled
 to 1601–62191 instances and walled the search). Static simplification drops the
-statically-satisfied ~90–97%, and the exact-closure optimizer² searches real
-states only — **ferroplan now beats SGPlan5 on p01–p05**:
+statically-satisfied ~90–97%, the exact-closure optimizer² searches real
+states only, and the restart ladder² broke the large-instance plateau
+(46/145/200/263 → 31/121/124/148) — **ferroplan now beats SGPlan5 on p01–p07**
+(7 of 8) **and on the domain total** (447 vs 547):
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **3** | **5** | **6** | **9** | **46** | 145 | 200 | 263 |
+| ferroplan² | **3** | **5** | **6** | **9** | **31** | **121** | **124** | 148 |
 | SGPlan5 | 5 | 8 | 14 | 17 | 87 | 124 | 160 | 132 |
 
 **trucks** — the closure optimizer² lifted the whole row (p08: 133 → 10, p07:
-67 → 12); ferroplan **wins p01 and p07**, ties p02/p04/p05:
+67 → 12) and the ladder² finished p03 (1 → 0) and p06 (6 → 1); ferroplan
+**wins p01 and p07**, ties p02–p05, and is **ahead on the domain total**
+(23 vs 31):
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **0** | 0 | 1 | 0 | 0 | 6 | **12** | 10 |
+| ferroplan² | **0** | **0** | **0** | **0** | **0** | 1 | **12** | 10 |
 | SGPlan5 | 1 | 0 | 0 | 0 | 0 | 0 | 24 | 6 |
 
 **rovers** (MetricSimplePreferences — numeric metric, optimized via numeric-term
-folding on the legacy B&B; the escalating retry bought p02/p05) — ferroplan is
-competitive and **edges p07/p08**:
+folding on the legacy B&B; the ladder² bought p04, 559.9 → 485.5, a whisker
+from SGPlan's 485.4, at the price of p02, 596.7 → 653.5 — net −17.6 on the
+total) — ferroplan is competitive and **edges p07/p08**:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan | 935.3 | 596.7 | 1018.2 | 559.9 | 523.3 | 664.6 | **402.2** | **979.9** |
+| ferroplan | 935.3 | 653.5 | 1018.2 | 485.5 | 523.3 | 664.6 | **402.2** | **979.9** |
 | SGPlan5 | 811.3 | 473.2 | 811.3 | 485.4 | 483.6 | 656.7 | 403.4 | 1007.6 |
 
-**pathways** — **ties SGPlan5 on p01–p04** (was p01 only); SGPlan5 better after:
+**pathways** — **ties SGPlan5 on p01–p04** (was p01 only) and the ladder²
+**wins p05 outright** (8.5 → 6 vs SGPlan's 6.5); SGPlan5 better after:
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **2** | **3** | **3** | **2** | 8.5 | 12.9 | 12.5 | 20.2 |
+| ferroplan² | **2** | **3** | **3** | **2** | **6** | 12.9 | 12.5 | 20.2 |
 | SGPlan5 | 2 | 3 | 3 | 2 | 6.5 | 10 | 8 | 12.9 |
 
 ## Verdict
 
-The picture flipped in 2026-07. On p01–p08 quality with full coverage
-everywhere:
+The picture flipped in 2026-07, and the second pass (anytime tightening + the
+diversified restart ladder) moved it again. On p01–p08 quality with full
+coverage everywhere:
 
-- **ferroplan LEADS SGPlan5 on two domains**: **openstacks** (with the opt-in
-  `FF_ESPC` partitioned penalty loop: wins p04–p08, totals 271 vs 326) and
-  **storage** (default path: wins p01–p05, 5 of 8 instances; SGPlan5 keeps the
-  three largest).
-- **Parity band**: **trucks** (wins p01/p07, ties p02/p04/p05; totals 29 vs
-  31 — now AHEAD on total too), **pathways** (ties p01–p04), **tpp** (ties
-  p01–p04 — the whole field does), and **rovers** (wins p07/p08) — SGPlan5
-  still ahead on each domain's larger instances.
-- SGPlan5's real 6/0 sweep is now, on this p01–p08 slice, roughly a **4/2**
-  with three of its four domain leads carried by the p05–p08 tail.
+- **ferroplan LEADS SGPlan5 on two domains, now decisively**: **openstacks**
+  (with the opt-in `FF_ESPC` partitioned penalty loop: wins p04–p08, totals
+  271 vs 326) and **storage** (default path: wins **p01–p07**, 7 of 8, and
+  the domain total, 447 vs 547; SGPlan5 keeps only p08, 148 vs 132 — down
+  from 263).
+- **Parity band**: **trucks** (wins p01/p07, ties p02–p05; totals 23 vs 31 —
+  ahead on total), **pathways** (ties p01–p04, **wins p05**, 6 vs 6.5),
+  **tpp** (ties p01–p04 — the whole field does; the ladder cut the tail to
+  93/104/117/147), and **rovers** (wins p07/p08, p04 within 0.1 of a tie) —
+  SGPlan5 still ahead on each domain's largest instances.
+- Instance tally across the 48: **17 wins / 12 ties / 19 losses** (was
+  14/11/23 before the ladder). SGPlan5's real 6/0 sweep is now, on this
+  p01–p08 slice, roughly a **4/2** carried almost entirely by the p05–p08
+  tails of tpp/pathways and rovers' numeric metric.
 
 Under the IPC-5 **coverage-first** rule the placement is a strong **2nd**:
 full 48/48 coverage (storage was 2/8 before), two domain-level quality wins,
 and parity on small instances nearly everywhere — clearly ahead of MIPS-XXL
 (bogus openstacks metrics, low coverage elsewhere), MIPS-BDD (very low
 coverage), and YochanPS (no openstacks, low coverage). What separates 2nd from
-1st is now concentrated in the large-instance tails (tpp/pathways/storage
-p05–p08) and rovers' numeric metric.
+1st is now concentrated in the tpp/pathways p05–p08 tails and rovers'
+numeric metric.
 
 ## Path to climb
 
@@ -143,20 +165,34 @@ p05–p08) and rovers' numeric metric.
    simplification (statically-satisfied instances dropped at compile) + the
    closure optimizer's instant init-tail incumbent give storage full 8/8
    coverage (62k raw instances on p08) with every instance ≤ 60 s.
-4. **Large-instance tails** — partially closed (2026-07): the budget-escalating
-   retry converted the "abandon on first capped probe" plateau into real budget
-   consumption — tpp p04 35 (tie), p05 101→97, trucks p07 19→12, storage
-   p05/p06/p08 46/145/263, openstacks default 49→42, rovers p02/p05
-   596.7/523.3. What remains (tpp/pathways p05–p08, storage p06–p08) plateaus
-   at the 2M default budget with greedy first-improvement tightening; next
-   levers are a better-than-first-improvement iteration (e.g. exhaust-then-pick
-   or restarts) and partitioned closure search.
-5. **rovers numeric metric** — the residual p01–p06 gap is a subset-selection
-   problem (which preferences are worth their forced traverse cost). MEASURED
-   DEAD END (2026-07): cost-aware open-list ordering (`SearchCfg::w_c`,
-   `FF_PREF_COST_WEIGHT`) collapses quality at every weight tried — cost only
-   grows along a path, so cost-ordering buries goal-reaching prefixes; the
-   machinery stays for experiments, default 0. A working lever must price the
-   *completion* (cost-aware heuristic or forgo-aware seeding), not the prefix.
+4. ~~**Large-instance tails**~~ — **largely closed** (2026-07, second pass):
+   the anytime+ladder combination. Measured in two halves: **anytime in-sweep
+   tightening alone changed nothing** (identical metrics, fewer iterations) —
+   the plateau was never restart churn but a GUIDANCE limit: at the plateau
+   bound the h-ordering exhausts its budget without reaching a better plan,
+   in any amount of contiguous budget. The **diversified restart ladder** is
+   what broke it (same bound, rotated open-list weights, half-size rungs so
+   the final full-budget escalation stays strong — full-size rungs starved it
+   and gave back tpp p04 / trucks p07): storage p05–p08 46/145/200/263 →
+   31/121/124/148 (p06/p07 flipped to wins), pathways p05 8.5 → 6 (win), tpp
+   p05–p07 −4/−12/−14, trucks p03 1→0 / p06 6→1, openstacks default p01
+   42→23. Cost: tpp p08 +1, openstacks p03 +1, rovers p02 +56.8 (all
+   already-losing instances). What remains (tpp/pathways p05–p08) plateaus
+   under every profile in the ladder; the next lever is partitioned closure
+   search (ESPC-style composition on the closure path).
+5. **rovers numeric metric** — the residual gap is a subset-selection problem
+   (which preferences are worth their forced traverse cost). TWO measured
+   levers: (a) cost-aware open-list ordering (`SearchCfg::w_c`,
+   `FF_PREF_COST_WEIGHT`) — DEAD END, collapses quality at every weight (cost
+   only grows along a path, so cost-ordering buries goal-reaching prefixes);
+   (b) **forgo-aware seeding** (`FF_PREF_SEED=1`, `heuristic::
+   relaxed_plan_cost` prices each preference's completion from init and
+   pre-forgoes those priced over their weight) — NEUTRAL: the estimates fire
+   correctly (p01: est 157 vs weight 76.5) but the EHC seed already lands at
+   the same incumbent cost; final metrics identical on/off across p01–p08.
+   The restart ladder (item 4) is what actually moved rovers: p04 559.9 →
+   485.5, within 0.1 of SGPlan5. Machinery for both stays, both default-off.
+   The open question is completion pricing *inside* the search (a cost-aware
+   relaxed-plan heuristic), not at the seed.
 
 > Reproduce: `for p in p01..p08; do ff -o pref/<domain>/domain.pddl -f pref/<domain>/$p.pddl; done`

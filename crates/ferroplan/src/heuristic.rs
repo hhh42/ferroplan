@@ -513,6 +513,43 @@ pub fn relaxed_helpful(
     Some((h, helpful))
 }
 
+/// Relaxed completion COST of a subgoal from this state: run the relaxed-plan
+/// extraction toward `goal_pos`/`goal_num`, then sum the SELECTED ops'
+/// `increase` effects on `cost_fluent`, each evaluated against this state's
+/// fluent values — exact when the increase amounts read only static fluents
+/// (the IPC numeric-metric shape, e.g. rovers' traverse costs). Ops are
+/// counted once (set semantics), so this UNDERestimates a plan that must
+/// repeat an op — the safe direction for the forgo-aware seed (an
+/// underestimate never prices a cheap preference out). None == relaxed dead
+/// end (the subgoal is unreachable even ignoring deletes).
+#[allow(clippy::too_many_arguments)]
+pub fn relaxed_plan_cost(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    cost_fluent: usize,
+) -> Option<f64> {
+    relaxed_to(task, sc, bits, fv, def, goal_pos, goal_num)?;
+    let mut cost = 0.0;
+    for oi in 0..task.n_ops {
+        if sc.selected[oi] != sc.gen {
+            continue;
+        }
+        for ne in task.num_eff.slice(oi) {
+            if ne.target as usize == cost_fluent && ne.op == AssignOp::Increase {
+                if let Some(v) = ne.value.eval(fv, def) {
+                    cost += v.max(0.0);
+                }
+            }
+        }
+    }
+    Some(cost)
+}
+
 /// Lowest-layer op that adds fact `f` (FF prefers earliest achievers).
 /// Uses the precomputed add-by-fact index instead of scanning all ops.
 fn achiever(

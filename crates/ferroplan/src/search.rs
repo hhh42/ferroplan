@@ -44,6 +44,16 @@ pub struct SearchCfg {
     pub w_h: i64,
     pub max_eval: usize,
     pub w_c: f64,
+    /// Anytime in-sweep tightening for the bounded metric searches: on an
+    /// accepting state, record it as the incumbent and TIGHTEN the bound in
+    /// place instead of returning — the sweep keeps draining (no restart, no
+    /// prefix re-tread) until the eval cap or open-list exhaustion, then
+    /// returns the best incumbent. Off (`false`) reproduces the historical
+    /// first-improvement behavior bit-for-bit; only the preference B&B loops
+    /// set it (`FF_PREF_GREEDY=1` restores first-improvement there). All
+    /// tightening happens in the serial acceptance section, so determinism
+    /// and thread-count independence are preserved.
+    pub anytime: bool,
 }
 
 impl Default for SearchCfg {
@@ -80,6 +90,7 @@ impl SearchCfg {
             w_h,
             max_eval: max_eval.unwrap_or(DEFAULT_MAX_EVAL),
             w_c: 0.0,
+            anytime: false,
         }
     }
 
@@ -292,6 +303,12 @@ pub fn search_from(
     let mut best = i32::MAX;
     let mut advance: Vec<i32> = Vec::new();
     let mut max_g = 0usize;
+    // Anytime in-sweep tightening (`cfg.anytime`, metric B&B loops only): the
+    // bound tightens in place on every acceptance and the sweep keeps going —
+    // `best_acc` holds the incumbent's node index (nodes is append-only, so
+    // reconstruction stays valid at return time).
+    let mut cost_bound = cost_bound;
+    let mut best_acc: Option<usize> = None;
 
     while !heap.is_empty() {
         // pop a batch of lowest-priority nodes
@@ -310,21 +327,64 @@ pub fn search_from(
         // this test accepts precisely the states that improve the metric.
         for &ni in &popped {
             max_g = max_g.max(nodes[ni].g);
-            if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num)
-                && closure.map_or(true, |cl| {
-                    let s = &nodes[ni].state;
-                    let g = cost_fluent
-                        .map(|cf| if s.fdef[cf] { s.fv[cf] } else { 0.0 })
-                        .unwrap_or(0.0);
-                    g + cl.cost(s) < cost_bound
-                })
-            {
+            if !task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
+                continue;
+            }
+            if cfg.anytime {
+                // In-sweep tightening: acceptance = effective plan cost
+                // (cost-so-far + exact closure, or plain cost-so-far without a
+                // closure) strictly beats the CURRENT bound. Accepting states
+                // stay in the batch — a zero-cost extension can still satisfy
+                // more preferences and improve again.
+                let s = &nodes[ni].state;
+                let g = cost_fluent
+                    .map(|cf| if s.fdef[cf] { s.fv[cf] } else { 0.0 })
+                    .unwrap_or(0.0);
+                let eff = g + closure.map_or(0.0, |cl| cl.cost(s));
+                if eff < cost_bound {
+                    best_acc = Some(ni);
+                    cost_bound = eff;
+                    if eff <= 0.0 {
+                        // Nothing can beat zero: the incumbent is optimal.
+                        return PlanResult::Plan {
+                            ops: reconstruct(&nodes, ni),
+                            advance,
+                            evaluated,
+                            max_g,
+                        };
+                    }
+                }
+                continue;
+            }
+            if closure.map_or(true, |cl| {
+                let s = &nodes[ni].state;
+                let g = cost_fluent
+                    .map(|cf| if s.fdef[cf] { s.fv[cf] } else { 0.0 })
+                    .unwrap_or(0.0);
+                g + cl.cost(s) < cost_bound
+            }) {
                 return PlanResult::Plan {
                     ops: reconstruct(&nodes, ni),
                     advance,
                     evaluated,
                     max_g,
                 };
+            }
+        }
+
+        // Anytime: drop popped nodes the tightened bound has made dead — cost
+        // is monotone and the closure is non-negative, so cost-so-far >= bound
+        // can never reach an accepting state. Saves their h evaluations.
+        if cfg.anytime {
+            if let Some(cf) = cost_fluent {
+                let bound_now = cost_bound;
+                popped.retain(|&ni| {
+                    let s = &nodes[ni].state;
+                    !(s.fdef[cf] && s.fv[cf] >= bound_now)
+                });
+                if popped.is_empty() {
+                    continue;
+                }
             }
         }
 
@@ -348,6 +408,16 @@ pub fn search_from(
         );
         evaluated += popped.len();
         if evaluated > cfg.max_eval {
+            // Anytime: a capped sweep still hands back its incumbent — the
+            // caller tightens to its cost and (with budget) sweeps again.
+            if let Some(ni) = best_acc {
+                return PlanResult::Plan {
+                    ops: reconstruct(&nodes, ni),
+                    advance,
+                    evaluated,
+                    max_g,
+                };
+            }
             return PlanResult::Unsolvable {
                 evaluated,
                 capped: true,
@@ -424,6 +494,16 @@ pub fn search_from(
         }
     }
 
+    // Open list exhausted. Anytime: the incumbent is optimal under the original
+    // bound (the caller's confirming re-sweep proves it via None + un-capped).
+    if let Some(ni) = best_acc {
+        return PlanResult::Plan {
+            ops: reconstruct(&nodes, ni),
+            advance,
+            evaluated,
+            max_g,
+        };
+    }
     PlanResult::Unsolvable {
         evaluated,
         capped: false,
