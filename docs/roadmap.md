@@ -6,6 +6,7 @@
 > the MCP server + crates.io publishing followed. The 0.4.0 release then took on the
 > IPC-5 preference track (see the [scoreboard](../benchmarks/ipc5-scoreboard.md)).
 > This file is kept as the record of that plan. **Current forward work** lives in the
+> [0.5 roadmap](roadmap-0.5.md) ("First Place"), which consolidates the
 > scoreboard's "Path to climb" (large-instance tails; rovers completion-aware
 > pricing) and the [ESPC spec](espc-preferences-spec.md).
 
