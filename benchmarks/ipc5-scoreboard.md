@@ -39,11 +39,14 @@ IPC-5 winner on the larger half of the suite:
 | + `FF_ESPC`¹ | 19 | 23 | 17 | **16** | **21** | **22** | **66** | **87** |
 | SGPlan5 | 13 | 16 | 12 | 26 | 36 | 33 | 67 | 123 |
 
-¹ `FF_ESPC=1 FF_ESPC_TIME_MS=90000`, 4 cores (2026-07, partitioned coupling).
-Deterministic across runs (3/3 identical per instance) and terminates by
-stall/saddle well inside the budget — worst case p04 at ~58 s wall, p01 in ~4 s.
-`FF_ESPC_MONO=1` reproduces the earlier monolithic loop
-(42/43/55/66/81/90/151/227 at the same budget).
+¹ **The DEFAULT since 0.5** (graduated: `features::espc()` engages wherever
+deadline pairs exist — a verified no-op on the other five domains — and the
+outer budget is a deterministic eval pool, `FF_ESPC_EVAL_BUDGET` default 6M,
+replacing the wall clock; `FF_ESPC_TIME_MS` remains as an optional additional
+cap). The graduated default row reproduces the old opt-in row exactly —
+19/23/17/16/21/22/66/87, t1≡t4, worst case p04 at ~63 s wall, p01 in ~3 s.
+`FF_NO_ESPC=1` restores the closure-only path; `FF_ESPC_MONO=1` reproduces the
+earlier monolithic loop.
 
 ² Default path since 2026-07: the **exact-closure metric optimizer** (static
 preference simplification at compile + real-state search with metric-bounded

@@ -1159,7 +1159,7 @@ pub fn metric_optimize(
             }
         }
         if any {
-            let seeded = crate::search::solve_subgoal_guided(
+            let (seeded, _evaluated) = crate::search::solve_subgoal_guided(
                 task,
                 &init,
                 &task.goal_pos,

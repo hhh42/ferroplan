@@ -78,9 +78,10 @@ fn ipc5_pref_metric_no_regression() {
     // default dropped 63 -> 49 (the opt-in FF_ESPC row is separate, see
     // tests/espc.rs). rovers rides the legacy folded-metric path, unchanged.
     // openstacks re-locked 49 -> 42 (2026-07, budget-escalating retry),
-    // then 42 -> 23 (2026-07, anytime sweeps + the diversified restart ladder).
+    // then 42 -> 23 (2026-07, anytime sweeps + the diversified restart ladder),
+    // then 23 -> 19 (0.5: ESPC graduated to default-on, deterministic budget).
     for (d, ceiling) in [
-        ("openstacks", 23.0),
+        ("openstacks", 19.0),
         ("tpp", 16.0),
         ("storage", 3.0),
         ("trucks", 0.0),

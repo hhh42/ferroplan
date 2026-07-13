@@ -44,17 +44,21 @@ predecessor pieces or tune its budget.
 | `FF_DEADLINE_WEIGHT` | `0` | extra penalty on deadline-pair triggers in satisfaction guidance. |
 | `FF_RES_DEBUG` | — | print resource/preference simplification diagnostics. |
 
-## ESPC penalty loop (opt-in)
+## ESPC penalty loop (default-on where it bites)
 
 The extended-saddle-point penalty loop for resource-coupled preference domains
-(openstacks-shaped). Off by default; engages only when the compiled task carries
-once-only conditional-achievement deadline pairs.
+(openstacks-shaped). **On by default since 0.5**, with a deterministic
+evaluated-state budget; it engages only when the compiled task carries once-only
+conditional-achievement deadline pairs — on every other task it is a verified
+no-op.
 
 | var | default | effect |
 |---|---|---|
-| `FF_ESPC` | off | **enable** the ESPC partitioned penalty loop. |
+| `FF_NO_ESPC` | espc on | **opt out** — restore the closure-optimizer-only default path. |
+| `FF_ESPC_EVAL_BUDGET` | `6000000` | deterministic eval pool for the loop (λ iterations + polish) — the primary budget contract, thread-count independent. |
+| `FF_ESPC_TIME_MS` | unset | optional **additional** wall-clock cap for interactive use. Applies only when set; setting it trades determinism for latency. |
 | `FF_ESPC_MONO` | partitioned | reproduce the earlier monolithic (pre-0.4.0) loop. |
-| `FF_ESPC_TIME_MS` | `15000` | wall-clock budget for the loop, in ms. |
+| `FF_ESPC` | — | accepted for compatibility (pre-0.5 opt-in); redundant now. |
 
 Advanced ESPC schedule tuning (rarely needed): `FF_ESPC_OUTER` (outer iterations),
 `FF_ESPC_RATE` (initial penalty rate, `20`), `FF_ESPC_K` (consecutive-violation

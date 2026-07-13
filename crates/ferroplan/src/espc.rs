@@ -58,7 +58,8 @@ pub struct EspcPartition {
 enum ComposeErr {
     /// Stage `i` failed or broke already-done sibling `j` — merge and retry.
     Conflict(usize, Option<usize>),
-    /// Wall-clock budget exhausted between stages — stop the outer loop.
+    /// Budget (eval pool, or the optional wall-clock cap) exhausted between
+    /// stages — stop the outer loop.
     Budget,
     /// The composed plan failed the full-goal safety check (never expected;
     /// falls back to the monolithic pass for this iteration).
@@ -70,6 +71,23 @@ fn env_i64(key: &str, default: i64) -> i64 {
         .ok()
         .and_then(|s| s.parse::<i64>().ok())
         .unwrap_or(default)
+}
+
+/// The deterministic outer budget: an evaluated-state pool (`pool`, decremented
+/// by every inner search) plus an OPTIONAL wall-clock cap (`wall`, set only when
+/// `FF_ESPC_TIME_MS` is given explicitly — for interactive use; the eval pool is
+/// the primary contract, so default runs are thread-count independent exactly
+/// like the B&B's `FF_PREF_EVAL_BUDGET`).
+fn exhausted(pool: i64, wall: Option<Instant>) -> bool {
+    pool <= 0 || wall.is_some_and(|d| Instant::now() >= d)
+}
+
+/// Cap an inner search at the per-call cfg cap AND the remaining pool.
+fn capped_cfg(cfg: SearchCfg, pool: i64) -> SearchCfg {
+    SearchCfg {
+        max_eval: cfg.max_eval.min(pool.max(1) as usize),
+        ..cfg
+    }
 }
 
 /// One sequential composition pass over the current components (the resolve.rs
@@ -88,7 +106,8 @@ fn compose_once(
     part: &EspcPartition,
     threads: usize,
     cfg: SearchCfg,
-    deadline: Instant,
+    pool: &mut i64,
+    wall: Option<Instant>,
 ) -> Result<Vec<usize>, ComposeErr> {
     let (comps, tail) = (&part.comps, &part.tail);
     let mut state = task.initial();
@@ -98,7 +117,7 @@ fn compose_once(
         // Budget guard BETWEEN stages (stage 0 always runs; a single in-flight
         // stage search is not preemptible, same convention as the monolithic
         // tightening loop).
-        if i > 0 && Instant::now() >= deadline {
+        if i > 0 && exhausted(*pool, wall) {
             return Err(ComposeErr::Budget);
         }
         if task.goal_met_with(&state, &comps[i].pos, &comps[i].num) {
@@ -149,45 +168,28 @@ fn compose_once(
             g.extend(extra);
             g
         });
+        let guided = |goal: &[u32], forb: &[bool], pool: &mut i64| {
+            let (ops, evaluated) = solve_subgoal_guided(
+                task,
+                &state,
+                goal,
+                &comps[i].num,
+                forb,
+                threads,
+                capped_cfg(cfg, *pool),
+                Some(sat),
+            );
+            *pool -= evaluated as i64;
+            ops
+        };
         let solved = enriched
-            .and_then(|g| {
-                solve_subgoal_guided(
-                    task,
-                    &state,
-                    &g,
-                    &comps[i].num,
-                    &forbidden,
-                    threads,
-                    cfg,
-                    Some(sat),
-                )
-            })
-            .or_else(|| {
-                solve_subgoal_guided(
-                    task,
-                    &state,
-                    &comps[i].pos,
-                    &comps[i].num,
-                    &forbidden,
-                    threads,
-                    cfg,
-                    Some(sat),
-                )
-            })
+            .and_then(|g| guided(&g, &forbidden, pool))
+            .or_else(|| guided(&comps[i].pos, &forbidden, pool))
             .or_else(|| {
                 if forbidden.is_empty() {
                     None
                 } else {
-                    solve_subgoal_guided(
-                        task,
-                        &state,
-                        &comps[i].pos,
-                        &comps[i].num,
-                        &[],
-                        threads,
-                        cfg,
-                        Some(sat),
-                    )
+                    guided(&comps[i].pos, &[], pool)
                 }
             });
         let Some(ops) = solved else {
@@ -231,10 +233,11 @@ fn solve_partitioned(
     part: &mut EspcPartition,
     threads: usize,
     cfg: SearchCfg,
-    deadline: Instant,
+    pool: &mut i64,
+    wall: Option<Instant>,
 ) -> Result<(Vec<usize>, f64), ComposeErr> {
     loop {
-        match compose_once(task, sat, part, threads, cfg, deadline) {
+        match compose_once(task, sat, part, threads, cfg, pool, wall) {
             Ok(plan) => {
                 let cost = plan_cost(task, &plan, cost_fluent);
                 return Ok((plan, cost));
@@ -290,7 +293,8 @@ fn solve_under_penalties(
     sat: &SatGuidance,
     threads: usize,
     cfg: SearchCfg,
-    deadline: Instant,
+    pool: &mut i64,
+    wall: Option<Instant>,
     bound0: f64,
 ) -> Option<(Vec<usize>, f64)> {
     const INNER_MAX: usize = 200;
@@ -298,15 +302,14 @@ fn solve_under_penalties(
     let mut bound = bound0;
     let mut best: Option<(Vec<usize>, f64)> = None;
     for i in 0..INNER_MAX {
-        // Budget guard BETWEEN bounded calls: never start another (multi-second)
-        // tightening pass once the wall-clock budget is spent. The first pass (i==0,
-        // unbounded) always runs so this call yields a measurable plan; subsequent
-        // tightening is what gets cut. A single in-flight search is not preemptible,
-        // so the budget is honored to within one bounded-call duration.
-        if i > 0 && Instant::now() >= deadline {
+        // Budget guard BETWEEN bounded calls: never start another tightening
+        // pass once the eval pool (or the optional wall cap) is spent. The
+        // first pass (i==0, unbounded) always runs so this call yields a
+        // measurable plan; subsequent tightening is what gets cut.
+        if i > 0 && exhausted(*pool, wall) {
             break;
         }
-        let (opt, _evaluated, _capped) = solve_subgoal_bounded(
+        let (opt, evaluated, _capped) = solve_subgoal_bounded(
             task,
             &init,
             &task.goal_pos,
@@ -314,9 +317,10 @@ fn solve_under_penalties(
             cost_fluent,
             bound,
             threads,
-            cfg,
+            capped_cfg(cfg, *pool),
             Some(sat),
         );
+        *pool -= evaluated as i64;
         match opt {
             Some(ops) => {
                 let cost = plan_cost(task, &ops, cost_fluent);
@@ -377,11 +381,17 @@ pub fn espc_optimize(
     let outer_max = env_i64("FF_ESPC_OUTER", outer_default).max(1) as usize;
     let k_bump = env_i64("FF_ESPC_K", 2).max(1); // consecutive-violation rate bump
     let stall_max = env_i64("FF_ESPC_STALL", 4).max(1) as usize;
-    // Default budget kept conservative so ESPC reliably RETURNS its incumbent well
-    // inside common harness timeouts (run.py uses 30s): it is anytime internally but
-    // is killed wholesale by an EXTERNAL timeout, losing even the floor. Raise it
-    // (with more threads) for the headline-quality runs. Tunable via FF_ESPC_TIME_MS.
-    let time_ms = env_i64("FF_ESPC_TIME_MS", 15_000).max(0) as u64;
+    // Deterministic outer budget (0.5 graduation): an evaluated-state pool,
+    // exactly the conversion FF_PREF_EVAL_BUDGET made for the B&B — so the
+    // default ESPC run is thread-count and machine independent. Wall-clock
+    // (`FF_ESPC_TIME_MS`) is DEMOTED to an optional additional cap for
+    // interactive use: it applies only when set explicitly, and setting it
+    // trades determinism for latency (documented in the tuning reference).
+    let eval_budget = env_i64("FF_ESPC_EVAL_BUDGET", 6_000_000).max(1);
+    let wall: Option<Instant> = std::env::var("FF_ESPC_TIME_MS")
+        .ok()
+        .and_then(|s| s.parse::<i64>().ok())
+        .map(|ms| Instant::now() + Duration::from_millis(ms.max(0) as u64));
     let debug = std::env::var("FF_RES_DEBUG").is_ok();
 
     // Per-trigger penalty, monotone non-decreasing.
@@ -407,22 +417,21 @@ pub fn espc_optimize(
     let mut consec = 0i64;
     let mut stall = 0usize;
     let mut iterations = 0usize;
-    let deadline = Instant::now() + Duration::from_millis(time_ms);
-    // In partitioned mode the λ loop gets HALF the budget; the rest is reserved
-    // for the monolithic incumbent-bounded polish below, which restores the
-    // default-quality floor (partitioned iterations don't subsume the plain B&B
-    // the way monolithic iteration 0 does).
-    let loop_deadline = if part.is_some() {
-        Instant::now() + Duration::from_millis(time_ms / 2)
+    // In partitioned mode the λ loop gets HALF the eval pool; the rest is
+    // reserved for the monolithic incumbent-bounded polish below, which
+    // restores the default-quality floor (partitioned iterations don't subsume
+    // the plain B&B the way monolithic iteration 0 does).
+    let mut loop_pool: i64 = if part.is_some() {
+        eval_budget / 2
     } else {
-        deadline
+        eval_budget
     };
 
     for outer in 0..outer_max {
         // Don't START another outer iteration once the budget is spent — but iter 0
         // (the penalty-free floor) always runs, so we never return worse than the
         // plain B&B even under a tight budget.
-        if outer > 0 && Instant::now() >= loop_deadline {
+        if outer > 0 && exhausted(loop_pool, wall) {
             break;
         }
         iterations += 1;
@@ -434,7 +443,16 @@ pub fn espc_optimize(
 
         let solved = match part.as_mut() {
             Some(p) => {
-                match solve_partitioned(task, cost_fluent, sat, p, threads, cfg, loop_deadline) {
+                match solve_partitioned(
+                    task,
+                    cost_fluent,
+                    sat,
+                    p,
+                    threads,
+                    cfg,
+                    &mut loop_pool,
+                    wall,
+                ) {
                     Ok(r) => Some(r),
                     Err(ComposeErr::Budget) => None,
                     // Persistent composition failure under this penalty setting:
@@ -446,7 +464,8 @@ pub fn espc_optimize(
                         sat,
                         threads,
                         cfg,
-                        loop_deadline,
+                        &mut loop_pool,
+                        wall,
                         f64::INFINITY,
                     ),
                 }
@@ -457,7 +476,8 @@ pub fn espc_optimize(
                 sat,
                 threads,
                 cfg,
-                deadline,
+                &mut loop_pool,
+                wall,
                 f64::INFINITY,
             ),
         };
@@ -505,22 +525,33 @@ pub fn espc_optimize(
         }
     }
 
-    // Partitioned-mode POLISH: spend whatever budget remains on the monolithic
-    // tightening B&B bounded by the incumbent (under the last-baked λ, which
-    // only reorders the open list). Strictly improving — it either beats the
-    // incumbent or leaves it — and it is what restores the "never worse than
-    // the plain B&B" floor that monolithic iteration 0 provides.
-    if part.is_some() && Instant::now() < deadline {
-        let bound0 = best.as_ref().map_or(f64::INFINITY, |(_, c)| *c);
-        if bound0 > 0.0 {
-            if let Some((ops, cost)) =
-                solve_under_penalties(task, cost_fluent, sat, threads, cfg, deadline, bound0)
-            {
-                if best.as_ref().map_or(true, |(_, c)| cost < *c - 1e-9) {
-                    if debug {
-                        eprintln!("[ESPC] polish: {bound0} -> {cost}");
+    // Partitioned-mode POLISH: spend whatever eval budget remains on the
+    // monolithic tightening B&B bounded by the incumbent (under the last-baked
+    // λ, which only reorders the open list). Strictly improving — it either
+    // beats the incumbent or leaves it — and it is what restores the "never
+    // worse than the plain B&B" floor that monolithic iteration 0 provides.
+    // Pool = the reserved half plus whatever the λ loop left unspent.
+    if part.is_some() {
+        let mut polish_pool: i64 = (eval_budget - eval_budget / 2) + loop_pool.max(0);
+        if !exhausted(polish_pool, wall) {
+            let bound0 = best.as_ref().map_or(f64::INFINITY, |(_, c)| *c);
+            if bound0 > 0.0 {
+                if let Some((ops, cost)) = solve_under_penalties(
+                    task,
+                    cost_fluent,
+                    sat,
+                    threads,
+                    cfg,
+                    &mut polish_pool,
+                    wall,
+                    bound0,
+                ) {
+                    if best.as_ref().map_or(true, |(_, c)| cost < *c - 1e-9) {
+                        if debug {
+                            eprintln!("[ESPC] polish: {bound0} -> {cost}");
+                        }
+                        best = Some((ops, cost));
                     }
-                    best = Some((ops, cost));
                 }
             }
         }

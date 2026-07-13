@@ -874,7 +874,7 @@ pub fn solve_subgoal_guided(
     threads: usize,
     cfg: SearchCfg,
     sat: Option<&SatGuidance>,
-) -> Option<Vec<usize>> {
+) -> (Option<Vec<usize>>, usize) {
     match search_from(
         task,
         start,
@@ -888,7 +888,7 @@ pub fn solve_subgoal_guided(
         sat,
         None,
     ) {
-        PlanResult::Plan { ops, .. } => Some(ops),
-        PlanResult::Unsolvable { .. } => None,
+        PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
+        PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
     }
 }
