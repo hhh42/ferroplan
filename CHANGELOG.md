@@ -2,6 +2,41 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- **Anytime sweeps + a diversified restart ladder in both preference B&B
+  loops** — the two remaining scoreboard levers, measured and landed. Each
+  bounded metric sweep now tightens its bound **in place** on every acceptance
+  and keeps draining (a restart happens once per eval cap, not once per
+  improvement; `FF_PREF_GREEDY=1` restores first-improvement sweeps). Measured
+  alone this changed no metric — the large-instance plateau was never restart
+  churn but a **guidance limit** — so a capped no-improvement sweep now
+  rotates the open-list weights through a fixed half-cap **profile ladder**
+  (h-greedy → h-heavy → g-heavy → pure-h) under the same bound before the
+  final all-remaining escalation (`FF_PREF_NO_RESTARTS=1` disables). Fully
+  deterministic and thread-count independent. On the IPC-5 suite
+  (`benchmarks/ipc5-scoreboard.md`): **storage now beats SGPlan5 on p01–p07
+  and on the domain total** (46/145/200/263 → 31/121/124/148 on p05–p08),
+  **pathways p05 flips to a win** (8.5 → 6 vs 6.5), tpp p05–p07 −4/−12/−14,
+  trucks p03 1→0 and p06 6→1, openstacks default-path p01 42→23, rovers p04
+  559.9→485.5 (0.1 from a tie). Cost, recorded honestly: tpp p08 +1,
+  openstacks p03 +1, rovers p02 +56.8 — all already-losing instances.
+  Instance tally vs SGPlan5: 14W/11T/23L → **17W/12T/19L**. The opt-in
+  `FF_ESPC` openstacks path is untouched (spot-checked identical).
+
+### Added
+
+- `heuristic::relaxed_plan_cost` — a cost-aware relaxed plan (sums the
+  selected ops' `increase` effects on a cost fluent), and an experimental
+  **forgo-aware seed** built on it (`FF_PREF_SEED=1`): price each
+  preference's completion from the initial state and pre-forgo those priced
+  over their weight in one extra seeded solve. Measured **neutral** on rovers
+  (the estimates fire correctly, but the EHC seed already lands at the same
+  incumbent; identical metrics on/off across p01–p08) — default off, kept as
+  the substrate for completion pricing inside the search.
+
 ## [0.4.1] - 2026-07-06 — Trajectory-constraint safety and a docs correctness pass
 
 A correctness point release. It closes one silent-correctness footgun — PDDL3

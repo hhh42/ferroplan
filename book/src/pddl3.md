@@ -28,6 +28,13 @@ provably-optimal `collect`/`forgo` phase tail. Three pieces make it scale:
   per-iteration eval cap without improvement retries the same bound with the
   remaining budget rather than giving up. The deterministic, thread-count-independent
   budget is `FF_PREF_EVAL_BUDGET` (default 2M evals) — a real quality dial.
+- **Anytime sweeps + a diversified restart ladder** — each sweep tightens its
+  bound in place on every acceptance (a restart happens once per cap, not once
+  per improvement), and a capped sweep that fails to improve rotates the
+  open-list weights through a fixed profile ladder before the final
+  full-budget escalation — a stuck h-ordering is a direction problem, not a
+  budget problem. This is what broke the storage/tpp large-instance plateau
+  (storage now beats SGPlan5 on p01–p07).
 
 For resource-coupled domains an **opt-in ESPC penalty loop** (`FF_ESPC`, after
 Hsu–Wah's extended-saddle-point method) prices a shared resource as a global

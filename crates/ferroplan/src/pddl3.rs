@@ -1094,20 +1094,136 @@ pub fn metric_optimize(
         bound = cost;
         best = Some((ops, cost));
     }
+
+    // FORGO-AWARE SECOND SEED (completion pricing) — experimental, opt-in via
+    // `FF_PREF_SEED=1`, default OFF after measuring NEUTRAL (2026-07): the
+    // idea is to price what a preference COSTS to deliver (the relaxation is
+    // blind to it — on rovers a forced traverse round-trip can cost more than
+    // the preference's weight, and prefix-cost ordering `w_c` was a measured
+    // dead end because cost only grows along a path). Estimate each
+    // preference's delivery cost with a cost-aware relaxed plan from the
+    // initial state (`heuristic::relaxed_plan_cost`), pre-forgo any preference
+    // whose estimate exceeds its weight (forbid its P3COLLECT ops) in ONE
+    // extra seeded solve, and keep the cheaper of the two incumbents.
+    // MEASURED: on rovers the estimates fire correctly (p01: est 157 vs
+    // weight 76.5 → pre-forgo) but the plain EHC seed already lands at the
+    // same incumbent cost, and final metrics are identical with the seed on
+    // or off (p01–p08). The residual rovers gap lives in the B&B's reachable
+    // trade curve, not the seed bound — the diversified restart ladder is
+    // what moved it (p04 559.9 → 485.5). Machinery kept for experiments;
+    // a wrong estimate can never hurt quality (min of both seeds).
+    if !forgos.is_empty() && std::env::var("FF_PREF_SEED").is_ok() {
+        let mut sc = crate::heuristic::Scratch::new(task);
+        let collect = collect_ops(task);
+        let mut banned: Vec<bool> = vec![false; task.n_ops];
+        let mut any = false;
+        for (i, (_, weight)) in forgos.iter().enumerate() {
+            let Some(ops_i) = collect.get(&i) else {
+                continue;
+            };
+            // completion estimate = the cheapest disjunct's relaxed-plan cost
+            let mut est = f64::INFINITY;
+            for &oi in ops_i {
+                let pos: Vec<u32> = task
+                    .pre_pos
+                    .slice(oi)
+                    .iter()
+                    .copied()
+                    .filter(|&f| {
+                        !task.fact_names[f as usize]
+                            .to_ascii_uppercase()
+                            .starts_with("(P3")
+                    })
+                    .collect();
+                let c = crate::heuristic::relaxed_plan_cost(
+                    task,
+                    &mut sc,
+                    &init.bits,
+                    &init.fv,
+                    &init.fdef,
+                    &pos,
+                    task.pre_num.slice(oi),
+                    cost_fluent,
+                )
+                .unwrap_or(f64::INFINITY);
+                est = est.min(c);
+            }
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!("[seed] pref {i}: completion est {est:.1} vs weight {weight:.1}");
+            }
+            if est > *weight {
+                for &oi in ops_i {
+                    banned[oi] = true;
+                }
+                any = true;
+            }
+        }
+        if any {
+            let seeded = crate::search::solve_subgoal_guided(
+                task,
+                &init,
+                &task.goal_pos,
+                &task.goal_num,
+                &banned,
+                threads,
+                SearchCfg::from_weights(1.0, 5.0, Some(1_500_000)),
+                None,
+            );
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                let c = seeded.as_ref().map(|o| plan_cost(task, o, cost_fluent));
+                eprintln!("[seed] seeded solve: {c:?} vs EHC incumbent {bound:.1}");
+            }
+            if let Some(ops) = seeded {
+                let cost = plan_cost(task, &ops, cost_fluent);
+                if cost < bound {
+                    if cost <= 0.0 {
+                        return Some(MetricResult {
+                            ops,
+                            cost,
+                            iterations: 0,
+                            proven: true,
+                        });
+                    }
+                    bound = cost;
+                    best = Some((ops, cost));
+                }
+            }
+        }
+    }
     let budget = pref_eval_budget();
     let no_escalate = std::env::var("FF_PREF_NO_ESCALATE").is_ok();
+    // Anytime in-sweep tightening + the diversified restart ladder, exactly as
+    // in the closure loop (acceptance here is plain `final cost < bound` — no
+    // closure term). Same hatches (`FF_PREF_GREEDY`, `FF_PREF_NO_RESTARTS`).
+    const PROFILES: &[(f64, f64)] = &[(1.0, 2.0), (1.0, 8.0), (2.0, 3.0), (0.0, 1.0)];
+    let anytime = std::env::var("FF_PREF_GREEDY").is_err();
+    let restarts = anytime && std::env::var("FF_PREF_NO_RESTARTS").is_err();
     let mut spent = 0usize;
     let mut escalated = false;
+    let mut rung = 0usize;
     while iterations < MAX_ITERS && spent < budget {
         iterations += 1;
         let cap = if escalated {
             budget - spent
+        } else if rung > 0 {
+            // Half-size diversification rungs — see the closure loop.
+            (refine_cfg.max_eval / 2).min(budget - spent)
         } else {
             refine_cfg.max_eval.min(budget - spent)
         };
-        let iter_cfg = SearchCfg {
-            max_eval: cap,
-            ..refine_cfg.with_cost_weight(cost_w)
+        let iter_cfg = if rung == 0 {
+            SearchCfg {
+                max_eval: cap,
+                anytime,
+                ..refine_cfg.with_cost_weight(cost_w)
+            }
+        } else {
+            let (wg, wh) = PROFILES[rung - 1];
+            SearchCfg {
+                max_eval: cap,
+                anytime,
+                ..SearchCfg::from_weights(wg, wh, Some(cap)).with_cost_weight(cost_w)
+            }
         };
         let (opt, evaluated, capped) = solve_subgoal_bounded(
             task,
@@ -1124,6 +1240,7 @@ pub fn metric_optimize(
         match opt {
             Some(ops) => {
                 escalated = false;
+                rung = 0; // an improvement re-arms the ladder
                 let cost = plan_cost(task, &ops, cost_fluent);
                 best = Some((ops, cost));
                 if cost <= 0.0 {
@@ -1133,13 +1250,21 @@ pub fn metric_optimize(
                 bound = cost; // next plan must be strictly cheaper (prune cost >= bound)
             }
             None => {
-                // A capped failure is inconclusive: with budget remaining,
-                // retry the same bound with all of it (see the closure loop's
-                // escalation rationale). Proven optimal IFF a retry-exempt
+                // A capped failure is inconclusive: diversify the open-list
+                // order first (same bound, different region), then retry the
+                // same bound with all remaining budget (see the closure
+                // loop's rationale). Proven optimal IFF a retry-exempt
                 // failure exhausted the space un-capped.
-                if capped && !no_escalate && budget.saturating_sub(spent) > cap {
-                    escalated = true;
-                    continue;
+                if capped && !no_escalate {
+                    if restarts && rung < PROFILES.len() && budget > spent {
+                        rung += 1;
+                        continue;
+                    }
+                    if budget.saturating_sub(spent) > cap {
+                        escalated = true;
+                        rung = 0;
+                        continue;
+                    }
                 }
                 proven = !capped;
                 break;
@@ -1244,18 +1369,55 @@ fn metric_optimize_closure(
     // it, one failed 300k sweep ended the loop with millions unspent. All
     // quantities are deterministic eval counts, so t1≡t8 is preserved.
     // `FF_PREF_NO_ESCALATE=1` restores break-on-first-capped-failure.
+    //
+    // ANYTIME TIGHTENING (see `SearchCfg::anytime`): each sweep tightens its
+    // bound in place on every acceptance and keeps draining, so a restart (and
+    // its deterministic prefix re-tread) happens once per CAP instead of once
+    // per improvement. `FF_PREF_GREEDY=1` restores first-improvement sweeps.
+    //
+    // DIVERSIFIED RESTART LADDER: a capped no-improvement sweep is not just
+    // inconclusive — it says the current h-ordering cannot reach a better
+    // plan in this region (measured: pouring the whole budget into the same
+    // direction re-treads the same prefix and changes nothing). Before the
+    // final all-remaining escalation, rotate the open-list weights through a
+    // fixed profile ladder — each rung orders the frontier differently
+    // (h-greedier / g-heavier / pure-h), exploring a genuinely different
+    // region under the SAME bound. Fully deterministic (fixed profiles, eval-
+    // count budgets); an improvement resets the ladder to the default rung.
+    // `FF_PREF_NO_RESTARTS=1` disables the ladder alone.
+    const PROFILES: &[(f64, f64)] = &[(1.0, 2.0), (1.0, 8.0), (2.0, 3.0), (0.0, 1.0)];
     let no_escalate = std::env::var("FF_PREF_NO_ESCALATE").is_ok();
+    let anytime = std::env::var("FF_PREF_GREEDY").is_err();
+    let restarts = anytime && std::env::var("FF_PREF_NO_RESTARTS").is_err();
     let mut escalated = false;
+    let mut rung = 0usize; // 0 = default profile; 1..=len = PROFILES
     while iterations < MAX_ITERS && spent < budget {
         iterations += 1;
         let cap = if escalated {
             budget - spent
+        } else if rung > 0 {
+            // Diversification rungs run at HALF the probe cap: they exist to
+            // find a different region fast, and the budget they don't spend
+            // is what keeps the final full-budget escalation strong (measured:
+            // full-size rungs starved it and gave back tpp p04 / trucks p07).
+            (cfg.max_eval / 2).min(budget - spent)
         } else {
             cfg.max_eval.min(budget - spent)
         };
-        let iter_cfg = SearchCfg {
-            max_eval: cap,
-            ..cfg
+        let iter_cfg = if rung == 0 {
+            SearchCfg {
+                max_eval: cap,
+                anytime,
+                ..cfg
+            }
+        } else {
+            let (wg, wh) = PROFILES[rung - 1];
+            SearchCfg {
+                max_eval: cap,
+                anytime,
+                w_c: cfg.w_c,
+                ..SearchCfg::from_weights(wg, wh, Some(cap))
+            }
         };
         let (opt, evaluated, capped) = crate::search::solve_closure_bounded(
             task,
@@ -1273,6 +1435,7 @@ fn metric_optimize_closure(
         match opt {
             Some(mut ops) => {
                 escalated = false;
+                rung = 0; // an improvement re-arms the whole ladder
                 let mut s = init.clone();
                 for &oi in &ops {
                     s = task.apply(oi, &s);
@@ -1293,9 +1456,17 @@ fn metric_optimize_closure(
                 bound = cost;
             }
             None => {
-                if capped && !no_escalate && budget.saturating_sub(spent) > cap {
-                    escalated = true; // retry the same bound with all remaining budget
-                    continue;
+                if capped && !no_escalate {
+                    // Diversify first: same bound, different open-list order.
+                    if restarts && rung < PROFILES.len() && budget > spent {
+                        rung += 1;
+                        continue;
+                    }
+                    if budget.saturating_sub(spent) > cap {
+                        escalated = true; // ladder spent: all remaining budget, default order
+                        rung = 0;
+                        continue;
+                    }
                 }
                 proven = !capped;
                 break;
