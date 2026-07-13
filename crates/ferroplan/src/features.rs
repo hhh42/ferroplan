@@ -137,9 +137,14 @@ pub fn tconc() -> bool {
 }
 
 /// The ESPC penalty-resolution loop on the PDDL3 metric path (see [`crate::espc`]).
-/// Opt-in via `FF_ESPC` (any value); it engages only when the compiled task carries
-/// once-only conditional-achievement deadline pairs (openstacks-shaped domains) —
-/// otherwise the plain metric B&B runs regardless of this flag.
+/// **Default ON since 0.5** (graduated: the outer budget is now a deterministic
+/// eval pool, `FF_ESPC_EVAL_BUDGET`, so the default run is thread-count and
+/// machine independent) — it engages only when the compiled task carries
+/// once-only conditional-achievement deadline pairs (openstacks-shaped domains);
+/// on tasks without that structure the plain metric B&B runs and this flag is a
+/// verified no-op. `FF_NO_ESPC` opts out (restores the pre-0.5 default path);
+/// `FF_ESPC` is still accepted for compatibility (now redundant). In-process:
+/// [`set_espc_override`].
 pub fn espc() -> bool {
-    resolve(&ESPC, std::env::var("FF_ESPC").is_ok())
+    resolve(&ESPC, std::env::var("FF_NO_ESPC").is_err())
 }

@@ -34,9 +34,13 @@ fn steps(plan: &Plan) -> Vec<(String, Vec<String>)> {
 fn espc_openstacks_p01_improves_verifies_and_is_deterministic() {
     let (d, p) = read("p01");
 
-    // Default path: the independent verifier must agree with the reported metric
-    // (guards against crediting a metric the plan did not actually earn).
+    // Pre-ESPC path (0.5 graduated ESPC to default-on; FF_NO_ESPC restores the
+    // closure-optimizer-only path): the independent verifier must agree with
+    // the reported metric (guards against crediting a metric the plan did not
+    // actually earn).
+    std::env::set_var("FF_NO_ESPC", "1");
     let base = solve(&d, &p, &Options::default()).unwrap();
+    std::env::remove_var("FF_NO_ESPC");
     let bplan = base.plan.expect("default plan");
     let bm = bplan.metric.expect("default metric");
     let bv = ferroplan::verify::verify(&d, &p, &steps(&bplan)).unwrap();
@@ -47,12 +51,10 @@ fn espc_openstacks_p01_improves_verifies_and_is_deterministic() {
         bv.metric
     );
 
-    // ESPC path at two thread counts (env set once, removed straight after).
-    // Pin the wall-clock backstop high so termination is by the (deterministic)
-    // stall/saddle conditions, not the timer — otherwise a slow debug build could
-    // make the iteration count, and thus the plan, depend on thread count.
-    std::env::set_var("FF_ESPC", "1");
-    std::env::set_var("FF_ESPC_TIME_MS", "600000");
+    // ESPC path — now the DEFAULT (no env needed) — at two thread counts. Its
+    // outer budget is a deterministic eval pool (FF_ESPC_EVAL_BUDGET), so the
+    // whole loop is thread-count independent by construction; no wall-clock
+    // pin needed (FF_ESPC_TIME_MS applies only when set, and is off here).
     let o1 = Options {
         threads: 1,
         ..Options::default()
@@ -63,8 +65,6 @@ fn espc_openstacks_p01_improves_verifies_and_is_deterministic() {
     };
     let s1 = solve(&d, &p, &o1).unwrap();
     let s8 = solve(&d, &p, &o8).unwrap();
-    std::env::remove_var("FF_ESPC");
-    std::env::remove_var("FF_ESPC_TIME_MS");
 
     let p1 = s1.plan.expect("espc plan (t1)");
     let m1 = p1.metric.expect("espc metric");
@@ -99,14 +99,12 @@ fn espc_openstacks_p01_improves_verifies_and_is_deterministic() {
     );
 
     // FF_ESPC_MONO debug hatch: the pre-partition monolithic loop must still
-    // run, verify, and hold the old quality floor (smoke, short budget).
-    std::env::set_var("FF_ESPC", "1");
+    // run, verify, and hold the old quality floor (smoke, small eval budget).
     std::env::set_var("FF_ESPC_MONO", "1");
-    std::env::set_var("FF_ESPC_TIME_MS", "10000");
+    std::env::set_var("FF_ESPC_EVAL_BUDGET", "600000");
     let sm = solve(&d, &p, &Options::default()).unwrap();
-    std::env::remove_var("FF_ESPC");
     std::env::remove_var("FF_ESPC_MONO");
-    std::env::remove_var("FF_ESPC_TIME_MS");
+    std::env::remove_var("FF_ESPC_EVAL_BUDGET");
     let pm = sm.plan.expect("espc mono plan");
     let mm = pm.metric.expect("espc mono metric");
     let vm = ferroplan::verify::verify(&d, &p, &steps(&pm)).unwrap();
