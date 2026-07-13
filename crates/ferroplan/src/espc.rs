@@ -226,6 +226,7 @@ fn compose_once(
 /// `resolve::solve`); the retry count is bounded by the component count. Errors:
 /// `Budget` stops the outer loop, `Invalid`/1-component-conflict falls back to
 /// one monolithic pass for the iteration.
+#[allow(clippy::too_many_arguments)]
 fn solve_partitioned(
     task: &PackedTask,
     cost_fluent: usize,
