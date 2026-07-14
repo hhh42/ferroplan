@@ -67,6 +67,7 @@ pub mod pddl3;
 pub mod plan;
 pub mod report;
 pub mod resolve;
+pub mod selection;
 pub mod temporal;
 pub mod trace;
 pub mod tresolve;
