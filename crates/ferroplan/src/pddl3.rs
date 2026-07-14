@@ -1043,13 +1043,18 @@ pub fn metric_optimize(
     // (the storage p03+ wall, and the tpp budget sink). Precondition-preference
     // variant costs on real ops are fine — they accrue in `g`, which the
     // acceptance test sums with the closure exactly. What is NOT routed here is
-    // a FOLDED numeric metric (rovers' mirrored traverse costs): continuous
-    // real-action cost gives the legacy compiled-goal B&B a genuine gradient,
-    // and there the closure search measures worse (tiny-epsilon tightening
-    // churn to MAX_ITERS and a poorer incumbent than the EHC seed). Also falls
-    // back when the closure search cannot even produce an incumbent, and under
-    // `FF_PREF_COMPILED=1`.
-    if !forgos.is_empty() && !folded_metric && std::env::var("FF_PREF_COMPILED").is_err() {
+    // FOLDED numeric metrics (rovers' mirrored traverse costs) route here TOO
+    // since 0.5: the 0.4.0 verdict that the closure search measures worse on
+    // them (tiny-epsilon tightening churn to MAX_ITERS, a poorer incumbent
+    // than the EHC seed) was an artifact of first-improvement restarts — with
+    // anytime sweeps the closure path dominates the legacy B&B on every
+    // rovers instance (p01 935.3→811.3 ties SGPlan5, p04 485.5→418.7 and p06
+    // 664.6→655.7 beat it, p05 483.6 ties; the domain flips to a lead under
+    // both quality conventions). `FF_PREF_NUMLEGACY=1` restores the pre-0.5
+    // split (folded → legacy); `FF_PREF_COMPILED=1` routes EVERYTHING legacy.
+    // Also falls back when the closure search cannot produce an incumbent.
+    let numlegacy = folded_metric && std::env::var("FF_PREF_NUMLEGACY").is_ok();
+    if !forgos.is_empty() && !numlegacy && std::env::var("FF_PREF_COMPILED").is_err() {
         if let Some(tail) = build_phase_tail(task, forgos) {
             if let Some(r) = metric_optimize_closure(
                 task,
