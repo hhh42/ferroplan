@@ -2,10 +2,43 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.5.0] - 2026-07-14 — Closing on first: three IPC-5 domains on the defaults
+
+The 0.5 roadmap ("First Place") executed end-to-end, shipped with its honest
+verdict. On the vendored IPC-5 simple-preferences suite, **pure defaults** —
+one configuration, no env vars, deterministic at any thread count — ferroplan
+now **leads SGPlan5 under BOTH quality conventions (per-instance wins AND
+domain totals) on three of the six domains**: openstacks (wins p04–p08, 271
+vs 326), storage (wins p01–p07, 447 vs 547), and rovers (wins p04/p06/p07/
+p08, exact ties p01/p05, 5301.6 vs 5632.5). trucks leads on totals (23 vs 31)
+with instances drawn; tpp and pathways stay with the IPC-5 winner. Suite-wide
+the instance tally is **19W / 14T / 15L** — more wins than losses against the
+contest winner for the first time (0.4.0: 14/11/23). The 4-of-6 bar this
+release aimed at was not met, so the claim is "closing on first," not first —
+the remaining gap is exactly the tpp/pathways p05–p08 tails, measured
+direction-bound (identical at 4× budget) and resistant to every lever below.
+Full ledger: `benchmarks/ipc5-scoreboard.md`; the executed plan:
+`docs/roadmap-0.5.md`.
 
 ### Changed
 
+- **ESPC graduated: deterministic eval budget, default-on where it bites.**
+  The penalty loop's outer budget converts from wall-clock to an evaluated-
+  state pool (`FF_ESPC_EVAL_BUDGET`, default 6M) threaded through every inner
+  search — thread-count and machine independent, exactly the contract
+  `FF_PREF_EVAL_BUDGET` set for the B&B. `features::espc()` defaults ON (it
+  engages only on deadline-pair structure — a verified no-op elsewhere);
+  `FF_NO_ESPC=1` opts out; `FF_ESPC_TIME_MS` is demoted to an optional
+  additional wall cap that applies only when set. The graduated default
+  openstacks row reproduces the old opt-in row exactly (19/23/17/16/21/22/
+  66/87; worst wall ~63 s on p04).
+- **Folded numeric metrics route through the exact-closure optimizer** (was:
+  legacy compiled-goal B&B). The 0.4.0 verdict that the closure path measures
+  worse on rovers ("tiny-epsilon tightening churn") was an artifact of
+  first-improvement restarts, which the anytime sweeps removed; with the
+  routing flipped, rovers goes 935.3/653.5/1018.2/485.5/523.3/664.6/402.2/
+  979.9 → **811.3/596.7/935.3/418.7/483.6/655.7/402.2/998.1** — a full
+  domain lead. `FF_PREF_NUMLEGACY=1` restores the pre-0.5 split.
 - **Anytime sweeps + a diversified restart ladder in both preference B&B
   loops** — the two remaining scoreboard levers, measured and landed. Each
   bounded metric sweep now tightens its bound **in place** on every acceptance
@@ -36,6 +69,15 @@ All notable changes to this project are documented here.
   (the estimates fire correctly, but the EHC seed already lands at the same
   incumbent; identical metrics on/off across p01–p08) — default off, kept as
   the substrate for completion pricing inside the search.
+- **Partitioned closure seed** (`FF_PREF_SEED3=1`, experimental, default
+  off): ESPC increment 3 generalized past deadline pairs — mutex-conflict-
+  pruned preference components composed into an incumbent by P3-masked,
+  sibling-protected stages before the tightening loop. The composition
+  genuinely works (tpp p05 composes 99 vs the 105 init-tail) but measured
+  **neutral on finals**: the anytime+ladder loop reaches the same metric from
+  either starting bound. Kept as the substrate for per-stage λ pricing (0.6).
+- The 0.5 roadmap (`docs/roadmap-0.5.md`), now annotated with the executed
+  outcome per phase.
 
 ## [0.4.1] - 2026-07-06 — Trajectory-constraint safety and a docs correctness pass
 

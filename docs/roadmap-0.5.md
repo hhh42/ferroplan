@@ -1,5 +1,23 @@
 # Roadmap — the road to v0.5 ("First Place")
 
+> **Status (0.5.0 shipped): executed, honest outcome "closing on first."**
+> Phase 1 ✅ (ESPC graduated: deterministic eval budget, default-on, the old
+> opt-in row reproduced exactly on defaults). Phase 2 ✅ (anytime sweeps —
+> measured neutral alone — plus the diversified restart ladder, which broke
+> the storage/tpp/pathways plateaus: storage flips to 7/8). Phase 3 ⚙
+> (partitioned closure seed BUILT and measured NEUTRAL on finals — the
+> anytime+ladder loop dominates composition-as-seeding; ships opt-in
+> `FF_PREF_SEED3`, kept as the λ-pricing substrate). Phase 4 ✅ beyond its
+> gate (sub-lever (c): numeric-closure routing flips **rovers to a full
+> domain lead** — the 0.4.0 churn verdict was a first-improvement artifact).
+> Phase 5 ✅ (defaults-only remeasure). Final ledger: **3 of 6 domains led
+> under BOTH conventions** (openstacks, storage, rovers), trucks led on
+> totals/drawn on instances, tpp+pathways to SGPlan5; suite-wide instance
+> tally 19W/14T/15L. The 4/6 first-place bar was NOT met — per this plan's
+> own protocol, 0.5.0 ships the work with the "closing on first" verdict.
+> The 0.6 headline: the tpp/pathways tails (direction-bound, ladder- and
+> composition-resistant) and per-stage λ pricing on the seed3 substrate.
+>
 > Successor to the archived [0.2.1 roadmap](roadmap.md). Ground truth for the
 > numbers below: [`benchmarks/ipc5-scoreboard.md`](../benchmarks/ipc5-scoreboard.md)
 > (2026-07, post-0.4.1) and the [ESPC spec](espc-preferences-spec.md).
