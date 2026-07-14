@@ -2,6 +2,31 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- **Init-satisfied preferences are kept in the satisfaction guidance** (was:
+  excluded since 0.4.0's barrier-free change). Plan forensics on tpp p05
+  (`docs/forensics-tpp.md`) showed the exclusion makes the search blind to
+  high-weight TRAP preferences — `not (stored goods1 level3)` is satisfied at
+  init, so the guidance rewarded trampling it for a cheaper positive
+  preference, and every restart-ladder profile inherited the blindness; the
+  entire 93-vs-79 gap on that instance was this one decision. Re-measured on
+  the 0.5 engine: keeping them takes **storage p05–p08 from 31/121/124/148 to
+  25/43/60/83 — an 8/8 domain sweep vs SGPlan5** (totals 234 vs 547) — plus
+  tpp 89/104/110/129 and pathways p06 11, at the cost of pathways p05 alone
+  (6 → 6.5, a win becoming an exact tie). Suite tally vs SGPlan5:
+  19W/15T/14L. `FF_PREF_NO_BARRIER=1` restores the 0.4–0.5.0 exclusion.
+
+### Added
+
+- `docs/forensics-tpp.md` — the tail-gap forensics: on zero-action-cost
+  domains quality is pure end-state selection; SGPlan5's tpp p05 79 is
+  derived as the closed-form selection optimum (per-goods stored level under
+  supply caps + the 16-weight coupling constraints); the identified 0.6
+  lever is exact selection planned as hard goals.
+
 ## [0.5.0] - 2026-07-14 — Closing on first: three IPC-5 domains on the defaults
 
 The 0.5 roadmap ("First Place") executed end-to-end, shipped with its honest

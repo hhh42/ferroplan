@@ -38,7 +38,7 @@ predecessor pieces or tune its budget.
 | `FF_PREF_SEED` | off | **experimental**: forgo-aware second seed — price each preference's completion with a cost-aware relaxed plan and pre-forgo those priced over their weight. Measured neutral on rovers (the EHC seed already lands there). |
 | `FF_PREF_SEED3` | off | **experimental**: partitioned closure seed — compose a per-preference-component incumbent (mutex-conflict-pruned, sibling-protected stages) before the tightening loop. Composes genuinely (tpp p05: 99 vs the 105 init-tail) but measured neutral on finals: the anytime+ladder loop reaches the same metric from either bound. |
 | `FF_PREF_NO_STATIC` | simplify | disable static preference simplification at compile (keep statically-satisfied instances). |
-| `FF_PREF_BARRIER` | barrier-free | restore the compilation barrier in DNF guidance. |
+| `FF_PREF_NO_BARRIER` | barrier on | exclude init-satisfied preferences from the guidance (the 0.4–0.5.0 behavior). Keeping them (the 0.5.1 default) protects high-weight trap preferences — the storage 8/8 sweep — see `docs/forensics-tpp.md`. `FF_PREF_BARRIER` is accepted, now redundant. |
 | `FF_PREF_COMPILED` | closure | route through the legacy compiled-goal B&B instead of the exact-closure optimizer. |
 | `FF_PREF_NUMLEGACY` | closure | folded **numeric** metrics only (rovers-shaped): restore the pre-0.5 routing to the legacy B&B. The closure path now dominates it (rovers flipped to a domain lead). |
 | `FF_PREF_COST_WEIGHT` | domain-dependent | cost-aware open-list weight (`SearchCfg::w_c`). **Experimental** — a measured dead end on rovers; default 0 there. |

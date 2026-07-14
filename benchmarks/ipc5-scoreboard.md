@@ -79,8 +79,14 @@ field ties SGPlan there); the restart ladder cut the tail (97/116/131 →
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **16** | **24** | **29** | **35** | 93 | 104 | 117 | 147 |
+| ferroplan² | **16** | **24** | **29** | **35** | 89 | 104 | 110 | 129 |
 | SGPlan5 | 16 | 24 | 29 | 35 | 79 | 101 | 100 | 105 |
+
+(The tail gap is now understood, not just measured: `docs/forensics-tpp.md`
+derives SGPlan5's 79 on p05 as the closed-form end-state selection optimum —
+tpp actions cost nothing, so quality is pure preference-subset selection —
+and identifies the exact decision our search misses. The 0.6 lever is exact
+selection planned as hard goals.)
 
 **storage** — full coverage (was 2/8: the quadratic forall-preference compiled
 to 1601–62191 instances and walled the search). Static simplification drops the
@@ -91,8 +97,12 @@ states only, and the restart ladder² broke the large-instance plateau
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **3** | **5** | **6** | **9** | **31** | **121** | **124** | 148 |
+| ferroplan² | **3** | **5** | **6** | **9** | **25** | **43** | **60** | **83** |
 | SGPlan5 | 5 | 8 | 14 | 17 | 87 | 124 | 160 | 132 |
+
+(0.5.1: keeping init-satisfied preferences in the guidance — see
+`docs/forensics-tpp.md` — took p05–p08 from 31/121/124/148 to 25/43/60/83:
+**a full 8/8 domain sweep**, totals 234 vs 547.)
 
 **trucks** — the closure optimizer² lifted the whole row (p08: 133 → 10, p07:
 67 → 12) and the ladder² finished p03 (1 → 0) and p06 (6 → 1); ferroplan
@@ -122,8 +132,12 @@ p04/p06/p07/p08, exactly ties p01/p05**, and leads the totals 5301.6 vs
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **2** | **3** | **3** | **2** | **6** | 12.9 | 12.5 | 20.2 |
+| ferroplan² | **2** | **3** | **3** | **2** | **6.5** | 11 | 12.5 | 20.2 |
 | SGPlan5 | 2 | 3 | 3 | 2 | 6.5 | 10 | 8 | 12.9 |
+
+(0.5.1: the guidance-barrier default cost p05's outright win — 6 → 6.5, now
+an exact tie — and bought p06 12.9 → 11; the trade is recorded in
+`docs/forensics-tpp.md`.)
 
 ## Verdict (0.5 — everything below is the DEFAULT configuration)
 
@@ -135,16 +149,22 @@ vars, deterministic at any thread count:
 - **ferroplan LEADS SGPlan5 under BOTH conventions on three of the six
   domains**: **openstacks** (wins p04–p08; totals 271 vs 326 — and the ESPC
   loop that does it is now the default, deterministically budgeted),
-  **storage** (wins p01–p07, 7 of 8; totals 447 vs 547), and **rovers**
-  (wins p04/p06/p07/p08, exact ties p01/p05; totals 5301.6 vs 5632.5).
+  **storage** (**an 8/8 domain sweep** since 0.5.1; totals 234 vs 547), and
+  **rovers** (wins p04/p06/p07/p08, exact ties p01/p05; totals 5301.6 vs
+  5632.5).
 - **trucks splits the conventions**: ferroplan leads the totals (23 vs 31)
   and the instances are drawn (wins p01/p07, ties p02–p05, loses p06 by 1
   and p08 by 4).
-- **tpp** (ties p01–p04, tail to SGPlan5) and **pathways** (ties p01–p04,
-  wins p05, tail to SGPlan5) stay with the IPC-5 winner.
-- Instance tally across the 48: **19 wins / 14 ties / 15 losses** — more
-  wins than losses against the IPC-5 winner for the first time (0.4.0:
-  14/11/23). SGPlan5's original 6/0 domain sweep now reads **2/3/1** by
+- **tpp** (ties p01–p04; tail cut to 89/104/110/129 but SGPlan5 keeps it)
+  and **pathways** (ties p01–p05, tail to SGPlan5) stay with the IPC-5
+  winner — and `docs/forensics-tpp.md` now shows WHY: on zero-action-cost
+  domains quality is pure end-state selection, SGPlan5's tpp p05 79 is the
+  closed-form selection optimum, and h-guided search structurally cannot
+  coordinate the selection. The 0.6 lever is exact selection planned as
+  hard goals.
+- Instance tally across the 48: **19 wins / 15 ties / 14 losses** — more
+  wins than losses against the IPC-5 winner (0.4.0: 14/11/23). SGPlan5's
+  original 6/0 domain sweep now reads **2/3/1** by
   instances-and-totals-combined, its remaining edge carried by the
   tpp/pathways p05–p08 tails.
 
