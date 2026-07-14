@@ -2152,7 +2152,19 @@ fn build_espc_partition(
 fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance {
     let mut collect_op = collect_ops(task);
     let init = task.initial();
-    let keep_barrier = std::env::var("FF_PREF_BARRIER").is_ok();
+    // Init-satisfied preferences are KEPT in the guidance since 0.5.1 — the
+    // forensics on tpp p05 (docs/forensics-tpp.md) showed excluding them
+    // makes the search blind to high-weight TRAP preferences (`not (stored
+    // goods1 level3)` is satisfied at init; the guidance then rewards
+    // trampling it for a cheaper positive pref, and every restart-ladder
+    // profile inherits the blindness). Re-measured on the 0.5 engine the
+    // exclusion's original justification no longer holds: keeping them wins
+    // storage p05–p08 (31/121/124/148 → 25/43/60/83 — an 8/8 domain sweep vs
+    // SGPlan5), tpp p05/p07/p08 (−4/−7/−18), pathways p06 (−1.9), at the
+    // cost of pathways p05 alone (6 → 6.5, a win becoming an exact tie).
+    // `FF_PREF_NO_BARRIER=1` restores the 0.4–0.5.0 exclusion;
+    // `FF_PREF_BARRIER` is accepted (now redundant).
+    let keep_barrier = std::env::var("FF_PREF_NO_BARRIER").is_err();
     let mut prefs = Vec::new();
     for (i, (_, weight)) in forgos.iter().enumerate() {
         let disjuncts: Vec<(Vec<u32>, Vec<crate::types::NumPre>)> = collect_op
