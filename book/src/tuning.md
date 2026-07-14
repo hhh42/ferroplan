@@ -40,6 +40,7 @@ predecessor pieces or tune its budget.
 | `FF_PREF_NO_STATIC` | simplify | disable static preference simplification at compile (keep statically-satisfied instances). |
 | `FF_PREF_BARRIER` | barrier-free | restore the compilation barrier in DNF guidance. |
 | `FF_PREF_COMPILED` | closure | route through the legacy compiled-goal B&B instead of the exact-closure optimizer. |
+| `FF_PREF_NUMLEGACY` | closure | folded **numeric** metrics only (rovers-shaped): restore the pre-0.5 routing to the legacy B&B. The closure path now dominates it (rovers flipped to a domain lead). |
 | `FF_PREF_COST_WEIGHT` | domain-dependent | cost-aware open-list weight (`SearchCfg::w_c`). **Experimental** — a measured dead end on rovers; default 0 there. |
 | `FF_RES_WEIGHT` / `FF_RES_THRESH` | tuned / `0` | satisfaction-guidance resource penalty weight / threshold. |
 | `FF_DEADLINE_WEIGHT` | `0` | extra penalty on deadline-pair triggers in satisfaction guidance. |

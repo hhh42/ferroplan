@@ -87,12 +87,19 @@ fn ipc5_pref_metric_no_regression() {
         ("trucks", 0.0),
         // rovers is MetricSimplePreferences: weighted is-violated + the monotone
         // (sum-traverse-cost) numeric term, which compile() now folds into
-        // total-cost (previously dropped -> a bogus 0). 935.3 is the real metric.
-        ("rovers", 935.3),
+        // total-cost (previously dropped -> a bogus 0). Re-locked 935.3 ->
+        // 811.3 (0.5: folded metrics route through the closure optimizer,
+        // whose anytime sweeps tie SGPlan5 here).
+        ("rovers", 811.3),
         ("pathways", 2.0),
     ] {
         let m = metric(d, "p01");
-        assert!(m <= ceiling, "{d}/p01 metric {m} regressed above {ceiling}");
+        // 1e-6 slack: summed f64 metric values carry accumulation noise
+        // (rovers reports 811.3000000000001 for the exact 811.3).
+        assert!(
+            m <= ceiling + 1e-6,
+            "{d}/p01 metric {m} regressed above {ceiling}"
+        );
     }
 }
 
