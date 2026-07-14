@@ -47,13 +47,24 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.4.1** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.5.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
-> **0.4.1** (correctness point release) — PDDL3 trajectory `(:constraints …)` are
-> now **rejected with a clear error** instead of being silently parsed-and-dropped,
-> plus a documentation once-over (and `decompose`/`validate_plan` examples, an
-> `examples/` index, and an [`FF_*` tuning reference](https://hhh42.github.io/ferroplan/tuning.html)).
-> See the [CHANGELOG](CHANGELOG.md). The feature headline is still 0.4.0:
+> **What's new in 0.5.0 — closing on first.** On the vendored IPC-5
+> simple-preferences suite, **pure defaults** (one configuration, no env vars,
+> deterministic at any thread count) now **lead SGPlan5 — the IPC-5 winner —
+> under BOTH quality conventions on three of the six domains**: openstacks
+> (wins p04–p08), storage (wins p01–p07), and rovers (wins p04/p06/p07/p08,
+> exact ties p01/p05) — with trucks ahead on the domain total and a suite-wide
+> instance tally of **19W/14T/15L** ([scoreboard](benchmarks/ipc5-scoreboard.md)).
+> Under the hood: the ESPC penalty loop **graduated to a deterministically
+> budgeted default**, both B&B loops gained **anytime in-sweep tightening + a
+> diversified restart ladder** (which broke the storage/tpp plateaus), and
+> folded numeric metrics **route through the exact-closure optimizer** (the
+> rovers flip). Every default change keeps a restore hatch
+> ([tuning reference](https://hhh42.github.io/ferroplan/tuning.html));
+> negative results are recorded, not hidden (two seeding levers measured
+> neutral, shipped opt-in). See the [CHANGELOG](CHANGELOG.md) and the executed
+> [0.5 roadmap](docs/roadmap-0.5.md).
 
 > **What's new in 0.4.0** — the PDDL3 preference-metric release, measured
 > against the official IPC-5 winner on the vendored simple-preferences suite
@@ -276,14 +287,16 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
 - **Numeric** trails Metric-FF: EHC's helpful-action lookahead stalls on some
   numeric domains and falls back to (complete, slower) best-first.
 - **IPC-5 preferences**: compiled away, then optimized by an **exact-closure
-  metric optimizer** (the default) with a budget-escalating branch-and-bound.
-  Coverage is **full (48/48)** on the vendored simple-preferences suite, and
-  ferroplan now **leads SGPlan5 on two of the six domains** (openstacks via the
-  opt-in `FF_ESPC` partitioned penalty loop; storage on plain defaults) — see the
-  [scoreboard](benchmarks/ipc5-scoreboard.md). On the largest tpp/pathways/storage
-  instances the *metric quality* still trails on the tail (best-found, flagged
-  *not proven optimal*); the design record for the remaining work is in
-  [`docs/espc-preferences-spec.md`](docs/espc-preferences-spec.md).
+  metric optimizer** with anytime sweeps, a diversified restart ladder, and the
+  deterministically-budgeted ESPC penalty loop — all defaults. Coverage is
+  **full (48/48)** on the vendored simple-preferences suite and ferroplan
+  **leads SGPlan5 under both quality conventions on three of the six domains**
+  (openstacks, storage, rovers), with trucks ahead on totals — see the
+  [scoreboard](benchmarks/ipc5-scoreboard.md). The tpp/pathways p05–p08 tails
+  still trail (best-found, flagged *not proven optimal*, measured
+  direction-bound); the design record for the remaining work is in
+  [`docs/espc-preferences-spec.md`](docs/espc-preferences-spec.md) and
+  [`docs/roadmap-0.5.md`](docs/roadmap-0.5.md).
 - **PDDL3 trajectory constraints** (`(:constraints ...)` — `always`, `sometime`,
   `within`, …) are parsed but not yet enforced; rather than silently drop a hard
   constraint, ferroplan **rejects** any domain/problem that carries one. Model the
