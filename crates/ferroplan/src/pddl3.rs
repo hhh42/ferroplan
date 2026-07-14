@@ -1294,6 +1294,213 @@ fn pref_eval_budget() -> usize {
         .unwrap_or(2_000_000)
 }
 
+/// Each preference's DNF disjunct fact-sets: the `P3COLLECT-i` ops' non-P3
+/// positive precondition facts, one set per disjunct — the same extraction
+/// the guidance and the seeds use, exposed once for the selection layer.
+fn pref_dnf(
+    task: &PackedTask,
+    forgos: &[(usize, f64)],
+) -> crate::hash::FxHashMap<usize, Vec<Vec<u32>>> {
+    let collect = collect_ops(task);
+    let mut dnf: crate::hash::FxHashMap<usize, Vec<Vec<u32>>> = crate::hash::FxHashMap::default();
+    for (i, _) in forgos.iter().enumerate() {
+        let Some(ops_i) = collect.get(&i) else {
+            continue;
+        };
+        let djs: Vec<Vec<u32>> = ops_i
+            .iter()
+            .filter(|&&oi| task.pre_num.slice(oi).is_empty())
+            .map(|&oi| {
+                task.pre_pos
+                    .slice(oi)
+                    .iter()
+                    .copied()
+                    .filter(|&f| {
+                        !task.fact_names[f as usize]
+                            .to_ascii_uppercase()
+                            .starts_with("(P3")
+                    })
+                    .collect()
+            })
+            .collect();
+        if !djs.is_empty() {
+            dnf.insert(i, djs);
+        }
+    }
+    dnf
+}
+
+/// SELECTION SEED (0.6 headline; docs/forensics-tpp.md): solve the
+/// preference-subset selection EXACTLY (`crate::selection`), then plan to the
+/// chosen facts as one concrete hard-goal target — coordination the h-guided
+/// search structurally cannot discover (goods5 held at L2 purely so goods6
+/// can match it). Joint reachability is not guaranteed by the model, so a
+/// failed target attempt BANS the chosen fact with the costliest relaxed
+/// completion (the best deterministic culprit guess), re-selects, and retries
+/// — bounded by `MAX_REPAIRS` and its budget slice. Returns the incumbent
+/// candidate plus the selection BOUND (admissible: `final == bound` proves
+/// optimality). Charged to the caller's deterministic budget.
+type SeedOutcome = (Option<(Vec<usize>, f64)>, Option<f64>, usize);
+
+#[allow(clippy::too_many_arguments)]
+fn selection_seed(
+    task: &PackedTask,
+    cost_fluent: usize,
+    groups: &[Vec<u32>],
+    forgos: &[(usize, f64)],
+    tail: &PhaseTail,
+    p3_mask: &[bool],
+    threads: usize,
+    cfg: SearchCfg,
+    budget: usize,
+) -> SeedOutcome {
+    const MAX_REPAIRS: usize = 8;
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let weights: Vec<f64> = forgos.iter().map(|&(_, w)| w).collect();
+    let dnf = pref_dnf(task, forgos);
+    let init = task.initial();
+    let real_goals: Vec<u32> = task
+        .goal_pos
+        .iter()
+        .copied()
+        .filter(|&f| {
+            !task.fact_names[f as usize]
+                .to_ascii_uppercase()
+                .starts_with("(P3")
+        })
+        .collect();
+    let mut banned: crate::hash::FxHashSet<u32> = crate::hash::FxHashSet::default();
+    let mut spent = 0usize;
+    let seed_slice = budget / 4;
+    // Singleton pre-probe cap: an actually-reachable end-state fact on these
+    // domains solves in hundreds of evals; a supply-capped one exhausts. A
+    // capped probe is INCONCLUSIVE unreachability but conclusive "too hard
+    // to be a seed target" — banning it only weakens the seed, never the
+    // final result (min-incumbent).
+    const PROBE_CAP: usize = 5_000;
+    let mut probed: crate::hash::FxHashMap<u32, bool> = crate::hash::FxHashMap::default();
+    let mut bound_out = None;
+    for round in 0..=MAX_REPAIRS {
+        let Some(sel) = crate::selection::select(task, groups, &weights, &dnf, &banned) else {
+            break;
+        };
+        if round == 0 {
+            bound_out = Some(sel.bound); // the un-banned bound is the admissible one
+        }
+        // Pre-probe every chosen fact not yet true at init; ban the suspects.
+        let mut newly_banned = false;
+        let chosen_facts: Vec<u32> = {
+            let mut v: Vec<u32> = sel
+                .chosen
+                .iter()
+                .flat_map(|(_, fs)| fs.iter().copied())
+                .filter(|&f| !crate::bitset::test(&init.bits, f as usize))
+                .collect();
+            v.sort_unstable();
+            v.dedup();
+            v
+        };
+        for &f in &chosen_facts {
+            if spent >= seed_slice {
+                break;
+            }
+            let ok = *probed.entry(f).or_insert_with(|| {
+                let (ops, evaluated) = crate::search::solve_subgoal_guided(
+                    task,
+                    &init,
+                    &[f],
+                    &[],
+                    p3_mask,
+                    threads,
+                    SearchCfg {
+                        max_eval: PROBE_CAP,
+                        ..cfg
+                    },
+                    None,
+                );
+                spent += evaluated;
+                ops.is_some()
+            });
+            if !ok && banned.insert(f) {
+                newly_banned = true;
+                if dbg {
+                    eprintln!("[sel] probe bans {}", task.fact_names[f as usize]);
+                }
+            }
+        }
+        if newly_banned {
+            continue; // re-select under the new bans before attempting a target
+        }
+        // Joint target attempt with the remaining slice.
+        let mut target: Vec<u32> = real_goals.clone();
+        target.extend(chosen_facts.iter().copied());
+        target.sort_unstable();
+        target.dedup();
+        if target.is_empty() || spent >= seed_slice {
+            break;
+        }
+        let stage_cfg = SearchCfg {
+            max_eval: cfg.max_eval.min(seed_slice - spent),
+            ..cfg
+        };
+        let (ops, evaluated) = crate::search::solve_subgoal_guided(
+            task,
+            &init,
+            &target,
+            &task.goal_num,
+            p3_mask,
+            threads,
+            stage_cfg,
+            None,
+        );
+        spent += evaluated;
+        match ops {
+            Some(mut ops) => {
+                let mut s = init.clone();
+                for &oi in &ops {
+                    s = task.apply(oi, &s);
+                }
+                let Some(tail_ops) = apply_tail(task, &mut s, tail) else {
+                    break;
+                };
+                ops.extend(tail_ops);
+                if !task.goal_met_with(&s, &task.goal_pos, &task.goal_num) {
+                    break;
+                }
+                let cost = plan_cost(task, &ops, cost_fluent);
+                if dbg {
+                    eprintln!(
+                        "[sel] round {round}: target of {} facts reached, cost {cost} \
+                         (selection bound {:.1}), {spent} evals",
+                        target.len(),
+                        sel.bound
+                    );
+                }
+                return (Some((ops, cost)), bound_out, spent);
+            }
+            None => {
+                // Joint failure with individually-probed facts: interaction.
+                // Ban the largest-id un-banned chosen fact (deterministic) and
+                // re-select; the repair cap bounds the damage.
+                let Some(&f) = chosen_facts.iter().rev().find(|f| !banned.contains(f)) else {
+                    break;
+                };
+                if dbg {
+                    eprintln!(
+                        "[sel] round {round}: joint target failed; ban {}",
+                        task.fact_names[f as usize]
+                    );
+                }
+                banned.insert(f);
+            }
+        }
+    }
+    if dbg {
+        eprintln!("[sel] no reachable selection target ({spent} evals spent)");
+    }
+    (None, bound_out, spent)
+}
+
 /// PARTITIONED CLOSURE SEED — ESPC increment 3, generalized past deadline
 /// pairs: compose a high-quality incumbent from per-component stages BEFORE
 /// the monolithic tightening loop runs. Measured motivation: the remaining
@@ -1738,6 +1945,39 @@ fn metric_optimize_closure(
     let mut spent = 0usize;
     let mut iterations = 0usize;
     let mut proven = false;
+    let mut sel_bound: Option<f64> = None;
+
+    // SELECTION SEED (0.6, opt-in via FF_PREF_SELECT while measuring): exact
+    // preference-subset selection planned as a hard-goal target. See
+    // `selection_seed` and docs/forensics-tpp.md.
+    if std::env::var("FF_PREF_SELECT").is_ok() && task.goal_num.is_empty() {
+        let (seeded, bound, evals) = selection_seed(
+            task,
+            cost_fluent,
+            groups,
+            forgos,
+            tail,
+            &forbidden,
+            threads,
+            cfg,
+            budget,
+        );
+        spent += evals;
+        sel_bound = bound;
+        if let Some((ops, cost)) = seeded {
+            if best.as_ref().map_or(true, |(_, c)| cost < *c) {
+                if cost <= 0.0 {
+                    return Some(MetricResult {
+                        ops,
+                        cost,
+                        iterations: 0,
+                        proven: true,
+                    });
+                }
+                best = Some((ops, cost));
+            }
+        }
+    }
 
     // PARTITIONED CLOSURE SEED (increment 3) — experimental, opt-in via
     // `FF_PREF_SEED3=1`, default OFF after measuring NEUTRAL (2026-07): with
@@ -1914,8 +2154,11 @@ fn metric_optimize_closure(
     best.map(|(ops, cost)| MetricResult {
         ops,
         cost,
+        // The selection bound is ADMISSIBLE (per-fact reachability is
+        // optimistic), so matching it proves optimality even when the
+        // eval budget was exhausted.
+        proven: proven || sel_bound.is_some_and(|b| (cost - b).abs() < 1e-6),
         iterations,
-        proven,
     })
 }
 
