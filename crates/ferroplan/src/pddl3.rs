@@ -1057,6 +1057,7 @@ pub fn metric_optimize(
                 forgos,
                 &tail,
                 &sat,
+                groups,
                 threads,
                 refine_cfg.with_cost_weight(cost_w),
             ) {
@@ -1288,6 +1289,379 @@ fn pref_eval_budget() -> usize {
         .unwrap_or(2_000_000)
 }
 
+/// PARTITIONED CLOSURE SEED — ESPC increment 3, generalized past deadline
+/// pairs: compose a high-quality incumbent from per-component stages BEFORE
+/// the monolithic tightening loop runs. Measured motivation: the remaining
+/// tpp/pathways/trucks tails are DIRECTION-bound (identical metrics at 4× the
+/// eval budget), so the fix is a structurally different plan constructor, not
+/// more budget. The construction:
+///
+/// 1. Candidate selection — for every unsatisfied preference, price its
+///    cheapest positive disjunct with a cost-aware relaxed plan from the
+///    initial state (`heuristic::relaxed_plan_cost`); keep it iff the estimate
+///    does not exceed its violation weight (deliverable at a profit). Real
+///    hard-goal facts enter as MANDATORY candidates.
+/// 2. Components — union-find over the candidates' facts through the
+///    invariant-synthesis mutex variables (two candidates interact iff their
+///    facts share a variable; ungrouped facts are private). Needs ≥ 2
+///    components to differ from the monolithic path.
+/// 3. Composition — one P3-masked, satisfaction-guided stage per component on
+///    the evolving state (deterministic order: min fact id). Mandatory facts
+///    of DONE components are protected (ops deleting them are forbidden). An
+///    infeasible stage drops its priciest optional preference and retries;
+///    a stage that cannot even meet its mandatory facts aborts the seed.
+/// 4. The exact phase tail closes the bookkeeping and the composed plan
+///    becomes the tightening loop's starting incumbent iff it beats the
+///    init-tail one. Stage evals are charged against the SAME deterministic
+///    budget the loop spends.
+///
+/// `FF_PREF_MONO=1` disables the composed seed (monolithic path, bit-compat).
+#[allow(clippy::too_many_arguments)]
+fn compose_pref_seed(
+    task: &PackedTask,
+    cost_fluent: usize,
+    groups: &[Vec<u32>],
+    forgos: &[(usize, f64)],
+    tail: &PhaseTail,
+    sat: &SatGuidance,
+    p3_mask: &[bool],
+    threads: usize,
+    cfg: SearchCfg,
+    budget: usize,
+) -> Option<(Vec<usize>, f64, usize)> {
+    use crate::types::eval_numpre;
+    let init = task.initial();
+    let mut spent = 0usize;
+
+    // 1. Candidates: mandatory real goals + profitably-satisfiable preferences.
+    struct Cand {
+        pos: Vec<u32>,
+        num: Vec<crate::types::NumPre>,
+        est: f64,
+        value: f64, // weight - est (mandatory: +inf); the mutex-conflict tiebreak
+        mandatory: bool,
+    }
+    let mut cands: Vec<Cand> = Vec::new();
+    for &g in task.goal_pos.iter().filter(|&&f| {
+        !task.fact_names[f as usize]
+            .to_ascii_uppercase()
+            .starts_with("(P3")
+    }) {
+        cands.push(Cand {
+            pos: vec![g],
+            num: Vec::new(),
+            est: 0.0,
+            value: f64::INFINITY,
+            mandatory: true,
+        });
+    }
+    let collect = collect_ops(task);
+    let mut sc = crate::heuristic::Scratch::new(task);
+    for (i, _) in forgos.iter().enumerate() {
+        let Some(ops_i) = collect.get(&i) else {
+            continue;
+        };
+        let weight = forgos[i].1;
+        let mut cheapest: Option<(Vec<u32>, Vec<crate::types::NumPre>, f64)> = None;
+        let mut already = false;
+        for &oi in ops_i {
+            let pos: Vec<u32> = task
+                .pre_pos
+                .slice(oi)
+                .iter()
+                .copied()
+                .filter(|&f| {
+                    !task.fact_names[f as usize]
+                        .to_ascii_uppercase()
+                        .starts_with("(P3")
+                })
+                .collect();
+            let num = task.pre_num.slice(oi).to_vec();
+            let true_now = pos
+                .iter()
+                .all(|&f| crate::bitset::test(&init.bits, f as usize))
+                && num
+                    .iter()
+                    .all(|np| eval_numpre(np, &init.fv, &init.fdef) == Some(true));
+            if true_now {
+                already = true; // phi holds at init: nothing to chase
+                break;
+            }
+            let est = crate::heuristic::relaxed_plan_cost(
+                task,
+                &mut sc,
+                &init.bits,
+                &init.fv,
+                &init.fdef,
+                &pos,
+                &num,
+                cost_fluent,
+            )
+            .unwrap_or(f64::INFINITY);
+            if cheapest.as_ref().map_or(true, |(_, _, c)| est < *c) {
+                cheapest = Some((pos, num, est));
+            }
+        }
+        if already {
+            continue;
+        }
+        if let Some((pos, num, est)) = cheapest {
+            if est <= weight && !pos.is_empty() {
+                cands.push(Cand {
+                    pos,
+                    num,
+                    est,
+                    value: weight - est,
+                    mandatory: false,
+                });
+            }
+        }
+    }
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    if cands.len() < 2 {
+        if dbg {
+            eprintln!("[seed3] skip: {} candidate(s)", cands.len());
+        }
+        return None;
+    }
+
+    let mut var_of: crate::hash::FxHashMap<u32, usize> = crate::hash::FxHashMap::default();
+    for (gi, g) in groups.iter().enumerate() {
+        for &f in g {
+            var_of.insert(f, gi);
+        }
+    }
+
+    // 1b. Mutex-conflict pruning: two OPTIONAL candidates claiming DIFFERENT
+    // facts of the same mutex group are jointly unsatisfiable at the end
+    // (tpp's per-goods `stored g level1..4` ladder — at most one level holds),
+    // so a stage goal containing both is infeasible by construction and only
+    // burns budget. Keep the best-value claimant per (group, distinct-fact)
+    // conflict; the tail forgoes the dropped ones. Deterministic (groups in
+    // index order, min-index tiebreak). Mandatory candidates always win.
+    {
+        let mut claimed: crate::hash::FxHashMap<usize, (u32, usize)> =
+            crate::hash::FxHashMap::default();
+        let mut drop = vec![false; cands.len()];
+        for ci in 0..cands.len() {
+            for k in 0..cands[ci].pos.len() {
+                let f = cands[ci].pos[k];
+                let Some(&gi) = var_of.get(&f) else { continue };
+                match claimed.entry(gi) {
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        e.insert((f, ci));
+                    }
+                    std::collections::hash_map::Entry::Occupied(mut o) => {
+                        let (held_f, held_ci) = *o.get();
+                        if held_f == f || drop[held_ci] {
+                            if drop[held_ci] {
+                                o.insert((f, ci));
+                            }
+                            continue; // same fact: compatible
+                        }
+                        // Different facts of one group: keep the better value.
+                        let (a, b) = (held_ci, ci);
+                        let better_b = cands[b].value.partial_cmp(&cands[a].value)
+                            == Some(std::cmp::Ordering::Greater);
+                        if better_b {
+                            drop[a] = true;
+                            o.insert((f, b));
+                        } else {
+                            drop[b] = true;
+                        }
+                    }
+                }
+            }
+        }
+        let before = cands.len();
+        let mut keep = drop.iter().map(|d| !d);
+        cands.retain(|_| keep.next().unwrap());
+        if dbg && cands.len() != before {
+            eprintln!(
+                "[seed3] mutex pruning: {before} -> {} candidate(s)",
+                cands.len()
+            );
+        }
+        if cands.len() < 2 {
+            return None;
+        }
+    }
+
+    // 2. Union-find through mutex variables.
+    let var = |f: u32| var_of.get(&f).copied().unwrap_or(groups.len() + f as usize);
+    let mut uf: Vec<usize> = (0..cands.len()).collect();
+    fn find(uf: &mut [usize], mut x: usize) -> usize {
+        while uf[x] != x {
+            uf[x] = uf[uf[x]];
+            x = uf[x];
+        }
+        x
+    }
+    let mut owner: crate::hash::FxHashMap<usize, usize> = crate::hash::FxHashMap::default();
+    for (ci, cand) in cands.iter().enumerate() {
+        for &f in &cand.pos {
+            let v = var(f);
+            match owner.entry(v) {
+                std::collections::hash_map::Entry::Occupied(o) => {
+                    let a = find(&mut uf, ci);
+                    let b = find(&mut uf, *o.get());
+                    uf[a.max(b)] = a.min(b);
+                }
+                std::collections::hash_map::Entry::Vacant(e) => {
+                    e.insert(ci);
+                }
+            }
+        }
+    }
+    let mut comp_of: crate::hash::FxHashMap<usize, Vec<usize>> = crate::hash::FxHashMap::default();
+    for ci in 0..cands.len() {
+        let r = find(&mut uf, ci);
+        comp_of.entry(r).or_default().push(ci);
+    }
+    if comp_of.len() < 2 {
+        if dbg {
+            eprintln!(
+                "[seed3] skip: {} candidate(s) collapse into {} component(s)",
+                cands.len(),
+                comp_of.len()
+            );
+        }
+        return None;
+    }
+    let mut comps: Vec<Vec<usize>> = comp_of.into_values().collect();
+    comps.sort_by_key(|members| {
+        members
+            .iter()
+            .flat_map(|&ci| cands[ci].pos.iter().copied())
+            .min()
+            .unwrap_or(u32::MAX)
+    });
+
+    // 3. Compose: one protected, sat-guided stage per component. Stage
+    // attempts run at a TENTH of the loop's per-probe cap — a stage that
+    // needs more is not composing cheaply and gets its priciest preference
+    // dropped instead — and the whole composition may spend at most a
+    // QUARTER of the budget (an infeasible-joint-goal component would
+    // otherwise burn the tightening loop's entire allowance on retries).
+    let stage_cap = (cfg.max_eval / 10).max(1_000);
+    let seed_budget = budget / 4;
+    let mut state = init.clone();
+    let mut plan: Vec<usize> = Vec::new();
+    let mut protected: crate::hash::FxHashSet<u32> = crate::hash::FxHashSet::default();
+    for members in &comps {
+        let mut alive: Vec<usize> = members.clone();
+        loop {
+            // Facts still to achieve for the alive members in the CURRENT state.
+            let satisfied = |ci: usize| {
+                cands[ci]
+                    .pos
+                    .iter()
+                    .all(|&f| crate::bitset::test(&state.bits, f as usize))
+                    && cands[ci]
+                        .num
+                        .iter()
+                        .all(|np| eval_numpre(np, &state.fv, &state.fdef) == Some(true))
+            };
+            alive.retain(|&ci| !satisfied(ci));
+            if alive.is_empty() {
+                break;
+            }
+            let mut goal: Vec<u32> = alive
+                .iter()
+                .flat_map(|&ci| cands[ci].pos.iter().copied())
+                .collect();
+            goal.sort_unstable();
+            goal.dedup();
+            let nums: Vec<crate::types::NumPre> = alive
+                .iter()
+                .flat_map(|&ci| cands[ci].num.iter().cloned())
+                .collect();
+            let forbidden: Vec<bool> = (0..task.n_ops)
+                .map(|oi| {
+                    p3_mask.get(oi).copied().unwrap_or(false)
+                        || task.del.slice(oi).iter().any(|f| protected.contains(f))
+                })
+                .collect();
+            if spent >= seed_budget {
+                if dbg {
+                    eprintln!("[seed3] abort: seed budget exhausted mid-composition");
+                }
+                return None;
+            }
+            let stage_cfg = SearchCfg {
+                max_eval: stage_cap.min(seed_budget - spent),
+                ..cfg
+            };
+            let (ops, evaluated) = crate::search::solve_subgoal_guided(
+                task,
+                &state,
+                &goal,
+                &nums,
+                &forbidden,
+                threads,
+                stage_cfg,
+                Some(sat),
+            );
+            spent += evaluated;
+            match ops {
+                Some(ops) => {
+                    for &oi in &ops {
+                        state = task.apply(oi, &state);
+                    }
+                    plan.extend(ops);
+                    break;
+                }
+                None => {
+                    // Drop the priciest optional member and retry; a stage that
+                    // cannot meet its mandatory facts sinks the whole seed.
+                    let worst = alive
+                        .iter()
+                        .copied()
+                        .filter(|&ci| !cands[ci].mandatory)
+                        .max_by(|&a, &b| {
+                            cands[a]
+                                .est
+                                .partial_cmp(&cands[b].est)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                                .then(a.cmp(&b))
+                        });
+                    match worst {
+                        Some(w) => alive.retain(|&ci| ci != w),
+                        None => {
+                            if dbg {
+                                eprintln!("[seed3] abort: mandatory facts infeasible in a stage");
+                            }
+                            return None;
+                        }
+                    }
+                }
+            }
+        }
+        for &ci in members {
+            if cands[ci].mandatory {
+                protected.extend(cands[ci].pos.iter().copied());
+            }
+        }
+    }
+
+    // 4. Close the bookkeeping and validate the composed plan.
+    let Some(tail_ops) = apply_tail(task, &mut state, tail) else {
+        if dbg {
+            eprintln!("[seed3] abort: phase tail failed on the composed state");
+        }
+        return None;
+    };
+    plan.extend(tail_ops);
+    if !task.goal_met_with(&state, &task.goal_pos, &task.goal_num) {
+        if dbg {
+            eprintln!("[seed3] abort: composed state fails the full goal");
+        }
+        return None; // never expected; an invalid seed must not become the incumbent
+    }
+    let cost = plan_cost(task, &plan, cost_fluent);
+    Some((plan, cost, spent))
+}
+
 /// The exact-closure metric optimizer (see `metric_optimize` step 2): anytime
 /// B&B where each iteration searches REAL states under a metric-bounded
 /// acceptance test (`cost-so-far + closure(state) < bound`, closure = the exact
@@ -1302,12 +1676,14 @@ fn pref_eval_budget() -> usize {
 /// (`FF_PREF_EVAL_BUDGET`, default 2M) — never wall-clock — so results are
 /// thread-count independent. Returns `None` (→ legacy fallback) only when no
 /// incumbent could be produced at all.
+#[allow(clippy::too_many_arguments)]
 fn metric_optimize_closure(
     task: &PackedTask,
     cost_fluent: usize,
     forgos: &[(usize, f64)],
     tail: &PhaseTail,
     sat: &SatGuidance,
+    groups: &[Vec<u32>],
     threads: usize,
     cfg: SearchCfg,
 ) -> Option<MetricResult> {
@@ -1357,6 +1733,62 @@ fn metric_optimize_closure(
     let mut spent = 0usize;
     let mut iterations = 0usize;
     let mut proven = false;
+
+    // PARTITIONED CLOSURE SEED (increment 3) — experimental, opt-in via
+    // `FF_PREF_SEED3=1`, default OFF after measuring NEUTRAL (2026-07): with
+    // mutex-conflict pruning the composition genuinely works (tpp p05 composes
+    // a 99 incumbent vs the init-tail 105; p07 120 vs 135; pathways p05 9 vs
+    // 10.2) — but the anytime+ladder tightening loop reaches the same final
+    // metric from either starting bound on every instance measured, and an
+    // aborted composition wastes up to a quarter of the budget. The mechanism
+    // is kept as the substrate for real per-stage λ pricing (the un-built rest
+    // of increment 3); composition-as-seeding alone does not move finals.
+    if std::env::var("FF_PREF_SEED3").is_ok() && task.goal_num.is_empty() {
+        let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+        match compose_pref_seed(
+            task,
+            cost_fluent,
+            groups,
+            forgos,
+            tail,
+            sat,
+            &forbidden,
+            threads,
+            cfg,
+            budget,
+        ) {
+            Some((ops, cost, evals)) => {
+                spent += evals;
+                if best.as_ref().map_or(true, |(_, c)| cost < *c) {
+                    if dbg {
+                        eprintln!(
+                            "[seed3] composed incumbent {cost} (was {:?}), {evals} evals",
+                            best.as_ref().map(|(_, c)| *c)
+                        );
+                    }
+                    if cost <= 0.0 {
+                        return Some(MetricResult {
+                            ops,
+                            cost,
+                            iterations: 0,
+                            proven: true,
+                        });
+                    }
+                    best = Some((ops, cost));
+                } else if dbg {
+                    eprintln!(
+                        "[seed3] composed {cost} LOST to incumbent {:?} ({evals} evals)",
+                        best.as_ref().map(|(_, c)| *c)
+                    );
+                }
+            }
+            None => {
+                if dbg {
+                    eprintln!("[seed3] no composition");
+                }
+            }
+        }
+    }
     let mut bound = best.as_ref().map_or(f64::INFINITY, |(_, c)| *c);
 
     // ESCALATION: a tightening probe that hits its per-iteration eval cap

@@ -36,6 +36,7 @@ predecessor pieces or tune its budget.
 | `FF_PREF_GREEDY` | anytime | restore first-improvement sweeps: return at the first plan under the bound and restart, instead of tightening the bound in place and draining the sweep. |
 | `FF_PREF_NO_RESTARTS` | ladder on | disable the diversified restart ladder (rotated open-list weight profiles on a capped no-improvement sweep) — the lever behind the storage p06/p07 and pathways p05 wins. |
 | `FF_PREF_SEED` | off | **experimental**: forgo-aware second seed — price each preference's completion with a cost-aware relaxed plan and pre-forgo those priced over their weight. Measured neutral on rovers (the EHC seed already lands there). |
+| `FF_PREF_SEED3` | off | **experimental**: partitioned closure seed — compose a per-preference-component incumbent (mutex-conflict-pruned, sibling-protected stages) before the tightening loop. Composes genuinely (tpp p05: 99 vs the 105 init-tail) but measured neutral on finals: the anytime+ladder loop reaches the same metric from either bound. |
 | `FF_PREF_NO_STATIC` | simplify | disable static preference simplification at compile (keep statically-satisfied instances). |
 | `FF_PREF_BARRIER` | barrier-free | restore the compilation barrier in DNF guidance. |
 | `FF_PREF_COMPILED` | closure | route through the legacy compiled-goal B&B instead of the exact-closure optimizer. |
