@@ -79,14 +79,15 @@ field ties SGPlan there); the restart ladder cut the tail (97/116/131 →
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **16** | **24** | **29** | **35** | 89 | 104 | 110 | 129 |
+| ferroplan² | **16** | **24** | **29** | **35** | 80 | **101** | 103 | 129 |
 | SGPlan5 | 16 | 24 | 29 | 35 | 79 | 101 | 100 | 105 |
 
-(The tail gap is now understood, not just measured: `docs/forensics-tpp.md`
-derives SGPlan5's 79 on p05 as the closed-form end-state selection optimum —
-tpp actions cost nothing, so quality is pure preference-subset selection —
-and identifies the exact decision our search misses. The 0.6 lever is exact
-selection planned as hard goals.)
+(0.6: the SELECTION layer — `docs/forensics-tpp.md` derived SGPlan5's p05 79
+as the closed-form end-state selection optimum; `selection.rs` now solves
+that selection exactly and plans to it as a target. p05 89 → 80 with the
+solver's bound reproducing the 79 optimum — the residual +1 is one
+`p-drive` application, a per-action preference outside end-state selection —
+p06 104 → **101, an exact tie**, p07 110 → 103. Domain totals 517 vs 489.)
 
 **storage** — full coverage (was 2/8: the quadratic forall-preference compiled
 to 1601–62191 instances and walled the search). Static simplification drops the
@@ -124,8 +125,13 @@ p04/p06/p07/p08, exactly ties p01/p05**, and leads the totals 5301.6 vs
 
 | inst | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| ferroplan² | **811.3** | 596.7 | 935.3 | **418.7** | **483.6** | **655.7** | **402.2** | **998.1** |
+| ferroplan² | **811.3** | 502.2 | 847.4 | **418.7** | **483.6** | **655.7** | **402.2** | **740.9** |
 | SGPlan5 | 811.3 | 473.2 | 811.3 | 485.4 | 483.6 | 656.7 | 403.4 | 1007.6 |
+
+(0.6: the selection layer generalizes to the numeric metric — it picks WHICH
+samples/images are worth their traverse cost as the target — p02 596.7 →
+502.2, p03 935.3 → 847.4, p08 998.1 → **740.9**; the totals lead widens to
+4862.0 vs 5632.5.)
 
 **pathways** — **ties SGPlan5 on p01–p04** (was p01 only) and the ladder²
 **wins p05 outright** (8.5 → 6 vs SGPlan's 6.5); SGPlan5 better after:
@@ -155,18 +161,13 @@ vars, deterministic at any thread count:
 - **trucks splits the conventions**: ferroplan leads the totals (23 vs 31)
   and the instances are drawn (wins p01/p07, ties p02–p05, loses p06 by 1
   and p08 by 4).
-- **tpp** (ties p01–p04; tail cut to 89/104/110/129 but SGPlan5 keeps it)
-  and **pathways** (ties p01–p05, tail to SGPlan5) stay with the IPC-5
-  winner — and `docs/forensics-tpp.md` now shows WHY: on zero-action-cost
-  domains quality is pure end-state selection, SGPlan5's tpp p05 79 is the
-  closed-form selection optimum, and h-guided search structurally cannot
-  coordinate the selection. The 0.6 lever is exact selection planned as
-  hard goals.
-- Instance tally across the 48: **19 wins / 15 ties / 14 losses** — more
-  wins than losses against the IPC-5 winner (0.4.0: 14/11/23). SGPlan5's
-  original 6/0 domain sweep now reads **2/3/1** by
-  instances-and-totals-combined, its remaining edge carried by the
-  tpp/pathways p05–p08 tails.
+- **tpp** (ties p01–p04 AND p06 since 0.6's selection layer; p05/p07/p08
+  trail by 1/3/24, totals 517 vs 489) and **pathways** (ties p01–p05, tail
+  to SGPlan5) stay with the IPC-5 winner — barely, on tpp.
+- Instance tally across the 48: **19 wins / 16 ties / 13 losses** (0.4.0:
+  14/11/23). SGPlan5's original 6/0 domain sweep now reads **2/3/1** by
+  instances-and-totals-combined, its remaining edge carried by tpp's
+  p05/p07/p08 (gaps of 1/3/24) and the pathways tail.
 
 Under the IPC-5 **coverage-first** rule this is an honest "**closing on
 first**": three domains led under either reading of quality plus a fourth on

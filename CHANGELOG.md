@@ -4,6 +4,32 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **The selection layer** (`selection.rs` + the closure loop's selection
+  seed; `FF_PREF_NO_SELECT=1` restores 0.5.1) — the 0.6 headline, built
+  from the tpp forensics: on preference domains, plan quality is largely
+  decided by WHICH jointly-satisfiable preference subset the end state
+  lands in, so ferroplan now solves that selection EXACTLY (a variable per
+  invariant mutex group, Eq/Neq atoms coupling compiled `(NOT p)` facts to
+  their groups, DFS branch-and-bound with a deterministic node cap) and
+  plans to the chosen facts as a hard-goal target: singleton pre-probes ban
+  supply-capped facts (on tpp they re-discover the market caps exactly),
+  at most two joint attempts (per-fact bans cannot repair counting
+  infeasibility), the exact tail closes, and the incumbent feeds the normal
+  tightening loop. The seed's bounded evals stay OUTSIDE the tightening
+  budget, like the legacy EHC seed (charging them starved storage p08,
+  83 → 104 → fixed). The selection bound is admissible, so `final == bound`
+  can prove optimality. Measured (defaults, deterministic, t1≡t8):
+  **tpp p05 89 → 80** (the solver's bound reproduces the forensics'
+  79 optimum; the +1 is one `p-drive` application, outside end-state
+  selection), **p06 104 → 101 — an exact tie with SGPlan5**, p07 110 → 103;
+  **rovers p02 596.7 → 502.2, p03 935.3 → 847.4, p08 998.1 → 740.9**
+  (selection picks which samples are worth their traverse cost; the rovers
+  totals lead widens to 4862.0 vs 5632.5). Storage's 8/8 sweep, pathways,
+  trucks, and openstacks hold exactly. Suite tally vs SGPlan5:
+  **19W / 16T / 13L**.
+
 ### Changed
 
 - **Init-satisfied preferences are kept in the satisfaction guidance** (was:
