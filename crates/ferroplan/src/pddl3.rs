@@ -1361,7 +1361,6 @@ fn selection_seed(
     // infeasibility, trucks' shared-timeline scheduling — the retry only
     // added wall time, p08 213 s → 341 s, and changed nothing).
     const MAX_REPAIRS: usize = 8;
-    const MAX_JOINT: usize = 1;
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     let weights: Vec<f64> = forgos.iter().map(|&(_, w)| w).collect();
     let dnf = pref_dnf(task, forgos);
@@ -1387,7 +1386,6 @@ fn selection_seed(
     const PROBE_CAP: usize = 5_000;
     let mut probed: crate::hash::FxHashMap<u32, bool> = crate::hash::FxHashMap::default();
     let mut bound_out = None;
-    let mut joint_attempts = 0usize;
     for round in 0..=MAX_REPAIRS {
         let Some(sel) = crate::selection::select(task, groups, &weights, &dnf, &banned) else {
             break;
@@ -1454,10 +1452,9 @@ fn selection_seed(
         target.extend(chosen_facts.iter().copied());
         target.sort_unstable();
         target.dedup();
-        if target.is_empty() || spent >= seed_slice || joint_attempts >= MAX_JOINT {
+        if target.is_empty() || spent >= seed_slice {
             break;
         }
-        joint_attempts += 1;
         let stage_cfg = SearchCfg {
             max_eval: cfg.max_eval.min(seed_slice - spent),
             ..cfg
