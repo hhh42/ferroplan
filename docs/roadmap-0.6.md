@@ -7,7 +7,16 @@
 > 19W/16T/13L. Phase 3 (weight-aware barrier) MEASURED AND REJECTED: the
 > half-weight variant left pathways p05 at 6.5 and gave back large storage
 > wins (25→46, 60→75) — the p05 win→tie is the recorded cost of the barrier,
-> not a tunable. Phase 4 (trucks probe) remains; Phase 5 ships after it.
+> not a tunable. Phase 4 (trucks probe) MEASURED AND CLOSED as a dead end
+> for selection-shaped levers: trucks' window preferences select delivery
+> SLOTS that compete for one shared timeline — a scheduling interaction the
+> selection model cannot express. Probes pass individually, the joint target
+> is infeasible, and neither per-fact bans nor a top-weight-core retry moves
+> p06 (1) or p08 (10); the retry only added wall time (p08 213 s → 341 s)
+> and was reverted to a single joint attempt. Breaking the trucks draw needs
+> TEMPORAL selection (slot assignment with ordering constraints) — the same
+> machinery the 0.7 qualitative-preferences track will need; it moves there.
+> Phase 5 (ship 0.6.0) is ready when the user is.
 >
 > Successor to the executed [0.5 roadmap](roadmap-0.5.md). Ground truth:
 > [`benchmarks/ipc5-scoreboard.md`](../benchmarks/ipc5-scoreboard.md) (post-

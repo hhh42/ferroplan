@@ -1354,13 +1354,14 @@ fn selection_seed(
     cfg: SearchCfg,
     budget: usize,
 ) -> SeedOutcome {
-    // Joint attempts are capped at TWO (one post-ban retry): per-fact banning
-    // repairs per-fact unreachability (tpp's supply caps, found by the
-    // probes), but a jointly-infeasible target (storage: you cannot clear
-    // every cell — crates must sit somewhere) fails for COUNTING reasons no
-    // single ban fixes; further retries just burn evals (measured).
+    // ONE joint attempt: per-fact unreachability is fully handled by the
+    // probes BEFORE the attempt (tpp's supply caps), and a target that is
+    // jointly infeasible despite clean probes fails for reasons no ban or
+    // core-subset retry repairs (both measured: storage's counting
+    // infeasibility, trucks' shared-timeline scheduling — the retry only
+    // added wall time, p08 213 s → 341 s, and changed nothing).
     const MAX_REPAIRS: usize = 8;
-    const MAX_JOINT: usize = 2;
+    const MAX_JOINT: usize = 1;
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     let weights: Vec<f64> = forgos.iter().map(|&(_, w)| w).collect();
     let dnf = pref_dnf(task, forgos);
@@ -1497,19 +1498,13 @@ fn selection_seed(
                 return (Some((ops, cost)), bound_out, spent);
             }
             None => {
-                // Joint failure with individually-probed facts: interaction.
-                // Ban the largest-id un-banned chosen fact (deterministic) and
-                // re-select; the repair cap bounds the damage.
-                let Some(&f) = chosen_facts.iter().rev().find(|f| !banned.contains(f)) else {
-                    break;
-                };
+                // Joint failure with individually-probed facts = interaction
+                // the model cannot express (counting/scheduling). No repair
+                // helps (measured); give up and keep the loop's full budget.
                 if dbg {
-                    eprintln!(
-                        "[sel] round {round}: joint target failed; ban {}",
-                        task.fact_names[f as usize]
-                    );
+                    eprintln!("[sel] round {round}: joint target failed; no seed");
                 }
-                banned.insert(f);
+                break;
             }
         }
     }
