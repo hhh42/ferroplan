@@ -2459,6 +2459,11 @@ fn build_sat_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> SatGuidance
         if !keep_barrier && phi.holds(&init) {
             continue; // init-satisfied: no barrier on its transient dips
         }
+        // Init-satisfied preferences guide at FULL weight. A half-weight
+        // variant was measured (2026-07, the pathways-p05 recovery attempt)
+        // and REJECTED: it left pathways p05 at 6.5 and gave back large
+        // storage wins (p05 25 → 46, p07 60 → 75). The p05 win→tie trade is
+        // the recorded cost of the barrier, not a tunable.
         prefs.push((phi, (weight * 100.0).round().max(1.0) as i64));
     }
     SatGuidance {
