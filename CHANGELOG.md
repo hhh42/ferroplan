@@ -2,7 +2,25 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.6.0] - 2026-07-15 — Selection: solve the choice, then plan to it
+
+The forensics release. `docs/forensics-tpp.md` proved the remaining
+tpp/pathways tail was never a search problem — on zero-action-cost domains,
+plan quality is decided by WHICH jointly-satisfiable preference subset the
+end state lands in, and SGPlan5's tpp p05 score is the closed-form optimum of
+that selection. 0.6 answers it twice over: the guidance BARRIER flip (keep
+init-satisfied preferences visible — the storage 8/8 domain sweep vs SGPlan5,
+totals 234 vs 547) and the SELECTION layer (solve the subset choice exactly,
+then plan to it — tpp p06 ties SGPlan5 exactly, and rovers' totals lead
+widens to 4862 vs 5632 because selection also picks which samples are worth
+their traverse cost). Suite tally vs the IPC-5 winner: **19W / 16T / 13L**
+(0.4.0 shipped at 14/11/23), with three domains led under both quality
+conventions (openstacks, storage, rovers) and trucks ahead on totals — all
+on pure defaults, deterministic at any thread count. Two levers were measured
+and honestly retired along the way (a weight-aware barrier variant; three
+selection-shaped attempts at trucks' shared-timeline scheduling, which moves
+to 0.7 as temporal selection). Every default change keeps a restore hatch
+(`FF_PREF_NO_BARRIER`, `FF_PREF_NO_SELECT`).
 
 ### Added
 

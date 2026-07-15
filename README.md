@@ -47,7 +47,22 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.5.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.6.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.6.0 — Selection: solve the choice, then plan to it.**
+> Plan forensics ([the write-up](docs/forensics-tpp.md)) proved the remaining
+> quality gap on preference domains was a *selection* problem, not a search
+> problem — so ferroplan now solves the preference-subset choice **exactly**
+> (`selection.rs`: mutex-variable end states, branch-and-bound, an admissible
+> bound that can *prove* optimality) and plans to it as a target, and keeps
+> init-satisfied "trap" preferences visible to the guidance. Results on pure
+> defaults vs SGPlan5, the IPC-5 winner: **storage becomes an 8/8 domain
+> sweep** (totals 234 vs 547), **tpp p06 an exact tie**, rovers' totals lead
+> widens to 4862 vs 5632, and the suite tally reaches **19W/16T/13L**
+> ([scoreboard](benchmarks/ipc5-scoreboard.md)) — three domains led under
+> both quality conventions, deterministic at any thread count, every default
+> change with a restore hatch, every dead end recorded
+> ([0.6 roadmap](docs/roadmap-0.6.md)).
 
 > **What's new in 0.5.0 — closing on first.** On the vendored IPC-5
 > simple-preferences suite, **pure defaults** (one configuration, no env vars,
