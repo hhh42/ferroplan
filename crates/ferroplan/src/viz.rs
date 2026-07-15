@@ -191,10 +191,7 @@ impl VizGraph {
                 if node_set.contains(cur.as_str()) {
                     return Some(cur);
                 }
-                match pos_target.get(&cur) {
-                    Some(n) => cur = n.clone(),
-                    None => return None,
-                }
+                cur = pos_target.get(&cur)?.clone();
             }
             None
         };
