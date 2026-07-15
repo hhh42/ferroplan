@@ -4,8 +4,10 @@
 > solver reproduces the forensics optimum (tpp p05 bound = 79); planned as a
 > target it delivers tpp 89/104/110 → 80/**101 (exact tie)**/103 and a rovers
 > windfall (p02/p03/p08 −94/−88/−257; totals 4862 vs 5632). Suite tally
-> 19W/16T/13L. Phase 3 (weight-aware barrier, pathways p05) and Phase 4
-> (trucks probe) remain; Phase 5 ships when they land.
+> 19W/16T/13L. Phase 3 (weight-aware barrier) MEASURED AND REJECTED: the
+> half-weight variant left pathways p05 at 6.5 and gave back large storage
+> wins (25→46, 60→75) — the p05 win→tie is the recorded cost of the barrier,
+> not a tunable. Phase 4 (trucks probe) remains; Phase 5 ships after it.
 >
 > Successor to the executed [0.5 roadmap](roadmap-0.5.md). Ground truth:
 > [`benchmarks/ipc5-scoreboard.md`](../benchmarks/ipc5-scoreboard.md) (post-
