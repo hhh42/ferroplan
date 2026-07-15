@@ -1,5 +1,12 @@
 # Roadmap — the road to v0.6 ("Selection")
 
+> **Status: Phases 1–2 executed and measured (defaults).** The selection
+> solver reproduces the forensics optimum (tpp p05 bound = 79); planned as a
+> target it delivers tpp 89/104/110 → 80/**101 (exact tie)**/103 and a rovers
+> windfall (p02/p03/p08 −94/−88/−257; totals 4862 vs 5632). Suite tally
+> 19W/16T/13L. Phase 3 (weight-aware barrier, pathways p05) and Phase 4
+> (trucks probe) remain; Phase 5 ships when they land.
+>
 > Successor to the executed [0.5 roadmap](roadmap-0.5.md). Ground truth:
 > [`benchmarks/ipc5-scoreboard.md`](../benchmarks/ipc5-scoreboard.md) (post-
 > 0.5.1 barrier flip) and the forensics that set this direction:

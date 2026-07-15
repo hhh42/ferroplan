@@ -38,6 +38,12 @@ pub struct Selection {
     pub chosen: Vec<(usize, Vec<u32>)>,
     /// Admissible-optimistic violated-weight bound for the whole task.
     pub bound: f64,
+    /// The DFS hit its node cap: the assignment is best-found, NOT optimal,
+    /// and the bound is not trustworthy as a proof. Callers should skip
+    /// TARGETING a capped selection (measured: on storage p08's thousands of
+    /// instances a capped junk assignment burns the seed slice for nothing
+    /// and starves the tightening loop, 83 → 104).
+    pub capped: bool,
 }
 
 /// One disjunct requirement on a variable: the variable must equal the fact
@@ -329,6 +335,7 @@ pub fn select(
     dfs.go(0);
 
     // Read out the satisfied preferences and their chosen disjuncts.
+    let capped = dfs.nodes > NODE_CAP;
     let assign = dfs.best_assign;
     let mut chosen: Vec<(usize, Vec<u32>)> = Vec::new();
     let mut bound = forced_violated;
@@ -356,6 +363,9 @@ pub fn select(
     if chosen.is_empty() {
         return None;
     }
-    let _ = task;
-    Some(Selection { chosen, bound })
+    Some(Selection {
+        chosen,
+        bound,
+        capped,
+    })
 }

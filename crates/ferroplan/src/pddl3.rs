@@ -1354,7 +1354,13 @@ fn selection_seed(
     cfg: SearchCfg,
     budget: usize,
 ) -> SeedOutcome {
+    // Joint attempts are capped at TWO (one post-ban retry): per-fact banning
+    // repairs per-fact unreachability (tpp's supply caps, found by the
+    // probes), but a jointly-infeasible target (storage: you cannot clear
+    // every cell — crates must sit somewhere) fails for COUNTING reasons no
+    // single ban fixes; further retries just burn evals (measured).
     const MAX_REPAIRS: usize = 8;
+    const MAX_JOINT: usize = 2;
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     let weights: Vec<f64> = forgos.iter().map(|&(_, w)| w).collect();
     let dnf = pref_dnf(task, forgos);
@@ -1380,10 +1386,21 @@ fn selection_seed(
     const PROBE_CAP: usize = 5_000;
     let mut probed: crate::hash::FxHashMap<u32, bool> = crate::hash::FxHashMap::default();
     let mut bound_out = None;
+    let mut joint_attempts = 0usize;
     for round in 0..=MAX_REPAIRS {
         let Some(sel) = crate::selection::select(task, groups, &weights, &dnf, &banned) else {
             break;
         };
+        if sel.capped {
+            // Node-capped DFS: best-found assignment, not the model optimum —
+            // neither a trustworthy target nor an admissible bound. Skip the
+            // whole layer rather than burn the seed slice on a junk target
+            // (measured: storage p08, 83 → 104).
+            if dbg {
+                eprintln!("[sel] skip: selection DFS node-capped");
+            }
+            return (None, None, spent);
+        }
         if round == 0 {
             bound_out = Some(sel.bound); // the un-banned bound is the admissible one
         }
@@ -1436,9 +1453,10 @@ fn selection_seed(
         target.extend(chosen_facts.iter().copied());
         target.sort_unstable();
         target.dedup();
-        if target.is_empty() || spent >= seed_slice {
+        if target.is_empty() || spent >= seed_slice || joint_attempts >= MAX_JOINT {
             break;
         }
+        joint_attempts += 1;
         let stage_cfg = SearchCfg {
             max_eval: cfg.max_eval.min(seed_slice - spent),
             ..cfg
@@ -1947,11 +1965,17 @@ fn metric_optimize_closure(
     let mut proven = false;
     let mut sel_bound: Option<f64> = None;
 
-    // SELECTION SEED (0.6, opt-in via FF_PREF_SELECT while measuring): exact
-    // preference-subset selection planned as a hard-goal target. See
-    // `selection_seed` and docs/forensics-tpp.md.
-    if std::env::var("FF_PREF_SELECT").is_ok() && task.goal_num.is_empty() {
-        let (seeded, bound, evals) = selection_seed(
+    // SELECTION SEED (the 0.6 headline, default ON; `FF_PREF_NO_SELECT=1`
+    // restores 0.5.1): exact preference-subset selection planned as a
+    // hard-goal target. See `selection_seed` and docs/forensics-tpp.md.
+    // Like the legacy path's EHC seed, its (bounded, deterministic) evals
+    // stay OUTSIDE the tightening budget — charging them starved the loop
+    // exactly on the instances where the joint target is infeasible
+    // (measured: storage p08, 83 → 104). Measured wins: tpp p05 89 → 80
+    // (bound 79 = the forensics optimum, reproduced by the solver), p06
+    // 104 → 101 (exact tie with SGPlan5), p07 110 → 103.
+    if std::env::var("FF_PREF_NO_SELECT").is_err() && task.goal_num.is_empty() {
+        let (seeded, bound, _evals) = selection_seed(
             task,
             cost_fluent,
             groups,
@@ -1962,7 +1986,6 @@ fn metric_optimize_closure(
             cfg,
             budget,
         );
-        spent += evals;
         sel_bound = bound;
         if let Some((ops, cost)) = seeded {
             if best.as_ref().map_or(true, |(_, c)| cost < *c) {
