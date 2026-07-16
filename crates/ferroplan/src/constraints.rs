@@ -270,6 +270,91 @@ impl<'a> Fold<'a> {
     }
 }
 
+/// STATIC SIMPLIFICATION (planner-side only — the verifier keeps folding the
+/// unsimplified [`expand`] output, so the oracle stays independent): partially
+/// evaluate every constraint body against the facts that can never change
+/// (`pddl3::peval_static` — static predicates decided by init, `(= a b)` by
+/// symbol equality, connectives folded), then DROP instances whose fold
+/// verdict is statically ACCEPTED in every trajectory. This is what makes the
+/// qualitative storage instances compile at all: p03's
+/// `forall (?c1 ?c2 - crate ?s1 ?s2 - storearea) (always (imply (... static
+/// connected/compatible ...) ...))` expands quadratically, but ~90%+ of the
+/// instances simplify to `always true` — without the drop, each surviving as
+/// a monitor with a `When` transition on EVERY action, grounding OOMs a
+/// 15 GB container. Survivors keep the simplified body (cheaper `When` DNF).
+/// A statically-VIOLATED instance (e.g. `always false`) is NEVER dropped —
+/// the monitors must enforce/price it. `FF_PREF_NO_STATIC=1` restores the
+/// blind expansion (the same hatch as the goal-preference pass).
+fn simplify_static(exp: &mut Expanded, domain: &Domain, problem: &Problem) {
+    if std::env::var("FF_PREF_NO_STATIC").is_ok() {
+        return;
+    }
+    let statics = crate::pddl3::static_predicates(domain);
+    let init: std::collections::HashSet<(Sym, Vec<Sym>)> =
+        problem.init_atoms.iter().cloned().collect();
+    let peval = |f: &Formula| crate::pddl3::peval_static(f, &statics, &init);
+    let t = |f: &Formula| matches!(f, Formula::True);
+    let fa = |f: &Formula| matches!(f, Formula::False);
+    // Simplify bodies; `None` = statically accepted on every trajectory.
+    let simp = |traj: &Traj| -> Option<Traj> {
+        match traj {
+            Traj::Always(f) => match peval(f) {
+                f if t(&f) => None,
+                f => Some(Traj::Always(f)),
+            },
+            Traj::Sometime(f) => match peval(f) {
+                f if t(&f) => None,
+                f => Some(Traj::Sometime(f)),
+            },
+            // φ static-true: one episode opens at S_0 and never closes;
+            // φ static-false: no episode ever opens — accepted either way.
+            Traj::AtMostOnce(f) => match peval(f) {
+                f if t(&f) || fa(&f) => None,
+                f => Some(Traj::AtMostOnce(f)),
+            },
+            // ψ in every state, or φ in none: nothing is ever owed.
+            Traj::SometimeAfter(a, b) => {
+                let (a, b) = (peval(a), peval(b));
+                if fa(&a) || t(&b) {
+                    None
+                } else {
+                    Some(Traj::SometimeAfter(a, b))
+                }
+            }
+            // φ in no state: the ordering obligation never triggers.
+            // (φ static-true is a VIOLATION at S_0 — kept for the monitors.)
+            Traj::SometimeBefore(a, b) => {
+                let (a, b) = (peval(a), peval(b));
+                if fa(&a) {
+                    None
+                } else {
+                    Some(Traj::SometimeBefore(a, b))
+                }
+            }
+            Traj::AtEnd(f) => match peval(f) {
+                f if t(&f) => None,
+                f => Some(Traj::AtEnd(f)),
+            },
+        }
+    };
+    let (h0, s0) = (exp.hard.len(), exp.soft.len());
+    exp.hard = exp.hard.iter().filter_map(&simp).collect();
+    exp.soft = exp
+        .soft
+        .iter()
+        .filter_map(|(n, tr)| simp(tr).map(|tr| (n.clone(), tr)))
+        .collect();
+    if std::env::var("FF_RES_DEBUG").is_ok() && (exp.hard.len(), exp.soft.len()) != (h0, s0) {
+        eprintln!(
+            "[P3] constraint static simplification: dropped {} of {} hard, {} of {} soft",
+            h0 - exp.hard.len(),
+            h0,
+            s0 - exp.soft.len(),
+            s0
+        );
+    }
+}
+
 /// The 0.7 entrypoint gate, shared by `solve`/`decompose`/`run_planner`/
 /// `run_ff` so no gate can silently diverge: `Ok(None)` = no constraints
 /// (byte-identical no-op path), `Ok(Some(pair))` = untimed constraints (hard
@@ -308,7 +393,8 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
 /// constraint held over the whole trajectory. Returns the rewritten pair.
 /// Errors on timed operators (naming them).
 pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), String> {
-    let exp = expand(domain, problem)?;
+    let mut exp = expand(domain, problem)?;
+    simplify_static(&mut exp, domain, problem);
     if exp.hard.is_empty() && exp.soft.is_empty() {
         return Ok((domain.clone(), problem.clone()));
     }
