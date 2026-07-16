@@ -315,11 +315,16 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
 - **PDDL3 trajectory constraints** (`(:constraints ...)`): the six untimed
   modal operators (`always`, `sometime`, `at-most-once`, `sometime-after`,
   `sometime-before`, `at end`) are **enforced on the classical path** — compiled
-  into monitor automata and cross-checked by the independent verifier. The
-  timed operators (`within`, `hold-during`, `hold-after`,
-  `always-within`), soft constraint-preferences, and the temporal path are
-  still **rejected by name** rather than silently dropped
-  (`FF_CONSTRAINTS_REJECT=1` restores the pre-0.7 blanket rejection).
+  into monitor automata and cross-checked by the independent verifier. Hard
+  constraints become goal conjuncts; soft `(preference name ...)` constraints
+  are **priced through the PDDL3 metric machinery** like native goal
+  preferences (the IPC-5 *qualitative-preferences* suite is vendored and
+  scored — see
+  [`benchmarks/ipc5-qualitative-scoreboard.md`](benchmarks/ipc5-qualitative-scoreboard.md)).
+  The timed operators (`within`, `hold-during`, `hold-after`,
+  `always-within`) and the temporal path are still **rejected by name**
+  rather than silently dropped (`FF_CONSTRAINTS_REJECT=1` restores the
+  pre-0.7 blanket rejection).
 - **Temporal**: durative actions with constant or parameter-dependent durations
   and required concurrency are supported, and **plans are VAL-validated** on real
   IPC temporal domains (44/45 produced plans valid — see

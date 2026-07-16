@@ -506,6 +506,9 @@ pub fn preferences(goal: &Formula, objs: &HashMap<Sym, Vec<Sym>>) -> Vec<(String
 
 /// Effective metric weight per preference INSTANCE name (default 1 with no
 /// metric, else the `(is-violated name)` coefficient, 0 if unreferenced).
+/// Enumerates goal preferences AND (since 0.7 Phase 2) `(:constraints ...)`
+/// constraint-preferences — both share the one `(is-violated name)`
+/// namespace and the same defaults.
 pub fn pref_weights(domain: &Domain, problem: &Problem) -> HashMap<String, f64> {
     let mut w = HashMap::new();
     let mut tc = 0.0;
@@ -517,7 +520,14 @@ pub fn pref_weights(domain: &Domain, problem: &Problem) -> HashMap<String, f64> 
     }
     let objs = crate::ground::objects_by_type(domain, problem);
     let mut out = HashMap::new();
-    for (n, _) in preferences(&problem.goal, &objs) {
+    let mut names: Vec<String> = preferences(&problem.goal, &objs)
+        .into_iter()
+        .map(|(n, _)| n)
+        .collect();
+    if let Ok(exp) = crate::constraints::expand(domain, problem) {
+        names.extend(exp.soft.into_iter().map(|(n, _)| n));
+    }
+    for n in names {
         let wn = w.get(&n).copied().unwrap_or(if absent { 1.0 } else { 0.0 });
         out.insert(n, wn);
     }

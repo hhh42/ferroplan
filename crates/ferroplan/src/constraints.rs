@@ -6,11 +6,14 @@
 //! `sometime-after`, `sometime-before`, `at end`) compile into small
 //! **monitor automata** over state trajectories — fresh 0-ary monitor facts
 //! transitioned by `Effect::When` conditional effects appended to every real
-//! action (the grounder and heuristic already handle everything this emits),
-//! with acceptance conjoined into the hard goal. Anything this build cannot
-//! enforce (the timed operators; soft `preference`-wrapped constraints until
-//! Phase 2) keeps a rejection that NAMES the operator — the "never silently
-//! ignore" contract is narrowed, never deleted.
+//! action (the grounder and heuristic already handle everything this emits).
+//! A HARD constraint's acceptance is conjoined into the goal; a SOFT
+//! `(preference name ...)` constraint (Phase 2) becomes a goal-side
+//! `(preference name <acceptance>)`, priced by the PDDL3 metric machinery
+//! like any native goal preference. Anything this build cannot enforce (the
+//! timed operators; any constraint on a temporal domain) keeps a rejection
+//! that NAMES the operator — the "never silently ignore" contract is
+//! narrowed, never deleted.
 //!
 //! THE OBSERVATION OFFSET (load-bearing): `PackedTask::apply` evaluates
 //! conditional-effect conditions against the SOURCE state, so a monitor
@@ -46,9 +49,13 @@ pub enum Traj {
 /// `And` flattened, hard and soft (`preference`-wrapped) separated.
 pub struct Expanded {
     pub hard: Vec<Traj>,
-    /// `(preference name <constraint>)` instances — parsed, named, NOT
-    /// enforced in Phase 1 (they reject at the gates until Phase 2 wires
-    /// them into the metric machinery).
+    /// `(preference name <constraint>)` INSTANCES — instances expanded from
+    /// one `forall`-wrapped preference share its name, so `(is-violated
+    /// name)` counts violated instances (the PDDL3 semantics). Anonymous
+    /// preferences get a deterministic generated name (`TRAJPREF{n}` in
+    /// source order), mirroring goal-preference handling. Enforced since
+    /// Phase 2: [`compile`] lowers each to monitors plus a goal-side
+    /// `(preference name <acceptance>)` priced by the metric machinery.
     pub soft: Vec<(String, Traj)>,
 }
 
@@ -60,10 +67,43 @@ pub fn expand(domain: &Domain, problem: &Problem) -> Result<Expanded, String> {
         hard: Vec::new(),
         soft: Vec::new(),
     };
+    let mut anon = 0usize;
     for c in domain.constraints.iter().chain(problem.constraints.iter()) {
-        walk(c, &objs, None, &HashMap::new(), &mut out)?;
+        walk(c, &objs, None, &HashMap::new(), &mut anon, &mut out)?;
     }
     Ok(out)
+}
+
+/// Ground the FORMULA-level quantifiers of a formula (`forall` → a
+/// conjunction, `exists` → a disjunction over the type's objects). The IPC-5
+/// qualitative suite nests these inside modal operators (storage/tpp/trucks,
+/// e.g. `(sometime-before (exists (?c - crate) ...) ...)`), and the
+/// simple-preferences goals nest them inside preference bodies; expanding
+/// keeps every monitor transition ground for the grounder AND makes the
+/// verifier's evaluation exact (its formula evaluator does not bind
+/// quantifiers — `verify.rs` calls this for goal-preference scoring too).
+/// An empty type yields the correct constants: `forall` → true (`And []`),
+/// `exists` → false (`Or []`).
+pub(crate) fn expand_quantifiers(f: &Formula, objs: &HashMap<Sym, Vec<Sym>>) -> Formula {
+    match f {
+        Formula::Forall(vars, inner) => Formula::And(
+            combos(vars, objs)
+                .into_iter()
+                .map(|b| expand_quantifiers(&subst_formula(inner, &b), objs))
+                .collect(),
+        ),
+        Formula::Exists(vars, inner) => Formula::Or(
+            combos(vars, objs)
+                .into_iter()
+                .map(|b| expand_quantifiers(&subst_formula(inner, &b), objs))
+                .collect(),
+        ),
+        Formula::And(v) => Formula::And(v.iter().map(|x| expand_quantifiers(x, objs)).collect()),
+        Formula::Or(v) => Formula::Or(v.iter().map(|x| expand_quantifiers(x, objs)).collect()),
+        Formula::Not(a) => Formula::Not(Box::new(expand_quantifiers(a, objs))),
+        Formula::Pref(n, a) => Formula::Pref(n.clone(), Box::new(expand_quantifiers(a, objs))),
+        other => other.clone(),
+    }
 }
 
 fn timed_err(op: &str) -> String {
@@ -80,9 +120,10 @@ fn walk(
     objs: &HashMap<Sym, Vec<Sym>>,
     pref: Option<&str>,
     binding: &HashMap<Sym, Sym>,
+    anon: &mut usize,
     out: &mut Expanded,
 ) -> Result<(), String> {
-    let sub = |f: &Formula| subst_formula(f, binding);
+    let sub = |f: &Formula| expand_quantifiers(&subst_formula(f, binding), objs);
     let push = |t: Traj, out: &mut Expanded| match pref {
         Some(name) => out.soft.push((name.to_string(), t)),
         None => out.hard.push(t),
@@ -90,14 +131,14 @@ fn walk(
     match c {
         Constraint::And(v) => {
             for x in v {
-                walk(x, objs, pref, binding, out)?;
+                walk(x, objs, pref, binding, anon, out)?;
             }
         }
         Constraint::Forall(vars, inner) => {
             for combo in combos(vars, objs) {
                 let mut b = binding.clone();
                 b.extend(combo);
-                walk(inner, objs, pref, &b, out)?;
+                walk(inner, objs, pref, &b, anon, out)?;
             }
         }
         Constraint::Pref(name, inner) => {
@@ -108,8 +149,12 @@ fn walk(
                         .into(),
                 );
             }
-            let name = name.clone().unwrap_or_else(|| "ANON-TRAJ".into());
-            walk(inner, objs, Some(&name), binding, out)?;
+            let name = name.clone().unwrap_or_else(|| {
+                let s = format!("TRAJPREF{anon}");
+                *anon += 1;
+                s
+            });
+            walk(inner, objs, Some(&name), binding, anon, out)?;
         }
         Constraint::Always(f) => push(Traj::Always(sub(f)), out),
         Constraint::Sometime(f) => push(Traj::Sometime(sub(f)), out),
@@ -227,10 +272,10 @@ impl<'a> Fold<'a> {
 
 /// The 0.7 entrypoint gate, shared by `solve`/`decompose`/`run_planner`/
 /// `run_ff` so no gate can silently diverge: `Ok(None)` = no constraints
-/// (byte-identical no-op path), `Ok(Some(pair))` = hard untimed constraints
-/// compiled into the rewritten task, `Err(msg)` = a NAMED rejection — the
-/// timed operators, soft constraint-preferences (Phase 2), any constraint on
-/// a durative-action domain (Phase 3), or the `FF_CONSTRAINTS_REJECT=1`
+/// (byte-identical no-op path), `Ok(Some(pair))` = untimed constraints (hard
+/// AND soft since Phase 2) compiled into the rewritten task, `Err(msg)` = a
+/// NAMED rejection — the timed operators, any constraint on a
+/// durative-action domain (Phase 3), or the `FF_CONSTRAINTS_REJECT=1`
 /// hatch, which restores the 0.4.1 blanket rejection byte-for-byte (it
 /// restores *rejection*, never ignoring).
 pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Problem)>, String> {
@@ -252,22 +297,19 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
     compile(domain, problem).map(Some)
 }
 
-/// Compile the HARD untimed constraints into the domain/problem: monitor
-/// predicates + per-action `When` transitions + goal conjuncts, per the
-/// module-level table. Returns the rewritten pair. Errors on timed operators
-/// (naming them) and, in Phase 1, on soft constraint preferences.
+/// Compile the untimed constraints into the domain/problem: monitor
+/// predicates + per-action `When` transitions, per the module-level table.
+/// A HARD constraint's acceptance is conjoined into the goal; a SOFT
+/// (`preference`-wrapped) constraint's acceptance becomes a goal-side
+/// `(preference name <acceptance>)` — the PDDL3 metric machinery
+/// (`pddl3::compile`'s collect/forgo pricing, the closure optimizer, the
+/// selection layer) then scores it exactly like a native goal preference,
+/// because a monitor's final-state acceptance formula is true iff the
+/// constraint held over the whole trajectory. Returns the rewritten pair.
+/// Errors on timed operators (naming them).
 pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), String> {
     let exp = expand(domain, problem)?;
-    if !exp.soft.is_empty() {
-        return Err(format!(
-            "soft trajectory constraints — (preference {} ...) inside \
-             (:constraints ...) — are not yet enforced (hard untimed \
-             constraints are). Score them via goal preferences, or drop the \
-             preference wrapper to make them hard.",
-            exp.soft[0].0
-        ));
-    }
-    if exp.hard.is_empty() {
+    if exp.hard.is_empty() && exp.soft.is_empty() {
         return Ok((domain.clone(), problem.clone()));
     }
 
@@ -290,7 +332,17 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
         }
     };
 
-    for (i, t) in exp.hard.iter().enumerate() {
+    // Hard instances first, then soft — one shared monitor-fact index space.
+    let items: Vec<(Option<&str>, &Traj)> = exp
+        .hard
+        .iter()
+        .map(|t| (None, t))
+        .chain(exp.soft.iter().map(|(n, t)| (Some(n.as_str()), t)))
+        .collect();
+    for (i, (pref, t)) in items.iter().enumerate() {
+        // The constraint's ACCEPTANCE over S_0..S_n: monitor state ∧ the
+        // goal-side S_n check. Hard → goal conjuncts; soft → one Pref.
+        let mut acc: Vec<Formula> = Vec::new();
         match t {
             Traj::Always(f) => {
                 let viol = format!("TRAJ{i}-VIOL");
@@ -299,14 +351,14 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
                     Formula::Not(Box::new(f.clone())),
                     Box::new(add(&viol)),
                 ));
-                goal_conj.push(Formula::Not(Box::new(atom(&viol))));
-                goal_conj.push(f.clone()); // S_n
+                acc.push(Formula::Not(Box::new(atom(&viol))));
+                acc.push(f.clone()); // S_n
             }
             Traj::Sometime(f) => {
                 let seen = format!("TRAJ{i}-SEEN");
                 declare(&mut d, &mut p, &seen, init_holds(f));
                 transitions.push(Effect::When(f.clone(), Box::new(add(&seen))));
-                goal_conj.push(Formula::Or(vec![atom(&seen), f.clone()]));
+                acc.push(Formula::Or(vec![atom(&seen), f.clone()]));
             }
             Traj::AtMostOnce(f) => {
                 let hold = format!("TRAJ{i}-HOLD");
@@ -334,9 +386,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
                     Formula::And(vec![Formula::Not(Box::new(f.clone())), atom(&hold)]),
                     Box::new(del(&hold)),
                 ));
-                goal_conj.push(Formula::Not(Box::new(atom(&viol))));
+                acc.push(Formula::Not(Box::new(atom(&viol))));
                 // S_n rising edge: φ now, not holding into it, already seen.
-                goal_conj.push(Formula::Not(Box::new(Formula::And(vec![
+                acc.push(Formula::Not(Box::new(Formula::And(vec![
                     f.clone(),
                     Formula::Not(Box::new(atom(&hold))),
                     atom(&seen),
@@ -351,7 +403,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
                     Box::new(add(&pend)),
                 ));
                 // accepted iff nothing pending after S_n's own φ/ψ resolve.
-                goal_conj.push(Formula::Or(vec![
+                acc.push(Formula::Or(vec![
                     b.clone(),
                     Formula::And(vec![
                         Formula::Not(Box::new(atom(&pend))),
@@ -370,14 +422,25 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
                     Box::new(add(&viol)),
                 ));
                 transitions.push(Effect::When(b.clone(), Box::new(add(&safe))));
-                goal_conj.push(Formula::Not(Box::new(atom(&viol))));
-                goal_conj.push(Formula::Or(vec![
+                acc.push(Formula::Not(Box::new(atom(&viol))));
+                acc.push(Formula::Or(vec![
                     Formula::Not(Box::new(a.clone())),
                     atom(&safe),
                 ]));
             }
             Traj::AtEnd(f) => {
-                goal_conj.push(f.clone());
+                acc.push(f.clone());
+            }
+        }
+        match pref {
+            None => goal_conj.extend(acc),
+            Some(name) => {
+                let body = if acc.len() == 1 {
+                    acc.pop().unwrap()
+                } else {
+                    Formula::And(acc)
+                };
+                goal_conj.push(Formula::Pref(Some(name.to_string()), Box::new(body)));
             }
         }
     }

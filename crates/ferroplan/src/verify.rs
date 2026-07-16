@@ -26,6 +26,10 @@ pub struct Verified {
     pub constraints_met: bool,
     /// The operators of any violated constraints (for reports).
     pub constraint_failures: Vec<String>,
+    /// Per SOFT constraint-preference INSTANCE (0.7 Phase 2): the preference
+    /// name and whether its trajectory fold ACCEPTED the replay. Instances
+    /// expanded from one `forall` preference share the name.
+    pub constraint_prefs: Vec<(String, bool)>,
 }
 
 fn disp(pred: &str, args: &[Term]) -> String {
@@ -78,8 +82,10 @@ fn eval_formula(task: &PackedTask, s: &State, f: &Formula) -> bool {
             };
             t(a) == t(b)
         }
-        // quantified preferences are out of the phase-1 verifier's scope (they
-        // don't appear in the supported metric class); evaluate the body best-effort
+        // unreachable on the scoring paths: constraint bodies are grounded by
+        // `constraints::expand` and goal-preference bodies by the
+        // `expand_quantifiers` call in `verify` below. Kept as a best-effort
+        // fallback for any formula that arrives unexpanded.
         Formula::Forall(_, inner) | Formula::Exists(_, inner) => eval_formula(task, s, inner),
         Formula::Atom(p, args) => match task.fact_id(&disp(p, args)) {
             Some(id) => s.bits[id / 64] >> (id % 64) & 1 != 0,
@@ -124,16 +130,26 @@ pub fn verify(
     // 0.7: expand the ORIGINAL trajectory constraints (errors on the timed
     // operators — a plan for a problem verify cannot check is never Valid)
     // and fold their semantics incrementally over the replay, S_0 included.
+    // HARD instances decide `constraints_met`; SOFT (preference-wrapped)
+    // instances are scored into the metric below, weighted like goal prefs.
     let expanded = crate::constraints::expand(&domain, &problem)?;
     let mut folds: Vec<crate::constraints::Fold> = expanded
         .hard
         .iter()
         .map(crate::constraints::Fold::new)
         .collect();
+    let mut soft_folds: Vec<(&str, crate::constraints::Fold)> = expanded
+        .soft
+        .iter()
+        .map(|(n, t)| (n.as_str(), crate::constraints::Fold::new(t)))
+        .collect();
 
     // replay the plan over the original-grounded task
     let mut s = task.initial();
     for f in &mut folds {
+        f.step(&mut |phi| eval_formula(&task, &s, phi)); // S_0
+    }
+    for (_, f) in &mut soft_folds {
         f.step(&mut |phi| eval_formula(&task, &s, phi)); // S_0
     }
     for (name, args) in plan {
@@ -164,6 +180,9 @@ pub fn verify(
         for f in &mut folds {
             f.step(&mut |phi| eval_formula(&task, &s, phi));
         }
+        for (_, f) in &mut soft_folds {
+            f.step(&mut |phi| eval_formula(&task, &s, phi));
+        }
     }
 
     let hard_goal_met = task.goal_met(&s);
@@ -174,19 +193,36 @@ pub fn verify(
         .collect();
     let constraints_met = constraint_failures.is_empty();
 
-    // score preferences in the FINAL state
+    // score preferences: goal preferences in the FINAL state, constraint
+    // preferences (0.7 Phase 2) by their trajectory fold — both weighted per
+    // instance from the one `(is-violated name)` namespace.
     let weights = pddl3::pref_weights(&domain, &problem);
     let objs = crate::ground::objects_by_type(&domain, &problem);
     let prefs = pddl3::preferences(&problem.goal, &objs);
     let mut metric = 0.0;
     let (mut sat, mut vio) = (0usize, 0usize);
     for (name, phi) in &prefs {
-        if eval_formula(&task, &s, phi) {
+        // ground inner quantifiers (e.g. tpp p4A's `(forall (?m) ...)`,
+        // storage's `(exists (?s) ...)`) so the evaluation is exact, not
+        // best-effort — this is what makes the oracle authoritative on the
+        // preference suites (rovers' folded numeric term stays outside it).
+        let phi = crate::constraints::expand_quantifiers(phi, &objs);
+        if eval_formula(&task, &s, &phi) {
             sat += 1;
         } else {
             vio += 1;
             metric += weights.get(name).copied().unwrap_or(0.0);
         }
+    }
+    let mut constraint_prefs = Vec::with_capacity(soft_folds.len());
+    for (name, f) in &soft_folds {
+        if f.accepted() {
+            sat += 1;
+        } else {
+            vio += 1;
+            metric += weights.get(*name).copied().unwrap_or(0.0);
+        }
+        constraint_prefs.push((name.to_string(), f.accepted()));
     }
     Ok(Verified {
         metric,
@@ -195,5 +231,6 @@ pub fn verify(
         violated: vio,
         constraints_met,
         constraint_failures,
+        constraint_prefs,
     })
 }

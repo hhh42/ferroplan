@@ -24,7 +24,7 @@ def arg(flag, default=None):
 
 
 CORPUS = arg("--corpus", os.path.join(ROOT, "benchmarks", "ipc"))
-CATS = (arg("--cat") or "numeric,strips,adl,pref").split(",")
+CATS = (arg("--cat") or "numeric,strips,adl,pref,qualpref").split(",")
 TIMEOUT = int(arg("--timeout", "30"))
 NO_DOCKER = "--no-docker" in sys.argv
 NO_ROSETTA = "--no-rosetta" in sys.argv
