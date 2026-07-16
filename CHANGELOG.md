@@ -34,16 +34,40 @@ All notable changes to this project are documented here.
   (`docs/roadmap-0.7.md`). Constraint-free inputs are untouched (the gate
   is a no-op), so this cost is opt-in with the feature.
 
+- **Soft constraint-preferences are ENFORCED and PRICED** (0.7 Phase 2).
+  `(preference name <constraint>)` inside `(:constraints ...)` lowers to the
+  same monitor automata plus a goal-side `(preference name <acceptance>)`,
+  so the whole PDDL3 metric stack (Keyder–Geffner collect/forgo pricing, the
+  exact-closure optimizer, the selection layer) scores trajectory
+  preferences with **no optimizer changes**. `forall` preferences expand to
+  instances sharing the name (`(is-violated name)` counts violated
+  instances); anonymous preferences get deterministic `TRAJPREF{n}` names;
+  weight defaults match goal preferences exactly (no metric → 1 each,
+  metric-unreferenced → 0), pinned by tests.
+- **The IPC-5 qualitative-preferences suite is vendored and scored**
+  (`benchmarks/ipc/qualpref/{openstacks,rovers,storage,tpp,trucks}`, 8
+  instances each, from the potassco mirror — the track ran 5 domains; there
+  is no qualitative pathways). All 40 instances parse, compile, and solve
+  under pure defaults; see `benchmarks/ipc5-qualitative-scoreboard.md` and
+  the heavy locks in `tests/ipc5_qual_metric.rs`.
+- **The independent verifier is now authoritative on quantified preference
+  bodies**: `verify::verify` grounds formula-level `forall`/`exists` (both
+  in constraint bodies and in goal-preference bodies) before scoring, folds
+  every soft constraint-preference over the replayed trajectory, and reports
+  per-instance verdicts (`Verified::constraint_prefs`). reported ==
+  verified is asserted exactly on every qualitative domain and on 5 of 6
+  simple-preferences domains (rovers stays validity-only: its metric folds
+  a numeric term the preference verifier doesn't recompute).
+
 ### Changed
 
 - What stays rejected is now rejected **by name**: the four timed operators
-  (`within`, `always-within`, `hold-during`, `hold-after`), soft
-  `(preference ...)` constraints (Phase 2), any constraint on the temporal
-  path (Phase 3), and `Session` (grounds once and replans from mutated
-  states — a compiled monitor's S_0 baking would go stale). The 0.4.1
-  blanket rejection survives behind `FF_CONSTRAINTS_REJECT=1` (a restore
-  hatch that restores *rejection*, not ignoring — no setting silently drops
-  a constraint).
+  (`within`, `always-within`, `hold-during`, `hold-after`), any constraint
+  on the temporal path (Phase 3), and `Session` (grounds once and replans
+  from mutated states — a compiled monitor's S_0 baking would go stale).
+  The 0.4.1 blanket rejection survives behind `FF_CONSTRAINTS_REJECT=1` (a
+  restore hatch that restores *rejection*, not ignoring — no setting
+  silently drops a constraint).
 
 ## [0.6.0] - 2026-07-15 — Selection: solve the choice, then plan to it
 

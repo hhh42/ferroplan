@@ -30,20 +30,18 @@ fn openstacks_beats_all_forgo_floor() {
 fn default_metric_matches_independent_verifier() {
     // W1 oracle: every default plan must be valid (hard goal met), and where the
     // independent verifier is authoritative the reported metric must equal the
-    // replay-scored metric. Exact-match is asserted only for openstacks — the ESPC
-    // target, whose preferences are simple atomic deliveries the phase-1 verifier
-    // scores exactly. The others are validity-only: rovers folds a monotone numeric
-    // term the preference-only verifier doesn't recompute, and tpp/storage/trucks/
-    // pathways have preference bodies with INNER quantifiers (e.g. tpp's p4A
-    // `(forall (?m) ...)`) that the verifier evaluates best-effort (verify.rs:74-76),
-    // so its count is not authoritative there.
+    // replay-scored metric. Since 0.7 the verifier grounds inner quantifiers
+    // (e.g. tpp's p4A `(forall (?m) ...)`) before scoring, so it is exact on
+    // every domain whose metric is a pure weighted is-violated sum. rovers
+    // stays validity-only: its metric folds a monotone numeric term
+    // (`sum-traverse-cost`) the preference-only verifier doesn't recompute.
     let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../benchmarks/ipc/pref");
     for (d, exact) in [
         ("openstacks", true),
-        ("tpp", false),
-        ("storage", false),
-        ("trucks", false),
-        ("pathways", false),
+        ("tpp", true),
+        ("storage", true),
+        ("trucks", true),
+        ("pathways", true),
         ("rovers", false),
     ] {
         let dom = fs::read_to_string(format!("{base}/{d}/domain.pddl")).unwrap();

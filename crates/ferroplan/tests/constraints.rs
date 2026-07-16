@@ -2,12 +2,14 @@
 //!
 //! 0.4.1 pinned that `(:constraints ...)` was cleanly rejected; 0.7 narrows
 //! that fence: the six untimed modal operators compile into monitor automata
-//! and are ENFORCED on the classical path, while the timed operators, soft
-//! constraint-preferences (Phase 2), the temporal path (Phase 3), and
-//! `Session` keep NAMED rejections. Each operator gets a bite/no-bite pair
-//! on a hand-checkable switch domain, and every solved plan is cross-checked
-//! through the independent verifier (`verify::verify` folds the ORIGINAL
-//! constraint semantics over its replay — never the compiled monitors).
+//! and are ENFORCED on the classical path — hard constraints as goal
+//! conjuncts (Phase 1), soft `(preference name ...)` constraints priced
+//! through the PDDL3 metric machinery (Phase 2) — while the timed operators,
+//! the temporal path (Phase 3), and `Session` keep NAMED rejections. Each
+//! operator gets a bite/no-bite pair on a hand-checkable switch domain, and
+//! every solved plan is cross-checked through the independent verifier
+//! (`verify::verify` folds the ORIGINAL constraint semantics over its
+//! replay — never the compiled monitors).
 
 use std::sync::Mutex;
 
@@ -231,18 +233,123 @@ fn timed_operators_reject_by_name() {
     }
 }
 
+// ---- soft constraint-preferences (Phase 2) --------------------------------
+
+/// Solve a preference problem at 1 and 8 threads, assert the REPORTED metric
+/// matches `want` at both, and that the independent verifier's trajectory
+/// replay computes the same metric (reported == verified, the 0.7 contract).
+fn soft_ok(d: &str, p: &str, want: f64) -> ferroplan::Plan {
+    let t1 = solve(
+        d,
+        p,
+        &Options {
+            threads: 1,
+            ..Options::default()
+        },
+    )
+    .expect("solve t1");
+    let t8 = solve(
+        d,
+        p,
+        &Options {
+            threads: 8,
+            ..Options::default()
+        },
+    )
+    .expect("solve t8");
+    let plan1 = t1.plan.expect("plan t1");
+    let plan8 = t8.plan.expect("plan t8");
+    assert_eq!(plan1.metric, Some(want), "t1 reported metric");
+    assert_eq!(plan8.metric, Some(want), "t8 reported metric");
+    let v = ferroplan::verify::verify(d, p, &steps(&plan1)).expect("verify");
+    assert!(v.hard_goal_met, "verifier: hard goal");
+    assert!(
+        v.constraints_met,
+        "verifier: hard constraints violated: {:?}",
+        v.constraint_failures
+    );
+    assert_eq!(v.metric, want, "verified metric");
+    plan1
+}
+
 #[test]
-fn soft_constraints_reject_until_phase_2() {
+fn soft_sometime_default_weight_forces_the_detour() {
     let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-    let p = prob("(off)", "(on)", "(preference pv (always (off)))");
-    let err = solve(DOM, &p, &Options::default()).expect_err("must reject");
-    match err {
-        SolveError::Unsupported(msg) => assert!(
-            msg.contains("soft") || msg.contains("preference"),
-            "message explains: {msg}"
-        ),
-        other => panic!("expected Unsupported, got {other:?}"),
-    }
+    // No :metric → every preference weighs 1. Satisfying (sometime (on))
+    // costs two flips but saves the violation — optimal metric 0.
+    let p = prob("(off)", "(off)", "(preference pv (sometime (on)))");
+    let plan = soft_ok(DOM, &p, 0.0);
+    assert!(
+        plan.steps.len() >= 2,
+        "must flip on and back: {:?}",
+        steps(&plan)
+    );
+}
+
+#[test]
+fn soft_always_pays_when_the_goal_demands_violation() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // (lamp) requires leaving (off): the preference is unavoidably violated
+    // and the metric prices it via (is-violated pv).
+    let p = "(define (problem sw-1) (:domain sw) (:init (off)) (:goal (lamp))
+         (:constraints (preference pv (always (off))))
+         (:metric minimize (* 3 (is-violated pv))))";
+    soft_ok(DOM, p, 3.0);
+}
+
+#[test]
+fn soft_metric_unreferenced_weighs_zero() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // A metric that never mentions pv → violating pv is free (weight 0),
+    // matching the goal-preference default semantics.
+    let p = "(define (problem sw-1) (:domain sw) (:init (off)) (:goal (lamp))
+         (:constraints (preference pv (always (off))))
+         (:metric minimize (is-violated ghost)))";
+    soft_ok(DOM, p, 0.0);
+}
+
+#[test]
+fn anonymous_constraint_pref_defaults_like_named() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let p = prob("(off)", "(lamp)", "(preference (always (off)))");
+    soft_ok(DOM, &p, 1.0);
+}
+
+#[test]
+fn mixed_hard_and_soft_split_correctly() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // One (:constraints ...) block, both kinds: hard (sometime (used))
+    // forces lighting; the soft (always (off)) is thereby violated — the
+    // hard one is ENFORCED (verifier constraints_met), the soft one PRICED.
+    let p = prob(
+        "(off)",
+        "(off)",
+        "(and (sometime (used)) (preference pv (always (off))))",
+    );
+    let plan = soft_ok(DOM, &p, 1.0);
+    assert!(plan.steps.len() >= 3, "on, light, off: {:?}", steps(&plan));
+}
+
+#[test]
+fn forall_pref_instances_share_one_name() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // (forall ...) around a named preference expands to one INSTANCE per
+    // binding, all sharing the name — (is-violated pv) counts violated
+    // instances. Only s1 is flippable, so exactly one instance is violated:
+    // metric = 1 instance × weight 2.
+    let dom = "(define (domain sw2)
+      (:requirements :strips :typing :constraints)
+      (:types sw)
+      (:predicates (on ?s - sw) (flippable ?s - sw))
+      (:action flip :parameters (?s - sw)
+        :precondition (flippable ?s) :effect (on ?s)))";
+    let p = "(define (problem sw2-1) (:domain sw2)
+      (:objects s1 s2 - sw)
+      (:init (flippable s1))
+      (:goal (flippable s1))
+      (:constraints (forall (?s - sw) (preference pv (sometime (on ?s)))))
+      (:metric minimize (* 2 (is-violated pv))))";
+    soft_ok(dom, p, 2.0);
 }
 
 #[test]
@@ -251,10 +358,16 @@ fn hatch_restores_the_blanket_rejection() {
     std::env::set_var("FF_CONSTRAINTS_REJECT", "1");
     let p = prob("(off)", "(lamp)", "(always (or (on) (off)))");
     let r = solve(DOM, &p, &Options::default());
+    let ps = prob("(off)", "(lamp)", "(preference pv (sometime (on)))");
+    let rs = solve(DOM, &ps, &Options::default());
     std::env::remove_var("FF_CONSTRAINTS_REJECT");
     assert!(
         matches!(r, Err(SolveError::Unsupported(_))),
-        "hatch must restore rejection"
+        "hatch must restore rejection (hard)"
+    );
+    assert!(
+        matches!(rs, Err(SolveError::Unsupported(_))),
+        "hatch must restore rejection (soft)"
     );
 }
 

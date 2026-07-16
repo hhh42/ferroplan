@@ -72,7 +72,7 @@ before termination, `4`).
 
 | var | default | effect |
 |---|---|---|
-| `FF_CONSTRAINTS_REJECT` | enforce | restore the 0.4.1–0.6 blanket **rejection** of every `(:constraints ...)` block, instead of compiling the hard untimed operators into enforced monitor automata (0.7). The hatch restores *rejection*, not ignoring — no setting makes ferroplan silently drop a constraint. |
+| `FF_CONSTRAINTS_REJECT` | enforce | restore the 0.4.1–0.6 blanket **rejection** of every `(:constraints ...)` block, instead of compiling the untimed operators into enforced monitor automata (0.7) — hard constraints as goal conjuncts, soft `(preference ...)` constraints priced through the PDDL3 metric machinery. The hatch restores *rejection*, not ignoring — no setting makes ferroplan silently drop a constraint. |
 
 ## Reproducing a specific benchmark
 
