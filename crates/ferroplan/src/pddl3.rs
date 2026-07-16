@@ -274,7 +274,7 @@ fn extract(
 
 /// Predicates never added nor deleted by any action effect — their truth is
 /// fixed by the initial state. The static complement of [`modified_functions`].
-fn static_predicates(domain: &Domain) -> HashSet<String> {
+pub(crate) fn static_predicates(domain: &Domain) -> HashSet<String> {
     fn walk(e: &Effect, out: &mut HashSet<String>) {
         match e {
             Effect::And(v) => v.iter().for_each(|x| walk(x, out)),
@@ -305,7 +305,7 @@ fn static_predicates(domain: &Domain) -> HashSet<String> {
 /// so the result is equivalent in every REACHABLE state. A preference whose phi
 /// folds to `True` can never be violated (metric contribution identically 0),
 /// which is what lets `compile()` drop it before the Keyder–Geffner expansion.
-fn peval_static(
+pub(crate) fn peval_static(
     f: &Formula,
     statics: &HashSet<String>,
     init: &HashSet<(Sym, Vec<Sym>)>,
