@@ -67,13 +67,14 @@ pub fn has_preferences(problem: &Problem) -> bool {
             .is_some_and(|(_, e)| expr_has_is_violated(e))
 }
 
-/// PDDL3 *trajectory* constraints — the modal `(:constraints ...)` operators
-/// (`always`, `sometime`, `at-most-once`, `sometime-after`/`-before`, `within`,
-/// `hold-during`/`-after`) — are parsed into the AST (`Domain`/`Problem.constraints`)
-/// but not yet enforced by any solving path. Rather than silently accept and drop a
-/// user's hard constraint, every public entrypoint rejects a domain or problem that
-/// carries one. Returns the rejection message when trajectory constraints are
-/// present, or `None` when there are none to enforce.
+/// The 0.4.1 blanket rejection message for PDDL3 `(:constraints ...)`.
+///
+/// Since 0.7 the hard untimed operators are ENFORCED (compiled by
+/// [`crate::constraints::gate`] into monitor automata), so this blanket is no
+/// longer the default: it survives only behind the `FF_CONSTRAINTS_REJECT=1`
+/// hatch, which restores the 0.4.1 reject-everything behavior at every gate.
+/// Returns the rejection message when trajectory constraints are present, or
+/// `None` when there are none to reject.
 ///
 /// This is distinct from goal `(preference ...)` SOFT goals (handled by the PDDL3
 /// metric path): those live in the goal formula, not in `.constraints`, and are
@@ -114,7 +115,7 @@ fn subst_expr(e: &Expr, b: &HashMap<Sym, Sym>) -> Expr {
         Expr::Neg(x) => Expr::Neg(Box::new(subst_expr(x, b))),
     }
 }
-fn subst_formula(f: &Formula, b: &HashMap<Sym, Sym>) -> Formula {
+pub(crate) fn subst_formula(f: &Formula, b: &HashMap<Sym, Sym>) -> Formula {
     match f {
         Formula::And(v) => Formula::And(v.iter().map(|x| subst_formula(x, b)).collect()),
         Formula::Or(v) => Formula::Or(v.iter().map(|x| subst_formula(x, b)).collect()),
@@ -142,7 +143,7 @@ fn subst_formula(f: &Formula, b: &HashMap<Sym, Sym>) -> Formula {
         Formula::False => Formula::False,
     }
 }
-fn combos(vars: &[(Sym, Sym)], objs: &HashMap<Sym, Vec<Sym>>) -> Vec<HashMap<Sym, Sym>> {
+pub(crate) fn combos(vars: &[(Sym, Sym)], objs: &HashMap<Sym, Vec<Sym>>) -> Vec<HashMap<Sym, Sym>> {
     let mut acc = vec![HashMap::new()];
     for (v, ty) in vars {
         let dom: &[Sym] = objs.get(ty).map(|x| x.as_slice()).unwrap_or(&[]);

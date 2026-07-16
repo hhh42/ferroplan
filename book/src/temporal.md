@@ -99,6 +99,7 @@ short budget many instances time out or the decision-epoch search exhausts. See
 
 **Continuous** (`#t`) / duration-dependent numeric effects and ε-separation of
 *conditional*-effect mutexes are not handled yet. PDDL3 trajectory constraints
-(`(:constraints …)`) are parsed but not enforced, so a domain that declares them is
-rejected rather than silently ignored. Temporal **search performance** (coverage on
-large instances) is the main open work item.
+(`(:constraints …)`) are enforced on the *classical* path (untimed operators,
+since 0.7) but not on the temporal path — a durative-action domain that
+declares them is rejected rather than silently ignored. Temporal **search
+performance** (coverage on large instances) is the main open work item.

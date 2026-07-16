@@ -477,9 +477,13 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     // Compile `:derived` axioms away (static rules -> init facts) before routing.
     let (domain, problem) =
         crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
-    if let Some(reason) = pddl3::unsupported_constraints(&domain, &problem) {
-        return Err(SolveError::Unsupported(reason));
-    }
+    // 0.7: hard untimed trajectory constraints compile into monitor automata;
+    // everything else gets a NAMED rejection (see constraints::gate).
+    let (domain, problem) = match crate::constraints::gate(&domain, &problem) {
+        Ok(Some(pair)) => pair,
+        Ok(None) => (domain, problem),
+        Err(reason) => return Err(SolveError::Unsupported(reason)),
+    };
     let threads = if opts.threads == 0 {
         crate::par::num_threads()
     } else {
@@ -521,9 +525,13 @@ pub fn decompose(
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
     let (domain, problem) =
         crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
-    if let Some(reason) = pddl3::unsupported_constraints(&domain, &problem) {
-        return Err(SolveError::Unsupported(reason));
-    }
+    // 0.7 gate: decompose targets temporal goals, where trajectory
+    // constraints stay rejected (Phase 3) — the gate names that.
+    let (domain, problem) = match crate::constraints::gate(&domain, &problem) {
+        Ok(Some(pair)) => pair,
+        Ok(None) => (domain, problem),
+        Err(reason) => return Err(SolveError::Unsupported(reason)),
+    };
     let threads = if opts.threads == 0 {
         crate::par::num_threads()
     } else {
