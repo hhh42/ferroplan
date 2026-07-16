@@ -210,6 +210,33 @@ byte-for-byte at every gate. Note the hatch restores *rejection*, not
 ignoring — a hatch that silently dropped constraints would itself violate
 the contract.
 
+**Recorded (Phase 1 shipped).** Grounding cost on the hard-overlay fixtures
+(`constraints::grounding_cost`, release build, `--ignored --nocapture`):
+
+| fixture | monitors | ops (REACH-GOAL) | cond. effects | ground wall |
+|---|---|---|---|---|
+| trucks p03 unconstrained | 0 | 1,065 (0) | 0 | 8 ms |
+| trucks p03 + `(forall (?t ?l) (at-most-once (at ?t ?l)))` | 3 | 1,083 (18) | 12,780 | ~50 ms |
+| storage p05 unconstrained | 0 | 920 (0) | 0 | ~80 ms |
+| storage p05 + `(forall (?h ?c) (at-most-once (lifting ?h ?c)))` | 10 | 59,969 (59,049) | 36,800 | ~1.2 s |
+
+The storage blow-up is not conditional-effect volume — it's the predicted
+**goal-DNF risk, now quantified**: each monitor's S_n acceptance check is a
+goal conjunct (`at-most-once` contributes a 3-way disjunction,
+`sometime`/`sometime-after`/`sometime-before` 2-way, `always` literals
+only), and the grounder compiles a disjunctive goal into one synthetic
+REACH-GOAL operator per DNF disjunct — **exponential in the monitor count**
+(storage: 3^10 = 59,049 exactly; verified, not a pruning artifact —
+`FF_NOREL` is a no-op here). Constraint-free inputs pay nothing (the gate
+is a no-op), and Phase 2's qualitative-track constraints are all SOFT
+(different machinery), so real exposure is user-authored hard constraint
+sets with many `at-most-once`/`sometime*` instances. The known fix if it
+bites: the standard END-action construction (move the S_n checks into a
+forced-terminal collect action's transitions, leaving a literal-only goal)
+— deferred because moving `problem.goal` into an action precondition
+interacts with the goal-preference metric machinery; take it as a measured
+increment, not a side effect.
+
 **Touches:** `constraints.rs` (new), `pddl3.rs`, `api.rs`, `planner.rs`,
 `session.rs`, `verify.rs`, `plan.rs`, `types.rs`, `tests/constraints.rs`.
 

@@ -312,10 +312,14 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   direction-bound); the design record for the remaining work is in
   [`docs/espc-preferences-spec.md`](docs/espc-preferences-spec.md) and
   [`docs/roadmap-0.5.md`](docs/roadmap-0.5.md).
-- **PDDL3 trajectory constraints** (`(:constraints ...)` — `always`, `sometime`,
-  `within`, …) are parsed but not yet enforced; rather than silently drop a hard
-  constraint, ferroplan **rejects** any domain/problem that carries one. Model the
-  requirement as hard goals or goal preferences instead.
+- **PDDL3 trajectory constraints** (`(:constraints ...)`): the six untimed
+  modal operators (`always`, `sometime`, `at-most-once`, `sometime-after`,
+  `sometime-before`, `at end`) are **enforced on the classical path** — compiled
+  into monitor automata and cross-checked by the independent verifier. The
+  timed operators (`within`, `hold-during`, `hold-after`,
+  `always-within`), soft constraint-preferences, and the temporal path are
+  still **rejected by name** rather than silently dropped
+  (`FF_CONSTRAINTS_REJECT=1` restores the pre-0.7 blanket rejection).
 - **Temporal**: durative actions with constant or parameter-dependent durations
   and required concurrency are supported, and **plans are VAL-validated** on real
   IPC temporal domains (44/45 produced plans valid — see

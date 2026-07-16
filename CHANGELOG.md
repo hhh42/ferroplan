@@ -2,6 +2,49 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **PDDL3 trajectory constraints — the hard untimed operators are now
+  ENFORCED on the classical path** (0.7 Phase 1, `docs/roadmap-0.7.md`).
+  `always`, `sometime`, `at-most-once`, `sometime-after`, `sometime-before`,
+  and `at end` compile into monitor automata (new `constraints` module):
+  0-ary monitor facts plus conditional-effect transitions on every action,
+  with the goal conjoined on the automaton's accepting condition. `forall`
+  constraints expand at the constraint level (bodies stay ground); the init
+  state S_0 counts for the trajectory (evaluated at compile time), and
+  `sometime-before` is strict ("strictly earlier"). Wired at every gate:
+  `solve`, `decompose`, `run_planner`, `run_ff`.
+- **Independent trajectory oracle**: `verify::verify` folds the ORIGINAL
+  constraint semantics over its replay (never the compiled monitors) —
+  `Verified` gains `constraints_met` + `constraint_failures`, and
+  `plan::validate_plan` now requires `constraints_met` for `Valid`: a plan
+  that reaches the goal but breaks a constraint is `Invalid`, with the
+  violated operators named.
+- Heavy `#[ignore]` grounding-cost fixtures (hard overlays on vendored
+  IPC-5 storage/trucks instances). Recorded (release build): trucks p03,
+  3 monitors — 1,065→1,083 ops, +12,780 conditional effects, ground
+  8→~50 ms; storage p05, 10 monitors — 920→59,969 ops, +36,800 conditional
+  effects, ground ~80 ms→~1.2 s. The storage blow-up quantifies the
+  roadmap's predicted goal-DNF risk: the monitors' end-state acceptance
+  checks make the compiled goal's DNF exponential in the monitor count
+  (3^10 = 59,049 synthetic REACH-GOAL disjunct ops, exactly), with the
+  END-action construction recorded as the known fix if real workloads bite
+  (`docs/roadmap-0.7.md`). Constraint-free inputs are untouched (the gate
+  is a no-op), so this cost is opt-in with the feature.
+
+### Changed
+
+- What stays rejected is now rejected **by name**: the four timed operators
+  (`within`, `always-within`, `hold-during`, `hold-after`), soft
+  `(preference ...)` constraints (Phase 2), any constraint on the temporal
+  path (Phase 3), and `Session` (grounds once and replans from mutated
+  states — a compiled monitor's S_0 baking would go stale). The 0.4.1
+  blanket rejection survives behind `FF_CONSTRAINTS_REJECT=1` (a restore
+  hatch that restores *rejection*, not ignoring — no setting silently drops
+  a constraint).
+
 ## [0.6.0] - 2026-07-15 — Selection: solve the choice, then plan to it
 
 The forensics release. `docs/forensics-tpp.md` proved the remaining

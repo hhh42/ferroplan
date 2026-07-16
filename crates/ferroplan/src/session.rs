@@ -65,8 +65,11 @@ impl Session {
         let problem =
             crate::parser::parse_problem(problem_src).map_err(|e| format!("problem: {e}"))?;
         let (domain, problem) = crate::derived::compile(&domain, &problem)?;
-        if let Some(reason) = crate::pddl3::unsupported_constraints(&domain, &problem) {
-            return Err(reason);
+        if !domain.constraints.is_empty() || !problem.constraints.is_empty() {
+            return Err("Session does not support PDDL3 trajectory constraints yet \
+                 (ferroplan::solve enforces the hard untimed ones); use \
+                 ferroplan::solve per instance"
+                .into());
         }
         if crate::temporal::is_temporal(&domain) {
             return Err(

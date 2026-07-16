@@ -19,6 +19,13 @@ pub struct Verified {
     pub hard_goal_met: bool,
     pub satisfied: usize,
     pub violated: usize,
+    /// 0.7: every HARD untimed trajectory constraint held over the replayed
+    /// state trajectory (folded from the ORIGINAL `(:constraints ...)`
+    /// semantics — never the compiled monitors, so this stays an independent
+    /// oracle). `true` when the problem has no constraints.
+    pub constraints_met: bool,
+    /// The operators of any violated constraints (for reports).
+    pub constraint_failures: Vec<String>,
 }
 
 fn disp(pred: &str, args: &[Term]) -> String {
@@ -114,8 +121,21 @@ pub fn verify(
         None => return Err("grounding failed (empty type)".into()),
     };
 
+    // 0.7: expand the ORIGINAL trajectory constraints (errors on the timed
+    // operators — a plan for a problem verify cannot check is never Valid)
+    // and fold their semantics incrementally over the replay, S_0 included.
+    let expanded = crate::constraints::expand(&domain, &problem)?;
+    let mut folds: Vec<crate::constraints::Fold> = expanded
+        .hard
+        .iter()
+        .map(crate::constraints::Fold::new)
+        .collect();
+
     // replay the plan over the original-grounded task
     let mut s = task.initial();
+    for f in &mut folds {
+        f.step(&mut |phi| eval_formula(&task, &s, phi)); // S_0
+    }
     for (name, args) in plan {
         let want: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
         let oi = (0..task.n_ops).find(|&oi| {
@@ -141,9 +161,18 @@ pub fn verify(
             ));
         }
         s = task.apply(oi, &s);
+        for f in &mut folds {
+            f.step(&mut |phi| eval_formula(&task, &s, phi));
+        }
     }
 
     let hard_goal_met = task.goal_met(&s);
+    let constraint_failures: Vec<String> = folds
+        .iter()
+        .filter(|f| !f.accepted())
+        .map(|f| f.op_name().to_string())
+        .collect();
+    let constraints_met = constraint_failures.is_empty();
 
     // score preferences in the FINAL state
     let weights = pddl3::pref_weights(&domain, &problem);
@@ -164,5 +193,7 @@ pub fn verify(
         hard_goal_met,
         satisfied: sat,
         violated: vio,
+        constraints_met,
+        constraint_failures,
     })
 }

@@ -61,6 +61,7 @@ pub mod search;
 pub mod types;
 
 // modes (built on the engine)
+pub mod constraints;
 pub mod espc;
 pub mod partition;
 pub mod pddl3;

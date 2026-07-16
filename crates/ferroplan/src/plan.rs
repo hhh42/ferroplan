@@ -145,8 +145,15 @@ pub fn validate_plan(
             return Err("no plan steps found in plan file".into());
         }
         Ok(match verify::verify(domain_src, problem_src, &plan) {
-            Ok(v) if v.hard_goal_met => Validity::Valid,
-            Ok(_) => Validity::Invalid("plan executes but does not achieve the goal".into()),
+            Ok(v) if v.hard_goal_met && v.constraints_met => Validity::Valid,
+            Ok(v) if !v.hard_goal_met => {
+                Validity::Invalid("plan executes but does not achieve the goal".into())
+            }
+            Ok(v) => Validity::Invalid(format!(
+                "plan executes and achieves the goal but violates trajectory \
+                 constraints: {}",
+                v.constraint_failures.join(", ")
+            )),
             Err(why) => Validity::Invalid(why),
         })
     }

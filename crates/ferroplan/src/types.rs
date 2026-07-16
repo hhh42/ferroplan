@@ -73,8 +73,10 @@ pub enum MetricDir {
     Maximize,
 }
 
-/// PDDL3 `(:constraints ...)` trajectory constraint (parsed; trajectory
-/// compilation is a later phase — phase 1 handles goal preferences + metric).
+/// PDDL3 `(:constraints ...)` trajectory constraint. The six untimed modal
+/// operators are ENFORCED on the classical path since 0.7 (compiled into
+/// monitor automata by [`crate::constraints`]); the timed ones (`Within`,
+/// `HoldDuring`, `HoldAfter`, ...) are parsed but rejected by name.
 #[derive(Clone, Debug)]
 pub enum Constraint {
     And(Vec<Constraint>),

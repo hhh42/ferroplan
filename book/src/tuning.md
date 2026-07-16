@@ -68,6 +68,12 @@ Advanced ESPC schedule tuning (rarely needed): `FF_ESPC_OUTER` (outer iterations
 rate bump, `2`), `FF_ESPC_LAMBDA0` (initial λ, `0`), `FF_ESPC_STALL` (stall limit
 before termination, `4`).
 
+## PDDL3 trajectory constraints
+
+| var | default | effect |
+|---|---|---|
+| `FF_CONSTRAINTS_REJECT` | enforce | restore the 0.4.1–0.6 blanket **rejection** of every `(:constraints ...)` block, instead of compiling the hard untimed operators into enforced monitor automata (0.7). The hatch restores *rejection*, not ignoring — no setting makes ferroplan silently drop a constraint. |
+
 ## Reproducing a specific benchmark
 
 The [IPC-5 scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)

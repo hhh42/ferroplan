@@ -699,8 +699,9 @@ fn parse_timed_effects(p: &mut P) -> Result<Vec<(TimeSpec, Effect)>, String> {
     }
 }
 
-/// Parse one PDDL3 `(:constraints ...)` constraint formula (modal operators).
-/// Phase 1 stores these in the AST; trajectory compilation is a later phase.
+/// Parse one PDDL3 `(:constraints ...)` constraint formula (modal operators)
+/// into the AST; `crate::constraints` compiles the untimed ones into monitor
+/// automata at solve time (0.7) and rejects the rest by name.
 fn parse_constraint(p: &mut P) -> Result<Constraint, String> {
     p.expect_lparen()?;
     let head = p.name()?;
