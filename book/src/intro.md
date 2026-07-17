@@ -22,7 +22,10 @@ It combines:
 - **ADL** (conditional effects, `forall`/`exists`, equality) and **numeric
   fluents**;
 - **derived predicates / axioms** (`:derived`, static/stratified);
-- **PDDL3 preferences** with anytime branch-and-bound metric optimization;
+- **PDDL3 preferences** with anytime branch-and-bound metric optimization,
+  and **PDDL3 trajectory constraints** (`(:constraints ...)`) — the six
+  untimed modal operators enforced via monitor-automaton compilation,
+  hard and soft alike;
 - **PDDL2.1 temporal** planning — durative actions with constant or
   parameter-dependent durations and required concurrency (see
   [Temporal planning](./temporal.md));

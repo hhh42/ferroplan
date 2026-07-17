@@ -338,8 +338,8 @@ three things were forced by measurement:
   grounding itself (1,147+ survivors × ground actions — the Phase-1
   END-action construction is the recorded lever).
 
-Coverage: **36/40 instances produce an independently verified plan+metric**
-(every gap named: 2 × memory, 2 × trucks search budget — the trucks tail is
+Coverage: **36/40 instances produce a plan+metric**, with reported ==
+verified exact on all 11 oracle-checked instances (every gap named: 2 × memory, 2 × trucks search budget — the trucks tail is
 the same shared-timeline draw 0.6 Phase 4 recorded, doubled down by
 `sometime-before` ordering; Phase 4 here remains its gate). Scoreboard:
 [`benchmarks/ipc5-qualitative-scoreboard.md`](../benchmarks/ipc5-qualitative-scoreboard.md)

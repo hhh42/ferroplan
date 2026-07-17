@@ -383,6 +383,22 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
         }
     };
     out.push_str(&format!("problem '{}' defined\n ... done.\n", problem.name));
+    // run_ff's classic pipeline is otherwise `:derived`-blind, but the
+    // constraint gate must see the CLOSED init (static derived facts folded
+    // in), or `simplify_static`/S_0 evaluation would read derived atoms as
+    // false — so close the axioms exactly when a (:constraints ...) block
+    // is present; the constraint-free path stays byte-identical.
+    let (domain, problem) = if !domain.constraints.is_empty() || !problem.constraints.is_empty() {
+        match crate::derived::compile(&domain, &problem) {
+            Ok(pair) => pair,
+            Err(e) => {
+                out.push_str(&format!("\nff: {}\n", e));
+                return (out, 1);
+            }
+        }
+    } else {
+        (domain, problem)
+    };
     let (domain, problem) = match crate::constraints::gate(&domain, &problem) {
         Ok(Some(pair)) => pair,
         Ok(None) => (domain, problem),

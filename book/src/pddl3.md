@@ -46,3 +46,35 @@ the [tuning reference](./tuning.md).
 On the largest instances exact optimization may return a best-found plan (flagged
 *not proven optimal*) within the budget. Full per-instance results vs SGPlan5:
 [`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
+
+## Trajectory constraints (`(:constraints ...)`) — enforced since 0.7
+
+The six untimed modal operators — `always`, `sometime`, `at-most-once`,
+`sometime-after`, `sometime-before`, `at end` — are **enforced on the
+classical path** by compiling each ground constraint instance into a small
+monitor automaton: fresh 0-ary monitor facts transitioned by conditional
+effects on every action, with acceptance checked at the goal. `forall`
+outside a `(preference ...)` multiplies instances (so `(is-violated name)`
+counts violated instances); `and`/`forall` *inside* a preference body stay
+ONE instance, violated at most once — the PDDL3 instance boundary.
+
+- **Hard** constraints become goal conjuncts: a plan that violates one is
+  simply not a plan.
+- **Soft** `(preference name ...)` constraints lower to ordinary goal
+  preferences priced by the metric machinery above — the whole optimizer
+  stack applies unchanged, and `(is-violated name)` works across goal and
+  constraint preferences in one namespace.
+- The independent verifier (`ferroplan::verify`) replays the ORIGINAL
+  constraint semantics over the trajectory — never the compiled monitors —
+  so reported metrics are cross-checked by construction, and
+  `validate_plan` rejects constraint-violating plans.
+- Statically decidable instances are simplified away before grounding
+  (quadratic `forall` constraints over static relations stay tractable);
+  `FF_PREF_NO_STATIC=1` restores the blind expansion.
+
+The timed operators (`within`, `always-within`, `hold-during`,
+`hold-after`) and constraints on durative-action domains are **rejected by
+name** — never silently dropped. `FF_CONSTRAINTS_REJECT=1` restores the
+pre-0.7 blanket rejection. Measured results on the IPC-5
+qualitative-preferences track:
+[`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md).

@@ -60,8 +60,8 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > grounding quantified bodies — exact on 5 of 6 simple-preferences domains
 > too). Measured proof: the IPC-5 *qualitative-preferences* track is
 > vendored (5 domains × 8 instances) — **36/40 instances produce a plan
-> whose metric the oracle reproduces exactly**, every gap has a named
-> reason, and quadratic `forall`-constraints ground tractably via
+> and a metric** (reported == verified exact on all 11 oracle-checked
+> instances), every gap has a named reason, and quadratic `forall`-constraints ground tractably via
 > constraint-side static simplification
 > ([qualitative scoreboard](benchmarks/ipc5-qualitative-scoreboard.md),
 > [0.7 roadmap](docs/roadmap-0.7.md)). Timed operators and the temporal

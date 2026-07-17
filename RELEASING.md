@@ -22,9 +22,13 @@ cargo bench --no-run
 
 ## Bump the version
 
-Both crates share `version` via `[workspace.package]` in the root `Cargo.toml`.
-Bump it there, and update `ferroplan-cli`'s dependency pin on `ferroplan`
-(`version = "X.Y.Z"`) to match. Commit and tag (`vX.Y.Z`).
+The workspace crates share `version` via `[workspace.package]` in the root
+`Cargo.toml`. Bump it there, and update BOTH dependency pins on `ferroplan`
+(`version = "X.Y.Z"`): `crates/ferroplan-cli/Cargo.toml` and
+`crates/ferroplan-mcp/Cargo.toml` — a stale pin fails workspace resolution.
+Re-lock the workspace-excluded `crates/ferroplan-py/Cargo.lock` too
+(`cargo update -w --manifest-path crates/ferroplan-py/Cargo.toml`). Commit
+and tag (`vX.Y.Z`).
 
 ## Publish (order matters)
 
