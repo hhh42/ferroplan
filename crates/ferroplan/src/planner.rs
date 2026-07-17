@@ -57,9 +57,12 @@ pub fn run_planner(
         }
     };
 
-    let (domain, problem) = match crate::constraints::gate(&domain, &problem) {
-        Ok(Some(pair)) => pair,
-        Ok(None) => (domain, problem),
+    // `constrained` records that the gate compiled — the reported plan then
+    // strips the synthetic TRAJ-END step (0.8 END construction); never set
+    // on the constraint-free byte-identical path.
+    let (domain, problem, constrained) = match crate::constraints::gate(&domain, &problem) {
+        Ok(Some((d, p))) => (d, p, true),
+        Ok(None) => (domain, problem, false),
         Err(reason) => {
             out.push_str(&format!("\nff: {}\n", reason));
             return (out, 1);
@@ -101,6 +104,7 @@ pub fn run_planner(
             threads,
             cfg,
             ipc,
+            constrained,
         );
         return (out, code);
     }
@@ -133,7 +137,10 @@ pub fn run_planner(
     out.push_str(&report::preamble(threads));
     let groups = crate::invariants::synthesize(&domain, &task);
     match resolve::solve(&task, threads, cfg, &groups) {
-        Solved::Plan(ops, stats) => {
+        Solved::Plan(mut ops, stats) => {
+            if constrained {
+                crate::constraints::strip_end(&task, &mut ops);
+            }
             if ipc {
                 out.push_str(&report::ipc_plan(&task, &ops, None));
             } else {
@@ -162,6 +169,9 @@ fn plan_pddl3(
     threads: usize,
     cfg: crate::search::SearchCfg,
     ipc: bool,
+    // The constraint gate compiled: strip the synthetic TRAJ-END step
+    // from every reported plan (0.8 END construction).
+    constrained: bool,
 ) -> i32 {
     // caller opted out of metric optimization -> satisficing plan over hard goals.
     if !optimize {
@@ -173,15 +183,31 @@ fn plan_pddl3(
             cfg,
             ipc,
             "optimize disabled (--satisfice)",
+            constrained,
         );
     }
 
-    let c = pddl3::compile(domain, problem);
+    let mut c = pddl3::compile(domain, problem);
+    if constrained {
+        // TRAJ-END is a real action to the P3 machinery (it plans before the
+        // freeze) but a synthetic step to every reporting surface.
+        c.synthetic
+            .insert(crate::constraints::END_ACTION.to_string());
+    }
 
     // metric outside the supported class -> don't silently optimize the wrong
     // objective; return a satisficing plan for the HARD goals + a clear note.
     if let Some(reason) = c.unsupported.clone() {
-        return satisficing_fallback(out, domain, problem, threads, cfg, ipc, &reason);
+        return satisficing_fallback(
+            out,
+            domain,
+            problem,
+            threads,
+            cfg,
+            ipc,
+            &reason,
+            constrained,
+        );
     }
 
     let task = match ground(&c.domain, &c.problem, threads) {
@@ -266,6 +292,8 @@ fn satisficing_fallback(
     cfg: crate::search::SearchCfg,
     ipc: bool,
     reason: &str,
+    // The constraint gate compiled: strip the synthetic TRAJ-END step.
+    constrained: bool,
 ) -> i32 {
     let task = match ground(domain, problem, threads) {
         Outcome::Task(t) => t,
@@ -289,7 +317,10 @@ fn satisficing_fallback(
     );
     let groups = crate::invariants::synthesize(domain, &task);
     match resolve::solve(&task, threads, cfg, &groups) {
-        Solved::Plan(ops, stats) => {
+        Solved::Plan(mut ops, stats) => {
+            if constrained {
+                crate::constraints::strip_end(&task, &mut ops);
+            }
             if ipc {
                 out.push_str(&report::ipc_plan(&task, &ops, None));
                 out.push_str(&format!(";{}\n", note));
@@ -399,9 +430,9 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
     } else {
         (domain, problem)
     };
-    let (domain, problem) = match crate::constraints::gate(&domain, &problem) {
-        Ok(Some(pair)) => pair,
-        Ok(None) => (domain, problem),
+    let (domain, problem, constrained) = match crate::constraints::gate(&domain, &problem) {
+        Ok(Some((d, p))) => (d, p, true),
+        Ok(None) => (domain, problem, false),
         Err(reason) => {
             out.push_str(&format!("\nff: {}\n", reason));
             return (out, 1);
@@ -431,12 +462,17 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
             let o =
                 crate::search::plan(&task, threads, cfg, opts.search != crate::Search::BestFirst);
             let result = match o.ops {
-                Some(ops) => crate::search::PlanResult::Plan {
-                    ops,
-                    advance: Vec::new(),
-                    evaluated: o.evaluated,
-                    max_g: 0,
-                },
+                Some(mut ops) => {
+                    if constrained {
+                        crate::constraints::strip_end(&task, &mut ops);
+                    }
+                    crate::search::PlanResult::Plan {
+                        ops,
+                        advance: Vec::new(),
+                        evaluated: o.evaluated,
+                        max_g: 0,
+                    }
+                }
                 None => crate::search::PlanResult::Unsolvable {
                     evaluated: o.evaluated,
                     capped: false,

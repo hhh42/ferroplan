@@ -607,3 +607,135 @@ fn constraint_free_input_is_untouched() {
     let plan = solve_ok(DOM, p);
     assert_eq!(plan.steps.len(), 2);
 }
+
+// ---- the 0.8 END construction (docs/roadmap-0.8.md Phase 1) -------------
+//
+// Hard-monitor S_n acceptance rides a forced-terminal synthetic TRAJ-END
+// action (conditional ACC latches; literal-only goal) instead of goal-side
+// disjunctions that DNF-multiply into REACH-GOAL ops. These tests pin the
+// three observable contracts: the synthetic step never reaches a reported
+// surface, the compiled-goal shape is linear (grounding-level), and the
+// FF_NO_TRAJ_END hatch restores the 0.7 goal-side shape byte-for-byte.
+
+/// Gate + ground a (domain, problem) source pair, returning
+/// (op displays, REACH-GOAL op count). Uses the same public pipeline the
+/// entrypoints use, so the shape it sees is the shape search sees.
+fn gate_and_ground(d: &str, p: &str) -> (Vec<String>, usize) {
+    let dom = ferroplan::parser::parse_domain(d).expect("domain");
+    let prob = ferroplan::parser::parse_problem(p).expect("problem");
+    let (dom, prob) = ferroplan::derived::compile(&dom, &prob).expect("derived");
+    let (dom, prob) = ferroplan::constraints::gate(&dom, &prob)
+        .expect("gate")
+        .expect("constraints present");
+    let task = ferroplan::ground::ground_task(&dom, &prob, 1).expect("ground");
+    let reach = task
+        .op_display
+        .iter()
+        .filter(|d| d.starts_with("REACH-GOAL"))
+        .count();
+    (task.op_display.clone(), reach)
+}
+
+#[test]
+fn end_action_never_reaches_reported_plans() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // A bite case that forces a real detour: the compiled task plans
+    // through TRAJ-END, but no reported surface may show it. solve_ok
+    // doubles as the leak oracle — the verifier replays against the
+    // ORIGINAL problem, where TRAJ-END is not a grounded op, so any leak
+    // is an immediate verify error.
+    let p = prob("(off)", "(off)", "(sometime (on))");
+    let plan = solve_ok(DOM, &p);
+    assert!(
+        plan.steps.iter().all(|s| s.action != "TRAJ-END"),
+        "synthetic TRAJ-END step leaked into the API plan: {:?}",
+        steps(&plan)
+    );
+    // The grounded task DOES carry it (that is the construction)…
+    let (ops, reach) = gate_and_ground(DOM, &p);
+    assert!(
+        ops.iter().any(|d| d == "TRAJ-END"),
+        "compiled task must carry the END action"
+    );
+    // …with a literal goal: zero REACH-GOAL disjunct ops.
+    assert_eq!(
+        reach, 0,
+        "goal must be literal-only under the END construction"
+    );
+    // CLI text path: no TRAJ-END line either.
+    let (out, code) = ferroplan::run_planner(DOM, &p, &Options::default(), false);
+    assert_eq!(code, 0, "cli solves:\n{out}");
+    assert!(
+        out.contains("found legal plan"),
+        "cli emits the plan:\n{out}"
+    );
+    assert!(
+        !out.contains("TRAJ-END"),
+        "synthetic TRAJ-END step leaked into CLI text:\n{out}"
+    );
+}
+
+#[test]
+fn init_true_goal_with_constraints_reports_the_empty_plan() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // Goal already true at S_0 and the constraint holds on the empty
+    // trajectory: the COMPILED task needs exactly one step (TRAJ-END), the
+    // REPORTED plan is empty — and the verifier accepts the empty replay.
+    let p = prob("(off)", "(off)", "(always (off))");
+    let plan = solve_ok(DOM, &p);
+    assert_eq!(
+        plan.steps.len(),
+        0,
+        "reported plan must be empty once TRAJ-END is stripped: {:?}",
+        steps(&plan)
+    );
+}
+
+#[test]
+fn end_hatch_restores_goal_side_acceptance() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // FF_NO_TRAJ_END=1 restores the 0.7 shape: acceptance conjoined into
+    // the goal, whose disjunctive members (sometime: SEEN ∨ φ) DNF-expand
+    // into REACH-GOAL ops — and no TRAJ-END op exists.
+    let p = prob("(off)", "(off)", "(sometime (on))");
+    std::env::set_var("FF_NO_TRAJ_END", "1");
+    let (ops, reach) = gate_and_ground(DOM, &p);
+    let hatch_solve = solve_ok(DOM, &p);
+    std::env::remove_var("FF_NO_TRAJ_END");
+    assert!(
+        ops.iter().all(|d| d != "TRAJ-END"),
+        "hatch must not emit the END action"
+    );
+    assert!(
+        reach > 0,
+        "hatch restores the goal-side disjunction (REACH-GOAL ops)"
+    );
+    // Same semantics either way: the detour is still forced and verified.
+    let default_solve = solve_ok(DOM, &p);
+    assert_eq!(
+        steps(&hatch_solve),
+        steps(&default_solve),
+        "hatch and default must agree on this plan"
+    );
+}
+
+#[test]
+fn end_action_name_is_fenced_when_constraints_present() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // A user action named TRAJ-END would be filtered from reported plans by
+    // the strip — rejected by name, like the monitor-fact namespace. (Only
+    // when a (:constraints ...) block exists: the constraint-free path
+    // never strips, so plain domains keep any name.)
+    let d = "(define (domain sw2)
+      (:requirements :strips :constraints)
+      (:predicates (on) (off))
+      (:action TRAJ-END :precondition (off) :effect (on)))";
+    let p = "(define (problem sw2-1) (:domain sw2) (:init (off)) (:goal (on))
+             (:constraints (always (or (on) (off)))))";
+    match solve(d, p, &Options::default()) {
+        Err(SolveError::Unsupported(msg)) => {
+            assert!(msg.contains("TRAJ-END"), "names the collision: {msg}")
+        }
+        other => panic!("expected Unsupported, got {other:?}"),
+    }
+}

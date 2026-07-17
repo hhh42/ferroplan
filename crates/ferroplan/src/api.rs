@@ -407,6 +407,24 @@ pub(crate) fn steps_of(
     steps
 }
 
+/// Strip the synthetic `TRAJ-END` step from a converted step list (0.8 END
+/// construction), applied IFF the constraint gate compiled. Indices are
+/// re-derived so they stay contiguous over real actions.
+fn strip_end_steps(steps: Vec<Step>, constrained: bool) -> Vec<Step> {
+    if !constrained {
+        return steps;
+    }
+    steps
+        .into_iter()
+        .filter(|s| s.action != crate::constraints::END_ACTION)
+        .enumerate()
+        .map(|(i, mut s)| {
+            s.index = i;
+            s
+        })
+        .collect()
+}
+
 /// Convert a temporal plan's timed steps to API [`Step`]s (action head + args + time
 /// + duration). Shared by the temporal solve and the decomposer.
 fn timed_steps(tp: &crate::temporal::TimedPlan) -> Vec<Step> {
@@ -479,9 +497,12 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
         crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
     // 0.7: hard untimed trajectory constraints compile into monitor automata;
     // everything else gets a NAMED rejection (see constraints::gate).
-    let (domain, problem) = match crate::constraints::gate(&domain, &problem) {
-        Ok(Some(pair)) => pair,
-        Ok(None) => (domain, problem),
+    // `constrained` records that the gate compiled — the flag that tells
+    // reporting to strip the synthetic TRAJ-END step (0.8 END construction);
+    // it is never set on the constraint-free byte-identical path.
+    let (domain, problem, constrained) = match crate::constraints::gate(&domain, &problem) {
+        Ok(Some((d, p))) => (d, p, true),
+        Ok(None) => (domain, problem, false),
         Err(reason) => return Err(SolveError::Unsupported(reason)),
     };
     let threads = if opts.threads == 0 {
@@ -505,8 +526,16 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
 
     match mode {
         Mode::Temporal => solve_temporal(&domain, &problem, threads),
-        Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads),
-        _ => solve_classic(&domain, &problem, opts, threads, mode, Vec::new()),
+        Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads, constrained),
+        _ => solve_classic(
+            &domain,
+            &problem,
+            opts,
+            threads,
+            mode,
+            Vec::new(),
+            constrained,
+        ),
     }
 }
 
@@ -526,10 +555,12 @@ pub fn decompose(
     let (domain, problem) =
         crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
     // 0.7 gate: decompose targets temporal goals, where trajectory
-    // constraints stay rejected (Phase 3) — the gate names that.
-    let (domain, problem) = match crate::constraints::gate(&domain, &problem) {
-        Ok(Some(pair)) => pair,
-        Ok(None) => (domain, problem),
+    // constraints stay rejected (Phase 3) — the gate names that. A CLASSICAL
+    // constrained input still passes through (falling back to one contract),
+    // so `constrained` drives the TRAJ-END step strip below.
+    let (domain, problem, constrained) = match crate::constraints::gate(&domain, &problem) {
+        Ok(Some((d, p))) => (d, p, true),
+        Ok(None) => (domain, problem, false),
         Err(reason) => return Err(SolveError::Unsupported(reason)),
     };
     let threads = if opts.threads == 0 {
@@ -554,12 +585,12 @@ pub fn decompose(
                 .map(|(i, cr)| Contract {
                     index: i,
                     goal: cr.goal.clone(),
-                    steps: timed_steps(&cr.plan),
+                    steps: strip_end_steps(timed_steps(&cr.plan), constrained),
                     makespan: cr.plan.makespan,
                     offset: cr.offset,
                 })
                 .collect();
-            let steps = timed_steps(&d.plan);
+            let steps = strip_end_steps(timed_steps(&d.plan), constrained);
             if d.monolithic {
                 notes.push(
                     "goal could not be split into independent contracts; solved monolithically"
@@ -642,6 +673,9 @@ fn solve_classic(
     threads: usize,
     mode: Mode,
     extra_notes: Vec<String>,
+    // The constraint gate compiled: strip the synthetic TRAJ-END step
+    // from the reported plan (0.8 END construction).
+    strip_end: bool,
 ) -> Result<Solution, SolveError> {
     let mut notes = extra_notes;
     let task = match do_ground(domain, problem, threads)? {
@@ -675,7 +709,10 @@ fn solve_classic(
     };
 
     match ops {
-        Some(ops) => {
+        Some(mut ops) => {
+            if strip_end {
+                crate::constraints::strip_end(&task, &mut ops);
+            }
             let steps = steps_of(&task, &ops, None);
             Ok(Solution {
                 solved: true,
@@ -699,14 +736,31 @@ fn solve_pddl3(
     problem: &crate::types::Problem,
     opts: &Options,
     threads: usize,
+    // The constraint gate compiled: strip the synthetic TRAJ-END step
+    // from the reported plan (0.8 END construction).
+    strip_end: bool,
 ) -> Result<Solution, SolveError> {
     // caller opted out of metric optimization -> satisficing plan (hard goals).
     if !opts.optimize {
         let note = "PDDL3 metric not optimized (optimize = false); satisficing plan".to_string();
-        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, vec![note]);
+        return solve_classic(
+            domain,
+            problem,
+            opts,
+            threads,
+            Mode::Pddl3,
+            vec![note],
+            strip_end,
+        );
     }
 
-    let c = pddl3::compile(domain, problem);
+    let mut c = pddl3::compile(domain, problem);
+    if strip_end {
+        // TRAJ-END is a real action to the P3 machinery (it plans before the
+        // freeze) but a synthetic step to every reporting surface.
+        c.synthetic
+            .insert(crate::constraints::END_ACTION.to_string());
+    }
 
     // metric outside the supported class -> satisficing plan over the hard goals
     if let Some(reason) = c.unsupported.clone() {
@@ -714,7 +768,15 @@ fn solve_pddl3(
             "PDDL3 metric not optimized ({}); returning a satisficing plan",
             reason
         );
-        return solve_classic(domain, problem, opts, threads, Mode::Pddl3, vec![note]);
+        return solve_classic(
+            domain,
+            problem,
+            opts,
+            threads,
+            Mode::Pddl3,
+            vec![note],
+            strip_end,
+        );
     }
 
     let task = match do_ground(&c.domain, &c.problem, threads)? {

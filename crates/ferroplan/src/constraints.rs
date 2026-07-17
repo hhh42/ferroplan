@@ -19,11 +19,36 @@
 //! conditional-effect conditions against the SOURCE state, so a monitor
 //! riding action a_k observes S_{k-1}. The trajectory S_0..S_n is covered
 //! three ways — S_0 by compile-time evaluation against init (this module),
-//! S_0..S_{n-1} by the per-action `When`s, and S_n by a goal-side formula.
+//! S_0..S_{n-1} by the per-action `When`s, and S_n by the END construction
+//! below (0.8) or a goal-side formula (`FF_NO_TRAJ_END=1`, the 0.7 shape).
 //! For `sometime-before` the one-step lag implements "strictly earlier"
 //! exactly. All transition conditions on one monitor fact are mutually
 //! exclusive, so the add-wins conflict rule can never co-fire a set and a
 //! clear of the same bit.
+//!
+//! THE END CONSTRUCTION (0.8, docs/roadmap-0.8.md Phase 1): a HARD
+//! monitor's S_n acceptance check used to be conjoined into the goal, and
+//! several operators contribute disjunctions — the grounder compiles a
+//! disjunctive goal into one synthetic REACH-GOAL operator per DNF
+//! disjunct, EXPONENTIAL in the monitor count (storage hard fixture:
+//! 3^10 = 59,049 ops, docs/roadmap-0.7.md Phase 1 Recorded). Since 0.8 the
+//! acceptance rides a forced-terminal synthetic action instead: every real
+//! action requires the init-true phase fact `TRAJ-PLANNING`; one synthetic
+//! 0-ary action `TRAJ-END` deletes it, adds `TRAJ-ENDED`, and carries one
+//! `Effect::When` latch per hard monitor (condition = that monitor's
+//! acceptance over monitor bits + the S_n body, add = `TRAJ{i}-ACC`).
+//! Because `When` conditions read the SOURCE state, `TRAJ-END` fired after
+//! the last real action observes exactly S_n. The compiled goal is then
+//! all positive literals — original goal ∧ `TRAJ-ENDED` ∧ the ACC facts —
+//! so the goal-DNF product never fires: cost is LINEAR in monitors (2-3
+//! conditional latches each, on ONE op). SOFT acceptance does not move:
+//! `(preference name <acc>)` wrappers stay in the goal with their S_n
+//! bodies intact (they are invisible to the classical grounder's DNF, and
+//! the whole PDDL3 metric stack keeps pricing them unchanged — the exact
+//! reason the 0.7 deferral risk dissolves). The synthetic `TRAJ-END` step
+//! is stripped from every reported plan by the callers that ran this gate
+//! (planner/api filter it by display name, conditionally — never on the
+//! constraint-free path).
 //!
 //! The independent verifier does NOT use this compilation: `verify.rs` folds
 //! the ORIGINAL constraint semantics over its replay (see [`Fold`]), so the
@@ -32,7 +57,13 @@
 use std::collections::HashMap;
 
 use crate::pddl3::{combos, subst_formula};
-use crate::types::{Constraint, Domain, Effect, Formula, Problem, Sym};
+use crate::types::{Action, Constraint, Domain, Effect, Formula, Problem, Sym};
+
+/// Display name of the forced-terminal acceptance action (0.8 END
+/// construction). Callers that ran [`gate`] strip ops with this display
+/// from reported plans; the name is fenced against user collision by
+/// [`reject_reserved_names`] whenever a `(:constraints ...)` block exists.
+pub const END_ACTION: &str = "TRAJ-END";
 
 /// One ground untimed trajectory-constraint instance.
 #[derive(Clone, Debug)]
@@ -406,6 +437,10 @@ fn simplify_static(exp: &mut Expanded, domain: &Domain, problem: &Problem) {
 /// from `compile`, never on the constraint-free no-op path).
 fn reject_reserved_names(domain: &Domain, problem: &Problem) -> Result<(), String> {
     let monitor_fact = |n: &str| -> bool {
+        // The 0.8 END-construction phase facts are 0-ary and fixed-name.
+        if n == "TRAJ-PLANNING" || n == "TRAJ-ENDED" {
+            return true;
+        }
         let Some(rest) = n.strip_prefix("TRAJ") else {
             return false;
         };
@@ -413,7 +448,7 @@ fn reject_reserved_names(domain: &Domain, problem: &Problem) -> Result<(), Strin
         let (num, suf) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
         !num.is_empty()
             && num.bytes().all(|b| b.is_ascii_digit())
-            && matches!(suf, "VIOL" | "SEEN" | "HOLD" | "PEND" | "SAFE")
+            && matches!(suf, "VIOL" | "SEEN" | "HOLD" | "PEND" | "SAFE" | "ACC")
     };
     let anon_pref = |n: &str| -> bool {
         n.strip_prefix("TRAJPREF")
@@ -423,10 +458,20 @@ fn reject_reserved_names(domain: &Domain, problem: &Problem) -> Result<(), Strin
         if monitor_fact(n) {
             return Err(format!(
                 "predicate `{n}` collides with ferroplan's reserved trajectory-monitor \
-                 namespace (TRAJ{{n}}-VIOL/SEEN/HOLD/PEND/SAFE) used to compile \
-                 (:constraints ...); rename the predicate"
+                 namespace (TRAJ{{n}}-VIOL/SEEN/HOLD/PEND/SAFE/ACC, TRAJ-PLANNING, \
+                 TRAJ-ENDED) used to compile (:constraints ...); rename the predicate"
             ));
         }
+    }
+    // A user action named like the synthetic terminal action would be
+    // filtered from reported plans by the callers' strip — reject it.
+    if let Some(a) = domain.actions.iter().find(|a| a.name == END_ACTION) {
+        return Err(format!(
+            "action `{}` collides with ferroplan's reserved trajectory \
+             end-action name (`{END_ACTION}`) used to compile \
+             (:constraints ...); rename the action",
+            a.name
+        ));
     }
     // USER-written preference names only (generated anonymous names ARE the
     // namespace) — collected from the raw ASTs, before any name generation.
@@ -471,6 +516,16 @@ fn reject_reserved_names(domain: &Domain, problem: &Problem) -> Result<(), Strin
     Ok(())
 }
 
+/// Remove the synthetic [`END_ACTION`] step from a grounded op sequence
+/// before any reporting surface sees it. Callers apply this IFF [`gate`]
+/// compiled the task — never on the constraint-free path, where a user
+/// action may legitimately carry any name (the fence in
+/// [`reject_reserved_names`] only runs when a `(:constraints ...)` block
+/// exists, deliberately).
+pub(crate) fn strip_end(task: &crate::packed::PackedTask, ops: &mut Vec<usize>) {
+    ops.retain(|&oi| task.op_display[oi] != END_ACTION);
+}
+
 /// The 0.7 entrypoint gate, shared by `solve`/`decompose`/`run_planner`/
 /// `run_ff` so no gate can silently diverge: `Ok(None)` = no constraints
 /// (byte-identical no-op path), `Ok(Some(pair))` = untimed constraints (hard
@@ -500,14 +555,16 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
 
 /// Compile the untimed constraints into the domain/problem: monitor
 /// predicates + per-action `When` transitions, per the module-level table.
-/// A HARD constraint's acceptance is conjoined into the goal; a SOFT
-/// (`preference`-wrapped) constraint's acceptance becomes a goal-side
-/// `(preference name <acceptance>)` — the PDDL3 metric machinery
-/// (`pddl3::compile`'s collect/forgo pricing, the closure optimizer, the
-/// selection layer) then scores it exactly like a native goal preference,
-/// because a monitor's final-state acceptance formula is true iff the
-/// constraint held over the whole trajectory. Returns the rewritten pair.
-/// Errors on timed operators (naming them).
+/// A HARD constraint's acceptance rides the forced-terminal `TRAJ-END`
+/// action's conditional latches, leaving the hard goal literal-only (the
+/// 0.8 END construction; `FF_NO_TRAJ_END=1` restores the 0.7 goal-side
+/// conjunction). A SOFT (`preference`-wrapped) constraint's acceptance
+/// becomes a goal-side `(preference name <acceptance>)` — the PDDL3 metric
+/// machinery (`pddl3::compile`'s collect/forgo pricing, the closure
+/// optimizer, the selection layer) then scores it exactly like a native
+/// goal preference, because a monitor's final-state acceptance formula is
+/// true iff the constraint held over the whole trajectory. Returns the
+/// rewritten pair. Errors on timed operators (naming them).
 pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), String> {
     reject_reserved_names(domain, problem)?;
     let mut exp = expand(domain, problem)?;
@@ -647,9 +704,14 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
         acc
     }
 
+    // Hard monitors: acceptance conjuncts collected per monitor. The 0.8
+    // default lowers them onto the TRAJ-END latches below (linear); the
+    // FF_NO_TRAJ_END hatch restores the 0.7 goal-side conjunction (whose
+    // disjunctive members DNF-multiply into REACH-GOAL ops — exponential).
     let mut idx = 0usize;
+    let mut hard_acc: Vec<Vec<Formula>> = Vec::new();
     for t in &exp.hard {
-        goal_conj.extend(emit(idx, t, &mut d, &mut p, &mut transitions, problem));
+        hard_acc.push(emit(idx, t, &mut d, &mut p, &mut transitions, problem));
         idx += 1;
     }
     for (name, members) in &exp.soft {
@@ -678,6 +740,59 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
             act.effect = Effect::And(v);
         }
     }
+
+    // Lower the hard acceptance (docs/roadmap-0.8.md Phase 1).
+    if !hard_acc.is_empty() {
+        if std::env::var("FF_NO_TRAJ_END").is_ok() {
+            // 0.7 shape: S_n acceptance as goal conjuncts. Kept reachable so
+            // the exponential baseline stays measurable (house convention).
+            for acc in hard_acc {
+                goal_conj.extend(acc);
+            }
+        } else {
+            // THE END CONSTRUCTION. TRAJ-END is created AFTER the transition
+            // append above, so it carries NO monitor transitions — only the
+            // acceptance latches, which read S_n as their source state and
+            // never touch monitor bits (no add-wins interaction possible).
+            let atom = |n: &str| Formula::Atom(n.to_string(), vec![]);
+            d.predicates.push(("TRAJ-PLANNING".to_string(), vec![]));
+            d.predicates.push(("TRAJ-ENDED".to_string(), vec![]));
+            p.init_atoms.push(("TRAJ-PLANNING".to_string(), vec![]));
+            // Every real action plans only while the phase is open; the P3
+            // bookkeeping ops pddl3::compile creates LATER never gain this
+            // precondition — they stay applicable after the freeze, so the
+            // mixed hard+soft plan shape is real* -> TRAJ-END -> P3END ->
+            // collect/forgo (pinned by test).
+            for act in &mut d.actions {
+                act.precond = Formula::And(vec![act.precond.clone(), atom("TRAJ-PLANNING")]);
+            }
+            let mut end_eff: Vec<Effect> = vec![
+                Effect::Del("TRAJ-PLANNING".to_string(), vec![]),
+                Effect::Add("TRAJ-ENDED".to_string(), vec![]),
+            ];
+            for (k, acc) in hard_acc.into_iter().enumerate() {
+                let accf = format!("TRAJ{k}-ACC");
+                d.predicates.push((accf.clone(), vec![]));
+                let cond = match acc.len() {
+                    1 => acc.into_iter().next().unwrap(),
+                    _ => Formula::And(acc),
+                };
+                end_eff.push(Effect::When(
+                    cond,
+                    Box::new(Effect::Add(accf.clone(), vec![])),
+                ));
+                goal_conj.push(atom(&accf));
+            }
+            goal_conj.push(atom("TRAJ-ENDED"));
+            d.actions.push(Action {
+                name: END_ACTION.to_string(),
+                params: vec![],
+                precond: atom("TRAJ-PLANNING"),
+                effect: Effect::And(end_eff),
+            });
+        }
+    }
+
     p.goal = Formula::And(goal_conj);
     d.constraints.clear();
     p.constraints.clear();
@@ -751,6 +866,16 @@ mod grounding_cost {
     //! IPC-5 instances — conditional-effect count and grounding wall time
     //! vs. the unconstrained input. Run with
     //! `cargo test -p ferroplan --release --lib grounding_cost -- --ignored --nocapture`
+    //!
+    //! Recorded (0.8 Phase 1, the END construction, docs/roadmap-0.8.md):
+    //! the goal-DNF product is GONE — storage p05 with 10 at-most-once
+    //! monitors dropped 59,969 ops (59,049 REACH-GOAL) -> 921 ops
+    //! (0 REACH-GOAL, one TRAJ-END), ground ~2.2 s -> ~0.8 s; trucks p03
+    //! with 3 monitors 1,083 (18 REACH-GOAL) -> 1,066. Conditional-effect
+    //! counts grew only by the linear ACC latches (3 per at-most-once
+    //! monitor: storage 36,800 -> 36,830). The remaining monitor x op
+    //! When-product (36,830 cond effects) is Phase 2's target. The asserts
+    //! below LOCK the one-extra-op shape: a goal-DNF regression re-explodes it.
 
     /// Parse, gate (compiling any constraints), ground, and report
     /// `(ops, facts, conditional effects, ground millis)`. Also prints the
@@ -795,16 +920,23 @@ mod grounding_cost {
         );
         let dom = std::fs::read_to_string(format!("{base}/domain.pddl")).unwrap();
         let prob = std::fs::read_to_string(format!("{base}/p05.pddl")).unwrap();
-        let (_, f0, c0, _) = measure(&dom, &prob, "storage p05 unconstrained");
+        let (o0, f0, c0, _) = measure(&dom, &prob, "storage p05 unconstrained");
         // "each hoist lifts each crate at most once" — forall expands at the
         // constraint level, so every monitor body stays ground.
         let hard = overlay(
             &prob,
             "(forall (?h - hoist ?c - crate) (at-most-once (lifting ?h ?c)))",
         );
-        let (_, f1, c1, _) = measure(&dom, &hard, "storage p05 + hard overlay");
+        let (o1, f1, c1, _) = measure(&dom, &hard, "storage p05 + hard overlay");
         assert!(f1 > f0, "monitor facts must appear ({f0} -> {f1})");
         assert!(c1 > c0, "monitor transitions must appear ({c0} -> {c1})");
+        // 0.8 END construction: the ONLY op added is TRAJ-END — 10 monitors
+        // used to cost 3^10 = 59,049 REACH-GOAL goal-DNF ops here.
+        assert_eq!(
+            o1,
+            o0 + 1,
+            "goal-DNF product must stay gone (docs/roadmap-0.8.md Phase 1)"
+        );
     }
 
     #[test]
@@ -816,14 +948,20 @@ mod grounding_cost {
         );
         let dom = std::fs::read_to_string(format!("{base}/domain.pddl")).unwrap();
         let prob = std::fs::read_to_string(format!("{base}/p03.pddl")).unwrap();
-        let (_, f0, c0, _) = measure(&dom, &prob, "trucks p03 unconstrained");
+        let (o0, f0, c0, _) = measure(&dom, &prob, "trucks p03 unconstrained");
         // "a truck parks at each location at most once"
         let hard = overlay(
             &prob,
             "(forall (?t - truck ?l - location) (at-most-once (at ?t ?l)))",
         );
-        let (_, f1, c1, _) = measure(&dom, &hard, "trucks p03 + hard overlay");
+        let (o1, f1, c1, _) = measure(&dom, &hard, "trucks p03 + hard overlay");
         assert!(f1 > f0, "monitor facts must appear ({f0} -> {f1})");
         assert!(c1 > c0, "monitor transitions must appear ({c0} -> {c1})");
+        // 0.8 END construction: +1 op (TRAJ-END), zero REACH-GOAL ops.
+        assert_eq!(
+            o1,
+            o0 + 1,
+            "goal-DNF product must stay gone (docs/roadmap-0.8.md Phase 1)"
+        );
     }
 }
