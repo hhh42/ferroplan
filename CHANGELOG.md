@@ -2,7 +2,22 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased]
+## [0.7.0] - 2026-07-17 — Trajectories: enforce the constraint, price the preference
+
+The release that retires the project's oldest fence. Since 0.4.1 every PDDL3
+`(:constraints ...)` block was cleanly rejected; 0.7 compiles the six untimed
+modal operators into monitor automata and ENFORCES them on the classical
+path — hard constraints as goal conjuncts, soft `(preference name ...)`
+constraints priced through the existing metric stack with zero optimizer
+changes — and vendors the IPC-5 *qualitative-preferences* track (5 domains ×
+8 instances) as the measured proof: 36 of 40 instances produce a plan whose
+metric the independent verifier reproduces EXACTLY, and every gap has a
+named reason on the new scoreboard. The verifier itself came out stronger:
+it now grounds quantified preference bodies, making it authoritative on the
+qualitative suite and on 5 of 6 simple-preferences domains. What 0.7 does
+not enforce still rejects BY NAME (timed operators, the temporal path,
+`Session`), with `FF_CONSTRAINTS_REJECT=1` restoring the old blanket
+rejection outright. Constraint-free inputs are untouched.
 
 ### Added
 
