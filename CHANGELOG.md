@@ -47,9 +47,26 @@ All notable changes to this project are documented here.
 - **The IPC-5 qualitative-preferences suite is vendored and scored**
   (`benchmarks/ipc/qualpref/{openstacks,rovers,storage,tpp,trucks}`, 8
   instances each, from the potassco mirror — the track ran 5 domains; there
-  is no qualitative pathways). All 40 instances parse, compile, and solve
-  under pure defaults; see `benchmarks/ipc5-qualitative-scoreboard.md` and
-  the heavy locks in `tests/ipc5_qual_metric.rs`.
+  is no qualitative pathways). All 40 instances parse, gate, and compile
+  with no rejection; **36 of 40 produce an independently verified plan +
+  metric** (32 on pure defaults, 3 more within a 600 s budget, storage
+  p05/p06 under a documented `FF_NO_ESPC=1` env), and every gap has a
+  named reason on the board — storage p07/p08 exceed 15 GB during
+  grounding, trucks p07/p08 exceed the search budget. See
+  `benchmarks/ipc5-qualitative-scoreboard.md` (self-scored: the official
+  reference archive is unreachable from the dev container; the board
+  documents both graft-in paths) and the heavy locks in
+  `tests/ipc5_qual_metric.rs`.
+- **Constraint-side static simplification** (in `constraints::compile`,
+  same `FF_PREF_NO_STATIC=1` hatch as the 0.5 goal-preference pass):
+  constraint bodies are partially evaluated against static predicates +
+  init, and instances whose fold verdict is statically ACCEPTED are
+  dropped before monitor compilation — statically VIOLATED instances are
+  never dropped. This is what makes the qualitative storage instances
+  compile at all (p03: 1,548 of 1,554 instances dropped; without it,
+  quadratic `forall` preferences OOM grounding). Planner-side only: the
+  verifier folds the unsimplified semantics, so the oracle stays
+  independent.
 - **The independent verifier is now authoritative on quantified preference
   bodies**: `verify::verify` grounds formula-level `forall`/`exists` (both
   in constraint bodies and in goal-preference bodies) before scoring, folds

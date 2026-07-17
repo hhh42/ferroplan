@@ -1,6 +1,8 @@
 # Roadmap — the road to v0.7 ("Trajectories")
 
-> **Status: design — no phase executed yet.** Successor to the executed
+> **Status: Phases 1–2 executed** (hard untimed constraints enforced, soft
+> constraint-preferences priced, qualitative suite vendored + scored — see
+> the *Recorded* blocks in each phase). Successor to the executed
 > [0.6 roadmap](roadmap-0.6.md). Ground truth: the 0.4.1 rejection gate
 > (`pddl3::unsupported_constraints`, called from all five entrypoints), the
 > [`benchmarks/ipc5-scoreboard.md`](../benchmarks/ipc5-scoreboard.md) ledger
@@ -310,6 +312,40 @@ crates × the exists-body — the same shape 0.5's `peval_static` pass made
 tractable; re-measure, extend if binding); initial metric quality expected
 to trail SGPlan5 where guidance is monitor-blind — record the tails, they
 define the 0.8 heuristic agenda rather than blocking 0.7.
+
+**Recorded (Phase 2 shipped, 2026-07-17).** The lowering worked exactly as
+designed — zero optimizer changes; the constraints suite grew 18 → 23 tests
+(weight defaults, anonymous naming, forall instance-count, mixed hard+soft,
+hatch-covers-soft), all asserting reported == verified. Beyond the plan,
+three things were forced by measurement:
+
+- **The quantified-body gap was real and two-sided**: the qualitative
+  bodies nest `exists`/`forall` inside modal operators, so
+  `constraints::expand` grounds formula-level quantifiers (monitors stay
+  ground for the grounder), and the storage p01 oracle mismatch (reported
+  0 vs verified 6) exposed that the VERIFIER's best-effort quantifier
+  evaluation was the wrong side — `verify` now grounds goal-preference
+  bodies too, making the oracle exact on every qualitative domain AND
+  tightening the simple-preferences oracle to exact on 5 of 6 domains.
+- **The predicted quadratic-forall risk bound**: storage p03+ OOM'd a
+  15 GB container until constraint-side static simplification (the
+  `peval_static` extension this section predicted; `FF_PREF_NO_STATIC`
+  hatch) — p03 drops 1,548 of 1,554 instances and solves at metric 60.
+- **Two memory walls remain on the storage tail, both named on the
+  board**: the ESPC monolithic tightening pass blows memory on
+  wide-monitor states (p05/p06 ship with a documented `FF_NO_ESPC=1` row —
+  memory-bounding ESPC is 0.8 work), and p07/p08 exceed memory in
+  grounding itself (1,147+ survivors × ground actions — the Phase-1
+  END-action construction is the recorded lever).
+
+Coverage: **36/40 instances produce an independently verified plan+metric**
+(every gap named: 2 × memory, 2 × trucks search budget — the trucks tail is
+the same shared-timeline draw 0.6 Phase 4 recorded, doubled down by
+`sometime-before` ordering; Phase 4 here remains its gate). Scoreboard:
+[`benchmarks/ipc5-qualitative-scoreboard.md`](../benchmarks/ipc5-qualitative-scoreboard.md)
+— self-scored (the official archive is network-blocked from the dev
+container; both reference graft-in paths documented). t1 ≡ t8 wherever both
+complete; the largest instances are budget-bound at t1, never divergent.
 
 ---
 
