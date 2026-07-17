@@ -78,3 +78,27 @@ fn ipc5_qual_metric_no_regression() {
         );
     }
 }
+
+#[test]
+#[ignore = "heavy IPC qualitative-preferences solve; opt-in via --include-ignored"]
+fn storage_p03_survives_the_quadratic_forall() {
+    // The static-simplification sentinel: p03's quadratic forall-preference
+    // (crates² × storeareas²) expands to 1,554 constraint instances; without
+    // the constraint-side drop in `constraints::compile`, monitor grounding
+    // OOMs a 15 GB container. Locks coverage AND quality (60, verified ==
+    // reported when locked 2026-07-16; ceiling with slack for search shifts,
+    // not for a coverage loss).
+    let (m, steps) = run("storage", "p03");
+    assert!(
+        m <= 60.0 + 1e-6,
+        "storage/p03 metric {m} regressed above 60"
+    );
+    let dom = fs::read_to_string(format!("{}/storage/domain.pddl", base())).unwrap();
+    let prob = fs::read_to_string(format!("{}/storage/p03.pddl", base())).unwrap();
+    let v = ferroplan::verify::verify(&dom, &prob, &steps).unwrap();
+    assert!(
+        (v.metric - m).abs() < 1e-6,
+        "storage/p03 reported {m} != verified {}",
+        v.metric
+    );
+}
