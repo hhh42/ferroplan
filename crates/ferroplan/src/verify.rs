@@ -138,10 +138,19 @@ pub fn verify(
         .iter()
         .map(crate::constraints::Fold::new)
         .collect();
-    let mut soft_folds: Vec<(&str, crate::constraints::Fold)> = expanded
+    // One entry per preference INSTANCE; the inner folds are the instance's
+    // member constraints — the instance is accepted iff ALL members accept
+    // (a conjunctive `(preference name (and ...))` body is violated at most
+    // once, the PDDL3 semantics).
+    let mut soft_folds: Vec<(&str, Vec<crate::constraints::Fold>)> = expanded
         .soft
         .iter()
-        .map(|(n, t)| (n.as_str(), crate::constraints::Fold::new(t)))
+        .map(|(n, ms)| {
+            (
+                n.as_str(),
+                ms.iter().map(crate::constraints::Fold::new).collect(),
+            )
+        })
         .collect();
 
     // replay the plan over the original-grounded task
@@ -149,8 +158,10 @@ pub fn verify(
     for f in &mut folds {
         f.step(&mut |phi| eval_formula(&task, &s, phi)); // S_0
     }
-    for (_, f) in &mut soft_folds {
-        f.step(&mut |phi| eval_formula(&task, &s, phi)); // S_0
+    for (_, ms) in &mut soft_folds {
+        for f in ms {
+            f.step(&mut |phi| eval_formula(&task, &s, phi)); // S_0
+        }
     }
     for (name, args) in plan {
         let want: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
@@ -180,8 +191,10 @@ pub fn verify(
         for f in &mut folds {
             f.step(&mut |phi| eval_formula(&task, &s, phi));
         }
-        for (_, f) in &mut soft_folds {
-            f.step(&mut |phi| eval_formula(&task, &s, phi));
+        for (_, ms) in &mut soft_folds {
+            for f in ms {
+                f.step(&mut |phi| eval_formula(&task, &s, phi));
+            }
         }
     }
 
@@ -215,14 +228,15 @@ pub fn verify(
         }
     }
     let mut constraint_prefs = Vec::with_capacity(soft_folds.len());
-    for (name, f) in &soft_folds {
-        if f.accepted() {
+    for (name, ms) in &soft_folds {
+        let accepted = ms.iter().all(|f| f.accepted());
+        if accepted {
             sat += 1;
         } else {
             vio += 1;
             metric += weights.get(*name).copied().unwrap_or(0.0);
         }
-        constraint_prefs.push((name.to_string(), f.accepted()));
+        constraint_prefs.push((name.to_string(), accepted));
     }
     Ok(Verified {
         metric,

@@ -10,9 +10,10 @@ modal operators into monitor automata and ENFORCES them on the classical
 path — hard constraints as goal conjuncts, soft `(preference name ...)`
 constraints priced through the existing metric stack with zero optimizer
 changes — and vendors the IPC-5 *qualitative-preferences* track (5 domains ×
-8 instances) as the measured proof: 36 of 40 instances produce a plan whose
-metric the independent verifier reproduces EXACTLY, and every gap has a
-named reason on the new scoreboard. The verifier itself came out stronger:
+8 instances) as the measured proof: 36 of 40 instances produce a plan and a
+metric, the independent verifier reproduced the metric EXACTLY on every one
+of the 11 instances it was run against (all five p01s plus six larger spot
+checks), and every gap has a named reason on the new scoreboard. The verifier itself came out stronger:
 it now grounds quantified preference bodies, making it authoritative on the
 qualitative suite and on 5 of 6 simple-preferences domains. What 0.7 does
 not enforce still rejects BY NAME (timed operators, the temporal path,
@@ -54,19 +55,29 @@ rejection outright. Constraint-free inputs are untouched.
   same monitor automata plus a goal-side `(preference name <acceptance>)`,
   so the whole PDDL3 metric stack (Keyder–Geffner collect/forgo pricing, the
   exact-closure optimizer, the selection layer) scores trajectory
-  preferences with **no optimizer changes**. `forall` preferences expand to
-  instances sharing the name (`(is-violated name)` counts violated
-  instances); anonymous preferences get deterministic `TRAJPREF{n}` names;
-  weight defaults match goal preferences exactly (no metric → 1 each,
-  metric-unreferenced → 0), pinned by tests.
+  preferences with **no optimizer changes**. The PDDL3 instance boundary is
+  honored exactly: `forall` OUTSIDE a preference multiplies instances
+  sharing the name (`(is-violated name)` counts violated instances), while
+  `and`/`forall` INSIDE the preference body stay ONE instance, violated at
+  most once (adversarial review caught the initial per-member split — the
+  verifier shared the expansion, so only a semantics-level review could).
+  Anonymous preferences get deterministic `TRAJPREF{n}` names, with the
+  generated monitor/name namespace guarded: a user predicate or preference
+  inside it (e.g. `traj0-viol`, which could silently clear a hard
+  violation) is rejected by name. Weight defaults match goal preferences
+  exactly (no metric → 1 each, metric-unreferenced → 0), pinned by tests.
+  `run_ff` closes `:derived` axioms before the constraint gate whenever a
+  `(:constraints ...)` block is present (its constraint-free classic
+  pipeline is untouched).
 - **The IPC-5 qualitative-preferences suite is vendored and scored**
   (`benchmarks/ipc/qualpref/{openstacks,rovers,storage,tpp,trucks}`, 8
   instances each, from the potassco mirror — the track ran 5 domains; there
   is no qualitative pathways). All 40 instances parse, gate, and compile
-  with no rejection; **36 of 40 produce an independently verified plan +
-  metric** (32 on pure defaults, 3 more within a 600 s budget, storage
-  p05/p06 under a documented `FF_NO_ESPC=1` env), and every gap has a
-  named reason on the board — storage p07/p08 exceed 15 GB during
+  with no rejection; **36 of 40 produce a plan + metric** (31 on pure
+  defaults within 300 s, 3 more — openstacks p07/p08 and trucks p06 —
+  within 600 s, and storage p05/p06 under a documented `FF_NO_ESPC=1`
+  env), reported == verified held exactly on all 11 oracle-checked
+  instances, and every gap has a named reason on the board — storage p07/p08 exceed 15 GB during
   grounding, trucks p07/p08 exceed the search budget. See
   `benchmarks/ipc5-qualitative-scoreboard.md` (self-scored: the official
   reference archive is unreachable from the dev container; the board

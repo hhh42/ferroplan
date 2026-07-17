@@ -218,6 +218,97 @@ fn s0_counts_for_the_trajectory() {
     unsolvable(DOM, &bad);
 }
 
+// ---- static simplification (fast pins; the heavy sentinel lives in --------
+// ---- tests/ipc5_qual_metric.rs::storage_p03_survives_the_quadratic_forall)
+
+/// Switch domain plus a STATIC predicate (`linked` — no effect touches it),
+/// so `peval_static` has something to decide.
+const DOMS: &str = "(define (domain sws)
+  (:requirements :strips :constraints)
+  (:predicates (on) (off) (lamp) (used) (linked))
+  (:action flip-on :precondition (off) :effect (and (not (off)) (on)))
+  (:action flip-off :precondition (on) :effect (and (not (on)) (off)))
+  (:action light :precondition (on) :effect (and (lamp) (used))))";
+
+#[test]
+fn statically_accepted_constraints_drop_and_solve() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // Every drop rule fires once here (always/sometime/at-most-once/at-end
+    // body → true; sometime-after ψ → true; sometime-before φ → false): the
+    // whole block compiles away and the plain 2-step plan stands, with the
+    // verifier's UNSIMPLIFIED folds agreeing everything held.
+    let p = "(define (problem s) (:domain sws) (:init (off) (linked)) (:goal (lamp))
+        (:constraints (and (always (linked))
+                           (sometime (linked))
+                           (at-most-once (linked))
+                           (sometime-after (used) (linked))
+                           (sometime-before (not (linked)) (used))
+                           (at end (linked)))))";
+    let plan = solve_ok(DOMS, p);
+    assert_eq!(plan.steps.len(), 2);
+}
+
+#[test]
+fn statically_violated_constraints_still_bite() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // The must-KEEP side of the drop rules. sometime-before with φ
+    // static-TRUE is violated at S_0 (nothing is strictly earlier):
+    let p1 = "(define (problem s) (:domain sws) (:init (off) (linked)) (:goal (lamp))
+        (:constraints (sometime-before (linked) (used))))";
+    unsolvable(DOMS, p1);
+    // always with a statically-FALSE body:
+    let p2 = "(define (problem s) (:domain sws) (:init (off)) (:goal (lamp))
+        (:constraints (always (linked))))";
+    unsolvable(DOMS, p2);
+}
+
+#[test]
+fn statically_satisfied_soft_prefs_still_count() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // pa's members all drop → it lowers to `(preference pa true)`: never
+    // violated, still a COUNTED instance (the CLI footer reports both).
+    let p = "(define (problem s) (:domain sws) (:init (off) (linked)) (:goal (off))
+        (:constraints (and (preference pa (always (linked)))
+                           (preference pb (sometime (on))))))";
+    let (out, _) = ferroplan::run_planner(DOMS, p, &Options::default(), false);
+    assert!(
+        out.contains("2 preferences"),
+        "both instances counted:\n{out}"
+    );
+    assert!(
+        out.contains("metric value 0"),
+        "pb satisfied en route:\n{out}"
+    );
+}
+
+#[test]
+fn reserved_monitor_names_reject_by_name() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // A user predicate inside the generated monitor namespace could silently
+    // clear a hard violation — rejected by name instead.
+    let dom_bad = "(define (domain sw9)
+      (:requirements :strips :constraints)
+      (:predicates (off) (lamp) (traj0-viol))
+      (:action nop :precondition (off) :effect (lamp)))";
+    let p = "(define (problem s) (:domain sw9) (:init (off)) (:goal (lamp))
+        (:constraints (always (off))))";
+    match solve(dom_bad, p, &Options::default()).expect_err("must reject") {
+        SolveError::Unsupported(msg) => {
+            assert!(msg.contains("TRAJ0-VIOL"), "names the predicate: {msg}")
+        }
+        other => panic!("expected Unsupported, got {other:?}"),
+    }
+    // A user preference named inside the TRAJPREF{n} namespace aliases
+    // anonymous constraint-preference pricing — same rejection.
+    let p2 = prob("(off)", "(lamp)", "(preference trajpref0 (sometime (on)))");
+    match solve(DOM, &p2, &Options::default()).expect_err("must reject") {
+        SolveError::Unsupported(msg) => {
+            assert!(msg.contains("TRAJPREF0"), "names the preference: {msg}")
+        }
+        other => panic!("expected Unsupported, got {other:?}"),
+    }
+}
+
 // ---- named rejections (the fence that remains) ----------------------------
 
 #[test]
@@ -328,6 +419,53 @@ fn mixed_hard_and_soft_split_correctly() {
     );
     let plan = soft_ok(DOM, &p, 1.0);
     assert!(plan.steps.len() >= 3, "on, light, off: {:?}", steps(&plan));
+}
+
+#[test]
+fn pref_with_and_body_counts_once() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // `(preference pv (and C1 C2))` is ONE preference (the PDDL3 instance
+    // boundary): both members fail on every goal-reaching trajectory, but
+    // (is-violated pv) contributes its weight AT MOST ONCE — metric 3, not 6.
+    let p = "(define (problem sw-1) (:domain sw) (:init (off)) (:goal (lamp))
+         (:constraints (preference pv (and (always (off))
+                                           (sometime-before (lamp) (used)))))
+         (:metric minimize (* 3 (is-violated pv))))";
+    soft_ok(DOM, p, 3.0);
+}
+
+#[test]
+fn pref_and_body_violated_by_a_single_member() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // Only the always-member is violated (the sometime-member is satisfied
+    // en route); any violated member violates the ONE instance exactly once.
+    let p = "(define (problem sw-1) (:domain sw) (:init (off)) (:goal (lamp))
+         (:constraints (preference pv (and (always (off)) (sometime (on)))))
+         (:metric minimize (* 5 (is-violated pv))))";
+    soft_ok(DOM, p, 5.0);
+}
+
+#[test]
+fn forall_inside_pref_is_one_instance() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    // Contrast with `forall_pref_instances_share_one_name`: there the forall
+    // is OUTSIDE the preference (→ one instance per binding); here it is
+    // INSIDE the body (→ ONE instance whose members are the bindings). With
+    // no switch flippable, BOTH members are unsatisfiable — a per-member
+    // split would price 2 × 2 = 4; the correct single instance prices 2.
+    let dom = "(define (domain sw2)
+      (:requirements :strips :typing :constraints)
+      (:types sw)
+      (:predicates (on ?s - sw) (flippable ?s - sw) (base))
+      (:action flip :parameters (?s - sw)
+        :precondition (flippable ?s) :effect (on ?s)))";
+    let p = "(define (problem sw2-1) (:domain sw2)
+      (:objects s1 s2 - sw)
+      (:init (base))
+      (:goal (base))
+      (:constraints (preference pv (forall (?s - sw) (sometime (on ?s)))))
+      (:metric minimize (* 2 (is-violated pv))))";
+    soft_ok(dom, p, 2.0);
 }
 
 #[test]

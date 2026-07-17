@@ -49,14 +49,19 @@ pub enum Traj {
 /// `And` flattened, hard and soft (`preference`-wrapped) separated.
 pub struct Expanded {
     pub hard: Vec<Traj>,
-    /// `(preference name <constraint>)` INSTANCES — instances expanded from
-    /// one `forall`-wrapped preference share its name, so `(is-violated
-    /// name)` counts violated instances (the PDDL3 semantics). Anonymous
+    /// `(preference name <constraint>)` INSTANCES. The quantifier-instance
+    /// boundary is exactly PDDL3's (Gerevini & Long): a `forall` OUTSIDE the
+    /// preference multiplies INSTANCES (all sharing the name, so
+    /// `(is-violated name)` counts violated instances), while `and`/`forall`
+    /// INSIDE the preference body stay ONE instance — the inner `Vec<Traj>`
+    /// holds that body's member constraints, and the instance is violated
+    /// iff ANY member is (it contributes its weight at most once). Anonymous
     /// preferences get a deterministic generated name (`TRAJPREF{n}` in
     /// source order), mirroring goal-preference handling. Enforced since
-    /// Phase 2: [`compile`] lowers each to monitors plus a goal-side
-    /// `(preference name <acceptance>)` priced by the metric machinery.
-    pub soft: Vec<(String, Traj)>,
+    /// Phase 2: [`compile`] lowers each instance to monitors plus ONE
+    /// goal-side `(preference name <acceptance>)` priced by the metric
+    /// machinery.
+    pub soft: Vec<(String, Vec<Traj>)>,
 }
 
 /// Expand and validate a task's `(:constraints ...)` trees. Errors name the
@@ -69,7 +74,7 @@ pub fn expand(domain: &Domain, problem: &Problem) -> Result<Expanded, String> {
     };
     let mut anon = 0usize;
     for c in domain.constraints.iter().chain(problem.constraints.iter()) {
-        walk(c, &objs, None, &HashMap::new(), &mut anon, &mut out)?;
+        walk(c, &objs, &HashMap::new(), &mut anon, &mut out)?;
     }
     Ok(out)
 }
@@ -118,50 +123,81 @@ fn timed_err(op: &str) -> String {
 fn walk(
     c: &Constraint,
     objs: &HashMap<Sym, Vec<Sym>>,
-    pref: Option<&str>,
     binding: &HashMap<Sym, Sym>,
     anon: &mut usize,
     out: &mut Expanded,
 ) -> Result<(), String> {
-    let sub = |f: &Formula| expand_quantifiers(&subst_formula(f, binding), objs);
-    let push = |t: Traj, out: &mut Expanded| match pref {
-        Some(name) => out.soft.push((name.to_string(), t)),
-        None => out.hard.push(t),
-    };
     match c {
         Constraint::And(v) => {
             for x in v {
-                walk(x, objs, pref, binding, anon, out)?;
+                walk(x, objs, binding, anon, out)?;
             }
         }
         Constraint::Forall(vars, inner) => {
             for combo in combos(vars, objs) {
                 let mut b = binding.clone();
                 b.extend(combo);
-                walk(inner, objs, pref, &b, anon, out)?;
+                walk(inner, objs, &b, anon, out)?;
             }
         }
         Constraint::Pref(name, inner) => {
-            if pref.is_some() {
-                return Err(
-                    "malformed (:constraints ...): a preference nested inside a \
-                     preference has no PDDL3 semantics"
-                        .into(),
-                );
-            }
             let name = name.clone().unwrap_or_else(|| {
                 let s = format!("TRAJPREF{anon}");
                 *anon += 1;
                 s
             });
-            walk(inner, objs, Some(&name), binding, anon, out)?;
+            // ONE preference instance per (textual preference × outside
+            // binding): `and`/`forall` INSIDE the body collect into the
+            // instance's member list — violated iff any member is.
+            let mut members = Vec::new();
+            walk_members(inner, objs, binding, &mut members)?;
+            out.soft.push((name, members));
         }
-        Constraint::Always(f) => push(Traj::Always(sub(f)), out),
-        Constraint::Sometime(f) => push(Traj::Sometime(sub(f)), out),
-        Constraint::AtMostOnce(f) => push(Traj::AtMostOnce(sub(f)), out),
-        Constraint::SometimeAfter(a, b) => push(Traj::SometimeAfter(sub(a), sub(b)), out),
-        Constraint::SometimeBefore(a, b) => push(Traj::SometimeBefore(sub(a), sub(b)), out),
-        Constraint::AtEnd(f) => push(Traj::AtEnd(sub(f)), out),
+        _ => {
+            let mut members = Vec::new();
+            walk_members(c, objs, binding, &mut members)?;
+            out.hard.extend(members);
+        }
+    }
+    Ok(())
+}
+
+/// Collect the ground member constraints of one constraint tree (the inside
+/// of a preference body, or a hard modal subtree). Nested preferences are
+/// malformed here — PDDL3 gives them no semantics.
+fn walk_members(
+    c: &Constraint,
+    objs: &HashMap<Sym, Vec<Sym>>,
+    binding: &HashMap<Sym, Sym>,
+    members: &mut Vec<Traj>,
+) -> Result<(), String> {
+    let sub = |f: &Formula| expand_quantifiers(&subst_formula(f, binding), objs);
+    match c {
+        Constraint::And(v) => {
+            for x in v {
+                walk_members(x, objs, binding, members)?;
+            }
+        }
+        Constraint::Forall(vars, inner) => {
+            for combo in combos(vars, objs) {
+                let mut b = binding.clone();
+                b.extend(combo);
+                walk_members(inner, objs, &b, members)?;
+            }
+        }
+        Constraint::Pref(_, _) => {
+            return Err(
+                "malformed (:constraints ...): a preference nested inside a \
+                 preference has no PDDL3 semantics"
+                    .into(),
+            )
+        }
+        Constraint::Always(f) => members.push(Traj::Always(sub(f))),
+        Constraint::Sometime(f) => members.push(Traj::Sometime(sub(f))),
+        Constraint::AtMostOnce(f) => members.push(Traj::AtMostOnce(sub(f))),
+        Constraint::SometimeAfter(a, b) => members.push(Traj::SometimeAfter(sub(a), sub(b))),
+        Constraint::SometimeBefore(a, b) => members.push(Traj::SometimeBefore(sub(a), sub(b))),
+        Constraint::AtEnd(f) => members.push(Traj::AtEnd(sub(f))),
         Constraint::Within(_, _) => return Err(timed_err("within")),
         Constraint::AlwaysWithin(_, _, _) => return Err(timed_err("always-within")),
         Constraint::HoldDuring(_, _, _) => return Err(timed_err("hold-during")),
@@ -179,9 +215,10 @@ pub struct Fold<'a> {
     seen: bool,    // sometime: φ seen; at-most-once: an episode has closed
     holding: bool, // at-most-once: currently inside a φ episode
     pending: bool, // sometime-after: φ seen, ψ still owed
-    safe: bool,    // sometime-before: ψ seen strictly earlier
-    first: bool,   // S_0 marker (sometime-before's strictly-earlier check)
-    last: bool,    // at-end: φ in the most recent state
+    safe: bool,    // sometime-before: ψ seen strictly earlier (the
+    // strictly-earlier semantics is step()'s ORDER: φ is
+    // tested against `safe` BEFORE ψ is recorded into it)
+    last: bool, // at-end: φ in the most recent state
 }
 
 impl<'a> Fold<'a> {
@@ -193,7 +230,6 @@ impl<'a> Fold<'a> {
             holding: false,
             pending: false,
             safe: false,
-            first: true,
             last: false,
         }
     }
@@ -242,7 +278,6 @@ impl<'a> Fold<'a> {
                 self.last = holds(f);
             }
         }
-        self.first = false;
     }
 
     /// The verdict once the final state has been observed.
@@ -337,22 +372,103 @@ fn simplify_static(exp: &mut Expanded, domain: &Domain, problem: &Problem) {
             },
         }
     };
-    let (h0, s0) = (exp.hard.len(), exp.soft.len());
+    let h0 = exp.hard.len();
+    let m0: usize = exp.soft.iter().map(|(_, ms)| ms.len()).sum();
     exp.hard = exp.hard.iter().filter_map(&simp).collect();
-    exp.soft = exp
-        .soft
-        .iter()
-        .filter_map(|(n, tr)| simp(tr).map(|tr| (n.clone(), tr)))
-        .collect();
-    if std::env::var("FF_RES_DEBUG").is_ok() && (exp.hard.len(), exp.soft.len()) != (h0, s0) {
+    // Soft: simplify each instance's MEMBERS. An instance whose members all
+    // drop is statically SATISFIED — it stays in the list with an empty
+    // member vec (compile lowers it to `(preference name true)`), so the
+    // pref-instance count the optimizer reports never shrinks; only the
+    // monitor machinery for it disappears.
+    for (_, members) in exp.soft.iter_mut() {
+        *members = members.iter().filter_map(&simp).collect();
+    }
+    let m1: usize = exp.soft.iter().map(|(_, ms)| ms.len()).sum();
+    if std::env::var("FF_RES_DEBUG").is_ok() && (exp.hard.len(), m1) != (h0, m0) {
         eprintln!(
-            "[P3] constraint static simplification: dropped {} of {} hard, {} of {} soft",
+            "[P3] constraint static simplification: dropped {} of {} hard, {} of {} soft member(s)",
             h0 - exp.hard.len(),
             h0,
-            s0 - exp.soft.len(),
-            s0
+            m0 - m1,
+            m0
         );
     }
+}
+
+/// Reject inputs whose own names collide with the generated monitor
+/// namespace. A user predicate named e.g. `TRAJ0-VIOL` would intern to the
+/// SAME grounded fact as a monitor bit, so a user effect could silently
+/// clear a hard-constraint violation — the exact failure class the "never
+/// silently ignore" contract forbids. Likewise a user preference literally
+/// named `TRAJPREF{n}` would alias an anonymous constraint-preference's
+/// generated name in the `(is-violated ...)` namespace. Both are rejected
+/// BY NAME (only when a `(:constraints ...)` block is present — this runs
+/// from `compile`, never on the constraint-free no-op path).
+fn reject_reserved_names(domain: &Domain, problem: &Problem) -> Result<(), String> {
+    let monitor_fact = |n: &str| -> bool {
+        let Some(rest) = n.strip_prefix("TRAJ") else {
+            return false;
+        };
+        let mut it = rest.splitn(2, '-');
+        let (num, suf) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
+        !num.is_empty()
+            && num.bytes().all(|b| b.is_ascii_digit())
+            && matches!(suf, "VIOL" | "SEEN" | "HOLD" | "PEND" | "SAFE")
+    };
+    let anon_pref = |n: &str| -> bool {
+        n.strip_prefix("TRAJPREF")
+            .is_some_and(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))
+    };
+    for (n, _) in &domain.predicates {
+        if monitor_fact(n) {
+            return Err(format!(
+                "predicate `{n}` collides with ferroplan's reserved trajectory-monitor \
+                 namespace (TRAJ{{n}}-VIOL/SEEN/HOLD/PEND/SAFE) used to compile \
+                 (:constraints ...); rename the predicate"
+            ));
+        }
+    }
+    // USER-written preference names only (generated anonymous names ARE the
+    // namespace) — collected from the raw ASTs, before any name generation.
+    fn names_c(c: &Constraint, out: &mut Vec<String>) {
+        match c {
+            Constraint::And(v) => v.iter().for_each(|x| names_c(x, out)),
+            Constraint::Forall(_, i) => names_c(i, out),
+            Constraint::Pref(n, i) => {
+                if let Some(n) = n {
+                    out.push(n.clone());
+                }
+                names_c(i, out);
+            }
+            _ => {}
+        }
+    }
+    fn names_f(f: &Formula, out: &mut Vec<String>) {
+        match f {
+            Formula::And(v) | Formula::Or(v) => v.iter().for_each(|x| names_f(x, out)),
+            Formula::Not(a) | Formula::Forall(_, a) | Formula::Exists(_, a) => names_f(a, out),
+            Formula::Pref(n, a) => {
+                if let Some(n) = n {
+                    out.push(n.clone());
+                }
+                names_f(a, out);
+            }
+            _ => {}
+        }
+    }
+    let mut user = Vec::new();
+    for c in domain.constraints.iter().chain(problem.constraints.iter()) {
+        names_c(c, &mut user);
+    }
+    names_f(&problem.goal, &mut user);
+    if let Some(n) = user.iter().find(|n| anon_pref(n)) {
+        return Err(format!(
+            "preference name `{n}` collides with ferroplan's reserved \
+             TRAJPREF{{n}} namespace (generated for anonymous constraint \
+             preferences); rename the preference"
+        ));
+    }
+    Ok(())
 }
 
 /// The 0.7 entrypoint gate, shared by `solve`/`decompose`/`run_planner`/
@@ -393,46 +509,56 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
 /// constraint held over the whole trajectory. Returns the rewritten pair.
 /// Errors on timed operators (naming them).
 pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), String> {
+    reject_reserved_names(domain, problem)?;
     let mut exp = expand(domain, problem)?;
     simplify_static(&mut exp, domain, problem);
-    if exp.hard.is_empty() && exp.soft.is_empty() {
-        return Ok((domain.clone(), problem.clone()));
-    }
 
     let mut d = domain.clone();
     let mut p = problem.clone();
-    // S_0 evaluation happens against the raw init atom set of the ORIGINAL
-    // problem (user formulas can never reference the monitor facts we add).
-    let init_holds = |f: &Formula| eval_static(f, problem);
+    if exp.hard.is_empty() && exp.soft.is_empty() {
+        // Everything statically proven (or the block held only such
+        // instances): enforced-by-proof, nothing to monitor — but the
+        // constraints are still CONSUMED, not left dangling on the pair.
+        d.constraints.clear();
+        p.constraints.clear();
+        return Ok((d, p));
+    }
 
     let mut goal_conj: Vec<Formula> = vec![p.goal.clone()];
     // Per-action transition effects, accumulated then appended to every action.
     let mut transitions: Vec<Effect> = Vec::new();
-    let atom = |n: &str| Formula::Atom(n.to_string(), vec![]);
-    let add = |n: &str| Effect::Add(n.to_string(), vec![]);
-    let del = |n: &str| Effect::Del(n.to_string(), vec![]);
-    let declare = |d: &mut Domain, p: &mut Problem, n: &str, init_true: bool| {
-        d.predicates.push((n.to_string(), vec![]));
-        if init_true {
-            p.init_atoms.push((n.to_string(), vec![]));
-        }
-    };
 
-    // Hard instances first, then soft — one shared monitor-fact index space.
-    let items: Vec<(Option<&str>, &Traj)> = exp
-        .hard
-        .iter()
-        .map(|t| (None, t))
-        .chain(exp.soft.iter().map(|(n, t)| (Some(n.as_str()), t)))
-        .collect();
-    for (i, (pref, t)) in items.iter().enumerate() {
+    // Emit ONE member constraint's monitor (facts + transitions) and return
+    // its acceptance conjuncts. `i` is the global monitor index — hard
+    // instances first, then soft members, one shared namespace.
+    fn emit(
+        i: usize,
+        t: &Traj,
+        d: &mut Domain,
+        p: &mut Problem,
+        transitions: &mut Vec<Effect>,
+        problem: &Problem,
+    ) -> Vec<Formula> {
+        // S_0 evaluation happens against the raw init atom set of the
+        // ORIGINAL problem (user formulas can never reference the monitor
+        // facts we add — `reject_reserved_names` enforces the premise).
+        let init_holds = |f: &Formula| eval_static(f, problem);
+        let atom = |n: &str| Formula::Atom(n.to_string(), vec![]);
+        let add = |n: &str| Effect::Add(n.to_string(), vec![]);
+        let del = |n: &str| Effect::Del(n.to_string(), vec![]);
+        let declare = |d: &mut Domain, p: &mut Problem, n: &str, init_true: bool| {
+            d.predicates.push((n.to_string(), vec![]));
+            if init_true {
+                p.init_atoms.push((n.to_string(), vec![]));
+            }
+        };
         // The constraint's ACCEPTANCE over S_0..S_n: monitor state ∧ the
-        // goal-side S_n check. Hard → goal conjuncts; soft → one Pref.
+        // goal-side S_n check.
         let mut acc: Vec<Formula> = Vec::new();
         match t {
             Traj::Always(f) => {
                 let viol = format!("TRAJ{i}-VIOL");
-                declare(&mut d, &mut p, &viol, !init_holds(f));
+                declare(d, p, &viol, !init_holds(f));
                 transitions.push(Effect::When(
                     Formula::Not(Box::new(f.clone())),
                     Box::new(add(&viol)),
@@ -442,7 +568,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
             }
             Traj::Sometime(f) => {
                 let seen = format!("TRAJ{i}-SEEN");
-                declare(&mut d, &mut p, &seen, init_holds(f));
+                declare(d, p, &seen, init_holds(f));
                 transitions.push(Effect::When(f.clone(), Box::new(add(&seen))));
                 acc.push(Formula::Or(vec![atom(&seen), f.clone()]));
             }
@@ -451,9 +577,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
                 let seen = format!("TRAJ{i}-SEEN");
                 let viol = format!("TRAJ{i}-VIOL");
                 let f0 = init_holds(f);
-                declare(&mut d, &mut p, &hold, f0);
-                declare(&mut d, &mut p, &seen, f0);
-                declare(&mut d, &mut p, &viol, false);
+                declare(d, p, &hold, f0);
+                declare(d, p, &seen, f0);
+                declare(d, p, &viol, false);
                 // second rising edge (φ ∧ ¬HOLD ∧ SEEN) → VIOL; then episode
                 // tracking. Conditions are mutually exclusive per fact.
                 transitions.push(Effect::When(
@@ -482,7 +608,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
             }
             Traj::SometimeAfter(a, b) => {
                 let pend = format!("TRAJ{i}-PEND");
-                declare(&mut d, &mut p, &pend, init_holds(a) && !init_holds(b));
+                declare(d, p, &pend, init_holds(a) && !init_holds(b));
                 transitions.push(Effect::When(b.clone(), Box::new(del(&pend))));
                 transitions.push(Effect::When(
                     Formula::And(vec![a.clone(), Formula::Not(Box::new(b.clone()))]),
@@ -500,9 +626,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
             Traj::SometimeBefore(a, b) => {
                 let safe = format!("TRAJ{i}-SAFE");
                 let viol = format!("TRAJ{i}-VIOL");
-                declare(&mut d, &mut p, &safe, init_holds(b));
-                declare(&mut d, &mut p, &viol, init_holds(a)); // φ(S_0): nothing earlier
-                                                               // source-state reads give "strictly earlier" for free.
+                declare(d, p, &safe, init_holds(b));
+                declare(d, p, &viol, init_holds(a)); // φ(S_0): nothing earlier
+                                                     // source-state reads give "strictly earlier" for free.
                 transitions.push(Effect::When(
                     Formula::And(vec![a.clone(), Formula::Not(Box::new(atom(&safe)))]),
                     Box::new(add(&viol)),
@@ -518,17 +644,30 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
                 acc.push(f.clone());
             }
         }
-        match pref {
-            None => goal_conj.extend(acc),
-            Some(name) => {
-                let body = if acc.len() == 1 {
-                    acc.pop().unwrap()
-                } else {
-                    Formula::And(acc)
-                };
-                goal_conj.push(Formula::Pref(Some(name.to_string()), Box::new(body)));
-            }
+        acc
+    }
+
+    let mut idx = 0usize;
+    for t in &exp.hard {
+        goal_conj.extend(emit(idx, t, &mut d, &mut p, &mut transitions, problem));
+        idx += 1;
+    }
+    for (name, members) in &exp.soft {
+        // ONE goal-side preference per instance: accepted iff EVERY member
+        // accepted (a conjunctive body is violated at most once — PDDL3).
+        // An instance whose members were all statically proven lowers to
+        // `(preference name true)`: never violated, still COUNTED.
+        let mut acc: Vec<Formula> = Vec::new();
+        for t in members {
+            acc.extend(emit(idx, t, &mut d, &mut p, &mut transitions, problem));
+            idx += 1;
         }
+        let body = match acc.len() {
+            0 => Formula::True,
+            1 => acc.pop().unwrap(),
+            _ => Formula::And(acc),
+        };
+        goal_conj.push(Formula::Pref(Some(name.clone()), Box::new(body)));
     }
 
     // Append the monitor transitions to every real action.

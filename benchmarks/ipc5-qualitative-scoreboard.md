@@ -37,8 +37,10 @@ Two facts anchor the numbers even without a reference row:
   p05 (47, under the documented env), openstacks p05 (122.5), tpp p08 (246),
   trucks p05 (0), rovers p08 (888) — every one equal.
 - **Metrics agree at every thread count wherever both complete** (t1 ≡ t8 on
-  all 33 instances with both runs inside budget; the largest instances need
-  a longer wall budget at 1 thread — budget-bound, never divergent).
+  all 34 instances with both runs inside budget — of the 36 with a metric,
+  only storage p06 and trucks p06 lack a completed t1 run; the largest
+  instances need a longer wall budget at 1 thread — budget-bound, never
+  divergent).
 
 ## ferroplan, p01–p08 (metric; wall seconds at 8 threads)
 
@@ -56,8 +58,9 @@ Two facts anchor the numbers even without a reference row:
 | tpp | 4.2 | 6.2 | 7.6 | 8.7 | 15 | 23 | 21 | 25 |
 | trucks | 1.2 | 6.8 | 6.8 | 4.8 | 16 | 373 | — | — |
 
-¹ openstacks p06–p08 complete at BOTH thread counts inside a 600 s budget
-(equal metrics t1/t8); they exceed the sweep's default 300 s.
+¹ openstacks p07/p08 exceed the sweep's default 300 s but complete at BOTH
+thread counts inside a 600 s budget (equal metrics t1/t8); p06 completes at
+t8 just under the default budget (294 s) and needs ~530 s at t1.
 ² rovers p05/p06 at 1 thread need ~350–400 s (equal metrics).
 ³ storage p05–p06 run `FF_NO_ESPC=1` (see finding 2 below); p05 completes
 at both thread counts (t1: 503 s).
@@ -72,18 +75,19 @@ Phase-4 gate (temporal selection) is the recorded lever.
 
 ## Coverage
 
-**36 of 40 instances produce a plan and a metric** (32 on pure defaults
-within 300 s at 8 threads; +3 openstacks within 600 s; +2 storage under the
-documented `FF_NO_ESPC=1` env; trucks p06 within 600 s). Every gap has a
-named reason: storage p07/p08 exceed 15 GB during grounding (1,147 and more
+**36 of 40 instances produce a plan and a metric**: 31 on pure defaults
+within 300 s at 8 threads, +2 (openstacks p07/p08) within 600 s, +2
+(storage p05/p06) under the documented `FF_NO_ESPC=1` env, +1 (trucks p06)
+within 600 s. Every gap has a named reason: storage p07/p08 exceed 15 GB during grounding (1,147 and more
 surviving monitors × the ground action set — finding 2), trucks p07/p08
 exceed the 600 s search budget. All 40 parse, gate, and compile with no
 rejection.
 
 ## The two scaling findings this suite forced (both recorded, one fixed)
 
-1. **Quadratic forall-preferences OOM'd grounding** — storage's `p6A`
-   (`forall (?c1 ?c2 - crate ?s1 ?s2 - storearea) (always (imply ...))`)
+1. **Quadratic forall-preferences OOM'd grounding** — storage's
+   crate²×storearea² always-preference (`forall (?c1 ?c2 - crate ?s1 ?s2 -
+   storearea) (always (imply ...))`, named `p6A` in p03 and `p8A` in p05)
    expands to thousands of instances, each a monitor with a `When`
    transition on every action; p03+ killed a 15 GB container. FIXED as a
    default: constraint-side static simplification (`constraints.rs`,
