@@ -393,11 +393,12 @@ fn for_each_binding(
         }
         match (level, all_known) {
             (Some(k), true) => lits_at[k].push(lit),
-            (None, true) => {
-                // fully ground literal: decide the whole action here
-                if !init_atom_set.contains(&(lit.0.clone(), subst_args(&lit.1, &HashMap::new()))) {
-                    return;
-                }
+            // fully ground literal: decide the whole action here
+            (None, true)
+                if !init_atom_set
+                    .contains(&(lit.0.clone(), subst_args(&lit.1, &HashMap::new()))) =>
+            {
+                return;
             }
             _ => {} // not decidable during enumeration; the caller's post-filter has it
         }

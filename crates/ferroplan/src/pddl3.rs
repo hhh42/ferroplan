@@ -643,10 +643,11 @@ fn cost_monotone(domain: &Domain, problem: &Problem) -> bool {
     fn walk(e: &Effect, static_nonneg: &dyn Fn(&str) -> bool, ok: &mut bool) {
         match e {
             Effect::And(v) => v.iter().for_each(|x| walk(x, static_nonneg, ok)),
-            Effect::Num(op, name, _, val) if name == COST => {
-                if !(matches!(op, AssignOp::Increase) && nonneg_static(val, static_nonneg)) {
-                    *ok = false;
-                }
+            Effect::Num(op, name, _, val)
+                if name == COST
+                    && !(matches!(op, AssignOp::Increase) && nonneg_static(val, static_nonneg)) =>
+            {
+                *ok = false;
             }
             _ => {}
         }
