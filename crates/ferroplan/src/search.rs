@@ -45,7 +45,7 @@ const NODE_CAP_TARGET_BYTES: usize = 8 << 30;
 /// The per-insertion byte model behind [`NODE_CAP_TARGET_BYTES`]: one stored
 /// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in
 /// `visited`, plus container overhead.
-fn node_cap_for(task: &PackedTask) -> usize {
+pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
     if let Ok(v) = std::env::var("FF_SEARCH_NODE_CAP") {
         if let Ok(n) = v.trim().parse::<usize>() {
             return if n == 0 { usize::MAX } else { n };
@@ -618,6 +618,23 @@ pub fn plan_avoiding(
                 evaluated,
                 ehc_fell_back: false,
             };
+        }
+        // LAMA rung (0.9 Phase 3): EHC gave up, i.e. the relaxed plan has
+        // plateaued — exactly where landmark counting + preferred-operator
+        // boosting keep a gradient. Bounded, so the complete weighted
+        // fallback below still gets its shot; never entered under an
+        // explicit --search bfs. `FF_NO_LAMA=1` restores the two-rung ladder.
+        if std::env::var("FF_NO_LAMA").is_err() {
+            const LAMA_CAP: usize = 400_000;
+            if let Some((ops, evaluated)) =
+                crate::lama::search(task, threads, LAMA_CAP.min(cfg.max_eval), forbidden)
+            {
+                return PlanOutcome {
+                    ops: Some(ops),
+                    evaluated,
+                    ehc_fell_back: true,
+                };
+            }
         }
     }
     let (ops, evaluated) = match search_from(

@@ -6,6 +6,20 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **LAMA-style satisficing rung** (roadmap Phase 3, `landmarks.rs` +
+  `lama.rs`): fact landmarks by first-achiever backchaining over the
+  relaxed planning graph (sound, memory-light — no quadratic landmark
+  table), counted PATH-DEPENDENTLY (per-node accepted-bitset) as a
+  second heuristic beside FF, with **preferred-operator boosting** via a
+  dual open list (helpful-action successors ride a favored heap; LAMA's
+  core recipe). Runs as a BOUNDED middle rung — after EHC gives up,
+  before the complete weighted fallback — so it can only add coverage;
+  `FF_NO_LAMA=1` restores the two-rung ladder and explicit
+  `--search bfs` never enters it. Same determinism contract as the main
+  engine (fixed batches, order-preserving parallel h, serial insertion).
+  Recorded: **barman11 p01 solves for the first time at any tested
+  budget** (105 steps, cost 258); parking11 p01 and floortile11 p01 drop
+  from >130 s / >10 s to seconds on the library path.
 - **IPC6 net-benefit / oversubscription planning** (roadmap Phase 4):
   `maximize` metrics NORMALIZE onto the existing PDDL3 minimize B&B
   (extracted at scale −1; the dropped affine constant rides

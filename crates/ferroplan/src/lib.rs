@@ -51,6 +51,8 @@ pub mod ground;
 pub mod hash;
 pub mod heuristic;
 pub mod invariants;
+pub mod lama;
+pub mod landmarks;
 pub mod lexer;
 pub mod output;
 pub mod packed;

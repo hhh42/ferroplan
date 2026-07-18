@@ -347,6 +347,31 @@ fn build_rpg(
     }
 }
 
+/// Goal-blind relaxed reachability to a FIXPOINT: returns `(fact_layer,
+/// op_layer)` with `u32::MAX` for unreached entries. One RPG build; used by
+/// landmark extraction ([`crate::landmarks`]), which needs every reachable
+/// op's layer, not just enough layers to touch a goal.
+pub fn reachability_layers(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+) -> (Vec<u32>, Vec<u32>) {
+    sc.reset(task, bits, fv);
+    build_rpg(task, sc, &[], &[], def, true);
+    let op_layer: Vec<u32> = (0..task.n_ops)
+        .map(|oi| {
+            if sc.op_stamp[oi] == sc.gen {
+                sc.op_layer[oi]
+            } else {
+                u32::MAX
+            }
+        })
+        .collect();
+    (sc.fact_layer.clone(), op_layer)
+}
+
 /// Relaxed-plan heuristic toward an ARBITRARY (sub)goal, using reusable `sc`.
 /// None == dead end. This is the subplanner heuristic SGPlan-style partitioning
 /// drives with per-subproblem goals.

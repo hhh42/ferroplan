@@ -34,7 +34,7 @@ Phase 3 next).
 | 0 — gap audit & scaffolding | **done** | this file; IPC6/7 corpora; VAL in harness |
 | 1 — mutex layer | existing, opportunistic | `invariants.rs` shipped in 0.8; exploitation TBD |
 | 2 — action costs | **done** | `costs.rs`: replayed metric + anytime cost sweep (`relaxed_costed` guidance); elevators08 p01 100→54; all reported costs VAL-valid |
-| 3 — LAMA-style config | **next** | landmarks greenfield; helpful actions exist (EHC only) |
+| 3 — LAMA-style config | **core done** | `landmarks.rs` (first-achiever backchaining) + `lama.rs` rung (landmark count + preferred-op dual open list) between EHC and the weighted fallback; barman11 p01 solves for the first time. Remaining: iterated-weight anytime for UNIT-cost quality (cost domains already improve via the Phase 2 sweep); LAMA's lazy eval deliberately skipped — batch-parallel eval is ferroplan's answer |
 | 4 — net-benefit | **done** | maximize normalized onto minimize B&B (`metric_konst` reporting transform); `cost_monotone` accepts static nonneg expressions; netben subset 16/16, VAL-valid, net benefit reported |
 | 5 — prefs × costs | substrate done (0.6–0.8) | composition once Phase 2 lands |
 | 6 — portfolio | seed exists (`auto` routing) | scheduler not started |
