@@ -1,10 +1,16 @@
 # Roadmap — the road to v0.8 ("Pay the Costs")
 
-> **Status: Phases 1–2 executed** (the END construction shipped — goal-DNF
-> product gone, storage hard fixture 59,969 → 921 ops; the shared monitor
-> block shipped — both 15 GB grounding OOMs gone, storage qualpref p07/p08
-> produce their first-ever metrics, oracle-exact; see the *Recorded* blocks
-> in each phase). Phases 3–6 in execution. Successor to the executed
+> **Status: Phases 1–3 executed and shipped as 0.8.0** (the END
+> construction — goal-DNF product gone, storage hard fixture 59,969 → 921
+> ops; the shared monitor block — both 15 GB grounding OOMs gone, storage
+> qualpref p07/p08 first-ever metrics, oracle-exact; the ESPC engagement
+> fix + node cap — storage p05–p08 on pure defaults, coverage 36→38/40;
+> see the *Recorded* blocks). **Phases 4–5 did not ship in 0.8.0**: the
+> guidance headline and both inherited temporal gates carry forward
+> unchanged as the opening 0.9 agenda — the release shipped when the
+> pay-the-costs story was complete rather than holding it on the gated
+> stretch work (their gates, targets, and hatch reservations below stand
+> as written). Successor to the executed
 > [0.7 roadmap](roadmap-0.7.md). Ground truth: the 0.7 *Recorded* blocks
 > (the goal-DNF blow-up quantified at 3^10 = 59,049 REACH-GOAL ops on the
 > storage hard fixture; the two storage-tail memory walls named on the
@@ -381,6 +387,27 @@ binaries for the env-sensitive cases, scoreboard.
 default must bind only beyond today's green envelope; if p05/p06's blow
 turns out to be the un-pooled EHC seed, the seed inherits the same cap
 (same discipline, same hatch).
+
+**Recorded (Phase 3 shipped, 2026-07-18).** The measurement went one
+better than the plan: with Phase 2's shared block in place, the
+monitor-artifact pairs come EXCLUSIVELY from the shared block, so the
+engagement fix needed no name-sniffing at all — `build_deadline_guidance`
+simply does not scan the shared block for deliverables (unit test pins a
+task that formerly paired now emits none; `FF_ESPC_TRAJ_PAIRS=1` restores
+the pairing). The defaults-path OOM was confirmed live before the fix:
+storage qualpref p07 on pure defaults was dmesg-killed at ~16 GB inside
+the engagement while completing at metric 200 / ~3.0 GB under
+`FF_NO_ESPC=1`. After the fix, the whole storage tail runs on PURE
+DEFAULTS with the documented-env metrics reproduced exactly: **p05 = 47,
+p06 = 90, p07 = 200, p08 = 261** — the board's two env rows lose their
+footnote and its coverage rises 36 → 38/40 (trucks p07/p08 remain, named,
+search-budget-bound — the Phase 4/5b agenda, now 0.9's). The node cap
+shipped as the general backstop with the 8 GiB byte model; every green
+fixture is far below it (largest measured retained size ~5.4 GB, storage
+p08), the own-binary test pins trip/disable/thread-independence, and the
+simple-preferences ESPC locks held byte-identical (openstacks carries no
+monitors — its pairs are untouched by construction). storage p05 gained a
+pure-defaults heavy lock at 47, reported == verified, in CI's tier.
 
 ---
 

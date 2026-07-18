@@ -47,7 +47,26 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.7.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.8.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.8.0 — Pay the Costs.** 0.7 enforced trajectory
+> constraints and wrote down the bill; 0.8 pays it. Hard-monitor
+> acceptance now rides one forced-terminal END action instead of an
+> exponential goal-DNF product (the recorded storage hard fixture drops
+> **59,969 grounded ops → 921**), and the monitor transition block —
+> byte-identical across every ground action — grounds **once** instead of
+> per op: both recorded 15 GB grounding OOMs are gone (storage
+> qualitative p07 grounds in **313 ms at 109 MB**; p08 in 676 ms at
+> 174 MB), and those two instances produce their **first-ever metrics
+> (200 / 261), reported == verified exact**. ESPC now engages on real
+> once-only achievement structure instead of monitor artifacts, so the
+> storage tail runs on **pure defaults** — qualitative coverage rises
+> from 36/40 to **38/40**, every remaining gap still named on the
+> [scoreboard](benchmarks/ipc5-qualitative-scoreboard.md). A
+> deterministic search memory backstop (byte-model node cap, t1 ≡ t8 by
+> construction) guards the wide-state passes. Every change keeps a
+> restore hatch; constraint-free inputs are byte-identical
+> ([0.8 roadmap](docs/roadmap-0.8.md)).
 
 > **What's new in 0.7.0 — Trajectories: enforce the constraint, price the
 > preference.** The oldest fence is retired: PDDL3 `(:constraints ...)`
@@ -335,10 +354,11 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   modal operators (`always`, `sometime`, `at-most-once`, `sometime-after`,
   `sometime-before`, `at end`) are **enforced on the classical path** — compiled
   into monitor automata and cross-checked by the independent verifier. Hard
-  constraints become goal conjuncts; soft `(preference name ...)` constraints
-  are **priced through the PDDL3 metric machinery** like native goal
-  preferences (the IPC-5 *qualitative-preferences* suite is vendored and
-  scored — see
+  constraints latch a forced-terminal END action (linear in monitors — the
+  0.8 construction; goal-side compilation via `FF_NO_TRAJ_END=1`); soft
+  `(preference name ...)` constraints are **priced through the PDDL3 metric
+  machinery** like native goal preferences (the IPC-5
+  *qualitative-preferences* suite is vendored and scored at **38/40** — see
   [`benchmarks/ipc5-qualitative-scoreboard.md`](benchmarks/ipc5-qualitative-scoreboard.md)).
   The timed operators (`within`, `hold-during`, `hold-after`,
   `always-within`) and the temporal path are still **rejected by name**

@@ -61,8 +61,8 @@ use crate::types::{Action, Constraint, Domain, Effect, Formula, Problem, Sym};
 
 /// Display name of the forced-terminal acceptance action (0.8 END
 /// construction). Callers that ran [`gate`] strip ops with this display
-/// from reported plans; the name is fenced against user collision by
-/// [`reject_reserved_names`] whenever a `(:constraints ...)` block exists.
+/// from reported plans; the name is fenced against user collision by the
+/// reserved-name check whenever a `(:constraints ...)` block exists.
 pub const END_ACTION: &str = "TRAJ-END";
 
 /// One ground untimed trajectory-constraint instance.

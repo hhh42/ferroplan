@@ -2,6 +2,102 @@
 
 All notable changes to this project are documented here.
 
+## [0.8.0] - 2026-07-18 — Pay the Costs: linear goals, shared monitors, ESPC on structure
+
+0.7 moved the fence and wrote down the bill: goals exponential in the
+monitor count, a monitor tax multiplied across every ground action, and a
+penalty pass that drowned in the states it widened. 0.8 pays those costs
+(`docs/roadmap-0.8.md`, Phases 1–3). The monitor compilation is now LINEAR
+where it was exponential — hard-constraint acceptance rides one
+forced-terminal action instead of a goal-DNF product (storage hard fixture:
+59,969 ops → 921) — and SHARED where it was multiplied: the transition
+block grounds once instead of per ground op, which erases both recorded
+15 GB grounding OOMs outright (storage qualitative p07: 313 ms / 109 MB;
+p08: 676 ms / 174 MB) and gives the suite's last two uncovered storage
+instances their first-ever metrics, reported == verified exact. ESPC now
+engages on real once-only achievement structure instead of monitor
+artifacts, so the storage tail runs on PURE DEFAULTS — the scoreboard's
+two documented `FF_NO_ESPC=1` rows lose their env footnote, and coverage
+rises from 36/40 to 38/40 with every remaining gap still named. Every
+change keeps a restore hatch and the constraint-free path stays
+byte-identical.
+
+### Added
+
+- **The END construction** (0.8 Phase 1): hard trajectory monitors' S_n
+  acceptance moves off the goal onto one synthetic forced-terminal
+  `TRAJ-END` action — every real action requires the init-true
+  `TRAJ-PLANNING` phase fact; `TRAJ-END` deletes it, adds `TRAJ-ENDED`,
+  and latches one `TRAJ{i}-ACC` fact per hard monitor via a conditional
+  effect whose condition reads exactly S_n (the observation-offset
+  contract's third leg, relocated intact). The compiled goal becomes all
+  positive literals, so the grounder's exponential goal-DNF product
+  (one synthetic REACH-GOAL op per DNF disjunct — 3^10 = 59,049 on the
+  recorded storage fixture) never fires: 59,969 ops → 921, grounding
+  2.16 s → 0.77 s, conditional effects up only by the linear ACC latches
+  (+30). Soft acceptance deliberately does NOT move — preference wrappers
+  keep their S_n bodies in the goal, the entire PDDL3 metric stack prices
+  them unchanged, and the metric locks held byte-identical (the exact
+  interaction the 0.7 deferral feared never materializes). The synthetic
+  step is stripped from every reporting surface only when the constraint
+  gate compiled — the constraint-free path never changes — and the
+  reserved-name fence grows `TRAJ{n}-ACC`, `TRAJ-PLANNING`, `TRAJ-ENDED`,
+  and the `TRAJ-END` action name. `FF_NO_TRAJ_END=1` restores the 0.7
+  goal-side acceptance byte-for-byte.
+- **The shared monitor block** (0.8 Phase 2): monitor transitions are
+  fully ground and byte-identical for every binding of every action, yet
+  0.7 stored them per ground op in four simultaneously-resident copies —
+  the monitor-count × ground-action product that OOM'd storage
+  qualitative p07/p08 during grounding on a 15 GB box. The transitions
+  now travel as `Domain.monitors` plus a per-`Action` `monitored` flag,
+  ground and intern ONCE, and every consumer iterates them through
+  `PackedTask::cond_effs` in the exact 0.7 suffix order — apply, the
+  relaxed heuristic, reachability, inertia, achiever buckets, and the
+  temporal/session scans see identical effective semantics. Measured:
+  p07 grounds in 313 ms at 109 MB peak (2.1M effective conditional
+  effects now virtual: 1,291 shared entries + one bit per op), p08 in
+  676 ms at 174 MB; the 10-monitor hard fixture grounds with ZERO
+  overhead (78 ms vs 78 ms unconstrained). First-ever metrics follow:
+  **p07 = 200, p08 = 261, both reported == verified exact** on the
+  independent trajectory oracle. `FF_NO_COND_SHARE=1` restores the
+  per-action append.
+- **A deterministic search memory backstop** (0.8 Phase 3): `search_from`
+  gains an insertion cap alongside `max_eval` — the retained `nodes` and
+  `visited` stores grow one full-state entry per INSERTED successor while
+  the eval budget counts only popped nodes, the exact geometry of the
+  recorded exit-137s. The cap derives from a documented 8 GiB byte target
+  over static task dimensions (never RSS, never wall clock; the count is
+  serial, so t1 ≡ t8 by construction), returns the anytime incumbent or
+  an honest `capped` verdict, and sits far above every green fixture's
+  retained size. `FF_SEARCH_NODE_CAP` overrides it (`0` disables).
+- Measurement probes `examples/ground_probe.rs` (gate + ground + peak
+  RSS) and `examples/verify_plan.rs` (independent-oracle replay of a plan
+  file), plus new heavy locks: the grounding fixtures now LOCK the
+  one-extra-op shape, and storage qualitative p05 is locked on PURE
+  DEFAULTS at its `FF_NO_ESPC` metric (47), reported == verified.
+
+### Changed
+
+- **ESPC engages on structure, not artifacts** (0.8 Phase 3): the
+  deadline-pair detection no longer scans the shared monitor block, whose
+  conditional adds are trajectory-monitor bits riding every action —
+  pairing them made ESPC engage on monitor-compiled tasks and then OOM
+  its monolithic tightening pass on the monitor-widened states
+  (dmesg-confirmed ~16 GB inside one pass, below every eval budget).
+  Monitor-artifact-only tasks now fall through to the closure optimizer —
+  exactly the behavior the 0.7 scoreboard documented per-row as
+  `FF_NO_ESPC=1` — while real deliverables (openstacks' per-op
+  conditional adds) keep their pairs untouched; the simple-preferences
+  ESPC locks hold byte-identical. Storage qualitative p05–p08 all
+  complete on pure defaults. `FF_ESPC_TRAJ_PAIRS=1` restores the 0.7
+  monitor-artifact pairing.
+- The 0.7 roadmap's gated stretch phases — constraint-aware search
+  guidance, constraints on the temporal path, temporal selection — did
+  not ship in 0.8.0 and carry forward as the 0.9 agenda
+  (`docs/roadmap-0.8.md` Phases 4–5, unchanged gates). The timed
+  operators, the temporal path, and `Session` keep their named
+  rejections.
+
 ## [0.7.0] - 2026-07-17 — Trajectories: enforce the constraint, price the preference
 
 The release that retires the project's oldest fence. Since 0.4.1 every PDDL3

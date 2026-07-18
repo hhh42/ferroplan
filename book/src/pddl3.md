@@ -58,12 +58,21 @@ outside a `(preference ...)` multiplies instances (so `(is-violated name)`
 counts violated instances); `and`/`forall` *inside* a preference body stay
 ONE instance, violated at most once — the PDDL3 instance boundary.
 
-- **Hard** constraints become goal conjuncts: a plan that violates one is
-  simply not a plan.
+- **Hard** constraints gate the goal through a forced-terminal END action
+  (since 0.8): acceptance is latched by conditional effects on one
+  synthetic `TRAJ-END` step — stripped from reported plans — so the
+  compiled goal stays literal-only and grounding cost is LINEAR in the
+  monitor count (the 0.7 goal-conjunct compilation was exponential in the
+  worst case; `FF_NO_TRAJ_END=1` restores it). A plan that violates a hard
+  constraint is simply not a plan.
 - **Soft** `(preference name ...)` constraints lower to ordinary goal
   preferences priced by the metric machinery above — the whole optimizer
   stack applies unchanged, and `(is-violated name)` works across goal and
   constraint preferences in one namespace.
+- The monitor transition block is ground ONCE and shared across all ground
+  actions (since 0.8, `FF_NO_COND_SHARE=1` restores per-op copies) — the
+  storage-scale instances that previously exhausted 15 GB during grounding
+  now ground in well under a second at ~100–200 MB.
 - The independent verifier (`ferroplan::verify`) replays the ORIGINAL
   constraint semantics over the trajectory — never the compiled monitors —
   so reported metrics are cross-checked by construction, and
