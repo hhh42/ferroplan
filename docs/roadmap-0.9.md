@@ -65,12 +65,15 @@ re-verified green throughout (19 heavy guards).
 
 | | 0.8.0 baseline | this cycle |
 |---|---|---|
-| coverage | 35/54 | **45/54** |
+| coverage | 35/54 | **46/54** |
+| barman11 | 0/4 | **4/4** (~4.5 s each) |
 | cost metric reported | never | every cost domain |
 | external validation | none | every solved plan |
 
-Remaining frontier: tidybot11 (grounding/search scale), plus the
-instances named in `benchmarks/results.md`.
+Full per-instance table: `benchmarks/ipc-results.md` (whole vendored
+corpus 110/166 at 30 s; netben 16/16). Remaining frontier: tidybot11
+(all 4, even at 240 s — grounding/search scale), floortile11 p03/p04,
+parking11 p03/p04.
 
 ## Deliberate scope cuts (why, not just what)
 

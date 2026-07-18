@@ -68,11 +68,17 @@ Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
 - **Post-Phase-2 (10s):** 32/54 — metric reported on every cost domain
   (elevators08 p01: 54 vs the cost-blind 100); the dip is the bounded
   polish tax at a tight budget (`FF_COST_SWEEP_EVALS=0` restores it).
-- **Post-Phase-3 (30s, the results.md default): 45/54**, all VAL-valid,
-  costs reported. barman11 p01 solves for the FIRST time (105 steps,
-  cost 258); parking11 and floortile11 join the solved set.
-- Frontier: tidybot11 (all 4 at 30s) + the residual instances named in
-  `benchmarks/results.md`.
+- **Post-Phase-3 (30s, clean machine): 46/54**, all VAL-valid, costs
+  reported — full table in `benchmarks/ipc-results.md`. **barman11
+  goes 0/4 → 4/4** (~4.5 s each, costs 253–261); parking11 and
+  floortile11 p01/p02 join the solved set.
+- Whole vendored corpus at 30 s: **110/166**, every solved plan
+  VAL-validated (costs 46/54, netben 16/16, pref 27/48 and qualpref
+  13/40 at this quick budget — the curated scoreboards in
+  `benchmarks/ipc5-*.md` use longer budgets, `benchmarks/results.md`
+  stays the curated oracle comparison).
+- Frontier: tidybot11 (all 4, even at 240 s — grounding/search scale),
+  floortile11 p03/p04, parking11 p03/p04.
 
 Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
 **16/16 solved, all VAL-valid, net benefit reported everywhere**
