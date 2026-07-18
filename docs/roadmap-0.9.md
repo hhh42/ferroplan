@@ -103,6 +103,26 @@ p04 6 s; every plan oracle-replayed to goal), costs subset 46/54 →
 parking11 p03/p04 remain — now provably SEARCH-bound, the next lever's
 target (iterated-weight anytime / portfolio, per the scope cuts above).
 
+### Post-cycle: the frontier closes (costs 54/54 at 240 s, library path)
+
+The "search-bound" re-attribution above was itself a measurement
+artifact: those 240 s runs used the TEXT path, where the LAMA rung never
+runs (the recorded scope cut). On the LIBRARY path — the `--json`
+surface `run.py` measures — the whole remaining frontier solves inside
+the budget: **floortile11 p03 42 s, p04 40 s; parking11 p03 22 s, p04
+24 s**, every plan oracle-replayed to goal. With tidybot11's 4/4 that
+makes the vendored costs subset **54/54 at a 240 s library-path budget**
+(the quick 30 s / 1-thread tier stays 49/54).
+
+The text-path gap is now HALF closed: `resolve::solve`'s monolithic
+case runs the full library ladder (EHC → bounded LAMA rung → complete
+weighted best-first), restoring the module's "solvable exactly when the
+subplanner is" doctrine for collapsed partitions — but the partition
+cascade still solves SUBGOALS without landmark guidance
+(`goal_landmarks` is whole-goal), so barman11 p01 still times out at
+60 s on the text path against ~4.5 s on the library path. Per-subgoal
+landmarks are the recorded next step of the unification.
+
 ## Deliberate scope cuts (why, not just what)
 
 - **Iterated-weight anytime for UNIT-cost quality** (rest of Phase 3):

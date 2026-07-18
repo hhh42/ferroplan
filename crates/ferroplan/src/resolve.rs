@@ -62,14 +62,26 @@ pub fn solve(
         // Phase A — coarse parallel: solve each group from the initial state.
         // One thread per subplanner when there are many groups (coarse
         // parallelism); all threads for the single monolithic fallback.
-        let sub_threads = if monolithic { threads } else { 1 };
-        let subplans: Vec<Option<Vec<usize>>> = par::par_map(&groups, threads, |g| {
-            if g.is_empty() {
-                Some(Vec::new())
-            } else {
-                solve_subgoal(task, &init, &g.pos, &g.num, sub_threads, cfg)
-            }
-        });
+        //
+        // The MONOLITHIC case is the whole problem, so it gets the full
+        // library ladder — EHC, the bounded LAMA rung (landmark counting +
+        // preferred operators), then the complete weighted best-first —
+        // instead of bare best-first. This closes the 0.9 scope cut ("the
+        // text path lacks the LAMA rung"): the partition path now solves
+        // exactly when the library path does, which is the module's stated
+        // doctrine. Per-SUBGOAL landmark guidance for the non-monolithic
+        // groups remains future work (goal_landmarks is whole-goal today).
+        let subplans: Vec<Option<Vec<usize>>> = if monolithic {
+            vec![crate::search::plan(task, threads, cfg, true).ops]
+        } else {
+            par::par_map(&groups, threads, |g| {
+                if g.is_empty() {
+                    Some(Vec::new())
+                } else {
+                    solve_subgoal(task, &init, &g.pos, &g.num, 1, cfg)
+                }
+            })
+        };
 
         // A group unsolvable in isolation → it likely needs a sibling's effects
         // first; merge and retry (or, if monolithic, genuinely unsolvable).

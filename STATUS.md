@@ -86,8 +86,21 @@ Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
   on static preconditions at first-bound level (join-style; tidybot p01
   grounds 91.6 s → 2.8 s, task byte-identical). All four plans replay
   to goal on the internal oracle; full 124-test suite unchanged.
-- Frontier: floortile11 p03/p04 and parking11 p03/p04 — SEARCH-bound
-  (they ground fine; unsolved at 240 s).
+- **The named frontier is closed**: floortile11 p03/p04 (42 s / 40 s)
+  and parking11 p03/p04 (22 s / 24 s) all solve on the LIBRARY path
+  (`--json`, the LAMA-rung surface) — the earlier "unsolved at 240 s"
+  rows were text-path measurements, where the LAMA rung never ran. The
+  vendored costs subset is **54/54 at a 240 s library-path budget**
+  (49/54 at the quick 30 s / 1-thread `run.py` tier); every frontier
+  plan replays to goal on the internal oracle.
+- Text-path unification (partial): `resolve::solve`'s MONOLITHIC case
+  now runs the full library ladder (EHC → LAMA → weighted best-first),
+  so a collapsed partition solves exactly when the library path does.
+  Remaining gap, recorded: the partition cascade itself still solves
+  SUBGOALS without landmark guidance (whole-goal `goal_landmarks`
+  only), so e.g. barman11 p01 still times out at 60 s on the text path
+  while the library path solves it in ~4.5 s — per-subgoal landmarks
+  are the next unification step.
 
 Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
 **16/16 solved, all VAL-valid, net benefit reported everywhere**
