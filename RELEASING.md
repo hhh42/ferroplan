@@ -12,6 +12,19 @@ be published **in that order**.
 
 ## Pre-flight (all must pass)
 
+**Update the toolchain FIRST — always run the pre-flight on the latest
+stable Rust:**
+
+```sh
+rustup update stable
+```
+
+Clippy grows new lints with every release and the pre-flight is
+`-D warnings`, so a dev box on an older toolchain will pass locally and
+then fail `publish.sh` on the release machine. This has bitten twice
+(most recently 1.94 vs 1.97, `collapsible_match`): green on latest
+stable is the only green that counts.
+
 ```sh
 cargo fmt --all --check
 cargo clippy --all-targets --all-features -- -D warnings
