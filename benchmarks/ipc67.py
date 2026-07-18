@@ -4,21 +4,28 @@
 Unlike run.py (which walks the small vendored regression subset), this runs
 whole competition variants — coverage, plan cost, wall-clock, and (with VAL)
 external validation — and writes a per-domain summary to
-benchmarks/ipc67-results.md.
+benchmarks/ipc67-results.md (or --out).
 
 Corpus: benchmarks/.ipc-corpus (from benchmarks/get-ipc.sh) or
 $FERROPLAN_IPC_CORPUS. VAL: $FERROPLAN_VAL or `Validate` on PATH
 (benchmarks/get-val.sh).
 
 Usage:
-  python3 benchmarks/ipc67.py [--timeout N] [--track seq-sat|net-benefit]
+  python3 benchmarks/ipc67.py [--timeout N] [--track seq-sat|net-benefit|tempo-sat]
                               [--only <variant-substring>] [--max-instances N]
+                              [--jobs N] [--mode M] [--out FILE] [--raw FILE]
+
+--jobs N runs N instances concurrently (each ff invocation stays --threads 1);
+per-instance wall-clock gets noisier under load, coverage-at-timeout does not
+as long as jobs < cores. --mode passes `ff --mode M` (e.g. portfolio) so two
+runs with different --out/--raw can be diffed per instance via the raw JSONL.
 
 Scoring note: IPC quality score (ref-cost / your-cost, capped at 1) needs
 per-instance reference costs, which this corpus does not carry; we report raw
 summed cost instead. Do not present summed cost as an IPC quality score.
 """
 import json, os, re, shutil, subprocess, sys, tempfile, time
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FF = os.path.join(ROOT, "target", "release", "ff")
@@ -32,6 +39,12 @@ TIMEOUT = int(arg("--timeout", "60"))
 TRACK = arg("--track", "seq-sat")
 ONLY = arg("--only", None)
 MAXI = int(arg("--max-instances", "0"))  # 0 = all
+JOBS = int(arg("--jobs", "1"))
+MODE = arg("--mode", None)  # ff --mode passthrough (None = ff's default, auto)
+OUT = arg("--out", os.path.join(ROOT, "benchmarks", "ipc67-results.md"))
+RAW = arg("--raw", None)  # per-instance JSONL (default: OUT with .jsonl)
+if RAW is None:
+    RAW = os.path.splitext(OUT)[0] + ".jsonl"
 
 TRACK_PATTERNS = {
     "seq-sat": r"sequential-satisficing",
@@ -105,58 +118,75 @@ def val_check(val, domain, problem, steps):
         os.unlink(path)
 
 
+def run_instance(val, n, d, p):
+    """One ff invocation → per-instance record dict."""
+    cmd = [FF, "-o", d, "-f", p, "--json", "--threads", "1"]
+    if MODE:
+        cmd += ["--mode", MODE]
+    rec = {"instance": n, "solved": False, "time": None, "metric": None,
+           "length": None, "val": None, "notes": None}
+    t = time.perf_counter()
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+        el = time.perf_counter() - t
+        s = json.loads(r.stdout) if r.stdout.strip() else {}
+        plan = s.get("plan") or {}
+        if s.get("solved"):
+            rec.update(solved=True, time=round(el, 2),
+                       metric=plan.get("metric"), length=plan.get("length"),
+                       notes=s.get("notes"))
+            if val and plan.get("makespan") is None:
+                rec["val"] = val_check(val, d, p, plan.get("steps", []))
+    except subprocess.TimeoutExpired:
+        rec["time"] = TIMEOUT
+    except Exception:
+        pass
+    return rec
+
+
 def main():
     corpus = corpus_dir()
     val = find_val()
-    print(f"corpus: {corpus}\nVAL: {val or 'not found (external validation skipped)'}",
-          flush=True)
+    print(f"corpus: {corpus}\nVAL: {val or 'not found (external validation skipped)'}\n"
+          f"timeout {TIMEOUT}s, jobs {JOBS}, mode {MODE or 'auto'}", flush=True)
     subprocess.run(["cargo", "build", "--release", "-q", "-p", "ferroplan-cli"],
                    cwd=ROOT, check=True)
     summary = []
-    for ipc, vname, vdir in variants(corpus):
-        insts = instances(vdir)
-        solved, valok, valfail, cost_sum, t_sum = 0, 0, 0, 0.0, 0.0
-        for n, d, p in insts:
-            t = time.perf_counter()
-            try:
-                r = subprocess.run([FF, "-o", d, "-f", p, "--json", "--threads", "1"],
-                                   capture_output=True, text=True, timeout=TIMEOUT)
-                el = time.perf_counter() - t
-                s = json.loads(r.stdout) if r.stdout.strip() else {}
-                plan = s.get("plan") or {}
-                if s.get("solved"):
-                    solved += 1
-                    t_sum += el
-                    m = plan.get("metric")
-                    cost_sum += m if m is not None else plan.get("length", 0)
-                    if val and plan.get("makespan") is None:
-                        if val_check(val, d, p, plan.get("steps", [])):
-                            valok += 1
-                        else:
-                            valfail += 1
-                            print(f"    VAL FAIL: {vname}/instance-{n}", flush=True)
-            except subprocess.TimeoutExpired:
-                pass
-            except Exception:
-                pass
-        vtag = f"{valok}/{valok + valfail}" if val else "-"
-        summary.append((ipc, vname, solved, len(insts), cost_sum, t_sum, vtag))
-        print(f"{ipc}/{vname}: {solved}/{len(insts)} solved, "
-              f"cost {cost_sum:.0f}, {t_sum:.1f}s solve-time, val {vtag}", flush=True)
+    raw = open(RAW, "w")
+    with ThreadPoolExecutor(max_workers=JOBS) as pool:
+        for ipc, vname, vdir in variants(corpus):
+            insts = instances(vdir)
+            recs = list(pool.map(lambda a: run_instance(val, *a), insts))
+            solved = sum(r["solved"] for r in recs)
+            valok = sum(r["val"] is True for r in recs)
+            valfail = sum(r["val"] is False for r in recs)
+            cost_sum = sum((r["metric"] if r["metric"] is not None
+                            else r["length"] or 0) for r in recs if r["solved"])
+            t_sum = sum(r["time"] or 0 for r in recs if r["solved"])
+            for r in recs:
+                if r["val"] is False:
+                    print(f"    VAL FAIL: {vname}/instance-{r['instance']}", flush=True)
+                raw.write(json.dumps({"ipc": ipc, "variant": vname, **r}) + "\n")
+            raw.flush()
+            vtag = f"{valok}/{valok + valfail}" if val else "-"
+            summary.append((ipc, vname, solved, len(insts), cost_sum, t_sum, vtag))
+            print(f"{ipc}/{vname}: {solved}/{len(insts)} solved, "
+                  f"cost {cost_sum:.0f}, {t_sum:.1f}s solve-time, val {vtag}", flush=True)
+    raw.close()
 
     out = [f"# IPC-2008/2011 {TRACK} full-corpus results\n",
-           f"timeout {TIMEOUT}s/instance."
+           f"timeout {TIMEOUT}s/instance, jobs {JOBS}, mode {MODE or 'auto'}."
            + (" Plans externally validated with VAL."
               if val else " VAL not available.") + "\n",
            "| variant | coverage | summed cost | solve time | val |",
            "|---|---|---|---|---|"]
     for ipc, v, s, n, c, t, vt in summary:
         out.append(f"| {ipc}/{v} | {s}/{n} | {c:.0f} | {t:.1f}s | {vt} |")
-    dest = os.path.join(ROOT, "benchmarks", "ipc67-results.md")
-    open(dest, "w").write("\n".join(out) + "\n")
     total = sum(s for _, _, s, *_ in summary)
     n = sum(n for _, _, _, n, *_ in summary)
-    print(f"\nwrote {dest} — total coverage {total}/{n}")
+    out.append(f"\ntotal coverage: **{total}/{n}**")
+    open(OUT, "w").write("\n".join(out) + "\n")
+    print(f"\nwrote {OUT} (raw: {RAW}) — total coverage {total}/{n}")
 
 
 if __name__ == "__main__":
