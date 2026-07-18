@@ -749,6 +749,23 @@ fn solve_classic(
                     None => notes
                         .push("metric fluent undefined at plan end; metric not reported".into()),
                 }
+            } else if problem.metric.is_none() && opts.optimize {
+                // Metric-FREE problem: plan LENGTH is the quality measure.
+                // Iterated-weight anytime (0.9 Phase 3 remainder) — bounded
+                // re-searches at decreasing w_h keep the shortest plan;
+                // FF_LEN_SWEEP_EVALS=0 restores first-found byte-identically.
+                let len0 = ops.len();
+                let (better, evals, improved) =
+                    crate::costs::improve_length(&task, ops, threads, opts.search_cfg(), evaluated);
+                ops = better;
+                sweep_evals = evals;
+                if improved {
+                    notes.push(format!(
+                        "iterated-weight sweep shortened plan {} -> {} steps",
+                        len0,
+                        ops.len()
+                    ));
+                }
             }
             if strip_end {
                 crate::constraints::strip_end(&task, &mut ops);

@@ -138,6 +138,14 @@ itself, which is the partition path's identity, not a missing rung.
 - **Iterated-weight anytime for UNIT-cost quality** (rest of Phase 3):
   cost domains already improve via the Phase 2 sweep; pure-length
   domains (visitall) keep first-found quality. Next cycle.
+  *Closed post-cycle as a measured negative*: the restart ladder
+  (w_h 3/2/1, incumbent length-bound pruning via the new
+  `SearchCfg::g_bound`) is sound and deterministic but pays ~1.8%
+  (226 → 222 on visitall p01) at ~28x the solve's evals; at the polish
+  doctrine's proportionate budgets it moves nothing. Ships opt-in
+  (`FF_LEN_SWEEP_EVALS`, default off — byte-identical); the recorded
+  next ideas are a within-one-search length-anytime (the cost sweep's
+  shape applied to g) or landmark-guided restarts.
 - **LAMA's lazy heuristic evaluation**: ferroplan's batch-parallel
   evaluation answers the same throughput question differently; measured
   batching beats porting the trick blind.

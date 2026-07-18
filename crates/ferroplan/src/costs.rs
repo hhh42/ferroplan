@@ -227,3 +227,78 @@ pub fn optimize_text(
     };
     Some((r.cost, note))
 }
+
+/// Iterated-weight anytime for UNIT-cost quality (the 0.9 Phase 3
+/// remainder): after the first plan on a metric-FREE problem, re-run the
+/// complete weighted best-first at decreasing heuristic weights
+/// (w_h = 3, 2, 1 — greedy toward optimal-leaning, the LAMA recipe), each
+/// rung bounded to an equal slice of the sweep budget, keeping the SHORTEST
+/// plan seen. No engine changes: each rung is a plain `search_from` run, so
+/// determinism is inherited and the result is never worse than the input.
+/// OPT-IN (`FF_LEN_SWEEP_EVALS=<evals>`; unset or 0 = off, byte-identical
+/// first-found behavior) — a measured-negative default: at the cost sweep's
+/// proportionate budgets the restarts move NOTHING on the visitall targets
+/// (2x-solve budgets, zero gain), and the improvement that does exist is
+/// paid far above the polish doctrine's price (2M evals — ~28x the p01
+/// solve — buys 226 -> 222, ~1.8%). The restart SHAPE is the limit, not
+/// the machinery: a future length-anytime that tightens within ONE search
+/// (the cost sweep's shape) or landmark-guided restarts are the recorded
+/// next ideas.
+pub fn improve_length(
+    task: &PackedTask,
+    ops: Vec<usize>,
+    threads: usize,
+    base: SearchCfg,
+    spent: usize,
+) -> (Vec<usize>, usize, bool) {
+    let _ = spent; // proportionate default measured toothless; opt-in only
+    let budget = std::env::var("FF_LEN_SWEEP_EVALS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .unwrap_or(0)
+        .min(base.max_eval);
+    const RUNGS: [f64; 3] = [3.0, 2.0, 1.0];
+    let per = budget / RUNGS.len();
+    if per == 0 || ops.is_empty() {
+        return (ops, 0, false);
+    }
+    let mut best = ops;
+    let mut evals = 0usize;
+    let mut improved = false;
+    for wh in RUNGS {
+        // The incumbent's length prunes every rung: nothing at or past
+        // best.len() is inserted, which is what gives the low-weight rungs
+        // a tractable space (LAMA's restart-with-bound recipe).
+        let cfg = SearchCfg {
+            g_bound: best.len(),
+            ..SearchCfg::from_weights(1.0, wh, Some(per))
+        };
+        match search_from(
+            task,
+            &task.initial(),
+            &task.goal_pos,
+            &task.goal_num,
+            None,
+            f64::INFINITY,
+            threads,
+            cfg,
+            &[],
+            None,
+            None,
+        ) {
+            PlanResult::Plan {
+                ops: cand,
+                evaluated,
+                ..
+            } => {
+                evals += evaluated;
+                if cand.len() < best.len() {
+                    best = cand;
+                    improved = true;
+                }
+            }
+            PlanResult::Unsolvable { evaluated, .. } => evals += evaluated,
+        }
+    }
+    (best, evals, improved)
+}

@@ -89,6 +89,14 @@ pub struct SearchCfg {
     /// tightening happens in the serial acceptance section, so determinism
     /// and thread-count independence are preserved.
     pub anytime: bool,
+    /// Plan-LENGTH bound: successors at depth >= this are not inserted (a
+    /// goal reached at depth g is a plan of length g, so nothing at or past
+    /// the bound can beat the incumbent that set it). `usize::MAX` (the
+    /// default everywhere) is exactly the historical behavior — the check
+    /// never fires. Used by the iterated-weight length sweep
+    /// (`costs::improve_length`); pruned states are NOT visited-marked, so a
+    /// shorter route to them through another parent stays reachable.
+    pub g_bound: usize,
 }
 
 impl Default for SearchCfg {
@@ -127,6 +135,7 @@ impl SearchCfg {
             w_c: 0.0,
             h_cost: None,
             anytime: false,
+            g_bound: usize::MAX,
         }
     }
 
@@ -509,8 +518,11 @@ pub fn search_from(
         // SERIAL: dedup + insert (deterministic order, independent of threads).
         for chunk in cand_chunks {
             for (pi, oi, s, k, ph) in chunk {
+                let g = nodes[pi].g + 1;
+                if g >= cfg.g_bound {
+                    continue; // cannot beat the length incumbent (see SearchCfg)
+                }
                 if visited.insert(k) {
-                    let g = nodes[pi].g + 1;
                     // metric guidance: forgone-preference + renewable-resource
                     // occupancy penalty on the concrete successor (steers toward
                     // genuinely satisfying states that stay within resource pools).
