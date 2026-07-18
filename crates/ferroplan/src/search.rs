@@ -441,9 +441,9 @@ pub fn search_from(
             |sc, &ni| {
                 let s = &nodes[ni].state;
                 match cfg.h_cost {
-                    Some(hcf) => relaxed_costed(
-                        task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num, hcf,
-                    ),
+                    Some(hcf) => {
+                        relaxed_costed(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num, hcf)
+                    }
                     None => relaxed_to(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num),
                 }
             },

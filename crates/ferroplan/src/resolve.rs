@@ -32,6 +32,37 @@ pub enum Solved {
     Unsolvable,
 }
 
+/// The per-subgoal LAMA rung (the second half of the 0.9 text-path
+/// unification): when a subgoal's plain best-first solve fails, try the
+/// bounded landmark/preferred-operator search for exactly this
+/// (start, subgoal) pair before conceding a merge. Landmarks are recomputed
+/// per call, so the count is sound for the piece being solved. Same gate
+/// and cap discipline as the library ladder's rung (`FF_NO_LAMA=1`
+/// removes it); a None here costs one bounded search and the cascade
+/// merges exactly as before.
+fn lama_rung(
+    task: &PackedTask,
+    start: &State,
+    g: &Subgoal,
+    threads: usize,
+    cfg: crate::search::SearchCfg,
+) -> Option<Vec<usize>> {
+    if std::env::var("FF_NO_LAMA").is_ok() {
+        return None;
+    }
+    const LAMA_CAP: usize = 400_000;
+    crate::lama::search_subgoal(
+        task,
+        start,
+        &g.pos,
+        &g.num,
+        threads,
+        LAMA_CAP.min(cfg.max_eval),
+        &[],
+    )
+    .map(|(ops, _)| ops)
+}
+
 /// Does op-sequence `ops` apply from `state` and achieve `g`? (cheap replay).
 fn replay_ok(task: &PackedTask, state: &State, ops: &[usize], g: &Subgoal) -> bool {
     let mut s = state.clone();
@@ -57,6 +88,20 @@ pub fn solve(
     let init_groups = groups.len();
     let mut merges = 0usize;
 
+    // Per-SUBGOAL solves are BOUNDED probes (the 0.9 text-path unification,
+    // second half): a subgoal unsolvable in isolation used to burn the full
+    // eval budget proving it before every merge — on barman11 p01 the
+    // cascade (9 groups, 7 merges) never finished at any tested budget.
+    // A bounded probe just merges EARLIER, which is heuristic territory:
+    // completeness is untouched because the monolithic endpoint below runs
+    // the complete full-budget ladder. Measured: barman11 p01 text path
+    // never-finishes -> solves.
+    const SUB_CAP: usize = 100_000;
+    let sub_cfg = crate::search::SearchCfg {
+        max_eval: SUB_CAP.min(cfg.max_eval),
+        ..cfg
+    };
+
     loop {
         let monolithic = groups.len() == 1;
         // Phase A — coarse parallel: solve each group from the initial state.
@@ -78,7 +123,8 @@ pub fn solve(
                 if g.is_empty() {
                     Some(Vec::new())
                 } else {
-                    solve_subgoal(task, &init, &g.pos, &g.num, 1, cfg)
+                    solve_subgoal(task, &init, &g.pos, &g.num, 1, sub_cfg)
+                        .or_else(|| lama_rung(task, &init, g, 1, sub_cfg))
                 }
             })
         };
@@ -134,11 +180,21 @@ pub fn solve(
                     &groups[i].num,
                     &forbidden,
                     threads,
-                    cfg,
+                    sub_cfg,
                 );
-                match protected_solve.or_else(|| {
-                    solve_subgoal(task, &state, &groups[i].pos, &groups[i].num, threads, cfg)
-                }) {
+                match protected_solve
+                    .or_else(|| {
+                        solve_subgoal(
+                            task,
+                            &state,
+                            &groups[i].pos,
+                            &groups[i].num,
+                            threads,
+                            sub_cfg,
+                        )
+                    })
+                    .or_else(|| lama_rung(task, &state, &groups[i], threads, sub_cfg))
+                {
                     Some(o) => o,
                     None => {
                         conflict = Some((i, None));

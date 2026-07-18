@@ -23,15 +23,28 @@ use crate::packed::PackedTask;
 /// facts themselves (trivial landmarks) minus any already true in `:init` —
 /// counting those would reward standing still. Deterministic.
 pub fn goal_landmarks(task: &PackedTask) -> Vec<u32> {
-    // Relaxed reachability layers from init, goal-blind (to fixpoint).
-    let mut sc = Scratch::new(task);
     let init = task.initial();
+    landmarks_for(task, &init, &task.goal_pos)
+}
+
+/// [`goal_landmarks`] generalized over a start state and goal-fact subset —
+/// the per-SUBGOAL form the partition cascade's LAMA rung needs
+/// (`resolve::solve` solves subgoals from evolving states). Same
+/// backchaining, same soundness argument; landmarks already true in `start`
+/// are dropped for the same standing-still reason.
+pub fn landmarks_for(
+    task: &PackedTask,
+    start: &crate::packed::State,
+    goal_pos: &[u32],
+) -> Vec<u32> {
+    // Relaxed reachability layers from the start state, goal-blind (to fixpoint).
+    let mut sc = Scratch::new(task);
     let (fact_layer, op_layer) =
-        reachability_layers(task, &mut sc, &init.bits, &init.fv, &init.fdef);
+        reachability_layers(task, &mut sc, &start.bits, &start.fv, &start.fdef);
 
     let mut is_lm = vec![false; task.n_facts];
     let mut queue: Vec<u32> = Vec::new();
-    for &g in &task.goal_pos {
+    for &g in goal_pos {
         // Unreachable goals mean the task is unsolvable; landmark counting is
         // moot but must not crash — skip them.
         if fact_layer[g as usize] != u32::MAX && !is_lm[g as usize] {
@@ -72,10 +85,10 @@ pub fn goal_landmarks(task: &PackedTask) -> Vec<u32> {
         }
     }
 
-    // Landmarks already true in init are pre-accepted — dropping them here
-    // keeps the count meaning "necessary facts not yet made true".
+    // Landmarks already true at the start are pre-accepted — dropping them
+    // here keeps the count meaning "necessary facts not yet made true".
     let mut out: Vec<u32> = (0..task.n_facts as u32)
-        .filter(|&f| is_lm[f as usize] && !crate::bitset::test(&task.init_bits, f as usize))
+        .filter(|&f| is_lm[f as usize] && !crate::bitset::test(&start.bits, f as usize))
         .collect();
     out.sort_unstable();
     out

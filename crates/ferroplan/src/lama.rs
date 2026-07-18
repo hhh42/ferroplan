@@ -47,8 +47,7 @@ struct Node {
 
 fn accept_into(accepted: &mut [u64], lms: &[u32], state: &State) {
     for (i, &f) in lms.iter().enumerate() {
-        if accepted[i >> 6] & (1 << (i & 63)) == 0 && crate::bitset::test(&state.bits, f as usize)
-        {
+        if accepted[i >> 6] & (1 << (i & 63)) == 0 && crate::bitset::test(&state.bits, f as usize) {
             accepted[i >> 6] |= 1 << (i & 63);
         }
     }
@@ -66,11 +65,37 @@ pub fn search(
     max_eval: usize,
     forbidden: &[bool],
 ) -> Option<(Vec<usize>, usize)> {
-    let lms = crate::landmarks::goal_landmarks(task);
+    let init = task.initial();
+    search_subgoal(
+        task,
+        &init,
+        &task.goal_pos,
+        &task.goal_num,
+        threads,
+        max_eval,
+        forbidden,
+    )
+}
+
+/// [`search`] generalized over a start state and subgoal — the form the
+/// partition cascade (`resolve::solve`) needs: landmarks are recomputed for
+/// exactly this (start, subgoal) pair, so the count stays a sound
+/// remaining-necessary-work signal for the piece being solved.
+#[allow(clippy::too_many_arguments)]
+pub fn search_subgoal(
+    task: &PackedTask,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[crate::types::NumPre],
+    threads: usize,
+    max_eval: usize,
+    forbidden: &[bool],
+) -> Option<(Vec<usize>, usize)> {
+    let lms = crate::landmarks::landmarks_for(task, start, goal_pos);
     let lm_words = lms.len().div_ceil(64);
     let node_cap = crate::search::node_cap_for(task);
 
-    let init = task.initial();
+    let init = start.clone();
     let mut accepted0 = vec![0u64; lm_words];
     accept_into(&mut accepted0, &lms, &init);
     let mut nodes = vec![Node {
@@ -79,7 +104,7 @@ pub fn search(
         op: usize::MAX,
         accepted: accepted0,
     }];
-    if task.goal_met(&init) {
+    if task.goal_met_with(&init, goal_pos, goal_num) {
         return Some((Vec::new(), 0));
     }
 
@@ -122,7 +147,7 @@ pub fn search(
         }
 
         for &ni in &popped {
-            if task.goal_met(&nodes[ni].state) {
+            if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
                 return Some((reconstruct(&nodes, ni), evaluated));
             }
         }
@@ -134,15 +159,7 @@ pub fn search(
             || Scratch::new(task),
             |sc, &ni| {
                 let s = &nodes[ni].state;
-                relaxed_helpful(
-                    task,
-                    sc,
-                    &s.bits,
-                    &s.fv,
-                    &s.fdef,
-                    &task.goal_pos,
-                    &task.goal_num,
-                )
+                relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num)
             },
         );
         evaluated += popped.len();

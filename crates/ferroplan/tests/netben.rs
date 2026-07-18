@@ -52,7 +52,10 @@ fn net_benefit_takes_empty_plan_when_utilities_do_not_pay() {
     let sol = solve(&domain, NB_PROBLEM, &Options::default()).unwrap();
     assert!(sol.solved);
     let plan = sol.plan.unwrap();
-    assert_eq!(plan.length, 0, "collecting pa at cost 30 > utility 10 must not pay");
+    assert_eq!(
+        plan.length, 0,
+        "collecting pa at cost 30 > utility 10 must not pay"
+    );
     assert_eq!(plan.metric, Some(0.0), "notes: {:?}", sol.notes);
 }
 
@@ -75,7 +78,10 @@ fn netben(domain_dir: &str, problem: &str) -> f64 {
 fn elevators08_netben_p01_beats_all_forgo() {
     // All-forgo nets 0 (70 - 32 - 36 - 2); recorded 33 at 0.9 Phase 4.
     let nb = netben("elevators08", "p01");
-    assert!(nb >= 33.0, "elevators08 netben p01 = {nb}, recorded wall 33");
+    assert!(
+        nb >= 33.0,
+        "elevators08 netben p01 = {nb}, recorded wall 33"
+    );
 }
 
 #[test]
@@ -98,5 +104,8 @@ fn openstacks08_netben_p01_reports_value() {
 #[ignore = "heavy IPC net-benefit solve; opt-in via --include-ignored (CI runs these in release)"]
 fn crew08_netben_p01_reports_value() {
     let nb = netben("crew08", "p01");
-    assert!(nb > 0.0, "crew08 netben p01 = {nb} must beat the all-forgo floor");
+    assert!(
+        nb > 0.0,
+        "crew08 netben p01 = {nb} must beat the all-forgo floor"
+    );
 }

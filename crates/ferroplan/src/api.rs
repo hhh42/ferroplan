@@ -715,8 +715,8 @@ fn solve_classic(
             // above is untouched machinery — only this polish pass is new.
             let mut metric = None;
             let mut sweep_evals = 0;
-            if let Some(cf) = crate::costs::metric_fluent(problem)
-                .and_then(|disp| task.fluent_id(&disp))
+            if let Some(cf) =
+                crate::costs::metric_fluent(problem).and_then(|disp| task.fluent_id(&disp))
             {
                 match crate::costs::plan_cost(&task, cf, &ops) {
                     Some(c0) if opts.optimize => {
@@ -746,9 +746,8 @@ fn solve_classic(
                         metric = Some(c0);
                         notes.push("cost metric reported, not optimized (--satisfice)".into());
                     }
-                    None => notes.push(
-                        "metric fluent undefined at plan end; metric not reported".into(),
-                    ),
+                    None => notes
+                        .push("metric fluent undefined at plan end; metric not reported".into()),
                 }
             }
             if strip_end {

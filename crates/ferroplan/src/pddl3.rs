@@ -533,7 +533,15 @@ pub fn pref_weights(domain: &Domain, problem: &Problem) -> HashMap<String, f64> 
             1.0
         };
         let mut konst = 0.0;
-        extract(e, scale, &mut w, &mut tc, &mut others, &mut konst, &mut other);
+        extract(
+            e,
+            scale,
+            &mut w,
+            &mut tc,
+            &mut others,
+            &mut konst,
+            &mut other,
+        );
     }
     let objs = crate::ground::objects_by_type(domain, problem);
     let mut out = HashMap::new();
@@ -706,7 +714,15 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
             extract(e, 1.0, &mut w, &mut tc, &mut others, &mut konst, &mut other);
         }
         Some((MetricDir::Maximize, e)) => {
-            extract(e, -1.0, &mut w, &mut tc, &mut others, &mut konst, &mut other);
+            extract(
+                e,
+                -1.0,
+                &mut w,
+                &mut tc,
+                &mut others,
+                &mut konst,
+                &mut other,
+            );
         }
         None => {}
     }
