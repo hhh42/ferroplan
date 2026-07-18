@@ -4,7 +4,18 @@ All notable changes to this project are documented here.
 
 ## [Unreleased] — toward 0.9: the IPC6/IPC7 arc (`ferroplan-roadmap.md`)
 
+See `docs/roadmap-0.9.md` for the cycle record. Vendored costs-subset
+scoreboard at 30 s: **45/54 solved** (0.8.0: 35/54), every reported
+cost VAL-validated, cost metric reported on every cost domain.
+
 ### Added
+
+- **Costs × preferences composition verified** (roadmap Phase 5,
+  `tests/costs_prefs.rs`): action costs and weighted `is-violated`
+  terms share ONE metric evaluation — the satisfy-vs-forgo decision
+  flips exactly at the weight boundary, nothing double-counts, and a
+  hard `always` monitor stays enforced while the combined metric is
+  optimized.
 
 - **LAMA-style satisficing rung** (roadmap Phase 3, `landmarks.rs` +
   `lama.rs`): fact landmarks by first-achiever backchaining over the

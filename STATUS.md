@@ -3,8 +3,8 @@
 Per `ferroplan-roadmap.md`: updated at the end of every phase. Where this
 file and the code disagree, the code wins and this file gets fixed.
 
-Last update: **Phase 4 complete** (net-benefit; Phases 0, 2, 4 done —
-Phase 3 next).
+Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
+`docs/roadmap-0.9.md` for the cycle record.
 
 ## Current capabilities (audited v0.8.0)
 
@@ -36,7 +36,7 @@ Phase 3 next).
 | 2 — action costs | **done** | `costs.rs`: replayed metric + anytime cost sweep (`relaxed_costed` guidance); elevators08 p01 100→54; all reported costs VAL-valid |
 | 3 — LAMA-style config | **core done** | `landmarks.rs` (first-achiever backchaining) + `lama.rs` rung (landmark count + preferred-op dual open list) between EHC and the weighted fallback; barman11 p01 solves for the first time. Remaining: iterated-weight anytime for UNIT-cost quality (cost domains already improve via the Phase 2 sweep); LAMA's lazy eval deliberately skipped — batch-parallel eval is ferroplan's answer |
 | 4 — net-benefit | **done** | maximize normalized onto minimize B&B (`metric_konst` reporting transform); `cost_monotone` accepts static nonneg expressions; netben subset 16/16, VAL-valid, net benefit reported |
-| 5 — prefs × costs | substrate done (0.6–0.8) | composition once Phase 2 lands |
+| 5 — prefs × costs | **done** | `tests/costs_prefs.rs`: one shared metric, satisfy-vs-forgo flips at the weight boundary, `always` monitor enforced under the combined metric |
 | 6 — portfolio | seed exists (`auto` routing) | scheduler not started |
 | 7 — optimal | not started | optional |
 | 8 — temporal | shipped (0.5–0.8) | IPC6/7 temporal benchmarking outstanding |
@@ -63,20 +63,16 @@ Phase 3 next).
 
 ## Costs-subset scoreboard (vendored, `run.py --timeout 10 --only costs`)
 
-- **Pre-Phase-2 (0.8.0):** 35/54 solved, all VAL-valid, no metric
-  reported anywhere (costs ignored; shortest-length plans).
-- **Post-Phase-2:** 32/54 solved at the same 10s budget, all VAL-valid,
-  **cost metric reported on every cost domain** (elevators08 p01: 54 vs
-  the 100 a cost-blind plan replays to). The 3-instance dip is the
-  polish tax at a tight budget: the sweep spends up to ~2× the solve's
-  evals improving cost (woodworking08 p04 now needs >10s; solves with
-  margin at the 30s default). Quality-for-time is the intended IPC6
-  trade; the sweep is budget-bounded and `FF_COST_SWEEP_EVALS=0`
-  restores pure-coverage behavior.
-- Frontier (all instances timeout at 10s): parking11, tidybot11,
-  barman11, floortile11 (+scanalyzer08 p04, visitall11 p03/p04,
-  nomystery11) — exactly the domains Phase 3's landmark /
-  preferred-operator machinery targets.
+- **Pre-Phase-2 (0.8.0):** 35/54 solved at 10s, all VAL-valid, no
+  metric reported anywhere (costs ignored; shortest-length plans).
+- **Post-Phase-2 (10s):** 32/54 — metric reported on every cost domain
+  (elevators08 p01: 54 vs the cost-blind 100); the dip is the bounded
+  polish tax at a tight budget (`FF_COST_SWEEP_EVALS=0` restores it).
+- **Post-Phase-3 (30s, the results.md default): 45/54**, all VAL-valid,
+  costs reported. barman11 p01 solves for the FIRST time (105 steps,
+  cost 258); parking11 and floortile11 join the solved set.
+- Frontier: tidybot11 (all 4 at 30s) + the residual instances named in
+  `benchmarks/results.md`.
 
 Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
 **16/16 solved, all VAL-valid, net benefit reported everywhere**
