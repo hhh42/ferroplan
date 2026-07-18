@@ -109,8 +109,31 @@ Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
 (elevators08 33/60/21/73; crew08 2100/1988/2160/2042 of ceiling 3335;
 was: empty plans, no metric).
 
-## Open game-design questions (shape, not gate)
+## Game-design answers (recorded 2026-07-18; shape, not gate)
 
-Turn-based vs real-time; genuine concurrency (more temporal investment?);
-per-tick planning budget (drives `Options` wall-clock budget +
-`Session` extensions). Record answers here when known.
+The three open questions are ANSWERED:
+
+- **Real-time**, with episodic planning: agents can "stop and think" —
+  a think-pause produces a plan, then the agent FOLLOWS that long plan
+  in real time. So the engine's model is plan-on-demand at think
+  moments (a latency budget per think, potentially generous), NOT
+  per-tick replanning — `Session`'s ground-once/replan-many shape fits;
+  the `Options` budget work should express a per-think wall/eval budget
+  rather than tick slicing.
+- **Economy is mostly BARTER — any item to any item; money exists but
+  is just another item.** No special-casing of currency in domains:
+  trades are generic item-for-item exchange actions. Implication: the
+  item×item action space makes grounding scale the binding constraint —
+  exactly what the join-style static pruning and shared-block work
+  already serve; keep that path fast.
+- **Genuine concurrency EXISTS** (multiple agents act simultaneously),
+  so the temporal investment stays justified — durative actions and the
+  decision-epoch machinery are load-bearing for the game, and the
+  carried temporal phases (constraints on the temporal path, temporal
+  selection) remain live rather than archival.
+
+## Next up
+
+The **full-corpus `ipc67.py` run** (potassco checkout via `get-ipc.sh`):
+the venue for the portfolio acceptance's second half and the honest
+scoreboard that sets the next cycle's agenda.
