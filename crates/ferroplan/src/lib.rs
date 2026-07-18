@@ -62,6 +62,7 @@ pub mod types;
 
 // modes (built on the engine)
 pub mod constraints;
+pub mod costs;
 pub mod espc;
 pub mod partition;
 pub mod pddl3;

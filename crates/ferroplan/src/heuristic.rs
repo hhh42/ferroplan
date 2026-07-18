@@ -534,6 +534,20 @@ pub fn relaxed_plan_cost(
     cost_fluent: usize,
 ) -> Option<f64> {
     relaxed_to(task, sc, bits, fv, def, goal_pos, goal_num)?;
+    Some(selected_increase_sum(task, sc, fv, def, cost_fluent))
+}
+
+/// Summed `increase cost_fluent` amounts of the ops SELECTED by the last
+/// relaxed-plan extraction left in `sc` (valid until the next reset), each
+/// evaluated against this state's fluent values. Ops count once (set
+/// semantics) — an underestimate when a plan must repeat an op.
+fn selected_increase_sum(
+    task: &PackedTask,
+    sc: &Scratch,
+    fv: &[f64],
+    def: &[bool],
+    cost_fluent: usize,
+) -> f64 {
     let mut cost = 0.0;
     for oi in 0..task.n_ops {
         if sc.selected[oi] != sc.gen {
@@ -547,7 +561,29 @@ pub fn relaxed_plan_cost(
             }
         }
     }
-    Some(cost)
+    cost
+}
+
+/// Cost-augmented relaxed-plan heuristic: relaxed-plan LENGTH plus the summed
+/// `increase cost_fluent` of the selected ops — the "cost + 1 per action"
+/// shape, so search guided by it prefers cheap achievers while zero-cost
+/// regions still keep a distance gradient (a pure-cost h flatlines wherever
+/// remaining actions are free). Units are cost+steps; callers weight it like
+/// any h. None == relaxed dead end.
+#[allow(clippy::too_many_arguments)]
+pub fn relaxed_costed(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    cost_fluent: usize,
+) -> Option<i32> {
+    let count = relaxed_to(task, sc, bits, fv, def, goal_pos, goal_num)?;
+    let cost = selected_increase_sum(task, sc, fv, def, cost_fluent);
+    Some(count.saturating_add(cost.min(1e9).round() as i32))
 }
 
 /// Lowest-layer op that adds fact `f` (FF prefers earliest achievers).

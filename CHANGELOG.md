@@ -2,6 +2,32 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased] — toward 0.9: the IPC6/IPC7 arc (`ferroplan-roadmap.md`)
+
+### Added
+
+- **IPC6 `:action-costs` on the classical path** (roadmap Phase 2,
+  `costs.rs`): `(:metric minimize <fluent>)` is detected, the plan's cost
+  is REPLAYED (never estimated) and reported as the metric, and an
+  **anytime cost-improvement sweep** — bounded branch-and-bound ordered by
+  accumulated cost, guided by the cost-augmented relaxed plan
+  (`relaxed_costed`: selected-op cost + length, so zero-cost regions keep
+  a gradient) — trades plan length for cost after the untouched EHC /
+  best-first machinery finds its first plan. Recorded: elevators08 p01
+  cost 100 → 54; the sweep's budget stays proportionate to the solve
+  (`FF_COST_SWEEP_EVALS` overrides, 0 disables). `--satisfice` reports
+  the cost without sweeping; maximize / compound metrics are never
+  silently claimed. Uncapped sweep exhaustion reports **proven optimal**.
+  The PDDL3 text path's unsupported-metric fallback (e.g. fluent-valued
+  cost increases, which fail its constant-only `cost_monotone` check) now
+  routes through this path instead of dropping the metric.
+- **Phase 0 scaffolding** (roadmap): vendored IPC-2008/2011
+  action-costs + net-benefit benchmark subsets (`benchmarks/ipc/costs/`,
+  `benchmarks/ipc/netben/`), external **VAL validation of every solved
+  plan** in `benchmarks/run.py` (`FERROPLAN_VAL`; exit 1 on any failure),
+  a full-corpus IPC6/7 runner (`benchmarks/ipc67.py` + `get-ipc.sh`,
+  `get-val.sh`), and `STATUS.md` as the roadmap's living source of truth.
+
 ## [0.8.0] - 2026-07-18 — Pay the Costs: linear goals, shared monitors, ESPC on structure
 
 0.7 moved the fence and wrote down the bill: goals exponential in the

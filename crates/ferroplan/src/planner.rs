@@ -138,17 +138,23 @@ pub fn run_planner(
     let groups = crate::invariants::synthesize(&domain, &task);
     match resolve::solve(&task, threads, cfg, &groups) {
         Solved::Plan(mut ops, stats) => {
+            // IPC6 `:action-costs`: anytime cost sweep + reported plan cost.
+            let cost =
+                crate::costs::optimize_text(&problem, &task, opts.optimize, threads, cfg, &mut ops);
             if constrained {
                 crate::constraints::strip_end(&task, &mut ops);
             }
             if ipc {
-                out.push_str(&report::ipc_plan(&task, &ops, None));
+                out.push_str(&report::ipc_plan(&task, &ops, cost.map(|(c, _)| c)));
             } else {
                 out.push('\n');
                 out.push_str(&report::ff_plan(&task, &ops));
                 out.push('\n');
             }
             out.push_str(&report::timing(&stats, threads));
+            if let Some((c, note)) = cost {
+                out.push_str(&format!("plan cost: {:.6}{}\n", c, note));
+            }
             (out, 0)
         }
         Solved::Unsolvable => {
@@ -179,6 +185,7 @@ fn plan_pddl3(
             out,
             domain,
             problem,
+            false,
             threads,
             cfg,
             ipc,
@@ -202,6 +209,7 @@ fn plan_pddl3(
             out,
             domain,
             problem,
+            true,
             threads,
             cfg,
             ipc,
@@ -282,12 +290,18 @@ fn plan_pddl3(
 
 /// Satisficing fallback for unsupported metrics: solve the HARD goals only,
 /// emit the plan with an explicit "metric not optimized" note (never claims a
-/// metric it did not optimize).
+/// metric it did not optimize) — EXCEPT when the metric is the plain
+/// single-fluent `:action-costs` shape ([`crate::costs::metric_fluent`]),
+/// which the classical cost path optimizes even where the PDDL3 B&B compile
+/// refuses (e.g. fluent-valued cost increases fail its `cost_monotone`
+/// constant-only check). `optimize=false` (--satisfice) still reports the
+/// plan's cost without sweeping.
 #[allow(clippy::too_many_arguments)]
 fn satisficing_fallback(
     out: &mut String,
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
+    optimize: bool,
     threads: usize,
     cfg: crate::search::SearchCfg,
     ipc: bool,
@@ -311,25 +325,40 @@ fn satisficing_fallback(
         }
     };
     out.push_str(&report::preamble(threads));
-    let note = format!(
-        " PDDL3 metric NOT optimized ({}); returning a satisficing plan.",
-        reason
-    );
     let groups = crate::invariants::synthesize(domain, &task);
     match resolve::solve(&task, threads, cfg, &groups) {
         Solved::Plan(mut ops, stats) => {
+            let cost =
+                crate::costs::optimize_text(problem, &task, optimize, threads, cfg, &mut ops);
+            // The "NOT optimized" disclaimer stays honest: it is dropped only
+            // when the classical cost path actually optimized the metric.
+            let note = if cost.is_some() && optimize {
+                String::new()
+            } else {
+                format!(
+                    " PDDL3 metric NOT optimized ({}); returning a satisficing plan.",
+                    reason
+                )
+            };
             if constrained {
                 crate::constraints::strip_end(&task, &mut ops);
             }
             if ipc {
-                out.push_str(&report::ipc_plan(&task, &ops, None));
-                out.push_str(&format!(";{}\n", note));
+                out.push_str(&report::ipc_plan(&task, &ops, cost.map(|(c, _)| c)));
+                if !note.is_empty() {
+                    out.push_str(&format!(";{}\n", note));
+                }
             } else {
                 out.push('\n');
                 out.push_str(&report::ff_plan(&task, &ops));
                 out.push('\n');
                 out.push_str(&report::timing(&stats, threads));
-                out.push_str(&format!("note:{}\n", note));
+                if !note.is_empty() {
+                    out.push_str(&format!("note:{}\n", note));
+                }
+            }
+            if let Some((c, n)) = cost {
+                out.push_str(&format!("plan cost: {:.6}{}\n", c, n));
             }
             0
         }
@@ -461,8 +490,18 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
         Outcome::Task(task) => {
             let o =
                 crate::search::plan(&task, threads, cfg, opts.search != crate::Search::BestFirst);
+            let mut cost = None;
             let result = match o.ops {
                 Some(mut ops) => {
+                    // IPC6 `:action-costs`: anytime cost sweep + reported cost.
+                    cost = crate::costs::optimize_text(
+                        &problem,
+                        &task,
+                        opts.optimize,
+                        threads,
+                        cfg,
+                        &mut ops,
+                    );
                     if constrained {
                         crate::constraints::strip_end(&task, &mut ops);
                     }
@@ -480,6 +519,9 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
             };
             let (body, code) = crate::output::render(&task, &result, threads);
             out.push_str(&body);
+            if let Some((c, note)) = cost {
+                out.push_str(&format!("plan cost: {:.6}{}\n", c, note));
+            }
             (out, code)
         }
     }

@@ -11,7 +11,7 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 
 use crate::hash::FxHashSet;
-use crate::heuristic::{relaxed_helpful, relaxed_to, Scratch};
+use crate::heuristic::{relaxed_costed, relaxed_helpful, relaxed_to, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
 use crate::par;
 use crate::types::NumPre;
@@ -73,6 +73,12 @@ pub struct SearchCfg {
     pub w_h: i64,
     pub max_eval: usize,
     pub w_c: f64,
+    /// Evaluate h as the COST-augmented relaxed plan ([`relaxed_costed`]:
+    /// selected-op cost + length) toward the given cost fluent, instead of
+    /// plain length. Used by the `:action-costs` improvement sweep so the
+    /// guidance prefers cheap achievers. `None` (default) keeps the historical
+    /// length-h bit-for-bit.
+    pub h_cost: Option<usize>,
     /// Anytime in-sweep tightening for the bounded metric searches: on an
     /// accepting state, record it as the incumbent and TIGHTEN the bound in
     /// place instead of returning — the sweep keeps draining (no restart, no
@@ -119,8 +125,16 @@ impl SearchCfg {
             w_h,
             max_eval: max_eval.unwrap_or(DEFAULT_MAX_EVAL),
             w_c: 0.0,
+            h_cost: None,
             anytime: false,
         }
+    }
+
+    /// Switch h to the cost-augmented relaxed plan toward `cost_fluent`
+    /// (see the `h_cost` field docs).
+    pub fn with_cost_h(mut self, cost_fluent: usize) -> Self {
+        self.h_cost = Some(cost_fluent);
+        self
     }
 
     /// Add a metric-cost ordering weight (see the struct docs). Non-finite or
@@ -425,15 +439,13 @@ pub fn search_from(
             threads,
             || Scratch::new(task),
             |sc, &ni| {
-                relaxed_to(
-                    task,
-                    sc,
-                    &nodes[ni].state.bits,
-                    &nodes[ni].state.fv,
-                    &nodes[ni].state.fdef,
-                    goal_pos,
-                    goal_num,
-                )
+                let s = &nodes[ni].state;
+                match cfg.h_cost {
+                    Some(hcf) => relaxed_costed(
+                        task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num, hcf,
+                    ),
+                    None => relaxed_to(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num),
+                }
             },
         );
         evaluated += popped.len();

@@ -710,6 +710,47 @@ fn solve_classic(
 
     match ops {
         Some(mut ops) => {
+            // IPC6 `:action-costs`: report the metric's real value and run the
+            // anytime cost-improvement sweep (0.9 Phase 2). The first plan
+            // above is untouched machinery — only this polish pass is new.
+            let mut metric = None;
+            let mut sweep_evals = 0;
+            if let Some(cf) = crate::costs::metric_fluent(problem)
+                .and_then(|disp| task.fluent_id(&disp))
+            {
+                match crate::costs::plan_cost(&task, cf, &ops) {
+                    Some(c0) if opts.optimize => {
+                        let r = crate::costs::improve(
+                            &task,
+                            cf,
+                            ops,
+                            c0,
+                            threads,
+                            opts.search_cfg(),
+                            evaluated,
+                        );
+                        ops = r.ops;
+                        metric = Some(r.cost);
+                        sweep_evals = r.evaluated;
+                        if r.improved {
+                            notes.push(format!(
+                                "anytime cost sweep improved plan cost {} -> {}",
+                                c0, r.cost
+                            ));
+                        }
+                        if r.proven {
+                            notes.push("plan cost proven optimal".into());
+                        }
+                    }
+                    Some(c0) => {
+                        metric = Some(c0);
+                        notes.push("cost metric reported, not optimized (--satisfice)".into());
+                    }
+                    None => notes.push(
+                        "metric fluent undefined at plan end; metric not reported".into(),
+                    ),
+                }
+            }
             if strip_end {
                 crate::constraints::strip_end(&task, &mut ops);
             }
@@ -720,10 +761,10 @@ fn solve_classic(
                 plan: Some(Plan {
                     length: steps.len(),
                     steps,
-                    metric: None,
+                    metric,
                     makespan: None,
                 }),
-                statistics: stats(&task, evaluated, threads),
+                statistics: stats(&task, evaluated + sweep_evals, threads),
                 notes,
             })
         }

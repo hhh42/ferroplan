@@ -3,7 +3,7 @@
 Per `ferroplan-roadmap.md`: updated at the end of every phase. Where this
 file and the code disagree, the code wins and this file gets fixed.
 
-Last update: **Phase 0 complete** (v0.8.0 + roadmap work).
+Last update: **Phase 2 complete** (action costs on the classical path).
 
 ## Current capabilities (audited v0.8.0)
 
@@ -32,8 +32,8 @@ Last update: **Phase 0 complete** (v0.8.0 + roadmap work).
 |---|---|---|
 | 0 — gap audit & scaffolding | **done** | this file; IPC6/7 corpora; VAL in harness |
 | 1 — mutex layer | existing, opportunistic | `invariants.rs` shipped in 0.8; exploitation TBD |
-| 2 — action costs | **next** | costs parse as numerics but metric is ignored in `ff` mode (see baseline) |
-| 3 — LAMA-style config | not started | landmarks greenfield; helpful actions exist (EHC only) |
+| 2 — action costs | **done** | `costs.rs`: replayed metric + anytime cost sweep (`relaxed_costed` guidance); elevators08 p01 100→54; all reported costs VAL-valid |
+| 3 — LAMA-style config | **next** | landmarks greenfield; helpful actions exist (EHC only) |
 | 4 — net-benefit | close | IPC6 netben metric = existing PDDL3 class under `maximize (- C …)`; today auto→pddl3 returns empty plan, metric unreported |
 | 5 — prefs × costs | substrate done (0.6–0.8) | composition once Phase 2 lands |
 | 6 — portfolio | seed exists (`auto` routing) | scheduler not started |
@@ -60,15 +60,22 @@ Last update: **Phase 0 complete** (v0.8.0 + roadmap work).
 - IPC5 regression guards unchanged (CI heavy step: `espc`,
   `ipc5_pref_metric`).
 
-## Honest baseline (pre-Phase-2), vendored costs subset
+## Costs-subset scoreboard (vendored, `run.py --timeout 10 --only costs`)
 
-`run.py --timeout 10 --only costs`, single thread: **35/54 solved**, all
-solved plans VAL-valid, **metric reported: none** (costs ignored; plans
-are shortest-length, not cheapest). Frontier (all instances timeout at
-10s): parking11, tidybot11, barman11 (+scanalyzer08 p04, visitall11
-p03/p04, nomystery11 p02, openstacks08 — see results table). These are
-exactly the domains Phase 3's landmark/preferred-operator machinery
-targets.
+- **Pre-Phase-2 (0.8.0):** 35/54 solved, all VAL-valid, no metric
+  reported anywhere (costs ignored; shortest-length plans).
+- **Post-Phase-2:** 32/54 solved at the same 10s budget, all VAL-valid,
+  **cost metric reported on every cost domain** (elevators08 p01: 54 vs
+  the 100 a cost-blind plan replays to). The 3-instance dip is the
+  polish tax at a tight budget: the sweep spends up to ~2× the solve's
+  evals improving cost (woodworking08 p04 now needs >10s; solves with
+  margin at the 30s default). Quality-for-time is the intended IPC6
+  trade; the sweep is budget-bounded and `FF_COST_SWEEP_EVALS=0`
+  restores pure-coverage behavior.
+- Frontier (all instances timeout at 10s): parking11, tidybot11,
+  barman11, floortile11 (+scanalyzer08 p04, visitall11 p03/p04,
+  nomystery11) — exactly the domains Phase 3's landmark /
+  preferred-operator machinery targets.
 
 Net-benefit baseline: auto→pddl3 returns the legal empty plan with no
 metric on elevators08 netben p01 — Phase 4's starting point.
