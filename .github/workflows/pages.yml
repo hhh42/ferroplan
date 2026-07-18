@@ -19,6 +19,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # A malformed examples.js kills the demo's whole module script — the page
+      # deploys with empty dropdowns. Parse it as a real ES module before
+      # spending anything on the wasm builds.
+      - name: Sanity-check the demo module graph
+        run: |
+          node --input-type=module -e "
+            import('./crates/ferroplan-wasm/web/examples.js').then(m => {
+              if (!m.DOMAINS || !m.DOMAINS.length) throw new Error('DOMAINS missing/empty');
+              console.log(m.DOMAINS.length + ' demo domains OK');
+            })"
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install mdBook
