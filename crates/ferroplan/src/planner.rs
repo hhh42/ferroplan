@@ -95,7 +95,12 @@ pub fn run_planner(
     }
 
     // PDDL3.0: soft-goal preferences / metric -> compile + anytime B&B optimize.
-    if pddl3::is_pddl3(&problem) {
+    // EXCEPT the plain single-fluent `:action-costs` shape without preferences,
+    // which the classical path below owns (costs.rs) — the same routing the
+    // library API uses, so text and JSON behavior agree on cost domains.
+    if pddl3::is_pddl3(&problem)
+        && (pddl3::has_preferences(&problem) || crate::costs::metric_fluent(&problem).is_none())
+    {
         let code = plan_pddl3(
             &mut out,
             &domain,
@@ -272,7 +277,7 @@ fn plan_pddl3(
                 out,
                 &task,
                 &r.ops,
-                Some(r.cost),
+                Some(c.display_metric(r.cost)),
                 threads,
                 &c,
                 r.iterations,

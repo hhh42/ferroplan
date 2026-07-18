@@ -6,6 +6,24 @@ All notable changes to this project are documented here.
 
 ### Added
 
+- **IPC6 net-benefit / oversubscription planning** (roadmap Phase 4):
+  `maximize` metrics NORMALIZE onto the existing PDDL3 minimize B&B
+  (extracted at scale −1; the dropped affine constant rides
+  `Compiled::metric_konst` so the reported metric is the original
+  net-benefit value — `maximize (- 70 X)` optimizes `minimize X` and
+  reports `70 − X`). `cost_monotone` now accepts increases by provably
+  non-negative STATIC expressions (sums/products/quotients of
+  non-negative constants and static fluents — elevators'
+  `(travel-fast ?f1 ?f2)`, crew-planning's
+  `(* (/ (payloadact_length ?pa) 10) (+ (crew_efficiency ?c ?d) ...))`)
+  instead of constants only, which previously bounced three of the four
+  vendored net-benefit domains to an empty-plan fallback. The empty plan
+  stays a legal candidate (utilities that don't pay are forgone — the
+  oversubscription semantics). Vendored netben subset: **16/16 solved,
+  all VAL-validated, net benefit reported on every instance** (crew08
+  nets 1988–2160 of its 3335 ceiling). Pure-cost problems WITHOUT
+  preferences now route to the classical `costs.rs` path on the text
+  planner too, matching the library API's routing.
 - **IPC6 `:action-costs` on the classical path** (roadmap Phase 2,
   `costs.rs`): `(:metric minimize <fluent>)` is detected, the plan's cost
   is REPLAYED (never estimated) and reported as the metric, and an

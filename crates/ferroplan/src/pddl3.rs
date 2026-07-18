@@ -229,18 +229,21 @@ fn split_goal(
 
 /// Accumulate metric weights: `is-violated p` -> w[p], `total-cost` coeff,
 /// `others[f]` += coeff for any other 0-ary numeric fluent `(f)` (e.g.
-/// `(sum-traverse-cost)`), and `other` for genuinely unsupported shapes (n-ary
-/// metric fluents, division, non-constant products).
+/// `(sum-traverse-cost)`), `konst` += the affine constant term (scaled), and
+/// `other` for genuinely unsupported shapes (n-ary metric fluents, division,
+/// non-constant products).
+#[allow(clippy::too_many_arguments)]
 fn extract(
     e: &Expr,
     scale: f64,
     w: &mut HashMap<String, f64>,
     tc: &mut f64,
     others: &mut HashMap<String, f64>,
+    konst: &mut f64,
     other: &mut bool,
 ) {
     match e {
-        Expr::Num(_) => {}
+        Expr::Num(n) => *konst += scale * n,
         Expr::Fluent(name, args) => {
             if name == "IS-VIOLATED" {
                 if let Some(Term::Const(p)) = args.first() {
@@ -255,17 +258,17 @@ fn extract(
             }
         }
         Expr::Add(a, b) => {
-            extract(a, scale, w, tc, others, other);
-            extract(b, scale, w, tc, others, other);
+            extract(a, scale, w, tc, others, konst, other);
+            extract(b, scale, w, tc, others, konst, other);
         }
         Expr::Sub(a, b) => {
-            extract(a, scale, w, tc, others, other);
-            extract(b, -scale, w, tc, others, other);
+            extract(a, scale, w, tc, others, konst, other);
+            extract(b, -scale, w, tc, others, konst, other);
         }
-        Expr::Neg(a) => extract(a, -scale, w, tc, others, other),
+        Expr::Neg(a) => extract(a, -scale, w, tc, others, konst, other),
         Expr::Mul(a, b) => match (&**a, &**b) {
-            (Expr::Num(c), _) => extract(b, scale * c, w, tc, others, other),
-            (_, Expr::Num(c)) => extract(a, scale * c, w, tc, others, other),
+            (Expr::Num(c), _) => extract(b, scale * c, w, tc, others, konst, other),
+            (_, Expr::Num(c)) => extract(a, scale * c, w, tc, others, konst, other),
             _ => *other = true,
         },
         Expr::Div(_, _) => *other = true,
@@ -521,8 +524,16 @@ pub fn pref_weights(domain: &Domain, problem: &Problem) -> HashMap<String, f64> 
     let mut others = HashMap::new();
     let mut other = false;
     let absent = problem.metric.is_none();
-    if let Some((_, e)) = &problem.metric {
-        extract(e, 1.0, &mut w, &mut tc, &mut others, &mut other);
+    if let Some((dir, e)) = &problem.metric {
+        // Same normalization as compile(): a maximize metric's weights are
+        // read off the negated (minimized) objective.
+        let scale = if matches!(dir, MetricDir::Maximize) {
+            -1.0
+        } else {
+            1.0
+        };
+        let mut konst = 0.0;
+        extract(e, scale, &mut w, &mut tc, &mut others, &mut konst, &mut other);
     }
     let objs = crate::ground::objects_by_type(domain, problem);
     let mut out = HashMap::new();
@@ -543,7 +554,17 @@ pub fn pref_weights(domain: &Domain, problem: &Problem) -> HashMap<String, f64> 
 pub struct Compiled {
     pub domain: Domain,
     pub problem: Problem,
+    /// The metric's ORIGINAL direction was minimize (informational; maximize
+    /// metrics are normalized to minimize at compile — see `maximized`).
     pub minimize: bool,
+    /// The original metric was `maximize` and was normalized to minimize by
+    /// negation: the optimizer's value V maps back to the original metric as
+    /// `-(V + metric_konst)` — use [`Compiled::display_metric`].
+    pub maximized: bool,
+    /// Affine constant of the NORMALIZED (minimized) objective, dropped from
+    /// optimization (constants never change the argmin) but needed to report
+    /// the original metric's value (IPC6 net benefit's `(- CONST ...)`).
+    pub metric_konst: f64,
     pub n_prefs: usize,
     pub warn_other: bool,
     /// Set if the metric is outside the supported class (maximize / negative
@@ -562,17 +583,60 @@ pub struct Compiled {
     pub folded_metric: bool,
 }
 
+impl Compiled {
+    /// Map the optimizer's minimized value back to the ORIGINAL metric's
+    /// value: identity for plain minimize metrics (their constant is 0 in
+    /// every IPC form), `-(V + konst)` for normalized maximize metrics —
+    /// e.g. IPC6 net benefit `maximize (- 70 X)` optimizes `minimize X`
+    /// with konst = -70 and reports `70 - X`.
+    pub fn display_metric(&self, optimized: f64) -> f64 {
+        let m = optimized + self.metric_konst;
+        if self.maximized {
+            -m
+        } else {
+            m
+        }
+    }
+}
+
 /// Is `total-cost` monotone non-decreasing across the domain? Branch-and-bound
-/// cost pruning is only sound if it is. Any decrease/scale/assign on total-cost,
-/// or an increase by a non-constant/negative amount, breaks monotonicity.
-fn cost_monotone(domain: &Domain) -> bool {
-    fn walk(e: &Effect, ok: &mut bool) {
+/// cost pruning is only sound if it is. Any decrease/scale/assign on total-cost
+/// breaks monotonicity; an increase is monotone when its amount is a
+/// non-negative constant OR a STATIC fluent whose every init value is >= 0
+/// (no action modifies it, so it can never turn negative) — the IPC6 shape
+/// `(increase (total-cost) (travel-fast ?f1 ?f2))` used by the elevators /
+/// crew-planning / openstacks net-benefit domains.
+fn cost_monotone(domain: &Domain, problem: &Problem) -> bool {
+    let modified = modified_functions(domain);
+    let static_nonneg = |g: &str| -> bool {
+        !modified.contains(g)
+            && problem
+                .init_fluents
+                .iter()
+                .filter(|((n, _), _)| n == g)
+                .all(|(_, v)| *v >= 0.0)
+    };
+    // Provably non-negative static expression: sums/products/quotients of
+    // non-negative constants and static non-negative fluents can never turn
+    // negative at apply time, so an increase by one is monotone. Sub/Neg (or
+    // any dynamic fluent) could — reject those. Covers every IPC6 cost
+    // shape, e.g. crew-planning's
+    // `(* (/ (payloadact_length ?pa) 10) (+ (crew_efficiency ?c ?d) ...))`.
+    fn nonneg_static(e: &Expr, static_nonneg: &dyn Fn(&str) -> bool) -> bool {
         match e {
-            Effect::And(v) => v.iter().for_each(|x| walk(x, ok)),
+            Expr::Num(n) => *n >= 0.0,
+            Expr::Fluent(g, _) => static_nonneg(g),
+            Expr::Add(a, b) | Expr::Mul(a, b) | Expr::Div(a, b) => {
+                nonneg_static(a, static_nonneg) && nonneg_static(b, static_nonneg)
+            }
+            Expr::Sub(..) | Expr::Neg(_) => false,
+        }
+    }
+    fn walk(e: &Effect, static_nonneg: &dyn Fn(&str) -> bool, ok: &mut bool) {
+        match e {
+            Effect::And(v) => v.iter().for_each(|x| walk(x, static_nonneg, ok)),
             Effect::Num(op, name, _, val) if name == COST => {
-                let good =
-                    matches!(op, AssignOp::Increase) && matches!(val, Expr::Num(n) if *n >= 0.0);
-                if !good {
+                if !(matches!(op, AssignOp::Increase) && nonneg_static(val, static_nonneg)) {
                     *ok = false;
                 }
             }
@@ -581,7 +645,7 @@ fn cost_monotone(domain: &Domain) -> bool {
     }
     let mut ok = true;
     for a in &domain.actions {
-        walk(&a.effect, &mut ok);
+        walk(&a.effect, &static_nonneg, &mut ok);
     }
     ok
 }
@@ -628,18 +692,24 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     let mut w = HashMap::new();
     let mut tc = 0.0;
     let mut others: HashMap<String, f64> = HashMap::new();
+    let mut konst = 0.0;
     let mut other = false;
-    let minimize = match &problem.metric {
+    // NORMALIZE the direction: `maximize E` is compiled as `minimize -E` by
+    // extracting with scale -1 — IPC6 net-benefit (`maximize (- CONST (+
+    // (total-cost) (* (is-violated p) w)...))`) then lands EXACTLY in the
+    // supported minimize class (tc = 1, positive weights), and the dropped
+    // affine constant is carried in `metric_konst` so reporting can
+    // reconstruct the original metric's value (net benefit = -(cost+konst)).
+    let maximized = matches!(&problem.metric, Some((MetricDir::Maximize, _)));
+    match &problem.metric {
         Some((MetricDir::Minimize, e)) => {
-            extract(e, 1.0, &mut w, &mut tc, &mut others, &mut other);
-            true
+            extract(e, 1.0, &mut w, &mut tc, &mut others, &mut konst, &mut other);
         }
         Some((MetricDir::Maximize, e)) => {
-            extract(e, 1.0, &mut w, &mut tc, &mut others, &mut other);
-            false
+            extract(e, -1.0, &mut w, &mut tc, &mut others, &mut konst, &mut other);
         }
-        None => true,
-    };
+        None => {}
+    }
     let metric_absent = problem.metric.is_none();
     let _ = tc;
 
@@ -663,7 +733,11 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         if coeff == 0.0 {
             continue;
         }
-        if fluent_foldable(domain, problem, fname).is_some() {
+        // A NEGATIVE (post-normalization) coefficient would mirror as a
+        // negative increase on total-cost — silently breaking the B&B's
+        // monotonicity. A maximized reward fluent lands here; optimize the
+        // supported part only and say so.
+        if coeff < 0.0 || fluent_foldable(domain, problem, fname).is_some() {
             metric_other = true; // optimize the supported part only
             continue;
         }
@@ -825,10 +899,12 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     goal_parts.push(Formula::Atom(ENDED.to_string(), vec![]));
     p.goal = Formula::And(goal_parts);
 
-    // determine whether the metric is inside the supported (optimizable) class
-    let unsupported = if !minimize {
-        Some("metric maximization is not supported (phase 1: minimize only)".into())
-    } else if any_negative || pp_negative {
+    // determine whether the metric is inside the supported (optimizable)
+    // class. Maximize is handled by normalization above, so the ladder tests
+    // the NORMALIZED coefficients — a maximize whose normalization lands
+    // outside the class (e.g. maximized total-cost => tc = -1) still gets an
+    // honest refusal below rather than a silently wrong objective.
+    let unsupported = if any_negative || pp_negative {
         Some("negative preference weight (cannot be encoded monotonically)".into())
     } else if pp_overflow {
         Some("an action has too many precondition preferences (>6)".into())
@@ -837,7 +913,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
             "scaled total-cost coefficient ({}) is not supported",
             tc
         ))
-    } else if !cost_monotone(domain) {
+    } else if !cost_monotone(domain, problem) {
         Some("non-monotone total-cost (decrease/scale effects) breaks branch-and-bound".into())
     } else {
         None
@@ -846,7 +922,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     Compiled {
         domain: d,
         problem: p,
-        minimize,
+        minimize: !maximized,
+        maximized,
+        metric_konst: konst,
         // full pre-simplification count: statically-satisfied instances are
         // still real preferences (satisfied ones), so reporting stays stable
         n_prefs: n_prefs_total,

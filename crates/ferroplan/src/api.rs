@@ -860,6 +860,13 @@ fn solve_pddl3(
                         .into(),
                 );
             }
+            if c.maximized {
+                notes.push(
+                    "maximize metric normalized to minimize; reported metric is the original \
+                     (maximized) value"
+                        .into(),
+                );
+            }
             if !r.proven {
                 notes.push("search bound hit; metric is best-found, not proven optimal".into());
             }
@@ -870,7 +877,7 @@ fn solve_pddl3(
                 plan: Some(Plan {
                     length: steps.len(),
                     steps,
-                    metric: Some(r.cost),
+                    metric: Some(c.display_metric(r.cost)),
                     makespan: None,
                 }),
                 statistics: stats(&task, 0, threads),

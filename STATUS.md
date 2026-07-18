@@ -3,7 +3,8 @@
 Per `ferroplan-roadmap.md`: updated at the end of every phase. Where this
 file and the code disagree, the code wins and this file gets fixed.
 
-Last update: **Phase 2 complete** (action costs on the classical path).
+Last update: **Phase 4 complete** (net-benefit; Phases 0, 2, 4 done —
+Phase 3 next).
 
 ## Current capabilities (audited v0.8.0)
 
@@ -34,7 +35,7 @@ Last update: **Phase 2 complete** (action costs on the classical path).
 | 1 — mutex layer | existing, opportunistic | `invariants.rs` shipped in 0.8; exploitation TBD |
 | 2 — action costs | **done** | `costs.rs`: replayed metric + anytime cost sweep (`relaxed_costed` guidance); elevators08 p01 100→54; all reported costs VAL-valid |
 | 3 — LAMA-style config | **next** | landmarks greenfield; helpful actions exist (EHC only) |
-| 4 — net-benefit | close | IPC6 netben metric = existing PDDL3 class under `maximize (- C …)`; today auto→pddl3 returns empty plan, metric unreported |
+| 4 — net-benefit | **done** | maximize normalized onto minimize B&B (`metric_konst` reporting transform); `cost_monotone` accepts static nonneg expressions; netben subset 16/16, VAL-valid, net benefit reported |
 | 5 — prefs × costs | substrate done (0.6–0.8) | composition once Phase 2 lands |
 | 6 — portfolio | seed exists (`auto` routing) | scheduler not started |
 | 7 — optimal | not started | optional |
@@ -77,8 +78,10 @@ Last update: **Phase 2 complete** (action costs on the classical path).
   nomystery11) — exactly the domains Phase 3's landmark /
   preferred-operator machinery targets.
 
-Net-benefit baseline: auto→pddl3 returns the legal empty plan with no
-metric on elevators08 netben p01 — Phase 4's starting point.
+Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
+**16/16 solved, all VAL-valid, net benefit reported everywhere**
+(elevators08 33/60/21/73; crew08 2100/1988/2160/2042 of ceiling 3335;
+was: empty plans, no metric).
 
 ## Open game-design questions (shape, not gate)
 
