@@ -69,6 +69,7 @@ pub mod espc;
 pub mod partition;
 pub mod pddl3;
 pub mod plan;
+pub mod portfolio;
 pub mod report;
 pub mod resolve;
 pub mod selection;

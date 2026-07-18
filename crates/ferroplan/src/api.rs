@@ -30,6 +30,11 @@ pub enum Mode {
     Pddl3,
     /// PDDL2.1 durative actions via decision-epoch temporal search.
     Temporal,
+    /// Sequential portfolio over complementary classical configurations
+    /// under one shared eval budget (ferroplan-roadmap.md Phase 6).
+    /// Classical-search only: temporal and preference/metric problems keep
+    /// their own machinery (this mode falls back to it, like `auto`).
+    Portfolio,
 }
 
 /// Which search strategy to use within a mode.
@@ -524,6 +529,20 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
         m => m,
     };
 
+    // Portfolio is a classical-search feature: problems the portfolio's
+    // members cannot represent keep their own machinery, exactly like auto.
+    let mode = if mode == Mode::Portfolio
+        && (crate::temporal::is_temporal(&domain) || pddl3::has_preferences(&problem))
+    {
+        if crate::temporal::is_temporal(&domain) {
+            Mode::Temporal
+        } else {
+            Mode::Pddl3
+        }
+    } else {
+        mode
+    };
+
     match mode {
         Mode::Temporal => solve_temporal(&domain, &problem, threads),
         Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads, constrained),
@@ -693,7 +712,13 @@ fn solve_classic(
         }
     };
 
-    let (ops, evaluated) = if mode == Mode::Partition {
+    let (ops, evaluated) = if mode == Mode::Portfolio {
+        let o = crate::portfolio::solve(&task, threads, opts.search_cfg());
+        if let Some(w) = o.winner {
+            notes.push(format!("portfolio: solved by member `{w}`"));
+        }
+        (o.ops, o.evaluated)
+    } else if mode == Mode::Partition {
         let groups = crate::invariants::synthesize(domain, &task);
         match resolve::solve(&task, threads, opts.search_cfg(), &groups) {
             Solved::Plan(ops, _) => (Some(ops), 0),

@@ -164,6 +164,7 @@ enum ModeArg {
     Partition,
     Pddl3,
     Temporal,
+    Portfolio,
 }
 
 impl From<ModeArg> for Mode {
@@ -171,6 +172,7 @@ impl From<ModeArg> for Mode {
         match m {
             ModeArg::Auto => Mode::Auto,
             ModeArg::Ff => Mode::Ff,
+            ModeArg::Portfolio => Mode::Portfolio,
             ModeArg::Partition => Mode::Partition,
             ModeArg::Pddl3 => Mode::Pddl3,
             ModeArg::Temporal => Mode::Temporal,
