@@ -10,3 +10,6 @@ __pycache__/
 .env
 benchmarks/.val/
 benchmarks/.ipc-corpus/
+
+# full-corpus raw per-instance run logs (ipc67.py --raw); summaries are committed
+benchmarks/ipc67-*.jsonl
