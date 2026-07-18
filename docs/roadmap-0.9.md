@@ -133,6 +133,28 @@ barman11 p01 text path never-finishes → **57 s** (9 groups, 7 merges);
 the residual 57-vs-4.5 s gap is the cascade's per-merge re-solve loop
 itself, which is the partition path's identity, not a missing rung.
 
+### Post-cycle: Phase 6 shipped (portfolio), acceptance half-met
+
+`portfolio.rs` + `Mode::Portfolio` / `--mode portfolio`: four
+complementary classical members (default ladder; LAMA rung alone;
+best-first at w_h 3 and 1) over one shared evaluated-state pool,
+doubling restart slices, fixed order — deterministic by construction.
+First plan wins (the winner is named in `Solution.notes`); a complete
+member's un-capped exhaustion settles unsolvability early; temporal and
+preference problems fall back to their own machinery like `auto`.
+
+Measured (costs subset, 30 s, single thread): **49/54 — exactly the
+default configuration's coverage AND its unsolved set** (floortile11
+p03/p04, parking11 p03/p04, tidybot11 p01). The acceptance criterion's
+first half ("at least as good as the best single configuration") is met
+with parity; the second half ("better on at least some domains") is not
+demonstrable on the vendored subset — this cycle's frontier fixes
+removed every curated instance where the default faceplants and a
+different member could win. The full-corpus `ipc67.py` run is the
+recorded venue for that half; an earlier in-session claim that the
+portfolio shifted the tidybot frontier was a baseline error (the text
+path was measured against the library path) and is corrected here.
+
 ## Deliberate scope cuts (why, not just what)
 
 - **Iterated-weight anytime for UNIT-cost quality** (rest of Phase 3):

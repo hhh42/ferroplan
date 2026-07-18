@@ -87,11 +87,15 @@ throughout (19 heavy guards).
   order, eval-count slices). Coverage-first: the first plan any member
   finds returns with the winner named in `Solution.notes`, and a complete
   member's un-capped exhaustion settles unsolvability early. Measured at
-  the 30 s single-thread tier: coverage parity with the default (49/54)
-  with a SHIFTED frontier — tidybot11 p02 solves inside 30 s where the
-  default needs 124 s at 4 threads, while tidybot11 p01 pays the
-  restart-slicing tax. Temporal and preference problems fall back to
-  their own machinery, exactly like `auto`.
+  the 30 s single-thread tier: EXACT coverage parity with the default —
+  49/54 with the identical unsolved set — meeting the acceptance
+  criterion's "at least as good as the best single configuration"; the
+  "better on some domains" half is NOT yet demonstrated on the vendored
+  subset (after this cycle's frontier fixes, no curated instance is left
+  where the default faceplants and another member wins — the full-corpus
+  `ipc67.py` run is the recorded venue for that half). Temporal and
+  preference problems fall back to their own machinery, exactly like
+  `auto`.
 - Web demo: three examples from the new suites join the picker —
   elevators08 under BOTH objectives (action costs: the sweep takes cost
   100 → 54; net benefit: soft goals with utilities, the empty plan

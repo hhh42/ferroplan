@@ -37,7 +37,7 @@ Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
 | 3 — LAMA-style config | **done** | `landmarks.rs` + `lama.rs` rung (now per-subgoal too, in the partition cascade); barman11 p01 solves on both paths. The iterated-weight anytime remainder CLOSED as a measured negative: restart-shaped length improvement pays ~1.8% at ~28x the solve's evals on visitall (proportionate budgets: zero gain) — ships opt-in (`FF_LEN_SWEEP_EVALS`, default off) with the `g_bound` engine lever inert; a within-one-search length-anytime is the recorded next idea. LAMA's lazy eval deliberately skipped — batch-parallel eval is ferroplan's answer |
 | 4 — net-benefit | **done** | maximize normalized onto minimize B&B (`metric_konst` reporting transform); `cost_monotone` accepts static nonneg expressions; netben subset 16/16, VAL-valid, net benefit reported |
 | 5 — prefs × costs | **done** | `tests/costs_prefs.rs`: one shared metric, satisfy-vs-forgo flips at the weight boundary, `always` monitor enforced under the combined metric |
-| 6 — portfolio | seed exists (`auto` routing) | scheduler not started |
+| 6 — portfolio | **shipped, acceptance half-met** | `portfolio.rs`: 4 complementary members, doubling eval slices, deterministic; winner named in notes; un-capped exhaustion settles unsolvability. Measured 30 s t1 on the costs subset: 49/54 — EXACTLY the default's coverage and unsolved set ("at least as good" met); "better somewhere" not demonstrable on the curated subset post-frontier-fixes — full-corpus `ipc67.py` is the venue |
 | 7 — optimal | not started | optional |
 | 8 — temporal | shipped (0.5–0.8) | IPC6/7 temporal benchmarking outstanding |
 
