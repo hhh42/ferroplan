@@ -8,3 +8,5 @@ __pycache__/
 
 # local secrets (crates.io token, etc.) — never commit
 .env
+benchmarks/.val/
+benchmarks/.ipc-corpus/
