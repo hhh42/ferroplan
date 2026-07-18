@@ -26,6 +26,35 @@ pub const DEFAULT_MAX_EVAL: usize = 5_000_000;
 /// integer, so the heap order — and thus the plan — stays deterministic).
 const WEIGHT_SCALE: f64 = 256.0;
 
+/// Deterministic retained-memory target for one `search_from` pass (0.8
+/// Phase 3, docs/roadmap-0.8.md): the append-only `nodes` store and the
+/// `visited` keys both grow one entry per inserted successor, each carrying
+/// the full state bitset — on monitor-widened tasks a single unbounded pass
+/// OOMs a 15 GB box while `max_eval` (which counts only POPPED nodes) never
+/// fires. The insertion cap derives from this byte target over a MODEL of
+/// per-insertion cost (never RSS, never wall clock — the count is serial and
+/// the model uses only static task dimensions, so the cap is identical on
+/// any machine at any thread count). A capped pass returns its anytime
+/// incumbent (or `Unsolvable{capped:true}`), which every caller's
+/// ladder/budget machinery already treats as inconclusive — `proven` stays
+/// honest. The default is far above every green fixture's retained size
+/// (largest measured: ~5.4 GB total on storage qualpref p08);
+/// `FF_SEARCH_NODE_CAP` overrides the node count directly (`0` disables).
+const NODE_CAP_TARGET_BYTES: usize = 8 << 30;
+
+/// The per-insertion byte model behind [`NODE_CAP_TARGET_BYTES`]: one stored
+/// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in
+/// `visited`, plus container overhead.
+fn node_cap_for(task: &PackedTask) -> usize {
+    if let Ok(v) = std::env::var("FF_SEARCH_NODE_CAP") {
+        if let Ok(n) = v.trim().parse::<usize>() {
+            return if n == 0 { usize::MAX } else { n };
+        }
+    }
+    let per_node = 2 * task.words * 8 + task.fv0.len() * 8 + task.fdef0.len() + 96;
+    NODE_CAP_TARGET_BYTES / per_node.max(1)
+}
+
 /// Tunable weighted-best-first parameters (exposed via the library `Options`).
 /// `w_g`/`w_h` are pre-scaled integers (`weight * WEIGHT_SCALE`), so the default
 /// `1·g + 5·h` ordering is preserved exactly while fractional weights still work.
@@ -262,6 +291,7 @@ pub fn search_from(
     closure: Option<&ClosureCost>,
 ) -> PlanResult {
     let batch = BATCH;
+    let node_cap = node_cap_for(task);
 
     let init = start.clone();
     // early dead-end check: if the initial state is a relaxed dead end, unsolvable
@@ -407,7 +437,12 @@ pub fn search_from(
             },
         );
         evaluated += popped.len();
-        if evaluated > cfg.max_eval {
+        // The node cap (0.8 Phase 3) trips at the same batch boundary as the
+        // eval cap: `nodes.len()` counts INSERTED successors — the quantity
+        // that actually holds the memory — and is maintained serially, so the
+        // check is thread-count independent. Overshoot is bounded by one
+        // batch's insertions (the check precedes this batch's expansion).
+        if evaluated > cfg.max_eval || nodes.len() > node_cap {
             // Anytime: a capped sweep still hands back its incumbent — the
             // caller tightens to its cost and (with budget) sweeps again.
             if let Some(ni) = best_acc {

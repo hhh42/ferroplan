@@ -2537,6 +2537,20 @@ fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u
     // For each deliverable D, find its conditional achiever op and that op's
     // UNIQUE unconditional trigger M (skip ops with non-unique unconditional adds —
     // they aren't the clean once-only achiever this models).
+    //
+    // 0.8 Phase 3 (docs/roadmap-0.8.md): the SHARED monitor block is
+    // deliberately NOT scanned for deliverables. Its conditional adds are
+    // trajectory-monitor bits (TRAJ*, riding every monitored op), and pairing
+    // them made ESPC engage on monitor-compiled tasks through ARTIFACTS
+    // rather than real once-only achievement structure — then OOM its
+    // monolithic tightening pass on the monitor-widened states (storage
+    // qualpref p05–p08; dmesg-confirmed ~16 GB inside one pass, below every
+    // eval budget). Without monitor pairs those tasks fall through to the
+    // closure optimizer — exactly the known-good behavior the scoreboard
+    // documented as `FF_NO_ESPC=1` — while real deliverables (openstacks'
+    // per-op `When` adds live in the op's OWN cond row) keep their pairs.
+    // `FF_ESPC_TRAJ_PAIRS=1` restores the 0.7 monitor-artifact pairing.
+    let traj_pairs = std::env::var("FF_ESPC_TRAJ_PAIRS").is_ok();
     let mut out: Vec<(u32, u32, i64)> = Vec::new();
     let mut seen: HashSet<(u32, u32)> = HashSet::new();
     for oi in 0..task.n_ops {
@@ -2545,7 +2559,9 @@ fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u
             continue;
         }
         let trigger = uncond[0];
-        for ce in task.cond_effs(oi) {
+        let include_shared = traj_pairs && task.monitored[oi];
+        let shared_iter = task.shared_cond.iter().filter(|_| include_shared);
+        for ce in task.cond.slice(oi).iter().chain(shared_iter) {
             for &d in &ce.add {
                 if let Some(&val) = value.get(&d) {
                     if seen.insert((trigger, d)) {
@@ -2557,4 +2573,55 @@ fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u
     }
     out.sort_unstable();
     out
+}
+
+#[cfg(test)]
+mod monitor_pairs {
+    //! 0.8 Phase 3 (docs/roadmap-0.8.md): the shared monitor block must not
+    //! feed ESPC's deadline-pair detection — monitor bits are artifacts, not
+    //! once-only achievement structure, and pairing them engaged ESPC on
+    //! monitor-widened tasks it then OOM'd on (storage qualpref p05–p08).
+
+    #[test]
+    fn shared_monitor_adds_emit_no_deadline_pairs() {
+        // A soft (sometime (on)): the collect precondition values both
+        // TRAJ0-SEEN and ON, and FLIP-ON is a clean unique-unconditional-add
+        // trigger — under the 0.7 per-op scan this task emitted the
+        // (ON -> TRAJ0-SEEN) monitor-artifact pair; the shared-block scan
+        // must emit nothing (assumes FF_ESPC_TRAJ_PAIRS unset, like every
+        // env-sensitive default in this suite).
+        let dom = "(define (domain sw)
+          (:requirements :strips :constraints)
+          (:predicates (on) (off) (lamp))
+          (:action flip-on :precondition (off) :effect (and (not (off)) (on)))
+          (:action flip-off :precondition (on) :effect (and (not (on)) (off)))
+          (:action light :precondition (on) :effect (lamp)))";
+        let prob = "(define (problem sw-1) (:domain sw) (:init (off)) (:goal (off))
+             (:constraints (preference pv (sometime (on)))))";
+        let d = crate::parser::parse_domain(dom).unwrap();
+        let p = crate::parser::parse_problem(prob).unwrap();
+        let (d, p) = crate::derived::compile(&d, &p).unwrap();
+        let (d, p) = crate::constraints::gate(&d, &p).unwrap().unwrap();
+        let c = super::compile(&d, &p);
+        let task = crate::ground::ground_task(&c.domain, &c.problem, 1).unwrap();
+        assert!(
+            !task.shared_cond.is_empty(),
+            "the monitor block must exist for this test to mean anything"
+        );
+        let forgos: Vec<(usize, f64)> = c
+            .forgos
+            .iter()
+            .filter_map(|(name, w)| {
+                task.op_display
+                    .iter()
+                    .position(|disp| disp == name)
+                    .map(|oi| (oi, *w))
+            })
+            .collect();
+        let pairs = super::build_deadline_guidance(&task, &forgos);
+        assert!(
+            pairs.is_empty(),
+            "monitor-artifact deadline pairs must not be emitted: {pairs:?}"
+        );
+    }
 }

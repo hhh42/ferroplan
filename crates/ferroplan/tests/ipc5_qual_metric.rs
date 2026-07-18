@@ -102,3 +102,30 @@ fn storage_p03_survives_the_quadratic_forall() {
         v.metric
     );
 }
+
+#[test]
+#[ignore = "heavy IPC qualitative-preferences solve; opt-in via --include-ignored"]
+fn storage_p05_defaults_holds_the_no_espc_metric() {
+    // 0.8 Phase 3 (docs/roadmap-0.8.md): the shared monitor block no longer
+    // feeds ESPC's deadline-pair detection, so monitor-artifact-only tasks
+    // take the closure path on PURE DEFAULTS — the behavior the 0.7 board
+    // documented per-row as `FF_NO_ESPC=1` (storage p05 completed at 47
+    // there; on defaults it exit-137'd inside one ESPC monolithic pass).
+    // Locked 2026-07-18 from the Phase-3 defaults run: metric 47, no env,
+    // reported == verified. Ceiling may re-derive with a dated reason for
+    // search shifts, never for a coverage loss.
+    let dom = fs::read_to_string(format!("{}/storage/domain.pddl", base())).unwrap();
+    let prob = fs::read_to_string(format!("{}/storage/p05.pddl", base())).unwrap();
+    let (reported, steps) = run("storage", "p05");
+    assert!(
+        reported <= 47.0 + 1e-6,
+        "storage/p05 defaults metric regressed: {reported} (ceiling 47)"
+    );
+    let v = ferroplan::verify::verify(&dom, &prob, &steps).unwrap();
+    assert!(v.hard_goal_met && v.constraints_met);
+    assert!(
+        (v.metric - reported).abs() < 1e-6,
+        "reported {reported} != verified {}",
+        v.metric
+    );
+}

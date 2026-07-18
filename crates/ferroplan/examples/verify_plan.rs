@@ -10,6 +10,11 @@ fn main() {
     let v = ferroplan::verify::verify(&dom, &prob, &steps).expect("verify");
     println!(
         "steps {}; hard_goal_met {}; constraints_met {}; metric {}; sat {}, vio {}",
-        steps.len(), v.hard_goal_met, v.constraints_met, v.metric, v.satisfied, v.violated
+        steps.len(),
+        v.hard_goal_met,
+        v.constraints_met,
+        v.metric,
+        v.satisfied,
+        v.violated
     );
 }
