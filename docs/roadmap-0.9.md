@@ -75,6 +75,34 @@ corpus 110/166 at 30 s; netben 16/16). Remaining frontier: tidybot11
 (all 4, even at 240 s — grounding/search scale), floortile11 p03/p04,
 parking11 p03/p04.
 
+### Post-cycle: the grounder frontier (tidybot11 0/4 → 4/4)
+
+The "grounding/search scale" attribution was measured and turned out to
+be two separate grounder walls, neither search:
+
+1. **A type-cycle hang.** tidybot's domain legally redeclares the
+   built-in root type (`(:types ... object ...)`); the parser recorded
+   the self-edge `OBJECT → OBJECT` and every parent-chain walk
+   (`objects_by_type`, derived's `is_a`) spun forever at 3 MB RSS —
+   the planner never reached grounding at any budget. The parser now
+   skips self-edges and rejects genuinely cyclic `(:types ...)` by
+   name; both walks are hop-bounded as defense for programmatically
+   built domains.
+2. **The cartesian binding product.** With the hang gone, grounding
+   took 91.6 s: 9-parameter actions over grid statics
+   (`sum-x`/`sum-y`/`leftof`) enumerate ~10^8 bindings the post-filter
+   then rejects. `for_each_binding` now checks each static literal at
+   the first level where its variables are bound, pruning whole
+   subtrees (join-style grounding) — 91.6 s → 2.8 s, and the surviving
+   binding ORDER is unchanged by construction, so the grounded task is
+   byte-identical (full suite green, unchanged).
+
+Measured: tidybot11 **4/4** (p01 11 s / 72 steps, p02 124 s, p03 6 s,
+p04 6 s; every plan oracle-replayed to goal), costs subset 46/54 →
+**49/54** at 30 s (p02 sits in the 240 s tier). floortile11 p03/p04 and
+parking11 p03/p04 remain — now provably SEARCH-bound, the next lever's
+target (iterated-weight anytime / portfolio, per the scope cuts above).
+
 ## Deliberate scope cuts (why, not just what)
 
 - **Iterated-weight anytime for UNIT-cost quality** (rest of Phase 3):

@@ -77,8 +77,17 @@ Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
   13/40 at this quick budget — the curated scoreboards in
   `benchmarks/ipc5-*.md` use longer budgets, `benchmarks/results.md`
   stays the curated oracle comparison).
-- Frontier: tidybot11 (all 4, even at 240 s — grounding/search scale),
-  floortile11 p03/p04, parking11 p03/p04.
+- **Post-grounder-frontier fix: costs 49/54 at 30 s** — **tidybot11 goes
+  0/4 → 4/4** (11 s / 124 s / 6 s / 6 s at 240 s; three inside the 30 s
+  tier). Two walls fell: the parser recorded a self-edge for domains
+  that redeclare the built-in `object` root type (every parent-chain
+  walk hung — tidybot never reached grounding; cyclic `:types` now
+  rejected BY NAME), and the cartesian binding enumeration now prunes
+  on static preconditions at first-bound level (join-style; tidybot p01
+  grounds 91.6 s → 2.8 s, task byte-identical). All four plans replay
+  to goal on the internal oracle; full 124-test suite unchanged.
+- Frontier: floortile11 p03/p04 and parking11 p03/p04 — SEARCH-bound
+  (they ground fine; unsolved at 240 s).
 
 Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
 **16/16 solved, all VAL-valid, net benefit reported everywhere**
