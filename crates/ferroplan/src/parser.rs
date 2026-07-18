@@ -820,7 +820,34 @@ fn domain_inner(p: &mut P) -> Result<Domain, String> {
                 let tl = parse_typed_list(p)?;
                 for (name, parent) in tl {
                     d.types.push(name.clone());
-                    d.type_parent.push((name, parent));
+                    // A domain may (redundantly but legally) declare the
+                    // built-in root type itself — IPC-2011 tidybot declares
+                    // `object` — which would otherwise record the self-edge
+                    // OBJECT -> OBJECT and hang every parent-chain walk.
+                    // Self-edges carry no information; skip them.
+                    if name != parent {
+                        d.type_parent.push((name, parent));
+                    }
+                }
+                // A cycle in the declared hierarchy (`a - b` with `b - a`)
+                // would non-terminate the subtype walks downstream; malformed
+                // PDDL is rejected BY NAME here, never hung on.
+                let tp: std::collections::HashMap<&str, &str> = d
+                    .type_parent
+                    .iter()
+                    .map(|(a, b)| (a.as_str(), b.as_str()))
+                    .collect();
+                for start in tp.keys() {
+                    let (mut cur, mut hops) = (*start, 0usize);
+                    while let Some(next) = tp.get(cur) {
+                        cur = next;
+                        hops += 1;
+                        if hops > tp.len() {
+                            return Err(format!(
+                                "cyclic (:types ...) hierarchy involving `{start}`"
+                            ));
+                        }
+                    }
                 }
                 p.expect_rparen()?;
             }

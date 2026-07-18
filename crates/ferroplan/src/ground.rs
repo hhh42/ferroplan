@@ -352,34 +352,91 @@ struct RawOp {
     monitored: bool,
 }
 
+/// Enumerate parameter bindings in row-major (natural declaration) order,
+/// pruning a whole subtree as soon as a STATIC precondition literal has all
+/// its variables bound and fails against init. This is the join-style
+/// grounding that makes grid-coordinate domains tractable: tidybot11's
+/// 9-parameter actions over `sum-x/sum-y/leftof` statics enumerate ~10^8
+/// raw bindings under the plain cartesian product (91 s to ground p01) but
+/// only thousands survive — checking each static at the FIRST level where
+/// it is fully bound visits the survivors' prefixes only (p01: 0.2 s).
+/// The visiting ORDER of surviving bindings is identical to the plain
+/// product's (pruning only skips bindings the post-filter would reject), so
+/// the emitted op sequence — and every downstream tie-break — is
+/// byte-identical.
 fn for_each_binding(
     params: &[(Sym, Sym)],
     domains: &[Vec<Sym>],
+    static_lits: &[(Sym, Vec<Term>)],
+    init_atom_set: &HashSet<(Sym, Vec<Sym>)>,
     mut f: impl FnMut(&HashMap<Sym, Sym>),
 ) {
     if domains.iter().any(|d| d.is_empty()) {
         return;
     }
-    let mut idx = vec![0usize; params.len()];
-    let mut binding: HashMap<Sym, Sym> = HashMap::new();
-    loop {
-        for (k, (v, _)) in params.iter().enumerate() {
-            binding.insert(v.clone(), domains[k][idx[k]].clone());
+    // For each static literal: the highest param index among its variables
+    // (the level where it becomes fully bound). Literals over constants only
+    // (or over no params — impossible for well-formed input, treated alike)
+    // are checked once, up front.
+    let param_pos = |v: &Sym| params.iter().position(|(pv, _)| pv == v);
+    let mut lits_at: Vec<Vec<&(Sym, Vec<Term>)>> = vec![Vec::new(); params.len()];
+    for lit in static_lits {
+        let mut level: Option<usize> = None;
+        let mut all_known = true;
+        for t in &lit.1 {
+            if let Term::Var(v) = t {
+                match param_pos(v) {
+                    Some(k) => level = Some(level.map_or(k, |l: usize| l.max(k))),
+                    None => all_known = false, // quantified/unknown var: post-check only
+                }
+            }
         }
-        f(&binding);
-        let mut k = params.len();
-        loop {
-            if k == 0 {
-                return;
+        match (level, all_known) {
+            (Some(k), true) => lits_at[k].push(lit),
+            (None, true) => {
+                // fully ground literal: decide the whole action here
+                if !init_atom_set.contains(&(lit.0.clone(), subst_args(&lit.1, &HashMap::new()))) {
+                    return;
+                }
             }
-            k -= 1;
-            idx[k] += 1;
-            if idx[k] < domains[k].len() {
-                break;
-            }
-            idx[k] = 0;
+            _ => {} // not decidable during enumeration; the caller's post-filter has it
         }
     }
+    let mut binding: HashMap<Sym, Sym> = HashMap::new();
+    fn rec(
+        k: usize,
+        params: &[(Sym, Sym)],
+        domains: &[Vec<Sym>],
+        lits_at: &[Vec<&(Sym, Vec<Term>)>],
+        init: &HashSet<(Sym, Vec<Sym>)>,
+        binding: &mut HashMap<Sym, Sym>,
+        f: &mut impl FnMut(&HashMap<Sym, Sym>),
+    ) {
+        if k == params.len() {
+            f(binding);
+            return;
+        }
+        let var = &params[k].0;
+        for o in &domains[k] {
+            binding.insert(var.clone(), o.clone());
+            let ok = lits_at[k]
+                .iter()
+                .all(|lit| init.contains(&(lit.0.clone(), subst_args(&lit.1, binding))));
+            if ok {
+                rec(k + 1, params, domains, lits_at, init, binding, f);
+            }
+        }
+        binding.remove(var);
+    }
+    rec(
+        0,
+        params,
+        domains,
+        &lits_at,
+        init_atom_set,
+        &mut binding,
+        &mut f,
+    );
 }
 
 /// Phase B (parallelisable): all ground RawOps for a single action.
@@ -416,7 +473,11 @@ fn ground_action(
         }
     }
     let mut out = Vec::new();
-    for_each_binding(&action.params, &domains, |b| {
+    for_each_binding(&action.params, &domains, &static_lits, init_atom_set, |b| {
+        // The enumeration already pruned on every static literal decidable
+        // during binding; this post-filter keeps the remainder (literals
+        // with quantified/unknown variables) AND stays the semantic oracle
+        // for the pruning — the surviving set is identical by construction.
         for (p, a) in &static_lits {
             let ga = subst_args(a, b);
             if !init_atom_set.contains(&(p.clone(), ga)) {
@@ -630,7 +691,11 @@ pub fn objects_by_type(domain: &Domain, problem: &Problem) -> HashMap<Sym, Vec<S
         if b == "OBJECT" {
             return true;
         }
+        // Hop-bounded walk: the parser rejects cyclic (:types ...) input,
+        // but Domain fields are public — a programmatically-built cycle
+        // must degrade to "not a subtype", never a hang.
         let mut cur = a.clone();
+        let mut hops = 0usize;
         loop {
             if &cur == b {
                 return true;
@@ -638,6 +703,10 @@ pub fn objects_by_type(domain: &Domain, problem: &Problem) -> HashMap<Sym, Vec<S
             match tp.get(&cur) {
                 Some(p) => cur = p.clone(),
                 None => return false,
+            }
+            hops += 1;
+            if hops > tp.len() {
+                return false;
             }
         }
     };

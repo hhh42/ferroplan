@@ -153,7 +153,11 @@ fn objects_by_type(domain: &Domain, problem: &Problem) -> HashMap<Sym, Vec<Sym>>
         if target.is_empty() || target == "OBJECT" {
             return true;
         }
+        // Hop-bounded like ground::objects_by_type's walk: a cyclic
+        // hierarchy (parser-rejected, but Domain fields are public)
+        // degrades to "not a subtype", never a hang.
         let mut cur = ot.to_string();
+        let mut hops = 0usize;
         loop {
             if cur == target {
                 return true;
@@ -161,6 +165,10 @@ fn objects_by_type(domain: &Domain, problem: &Problem) -> HashMap<Sym, Vec<Sym>>
             match parent.get(&cur) {
                 Some(p) => cur = p.clone(),
                 None => return false,
+            }
+            hops += 1;
+            if hops > parent.len() {
+                return false;
             }
         }
     };
