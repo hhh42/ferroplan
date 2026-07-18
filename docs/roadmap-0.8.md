@@ -1,6 +1,10 @@
 # Roadmap — the road to v0.8 ("Pay the Costs")
 
-> **Status: in execution.** Successor to the executed
+> **Status: Phases 1–2 executed** (the END construction shipped — goal-DNF
+> product gone, storage hard fixture 59,969 → 921 ops; the shared monitor
+> block shipped — both 15 GB grounding OOMs gone, storage qualpref p07/p08
+> produce their first-ever metrics, oracle-exact; see the *Recorded* blocks
+> in each phase). Phases 3–6 in execution. Successor to the executed
 > [0.7 roadmap](roadmap-0.7.md). Ground truth: the 0.7 *Recorded* blocks
 > (the goal-DNF blow-up quantified at 3^10 = 59,049 REACH-GOAL ops on the
 > storage hard fixture; the two storage-tail memory walls named on the
@@ -216,6 +220,21 @@ step and reported == verified on every oracle-checked instance.
 byte-for-byte (the fixture then re-measures 59,969 — the hatch keeps the
 old exponential *reachable*, per house convention).
 
+**Recorded (Phase 1 shipped, 2026-07-18).** Exactly as designed, with the
+acceptance numbers landing on the nose: storage p05 + 10 at-most-once
+monitors 59,969 ops (59,049 REACH-GOAL) → **921 ops (0 REACH-GOAL, one
+TRAJ-END)**, ground 2.16 s → 0.77 s on the measurement box; trucks p03
+1,083 → 1,066. Conditional effects grew only by the linear ACC latches
+(+30 / +9 — three per at-most-once monitor). The fixtures now LOCK the
+one-extra-op shape. The soft path measured byte-identical: the full
+constraints suite (34 tests, 5 new — leak oracle across API and CLI
+surfaces, grounding-shape lock, empty-plan edge, hatch equivalence, name
+fence), the 109-test debug suite, and the entire heavy release tier
+(qualitative oracle locks exact, pref-metric ceilings, ESPC determinism)
+all green. The one design decision worth restating: nothing moved into a
+precondition and soft acceptance did not move at all — which is why the
+0.7 deferral risk (goal-preference metric machinery) never materialized.
+
 **Touches:** `constraints.rs`, `ground.rs` (nothing — that is the point),
 `planner.rs`/`api.rs`/`output.rs`/`plan.rs` (strip surfaces),
 `tests/constraints.rs`, the grounding fixtures.
@@ -280,6 +299,35 @@ per-precondition-disjunct RawOp fan-out must reference, never clone, the
 shared suffix; a measured negative (copies don't dominate; sharing wins
 too little) is an acceptable outcome recorded here with the profile
 numbers.
+
+**Recorded (Phase 2 shipped, 2026-07-18).** The transitions travel as
+`Domain.monitors` + a per-`Action` `monitored` flag; `ground_v` grounds
+and interns the block once (complement toggles applied once, raws dropped
+early), `PackedTask` carries `shared_cond` + per-op bits, and every
+consumer iterates through the new `cond_effs(oi)` accessor in the exact
+0.7 suffix order. Measured, same box that recorded the OOMs:
+
+| instance | 0.7 grounding | 0.8 grounding | first metric |
+|---|---|---|---|
+| storage qualpref p05 | ~80 ms + monitors | 183 ms, 31 MB peak | 47 (unchanged) |
+| storage qualpref p07 | **>15 GB, OOM** | **313 ms, 109 MB peak** | **200** — first ever, reported == verified exact (13 steps; 38,706/18 sat/vio instances) |
+| storage qualpref p08 | **>15 GB, OOM** | **676 ms, 174 MB peak** | **261** — first ever, reported == verified exact (12 steps; 61,869/21) |
+
+The 10-monitor hard fixture now grounds with ZERO overhead (78 ms vs
+78 ms unconstrained; was 767 ms shared-free, 2,164 ms in 0.7). p07's
+2.1M and p08's 3.6M effective conditional effects are virtual — 1,291 /
+1,774 shared entries plus one bit per op. The p07/p08 metrics above ran
+under `FF_NO_ESPC=1` inside the 600 s budget (~3.0 / ~5.4 GB peak): on
+pure defaults both still exit-137 — dmesg-confirmed OOM (~16 GB) inside
+the ESPC engagement, the exact p05/p06 signature the scoreboard already
+documents. That is Phase 3's opening measurement, not a Phase 2 gap: the
+grounding wall fell, the board's next wall was already named. One blind
+spot was found and fenced: `pddl3::static_predicates` walked only
+per-action effects, so monitor bits looked static and `peval_static`
+folded the acceptance guards out of the collect preconditions — caught by
+the soft suite (five tests went metric-0), fixed by walking
+`Domain.monitors`, pinned by the constraints suite. Full suite green;
+qualitative oracle locks exact.
 
 ---
 
