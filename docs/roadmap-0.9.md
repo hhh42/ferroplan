@@ -123,6 +123,16 @@ cascade still solves SUBGOALS without landmark guidance
 60 s on the text path against ~4.5 s on the library path. Per-subgoal
 landmarks are the recorded next step of the unification.
 
+Second half shipped, same day: `landmarks_for` / `lama::search_subgoal`
+generalize the whole-goal forms over a (start, subgoal) pair, the
+cascade's subgoal solves became a bounded ladder (100k-eval probe →
+subgoal LAMA rung → merge), and the monolithic endpoint keeps the
+complete full-budget library ladder — so bounded probes only make
+merges happen SOONER while overall solvability is unchanged. Measured:
+barman11 p01 text path never-finishes → **57 s** (9 groups, 7 merges);
+the residual 57-vs-4.5 s gap is the cascade's per-merge re-solve loop
+itself, which is the partition path's identity, not a missing rung.
+
 ## Deliberate scope cuts (why, not just what)
 
 - **Iterated-weight anytime for UNIT-cost quality** (rest of Phase 3):

@@ -96,11 +96,13 @@ Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
 - Text-path unification (partial): `resolve::solve`'s MONOLITHIC case
   now runs the full library ladder (EHC → LAMA → weighted best-first),
   so a collapsed partition solves exactly when the library path does.
-  Remaining gap, recorded: the partition cascade itself still solves
-  SUBGOALS without landmark guidance (whole-goal `goal_landmarks`
-  only), so e.g. barman11 p01 still times out at 60 s on the text path
-  while the library path solves it in ~4.5 s — per-subgoal landmarks
-  are the next unification step.
+  Second half shipped: per-subgoal LAMA (`landmarks_for` /
+  `lama::search_subgoal` — landmarks recomputed per (start, subgoal)
+  pair) plus BOUNDED subgoal probes (100k evals — a subgoal unsolvable
+  in isolation used to burn the full budget proving it before every
+  merge). barman11 p01 on the text path: never-finishes -> 57 s
+  (library path unchanged at ~4.5 s; the residual gap is the per-merge
+  re-solve loop of the cascade itself, recorded).
 
 Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
 **16/16 solved, all VAL-valid, net benefit reported everywhere**
