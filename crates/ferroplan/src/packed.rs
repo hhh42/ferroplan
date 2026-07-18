@@ -81,6 +81,17 @@ pub struct PackedTask {
     pub num_eff: Csr<NumEff>,
     /// Per-op ADL conditional effects (empty for the common STRIPS/numeric case).
     pub cond: Csr<CondEff>,
+    /// The SHARED monitor conditional-effect block (0.8 Phase 2,
+    /// docs/roadmap-0.8.md): trajectory-monitor transitions ground ONCE and
+    /// applied — after the op's own `cond` row, matching the 0.7 suffix
+    /// order — by every op whose [`Self::monitored`] bit is set. Empty on
+    /// every constraint-free task. Iterate per-op conditional effects
+    /// through [`Self::cond_effs`], never `cond` alone.
+    pub shared_cond: Vec<CondEff>,
+    /// Per-op: does this op apply [`Self::shared_cond`]? Set for ops
+    /// grounded from actions carrying the monitor block; false for the
+    /// synthetic bookkeeping ops (P3*, TRAJ-END, REACH-GOAL).
+    pub monitored: Vec<bool>,
 
     /// fact id -> ops that add it (achiever lookup, avoids O(n_ops) scans).
     pub add_by_fact: Csr<u32>,
@@ -127,6 +138,30 @@ impl PackedTask {
                 .all(|np| eval_numpre(np, &s.fv, &s.fdef).unwrap_or(false))
     }
 
+    /// All conditional effects op `oi` applies: its own `cond` row, then —
+    /// for monitored ops — the shared monitor block (the 0.7 suffix order,
+    /// preserved so achiever/bucket/apply orders stay identical).
+    #[inline]
+    pub fn cond_effs(&self, oi: usize) -> impl Iterator<Item = &CondEff> + Clone {
+        let shared: &[CondEff] = if self.monitored[oi] {
+            &self.shared_cond
+        } else {
+            &[]
+        };
+        self.cond.slice(oi).iter().chain(shared.iter())
+    }
+
+    /// Number of conditional effects op `oi` applies (own + shared).
+    #[inline]
+    pub fn n_cond_effs(&self, oi: usize) -> usize {
+        self.cond.slice(oi).len()
+            + if self.monitored[oi] {
+                self.shared_cond.len()
+            } else {
+                0
+            }
+    }
+
     /// Does conditional effect `ce` fire in source state `s`?
     #[inline]
     fn cond_holds(&self, ce: &CondEff, s: &State) -> bool {
@@ -149,7 +184,7 @@ impl PackedTask {
     /// adds so add wins on conflict; numeric deltas summed from the source).
     pub fn apply(&self, oi: usize, s: &State) -> State {
         let mut ns = s.clone();
-        let conds = self.cond.slice(oi);
+        let conds: Vec<&CondEff> = self.cond_effs(oi).collect();
         let firing: Vec<bool> = conds.iter().map(|ce| self.cond_holds(ce, s)).collect();
 
         // numeric deltas (from source): unconditional + firing conditional

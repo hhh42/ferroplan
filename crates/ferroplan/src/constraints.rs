@@ -732,12 +732,27 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
         goal_conj.push(Formula::Pref(Some(name.clone()), Box::new(body)));
     }
 
-    // Append the monitor transitions to every real action.
+    // The monitor transitions ride every real action. Since 0.8 Phase 2
+    // (docs/roadmap-0.8.md) they travel as the domain's SHARED block —
+    // `d.monitors` plus a per-action `monitored` flag — and the grounder
+    // grounds them ONCE, sharing the conditional-effect block across all
+    // monitored ops. The transitions are fully ground and byte-identical
+    // for every binding of every action, so the 0.7 per-action AST append
+    // (grounded and stored per op) was pure duplication — the monitor-count
+    // x ground-action product that OOM'd storage qualpref p07/p08.
+    // `FF_NO_COND_SHARE=1` restores the 0.7 per-action append byte-for-byte.
     if !transitions.is_empty() {
-        for act in &mut d.actions {
-            let mut v = vec![act.effect.clone()];
-            v.extend(transitions.iter().cloned());
-            act.effect = Effect::And(v);
+        if std::env::var("FF_NO_COND_SHARE").is_ok() {
+            for act in &mut d.actions {
+                let mut v = vec![act.effect.clone()];
+                v.extend(transitions.iter().cloned());
+                act.effect = Effect::And(v);
+            }
+        } else {
+            for act in &mut d.actions {
+                act.monitored = true;
+            }
+            d.monitors = transitions.clone();
         }
     }
 
@@ -789,6 +804,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
                 params: vec![],
                 precond: atom("TRAJ-PLANNING"),
                 effect: Effect::And(end_eff),
+                // TRAJ-END carries only the ACC latches — it must NOT
+                // observe (the trajectory ends at S_n, its source state).
+                monitored: false,
             });
         }
     }
@@ -893,7 +911,7 @@ mod grounding_cost {
         let t0 = std::time::Instant::now();
         let task = crate::ground::ground_task(&d, &p, 1).expect("ground");
         let ms = t0.elapsed().as_millis();
-        let cond: usize = (0..task.n_ops).map(|oi| task.cond.slice(oi).len()).sum();
+        let cond: usize = (0..task.n_ops).map(|oi| task.n_cond_effs(oi)).sum();
         let goal_ops = (0..task.n_ops)
             .filter(|&oi| task.op_display[oi].starts_with("REACH-GOAL"))
             .count();

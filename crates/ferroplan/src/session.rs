@@ -104,7 +104,7 @@ impl Session {
             for &f in task.add.slice(oi).iter().chain(task.del.slice(oi)) {
                 dynamic[f as usize] = true;
             }
-            for ce in task.cond.slice(oi) {
+            for ce in task.cond_effs(oi) {
                 for &f in ce.add.iter().chain(ce.del.iter()) {
                     dynamic[f as usize] = true;
                 }

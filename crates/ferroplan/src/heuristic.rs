@@ -264,7 +264,7 @@ fn build_rpg(
         // negative conditions are dropped by the delete-relaxation).
         for idx in 0..sc.cond_ops.len() {
             let oi = sc.cond_ops[idx] as usize;
-            for ce in task.cond.slice(oi) {
+            for ce in task.cond_effs(oi) {
                 let pos_ok = ce.cond_pos.iter().all(|&c| sc.reached[c as usize]);
                 let num_ok = ce
                     .cond_num
@@ -335,7 +335,7 @@ fn build_rpg(
                 }
                 sc.num_applied.push(oi as u32);
             }
-            if !task.cond.slice(oi).is_empty() {
+            if task.n_cond_effs(oi) > 0 {
                 sc.cond_ops.push(oi as u32);
             }
         }
@@ -584,8 +584,8 @@ fn queue_cond_for(task: &PackedTask, sc: &mut Scratch, oi: usize, f: usize) {
         return; // unconditional add — nothing extra
     }
     let mut best_layer = INF;
-    let mut best: Option<usize> = None;
-    for (ci, ce) in task.cond.slice(oi).iter().enumerate() {
+    let mut best: Option<&crate::packed::CondEff> = None;
+    for ce in task.cond_effs(oi) {
         if ce.add.iter().any(|&x| x as usize == f) {
             let cl = ce
                 .cond_pos
@@ -595,12 +595,12 @@ fn queue_cond_for(task: &PackedTask, sc: &mut Scratch, oi: usize, f: usize) {
                 .unwrap_or(0);
             if cl != INF && cl < best_layer {
                 best_layer = cl;
-                best = Some(ci);
+                best = Some(ce);
             }
         }
     }
-    if let Some(ci) = best {
-        for &cf in &task.cond.slice(oi)[ci].cond_pos {
+    if let Some(ce) = best {
+        for &cf in &ce.cond_pos {
             let c = cf as usize;
             if sc.need_fact[c] != sc.gen {
                 sc.need_fact[c] = sc.gen;

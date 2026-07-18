@@ -122,6 +122,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
             params: da.params.clone(),
             precond: start_pre,
             effect: and_effects(start_eff),
+            monitored: false,
         });
 
         // end snap: (at-end conditions + invariant + token) -> at-end effects, drop token
@@ -137,6 +138,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
             params: da.params.clone(),
             precond: end_pre,
             effect: and_effects(end_eff),
+            monitored: false,
         });
 
         snaps.push(SnapInfo {
@@ -170,6 +172,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
             params: Vec::new(),
             precond: Formula::True,
             effect: eff,
+            monitored: false,
         });
         til_ops.push((t.time, name));
     }
@@ -560,7 +563,7 @@ fn relevant_op_mask(
                     && rel_res.contains(&ne.target)
                     && produces(oi, ne.target)
             });
-            let cond_rel = task.cond.slice(oi).iter().any(|ce| {
+            let cond_rel = task.cond_effs(oi).any(|ce| {
                 ce.add.iter().any(|f| rel_fact.contains(f))
                     || ce.del.iter().any(|f| rel_fact.contains(f))
                     || ce.num.iter().any(|ne| {
@@ -583,7 +586,7 @@ fn relevant_op_mask(
                         rel_res.insert(ne.target);
                     }
                 }
-                for ce in task.cond.slice(oi) {
+                for ce in task.cond_effs(oi) {
                     for &f in &ce.cond_pos {
                         rel_fact.insert(f);
                     }
@@ -740,8 +743,7 @@ pub(crate) fn statically_unsolvable(
     };
     let some_op_adds = |g: u32| {
         (0..task.n_ops).any(|oi| {
-            task.add.slice(oi).contains(&g)
-                || task.cond.slice(oi).iter().any(|ce| ce.add.contains(&g))
+            task.add.slice(oi).contains(&g) || task.cond_effs(oi).any(|ce| ce.add.contains(&g))
         })
     };
     let some_op_raises = |t: u32| {

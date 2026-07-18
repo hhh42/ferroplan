@@ -523,6 +523,7 @@ fn parse_action(p: &mut P) -> Result<Action, String> {
         params,
         precond,
         effect,
+        monitored: false,
     })
 }
 
@@ -795,6 +796,7 @@ fn domain_inner(p: &mut P) -> Result<Domain, String> {
         durative_actions: Vec::new(),
         constraints: Vec::new(),
         derived: Vec::new(),
+        monitors: Vec::new(),
     };
 
     while !p.at_rparen() {

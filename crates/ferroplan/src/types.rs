@@ -121,6 +121,12 @@ pub struct Action {
     pub params: Vec<(Sym, Sym)>,
     pub precond: Formula,
     pub effect: Effect,
+    /// This action applies the domain's shared monitor block
+    /// ([`Domain::monitors`]) in addition to its own effect (0.8 Phase 2,
+    /// docs/roadmap-0.8.md). Set by `constraints::compile` on every action
+    /// present at gate time; always `false` for parsed actions and for
+    /// synthetic actions created after the gate (P3 bookkeeping, TRAJ-END).
+    pub monitored: bool,
 }
 
 /// When a PDDL2.1 durative-action condition/effect applies.
@@ -190,6 +196,16 @@ pub struct Domain {
     /// `reachable` from the map) become init facts; dynamic non-recursive rules
     /// are inlined into preconditions/goals.
     pub derived: Vec<DerivedRule>,
+    /// The shared monitor-transition block (0.8 Phase 2,
+    /// docs/roadmap-0.8.md): fully-ground `Effect::When` transitions emitted
+    /// by `constraints::compile`, applied by every action whose
+    /// [`Action::monitored`] flag is set. The grounder grounds this block
+    /// ONCE and shares it across all monitored ops — the transitions are
+    /// byte-identical for every binding of every action, so per-op storage
+    /// (the monitor-count x ground-action product that OOM'd storage
+    /// qualpref p07/p08 at 15 GB) is pure duplication. Never produced by
+    /// the parser; empty on every constraint-free input.
+    pub monitors: Vec<Effect>,
 }
 
 /// A PDDL `:derived` rule `(:derived (head ?params) body)`: the head predicate's

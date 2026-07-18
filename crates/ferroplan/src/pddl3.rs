@@ -289,6 +289,12 @@ pub(crate) fn static_predicates(domain: &Domain) -> HashSet<String> {
     for a in &domain.actions {
         walk(&a.effect, &mut modified);
     }
+    // the shared monitor block (0.8 Phase 2) rides every monitored action —
+    // facts it touches (TRAJ* monitor bits) are NOT static, exactly as when
+    // the transitions were appended to each action's own effect
+    for e in &domain.monitors {
+        walk(e, &mut modified);
+    }
     domain
         .predicates
         .iter()
@@ -731,6 +737,9 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
                 params: a.params.clone(),
                 precond: Formula::And(conj),
                 effect: Effect::And(eff),
+                // a 2^k variant of a REAL action — it keeps applying the
+                // shared monitor block (0.8 Phase 2)
+                monitored: a.monitored,
             });
         }
     }
@@ -757,6 +766,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
     d.actions.push(Action {
         name: "P3END".to_string(),
         params: vec![],
+        monitored: false,
         precond: Formula::Atom(PLANNING.to_string(), vec![]),
         effect: Effect::And(vec![
             Effect::Del(PLANNING.to_string(), vec![]),
@@ -782,6 +792,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
             params: vec![],
             precond: Formula::And(vec![Formula::Atom(ENDED.to_string(), vec![]), phi.clone()]),
             effect: Effect::Add(col.clone(), vec![]),
+            monitored: false,
         });
         // forgo: skip it, paying its weight (clamped >= 0 to keep cost monotone;
         // a negative weight is flagged unsupported below, not silently applied)
@@ -796,6 +807,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Compiled {
         d.actions.push(Action {
             name: forgo,
             params: vec![],
+            monitored: false,
             precond: Formula::Atom(ENDED.to_string(), vec![]),
             effect: Effect::And(vec![
                 Effect::Add(col.clone(), vec![]),
@@ -2367,7 +2379,7 @@ fn build_espc_partition(
         sat.deadline.iter().map(|&(_, d, _)| d).collect();
     let mut by_cond: crate::hash::FxHashMap<u32, Vec<u32>> = crate::hash::FxHashMap::default();
     for oi in 0..task.n_ops {
-        for ce in task.cond.slice(oi) {
+        for ce in task.cond_effs(oi) {
             for &d in &ce.add {
                 if !deliverables.contains(&d) {
                     continue;
@@ -2533,7 +2545,7 @@ fn build_deadline_guidance(task: &PackedTask, forgos: &[(usize, f64)]) -> Vec<(u
             continue;
         }
         let trigger = uncond[0];
-        for ce in task.cond.slice(oi) {
+        for ce in task.cond_effs(oi) {
             for &d in &ce.add {
                 if let Some(&val) = value.get(&d) {
                     if seen.insert((trigger, d)) {

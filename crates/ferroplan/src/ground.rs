@@ -348,6 +348,8 @@ struct RawOp {
     num_pre: Vec<(CompOp, Expr, Expr)>,
     eff: REff,
     multi: bool,
+    /// This op applies the domain's shared monitor block (0.8 Phase 2).
+    monitored: bool,
 }
 
 fn for_each_binding(
@@ -449,6 +451,7 @@ fn ground_action(
                     cond: eff.cond.clone(),
                 },
                 multi,
+                monitored: action.monitored,
             });
         }
     });
@@ -540,7 +543,53 @@ struct MidOp {
     cond: Vec<CondEff>,
     /// per-conditional-effect (add_atoms, del_atoms) — kept for complementary
     /// toggling of negated facts in the final-op pass
-    cond_atoms: Vec<(Vec<(Sym, Vec<Sym>)>, Vec<(Sym, Vec<Sym>)>)>,
+    cond_atoms: Vec<CondAtoms>,
+    /// this op applies the shared monitor block (0.8 Phase 2)
+    monitored: bool,
+}
+
+/// A conditional effect's `(add_atoms, del_atoms)` string form, kept for
+/// complementary-fact toggling in the final-op pass.
+type CondAtoms = (Vec<(Sym, Vec<Sym>)>, Vec<(Sym, Vec<Sym>)>);
+
+/// Intern one string-form conditional effect (shared by the per-op Phase-C
+/// loop and the shared monitor block). Returns the interned [`CondEff`] plus
+/// its [`CondAtoms`]. Condition reads are NOT recorded as op reads: an
+/// undefined fluent in a condition means it simply won't fire.
+fn intern_cond(intern: &mut Interner, rc: &RCondEff) -> (CondEff, CondAtoms) {
+    let cond_pos: Vec<u32> = rc.cond_pos.iter().map(|k| intern.fact(k)).collect();
+    let cond_neg: Vec<u32> = rc.cond_neg.iter().map(|k| intern.fact(k)).collect();
+    let mut cond_num = Vec::new();
+    for (op, l, rr) in &rc.cond_num {
+        let mut rd = Vec::new();
+        let lhs = intern.resolve_expr(l, &mut rd);
+        let rhs = intern.resolve_expr(rr, &mut rd);
+        cond_num.push(NumPre { op: *op, lhs, rhs });
+    }
+    let cadd: Vec<u32> = rc.add.iter().map(|k| intern.fact(k)).collect();
+    let cdel: Vec<u32> = rc.del.iter().map(|k| intern.fact(k)).collect();
+    let mut cnum = Vec::new();
+    for (op, fname, fargs, val) in &rc.num {
+        let target = intern.fluent(fname, fargs);
+        let mut rd = Vec::new();
+        let value = intern.resolve_expr(val, &mut rd);
+        cnum.push(NumEff {
+            op: *op,
+            target,
+            value,
+        });
+    }
+    (
+        CondEff {
+            cond_pos,
+            cond_neg,
+            cond_num,
+            add: cadd,
+            del: cdel,
+            num: cnum,
+        },
+        (rc.add.clone(), rc.del.clone()),
+    )
 }
 
 /// Grounding entry. `ground` does PDDL goal simplification (TRUE/FALSE early
@@ -635,6 +684,10 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     for a in &domain.actions {
         collect_add(&a.effect, &mut add_predicates);
     }
+    // the shared monitor block's conditional adds are not static inertia either
+    for e in &domain.monitors {
+        collect_add(e, &mut add_predicates);
+    }
     let init_atom_set: HashSet<(Sym, Vec<Sym>)> = problem.init_atoms.iter().cloned().collect();
     // predicate -> objects appearing in a unary init atom `(P o)`, for static
     // parameter-domain restriction in `ground_action`.
@@ -700,37 +753,9 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         let mut cond = Vec::new();
         let mut cond_atoms = Vec::new();
         for rc in &r.eff.cond {
-            let cond_pos: Vec<u32> = rc.cond_pos.iter().map(|k| intern.fact(k)).collect();
-            let cond_neg: Vec<u32> = rc.cond_neg.iter().map(|k| intern.fact(k)).collect();
-            let mut cond_num = Vec::new();
-            for (op, l, rr) in &rc.cond_num {
-                let mut rd = Vec::new();
-                let lhs = intern.resolve_expr(l, &mut rd);
-                let rhs = intern.resolve_expr(rr, &mut rd);
-                cond_num.push(NumPre { op: *op, lhs, rhs });
-            }
-            let cadd: Vec<u32> = rc.add.iter().map(|k| intern.fact(k)).collect();
-            let cdel: Vec<u32> = rc.del.iter().map(|k| intern.fact(k)).collect();
-            let mut cnum = Vec::new();
-            for (op, fname, fargs, val) in &rc.num {
-                let target = intern.fluent(fname, fargs);
-                let mut rd = Vec::new();
-                let value = intern.resolve_expr(val, &mut rd);
-                cnum.push(NumEff {
-                    op: *op,
-                    target,
-                    value,
-                });
-            }
-            cond.push(CondEff {
-                cond_pos,
-                cond_neg,
-                cond_num,
-                add: cadd,
-                del: cdel,
-                num: cnum,
-            });
-            cond_atoms.push((rc.add.clone(), rc.del.clone()));
+            let (ce, atoms) = intern_cond(&mut intern, rc);
+            cond.push(ce);
+            cond_atoms.push(atoms);
         }
         mids.push(MidOp {
             display: r.display.clone(),
@@ -745,7 +770,57 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
             reads,
             cond,
             cond_atoms,
+            monitored: r.monitored,
         });
+    }
+    drop(raws);
+
+    // ---- shared monitor block (0.8 Phase 2): ground + intern ONCE ----
+    // `domain.monitors` holds the trajectory-monitor transitions, fully
+    // ground and byte-identical for every binding of every monitored action
+    // (constraints::compile pre-expands all quantifiers). Grounding it once
+    // here — instead of per ground op — is what removes the monitor-count x
+    // ground-action memory product. A When whose condition folded to a
+    // constant TRUE emits as an unconditional leaf; normalize those into one
+    // empty-condition CondEff (fires on every application — same semantics
+    // as the 0.7 per-op unconditional add).
+    let mut shared_reff = REff {
+        add: vec![],
+        del: vec![],
+        num: vec![],
+        cond: vec![],
+    };
+    for e in &domain.monitors {
+        ground_effect(
+            e,
+            &HashMap::new(),
+            &objects_of_type,
+            &empty_conj(),
+            &mut shared_reff,
+        );
+    }
+    debug_assert!(
+        shared_reff.num.is_empty(),
+        "the monitor block carries no numeric effects"
+    );
+    if !shared_reff.add.is_empty() || !shared_reff.del.is_empty() {
+        let add = std::mem::take(&mut shared_reff.add);
+        let del = std::mem::take(&mut shared_reff.del);
+        shared_reff.cond.push(RCondEff {
+            cond_pos: vec![],
+            cond_neg: vec![],
+            cond_num: vec![],
+            add,
+            del,
+            num: vec![],
+        });
+    }
+    let mut shared_cond: Vec<CondEff> = Vec::with_capacity(shared_reff.cond.len());
+    let mut shared_cond_atoms = Vec::with_capacity(shared_reff.cond.len());
+    for rc in &shared_reff.cond {
+        let (ce, atoms) = intern_cond(&mut intern, rc);
+        shared_cond.push(ce);
+        shared_cond_atoms.push(atoms);
     }
 
     // ---- defined-fluents fixpoint + illegal-op pruning ----
@@ -840,6 +915,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         del: Vec<u32>,
         num_eff: Vec<NumEff>,
         cond: Vec<CondEff>,
+        monitored: bool,
     }
     let mut fops: Vec<FinalOp> = Vec::with_capacity(mids.len());
     for m in &mids {
@@ -887,7 +963,21 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
             del,
             num_eff: m.num_eff.clone(),
             cond,
+            monitored: m.monitored,
         });
+    }
+    // shared monitor block: the same complementary toggling, applied ONCE
+    for (ce, (add_atoms, del_atoms)) in shared_cond.iter_mut().zip(&shared_cond_atoms) {
+        for a in add_atoms {
+            if let Some(&c) = neg_fact.get(a) {
+                ce.del.push(c);
+            }
+        }
+        for a in del_atoms {
+            if let Some(&c) = neg_fact.get(a) {
+                ce.add.push(c);
+            }
+        }
     }
 
     // ---- disjunctive / existential goal compilation ----
@@ -920,6 +1010,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 del: vec![],
                 num_eff: vec![],
                 cond: vec![],
+                monitored: false,
             });
         }
         goal_conj_owned = Conjunct {
@@ -950,6 +1041,9 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     // ---- relaxed reachability (prune ops) ----
     let mut reached = init_true.clone();
     let mut live = vec![false; fops.len()];
+    // the shared block's adds become reachable with the FIRST live monitored
+    // op (every monitored op applies it — 0.7-equivalent fixpoint)
+    let mut shared_marked = shared_cond.is_empty();
     loop {
         let mut changed = false;
         for (i, op) in fops.iter().enumerate() {
@@ -967,6 +1061,14 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 for ce in &op.cond {
                     for &f in &ce.add {
                         reached[f as usize] = true;
+                    }
+                }
+                if op.monitored && !shared_marked {
+                    shared_marked = true;
+                    for ce in &shared_cond {
+                        for &f in &ce.add {
+                            reached[f as usize] = true;
+                        }
                     }
                 }
             }
@@ -1011,7 +1113,8 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     }
 
     // inertia-based goal simplification
-    let deletable: HashSet<u32> = reach_ops
+    let any_monitored_reachable = reach_ops.iter().any(|o| o.monitored);
+    let mut deletable: HashSet<u32> = reach_ops
         .iter()
         .flat_map(|o| {
             o.del
@@ -1020,6 +1123,9 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 .chain(o.cond.iter().flat_map(|c| c.del.iter().copied()))
         })
         .collect();
+    if any_monitored_reachable {
+        deletable.extend(shared_cond.iter().flat_map(|c| c.del.iter().copied()));
+    }
     let modified_fluents: HashSet<u32> = reach_ops
         .iter()
         .flat_map(|o| {
@@ -1098,6 +1204,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
             }
         }
     };
+    let mut monitored_v: Vec<bool> = Vec::with_capacity(n_reach_actions);
     for (oi, op) in reach_ops.iter().enumerate() {
         op_display.push(op.display.clone());
         pre_pos.push_row(op.pre_pos.iter().copied());
@@ -1106,6 +1213,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         pre_num.push_row(op.pre_num.iter().cloned());
         num_eff.push_row(op.num_eff.iter().cloned());
         cond_b.push_row(op.cond.iter().cloned());
+        monitored_v.push(op.monitored);
         for &f in &op.add {
             add_buckets[f as usize].push(oi as u32);
         }
@@ -1117,7 +1225,8 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 neff_buckets[ne.target as usize].push(oi as u32);
             }
         }
-        // conditional adds also have this op as an achiever
+        // conditional adds also have this op as an achiever — including the
+        // shared monitor block's, in the 0.7 suffix order (own conds first)
         for ce in &op.cond {
             for &f in &ce.add {
                 add_buckets[f as usize].push(oi as u32);
@@ -1126,8 +1235,23 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
                 mark(np, &mut relevant_fluent);
             }
         }
+        if op.monitored {
+            for ce in &shared_cond {
+                for &f in &ce.add {
+                    add_buckets[f as usize].push(oi as u32);
+                }
+            }
+        }
         for np in &op.pre_num {
             mark(np, &mut relevant_fluent);
+        }
+    }
+    // numeric comparisons inside shared monitor conditions read fluents too
+    if any_monitored_reachable {
+        for ce in &shared_cond {
+            for np in &ce.cond_num {
+                mark(np, &mut relevant_fluent);
+            }
         }
     }
     for np in &goal_num {
@@ -1199,6 +1323,8 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         pre_num: pre_num.finish(),
         num_eff: num_eff.finish(),
         cond: cond_b.finish(),
+        shared_cond,
+        monitored: monitored_v,
         add_by_fact: add_by_fact.finish(),
         neff_by_fluent: neff_by_fluent.finish(),
         relevant_fluent,
