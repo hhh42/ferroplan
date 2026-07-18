@@ -70,12 +70,11 @@ monitor artifacts — finding 2 below). p05 completes at both thread counts
 ⁴ t1 exceeds the 600 s budget on storage p06 and trucks p06 (t8 metric
 shown; budget-bound, not divergent).
 ⁵ storage p07/p08: **first covered in 0.8** — the 0.7 sweep had no metric
-(15 GB grounding OOM; finding 2). Measured on the 0.8 box (4 cores,
-defaults, within the 600 s budget): p07 metric 200 (grounds in 313 ms at
-109 MB peak), p08 metric 261 (676 ms / 174 MB); both spot-checked
+(15 GB grounding OOM; finding 2). Measured on the 0.8 box (4 cores, pure
+defaults): p07 metric 200 in 292 s (grounds in 313 ms at 109 MB peak),
+p08 metric 261 in 338 s (676 ms / 174 MB); both spot-checked
 reported == verified exact. Wall times are from the 4-core box and are
-not comparable to this table's 8-thread column; t1 re-runs are
-budget-bound there, never divergent.
+not comparable to this table's 8-thread column.
 ⁶ trucks p07/p08: no metric — both thread counts exceed 600 s. The trucks
 tail was already the hardest simple-preferences draw (0.6 Phase-4 record:
 shared-timeline scheduling out of selection's reach); the qualitative
