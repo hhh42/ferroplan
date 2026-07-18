@@ -20,8 +20,8 @@
 //!    bit-identical to pre-cost behavior — so cost support can never regress
 //!    the classical baseline; only the polish pass is new.
 //!
-//! The sweep's eval budget is deliberately bounded (see [`sweep_budget`]):
-//! a polish pass must never dwarf the solve that produced the plan.
+//! The sweep's eval budget is deliberately bounded (`sweep_budget`): a
+//! polish pass must never dwarf the solve that produced the plan.
 //! `FF_COST_SWEEP_EVALS` overrides it (`0` disables the sweep).
 
 use crate::packed::PackedTask;
