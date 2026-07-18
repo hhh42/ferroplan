@@ -2,11 +2,20 @@
 
 All notable changes to this project are documented here.
 
-## [Unreleased] — toward 0.9: the IPC6/IPC7 arc (`ferroplan-roadmap.md`)
+## [0.9.0] - 2026-07-18 — The IPC6/IPC7 arc opens: costs, benefit, landmarks, portfolio
 
-See `docs/roadmap-0.9.md` for the cycle record. Vendored costs-subset
-scoreboard at 30 s: **45/54 solved** (0.8.0: 35/54), every reported
-cost VAL-validated, cost metric reported on every cost domain.
+The general-planning cycle (`ferroplan-roadmap.md`; cycle record in
+`docs/roadmap-0.9.md`). ferroplan learns the IPC-2008/2011 satisficing
+objectives — real action costs, net benefit — grows a LAMA-style landmark
+rung on BOTH execution paths, fixes two grounder walls that made whole
+domains unsolvable, and gains a sequential portfolio mode. Vendored
+costs-subset scoreboard: **35/54 (0.8.0) → 54/54 at a 240 s library-path
+budget** (49/54 at the quick 30 s single-thread tier), with every
+reported cost VAL-validated where VAL is available; net-benefit subset
+**16/16 with the benefit reported everywhere** (was: empty plans, no
+metric); barman11 and tidybot11 — never solved before this cycle — go
+**0/4 → 4/4 each**. The IPC5 preference/qualitative baselines held green
+throughout (19 heavy guards).
 
 ### Added
 
@@ -70,6 +79,62 @@ cost VAL-validated, cost metric reported on every cost domain.
   plan** in `benchmarks/run.py` (`FERROPLAN_VAL`; exit 1 on any failure),
   a full-corpus IPC6/7 runner (`benchmarks/ipc67.py` + `get-ipc.sh`,
   `get-val.sh`), and `STATUS.md` as the roadmap's living source of truth.
+- **Sequential portfolio mode** (roadmap Phase 6, `portfolio.rs`;
+  `Mode::Portfolio` / `--mode portfolio`): four complementary classical
+  members — the default ladder, the LAMA rung alone, plain best-first at
+  w_h 3 and 1 — time-sliced over ONE shared evaluated-state pool with
+  doubling restart slices; deterministic by construction (fixed member
+  order, eval-count slices). Coverage-first: the first plan any member
+  finds returns with the winner named in `Solution.notes`, and a complete
+  member's un-capped exhaustion settles unsolvability early. Measured at
+  the 30 s single-thread tier: coverage parity with the default (49/54)
+  with a SHIFTED frontier — tidybot11 p02 solves inside 30 s where the
+  default needs 124 s at 4 threads, while tidybot11 p01 pays the
+  restart-slicing tax. Temporal and preference problems fall back to
+  their own machinery, exactly like `auto`.
+- Web demo: three examples from the new suites join the picker —
+  elevators08 under BOTH objectives (action costs: the sweep takes cost
+  100 → 54; net benefit: soft goals with utilities, the empty plan
+  legal) and barman11 p01 (the landmark-rung story, marked hard for
+  single-threaded WASM).
+
+### Fixed
+
+- **A type-cycle hang on legal PDDL**: a domain that redeclares the
+  built-in root type (`(:types ... object ...)` — IPC-2011 tidybot does)
+  recorded the self-edge `OBJECT → OBJECT`, and every type-hierarchy
+  walk spun forever BEFORE grounding — the planner never got to work at
+  any budget. Cyclic `(:types ...)` is now rejected BY NAME; the walks
+  are hop-bounded as defense in depth (programmatically built domains).
+- **Join-style grounding**: the binding enumeration checks each static
+  precondition literal at the FIRST level where its variables are bound,
+  pruning whole subtrees, instead of enumerating the full cartesian
+  product and post-filtering — tidybot11's 9-parameter grid actions
+  ground 91.6 s → 2.8 s with a byte-identical grounded task (the
+  surviving binding order is unchanged by construction). tidybot11 goes
+  **0/4 → 4/4** (11 s / 124 s / 6 s / 6 s at 4 threads, every plan
+  oracle-replayed to goal).
+
+### Changed
+
+- **The text path runs the library's ladder where it matters** (the two
+  recorded unification gaps, both closed): the partition cascade's
+  MONOLITHIC endpoint uses the full EHC → LAMA → complete best-first
+  ladder, and its per-subgoal solves became bounded probes (100k evals)
+  with a per-subgoal LAMA rung (`landmarks_for` / `lama::search_subgoal`
+  recompute landmarks per (start, subgoal) pair). A subgoal unsolvable in
+  isolation used to burn the FULL eval budget proving it before every
+  merge; bounded probes only make merges happen sooner, and solvability
+  is unchanged by construction. barman11 p01 on the text path:
+  never-finishes at any tested budget → **57 s**.
+- **Iterated-weight length improvement ships OPT-IN as a measured
+  negative** (`FF_LEN_SWEEP_EVALS`, unset/0 = off — byte-identical
+  first-found behavior): the restart ladder over the new
+  `SearchCfg::g_bound` incumbent-length pruning is sound and
+  deterministic but pays ~1.8% (visitall p01: 226 → 222) at ~28× the
+  solve's evals — below the polish doctrine's price. The recorded next
+  ideas: a within-one-search length-anytime, or landmark-guided
+  restarts.
 
 ## [0.8.0] - 2026-07-18 — Pay the Costs: linear goals, shared monitors, ESPC on structure
 
