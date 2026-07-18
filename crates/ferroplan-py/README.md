@@ -1,6 +1,6 @@
 # ferroplan (Python)
 
-Python bindings for the [ferroplan](../ferroplan) PDDL planner, via
+Python bindings for the [ferroplan](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan) PDDL planner, via
 [pyo3](https://pyo3.rs) + [maturin](https://maturin.rs). Builds a portable
 **abi3** wheel (one wheel works on CPython 3.8+).
 

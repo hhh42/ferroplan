@@ -1,7 +1,7 @@
 # ferroplan-mcp
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the
-[`ferroplan`](../ferroplan) PDDL planner to an LLM agent. This is the README's bet
+[`ferroplan`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan) PDDL planner to an LLM agent. This is the README's bet
 made operational: the agent is the **author and supervisor** of a planner, not its
 runtime — it writes PDDL, calls a tool, reads a structured, deterministic result, and
 iterates.
@@ -39,7 +39,7 @@ client at the binary. For Claude Code / Claude Desktop, add it to your MCP confi
 ```
 
 Then ask the agent to author a domain and `solve` it, or to `decompose` a goal that
-overruns the one-shot search (see [`../../examples/BORDERS.md`](../../examples/BORDERS.md)).
+overruns the one-shot search (see [`../../examples/BORDERS.md`](https://github.com/hhh42/ferroplan/blob/main/examples/BORDERS.md)).
 
 ## Notes
 

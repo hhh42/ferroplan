@@ -1,6 +1,6 @@
 # ferroplan-wasm
 
-WebAssembly bindings for [ferroplan](../ferroplan) — run the PDDL planner entirely
+WebAssembly bindings for [ferroplan](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan) — run the PDDL planner entirely
 in the browser, no server or install.
 
 ## Build
