@@ -439,6 +439,23 @@ struct TNode {
     /// along this path, clamped to the demand). Empty unless FF_TDEMAND is on. Tracks
     /// production rather than current stock so the gradient survives consumption.
     met: Vec<i32>,
+    /// Fact landmarks accepted on the path to this node (bitset over the
+    /// landmark list index) — the temporal LAMA term (0.11 Phase 1). Empty
+    /// outside the pruned pass / under FF_NO_TLAMA.
+    lm_accepted: Vec<u64>,
+}
+
+/// Mark landmarks true in `state` as accepted (the `lama.rs` shape).
+fn lm_accept_into(accepted: &mut [u64], lms: &[u32], state: &State) {
+    for (i, &f) in lms.iter().enumerate() {
+        if accepted[i >> 6] & (1 << (i & 63)) == 0 && crate::bitset::test(&state.bits, f as usize) {
+            accepted[i >> 6] |= 1 << (i & 63);
+        }
+    }
+}
+
+fn lm_unaccepted(accepted: &[u64], n: usize) -> i64 {
+    n as i64 - accepted.iter().map(|w| w.count_ones() as i64).sum::<i64>()
 }
 
 /// Visited key. `relative` keys the agenda by (end − node.time) deltas
@@ -1377,6 +1394,7 @@ fn enqueue_evaluated(
     heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
     visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
     landmarks: &[NumPre],
+    lms: &[u32],
     demand: &Demand,
     prune: bool,
     relative: bool,
@@ -1404,15 +1422,30 @@ fn enqueue_evaluated(
         } else {
             met_child(&nodes[n.father].met, demand, task, op)
         };
+        // Temporal LAMA (0.11 Phase 1): landmarks accepted along the path.
+        if !lms.is_empty() {
+            n.lm_accepted = nodes[n.father].lm_accepted.clone();
+            lm_accept_into(&mut n.lm_accepted, lms, &n.state);
+        }
         // Phase 1 (prune): weighted g+h plus the unmet-landmark term AND the
         // total converging-resource demand deficit (the multi-round gradient the
         // relaxation is blind to), to break the flat-h plateau on long chains AND
         // converging DAGs. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte
         // the old complete search, so nothing it solved before can regress.
+        // W_TLM weights the unaccepted FACT-landmark count (the plateau
+        // gradient LAMA brought to the classical rung, 0.9) at the same
+        // scale as the h/numeric-landmark terms.
+        const W_TLM: i64 = 3;
         let key = if prune {
             W_G * n.g as i64
                 + W_H * h as i64
                 + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
+                + W_TLM
+                    * if lms.is_empty() {
+                        0
+                    } else {
+                        lm_unaccepted(&n.lm_accepted, lms.len())
+                    }
                 + demand.weight * demand_deficit(&n.met, demand)
                 + AGENDA_W * n.agenda.len() as i64
         } else {
@@ -1434,6 +1467,7 @@ fn push_node(
     heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
     visited: &mut HashSet<(StateKey, Vec<(i64, usize)>)>,
     landmarks: &[NumPre],
+    lms: &[u32],
     demand: &Demand,
     goal_pos: &[u32],
     goal_num: &[NumPre],
@@ -1443,7 +1477,7 @@ fn push_node(
 ) {
     if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, goal_pos, goal_num, prune) {
         enqueue_evaluated(
-            task, nodes, heap, visited, landmarks, demand, prune, relative, n, h, helpful,
+            task, nodes, heap, visited, landmarks, lms, demand, prune, relative, n, h, helpful,
         );
     }
 }
@@ -1530,6 +1564,28 @@ fn temporal_search(
     let (_h0, hf0) = eval_node(task, kind, &mut sc, &init, goal_pos, goal_num, prune)?; // dead-end gate
     let mut root_agenda: Vec<(f64, usize)> = til_events.to_vec();
     root_agenda.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    // Shift-invariant dedup (see tkey): sound only when no TIL pins the clock.
+    let relative = til_events.is_empty() && std::env::var("FF_TEMPORAL_ABS_KEY").is_err();
+    // Temporal LAMA (0.11 Phase 1): fact landmarks over the snap task seed
+    // the pruned pass's key with an unaccepted-count gradient. The complete
+    // phase-2 passes never see it (completeness is theirs); FF_NO_TLAMA=1
+    // restores the 0.10 search bit-for-bit. NOTE the deliberate scope cut:
+    // no dual preferred heap here — the pruned pass already RESTRICTS
+    // expansion to the helpful set (expansion-level preference, stronger
+    // than queue-level boosting), so only the landmark gradient transfers.
+    let lms: Vec<u32> = if prune && std::env::var("FF_NO_TLAMA").is_err() {
+        crate::landmarks::landmarks_for(task, start, goal_pos)
+    } else {
+        Vec::new()
+    };
+    let lm_words = lms.len().div_ceil(64);
+    if dbg && prune {
+        eprintln!("[tsearch] tlama: {} fact landmarks", lms.len());
+    }
+    let mut root_lm = vec![0u64; lm_words];
+    if !lms.is_empty() {
+        lm_accept_into(&mut root_lm, &lms, start);
+    }
     let mut nodes = vec![TNode {
         state: init,
         time: 0.0,
@@ -1539,12 +1595,11 @@ fn temporal_search(
         g: 0,
         helpful: hf0,
         met: met_root(demand, task),
+        lm_accepted: root_lm,
     }];
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
     let mut visited: HashSet<(StateKey, Vec<(i64, usize)>)> = HashSet::new();
-    // Shift-invariant dedup (see tkey): sound only when no TIL pins the clock.
-    let relative = til_events.is_empty() && std::env::var("FF_TEMPORAL_ABS_KEY").is_err();
     visited.insert(tkey(task, &nodes[0], relative));
 
     while let Some(Reverse((_k, ni))) = heap.pop() {
@@ -1641,6 +1696,7 @@ fn temporal_search(
                             g: pg + 1,
                             helpful: Vec::new(),
                             met: Vec::new(),
+                            lm_accepted: Vec::new(),
                         });
                     }
                 }
@@ -1657,6 +1713,7 @@ fn temporal_search(
                             g: pg + 1,
                             helpful: Vec::new(),
                             met: Vec::new(),
+                            lm_accepted: Vec::new(),
                         });
                     }
                 }
@@ -1680,6 +1737,7 @@ fn temporal_search(
                     &mut heap,
                     &mut visited,
                     landmarks,
+                    &lms,
                     demand,
                     goal_pos,
                     goal_num,
@@ -1703,6 +1761,7 @@ fn temporal_search(
                         &mut heap,
                         &mut visited,
                         landmarks,
+                        &lms,
                         demand,
                         prune,
                         relative,
@@ -1728,6 +1787,7 @@ fn temporal_search(
                     &mut heap,
                     &mut visited,
                     landmarks,
+                    &lms,
                     demand,
                     goal_pos,
                     goal_num,
@@ -1742,6 +1802,7 @@ fn temporal_search(
                         g: pg + 1,
                         helpful: Vec::new(),
                         met: Vec::new(),
+                        lm_accepted: Vec::new(),
                     },
                 );
             }
