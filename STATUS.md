@@ -233,9 +233,22 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
    helpful ops are empty on this domain), all four passes exhaust the
    node budget. The wall moved from the parser to temporal guidance —
    folds into item 7.
-4. **openstacks08-ADL seq-sat gap** — 6/30 vs the STRIPS twin's 30/30,
-   while netben-ADL scores 29/30: the ADL machinery is fine, the
-   seq-sat variant's structure (goal shape / compilation) is the miss.
+4. **openstacks08-ADL seq-sat gap** — SHIPPED 2026-07-19: the miss was
+   a 2^k DNF explosion, not the ADL machinery. `(forall ?o (imply
+   (includes ?o ?p) (started ?o)))` expanded BOTH branches of every
+   imply, so each non-included order doubled the conjunct count (i5:
+   45,166 redundant ops; i7: 15 GB RSS mid-grounding, dead). `to_dnf`
+   now resolves fully-bound never-added literals against init and
+   absorbs True disjuncts (`FF_NO_DNF_STATIC` hatch). The sound folding
+   is asymmetric — dropping a conjunct needs only never-added; folding
+   a literal away needs never-added AND never-deleted (the constraints
+   suite caught the first cut folding away delete-only TRAJ-PLANNING —
+   7 fixtures red, `del_preds` guard restored them). i5 → 220 ops, i7 →
+   480 ops. **Coverage: seq-sat-ADL 6/30 → 30/30 (60 s); the same fix
+   swept the temporal twins — temporal-ADL 6/30 → 30/30, temporal-ADL-
+   numeric 7/30 → 30/30 (30 s), +71 instances total.** Classical
+   STRIPS/costs paths bit-identical on/off (gripper, blocks, barman,
+   woodworking: same plans, same eval counts); suite 142/0.
 5. **Quality/anytime for floor-tile/visit-all** (5/20, 8/20) — the
    within-one-search length-anytime idea recorded at the Phase 3 close.
 6. **Portfolio budget-aware scheduling** — from the settled Phase 6
