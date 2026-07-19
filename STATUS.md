@@ -181,11 +181,36 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
      **guidance, not throughput, is the binding term** — transport11
      moves only with a better gradient (richer landmarks / domain
      structure), which folds into the quality/guidance items below.
-2. **Temporal memory bound** — big temporal instances allocate 7–10 GB
-   in seconds (elevator-08-t p22: 7.4 GB in 30 s). A memory-bounded
-   temporal route turns OOM deaths into honest timeouts and likely
-   recovers coverage; also required for game embedding (a think-budget
-   must bound memory too).
+2. **Temporal memory bound** — SHIPPED 2026-07-19, root cause found and
+   fixed; one successor lever remains:
+   - **Root cause was the GROUNDER, not the search:** Phase C interns
+     atoms from every raw candidate op; reachability then prunes the ops
+     but leaves their fact ids behind, so `words` — every State bitset
+     and visited key — was sized by the RAW atom space. Temporal snap
+     compilation makes it catastrophic: elevator-08-t p22's 5-ary
+     BOARD-END/LEAVE-END enumerate RUNNING-* over the full typed space,
+     minting 2.35M facts (287 KB/state, 8 GB RSS, killed at any budget)
+     while ~7k facts are live. **Fact-space compaction** (monotone
+     renumber after reachability, `FF_NO_FACT_COMPACT` hatch) packs only
+     reached/referenced/goal facts: p22 → 6,969 facts (words 36,736 →
+     109). Classical tasks are bit-identical (their raw references
+     survive); equivalence verified on/off across STRIPS/numeric/costs/
+     ADL/temporal — identical plans and eval counts. Plus the
+     byte-aware temporal node cap (`temporal_node_cap`, classical model
+     + agenda/key extras, static dims, `FF_TEMPORAL_NODE_CAP` hatch)
+     replacing the byte-blind 400k count.
+   - **Measured recovery:** elevator-08-t-strips 19/30 → **21/30** at
+     the baseline 30 s; p22–p25 (8 GB kills at ANY budget before) now
+     solve in 38/54/62/80 s; elevator-11-t p01 solves (was 0/20), p02
+     solves solo at 120 s.
+   - **The remaining lever is Phase B's raw-candidate enumeration
+     itself** — both its TIME (~40 s+ on p22-sized instances) and its
+     ~8 GB TRANSIENT (p27–p30 and the elevator-11 tail die by OOM kill
+     MID-GROUNDING; two parallel jobs collide). Fix shape: stratified
+     END grounding — ground ENDs only over bindings whose START
+     grounded (RUNNING-* atoms have no other producer), killing the
+     typed-space enumeration at the source. This is now the top
+     temporal-coverage lever.
 3. **`?duration` in expressions** (PDDL2.1 duration-dependent effects/
    constraints) — model-train 0/30 is pure parser; unlocks a whole
    variant.
