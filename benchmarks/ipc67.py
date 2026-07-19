@@ -24,7 +24,7 @@ Scoring note: IPC quality score (ref-cost / your-cost, capped at 1) needs
 per-instance reference costs, which this corpus does not carry; we report raw
 summed cost instead. Do not present summed cost as an IPC quality score.
 """
-import json, os, re, shutil, subprocess, sys, tempfile, time
+import json, os, re, resource, shutil, subprocess, sys, tempfile, time
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,6 +41,12 @@ ONLY = arg("--only", None)
 MAXI = int(arg("--max-instances", "0"))  # 0 = all
 JOBS = int(arg("--jobs", "1"))
 MODE = arg("--mode", None)  # ff --mode passthrough (None = ff's default, auto)
+# Per-job address-space cap in GiB (RLIMIT_AS on each ff): a memory spike
+# kills ITS job with an allocation failure instead of inviting the OOM
+# killer to execute sibling jobs (elevator-11 grounding transients did
+# exactly that). Default: physical RAM / jobs, floored at 2 GiB; 0 = off.
+_phys_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1 << 30)
+MEMGB = float(arg("--mem-gb", str(max(2, int(_phys_gb / max(JOBS, 1))))))
 OUT = arg("--out", os.path.join(ROOT, "benchmarks", "ipc67-results.md"))
 RAW = arg("--raw", None)  # per-instance JSONL (default: OUT with .jsonl)
 if RAW is None:
@@ -67,6 +73,10 @@ def find_val():
     p = os.environ.get("FERROPLAN_VAL")
     if p and os.path.isfile(p):
         return p
+    # the conventional get-val.sh build location
+    local = os.path.join(ROOT, "benchmarks", ".val", "VAL", "build", "bin", "Validate")
+    if os.path.isfile(local):
+        return local
     return shutil.which("Validate")
 
 
@@ -103,14 +113,26 @@ def instances(vdir):
     return out
 
 
-def val_check(val, domain, problem, steps):
+def val_check(val, domain, problem, steps, temporal=False):
+    """VAL a plan. Temporal steps render as `time: (action) [duration]` —
+    the format `TimedPlan::to_ipc` emits and VAL parses natively; classical
+    steps inside a temporal plan (duration null) drop the brackets. The
+    tolerance matches ff's decision-epoch EPS (0.001)."""
     with tempfile.NamedTemporaryFile("w", suffix=".plan", delete=False) as f:
         for s in steps:
-            f.write("(" + " ".join([s["action"]] + s.get("args", [])).lower() + ")\n")
+            act = "(" + " ".join([s["action"]] + s.get("args", [])).lower() + ")"
+            if temporal:
+                line = f"{s['time']}: {act}"
+                if s.get("duration") is not None:
+                    line += f" [{s['duration']}]"
+                f.write(line + "\n")
+            else:
+                f.write(act + "\n")
         path = f.name
+    cmd = [val, "-t", "0.001", domain, problem, path] if temporal else [
+        val, domain, problem, path]
     try:
-        r = subprocess.run([val, domain, problem, path],
-                           capture_output=True, text=True, timeout=120)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         return r.returncode == 0 and "Plan valid" in r.stdout
     except Exception:
         return False
@@ -123,20 +145,29 @@ def run_instance(val, n, d, p):
     cmd = [FF, "-o", d, "-f", p, "--json", "--threads", "1"]
     if MODE:
         cmd += ["--mode", MODE]
+
+    def _limit():
+        if MEMGB > 0:
+            cap = int(MEMGB * (1 << 30))
+            resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
     rec = {"instance": n, "solved": False, "time": None, "metric": None,
            "length": None, "val": None, "notes": None}
     t = time.perf_counter()
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT,
+                           preexec_fn=_limit)
         el = time.perf_counter() - t
+        if r.returncode != 0 and "allocation" in (r.stderr or ""):
+            rec["notes"] = "mem-cap"
         s = json.loads(r.stdout) if r.stdout.strip() else {}
         plan = s.get("plan") or {}
         if s.get("solved"):
             rec.update(solved=True, time=round(el, 2),
                        metric=plan.get("metric"), length=plan.get("length"),
                        notes=s.get("notes"))
-            if val and plan.get("makespan") is None:
-                rec["val"] = val_check(val, d, p, plan.get("steps", []))
+            if val:
+                rec["val"] = val_check(val, d, p, plan.get("steps", []),
+                                       temporal=plan.get("makespan") is not None)
     except subprocess.TimeoutExpired:
         rec["time"] = TIMEOUT
     except Exception:

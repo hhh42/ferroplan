@@ -2055,7 +2055,50 @@ fn slices_intersect(a: &[u32], b: &[u32]) -> bool {
 /// Do two grounded happenings interfere (PDDL2.1 mutex)? True if one's add/del
 /// clashes with the other's precondition, add, or delete on a shared fact —
 /// requiring them to be ε-separated rather than simultaneous.
-fn ops_mutex(task: &PackedTask, o1: usize, o2: usize) -> bool {
+/// Per-op numeric footprint for the mutex test: (fluents WRITTEN by any
+/// numeric effect incl. conditional, fluents READ by numeric preconditions,
+/// conditional-effect conditions, or effect VALUE expressions). PDDL2.1
+/// counts write-write AND write-read on the same fluent as interference —
+/// VAL rejected two same-instant `board`s both increasing `(passengers l)`
+/// (elevator-08-numeric i2), which the fact-only test below called
+/// independent.
+fn num_footprint(task: &PackedTask, o: usize) -> (Vec<u32>, Vec<u32>) {
+    let mut writes: Vec<u32> = Vec::new();
+    let mut reads: Vec<u32> = Vec::new();
+    let mut rd = Vec::new();
+    for ne in task.num_eff.slice(o) {
+        writes.push(ne.target);
+        ne.value.collect_fluents(&mut rd);
+    }
+    for np in task.pre_num.slice(o) {
+        np.lhs.collect_fluents(&mut rd);
+        np.rhs.collect_fluents(&mut rd);
+    }
+    for ce in task.cond_effs(o) {
+        for ne in &ce.num {
+            writes.push(ne.target);
+            ne.value.collect_fluents(&mut rd);
+        }
+        for np in &ce.cond_num {
+            np.lhs.collect_fluents(&mut rd);
+            np.rhs.collect_fluents(&mut rd);
+        }
+    }
+    reads.append(&mut rd);
+    writes.sort_unstable();
+    writes.dedup();
+    reads.sort_unstable();
+    reads.dedup();
+    (writes, reads)
+}
+
+fn ops_mutex(
+    task: &PackedTask,
+    o1: usize,
+    o2: usize,
+    n1: &(Vec<u32>, Vec<u32>),
+    n2: &(Vec<u32>, Vec<u32>),
+) -> bool {
     let (p1, a1, d1) = (
         task.pre_pos.slice(o1),
         task.add.slice(o1),
@@ -2072,6 +2115,9 @@ fn ops_mutex(task: &PackedTask, o1: usize, o2: usize) -> bool {
         || slices_intersect(p1, a2)
         || slices_intersect(d1, p2)
         || slices_intersect(p1, d2)
+        || slices_intersect(&n1.0, &n2.0)
+        || slices_intersect(&n1.0, &n2.1)
+        || slices_intersect(&n1.1, &n2.0)
 }
 
 /// Re-time a plan so mutex happenings are ε-separated (PDDL2.1 / VAL validity):
@@ -2135,7 +2181,9 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
         }
     }
     let n = hs.len();
-    if n == 0 || n > 600 {
+    if n == 0 || n > 2000 {
+        // (2000 happenings ≈ 1000 steps; the elevator tails exceeded the old
+        // 600 cap and shipped UNseparated plans VAL would reject)
         return plan; // nothing to do, or too large to schedule cheaply
     }
     // execution order: by time, ends before starts at equal time
@@ -2154,11 +2202,24 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
     for w in order.windows(2) {
         edges.push((w[0], w[1], 0.0));
     }
-    // ε between mutex happenings (in execution order)
+    // ε between mutex happenings (in execution order); numeric footprints
+    // precomputed once per distinct op
+    let mut nsets: HashMap<usize, (Vec<u32>, Vec<u32>)> = HashMap::new();
+    for h in &hs {
+        nsets
+            .entry(h.op)
+            .or_insert_with(|| num_footprint(task, h.op));
+    }
     for i in 0..n {
         for j in (i + 1)..n {
             let (u, v) = (order[i], order[j]);
-            if ops_mutex(task, hs[u].op, hs[v].op) {
+            if ops_mutex(
+                task,
+                hs[u].op,
+                hs[v].op,
+                &nsets[&hs[u].op],
+                &nsets[&hs[v].op],
+            ) {
                 edges.push((u, v, EPS));
             }
         }
