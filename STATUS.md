@@ -39,7 +39,7 @@ Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
 | 5 — prefs × costs | **done** | `tests/costs_prefs.rs`: one shared metric, satisfy-vs-forgo flips at the weight boundary, `always` monitor enforced under the combined metric |
 | 6 — portfolio | **shipped, acceptance settled: NOT met as stated** | `portfolio.rs`: 4 complementary members, doubling eval slices, deterministic; winner named in notes; un-capped exhaustion settles unsolvability. Full-corpus verdict (580 inst, 60 s t1): "better somewhere" now DEMONSTRATED (no-mystery11 p10 + woodworking08 p29 solve only under the portfolio; sokoban 5 / floor-tile 3 cheaper common solves) but "at least as good overall" FAILS — 416/580 vs the default's 427/580; all 13 lost instances sit at 27–56 s default solve times (sokoban ×7, visit-all ×4, barman p19, elevator11 p12): the doubling-slice restart tax prices out exactly the barely-in-budget instances. Stays opt-in; recorded next idea: budget-aware scheduling (default member runs to its natural end before diversification spends anything) |
 | 7 — optimal | not started | optional |
-| 8 — temporal | shipped (0.5–0.8) | IPC6/7 temporal benchmarking outstanding |
+| 8 — temporal | shipped (0.5–0.8); **first corpus recon done** | tempo-sat corpus (630 inst, 30 s tier): **326/630**. Sweeps: crew-planning 50/50, openstacks-strips/numeric 80/80, parking11 19/20, woodworking 28/30. Three measured wall classes: (1) `?duration` in expressions unparsed — model-train 0/30 is a pure PDDL2.1 feature gap; (2) memory blowups — big elevator/openstacks-ADL temporal instances hit 7–10 GB fast (OOM-killed under the 3-job run; needs a memory-bounded route); (3) search walls — turn-and-open, temporal-machine-shop, storage11, sokoban11, floor-tile11 all-timeouts (required-concurrency-shaped domains among them). Caveat: temporal plans internally validated only (runner writes untimestamped plans, VAL skipped) |
 
 ## Benchmarking & validation scaffolding (Phase 0 deliverables)
 
@@ -153,12 +153,33 @@ The three open questions are ANSWERED:
   carried temporal phases (constraints on the temporal path, temporal
   selection) remain live rather than archival.
 
-## Next up
+All four tracks ran: seq-sat 427/580 (60 s), net-benefit **223/270**
+(60 s, all VAL-valid; crew-planning 10/30 and the transport/woodworking
+numeric variants are the tails), tempo-sat 326/630 (30 s recon).
 
-The seq-sat corpus ran (427/580; Phase 6 settled — see above). In
-flight: the net-benefit track (60 s) and the first-ever temporal
-(tempo-sat) corpus recon (30 s tier). The next cycle's agenda is
-drafted from the measured frontier once those land — the standing
-candidates, by leverage: transport11 eval throughput/guidance,
-the openstacks ADL path, and quality/anytime work for
-floor-tile/visit-all.
+## Next-cycle agenda (measured, in leverage order)
+
+1. **transport11 eval throughput × guidance** — search-bound at ~520
+   evals/s over 21 k actions (1 thread); the batch-parallel eval is the
+   engine's own answer, currently unused by the 1-thread scoreboard
+   methodology. Both a perf target and a measurement question.
+2. **Temporal memory bound** — big temporal instances allocate 7–10 GB
+   in seconds (elevator-08-t p22: 7.4 GB in 30 s). A memory-bounded
+   temporal route turns OOM deaths into honest timeouts and likely
+   recovers coverage; also required for game embedding (a think-budget
+   must bound memory too).
+3. **`?duration` in expressions** (PDDL2.1 duration-dependent effects/
+   constraints) — model-train 0/30 is pure parser; unlocks a whole
+   variant.
+4. **openstacks08-ADL seq-sat gap** — 6/30 vs the STRIPS twin's 30/30,
+   while netben-ADL scores 29/30: the ADL machinery is fine, the
+   seq-sat variant's structure (goal shape / compilation) is the miss.
+5. **Quality/anytime for floor-tile/visit-all** (5/20, 8/20) — the
+   within-one-search length-anytime idea recorded at the Phase 3 close.
+6. **Portfolio budget-aware scheduling** — from the settled Phase 6
+   verdict: default member to its natural end before diversification.
+7. **Temporal search walls** — turn-and-open / temporal-machine-shop /
+   storage11 (all-timeout): check required-concurrency completeness of
+   the decision-epoch scheme before assuming it's scale.
+8. Runner polish: temporal VAL (timestamped plan output), a
+   memory cap per job to keep parallel runs honest.

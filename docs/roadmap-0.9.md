@@ -190,6 +190,41 @@ spends anything.
 3. **floor-tile11 5/20, visit-all11 8/20** — the quality/anytime
    domains, exactly where the closed length-sweep negative pointed.
 
+### Post-cycle: net-benefit and temporal join the scoreboard
+
+**Net-benefit, whole track (270 inst, 60 s): 223/270, all VAL-valid.**
+The vendored 16/16 generalizes — openstacks 87/90 across three
+compilations, elevator 58/60, peg-solitaire 30/30. Tails: crew-planning
+10/30, transport/woodworking numeric 19/30 each.
+
+**Temporal, first-ever corpus recon (630 inst, 30 s tier): 326/630.**
+Sweeps where the machinery fits: crew-planning 50/50, openstacks
+temporal-strips/numeric 80/80, parking11 19/20, woodworking 28/30,
+peg-solitaire 46/50. The misses fall into three MEASURED classes, each
+with a different next move:
+
+1. **Feature gap:** model-train 0/30 fails at parse —
+   `expected expression, found Var("DURATION")`: duration-dependent
+   expressions (`?duration` outside the duration bound) are not
+   implemented.
+2. **Memory:** the big elevator/openstacks-ADL temporal instances
+   allocate 7–10 GB within seconds (measured 7.4 GB/30 s on
+   elevator-08-t p22; the kernel OOM-killed several ff processes at
+   8–10 GB during the 3-job run, which the raw log records as early
+   exits rather than timeouts). The temporal routes need a memory
+   bound the way search already has an eval bound.
+3. **Search walls:** turn-and-open, temporal-machine-shop, storage11,
+   sokoban11, floor-tile11 — 100 % timeouts, no crashes. Among these
+   sit the classic required-concurrency domains; completeness of the
+   decision-epoch scheme there is the open question to answer before
+   attributing to scale.
+
+Caveat kept honest: temporal plans are internally validated only (the
+runner emits untimestamped plans, so VAL is skipped on the temporal
+track), and the 30 s / 3-job recon tier is noisier than the seq-sat
+runs — the OOM interference above is exactly why the runner grows a
+per-job memory cap next.
+
 ## Deliberate scope cuts (why, not just what)
 
 - **Iterated-weight anytime for UNIT-cost quality** (rest of Phase 3):
