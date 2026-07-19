@@ -262,14 +262,33 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
    sole trade is woodworking08's old +1 (ladder consumes the full pool
    there → default's 29). Extrapolated corpus ~428 ≥ default 427 ≥ old
    portfolio 416 — the Phase 6 acceptance now honestly met.
-7. **Temporal search walls** — turn-and-open / temporal-machine-shop /
-   storage11 (all-timeout): check required-concurrency completeness of
-   the decision-epoch scheme before assuming it's scale. CONFIRMED
-   2026-07-19: re-baselined all seven wall variants after the day's
-   three grounding fixes (compaction, stratified Phase B, DNF static
-   resolution) — coverage IDENTICAL to the recon on every one (storage/
-   TMS/turn-and-open/sokoban11/floor-tile11 0/20, match-cellar 6/20,
-   parc-printer 18/30 + 7/20). These walls are search/semantics, not
-   grounding or memory; elevator was the only memory-bound family.
-8. Runner polish: temporal VAL (timestamped plan output), a
-   memory cap per job to keep parallel runs honest.
+7. **Temporal search walls** — ANSWERED 2026-07-19 (0.10 Phase 2). The
+   completeness question closes: a minimal turn-and-open repro (now a
+   suite test) proved same-epoch chaining handles the
+   start-inside-an-interval pattern — NO semantics gap. The real
+   amplifier was the visited key: ABSOLUTE agenda times made every
+   retimed permutation a fresh state. TIL-free tasks are
+   shift-invariant, so the key now uses pending-end DELTAS
+   (`FF_TEMPORAL_ABS_KEY=1` restores). **Measured at the 30 s
+   baseline: sokoban08-t 7→10/30, sokoban11-t 0→2/20, floor-tile11-t
+   0→3/20, all VAL-validated; turn-and-open 0→1/20 at 60 s (i1 solves
+   in ~25 s solo — the 30 s/3-job methodology clips it). Sentinels
+   unchanged (crew 50/50, pegsol 46/50, match-cellar 6/20;
+   elevator-strips 21 vs 22 is borderline-p22 contention variance,
+   VAL-green).** The two unmoved walls are classified honestly:
+   storage11 explored 3M nodes with a LIVE 2.2M heap (no exhaustion →
+   no semantics gap) but `avg_helpful → 0` far from init — a pure
+   h^FF-guidance wall, same family as transport11/model-train; TMS
+   drowns in genuine-concurrency interleavings (avg 47 pending ends
+   per node, 15k ops). Both fold into the guidance agenda.
+8. **Runner polish** — SHIPPED 2026-07-19 (0.10 Phase 1): ipc67.py
+   VALs tempo-sat plans (timestamped rendering, `-t` at ff's 0.001 ε,
+   auto-finds the get-val.sh build) and caps each job's address space
+   (`--mem-gb`, default RAM/jobs — a spike kills ITS job with a
+   `mem-cap` note instead of the OOM killer executing siblings). The
+   new validation immediately caught a real bug: same-instant numeric
+   write-write (two `board`s on one `(passengers l)`) passed the
+   fact-only mutex test — `epsilon_separate` now counts numeric
+   footprints (write-write + write-read, incl. conditional targets and
+   value reads) and its cap rose 600→2000 happenings.
+   elevator-numeric val 1/3 → 3/3; crew 20/20, all sweeps val-green.

@@ -691,3 +691,79 @@ fn state_dependent_duration_and_duration_in_effects() {
     temporal::validate(&d, &p, &plan)
         .expect("state-dependent duration plan must validate (bounds checked at start state)");
 }
+
+#[test]
+fn required_concurrency_turn_and_open() {
+    // The turn-and-open pattern (0.10 Phase 2's minimal repro): open-door
+    // needs `(over all (doorknob-turned d g))`, which is true ONLY inside
+    // turn-doorknob's interval — open-door must start inside it. Same-epoch
+    // chaining covers this: the at-start add is visible to a start at the
+    // same decision epoch. Guards the pattern that proved the 0/20 wall was
+    // search scale (fixed by shift-invariant visited keys), not semantics.
+    let dom = "
+    (define (domain tao-mini)
+      (:requirements :strips :typing :durative-actions)
+      (:types room robot gripper door)
+      (:predicates (at-robby ?r - robot ?x - room)
+                   (free ?r - robot ?g - gripper)
+                   (connected ?x ?y - room ?d - door)
+                   (open ?d - door) (closed ?d - door)
+                   (doorknob-turned ?d - door ?g - gripper))
+      (:durative-action turn-doorknob
+        :parameters (?r - robot ?from ?to - room ?d - door ?g - gripper)
+        :duration (= ?duration 3)
+        :condition (and (over all (at-robby ?r ?from))
+                        (at start (free ?r ?g))
+                        (over all (connected ?from ?to ?d))
+                        (at start (closed ?d)))
+        :effect (and (at start (not (free ?r ?g)))
+                     (at end (free ?r ?g))
+                     (at start (doorknob-turned ?d ?g))
+                     (at end (not (doorknob-turned ?d ?g)))))
+      (:durative-action open-door
+        :parameters (?r - robot ?from ?to - room ?d - door ?g - gripper)
+        :duration (= ?duration 2)
+        :condition (and (over all (at-robby ?r ?from))
+                        (over all (connected ?from ?to ?d))
+                        (over all (doorknob-turned ?d ?g))
+                        (at start (closed ?d)))
+        :effect (and (at start (not (closed ?d)))
+                     (at end (open ?d))))
+      (:durative-action move
+        :parameters (?r - robot ?from ?to - room ?d - door)
+        :duration (= ?duration 1)
+        :condition (and (at start (at-robby ?r ?from))
+                        (over all (connected ?from ?to ?d))
+                        (over all (open ?d)))
+        :effect (and (at end (at-robby ?r ?to))
+                     (at start (not (at-robby ?r ?from))))))
+    ";
+    let prob = "
+    (define (problem tao-mini-1) (:domain tao-mini)
+      (:objects r1 - robot g1 - gripper ra rb - room d1 - door)
+      (:init (at-robby r1 ra) (free r1 g1) (closed d1)
+             (connected ra rb d1) (connected rb ra d1))
+      (:goal (at-robby r1 rb)))
+    ";
+    let d = parse_domain(dom).expect("parses");
+    let p = parse_problem(prob).expect("parses");
+    let plan = temporal::solve(&d, &p, 1).expect("required-concurrency plan");
+    // open-door must start strictly inside turn-doorknob's [t, t+3) interval
+    let turn = plan
+        .steps
+        .iter()
+        .find(|s| s.action.starts_with("TURN"))
+        .unwrap();
+    let open = plan
+        .steps
+        .iter()
+        .find(|s| s.action.starts_with("OPEN"))
+        .unwrap();
+    assert!(
+        open.time >= turn.time && open.time + 2.0 <= turn.time + 3.0 + 1e-6,
+        "open-door [{}, +2] must nest inside turn-doorknob [{}, +3]",
+        open.time,
+        turn.time
+    );
+    temporal::validate(&d, &p, &plan).expect("validates");
+}
