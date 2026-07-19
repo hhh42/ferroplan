@@ -66,6 +66,9 @@ pub fn search(
     forbidden: &[bool],
 ) -> Option<(Vec<usize>, usize)> {
     let init = task.initial();
+    // Length-anytime on the whole-task rung only (subgoal probes return on
+    // first goal — a cascade merge wants speed, not polish).
+    let len_anytime = std::env::var("FF_NO_LEN_ANYTIME").is_err();
     search_subgoal(
         task,
         &init,
@@ -74,6 +77,7 @@ pub fn search(
         threads,
         max_eval,
         forbidden,
+        len_anytime,
     )
 }
 
@@ -90,6 +94,7 @@ pub fn search_subgoal(
     threads: usize,
     max_eval: usize,
     forbidden: &[bool],
+    len_anytime: bool,
 ) -> Option<(Vec<usize>, usize)> {
     let lms = crate::landmarks::landmarks_for(task, start, goal_pos);
     let lm_words = lms.len().div_ceil(64);
@@ -117,6 +122,12 @@ pub fn search_subgoal(
     // queue's completeness is untouched); expand it only once.
     let mut expanded = vec![false; 1];
     let mut evaluated = 0usize;
+    // Length-anytime incumbent (see search.rs SearchCfg::len_anytime): keep
+    // draining the same dual open lists for a strictly shorter plan until the
+    // drain ceiling (evals-at-first-incumbent × 2).
+    let mut best_plan: Option<Vec<usize>> = None;
+    let mut best_len = usize::MAX;
+    let mut eval_ceiling = max_eval;
 
     loop {
         // Deterministic mixed batch: boosted share from the preferred heap,
@@ -143,12 +154,26 @@ pub fn search_subgoal(
             }
         }
         if popped.is_empty() {
-            return None; // both open lists exhausted
+            // both open lists exhausted (with an incumbent: it is final)
+            return best_plan.map(|p| (p, evaluated));
         }
 
         for &ni in &popped {
             if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
-                return Some((reconstruct(&nodes, ni), evaluated));
+                if !len_anytime {
+                    return Some((reconstruct(&nodes, ni), evaluated));
+                }
+                let plan = reconstruct(&nodes, ni);
+                if plan.len() < best_len {
+                    best_len = plan.len();
+                    best_plan = Some(plan);
+                    if eval_ceiling == max_eval {
+                        eval_ceiling = evaluated
+                            .saturating_mul(2)
+                            .max(evaluated + 10_000)
+                            .min(max_eval);
+                    }
+                }
             }
         }
 
@@ -163,8 +188,9 @@ pub fn search_subgoal(
             },
         );
         evaluated += popped.len();
-        if evaluated > max_eval || nodes.len() > node_cap {
-            return None; // budget spent: hand off to the complete fallback
+        if evaluated > max_eval || evaluated > eval_ceiling || nodes.len() > node_cap {
+            // budget spent: the incumbent (if any), else hand off to the fallback
+            return best_plan.map(|p| (p, evaluated));
         }
 
         // PARALLEL: expand live nodes; preferred = successor via a helpful op.

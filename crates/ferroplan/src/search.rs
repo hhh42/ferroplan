@@ -97,6 +97,15 @@ pub struct SearchCfg {
     /// (`costs::improve_length`); pruned states are NOT visited-marked, so a
     /// shorter route to them through another parent stays reachable.
     pub g_bound: usize,
+    /// Length-anytime WITHIN one search (0.10 Phase 3): on the first goal,
+    /// record the incumbent, tighten a live g-bound to its length, and keep
+    /// draining the SAME open list (no restart, no prefix re-tread) for a
+    /// strictly shorter plan until the drain ceiling — the eval count DOUBLES
+    /// at most (ceiling = evals-at-first-incumbent × 2, still under
+    /// `max_eval`). Off by default; `plan_avoiding` enables it on the plain
+    /// length path (`FF_NO_LEN_ANYTIME=1` keeps it off). Mutually exclusive
+    /// with the metric `anytime`.
+    pub len_anytime: bool,
 }
 
 impl Default for SearchCfg {
@@ -136,6 +145,7 @@ impl SearchCfg {
             h_cost: None,
             anytime: false,
             g_bound: usize::MAX,
+            len_anytime: false,
         }
     }
 
@@ -367,6 +377,11 @@ pub fn search_from(
     // reconstruction stays valid at return time).
     let mut cost_bound = cost_bound;
     let mut best_acc: Option<usize> = None;
+    // Length-anytime (cfg.len_anytime): incumbent + live length bound + drain
+    // ceiling (see the SearchCfg field docs).
+    let mut len_bound: usize = usize::MAX;
+    let mut len_acc: Option<usize> = None;
+    let mut eval_ceiling: usize = cfg.max_eval;
 
     while !heap.is_empty() {
         // pop a batch of lowest-priority nodes
@@ -386,6 +401,22 @@ pub fn search_from(
         for &ni in &popped {
             max_g = max_g.max(nodes[ni].g);
             if !task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
+                continue;
+            }
+            if cfg.len_anytime {
+                let g = nodes[ni].g;
+                if g < len_bound {
+                    len_bound = g;
+                    len_acc = Some(ni);
+                    // The drain may spend as much again as the first incumbent
+                    // took; a later, shorter incumbent does not extend it.
+                    if eval_ceiling == cfg.max_eval {
+                        eval_ceiling = evaluated
+                            .saturating_mul(2)
+                            .max(evaluated + 10_000)
+                            .min(cfg.max_eval);
+                    }
+                }
                 continue;
             }
             if cfg.anytime {
@@ -430,6 +461,14 @@ pub fn search_from(
             }
         }
 
+        // Length-anytime: a popped node at depth g spawns goals at >= g+1, so
+        // g + 1 >= len_bound can never improve — drop before paying its h.
+        if cfg.len_anytime && len_bound < usize::MAX {
+            popped.retain(|&ni| nodes[ni].g + 1 < len_bound);
+            if popped.is_empty() {
+                continue;
+            }
+        }
         // Anytime: drop popped nodes the tightened bound has made dead — cost
         // is monotone and the closure is non-negative, so cost-so-far >= bound
         // can never reach an accepting state. Saves their h evaluations.
@@ -470,7 +509,7 @@ pub fn search_from(
         // that actually holds the memory — and is maintained serially, so the
         // check is thread-count independent. Overshoot is bounded by one
         // batch's insertions (the check precedes this batch's expansion).
-        if evaluated > cfg.max_eval || nodes.len() > node_cap {
+        if evaluated > cfg.max_eval || evaluated > eval_ceiling || nodes.len() > node_cap {
             // Anytime: a capped sweep still hands back its incumbent — the
             // caller tightens to its cost and (with budget) sweeps again.
             if dbg {
@@ -489,7 +528,7 @@ pub fn search_from(
                     t_all.elapsed().as_millis()
                 );
             }
-            if let Some(ni) = best_acc {
+            if let Some(ni) = best_acc.or(len_acc) {
                 return PlanResult::Plan {
                     ops: reconstruct(&nodes, ni),
                     advance,
@@ -546,7 +585,7 @@ pub fn search_from(
         for chunk in cand_chunks {
             for (pi, oi, s, k, ph) in chunk {
                 let g = nodes[pi].g + 1;
-                if g >= cfg.g_bound {
+                if g >= cfg.g_bound || g >= len_bound {
                     continue; // cannot beat the length incumbent (see SearchCfg)
                 }
                 if visited.insert(k) {
@@ -583,7 +622,7 @@ pub fn search_from(
 
     // Open list exhausted. Anytime: the incumbent is optimal under the original
     // bound (the caller's confirming re-sweep proves it via None + un-capped).
-    if let Some(ni) = best_acc {
+    if let Some(ni) = best_acc.or(len_acc) {
         return PlanResult::Plan {
             ops: reconstruct(&nodes, ni),
             advance,
@@ -676,6 +715,12 @@ pub fn plan_avoiding(
                 };
             }
         }
+    }
+    // Length-anytime on the PLAIN length path only (no metric machinery in
+    // play); FF_NO_LEN_ANYTIME=1 restores return-on-first-goal.
+    let mut cfg = cfg;
+    if cfg.h_cost.is_none() && !cfg.anytime && std::env::var("FF_NO_LEN_ANYTIME").is_err() {
+        cfg.len_anytime = true;
     }
     let (ops, evaluated) = match search_from(
         task,

@@ -59,6 +59,7 @@ fn lama_rung(
         threads,
         LAMA_CAP.min(cfg.max_eval),
         &[],
+        false, // subgoal probes return on first goal
     )
     .map(|(ops, _)| ops)
 }
