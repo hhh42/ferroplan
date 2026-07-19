@@ -17,6 +17,12 @@ use crate::types::{eval_numpre, AssignOp, CompOp, NExpr, NumEff, NumPre};
 const LAYER_CAP: u32 = 2000;
 const INF: u32 = u32::MAX;
 
+/// Measurement-only phase accumulators (FF_RES_DEBUG; printed by the search
+/// cap dump). Atomic because h runs on worker threads.
+pub static T_RESET: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static T_BUILD: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+pub static T_EXTRACT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// Reusable per-worker working memory for `relaxed`.
 pub struct Scratch {
     reached: Vec<bool>,
@@ -237,7 +243,11 @@ fn build_rpg(
     // applicability (delete-relaxed), so they are skipped — except those with
     // relevant numeric effects, which are re-widened each layer from
     // `num_applied` so monotone fluents (e.g. consumed-resources) can grow to
-    // reach numeric goals.
+    // reach numeric goals. (A counter-based build — watch lists decrementing
+    // per reached fact — was implemented and measured EQUIVALENT on
+    // transport11: identical 20,126 evals, h wall 12.85 s vs 12.83 s. The
+    // per-eval cost is the relaxation FLOOR — nearly every op fires in every
+    // build — so the scan is not the term; recorded 2026-07-19, not shipped.)
     let mut layer: u32 = 0;
     loop {
         if !to_fixpoint && goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
@@ -384,14 +394,34 @@ pub fn relaxed_to(
     goal_pos: &[u32],
     goal_num: &[NumPre],
 ) -> Option<i32> {
+    use std::sync::atomic::Ordering::Relaxed;
+    let t0 = std::time::Instant::now();
     sc.reset(task, bits, fv);
+    T_RESET.fetch_add(t0.elapsed().as_micros() as u64, Relaxed);
 
+    let t0 = std::time::Instant::now();
     build_rpg(task, sc, goal_pos, goal_num, def, false);
+    T_BUILD.fetch_add(t0.elapsed().as_micros() as u64, Relaxed);
 
     if !goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
         return None;
     }
+    let t0 = std::time::Instant::now();
+    let r = relaxed_extract(task, sc, bits, fv, goal_pos, goal_num, def);
+    T_EXTRACT.fetch_add(t0.elapsed().as_micros() as u64, Relaxed);
+    r
+}
 
+#[allow(clippy::too_many_arguments)]
+fn relaxed_extract(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    def: &[bool],
+) -> Option<i32> {
     // ---- relaxed-plan extraction (count actions) ----
     let mut count: i32 = 0;
     let mut head = 0usize;

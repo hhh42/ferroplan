@@ -315,6 +315,11 @@ pub fn search_from(
 ) -> PlanResult {
     let batch = BATCH;
     let node_cap = node_cap_for(task);
+    // Phase-time attribution, printed only under FF_RES_DEBUG at the cap
+    // return (measurement only — never affects behavior).
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let t_all = std::time::Instant::now();
+    let (mut t_h, mut t_exp, mut t_ins) = (0u128, 0u128, 0u128);
 
     let init = start.clone();
     // early dead-end check: if the initial state is a relaxed dead end, unsolvable
@@ -443,6 +448,7 @@ pub fn search_from(
 
         // PARALLEL: evaluate h for the popped batch (the only evaluations),
         // each worker reusing one Scratch across its chunk.
+        let t_phase = std::time::Instant::now();
         let hs: Vec<Option<i32>> = par::par_map_with(
             &popped,
             threads,
@@ -457,6 +463,7 @@ pub fn search_from(
                 }
             },
         );
+        t_h += t_phase.elapsed().as_micros();
         evaluated += popped.len();
         // The node cap (0.8 Phase 3) trips at the same batch boundary as the
         // eval cap: `nodes.len()` counts INSERTED successors — the quantity
@@ -466,6 +473,22 @@ pub fn search_from(
         if evaluated > cfg.max_eval || nodes.len() > node_cap {
             // Anytime: a capped sweep still hands back its incumbent — the
             // caller tightens to its cost and (with budget) sweeps again.
+            if dbg {
+                use std::sync::atomic::Ordering::Relaxed;
+                eprintln!(
+                    "[h] reset {}ms, build {}ms, extract {}ms (cumulative worker-thread time)",
+                    crate::heuristic::T_RESET.load(Relaxed) / 1000,
+                    crate::heuristic::T_BUILD.load(Relaxed) / 1000,
+                    crate::heuristic::T_EXTRACT.load(Relaxed) / 1000,
+                );
+                eprintln!(
+                    "[search] capped at {evaluated} evals: h {}ms, expand {}ms, insert {}ms, total {}ms",
+                    t_h / 1000,
+                    t_exp / 1000,
+                    t_ins / 1000,
+                    t_all.elapsed().as_millis()
+                );
+            }
             if let Some(ni) = best_acc {
                 return PlanResult::Plan {
                     ops: reconstruct(&nodes, ni),
@@ -493,6 +516,7 @@ pub fn search_from(
             .zip(hs.iter())
             .filter_map(|(&ni, h)| h.map(|h| (ni, h)))
             .collect();
+        let t_phase = std::time::Instant::now();
         let cand_chunks: Vec<Vec<(usize, usize, State, StateKey, i32)>> =
             par::par_map(&live, threads, |&(ni, ph)| {
                 let st = &nodes[ni].state;
@@ -515,7 +539,10 @@ pub fn search_from(
                 v
             });
 
+        t_exp += t_phase.elapsed().as_micros();
+
         // SERIAL: dedup + insert (deterministic order, independent of threads).
+        let t_phase = std::time::Instant::now();
         for chunk in cand_chunks {
             for (pi, oi, s, k, ph) in chunk {
                 let g = nodes[pi].g + 1;
@@ -551,6 +578,7 @@ pub fn search_from(
                 }
             }
         }
+        t_ins += t_phase.elapsed().as_micros();
     }
 
     // Open list exhausted. Anytime: the incumbent is optimal under the original
