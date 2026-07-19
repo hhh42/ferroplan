@@ -535,6 +535,7 @@ fn for_each_binding(
 /// producer predicates (statics are never added), so checking BOTH literal
 /// kinds against the union set is exact. Stratum-1 callers pass `&[]` and
 /// the plain init set — byte-identical to the unstratified path.
+#[allow(clippy::too_many_arguments)]
 fn ground_action(
     action: &Action,
     objects_of_type: &HashMap<Sym, Vec<Sym>>,
