@@ -251,8 +251,17 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
    woodworking: same plans, same eval counts); suite 142/0.
 5. **Quality/anytime for floor-tile/visit-all** (5/20, 8/20) — the
    within-one-search length-anytime idea recorded at the Phase 3 close.
-6. **Portfolio budget-aware scheduling** — from the settled Phase 6
-   verdict: default member to its natural end before diversification.
+6. **Portfolio budget-aware scheduling** — SHIPPED 2026-07-19: phase A
+   gives the ladder the FULL eval pool (coverage ≥ default BY
+   CONSTRUCTION); diversification doubles only over what an early
+   internal wall left behind. `FF_PORTFOLIO_SLICED=1` restores pure
+   doubling. Measured on all seven delta variants at the baseline
+   60 s: every old loss recovered exactly to default (sokoban08 17→21,
+   sokoban11 8→11, visit-all 4→8, barman 19→20, elevator11 10→11) and
+   the no-mystery diversification win KEPT (15 vs default's 14); the
+   sole trade is woodworking08's old +1 (ladder consumes the full pool
+   there → default's 29). Extrapolated corpus ~428 ≥ default 427 ≥ old
+   portfolio 416 — the Phase 6 acceptance now honestly met.
 7. **Temporal search walls** — turn-and-open / temporal-machine-shop /
    storage11 (all-timeout): check required-concurrency completeness of
    the decision-epoch scheme before assuming it's scale. CONFIRMED
