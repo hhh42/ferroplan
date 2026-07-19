@@ -47,6 +47,29 @@ pub fn solve(task: &PackedTask, threads: usize, cfg: SearchCfg) -> Outcome {
     let mut evaluated = 0usize;
     let mut round = 0u32;
 
+    // Budget-aware phase A (the settled Phase 6 verdict): the DEFAULT member
+    // runs to its NATURAL END on the FULL pool before diversification spends
+    // anything. The doubling schedule preempted the ladder and net-LOST 11
+    // corpus instances (sokoban −7, visit-all −4 — domains where the ladder
+    // needs the whole budget; diversification won only +2). Ladder-first
+    // makes portfolio coverage ≥ default BY CONSTRUCTION: the ladder sees
+    // exactly the default's budget, and the others run only on what it left
+    // behind (an early internal wall — node cap, LAMA cap, dead end).
+    // `FF_PORTFOLIO_SLICED=1` restores the pure doubling schedule.
+    if std::env::var("FF_PORTFOLIO_SLICED").is_err() {
+        let (ops, used, _) = run_member(task, 0, threads, cfg, pool);
+        evaluated += used;
+        pool = pool.saturating_sub(used.max(1));
+        if let Some(ops) = ops {
+            return Outcome {
+                ops: Some(ops),
+                evaluated,
+                winner: Some(names[0]),
+            };
+        }
+        alive[0] = false;
+    }
+
     while pool > 0 && alive.iter().any(|&a| a) {
         let slice = (SLICE0 << round).min(pool);
         for (m, &name) in names.iter().enumerate() {
