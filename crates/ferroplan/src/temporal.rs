@@ -190,7 +190,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 // ---------------------------------------------------------------------------
 
 use crate::features::DemandMode;
-use crate::ground::{ground, Outcome};
+use crate::ground::{ground_stratified, Outcome};
 use crate::hash::FxHashMap;
 use crate::heuristic::{relaxed_helpful, relaxed_to, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
@@ -424,7 +424,7 @@ fn solve_inner(
     tier: DemandMode,
 ) -> Option<TimedPlan> {
     let c = compile(domain, problem);
-    let task = match ground(&c.domain, &c.problem, threads) {
+    let task = match ground_stratified(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
             return Some(TimedPlan {
@@ -1521,7 +1521,7 @@ fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, kind: &[Kind]) -
 /// externally-supplied plan).
 pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<(), String> {
     let c = compile(domain, problem);
-    let task = match ground(&c.domain, &c.problem, 1) {
+    let task = match ground_stratified(&c.domain, &c.problem, 1) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
             return if plan.steps.is_empty() {

@@ -12,7 +12,7 @@
 //! because the RPG domain is single-agent with no `over all` invariants spanning
 //! contracts; anything needing cross-contract concurrency falls through to monolithic.
 
-use crate::ground::{ground, Outcome};
+use crate::ground::{ground_stratified, Outcome};
 use crate::hash::FxHashSet;
 use crate::packed::PackedTask;
 use crate::partition::{interaction_partition, merge_at, merge_with_neighbor, Subgoal};
@@ -139,7 +139,7 @@ fn decompose_inner(
     monolithic_fallback: bool,
 ) -> Option<Decomp> {
     let c = temporal::compile(domain, problem);
-    let task = match ground(&c.domain, &c.problem, threads) {
+    let task = match ground_stratified(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
             let empty = TimedPlan {
