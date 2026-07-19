@@ -2065,79 +2065,6 @@ pub(crate) fn treplay(task: &PackedTask, state: &State, plan: &TimedPlan) -> Opt
 /// PDDL2.1 separation between mutex happenings (the IPC convention).
 const EPS: f64 = 0.001;
 
-fn slices_intersect(a: &[u32], b: &[u32]) -> bool {
-    // slices are tiny (a handful of facts), so the quadratic scan is fine
-    a.iter().any(|x| b.contains(x))
-}
-
-/// Do two grounded happenings interfere (PDDL2.1 mutex)? True if one's add/del
-/// clashes with the other's precondition, add, or delete on a shared fact —
-/// requiring them to be ε-separated rather than simultaneous.
-/// Per-op numeric footprint for the mutex test: (fluents WRITTEN by any
-/// numeric effect incl. conditional, fluents READ by numeric preconditions,
-/// conditional-effect conditions, or effect VALUE expressions). PDDL2.1
-/// counts write-write AND write-read on the same fluent as interference —
-/// VAL rejected two same-instant `board`s both increasing `(passengers l)`
-/// (elevator-08-numeric i2), which the fact-only test below called
-/// independent.
-fn num_footprint(task: &PackedTask, o: usize) -> (Vec<u32>, Vec<u32>) {
-    let mut writes: Vec<u32> = Vec::new();
-    let mut reads: Vec<u32> = Vec::new();
-    let mut rd = Vec::new();
-    for ne in task.num_eff.slice(o) {
-        writes.push(ne.target);
-        ne.value.collect_fluents(&mut rd);
-    }
-    for np in task.pre_num.slice(o) {
-        np.lhs.collect_fluents(&mut rd);
-        np.rhs.collect_fluents(&mut rd);
-    }
-    for ce in task.cond_effs(o) {
-        for ne in &ce.num {
-            writes.push(ne.target);
-            ne.value.collect_fluents(&mut rd);
-        }
-        for np in &ce.cond_num {
-            np.lhs.collect_fluents(&mut rd);
-            np.rhs.collect_fluents(&mut rd);
-        }
-    }
-    reads.append(&mut rd);
-    writes.sort_unstable();
-    writes.dedup();
-    reads.sort_unstable();
-    reads.dedup();
-    (writes, reads)
-}
-
-fn ops_mutex(
-    task: &PackedTask,
-    o1: usize,
-    o2: usize,
-    n1: &(Vec<u32>, Vec<u32>),
-    n2: &(Vec<u32>, Vec<u32>),
-) -> bool {
-    let (p1, a1, d1) = (
-        task.pre_pos.slice(o1),
-        task.add.slice(o1),
-        task.del.slice(o1),
-    );
-    let (p2, a2, d2) = (
-        task.pre_pos.slice(o2),
-        task.add.slice(o2),
-        task.del.slice(o2),
-    );
-    slices_intersect(a1, d2)
-        || slices_intersect(d1, a2)
-        || slices_intersect(a1, p2)
-        || slices_intersect(p1, a2)
-        || slices_intersect(d1, p2)
-        || slices_intersect(p1, d2)
-        || slices_intersect(&n1.0, &n2.0)
-        || slices_intersect(&n1.0, &n2.1)
-        || slices_intersect(&n1.1, &n2.0)
-}
-
 /// Re-time a plan so mutex happenings are ε-separated (PDDL2.1 / VAL validity):
 /// the decision-epoch search coincides dependent happenings (e.g. one action
 /// starting the instant another's at-end effect lands), which VAL rejects. We
@@ -2184,7 +2111,12 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
                             time: step.time + dur,
                         });
                     }
-                    _ => return plan, // can't map -> leave as-is
+                    _ => {
+                        if std::env::var("FF_RES_DEBUG").is_ok() {
+                            eprintln!("[eps] cannot map `{sd}`/`{ed}` -> plan left unseparated");
+                        }
+                        return plan; // can't map -> leave as-is
+                    }
                 }
             }
             None => match find(&step.action) {
@@ -2214,33 +2146,22 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
             .then(hs[a].is_start.cmp(&hs[b].is_start))
     });
 
-    // STN edges: t[v] >= t[u] + w
+    // STN edges: t[v] >= t[u] + w. TOTAL ε-ordering: every consecutive pair
+    // in execution order is ε apart. Concurrency lives in INTERVAL OVERLAP,
+    // not shared instants, so this keeps every genuinely concurrent plan
+    // concurrent while making simultaneity — the only thing any mutex
+    // definition can object to — impossible by construction. It subsumes the
+    // pairwise interference test this pass used to run: first fact-only
+    // (missed same-instant numeric write-write — elevator-numeric), then
+    // fact+numeric footprints (still missed VAL's SYNTACTIC footprint: a
+    // `forall (imply (includes o4 p) (started o4))` condition reads
+    // `(started o4)` in VAL's mutex test even when the imply is statically
+    // vacuous — the compiled precondition is semantically minimal and
+    // under-approximates it; openstacks-temporal-ADL failed 50/60 plans on
+    // exactly that). Makespan cost: ≤ n·ε ≈ milliseconds.
     let mut edges: Vec<(usize, usize, f64)> = Vec::new();
-    // preserve order (weak)
     for w in order.windows(2) {
-        edges.push((w[0], w[1], 0.0));
-    }
-    // ε between mutex happenings (in execution order); numeric footprints
-    // precomputed once per distinct op
-    let mut nsets: HashMap<usize, (Vec<u32>, Vec<u32>)> = HashMap::new();
-    for h in &hs {
-        nsets
-            .entry(h.op)
-            .or_insert_with(|| num_footprint(task, h.op));
-    }
-    for i in 0..n {
-        for j in (i + 1)..n {
-            let (u, v) = (order[i], order[j]);
-            if ops_mutex(
-                task,
-                hs[u].op,
-                hs[v].op,
-                &nsets[&hs[u].op],
-                &nsets[&hs[v].op],
-            ) {
-                edges.push((u, v, EPS));
-            }
-        }
+        edges.push((w[0], w[1], EPS));
     }
     // duration equality: end = start + dur  (two inequalities)
     for si in 0..plan.steps.len() {
@@ -2287,15 +2208,24 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
     // positive-cycle check: another pass must not improve
     for &(u, v, w) in &edges {
         if t[v] < t[u] + w - 1e-12 {
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!("[eps] STN inconsistency -> plan left unseparated");
+            }
             return plan; // inconsistent ordering -> keep original
         }
     }
 
-    // re-time the steps from the scheduled start happenings
+    // re-time the steps from the scheduled start happenings, SNAPPED to the
+    // ε grid: accumulated float drift (0.003 + 1.0 + 0.001 =
+    // 1.0039999999999999) leaves an intended ε gap a hair UNDER ε, and VAL
+    // at tolerance ε then groups the two happenings as simultaneous — the
+    // openstacks-temporal-ADL sweeps failed 20/30 + 30/30 plans on exactly
+    // this before snapping. Rounding to whole ε slots puts every gap on the
+    // safe side.
     let mut steps = plan.steps;
     for (hi, h) in hs.iter().enumerate() {
         if h.is_start {
-            steps[h.step].time = t[hi];
+            steps[h.step].time = (t[hi] / EPS).round() * EPS;
         }
     }
     let makespan = steps

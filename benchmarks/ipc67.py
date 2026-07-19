@@ -117,7 +117,11 @@ def val_check(val, domain, problem, steps, temporal=False):
     """VAL a plan. Temporal steps render as `time: (action) [duration]` —
     the format `TimedPlan::to_ipc` emits and VAL parses natively; classical
     steps inside a temporal plan (duration null) drop the brackets. The
-    tolerance matches ff's decision-epoch EPS (0.001)."""
+    tolerance is HALF ff's decision-epoch EPS (0.001): VAL groups happenings
+    whose gap does not strictly exceed the tolerance, so validating at
+    exactly EPS treats our e-separated pairs as simultaneous (boundary
+    mutex false-positives); at EPS/2 every e gap clears cleanly while true
+    coincidences still group."""
     with tempfile.NamedTemporaryFile("w", suffix=".plan", delete=False) as f:
         for s in steps:
             act = "(" + " ".join([s["action"]] + s.get("args", [])).lower() + ")"
@@ -129,7 +133,7 @@ def val_check(val, domain, problem, steps, temporal=False):
             else:
                 f.write(act + "\n")
         path = f.name
-    cmd = [val, "-t", "0.001", domain, problem, path] if temporal else [
+    cmd = [val, "-t", "0.0005", domain, problem, path] if temporal else [
         val, domain, problem, path]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
