@@ -89,6 +89,137 @@ fn pick_effects(da: &crate::types::DurativeAction, when: TimeSpec) -> Vec<Effect
 
 /// Compile a temporal domain (durative actions) into a classical domain of
 /// snap-actions plus the [`SnapInfo`] side table.
+/// Does this expression reference the `?duration` pseudo-fluent?
+fn expr_has_duration(e: &Expr) -> bool {
+    match e {
+        Expr::Num(_) => false,
+        Expr::Fluent(f, _) => f == crate::types::DURATION_PSEUDO,
+        Expr::Add(a, b) | Expr::Sub(a, b) | Expr::Mul(a, b) | Expr::Div(a, b) => {
+            expr_has_duration(a) || expr_has_duration(b)
+        }
+        Expr::Neg(a) => expr_has_duration(a),
+    }
+}
+
+/// Substitute the `?duration` pseudo-fluent with the action's duration
+/// expression (PDDL2.1 duration-dependent effects/conditions).
+fn expr_subst_duration(e: &Expr, dur: &Expr) -> Expr {
+    match e {
+        Expr::Num(n) => Expr::Num(*n),
+        Expr::Fluent(f, _) if f == crate::types::DURATION_PSEUDO => dur.clone(),
+        Expr::Fluent(f, a) => Expr::Fluent(f.clone(), a.clone()),
+        Expr::Add(a, b) => Expr::Add(
+            Box::new(expr_subst_duration(a, dur)),
+            Box::new(expr_subst_duration(b, dur)),
+        ),
+        Expr::Sub(a, b) => Expr::Sub(
+            Box::new(expr_subst_duration(a, dur)),
+            Box::new(expr_subst_duration(b, dur)),
+        ),
+        Expr::Mul(a, b) => Expr::Mul(
+            Box::new(expr_subst_duration(a, dur)),
+            Box::new(expr_subst_duration(b, dur)),
+        ),
+        Expr::Div(a, b) => Expr::Div(
+            Box::new(expr_subst_duration(a, dur)),
+            Box::new(expr_subst_duration(b, dur)),
+        ),
+        Expr::Neg(a) => Expr::Neg(Box::new(expr_subst_duration(a, dur))),
+    }
+}
+
+fn formula_map_exprs(f: &Formula, m: &impl Fn(&Expr) -> Expr) -> Formula {
+    match f {
+        Formula::Comp(op, l, r) => Formula::Comp(*op, m(l), m(r)),
+        Formula::And(v) => Formula::And(v.iter().map(|x| formula_map_exprs(x, m)).collect()),
+        Formula::Or(v) => Formula::Or(v.iter().map(|x| formula_map_exprs(x, m)).collect()),
+        Formula::Not(inner) => Formula::Not(Box::new(formula_map_exprs(inner, m))),
+        Formula::Forall(vs, inner) => {
+            Formula::Forall(vs.clone(), Box::new(formula_map_exprs(inner, m)))
+        }
+        Formula::Exists(vs, inner) => {
+            Formula::Exists(vs.clone(), Box::new(formula_map_exprs(inner, m)))
+        }
+        Formula::Pref(n, inner) => Formula::Pref(n.clone(), Box::new(formula_map_exprs(inner, m))),
+        other => other.clone(),
+    }
+}
+
+fn effect_map_exprs(e: &Effect, m: &impl Fn(&Expr) -> Expr) -> Effect {
+    match e {
+        Effect::Num(op, f, a, v) => Effect::Num(*op, f.clone(), a.clone(), m(v)),
+        Effect::And(v) => Effect::And(v.iter().map(|x| effect_map_exprs(x, m)).collect()),
+        Effect::When(c, inner) => Effect::When(
+            formula_map_exprs(c, m),
+            Box::new(effect_map_exprs(inner, m)),
+        ),
+        Effect::Forall(vs, inner) => {
+            Effect::Forall(vs.clone(), Box::new(effect_map_exprs(inner, m)))
+        }
+        other => other.clone(),
+    }
+}
+
+fn formula_has_duration(f: &Formula) -> bool {
+    match f {
+        Formula::Comp(_, l, r) => expr_has_duration(l) || expr_has_duration(r),
+        Formula::And(v) | Formula::Or(v) => v.iter().any(formula_has_duration),
+        Formula::Not(inner) | Formula::Forall(_, inner) | Formula::Exists(_, inner) => {
+            formula_has_duration(inner)
+        }
+        Formula::Pref(_, inner) => formula_has_duration(inner),
+        _ => false,
+    }
+}
+
+fn effect_has_duration(e: &Effect) -> bool {
+    match e {
+        Effect::Num(_, _, _, v) => expr_has_duration(v),
+        Effect::And(v) => v.iter().any(effect_has_duration),
+        Effect::When(c, inner) => formula_has_duration(c) || effect_has_duration(inner),
+        Effect::Forall(_, inner) => effect_has_duration(inner),
+        _ => false,
+    }
+}
+
+/// Fluent NAMES any action (classical or durative, any time spec) assigns —
+/// the name-level over-approximation behind the end-side `?duration` scope
+/// check in [`compile`].
+fn assigned_fluent_names(domain: &Domain) -> HashSet<&Sym> {
+    fn rec<'a>(e: &'a Effect, out: &mut HashSet<&'a Sym>) {
+        match e {
+            Effect::Num(_, f, _, _) => {
+                out.insert(f);
+            }
+            Effect::And(v) => v.iter().for_each(|x| rec(x, out)),
+            Effect::When(_, inner) | Effect::Forall(_, inner) => rec(inner, out),
+            _ => {}
+        }
+    }
+    let mut out = HashSet::new();
+    for a in &domain.actions {
+        rec(&a.effect, &mut out);
+    }
+    for da in &domain.durative_actions {
+        for e in &da.effects {
+            rec(&e.1, &mut out);
+        }
+    }
+    out
+}
+
+/// Does the duration expression read any assigned (dynamic) fluent name?
+fn duration_reads_assigned(e: &Expr, assigned: &HashSet<&Sym>) -> bool {
+    match e {
+        Expr::Num(_) => false,
+        Expr::Fluent(f, _) => assigned.contains(f),
+        Expr::Add(a, b) | Expr::Sub(a, b) | Expr::Mul(a, b) | Expr::Div(a, b) => {
+            duration_reads_assigned(a, assigned) || duration_reads_assigned(b, assigned)
+        }
+        Expr::Neg(a) => duration_reads_assigned(a, assigned),
+    }
+}
+
 pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
     let mut d = domain.clone();
     let mut snaps = Vec::new();
@@ -107,15 +238,55 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
         d.predicates.push((running.clone(), run_types));
         let invariant = pick_conditions(da, TimeSpec::All);
 
+        // PDDL2.1 `?duration` inside conditions/effects: substitute the
+        // action's duration expression (the parser emits the `?DURATION`
+        // pseudo-fluent). At-START substitution is exact — the effect/
+        // condition evaluates against the same state the duration was fixed
+        // in. At-END (or invariant) references are only exact when the
+        // duration reads no fluent any action assigns (else intervening
+        // effects could change the read between START and END); actions
+        // outside that scope are SKIPPED — never compiled wrong.
+        let start_cond0 = pick_conditions(da, TimeSpec::Start);
+        let start_effs0 = pick_effects(da, TimeSpec::Start);
+        let end_cond0 = pick_conditions(da, TimeSpec::End);
+        let end_effs0 = pick_effects(da, TimeSpec::End);
+        let uses_dur = |f: &Formula, effs: &[Effect]| {
+            formula_has_duration(f) || effs.iter().any(effect_has_duration)
+        };
+        let start_uses = uses_dur(&start_cond0, &start_effs0);
+        let end_uses = uses_dur(&end_cond0, &end_effs0) || formula_has_duration(&invariant);
+        let dur_expr = if start_uses || end_uses {
+            match da.duration.chosen() {
+                Some(e) if !expr_has_duration(e) => {
+                    if end_uses {
+                        let assigned: HashSet<&Sym> = assigned_fluent_names(domain);
+                        if duration_reads_assigned(e, &assigned) {
+                            continue; // end-side `?duration` over a dynamic read: unsupported
+                        }
+                    }
+                    Some(e.clone())
+                }
+                _ => continue, // `?duration` used but no usable duration bound
+            }
+        } else {
+            None
+        };
+        let subst_f = |f: &Formula| match &dur_expr {
+            Some(dexp) => formula_map_exprs(f, &|e| expr_subst_duration(e, dexp)),
+            None => f.clone(),
+        };
+        let subst_e = |eff: &Effect| match &dur_expr {
+            Some(dexp) => effect_map_exprs(eff, &|e| expr_subst_duration(e, dexp)),
+            None => eff.clone(),
+        };
+        let invariant = subst_f(&invariant);
+
         // start snap: (at-start conditions + invariant) -> at-start effects + token.
         // The invariant is also checked at both endpoints (a sound approximation
         // of `over all`: an interval violation surfaces when the END precondition
         // fails, e.g. a concurrent action removing the invariant fact).
-        let start_pre = and_formulas(vec![
-            pick_conditions(da, TimeSpec::Start),
-            invariant.clone(),
-        ]);
-        let mut start_eff = pick_effects(da, TimeSpec::Start);
+        let start_pre = and_formulas(vec![subst_f(&start_cond0), invariant.clone()]);
+        let mut start_eff: Vec<Effect> = start_effs0.iter().map(&subst_e).collect();
         start_eff.push(Effect::Add(running.clone(), run_args.clone()));
         d.actions.push(Action {
             name: start_name.clone(),
@@ -127,11 +298,11 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 
         // end snap: (at-end conditions + invariant + token) -> at-end effects, drop token
         let end_pre = and_formulas(vec![
-            pick_conditions(da, TimeSpec::End),
+            subst_f(&end_cond0),
             invariant.clone(),
             Formula::Atom(running.clone(), run_args.clone()),
         ]);
-        let mut end_eff = pick_effects(da, TimeSpec::End);
+        let mut end_eff: Vec<Effect> = end_effs0.iter().map(&subst_e).collect();
         end_eff.push(Effect::Del(running.clone(), run_args.clone()));
         d.actions.push(Action {
             name: end_name.clone(),
@@ -236,6 +407,10 @@ pub(crate) enum Kind {
     Start {
         dur: f64,
         end_op: usize,
+        /// `u32::MAX` = fixed `dur` (the historical init-resolved path);
+        /// otherwise an index into the state-dependent duration table
+        /// (`build_kind`'s second return), evaluated per expansion.
+        dexp: u32,
     },
     End,
     Classical,
@@ -435,7 +610,7 @@ fn solve_inner(
         _ => return None,
     };
 
-    let kind = build_kind(&task, &c);
+    let (kind, dur_exprs) = build_kind(&task, &c);
     // Resolve each TIL's synthetic applier to its grounded op id (0-arg ⇒ op display
     // is the action name). A TIL whose op didn't ground is silently dropped.
     let by_display: HashMap<&str, usize> = task
@@ -453,6 +628,7 @@ fn solve_inner(
     solve_from(
         &task,
         &kind,
+        &dur_exprs,
         &task.initial(),
         &task.goal_pos,
         &task.goal_num,
@@ -466,10 +642,15 @@ fn solve_inner(
 /// Classify every grounded op as a durative Start (with resolved duration + paired
 /// end op), End, Classical, or Skip (unresolvable). Shared by `solve` and the
 /// decomposer (`tresolve`), built once per grounded task.
-pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
-    // Durations are constant or parameter-dependent (evaluated against the initial
-    // state); pair each start snap with its matching end op.
+pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> (Vec<Kind>, Vec<NExpr>) {
+    // Durations are constant or parameter-dependent. A duration reading only
+    // UNMODIFIED fluents is resolved once against the initial state (the
+    // historical path, bit-identical). One reading a fluent some op assigns
+    // (model-train's `(- (tail-segment-position ?pred) (head-segment-position
+    // ?t))`) is STATE-DEPENDENT: its grounded `NExpr` goes in the side table
+    // and the search evaluates it per expansion against the node's state.
     let init = task.initial();
+    let modified = modified_fluents(task);
     let snap_by_start: HashMap<&str, &SnapInfo> = c
         .snaps
         .iter()
@@ -483,19 +664,47 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
         .enumerate()
         .map(|(i, d)| (d.as_str(), i))
         .collect();
-    (0..task.n_ops)
+    let mut dur_exprs: Vec<NExpr> = Vec::new();
+    let kinds = (0..task.n_ops)
         .map(|oi| {
             let disp = &task.op_display[oi];
             let head = disp.split_whitespace().next().unwrap_or("");
             if let Some(snap) = snap_by_start.get(head) {
                 let args: Vec<&str> = disp.split_whitespace().skip(1).collect();
                 let end_disp = disp.replacen("-START", "-END", 1);
-                match (
-                    eval_duration(snap, &args, task, &init),
-                    by_display.get(end_disp.as_str()),
-                ) {
-                    (Some(dur), Some(&end_op)) => Kind::Start { dur, end_op },
-                    _ => Kind::Skip,
+                let end_op = match by_display.get(end_disp.as_str()) {
+                    Some(&e) => e,
+                    None => return Kind::Skip,
+                };
+                let nexpr = snap
+                    .duration
+                    .chosen()
+                    .and_then(|e| ground_duration_nexpr(e, &duration_bind(snap, &args), task));
+                let state_dep = nexpr.as_ref().is_some_and(|ne| {
+                    let mut v = Vec::new();
+                    ne.collect_fluents(&mut v);
+                    v.iter().any(|&f| modified[f as usize])
+                });
+                if state_dep {
+                    let idx = dur_exprs.len() as u32;
+                    dur_exprs.push(nexpr.unwrap());
+                    // dur is unused for state-dependent starts (resolved per
+                    // expansion); no init positivity gate — it may only
+                    // become positive later.
+                    Kind::Start {
+                        dur: 0.0,
+                        end_op,
+                        dexp: idx,
+                    }
+                } else {
+                    match eval_duration(snap, &args, task, &init) {
+                        Some(dur) => Kind::Start {
+                            dur,
+                            end_op,
+                            dexp: u32::MAX,
+                        },
+                        None => Kind::Skip,
+                    }
                 }
             } else if end_names.contains(head) {
                 Kind::End
@@ -505,7 +714,64 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> Vec<Kind> {
                 Kind::Classical
             }
         })
-        .collect()
+        .collect();
+    (kinds, dur_exprs)
+}
+
+/// Fluents any op assigns (numeric effects, incl. conditional) — a duration
+/// reading one is STATE-DEPENDENT (resolved per expansion / at start time),
+/// not fixable against init. Shared by `build_kind` and `validate`.
+fn modified_fluents(task: &PackedTask) -> Vec<bool> {
+    let mut modified = vec![false; task.fv0.len()];
+    for oi in 0..task.n_ops {
+        for ne in task.num_eff.slice(oi) {
+            modified[ne.target as usize] = true;
+        }
+        for ce in task.cond_effs(oi) {
+            for ne in &ce.num {
+                modified[ne.target as usize] = true;
+            }
+        }
+    }
+    modified
+}
+
+/// Ground a duration expression to a fluent-id `NExpr` (params bound
+/// positionally). `None` if a referenced fluent didn't ground.
+fn ground_duration_nexpr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask) -> Option<NExpr> {
+    Some(match e {
+        Expr::Num(n) => NExpr::Num(*n),
+        Expr::Fluent(name, terms) => {
+            let mut disp = String::from("(");
+            disp.push_str(name);
+            for t in terms {
+                disp.push(' ');
+                match t {
+                    Term::Const(c) => disp.push_str(c),
+                    Term::Var(v) => disp.push_str(bind.get(v.as_str())?),
+                }
+            }
+            disp.push(')');
+            NExpr::Fluent(task.fluent_id(&disp)? as u32)
+        }
+        Expr::Add(a, b) => NExpr::Add(
+            Box::new(ground_duration_nexpr(a, bind, task)?),
+            Box::new(ground_duration_nexpr(b, bind, task)?),
+        ),
+        Expr::Sub(a, b) => NExpr::Sub(
+            Box::new(ground_duration_nexpr(a, bind, task)?),
+            Box::new(ground_duration_nexpr(b, bind, task)?),
+        ),
+        Expr::Mul(a, b) => NExpr::Mul(
+            Box::new(ground_duration_nexpr(a, bind, task)?),
+            Box::new(ground_duration_nexpr(b, bind, task)?),
+        ),
+        Expr::Div(a, b) => NExpr::Div(
+            Box::new(ground_duration_nexpr(a, bind, task)?),
+            Box::new(ground_duration_nexpr(b, bind, task)?),
+        ),
+        Expr::Neg(a) => NExpr::Neg(Box::new(ground_duration_nexpr(a, bind, task)?)),
+    })
 }
 
 /// Goal-relevance op mask (`true` = keep). Backward closure from the goal: an op is
@@ -622,6 +888,7 @@ fn relevant_op_mask(
 pub(crate) fn solve_from(
     task: &PackedTask,
     kind: &[Kind],
+    dur_exprs: &[NExpr],
     start: &State,
     goal_pos: &[u32],
     goal_num: &[NumPre],
@@ -703,8 +970,8 @@ pub(crate) fn solve_from(
     }
     let go = |rel: &[bool], prune: bool| {
         temporal_search(
-            task, kind, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel, til_events,
-            prune, threads,
+            task, kind, dur_exprs, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel,
+            til_events, prune, threads,
         )
     };
     go(&sound, true)
@@ -1203,6 +1470,7 @@ fn temporal_node_cap(task: &PackedTask, til_len: usize) -> usize {
 fn temporal_search(
     task: &PackedTask,
     kind: &[Kind],
+    dur_exprs: &[NExpr],
     landmarks: &[NumPre],
     demand: &Demand,
     start: &State,
@@ -1272,7 +1540,7 @@ fn temporal_search(
             .iter()
             .any(|&(_, op)| !matches!(kind[op], Kind::Til));
         if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) && !ends_pending {
-            let plan = reconstruct(task, &nodes, ni, kind);
+            let plan = reconstruct(task, &nodes, ni, kind, dur_exprs);
             return Some(epsilon_separate(task, plan, !til_events.is_empty()));
         }
         if dbg && nodes.len() >= next_dump {
@@ -1330,8 +1598,20 @@ fn temporal_search(
         let mut protos: Vec<TNode> = Vec::new();
         for oi in candidates {
             match kind[oi] {
-                Kind::Start { dur, end_op } => {
+                Kind::Start { dur, end_op, dexp } => {
                     if task.op_applicable(oi, &nodes[ni].state) {
+                        // State-dependent duration: resolve against THIS node's
+                        // state; skip the start if unresolved or non-positive.
+                        let dur = if dexp == u32::MAX {
+                            dur
+                        } else {
+                            match dur_exprs[dexp as usize]
+                                .eval(&nodes[ni].state.fv, &nodes[ni].state.fdef)
+                            {
+                                Some(v) if v.is_finite() && v > 0.0 => v,
+                                _ => continue,
+                            }
+                        };
                         let ns = task.apply(oi, &nodes[ni].state);
                         let mut ag = nodes[ni].agenda.clone();
                         let te = time + dur;
@@ -1455,18 +1735,26 @@ fn temporal_search(
 /// Walk the father chain into a timed plan: each START becomes a durative step
 /// with its duration (the END is implied); END events are dropped; classical
 /// actions appear instantaneously.
-fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, kind: &[Kind]) -> TimedPlan {
-    let mut events: Vec<(usize, f64)> = Vec::new();
+fn reconstruct(
+    task: &PackedTask,
+    nodes: &[TNode],
+    goal: usize,
+    kind: &[Kind],
+    dur_exprs: &[NExpr],
+) -> TimedPlan {
+    // (op, time, source-node) — the source state resolves state-dependent
+    // durations exactly as the expansion did.
+    let mut events: Vec<(usize, f64, usize)> = Vec::new();
     let mut cur = goal;
     while let Some((op, t)) = nodes[cur].ev {
-        events.push((op, t));
+        events.push((op, t, nodes[cur].father));
         cur = nodes[cur].father;
     }
     events.reverse();
 
     let mut steps = Vec::new();
     let mut makespan = 0.0f64;
-    for (op, t) in events {
+    for (op, t, src) in events {
         let disp = &task.op_display[op];
         let head = disp.split_whitespace().next().unwrap_or("");
         let args = disp
@@ -1483,7 +1771,14 @@ fn reconstruct(task: &PackedTask, nodes: &[TNode], goal: usize, kind: &[Kind]) -
             }
             // exogenous TIL firings are not plan steps and don't define the makespan.
             Kind::Til => continue,
-            Kind::Start { dur, .. } => {
+            Kind::Start { dur, dexp, .. } => {
+                let dur = if dexp == u32::MAX {
+                    dur
+                } else {
+                    dur_exprs[dexp as usize]
+                        .eval(&nodes[src].state.fv, &nodes[src].state.fdef)
+                        .unwrap_or(dur)
+                };
                 makespan = makespan.max(t + dur);
                 (head.trim_end_matches("-START"), Some(dur))
             }
@@ -1533,6 +1828,7 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         _ => return Err("problem grounds to unsolvable".into()),
     };
     let init = task.initial();
+    let modified = modified_fluents(&task);
     let snap_by_start: HashMap<&str, &SnapInfo> = c
         .snaps
         .iter()
@@ -1545,10 +1841,15 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
             .ok_or_else(|| format!("plan references unknown action `{disp}`"))
     };
 
-    struct Happening {
+    struct Happening<'a> {
         time: f64,
         op: usize,
         is_start: bool,
+        /// Deferred duration cross-check for STATE-DEPENDENT durations
+        /// (bounds reading fluents some op assigns): evaluated against the
+        /// simulation state when this start fires, exactly as the search
+        /// resolved it. `(stated duration, snap, args, step display)`.
+        dur_check: Option<(f64, &'a SnapInfo, Vec<&'a str>, &'a str)>,
     }
     let mut happenings: Vec<Happening> = Vec::new();
     for step in &plan.steps {
@@ -1567,42 +1868,63 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
                     .ok_or_else(|| format!("`{head}` is not a durative action"))?;
                 // cross-check the stated duration against the domain's constraint:
                 // it must fall within the `[min, max]` range (a fixed `=` collapses the
-                // range to a point, recovering exact-equality).
+                // range to a point, recovering exact-equality). Bounds reading a
+                // fluent some op assigns are checked at the start happening
+                // against the simulation state (init would be wrong).
                 let args: Vec<&str> = rest
                     .map(|r| r.split_whitespace().collect())
                     .unwrap_or_default();
-                let (lo, hi) = eval_duration_bounds(snap, &args, &task, &init);
-                if let Some(min) = lo {
-                    if dur < min - 1e-6 {
-                        return Err(format!(
-                            "`{}` has duration {dur} below the domain minimum {min}",
-                            step.action
-                        ));
+                let bind = duration_bind(snap, &args);
+                let state_dep = [&snap.duration.min, &snap.duration.max]
+                    .into_iter()
+                    .flatten()
+                    .any(|e| {
+                        ground_duration_nexpr(e, &bind, &task).is_some_and(|ne| {
+                            let mut v = Vec::new();
+                            ne.collect_fluents(&mut v);
+                            v.iter().any(|&f| modified[f as usize])
+                        })
+                    });
+                let mut dur_check = None;
+                if state_dep {
+                    dur_check = Some((dur, *snap, args.clone(), step.action.as_str()));
+                } else {
+                    let (lo, hi) = eval_duration_bounds(snap, &args, &task, &init);
+                    if let Some(min) = lo {
+                        if dur < min - 1e-6 {
+                            return Err(format!(
+                                "`{}` has duration {dur} below the domain minimum {min}",
+                                step.action
+                            ));
+                        }
                     }
-                }
-                if let Some(max) = hi {
-                    if dur > max + 1e-6 {
-                        return Err(format!(
-                            "`{}` has duration {dur} above the domain maximum {max}",
-                            step.action
-                        ));
+                    if let Some(max) = hi {
+                        if dur > max + 1e-6 {
+                            return Err(format!(
+                                "`{}` has duration {dur} above the domain maximum {max}",
+                                step.action
+                            ));
+                        }
                     }
                 }
                 happenings.push(Happening {
                     time: step.time,
                     op: find(&with("-START"))?,
                     is_start: true,
+                    dur_check,
                 });
                 happenings.push(Happening {
                     time: step.time + dur,
                     op: find(&with("-END"))?,
                     is_start: false,
+                    dur_check: None,
                 });
             }
             None => happenings.push(Happening {
                 time: step.time,
                 op: find(&step.action)?,
                 is_start: true,
+                dur_check: None,
             }),
         }
     }
@@ -1619,6 +1941,7 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
                 // fire with ends (before starts) at the same epoch, so a gate the TIL
                 // opens is available to an action starting at that instant.
                 is_start: false,
+                dur_check: None,
             });
         }
     }
@@ -1631,6 +1954,23 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
     happenings.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
     let mut state = init.clone();
     for h in &happenings {
+        if let Some((dur, snap, args, disp)) = &h.dur_check {
+            let (lo, hi) = eval_duration_bounds(snap, args, &task, &state);
+            if let Some(min) = lo {
+                if *dur < min - 1e-6 {
+                    return Err(format!(
+                        "`{disp}` has duration {dur} below the domain minimum {min}",
+                    ));
+                }
+            }
+            if let Some(max) = hi {
+                if *dur > max + 1e-6 {
+                    return Err(format!(
+                        "`{disp}` has duration {dur} above the domain maximum {max}",
+                    ));
+                }
+            }
+        }
         if !task.op_applicable(h.op, &state) {
             return Err(format!(
                 "at t={:.3}, `{}` is not applicable (precondition or invariant violated)",

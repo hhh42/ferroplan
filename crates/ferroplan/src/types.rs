@@ -4,6 +4,12 @@
 
 pub type Sym = String;
 
+/// Reserved 0-ary pseudo-fluent the parser emits for `?duration` inside an
+/// expression (PDDL2.1 duration-dependent effects/conditions). Real fluent
+/// names cannot start with `?`, so it can never collide; the temporal snap
+/// compiler substitutes the action's duration expression before grounding.
+pub const DURATION_PSEUDO: &str = "?DURATION";
+
 /// A PDDL parse error with the 1-based source line it occurred on.
 #[derive(thiserror::Error, Debug, Clone, PartialEq, Eq)]
 #[error("line {line}: {message}")]

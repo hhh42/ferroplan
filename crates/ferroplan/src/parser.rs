@@ -209,6 +209,12 @@ fn parse_expr(p: &mut P) -> Result<Expr, String> {
 fn parse_expr_inner(p: &mut P) -> Result<Expr, String> {
     match p.next()? {
         Tok::Num(n) => Ok(Expr::Num(n)),
+        // PDDL2.1 `?duration` inside an expression (duration-dependent
+        // effects/conditions, e.g. model-train's
+        // `(increase (head-segment-position ?t) ?duration)`) — the reserved
+        // pseudo-fluent; temporal::compile substitutes the action's duration
+        // expression before grounding.
+        Tok::Var(s) if s == "DURATION" => Ok(Expr::Fluent(DURATION_PSEUDO.to_string(), vec![])),
         Tok::LParen => {
             // either an operator application or a fluent head
             match p.peek().cloned() {
