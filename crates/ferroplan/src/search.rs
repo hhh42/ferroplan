@@ -102,9 +102,13 @@ pub struct SearchCfg {
     /// draining the SAME open list (no restart, no prefix re-tread) for a
     /// strictly shorter plan until the drain ceiling — the eval count DOUBLES
     /// at most (ceiling = evals-at-first-incumbent × 2, still under
-    /// `max_eval`). Off by default; `plan_avoiding` enables it on the plain
-    /// length path (`FF_NO_LEN_ANYTIME=1` keeps it off). Mutually exclusive
-    /// with the metric `anytime`.
+    /// `max_eval`). OPT-IN via `FF_LEN_ANYTIME=1`, measured and default-OFF:
+    /// at the 60 s scoreboard budget the drain's doubled wall cost 9
+    /// instances of coverage across floor-tile/visit-all/sokoban (sokoban
+    /// −7) against 4 shorter sokoban plans (−234 steps) and ZERO length
+    /// gains on floor-tile/visit-all — the same verdict class as 0.9's
+    /// improve_length restarts. Mutually exclusive with the metric
+    /// `anytime`.
     pub len_anytime: bool,
 }
 
@@ -717,9 +721,9 @@ pub fn plan_avoiding(
         }
     }
     // Length-anytime on the PLAIN length path only (no metric machinery in
-    // play); FF_NO_LEN_ANYTIME=1 restores return-on-first-goal.
+    // play). Opt-in — see the SearchCfg field docs for the measured verdict.
     let mut cfg = cfg;
-    if cfg.h_cost.is_none() && !cfg.anytime && std::env::var("FF_NO_LEN_ANYTIME").is_err() {
+    if cfg.h_cost.is_none() && !cfg.anytime && std::env::var("FF_LEN_ANYTIME").is_ok() {
         cfg.len_anytime = true;
     }
     let (ops, evaluated) = match search_from(

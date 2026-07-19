@@ -249,8 +249,17 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
    numeric 7/30 → 30/30 (30 s), +71 instances total.** Classical
    STRIPS/costs paths bit-identical on/off (gripper, blocks, barman,
    woodworking: same plans, same eval counts); suite 142/0.
-5. **Quality/anytime for floor-tile/visit-all** (5/20, 8/20) — the
-   within-one-search length-anytime idea recorded at the Phase 3 close.
+5. **Quality/anytime for floor-tile/visit-all** — MEASURED NEGATIVE
+   2026-07-19 (0.10 Phase 3), shipped OPT-IN (`FF_LEN_ANYTIME=1`). The
+   within-one-search drain (same open list, live g-bound, ≤2× eval
+   ceiling — no restart, unlike 0.9's improve_length) was implemented
+   in both open-list searches (best-first + the LAMA rung; EHC is
+   structurally out — visit-all's plans come from EHC, floor-tile's
+   from LAMA). At the 60 s budget: ZERO length gains on the two
+   motivating domains and 9 instances of coverage LOST to the doubled
+   wall (sokoban −7, floor-tile −1, visit-all −1) against sokoban's 4
+   shorter plans (−234 steps). Default OFF; the honest quality lever
+   for these domains is guidance, not post-solve polish.
 6. **Portfolio budget-aware scheduling** — SHIPPED 2026-07-19: phase A
    gives the ladder the FULL eval pool (coverage ≥ default BY
    CONSTRUCTION); diversification doubles only over what an early

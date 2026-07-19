@@ -67,8 +67,9 @@ pub fn search(
 ) -> Option<(Vec<usize>, usize)> {
     let init = task.initial();
     // Length-anytime on the whole-task rung only (subgoal probes return on
-    // first goal — a cascade merge wants speed, not polish).
-    let len_anytime = std::env::var("FF_NO_LEN_ANYTIME").is_err();
+    // first goal — a cascade merge wants speed, not polish). Opt-in; see
+    // SearchCfg::len_anytime for the measured default-off verdict.
+    let len_anytime = std::env::var("FF_LEN_ANYTIME").is_ok();
     search_subgoal(
         task,
         &init,
