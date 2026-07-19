@@ -441,11 +441,22 @@ struct TNode {
     met: Vec<i32>,
 }
 
-fn tkey(task: &PackedTask, n: &TNode) -> (StateKey, Vec<(i64, usize)>) {
+/// Visited key. `relative` keys the agenda by (end − node.time) deltas
+/// instead of absolute end times: on a TIL-free task the transition system
+/// is SHIFT-INVARIANT (durations read fluents, never the clock; the goal is
+/// state-only), so two nodes with equal state and equal pending-end deltas
+/// have identical futures — absolute times only retime the plan. Absolute
+/// keys made every retimed permutation a "new" state (turn-and-open stored
+/// 175k+ nodes on a ~1k-fact instance). With TILs the clock is semantic
+/// (a future TIL fires at an absolute time), so the caller passes
+/// `relative = til_events.is_empty()`; `FF_TEMPORAL_ABS_KEY=1` restores
+/// absolute keys everywhere.
+fn tkey(task: &PackedTask, n: &TNode, relative: bool) -> (StateKey, Vec<(i64, usize)>) {
+    let base = if relative { n.time } else { 0.0 };
     let ag = n
         .agenda
         .iter()
-        .map(|&(t, o)| ((t * 1000.0).round() as i64, o))
+        .map(|&(t, o)| (((t - base) * 1000.0).round() as i64, o))
         .collect();
     (task.state_key(&n.state), ag)
 }
@@ -1368,6 +1379,7 @@ fn enqueue_evaluated(
     landmarks: &[NumPre],
     demand: &Demand,
     prune: bool,
+    relative: bool,
     mut n: TNode,
     h: i32,
     helpful: Vec<u32>,
@@ -1381,7 +1393,7 @@ fn enqueue_evaluated(
     const W_H: i64 = 3;
     const W_L: i64 = 3;
     const AGENDA_W: i64 = 0;
-    let k = tkey(task, &n);
+    let k = tkey(task, &n, relative);
     if visited.insert(k) {
         n.helpful = helpful;
         // Cumulative-availability for the demand term: parent's plus this op's
@@ -1426,11 +1438,12 @@ fn push_node(
     goal_pos: &[u32],
     goal_num: &[NumPre],
     prune: bool,
+    relative: bool,
     n: TNode,
 ) {
     if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, goal_pos, goal_num, prune) {
         enqueue_evaluated(
-            task, nodes, heap, visited, landmarks, demand, prune, n, h, helpful,
+            task, nodes, heap, visited, landmarks, demand, prune, relative, n, h, helpful,
         );
     }
 }
@@ -1530,7 +1543,9 @@ fn temporal_search(
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
     let mut visited: HashSet<(StateKey, Vec<(i64, usize)>)> = HashSet::new();
-    visited.insert(tkey(task, &nodes[0]));
+    // Shift-invariant dedup (see tkey): sound only when no TIL pins the clock.
+    let relative = til_events.is_empty() && std::env::var("FF_TEMPORAL_ABS_KEY").is_err();
+    visited.insert(tkey(task, &nodes[0], relative));
 
     while let Some(Reverse((_k, ni))) = heap.pop() {
         // The goal is reached once no *action* end is still pending. Unfired future
@@ -1669,6 +1684,7 @@ fn temporal_search(
                     goal_pos,
                     goal_num,
                     prune,
+                    relative,
                     n,
                 );
             }
@@ -1689,6 +1705,7 @@ fn temporal_search(
                         landmarks,
                         demand,
                         prune,
+                        relative,
                         n,
                         h,
                         helpful,
@@ -1715,6 +1732,7 @@ fn temporal_search(
                     goal_pos,
                     goal_num,
                     prune,
+                    relative,
                     TNode {
                         state: ns,
                         time: te,
