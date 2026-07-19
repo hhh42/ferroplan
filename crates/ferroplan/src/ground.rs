@@ -1235,12 +1235,84 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         }
     }
 
+    // ---- fact-space compaction ----
+    // Phase C interned atoms from EVERY raw candidate op; reachability then
+    // pruned the ops but left their fact ids behind, so `words` — and with it
+    // every State bitset and visited key — was sized by the RAW atom space.
+    // On temporal snap-compiled tasks the gap is catastrophic: elevator-08-t
+    // p22 mints 2.35M RUNNING-* atoms from typed enumeration of unreachable
+    // END candidates while ~2.4k facts are live (287 KB per state, 8 GB RSS
+    // in 40 s). Keep facts that are reached, referenced by a surviving op
+    // (del / conditional references may legally point at unreached facts),
+    // or in the goal; renumber MONOTONICALLY so every relative order is
+    // preserved and search behavior is unchanged — only ids, dims, and bytes
+    // shrink. `FF_NO_FACT_COMPACT=1` restores the raw packing.
+    let compact_on = std::env::var("FF_NO_FACT_COMPACT").is_err();
+    let mut fact_names_all = std::mem::take(&mut intern.fact_names);
+    let (fact_map, n_facts_packed, fact_names_packed): (Vec<u32>, usize, Vec<String>) =
+        if compact_on {
+            let mut keep = reached.clone(); // ⊇ init_true (incl. NOT-compiled facts)
+            let mark_ce = |ce: &CondEff, keep: &mut Vec<bool>| {
+                for &f in ce
+                    .cond_pos
+                    .iter()
+                    .chain(ce.cond_neg.iter())
+                    .chain(ce.add.iter())
+                    .chain(ce.del.iter())
+                {
+                    keep[f as usize] = true;
+                }
+            };
+            for op in &reach_ops {
+                for &f in op.pre_pos.iter().chain(op.add.iter()).chain(op.del.iter()) {
+                    keep[f as usize] = true;
+                }
+                for ce in &op.cond {
+                    mark_ce(ce, &mut keep);
+                }
+            }
+            // Always walk the shared block (not only when a monitored op is
+            // reachable): it lands in the PackedTask either way and must never
+            // carry dangling ids.
+            for ce in &shared_cond {
+                mark_ce(ce, &mut keep);
+            }
+            for &f in &goal_pos {
+                keep[f as usize] = true;
+            }
+            let mut map = vec![u32::MAX; n_facts2];
+            let mut names = Vec::new();
+            for (i, &k) in keep.iter().enumerate() {
+                if k {
+                    map[i] = names.len() as u32;
+                    names.push(std::mem::take(&mut fact_names_all[i]));
+                }
+            }
+            let n = names.len();
+            (map, n, names)
+        } else {
+            ((0..n_facts2 as u32).collect(), n_facts2, fact_names_all)
+        };
+    let remap = |f: u32| fact_map[f as usize];
+    let goal_pos: Vec<u32> = goal_pos.iter().map(|&f| remap(f)).collect();
+    let shared_cond: Vec<CondEff> = shared_cond
+        .iter()
+        .map(|ce| CondEff {
+            cond_pos: ce.cond_pos.iter().map(|&f| remap(f)).collect(),
+            cond_neg: ce.cond_neg.iter().map(|&f| remap(f)).collect(),
+            cond_num: ce.cond_num.clone(),
+            add: ce.add.iter().map(|&f| remap(f)).collect(),
+            del: ce.del.iter().map(|&f| remap(f)).collect(),
+            num: ce.num.clone(),
+        })
+        .collect();
+
     // ---- pack into CSR ----
-    let words = bitset::words_for(n_facts2);
+    let words = bitset::words_for(n_facts_packed);
     let mut init_bits = vec![0u64; words];
     for (i, &b) in init_true.iter().enumerate() {
         if b {
-            bitset::set(&mut init_bits, i);
+            bitset::set(&mut init_bits, remap(i as u32) as usize);
         }
     }
     let nfl_final = intern.fluent_id.len();
@@ -1261,7 +1333,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
     let mut num_eff = CsrBuilder::new();
     let mut cond_b = CsrBuilder::new();
     // add-by-fact buckets + relevant-fluent set (for the heuristic hot path)
-    let mut add_buckets: Vec<Vec<u32>> = vec![Vec::new(); n_facts2];
+    let mut add_buckets: Vec<Vec<u32>> = vec![Vec::new(); n_facts_packed];
     let mut neff_buckets: Vec<Vec<u32>> = vec![Vec::new(); fv.len()];
     let mut relevant_fluent = vec![false; fv.len()];
     let mark = |np: &NumPre, rel: &mut [bool]| {
@@ -1275,17 +1347,25 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         }
     };
     let mut monitored_v: Vec<bool> = Vec::with_capacity(n_reach_actions);
+    let remap_ce = |ce: &CondEff| CondEff {
+        cond_pos: ce.cond_pos.iter().map(|&f| remap(f)).collect(),
+        cond_neg: ce.cond_neg.iter().map(|&f| remap(f)).collect(),
+        cond_num: ce.cond_num.clone(),
+        add: ce.add.iter().map(|&f| remap(f)).collect(),
+        del: ce.del.iter().map(|&f| remap(f)).collect(),
+        num: ce.num.clone(),
+    };
     for (oi, op) in reach_ops.iter().enumerate() {
         op_display.push(op.display.clone());
-        pre_pos.push_row(op.pre_pos.iter().copied());
-        add.push_row(op.add.iter().copied());
-        del.push_row(op.del.iter().copied());
+        pre_pos.push_row(op.pre_pos.iter().map(|&f| remap(f)));
+        add.push_row(op.add.iter().map(|&f| remap(f)));
+        del.push_row(op.del.iter().map(|&f| remap(f)));
         pre_num.push_row(op.pre_num.iter().cloned());
         num_eff.push_row(op.num_eff.iter().cloned());
-        cond_b.push_row(op.cond.iter().cloned());
+        cond_b.push_row(op.cond.iter().map(remap_ce));
         monitored_v.push(op.monitored);
         for &f in &op.add {
-            add_buckets[f as usize].push(oi as u32);
+            add_buckets[remap(f) as usize].push(oi as u32);
         }
         // fluent -> ops with a numeric effect on it (distinct targets, op-id order)
         let mut seen_t: Vec<u32> = Vec::new();
@@ -1299,13 +1379,14 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         // shared monitor block's, in the 0.7 suffix order (own conds first)
         for ce in &op.cond {
             for &f in &ce.add {
-                add_buckets[f as usize].push(oi as u32);
+                add_buckets[remap(f) as usize].push(oi as u32);
             }
             for np in &ce.cond_num {
                 mark(np, &mut relevant_fluent);
             }
         }
         if op.monitored {
+            // shared_cond was remapped above — its ids are already packed ids
             for ce in &shared_cond {
                 for &f in &ce.add {
                     add_buckets[f as usize].push(oi as u32);
@@ -1383,7 +1464,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         .collect();
 
     Outcome::Task(PackedTask {
-        n_facts: n_facts2,
+        n_facts: n_facts_packed,
         words,
         n_ops: n_reach_actions,
         op_display,
@@ -1404,7 +1485,7 @@ fn ground_v(domain: &Domain, problem: &Problem, threads: usize, validate: bool) 
         fdef0: fdef,
         goal_pos,
         goal_num,
-        fact_names: intern.fact_names,
+        fact_names: fact_names_packed,
         fluent_names,
         n_easy,
         n_hard,

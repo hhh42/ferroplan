@@ -40,7 +40,7 @@ const WEIGHT_SCALE: f64 = 256.0;
 /// honest. The default is far above every green fixture's retained size
 /// (largest measured: ~5.4 GB total on storage qualpref p08);
 /// `FF_SEARCH_NODE_CAP` overrides the node count directly (`0` disables).
-const NODE_CAP_TARGET_BYTES: usize = 8 << 30;
+pub(crate) const NODE_CAP_TARGET_BYTES: usize = 8 << 30;
 
 /// The per-insertion byte model behind [`NODE_CAP_TARGET_BYTES`]: one stored
 /// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in

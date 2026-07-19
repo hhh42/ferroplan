@@ -1168,6 +1168,34 @@ fn push_node(
     }
 }
 
+/// Historical per-pass stored-node ceiling — now the COUNT arm of the cap; the
+/// byte arm below binds first whenever states are big.
+const MAX_NODES: usize = 400_000;
+
+/// Deterministic per-pass node cap: the classical `node_cap_for` byte model
+/// extended with the temporal extras — one stored `TNode` (State + agenda) in
+/// `nodes` plus one visited key (StateKey bits + relevant fluent vals + agenda
+/// copy), and fixed container overhead. Sized from STATIC task dims only, so
+/// it is identical across thread counts and runs (an eval-count-style budget,
+/// never wall clock). The agenda estimate is TIL count + a small open-interval
+/// allowance; `FF_TEMPORAL_NODE_CAP` overrides the count directly (`0`
+/// disables). Bounded above by the historical 400k count cap.
+fn temporal_node_cap(task: &PackedTask, til_len: usize) -> usize {
+    if let Ok(v) = std::env::var("FF_TEMPORAL_NODE_CAP") {
+        if let Ok(n) = v.trim().parse::<usize>() {
+            return if n == 0 { usize::MAX } else { n };
+        }
+    }
+    let agenda_est = til_len + 8;
+    let per_node = 2 * task.words * 8
+        + task.fv0.len() * 8
+        + task.fdef0.len()
+        + task.rel_fluents.len() * 8
+        + 2 * agenda_est * 16
+        + 160;
+    (crate::search::NODE_CAP_TARGET_BYTES / per_node.max(1)).min(MAX_NODES)
+}
+
 /// One decision-epoch search pass. `prune` restricts block-(a) expansion to the
 /// node's helpful ops (with a per-node full-scan fallback so no node with a legal
 /// successor is stranded); `false` is the full, complete search.
@@ -1186,7 +1214,7 @@ fn temporal_search(
     prune: bool,
     threads: usize,
 ) -> Option<TimedPlan> {
-    const MAX_NODES: usize = 400_000;
+    let max_nodes = temporal_node_cap(task, til_events.len());
     // Measurement only (FF_RES_DEBUG): dims at pass start, container sizes every
     // 25k stored nodes — the memory-attribution eyes for the temporal path.
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
@@ -1261,10 +1289,10 @@ fn temporal_search(
                 t0.elapsed().as_millis()
             );
         }
-        if nodes.len() > MAX_NODES {
+        if nodes.len() > max_nodes {
             if dbg {
                 eprintln!(
-                    "[tsearch] node cap {MAX_NODES} hit at {}ms",
+                    "[tsearch] node cap {max_nodes} hit at {}ms",
                     t0.elapsed().as_millis()
                 );
             }
