@@ -155,6 +155,41 @@ recorded venue for that half; an earlier in-session claim that the
 portfolio shifted the tidybot frontier was a baseline error (the text
 path was measured against the library path) and is corrected here.
 
+### Post-cycle: the full corpus speaks (seq-sat 427/580; Phase 6 settled)
+
+The recorded venue ran: the whole potassco IPC-2008/2011 seq-sat corpus,
+580 instances at 60 s / 1 thread each (3 parallel jobs, every solved
+plan VAL-validated). Default configuration: **427/580** — with clean
+sweeps on cyber-security (30/30), elevator08 (30/30), parc-printer
+(50/50), peg-solitaire (50/50), and barman11 (20/20, the LAMA rung at
+full scale). `benchmarks/ipc67-results.md` holds the table.
+
+**The Phase 6 acceptance settles as NOT met as stated, with the
+interesting half now true.** Portfolio mode: 416/580. "Better on some
+domains" is finally demonstrated — no-mystery11 p10 and woodworking08
+p29 solve ONLY under the portfolio, and it finds cheaper plans on 5
+sokoban + 3 floor-tile common solves — but overall parity fails: the
+13 instances the portfolio loses all have default solve times of
+27–56 s (sokoban ×7, visit-all ×4, barman11 p19, elevator11 p12). The
+mechanism is structural: doubling restart slices tax precisely the
+instances that barely fit the budget. The portfolio stays opt-in;
+the recorded next idea is budget-aware scheduling — let the default
+member run to its natural EHC/ladder end before diversification
+spends anything.
+
+**New frontier, measured (in leverage order):**
+
+1. **transport11 0/20 — search-bound.** Not a grounder wall: p01
+   grounds to 1 052 facts / 21 136 actions in under a second, then
+   evaluates ~520 states/s single-threaded — ~30 k states inside the
+   whole budget. Eval throughput × guidance is the target (the
+   batch-parallel eval exists precisely for this; the 1-thread
+   methodology also understates the engine here).
+2. **openstacks08-ADL 6/30** against the STRIPS twin's 30/30 — the ADL
+   compilation path, not the search, is the gap.
+3. **floor-tile11 5/20, visit-all11 8/20** — the quality/anytime
+   domains, exactly where the closed length-sweep negative pointed.
+
 ## Deliberate scope cuts (why, not just what)
 
 - **Iterated-weight anytime for UNIT-cost quality** (rest of Phase 3):

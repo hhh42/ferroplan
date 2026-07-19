@@ -37,7 +37,7 @@ Last update: **0.9 cycle — Phases 0, 2, 3 (core), 4, 5 complete**; see
 | 3 — LAMA-style config | **done** | `landmarks.rs` + `lama.rs` rung (now per-subgoal too, in the partition cascade); barman11 p01 solves on both paths. The iterated-weight anytime remainder CLOSED as a measured negative: restart-shaped length improvement pays ~1.8% at ~28x the solve's evals on visitall (proportionate budgets: zero gain) — ships opt-in (`FF_LEN_SWEEP_EVALS`, default off) with the `g_bound` engine lever inert; a within-one-search length-anytime is the recorded next idea. LAMA's lazy eval deliberately skipped — batch-parallel eval is ferroplan's answer |
 | 4 — net-benefit | **done** | maximize normalized onto minimize B&B (`metric_konst` reporting transform); `cost_monotone` accepts static nonneg expressions; netben subset 16/16, VAL-valid, net benefit reported |
 | 5 — prefs × costs | **done** | `tests/costs_prefs.rs`: one shared metric, satisfy-vs-forgo flips at the weight boundary, `always` monitor enforced under the combined metric |
-| 6 — portfolio | **shipped, acceptance half-met** | `portfolio.rs`: 4 complementary members, doubling eval slices, deterministic; winner named in notes; un-capped exhaustion settles unsolvability. Measured 30 s t1 on the costs subset: 49/54 — EXACTLY the default's coverage and unsolved set ("at least as good" met); "better somewhere" not demonstrable on the curated subset post-frontier-fixes — full-corpus `ipc67.py` is the venue |
+| 6 — portfolio | **shipped, acceptance settled: NOT met as stated** | `portfolio.rs`: 4 complementary members, doubling eval slices, deterministic; winner named in notes; un-capped exhaustion settles unsolvability. Full-corpus verdict (580 inst, 60 s t1): "better somewhere" now DEMONSTRATED (no-mystery11 p10 + woodworking08 p29 solve only under the portfolio; sokoban 5 / floor-tile 3 cheaper common solves) but "at least as good overall" FAILS — 416/580 vs the default's 427/580; all 13 lost instances sit at 27–56 s default solve times (sokoban ×7, visit-all ×4, barman p19, elevator11 p12): the doubling-slice restart tax prices out exactly the barely-in-budget instances. Stays opt-in; recorded next idea: budget-aware scheduling (default member runs to its natural end before diversification spends anything) |
 | 7 — optimal | not started | optional |
 | 8 — temporal | shipped (0.5–0.8) | IPC6/7 temporal benchmarking outstanding |
 
@@ -109,6 +109,27 @@ Net-benefit (post-Phase-4): `run.py --timeout 30 --only netben` —
 (elevators08 33/60/21/73; crew08 2100/1988/2160/2042 of ceiling 3335;
 was: empty plans, no metric).
 
+## Full-corpus scoreboard (potassco checkout, `ipc67.py`, 60 s / 1 thread / 3 parallel jobs)
+
+First run over the WHOLE IPC-2008/2011 seq-sat corpus (580 instances,
+24 variants), 2026-07-18: **427/580 solved, every plan VAL-validated**
+(`benchmarks/ipc67-results.md`; portfolio comparison in
+`ipc67-portfolio.md`, per-instance diffs via `ipc67-diff.py`).
+
+- **Clean sweeps:** cyber-security 30/30, elevator08 30/30,
+  openstacks08-strips 30/30, parc-printer 50/50, peg-solitaire 50/50,
+  **barman11 20/20** (the Phase 3 LAMA rung's domain, now at full scale).
+- **The measured frontier, in order of leverage:**
+  1. **transport11 0/20** — search-bound, NOT grounding: p01 grounds to
+     1 052 facts / 21 136 actions in <1 s but evaluates ~520 states/s
+     single-threaded (~30 k states in the budget). Eval throughput ×
+     heuristic guidance is the wall; transport08's solved instances are
+     ~100× smaller tasks.
+  2. **openstacks08-ADL 6/30** vs the STRIPS twin's 30/30 — the ADL
+     compilation path leaves coverage on the table.
+  3. **floor-tile11 5/20, visit-all11 8/20** — the known
+     quality/anytime domains; sokoban 21/30 + 11/20 nearby.
+
 ## Game-design answers (recorded 2026-07-18; shape, not gate)
 
 The three open questions are ANSWERED:
@@ -134,6 +155,10 @@ The three open questions are ANSWERED:
 
 ## Next up
 
-The **full-corpus `ipc67.py` run** (potassco checkout via `get-ipc.sh`):
-the venue for the portfolio acceptance's second half and the honest
-scoreboard that sets the next cycle's agenda.
+The seq-sat corpus ran (427/580; Phase 6 settled — see above). In
+flight: the net-benefit track (60 s) and the first-ever temporal
+(tempo-sat) corpus recon (30 s tier). The next cycle's agenda is
+drafted from the measured frontier once those land — the standing
+candidates, by leverage: transport11 eval throughput/guidance,
+the openstacks ADL path, and quality/anytime work for
+floor-tile/visit-all.
