@@ -203,14 +203,23 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
      the baseline 30 s; p22–p25 (8 GB kills at ANY budget before) now
      solve in 38/54/62/80 s; elevator-11-t p01 solves (was 0/20), p02
      solves solo at 120 s.
-   - **The remaining lever is Phase B's raw-candidate enumeration
-     itself** — both its TIME (~40 s+ on p22-sized instances) and its
-     ~8 GB TRANSIENT (p27–p30 and the elevator-11 tail die by OOM kill
-     MID-GROUNDING; two parallel jobs collide). Fix shape: stratified
-     END grounding — ground ENDs only over bindings whose START
-     grounded (RUNNING-* atoms have no other producer), killing the
-     typed-space enumeration at the source. This is now the top
-     temporal-coverage lever.
+   - **Stratified Phase B grounding — SHIPPED same day:** END actions
+     (gated on producer-known RUNNING-* tokens: no init atoms, all
+     adders in stratum 1) ground join-restricted to the atoms the
+     STARTs actually produce, through the existing static-literal
+     pruning machinery. Post-reachability op set identical; raw order
+     preserved by splicing; temporal-path only (fact-id first-reference
+     order can shift, and the classical fixtures pin today's ids);
+     `FF_NO_STRAT_GROUND=1` for A/B. p22: solve 38 s → ~26 s (inside
+     the 30 s budget), transient 8.0 → 4.1 GB, same 97-step plan.
+     **Coverage at the baseline 30 s: elevator-08-t-strips 19/30 →
+     22/30; elevator-11-t 0/20 → 3/20.**
+   - **Residual, recorded:** stratum-1 START enumeration (BOARD-START's
+     passenger×floor×count cross survives static pruning) still costs
+     ~4 GB transient and most of the grounding wall on the biggest
+     instances — the elevator-11 tail needs either
+     reachability-interleaved grounding (a much bigger project) or
+     just bigger budgets (p22-class instances all solve at 120 s).
 3. **`?duration` in expressions** (PDDL2.1 duration-dependent effects/
    constraints) — model-train 0/30 is pure parser; unlocks a whole
    variant.
