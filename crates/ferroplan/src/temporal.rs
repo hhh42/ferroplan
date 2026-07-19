@@ -1187,6 +1187,22 @@ fn temporal_search(
     threads: usize,
 ) -> Option<TimedPlan> {
     const MAX_NODES: usize = 400_000;
+    // Measurement only (FF_RES_DEBUG): dims at pass start, container sizes every
+    // 25k stored nodes — the memory-attribution eyes for the temporal path.
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let t0 = std::time::Instant::now();
+    if dbg {
+        eprintln!(
+            "[tsearch] pass start: prune={prune} masked={} words={} fv={} rel_fluents={} tils={} ops={}",
+            !relevant.is_empty(),
+            task.words,
+            task.fv0.len(),
+            task.rel_fluents.len(),
+            til_events.len(),
+            task.n_ops
+        );
+    }
+    let mut next_dump = 25_000usize;
     // Worker count for batched successor evaluation (0 = auto, like the classical
     // search). Parallelism only changes evaluation COST — see the funnel comment in
     // the expansion block; plans are identical for any value.
@@ -1231,7 +1247,27 @@ fn temporal_search(
             let plan = reconstruct(task, &nodes, ni, kind);
             return Some(epsilon_separate(task, plan, !til_events.is_empty()));
         }
+        if dbg && nodes.len() >= next_dump {
+            next_dump += 25_000;
+            let ag: usize = nodes.iter().map(|n| n.agenda.len()).sum();
+            let hf: usize = nodes.iter().map(|n| n.helpful.len()).sum();
+            eprintln!(
+                "[tsearch] nodes {} heap {} visited {} avg_agenda {:.1} avg_helpful {:.1} {}ms",
+                nodes.len(),
+                heap.len(),
+                visited.len(),
+                ag as f64 / nodes.len() as f64,
+                hf as f64 / nodes.len() as f64,
+                t0.elapsed().as_millis()
+            );
+        }
         if nodes.len() > MAX_NODES {
+            if dbg {
+                eprintln!(
+                    "[tsearch] node cap {MAX_NODES} hit at {}ms",
+                    t0.elapsed().as_millis()
+                );
+            }
             break;
         }
         let time = nodes[ni].time;
