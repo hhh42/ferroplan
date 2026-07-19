@@ -2073,9 +2073,11 @@ const EPS: f64 = 0.001;
 /// and solve the earliest-time schedule by longest paths (Bellman–Ford). On any
 /// inconsistency or for very large plans the original plan is returned unchanged.
 fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -> TimedPlan {
-    // happening: (op id, owning step index, is_start)
+    // happening: (owning step index, is_start); op ids became unnecessary
+    // when the pairwise interference test gave way to total ε-ordering, but
+    // the display lookups below still gate on mappability (an unmappable
+    // step means we cannot trust the schedule at all).
     struct H {
-        op: usize,
         step: usize,
         is_start: bool,
         time: f64,
@@ -2097,15 +2099,13 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
                     None => format!("{head}-END"),
                 };
                 match (find(&sd), find(&ed)) {
-                    (Some(so), Some(eo)) => {
+                    (Some(_so), Some(_eo)) => {
                         hs.push(H {
-                            op: so,
                             step: si,
                             is_start: true,
                             time: step.time,
                         });
                         hs.push(H {
-                            op: eo,
                             step: si,
                             is_start: false,
                             time: step.time + dur,
@@ -2120,8 +2120,7 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
                 }
             }
             None => match find(&step.action) {
-                Some(o) => hs.push(H {
-                    op: o,
+                Some(_o) => hs.push(H {
                     step: si,
                     is_start: true,
                     time: step.time,
