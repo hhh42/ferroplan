@@ -641,3 +641,53 @@ fn escalation_ladder_rescues_predicate_build() {
         plan.makespan
     );
 }
+
+#[test]
+fn state_dependent_duration_and_duration_in_effects() {
+    // PDDL2.1 `?duration` in an effect expression AND a state-dependent
+    // duration (agenda item 3, the model-train shape): `work`'s duration
+    // reads `(speed)`, which `boost`'s at-start effect raises 1 -> 3 before
+    // `work` can start (it needs `boosted`, true only at boost's END). An
+    // init-resolved duration would be 1 and progress would reach only 1;
+    // the state-resolved duration is 3 and `?duration` substitution makes
+    // progress reach 3 — the goal separates right from wrong.
+    let dom = "
+    (define (domain durexpr)
+      (:requirements :strips :durative-actions :numeric-fluents)
+      (:predicates (ready) (boosted) (done))
+      (:functions (speed) (progress))
+      (:durative-action boost
+        :parameters ()
+        :duration (= ?duration 1)
+        :condition (at start (ready))
+        :effect (and (at start (not (ready)))
+                     (at start (increase (speed) 2))
+                     (at end (boosted))))
+      (:durative-action work
+        :parameters ()
+        :duration (= ?duration (speed))
+        :condition (at start (boosted))
+        :effect (and (at start (increase (progress) ?duration))
+                     (at end (done)))))
+    ";
+    let prob = "
+    (define (problem durexpr-1) (:domain durexpr)
+      (:init (ready) (= (speed) 1) (= (progress) 0))
+      (:goal (and (done) (>= (progress) 3))))
+    ";
+    let d = parse_domain(dom).expect("`?duration` in effects must parse");
+    let p = parse_problem(prob).expect("parses");
+    let plan = temporal::solve(&d, &p, 1).expect("state-dependent-duration plan");
+    let work = plan
+        .steps
+        .iter()
+        .find(|s| s.action == "WORK")
+        .expect("plan contains WORK");
+    assert_eq!(
+        work.duration,
+        Some(3.0),
+        "WORK's duration must resolve against its start state (speed=3), not init (speed=1)"
+    );
+    temporal::validate(&d, &p, &plan)
+        .expect("state-dependent duration plan must validate (bounds checked at start state)");
+}

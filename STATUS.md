@@ -220,9 +220,19 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
      instances — the elevator-11 tail needs either
      reachability-interleaved grounding (a much bigger project) or
      just bigger budgets (p22-class instances all solve at 120 s).
-3. **`?duration` in expressions** (PDDL2.1 duration-dependent effects/
-   constraints) — model-train 0/30 is pure parser; unlocks a whole
-   variant.
+3. **`?duration` in expressions** — SHIPPED 2026-07-19, three layers
+   (parser pseudo-fluent → snap-compile substitution, exact at START,
+   end-side only when the duration reads no assigned fluent, else the
+   action is SKIPPED — never compiled wrong → state-dependent durations:
+   grounded `NExpr` side table, resolved per expansion / at the plan
+   step's source state / at the validator's start happening). Proven by
+   the `durexpr` fixture (duration must resolve 3 against the start
+   state, not init's 1; suite 141→142/0). **model-train outcome,
+   honest:** the variant now parses, grounds (772 ops, i1) and
+   searches — but stays 0 solved at 30 s: `avg_helpful 0.0` (relaxed
+   helpful ops are empty on this domain), all four passes exhaust the
+   node budget. The wall moved from the parser to temporal guidance —
+   folds into item 7.
 4. **openstacks08-ADL seq-sat gap** — 6/30 vs the STRIPS twin's 30/30,
    while netben-ADL scores 29/30: the ADL machinery is fine, the
    seq-sat variant's structure (goal shape / compilation) is the miss.
