@@ -2,6 +2,92 @@
 
 All notable changes to this project are documented here.
 
+## [0.10.0] - 2026-07-19 — The walls fall where they can: grounder truth, temporal recoveries
+
+The frontier cycle (cycle record in `docs/roadmap-0.10.md`; per-item
+records in `STATUS.md`). Every remaining next-cycle agenda item is now
+either SHIPPED with measured coverage or ANSWERED with a recorded
+diagnosis — no wall is left unclassified.
+
+### Grounder: the fact space tells the truth
+
+- **Fact-space compaction**: Phase C interned atoms from every raw
+  candidate op; reachability pruned the ops but their fact ids sized
+  every state bitset. On temporal snap tasks the gap was catastrophic —
+  elevator-08-t p22 minted **2.35 M facts for ~7 k live** (287 KB per
+  state, 8 GB RSS, dead at any budget). Facts now compact to the
+  reached/referenced/goal set after reachability with a monotone,
+  order-preserving renumber (`FF_NO_FACT_COMPACT`); classical tasks are
+  bit-identical (their raw references survive).
+- **Stratified Phase B grounding** (temporal path): snap END actions
+  ground join-restricted to the atoms their STARTs actually produce,
+  through the existing static-literal pruning — the 470 k raw END
+  candidates of elevator-08-t p22 are never enumerated
+  (`FF_NO_STRAT_GROUND`). p22: unsolvable-at-any-budget → **~26 s**,
+  transient 8.0 → 4.1 GB.
+- **DNF static resolution** (`FF_NO_DNF_STATIC`): fully-bound
+  never-added literals resolve against init during expansion and a True
+  disjunct absorbs its disjunction — killing the 2^k conjunct explosion
+  of `forall (imply (static …) (dynamic …))` preconditions. Folding a
+  literal AWAY additionally requires never-DELETED (delete-only phase
+  facts like `TRAJ-PLANNING` keep gating — the constraints suite
+  enforced the asymmetry). **openstacks-ADL 6/30 → 30/30; the temporal
+  twins swept 30/30 + 30/30 (+71 instances from one fix).**
+  Instance-7 previously died at 15 GB mid-grounding.
+
+### Temporal: recoveries and honest classifications
+
+- **Byte-aware temporal node cap** (`temporal_node_cap`, the classical
+  model + agenda/key extras; `FF_TEMPORAL_NODE_CAP`) replaces the
+  byte-blind 400 k count.
+- **Shift-invariant visited keys**: on TIL-free tasks the agenda keys
+  by pending-end DELTAS, not absolute times — retimed permutations of
+  one logical state finally dedup (`FF_TEMPORAL_ABS_KEY`). A minimal
+  turn-and-open repro (now a suite test) proved same-epoch chaining
+  already handles start-inside-an-interval concurrency — **no
+  semantics gap**. Coverage at the 30 s baseline: **sokoban08-t
+  7→10/30, sokoban11-t 0→2/20, floor-tile11-t 0→3/20; turn-and-open
+  0→1/20 at 60 s** — all VAL-validated. elevator-08-t 19→22/30 and
+  elevator-11-t 0→3/20 (grounding fixes above).
+- **PDDL2.1 `?duration` in expressions + state-dependent durations**:
+  the parser accepts `?duration` in expression position (reserved
+  pseudo-fluent), the snap compiler substitutes the duration expression
+  (exact at START; end-side only under full inertia, else the action is
+  skipped — never compiled wrong), and durations reading assigned
+  fluents resolve per expansion against the node's state (side table on
+  `Kind::Start`; validator checks bounds at the start happening).
+  Proven end-to-end by the `durexpr` fixture. model-train now parses,
+  grounds, and searches — still 0 solved: its wall moved to guidance.
+- **Walls classified, recorded**: storage11 explored 3 M nodes with a
+  live 2.2 M heap — no exhaustion, no semantics gap, a pure
+  h^FF-guidance wall (same family as transport11/model-train, whose
+  attribution — h is the delete-relaxation floor, 3.6× thread scaling,
+  guidance not throughput binds — was measured this cycle);
+  temporal-machine-shop drowns in genuine-concurrency interleavings
+  (~47 pending ends per node).
+
+### Scheduling, validation, quality
+
+- **Budget-aware portfolio**: the ladder runs to its natural end on the
+  FULL eval pool before diversification spends anything — portfolio
+  coverage ≥ default by construction (`FF_PORTFOLIO_SLICED` restores
+  doubling). All five recorded losses recovered to exact default parity
+  and the no-mystery diversification win kept (~428 ≥ 427 ≥ old 416).
+- **Temporal VAL in the runner**: `ipc67.py` validates tempo-sat plans
+  (timestamped rendering, `-t` at ff's 0.001 ε) and immediately caught
+  a real bug — same-instant numeric write-write passed the fact-only
+  mutex test. `epsilon_separate` now counts numeric footprints
+  (write-write + write-read) and separates up to 2000 happenings.
+  elevator-numeric val 1/3 → 3/3; every sweep this cycle is val-green.
+- **Per-job memory cap** (`--mem-gb`, default RAM/jobs): a memory spike
+  kills its own job with a `mem-cap` note instead of inviting the OOM
+  killer to execute siblings.
+- **Length-anytime within one search** (`FF_LEN_ANYTIME=1`, measured
+  and default-OFF): the drain cost 9 instances of coverage at the 60 s
+  budget against 4 shorter sokoban plans and zero gains on
+  floor-tile/visit-all — recorded negative, same verdict class as
+  0.9's improve_length.
+
 ## [0.9.0] - 2026-07-18 — The IPC6/IPC7 arc opens: costs, benefit, landmarks, portfolio
 
 The general-planning cycle (`ferroplan-roadmap.md`; cycle record in

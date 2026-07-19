@@ -78,3 +78,29 @@ measured; this phase points it at plain length on the default path.
   `rustup update stable` FIRST (the 0.9.0 clippy-skew lesson,
   RELEASING.md); full gate (fmt, clippy `-D warnings`, suite); main
   fast-forwarded and publish.sh-ready (the user runs publish.sh).
+
+## Recorded (cycle close, 2026-07-19)
+
+- **Phase 1 SHIPPED**: temporal VAL (crew 20/20 val'd on first run) +
+  `--mem-gb` RLIMIT_AS per job (elevator-11 spikes die alone with a
+  `mem-cap` note). Acceptance exceeded: the validation immediately
+  caught a live bug — same-instant numeric write-write passed the
+  fact-only mutex — fixed in `epsilon_separate` (numeric footprints;
+  cap 600 → 2000 happenings). elevator-numeric val 1/3 → 3/3.
+- **Phase 2 ANSWERED + SHIPPED**: no required-concurrency semantics
+  gap (minimal turn-and-open repro in the suite); the amplifier was
+  absolute-time visited keys — shift-invariant deltas on TIL-free
+  tasks shipped (`FF_TEMPORAL_ABS_KEY`). sokoban08-t 7→10/30,
+  sokoban11-t 0→2/20, floor-tile11-t 0→3/20 (30 s), turn-and-open
+  0→1/20 (60 s; i1 ~25 s solo), all VAL-green. storage11 = guidance
+  (3 M nodes, live heap, helpful→0); TMS = interleaving scale (~47
+  pending ends/node). Both recorded into the guidance agenda.
+- **Phase 3 MEASURED NEGATIVE, ships opt-in** (`FF_LEN_ANYTIME=1`):
+  at 60 s the drain lost 9 instances of coverage (sokoban −7) against
+  4 shorter sokoban plans (−234 steps) and zero gains on the
+  motivating domains (their plans come from EHC/LAMA first
+  incumbents). Default OFF per the roadmap's never-worse criterion.
+- **Phase 4**: versions 0.9.0 → 0.10.0, CHANGELOG/README refreshed,
+  latest stable confirmed (1.97.1), full gate green; tempo-sat
+  scoreboard refreshed with the 0.10.0 binary (see
+  `benchmarks/ipc67-temporal.md`).

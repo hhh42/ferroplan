@@ -47,7 +47,30 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.9.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.10.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.10.0 — the walls fall where they can.** Three
+> grounder truths land: **fact-space compaction** (elevator-08-t p22
+> minted 2.35 M fact ids for ~7 k live facts — 287 KB per state, 8 GB
+> RSS, dead at any budget; it now solves in ~26 s), **stratified END
+> grounding** (snap ENDs enumerate only over bindings their STARTs
+> produce), and **DNF static resolution** (the 2^k `forall (imply
+> (static…) …))` conjunct explosion collapses — **openstacks-ADL
+> 6/30 → 30/30, its temporal twins swept 30/30 + 30/30**). Temporal
+> search gains **shift-invariant visited keys** (retimed permutations
+> of one state finally dedup: sokoban-t +5, floor-tile-t +3,
+> turn-and-open's first-ever solve, and a suite repro proving the
+> decision-epoch scheme has **no required-concurrency semantics gap**),
+> **PDDL2.1 `?duration` in expressions with state-dependent durations**,
+> and a **byte-aware node cap**. The portfolio is now **budget-aware**
+> (ladder to its natural end first — coverage ≥ default by
+> construction), the corpus runner **VAL-validates temporal plans**
+> (which caught and fixed a real same-instant numeric-mutex bug) and
+> caps per-job memory, and every unmoved wall carries a measured
+> diagnosis (storage/TMS/transport/model-train: guidance, not
+> semantics, memory, or grounding). Full record:
+> [`docs/roadmap-0.10.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.10.md),
+> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.9.0 — the IPC6/IPC7 arc opens.** ferroplan learns the
 > IPC-2008/2011 satisficing objectives: **real action costs** (the metric
