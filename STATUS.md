@@ -255,6 +255,12 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
    verdict: default member to its natural end before diversification.
 7. **Temporal search walls** — turn-and-open / temporal-machine-shop /
    storage11 (all-timeout): check required-concurrency completeness of
-   the decision-epoch scheme before assuming it's scale.
+   the decision-epoch scheme before assuming it's scale. CONFIRMED
+   2026-07-19: re-baselined all seven wall variants after the day's
+   three grounding fixes (compaction, stratified Phase B, DNF static
+   resolution) — coverage IDENTICAL to the recon on every one (storage/
+   TMS/turn-and-open/sokoban11/floor-tile11 0/20, match-cellar 6/20,
+   parc-printer 18/30 + 7/20). These walls are search/semantics, not
+   grounding or memory; elevator was the only memory-bound family.
 8. Runner polish: temporal VAL (timestamped plan output), a
    memory cap per job to keep parallel runs honest.
