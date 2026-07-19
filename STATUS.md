@@ -159,10 +159,28 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
 
 ## Next-cycle agenda (measured, in leverage order)
 
-1. **transport11 eval throughput × guidance** — search-bound at ~520
-   evals/s over 21 k actions (1 thread); the batch-parallel eval is the
-   engine's own answer, currently unused by the 1-thread scoreboard
-   methodology. Both a perf target and a measurement question.
+1. **transport11 eval throughput × guidance** — ANSWERED 2026-07-19
+   (p01, 21,136 ops / 1,052 facts; FF_RES_DEBUG phase attribution now in
+   search_from/relaxed_to):
+   - **Attribution:** h is 86% of best-first wall at t1 (12.8 s of
+     14.9 s per 20k evals); within h, build_rpg is ~96%. A counter-based
+     build measured EQUIVALENT (identical 20,126 evals, 12.85 s vs
+     12.83 s) — nearly every op fires in every build, so ~614 µs/eval
+     worker time is the delete-relaxation FLOOR, not scan waste.
+     Reverted; negative recorded in the build_rpg doc comment.
+   - **Throughput half is healthy:** best-first at t4 does 300,190
+     evals in 62.5 s (4,800 evals/s) vs 1,350 at t1 — 3.6× on 4 cores,
+     per-eval worker time unchanged (no bandwidth wall). The old
+     process-level numbers (~520–580 evals/s t1) understate the engine:
+     the single-threaded EHC prefix and ladder stages dilute them.
+   - **Measurement question answered: t4 does NOT flip transport11.**
+     p01 (the smallest instance) at t4 with a 240 s wall: no solve —
+     the ladder explored ~600k+ states (LAMA's full 400k-cap rung plus
+     several hundred k best-first) and h^FF never converged. The
+     1-thread scoreboard methodology is not hiding transport coverage;
+     **guidance, not throughput, is the binding term** — transport11
+     moves only with a better gradient (richer landmarks / domain
+     structure), which folds into the quality/guidance items below.
 2. **Temporal memory bound** — big temporal instances allocate 7–10 GB
    in seconds (elevator-08-t p22: 7.4 GB in 30 s). A memory-bounded
    temporal route turns OOM deaths into honest timeouts and likely
