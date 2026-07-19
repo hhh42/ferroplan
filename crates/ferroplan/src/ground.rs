@@ -102,6 +102,7 @@ fn and_merge(acc: &[Conjunct], cd: &[Conjunct]) -> Vec<Conjunct> {
 
 /// Expand a quantifier over typed objects: AND the per-binding DNFs (universal)
 /// or OR them (existential). Empty domain -> True (AND) / False (OR), vacuously.
+#[allow(clippy::too_many_arguments)]
 fn quant_expand(
     vars: &[(Sym, Sym)],
     inner: &Formula,
@@ -109,6 +110,7 @@ fn quant_expand(
     neg: bool,
     objs: &HashMap<Sym, Vec<Sym>>,
     use_and: bool,
+    st: Option<&DnfStatics>,
 ) -> Vec<Conjunct> {
     let mut combos: Vec<HashMap<Sym, Sym>> = vec![b.clone()];
     for (v, ty) in vars {
@@ -126,15 +128,42 @@ fn quant_expand(
     if use_and {
         let mut acc = vec![empty_conj()];
         for cb in &combos {
-            acc = and_merge(&acc, &to_dnf(inner, cb, neg, objs));
+            acc = and_merge(&acc, &to_dnf(inner, cb, neg, objs, st));
         }
         acc
     } else {
-        combos
-            .iter()
-            .flat_map(|cb| to_dnf(inner, cb, neg, objs))
-            .collect()
+        let mut acc = Vec::new();
+        for cb in &combos {
+            let d = to_dnf(inner, cb, neg, objs, st);
+            // existential over a statically-true binding: the whole
+            // disjunction is True (same absorption as the Or arm)
+            if st.is_some() && d.iter().any(ctx_empty) {
+                return vec![empty_conj()];
+            }
+            acc.extend(d);
+        }
+        acc
     }
+}
+
+/// Static-resolution context for DNF expansion: a fully-bound literal on a
+/// STATIC predicate (never added by any action) resolves to True/False
+/// against init DURING expansion, and a disjunction with a True disjunct
+/// collapses to True. This kills the 2^k conjunct explosion of
+/// `forall (imply (static ...) (dynamic ...))` preconditions —
+/// openstacks-ADL's make-product/ship-order ground instance-5 to 45k
+/// redundant ops and instance-7 to 15 GB RSS and death; collapsed, the DNF
+/// is a single conjunct. `None` (the `FF_NO_DNF_STATIC=1` hatch) restores
+/// the raw expansion.
+struct DnfStatics<'a> {
+    init: &'a HashSet<(Sym, Vec<Sym>)>,
+    add_preds: &'a HashSet<Sym>,
+    /// Predicates some action/monitor DELETES. Folding a literal AWAY (to
+    /// True) needs full inertia — never added AND never deleted (a
+    /// delete-only predicate like the END construction's TRAJ-PLANNING is
+    /// init-true yet must keep gating after its delete fires). Dropping a
+    /// conjunct (to False) only needs "can never become true" (never added).
+    del_preds: &'a HashSet<Sym>,
 }
 
 fn to_dnf(
@@ -142,20 +171,49 @@ fn to_dnf(
     b: &HashMap<Sym, Sym>,
     negated: bool,
     objs: &HashMap<Sym, Vec<Sym>>,
+    st: Option<&DnfStatics>,
 ) -> Vec<Conjunct> {
     match (f, negated) {
         (Formula::True, false) | (Formula::False, true) => vec![empty_conj()],
         (Formula::False, false) | (Formula::True, true) => vec![],
-        (Formula::Atom(p, a), false) => vec![Conjunct {
-            pos: vec![(p.clone(), subst_args(a, b))],
-            neg: vec![],
-            num: vec![],
-        }],
-        (Formula::Atom(p, a), true) => vec![Conjunct {
-            pos: vec![],
-            neg: vec![(p.clone(), subst_args(a, b))],
-            num: vec![],
-        }],
+        (Formula::Atom(p, a), neg) => {
+            // Static resolution: decidable now iff the predicate is static and
+            // every arg is a constant or a bound variable (an unbound —
+            // quantified-elsewhere — variable falls through to the literal).
+            if let Some(stx) = st {
+                let bound = |t: &Term| match t {
+                    Term::Const(_) => true,
+                    Term::Var(v) => b.contains_key(v),
+                };
+                if !stx.add_preds.contains(p) && a.iter().all(bound) {
+                    let truth = stx.init.contains(&(p.clone(), subst_args(a, b)));
+                    let deletable = stx.del_preds.contains(p);
+                    match (truth, neg) {
+                        // literal can never become true -> conjunct dies /
+                        // negation holds forever (delete-independent)
+                        (false, false) => return vec![],
+                        (false, true) => return vec![empty_conj()],
+                        // init-true folds only under full inertia
+                        (true, false) if !deletable => return vec![empty_conj()],
+                        (true, true) if !deletable => return vec![],
+                        _ => {} // init-true but deletable: keep the literal
+                    }
+                }
+            }
+            if !neg {
+                vec![Conjunct {
+                    pos: vec![(p.clone(), subst_args(a, b))],
+                    neg: vec![],
+                    num: vec![],
+                }]
+            } else {
+                vec![Conjunct {
+                    pos: vec![],
+                    neg: vec![(p.clone(), subst_args(a, b))],
+                    num: vec![],
+                }]
+            }
+        }
         // `(not (= e1 e2))` has no single comparator: it is the DISJUNCTION
         // e1 < e2 OR e1 > e2, i.e. two DNF conjuncts.
         (Formula::Comp(CompOp::Eq, l, r), true) => {
@@ -191,23 +249,30 @@ fn to_dnf(
                 vec![] // False
             }
         }
-        (Formula::Forall(vars, inner), neg) => quant_expand(vars, inner, b, neg, objs, !neg),
-        (Formula::Exists(vars, inner), neg) => quant_expand(vars, inner, b, neg, objs, neg),
+        (Formula::Forall(vars, inner), neg) => quant_expand(vars, inner, b, neg, objs, !neg, st),
+        (Formula::Exists(vars, inner), neg) => quant_expand(vars, inner, b, neg, objs, neg, st),
         // A preference is a SOFT goal — a classical planner ignores it (True).
         (Formula::Pref(_, _), false) => vec![empty_conj()],
         (Formula::Pref(_, _), true) => vec![],
-        (Formula::Not(inner), neg) => to_dnf(inner, b, !neg, objs),
+        (Formula::Not(inner), neg) => to_dnf(inner, b, !neg, objs, st),
         (Formula::And(fs), false) | (Formula::Or(fs), true) => {
             let mut acc = vec![empty_conj()];
             for child in fs {
-                acc = and_merge(&acc, &to_dnf(child, b, negated, objs));
+                acc = and_merge(&acc, &to_dnf(child, b, negated, objs, st));
             }
             acc
         }
         (Formula::Or(fs), false) | (Formula::And(fs), true) => {
             let mut acc = Vec::new();
             for child in fs {
-                acc.extend(to_dnf(child, b, negated, objs));
+                let d = to_dnf(child, b, negated, objs, st);
+                // A True disjunct absorbs the whole disjunction — without this
+                // the statically-true branches of `imply` multiply into 2^k
+                // subsumed conjuncts under an enclosing forall/and.
+                if st.is_some() && d.iter().any(ctx_empty) {
+                    return vec![empty_conj()];
+                }
+                acc.extend(d);
             }
             acc
         }
@@ -248,6 +313,7 @@ fn ground_effect(
     objs: &HashMap<Sym, Vec<Sym>>,
     ctx: &Conjunct,
     out: &mut REff,
+    st: Option<&DnfStatics>,
 ) {
     let emit_add = |out: &mut REff, atom: (Sym, Vec<Sym>)| {
         if ctx_empty(ctx) {
@@ -264,7 +330,9 @@ fn ground_effect(
         }
     };
     match e {
-        Effect::And(v) => v.iter().for_each(|x| ground_effect(x, b, objs, ctx, out)),
+        Effect::And(v) => v
+            .iter()
+            .for_each(|x| ground_effect(x, b, objs, ctx, out, st)),
         Effect::Add(p, a) => emit_add(out, (p.clone(), subst_args(a, b))),
         Effect::Del(p, a) => {
             let atom = (p.clone(), subst_args(a, b));
@@ -312,14 +380,14 @@ fn ground_effect(
                 combos = next;
             }
             for cb in &combos {
-                ground_effect(inner, cb, objs, ctx, out);
+                ground_effect(inner, cb, objs, ctx, out, st);
             }
         }
         Effect::When(cond, inner) => {
             // each DNF disjunct of the condition is one conditional context
-            for disj in to_dnf(cond, b, false, objs) {
+            for disj in to_dnf(cond, b, false, objs, st) {
                 let merged = merge_conj(ctx, &disj);
-                ground_effect(inner, b, objs, &merged, out);
+                ground_effect(inner, b, objs, &merged, out, st);
             }
         }
     }
@@ -473,7 +541,9 @@ fn ground_action(
     init_unary: &FxHashMap<Sym, FxHashSet<Sym>>,
     join_atoms: &HashSet<(Sym, Vec<Sym>)>,
     add_predicates: &HashSet<Sym>,
+    del_predicates: &HashSet<Sym>,
     extra_join_lits: &[(Sym, Vec<Term>)],
+    dnf_static: bool,
 ) -> Vec<RawOp> {
     let static_lits = static_top_atoms(&action.precond, add_predicates);
     let param_vars: Vec<Sym> = action.params.iter().map(|(v, _)| v.clone()).collect();
@@ -517,7 +587,13 @@ fn ground_action(
                 return;
             }
         }
-        let dnf = to_dnf(&action.precond, b, false, objects_of_type);
+        let stx = DnfStatics {
+            init: join_atoms,
+            add_preds: add_predicates,
+            del_preds: del_predicates,
+        };
+        let st = dnf_static.then_some(&stx);
+        let dnf = to_dnf(&action.precond, b, false, objects_of_type, st);
         let multi = dnf.len() > 1;
         let mut eff = REff {
             add: vec![],
@@ -525,7 +601,14 @@ fn ground_action(
             num: vec![],
             cond: vec![],
         };
-        ground_effect(&action.effect, b, objects_of_type, &empty_conj(), &mut eff);
+        ground_effect(
+            &action.effect,
+            b,
+            objects_of_type,
+            &empty_conj(),
+            &mut eff,
+            st,
+        );
         let args: Vec<Sym> = param_vars.iter().map(|v| b[v].clone()).collect();
         let display = if args.is_empty() {
             action.name.clone()
@@ -805,6 +888,25 @@ fn ground_v(
     for e in &domain.monitors {
         collect_add(e, &mut add_predicates);
     }
+    // deleted predicates: the True-side folding guard in `DnfStatics`
+    let mut del_predicates: HashSet<Sym> = HashSet::new();
+    fn collect_del(e: &Effect, out: &mut HashSet<Sym>) {
+        match e {
+            Effect::Del(p, _) => {
+                out.insert(p.clone());
+            }
+            Effect::And(v) => v.iter().for_each(|x| collect_del(x, out)),
+            Effect::When(_, inner) => collect_del(inner, out),
+            Effect::Forall(_, inner) => collect_del(inner, out),
+            _ => {}
+        }
+    }
+    for a in &domain.actions {
+        collect_del(&a.effect, &mut del_predicates);
+    }
+    for e in &domain.monitors {
+        collect_del(e, &mut del_predicates);
+    }
     let init_atom_set: HashSet<(Sym, Vec<Sym>)> = problem.init_atoms.iter().cloned().collect();
     // predicate -> objects appearing in a unary init atom `(P o)`, for static
     // parameter-domain restriction in `ground_action`.
@@ -817,6 +919,9 @@ fn ground_v(
                 .insert(args[0].clone());
         }
     }
+
+    // DNF static resolution (see `DnfStatics`); one env read for all actions.
+    let dnf_static = std::env::var("FF_NO_DNF_STATIC").is_err();
 
     // ---- Phase B: parallel per-action grounding (optionally stratified) ----
     //
@@ -896,7 +1001,9 @@ fn ground_v(
             &init_unary,
             &init_atom_set,
             &add_predicates,
+            &del_predicates,
             &[],
+            dnf_static,
         )
     });
     let idx2: Vec<usize> = (0..n_actions)
@@ -933,7 +1040,9 @@ fn ground_v(
                 &init_unary,
                 &join_atoms,
                 &add_predicates,
+                &del_predicates,
                 &gating_of[ai],
+                dnf_static,
             )
         })
     };
@@ -1025,12 +1134,16 @@ fn ground_v(
         cond: vec![],
     };
     for e in &domain.monitors {
+        // No static resolution here (None): the constraint fixtures pin the
+        // 0.7/0.8 shared-block shapes, and monitor conditions are TRAJ-fact
+        // driven anyway — nothing meaningful to fold.
         ground_effect(
             e,
             &HashMap::new(),
             &objects_of_type,
             &empty_conj(),
             &mut shared_reff,
+            None,
         );
     }
     debug_assert!(
@@ -1117,7 +1230,18 @@ fn ground_v(
             neg_atoms.insert(a.clone());
         }
     }
-    let goal_dnf = to_dnf(&problem.goal, &HashMap::new(), false, &objects_of_type);
+    let goal_stx = DnfStatics {
+        init: &init_atom_set,
+        add_preds: &add_predicates,
+        del_preds: &del_predicates,
+    };
+    let goal_dnf = to_dnf(
+        &problem.goal,
+        &HashMap::new(),
+        false,
+        &objects_of_type,
+        dnf_static.then_some(&goal_stx),
+    );
     if goal_dnf.is_empty() {
         return Outcome::GoalFalse;
     }
