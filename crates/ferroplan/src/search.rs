@@ -110,6 +110,12 @@ pub struct SearchCfg {
     /// improve_length restarts. Mutually exclusive with the metric
     /// `anytime`.
     pub len_anytime: bool,
+    /// Landmark-count ordering term (0.11 Phase 3, pre-scaled like `w_g`):
+    /// adds `w_lm × unaccepted-landmark-count` to the best-first key.
+    /// 0 (default) = term absent, key bit-identical. The bounded classical
+    /// experiment: `FF_CLM=<weight>` sets it on the ladder's best-first
+    /// fallback only.
+    pub w_lm: i64,
 }
 
 impl Default for SearchCfg {
@@ -150,6 +156,7 @@ impl SearchCfg {
             anytime: false,
             g_bound: usize::MAX,
             len_anytime: false,
+            w_lm: 0,
         }
     }
 
@@ -190,6 +197,24 @@ struct Node {
     father: usize,
     op: usize,
     g: usize,
+    /// Landmarks accepted along the path (0.11 Phase 3, `w_lm` only;
+    /// empty — no allocation — when the term is off).
+    lm_acc: Vec<u64>,
+}
+
+/// (Duplicated tiny helpers — the lama.rs shape; three call sites across
+/// search/lama/temporal keep their own copies deliberately: each search owns
+/// its node layout and hot loop.)
+fn clm_accept_into(accepted: &mut [u64], lms: &[u32], state: &State) {
+    for (i, &f) in lms.iter().enumerate() {
+        if accepted[i >> 6] & (1 << (i & 63)) == 0 && crate::bitset::test(&state.bits, f as usize) {
+            accepted[i >> 6] |= 1 << (i & 63);
+        }
+    }
+}
+
+fn clm_unaccepted(accepted: &[u64], n: usize) -> i64 {
+    n as i64 - accepted.iter().map(|w| w.count_ones() as i64).sum::<i64>()
 }
 
 /// A preference's phi in grounded DNF: it holds in a state iff ANY disjunct's
@@ -354,11 +379,24 @@ pub fn search_from(
         };
     }
 
+    // Classical landmark-count term (0.11 Phase 3, `w_lm` only): landmarks
+    // for THIS (start, goal) pair, accepted-bitsets per node.
+    let clms: Vec<u32> = if cfg.w_lm > 0 {
+        crate::landmarks::landmarks_for(task, start, goal_pos)
+    } else {
+        Vec::new()
+    };
+    let clm_words = clms.len().div_ceil(64);
+    let mut root_clm = vec![0u64; clm_words];
+    if !clms.is_empty() {
+        clm_accept_into(&mut root_clm, &clms, &init);
+    }
     let mut nodes: Vec<Node> = vec![Node {
         state: init.clone(),
         father: usize::MAX,
         op: usize::MAX,
         g: 0,
+        lm_acc: root_clm,
     }];
     // Deferred evaluation: a node's priority is set from its PARENT's h at
     // insertion; its own h is computed only when it is popped. Many inserted
@@ -607,15 +645,40 @@ pub fn search_from(
                     } else {
                         0
                     };
+                    let lm_term = if clms.is_empty() {
+                        0
+                    } else {
+                        let mut acc = nodes[pi].lm_acc.clone();
+                        clm_accept_into(&mut acc, &clms, &s);
+                        let un = clm_unaccepted(&acc, clms.len());
+                        let idx = nodes.len();
+                        nodes.push(Node {
+                            state: s,
+                            father: pi,
+                            op: oi,
+                            g,
+                            lm_acc: acc,
+                        });
+                        heap.push(Reverse((
+                            cfg.w_g * g as i64
+                                + cfg.w_h * ph as i64
+                                + cfg.w_lm * un
+                                + sat_pen
+                                + cost_term,
+                            idx,
+                        )));
+                        continue;
+                    };
                     let idx = nodes.len();
                     nodes.push(Node {
                         state: s,
                         father: pi,
                         op: oi,
                         g,
+                        lm_acc: Vec::new(),
                     });
                     heap.push(Reverse((
-                        cfg.w_g * g as i64 + cfg.w_h * ph as i64 + sat_pen + cost_term,
+                        cfg.w_g * g as i64 + cfg.w_h * ph as i64 + lm_term + sat_pen + cost_term,
                         idx,
                     )));
                 }
@@ -725,6 +788,17 @@ pub fn plan_avoiding(
     let mut cfg = cfg;
     if cfg.h_cost.is_none() && !cfg.anytime && std::env::var("FF_LEN_ANYTIME").is_ok() {
         cfg.len_anytime = true;
+    }
+    // Classical landmark-count ordering (0.11 Phase 3), opt-in experiment:
+    // FF_CLM=<weight> adds w_lm × unaccepted-landmarks to the best-first
+    // fallback's key (EHC and the LAMA rung are untouched).
+    if cfg.h_cost.is_none() && !cfg.anytime {
+        if let Ok(v) = std::env::var("FF_CLM") {
+            let w = v.trim().parse::<f64>().unwrap_or(3.0);
+            if w.is_finite() && w > 0.0 {
+                cfg.w_lm = (w.min(1e9) * WEIGHT_SCALE).round() as i64;
+            }
+        }
     }
     let (ops, evaluated) = match search_from(
         task,
