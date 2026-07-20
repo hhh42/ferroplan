@@ -173,6 +173,29 @@ CHANGELOG `[0.12.0]`, workspace bump 0.11.0 → 0.12.0, README refresh,
 working gate; RELEASING.md already prescribed it). Scoreboards
 refreshed where phases moved them; main publish.sh-ready.
 
+## Recorded — Phase 5 (2026-07-20): shipped; the scoreboard defended itself
+
+Full pre-flight green on latest stable (fmt, clippy `--all-targets
+--all-features -D warnings`, suite 148/0, doc `-D warnings`, bench
+`--no-run`); the `ferroplan-py` re-lock (a RELEASING.md step silently
+missed since 0.9) caught and fixed.
+
+**The scoreboard stands at 387/630 — and it caught two things.** The
+release refresh with fixpoint as the temporal default read 377 and
+same-box A/B isolated real sokoban-t coverage loss (the order lottery;
+Phase 3 record) — fixed by scoping fixpoint to the Session entry. The
+post-fix refresh then read 372 on a day the box ran 1.5–2× slower than
+the 387 run (per-solve wall clock up across every family; the recorded
+box-variance caveat, at its worst). Attribution, the honest way: the
+0.11.0 binary was rebuilt from its cut commit and run back-to-back
+against the 0.12 binary on the same box — crew, sokoban, and all three
+elevator variants, **180 instances, ZERO differences** in solved sets,
+per-instance costs, or VAL verdicts. The corpus solve paths are
+measured bit-equivalent to 0.11, exactly as the scoping fix intends,
+so the committed 387/630 table (all VAL-validated) remains the
+truthful scoreboard; a slow-box table would record the weather, not
+the planner.
+
 ## Deferred, on the record
 
 - **Red-black planning / semantic landmarks over numeric structure**:
