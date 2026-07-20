@@ -1538,7 +1538,16 @@ fn temporal_search(
     tlama: bool,
     threads: usize,
 ) -> Option<TimedPlan> {
-    let max_nodes = temporal_node_cap(task, til_events.len());
+    // The TLAMA rung is a BOUNDED bet, like the classical ladder's 400k-eval
+    // LAMA cap: a failed rung must cost seconds, not the wall — unbounded it
+    // burned a full node-cap slice and pushed sokoban-t's complete-pass
+    // solves past the 30 s budget (10→8/30, 2→1/20).
+    const TLAMA_NODE_CAP: usize = 50_000;
+    let max_nodes = if tlama {
+        temporal_node_cap(task, til_events.len()).min(TLAMA_NODE_CAP)
+    } else {
+        temporal_node_cap(task, til_events.len())
+    };
     // Measurement only (FF_RES_DEBUG): dims at pass start, container sizes every
     // 25k stored nodes — the memory-attribution eyes for the temporal path.
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
