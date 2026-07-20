@@ -58,11 +58,13 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > remaining suffix for free, so drifting worlds only spend a think when
 > the plan actually breaks (the scripted fixture: exactly two thinks
 > across follow / helpful-drift / breaking-drift). **Fixpoint
-> grounding** enumerates from reached atoms instead of typed products —
-> elevator-11 p04 grounds in 6.9 s at 48.8 MB where 0.11 spent 31.6 s
-> at 5.7 GB (~117× less transient, identical task) — and the vendored
-> bazaar fixtures classify the game's any-for-any barter economy as
-> dense-reachable: ground once (5.5 s), think forever. Plus
+> grounding** — the `Session`'s grounding entry — enumerates from
+> reached atoms instead of typed products: elevator-11 p04 grounds in
+> 6.9 s at 48.8 MB where the stratified path spends 31.6 s at 5.7 GB
+> (~117× less transient, identical task); the corpus solve paths keep
+> stratified grounding, whose tie-breaks the scoreboard baselines pin.
+> The vendored bazaar fixtures classify the game's any-for-any barter
+> economy as dense-reachable: ground once (5.5 s), think forever. Plus
 > self-relative quality scoring in the corpus runner and a precise
 > diagnosis for the parc-printer-t plateau. Full record:
 > [`docs/roadmap-0.12.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.12.md),

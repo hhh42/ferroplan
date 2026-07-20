@@ -43,17 +43,23 @@ cycle the stick did its job.
 
 ### Fixpoint grounding (the fixtures chose the design)
 
-- **Reached-restricted fixpoint grounding** (temporal entry;
-  `FF_NO_FIXPOINT_GROUND` falls back to stratified): every action
-  joins its positive dynamic literals against the atoms reached so
-  far, rounds to fixpoint — enumeration tracks the REACHABLE op set
-  instead of the typed product, subsuming the 0.10 stratification.
-  elevator-11 p04, same-binary A/B: **31.6 s / 5.7 GB → 6.9 s /
-  48.8 MB (~117× less transient), identical task dims**; equivalence
-  spots exact; elevator-08-numeric back to 29/30 val-green. The
-  residual elevator-11 tail is SEARCH-bound (p05 now solves solo at
-  49 s — formerly a grounding OOM), joining the recorded guidance
-  family.
+- **Reached-restricted fixpoint grounding** (`ground_fixpoint`, the
+  `Session`'s temporal grounding entry; `FF_NO_FIXPOINT_GROUND` falls
+  back to stratified): every action joins its positive dynamic
+  literals against the atoms reached so far, rounds to fixpoint —
+  enumeration tracks the REACHABLE op set instead of the typed
+  product, subsuming the 0.10 stratification. elevator-11 p04,
+  same-binary A/B: **31.6 s / 5.7 GB → 6.9 s / 48.8 MB (~117× less
+  transient), identical task dims**. The surviving op set is
+  identical, but doomed candidates are never enumerated, so fact-id
+  first-reference order shifts and search tie-breaks move with it —
+  the corpus A/B measured that as real sokoban-t coverage (stratified
+  4/10 vs fixpoint 1/10 on i1–i10), so the CORPUS solve paths stay on
+  stratified grounding and only the `Session` (the game track, where
+  the memory win is the point and no scoreboard baseline is
+  disturbed) grounds via fixpoint. The residual elevator-11 tail is
+  SEARCH-bound (p05 solves solo at 49 s under fixpoint — formerly a
+  grounding OOM), joining the recorded guidance family.
 - **The bazaar fixtures** (vendored: the game's any-for-any trade
   economy): measured DENSE-reachable — 197k of 211k typed candidates
   are real ops, so no grounder can shrink it; ground-once makes it a

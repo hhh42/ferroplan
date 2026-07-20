@@ -101,21 +101,37 @@ Fixtures first, as prescribed, and they discriminated the term:
   unstratified / 5.7 GB stratified transient for a 16,728-op task.
   Sparse-reachable: exactly where reached-restriction wins.
 
-**Reached-restricted fixpoint grounding shipped** (temporal entry;
+**Reached-restricted fixpoint grounding shipped** (`ground_fixpoint`;
 `FF_NO_FIXPOINT_GROUND=1` falls back to stratified; classical entry
 untouched): every action joins its positive dynamic top-level literals
 against the reached-atom set, rounds to fixpoint, bindings deduped
 across rounds; the producer-known stratification is subsumed. p04 A/B
 same-binary back-to-back: **31.6 s / 5.7 GB → 6.9 s / 48.8 MB (~117×
 transient), identical task dims**; equivalence spots exact (crew /
-elev08 / openstacks / pegsol makespans identical on/off); suite 148/0;
-elevator sweeps val-green (elevator08-numeric back to 29/30).
+elev08 / openstacks / pegsol makespans identical on/off); suite 148/0.
 
-Residual, honest: elevator-11 coverage stays 3/20 at 30 s — the wall
-MOVED from grounding to search (p05 now solves solo at 49 s, formerly
-a grounding OOM; p04 is search-bound past 90 s). The tail joins the
-recorded guidance family; the grounding lever is spent, and it was
-worth exactly what the fixtures said it would be.
+**Scoped in release week — the order lottery bit back.** The 0.12.0
+scoreboard refresh with fixpoint as the temporal default came back
+377/630 vs 0.11's 387, and same-box same-binary A/B isolated it:
+sokoban-t stratified 4/10 vs fixpoint 1/10 on i1–i10. The surviving op
+set is identical, but doomed candidates are never enumerated, so they
+no longer intern atoms early — fact-id first-reference order shifts,
+and sokoban-t's tie-break-sensitive search moves with it. A final
+canonical-order emission pass did NOT recover the instances: the
+residual is the interning order itself, unrecoverable without
+re-paying the enumeration the fixpoint exists to avoid. Resolution:
+the corpus solve paths stay on stratified grounding (0.11 tie-breaks
+reproduced; sokoban i1/i5/i6 verified restored), and the `Session`'s
+temporal entry grounds via fixpoint — the game track, where the
+memory win is the point and no scoreboard baseline is disturbed.
+
+Residual, honest: elevator-11 coverage stays 3/20 at 30 s — under
+fixpoint the wall MOVED from grounding to search (p05 solves solo at
+49 s, formerly a grounding OOM; p04 is search-bound past 90 s), but
+that observation now lives on the Session path, not the corpus
+default. The tail joins the recorded guidance family; the grounding
+lever is spent, and it was worth exactly what the fixtures said it
+would be — for the customer it was built for.
 
 ## Phase 4 — corpus debts (small, bounded)
 
