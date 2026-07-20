@@ -996,18 +996,28 @@ pub(crate) fn solve_from(
             tight.len()
         );
     }
-    let go = |rel: &[bool], prune: bool| {
+    let go = |rel: &[bool], prune: bool, tlama: bool| {
         temporal_search(
             task, kind, dur_exprs, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel,
-            til_events, prune, threads,
+            til_events, prune, tlama, threads,
         )
     };
-    go(&sound, true)
-        .or_else(|| if on { go(&tight, false) } else { None })
-        .or_else(|| go(&sound, false))
+    go(&sound, true, false)
+        // The TLAMA rung (0.11 Phase 1): a bounded landmark-dominant pass
+        // between the pruned and complete passes — strictly additive, like
+        // the classical ladder's LAMA rung. FF_NO_TLAMA=1 skips it.
+        .or_else(|| {
+            if std::env::var("FF_NO_TLAMA").is_err() {
+                go(&sound, true, true)
+            } else {
+                None
+            }
+        })
+        .or_else(|| if on { go(&tight, false, false) } else { None })
+        .or_else(|| go(&sound, false, false))
         // Unmasked complete backstop — only distinct from the previous pass when
         // pruning is on (off ⇒ `sound` is already empty ⇒ pass 3 was unmasked).
-        .or_else(|| if on { go(&[], false) } else { None })
+        .or_else(|| if on { go(&[], false, false) } else { None })
 }
 
 /// Static unproducibility: is some goal conjunct impossible to ever achieve because
@@ -1432,20 +1442,18 @@ fn enqueue_evaluated(
         // relaxation is blind to), to break the flat-h plateau on long chains AND
         // converging DAGs. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte
         // the old complete search, so nothing it solved before can regress.
-        // W_TLM weights the unaccepted FACT-landmark count (the plateau
-        // gradient LAMA brought to the classical rung, 0.9) at the same
-        // scale as the h/numeric-landmark terms.
-        const W_TLM: i64 = 3;
-        let key = if prune {
+        // The TLAMA rung's key is LANDMARK-DOMINANT (the lama.rs shape:
+        // unaccepted count outweighs h), not a term mixed into the pruned
+        // key — see the measured lesson at the `lms` computation.
+        const W_TLM: i64 = 4;
+        let key = if !lms.is_empty() {
+            W_G * n.g as i64
+                + W_TLM * lm_unaccepted(&n.lm_accepted, lms.len()) * (W_H + 1)
+                + W_H * h as i64
+        } else if prune {
             W_G * n.g as i64
                 + W_H * h as i64
                 + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
-                + W_TLM
-                    * if lms.is_empty() {
-                        0
-                    } else {
-                        lm_unaccepted(&n.lm_accepted, lms.len())
-                    }
                 + demand.weight * demand_deficit(&n.met, demand)
                 + AGENDA_W * n.agenda.len() as i64
         } else {
@@ -1527,6 +1535,7 @@ fn temporal_search(
     relevant: &[bool],
     til_events: &[(f64, usize)],
     prune: bool,
+    tlama: bool,
     threads: usize,
 ) -> Option<TimedPlan> {
     let max_nodes = temporal_node_cap(task, til_events.len());
@@ -1566,20 +1575,20 @@ fn temporal_search(
     root_agenda.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
     // Shift-invariant dedup (see tkey): sound only when no TIL pins the clock.
     let relative = til_events.is_empty() && std::env::var("FF_TEMPORAL_ABS_KEY").is_err();
-    // Temporal LAMA (0.11 Phase 1): fact landmarks over the snap task seed
-    // the pruned pass's key with an unaccepted-count gradient. The complete
-    // phase-2 passes never see it (completeness is theirs); FF_NO_TLAMA=1
-    // restores the 0.10 search bit-for-bit. NOTE the deliberate scope cut:
-    // no dual preferred heap here — the pruned pass already RESTRICTS
-    // expansion to the helpful set (expansion-level preference, stronger
-    // than queue-level boosting), so only the landmark gradient transfers.
-    let lms: Vec<u32> = if prune && std::env::var("FF_NO_TLAMA").is_err() {
+    // Temporal LAMA (0.11 Phase 1): fact landmarks over the snap task drive
+    // a DEDICATED rung's key (landmark-dominant, LAMA-style) — measured
+    // lesson: mixed into the pruned pass's key the gradient FIGHTS h where
+    // they disagree (crew-planning 50/50 → 36/50, sokoban-t/floor-tile-t
+    // −6), exactly why classical LAMA is a separate rung and not a term.
+    // Only the `tlama` pass computes or sees them; every other pass keys as
+    // 0.10 did, bit-for-bit.
+    let lms: Vec<u32> = if tlama {
         crate::landmarks::landmarks_for(task, start, goal_pos)
     } else {
         Vec::new()
     };
     let lm_words = lms.len().div_ceil(64);
-    if dbg && prune {
+    if dbg && tlama {
         eprintln!("[tsearch] tlama: {} fact landmarks", lms.len());
     }
     let mut root_lm = vec![0u64; lm_words];
