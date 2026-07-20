@@ -568,6 +568,55 @@ pub fn relaxed_helpful(
     Some((h, helpful))
 }
 
+/// Lax preferred-operator fallback (0.11 Phase 2): really-applicable ops
+/// whose ADD achieves a fact some relaxed-plan op still NEEDS (a positive
+/// precondition not true in this state). Valid immediately after a
+/// `relaxed_to`/`relaxed_helpful` call on the SAME state (reads
+/// `sc.selected` at the current generation). The temporal path uses it when
+/// the strict helpful set filters to nothing — its relaxed plans often lead
+/// through END ops (fired by the agenda, not chosen), and the Start-only
+/// filter starved the pruned pass into full scans (storage/model-train:
+/// stored helpful averaged 0.0).
+pub fn helpful_needed_adders(
+    task: &PackedTask,
+    sc: &Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+) -> Vec<u32> {
+    let mut needed = vec![false; task.n_facts];
+    let mut any = false;
+    for oi in 0..task.n_ops {
+        if sc.selected[oi] != sc.gen {
+            continue;
+        }
+        for &f in task.pre_pos.slice(oi) {
+            if !bitset::test(bits, f as usize) {
+                needed[f as usize] = true;
+                any = true;
+            }
+        }
+    }
+    if !any {
+        return Vec::new();
+    }
+    let applicable = |oi: usize| {
+        task.pre_pos
+            .slice(oi)
+            .iter()
+            .all(|&f| bitset::test(bits, f as usize))
+            && task
+                .pre_num
+                .slice(oi)
+                .iter()
+                .all(|np| eval_numpre(np, fv, def) == Some(true))
+    };
+    (0..task.n_ops)
+        .filter(|&oi| applicable(oi) && task.add.slice(oi).iter().any(|&f| needed[f as usize]))
+        .map(|oi| oi as u32)
+        .collect()
+}
+
 /// Relaxed completion COST of a subgoal from this state: run the relaxed-plan
 /// extraction toward `goal_pos`/`goal_num`, then sum the SELECTED ops'
 /// `increase` effects on `cost_fluent`, each evaluated against this state's

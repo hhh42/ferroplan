@@ -1386,10 +1386,22 @@ fn eval_node(
 ) -> Option<(i32, Vec<u32>)> {
     if prune {
         let (h, helpful) = relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num)?;
-        let hf = helpful
+        let mut hf: Vec<u32> = helpful
             .into_iter()
             .filter(|&oi| matches!(kind[oi as usize], Kind::Start { .. } | Kind::Classical))
             .collect();
+        // Drift repair (0.11 Phase 2): the relaxed plan often leads through
+        // END ops here — fired by the agenda, never chosen — so the
+        // Start-only filter can empty a NONEMPTY helpful set and degrade
+        // block (a) to full scans. Fall back to applicable starts adding a
+        // fact the relaxed plan still needs (the LIFT-START whose RUNNING
+        // token its LIFT-END requires). `FF_STRICT_HELPFUL=1` restores.
+        if hf.is_empty() && std::env::var("FF_STRICT_HELPFUL").is_err() {
+            hf = crate::heuristic::helpful_needed_adders(task, sc, &s.bits, &s.fv, &s.fdef)
+                .into_iter()
+                .filter(|&oi| matches!(kind[oi as usize], Kind::Start { .. } | Kind::Classical))
+                .collect();
+        }
         Some((h, hf))
     } else {
         // relaxed_to with the task goal == the old `relaxed`; with a subgoal it
