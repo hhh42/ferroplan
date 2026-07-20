@@ -13,7 +13,10 @@ fn main() {
     let p = ferroplan::parser::parse_problem(&prob).unwrap();
     let c = ferroplan::temporal::compile(&d, &p);
     let t0 = std::time::Instant::now();
-    let task = ferroplan::ground::ground_task(&c.domain, &c.problem, 1).expect("ground");
+    let task = match ferroplan::ground::ground_stratified(&c.domain, &c.problem, 1) {
+        ferroplan::ground::Outcome::Task(t) => t,
+        _ => panic!("ground"),
+    };
     let ground_ms = t0.elapsed().as_millis();
     println!(
         "facts {}  words {}  ops {}  fluents {}  ground {}ms",

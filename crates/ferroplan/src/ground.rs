@@ -545,6 +545,7 @@ fn ground_action(
     del_predicates: &HashSet<Sym>,
     extra_join_lits: &[(Sym, Vec<Term>)],
     dnf_static: bool,
+    skip_bindings: Option<&FxHashSet<Vec<Sym>>>,
 ) -> Vec<RawOp> {
     let static_lits = static_top_atoms(&action.precond, add_predicates);
     let param_vars: Vec<Sym> = action.params.iter().map(|(v, _)| v.clone()).collect();
@@ -578,6 +579,15 @@ fn ground_action(
     join_lits.extend(extra_join_lits.iter().cloned());
     let mut out = Vec::new();
     for_each_binding(&action.params, &domains, &join_lits, join_atoms, |b| {
+        // Fixpoint rounds (0.12 Phase 3): a binding emitted in an earlier
+        // round is final — skip it wholesale (its DNF conjuncts came
+        // together), so each round pays only for NEW bindings' emission.
+        if let Some(skip) = skip_bindings {
+            let args: Vec<Sym> = param_vars.iter().map(|v| b[v].clone()).collect();
+            if skip.contains(&args) {
+                return;
+            }
+        }
         // The enumeration already pruned on every static literal decidable
         // during binding; this post-filter keeps the remainder (literals
         // with quantified/unknown variables) AND stays the semantic oracle
@@ -942,121 +952,195 @@ fn ground_v(
     // is why the classical path keeps this off — its exact fixtures pin
     // today's ids. `FF_NO_STRAT_GROUND=1` disables for A/B measurement.
     let n_actions = domain.actions.len();
-    let strat_on = stratified && std::env::var("FF_NO_STRAT_GROUND").is_err();
-    let mut gating_of: Vec<Vec<(Sym, Vec<Term>)>> = vec![Vec::new(); n_actions];
-    if strat_on {
-        // Candidate gating predicates: dynamic, no init atoms, and not added
-        // by the shared monitor block (its adds bypass the action lists).
-        let mut monitor_adds: HashSet<Sym> = HashSet::new();
-        for e in &domain.monitors {
-            collect_add(e, &mut monitor_adds);
-        }
-        let init_preds: HashSet<&Sym> = problem.init_atoms.iter().map(|(p, _)| p).collect();
-        let candidates: HashSet<Sym> = add_predicates
+    // Reached-restricted FIXPOINT grounding (0.12 Phase 3, temporal entry
+    // only, `FF_NO_FIXPOINT_GROUND=1` falls back to the stratified pass):
+    // every action joins its positive dynamic top-level literals against the
+    // atoms REACHED so far (init + emitted ops' adds), rounds to fixpoint,
+    // bindings deduped across rounds. Enumeration cost tracks the REACHABLE
+    // op set instead of the typed product — elevator-11 p04 enumerated ~100×
+    // its reachable set (158 s, 11.1 GB transient for a 16.7k-op task).
+    // Subsumes the producer-known stratification (RUNNING-* literals are
+    // dynamic literals like any other). Dense-reachable domains (the bazaar
+    // fixture: 197k of 211k candidates real) pay only the round overhead.
+    let fixpoint_raws: Option<Vec<RawOp>> = if stratified
+        && std::env::var("FF_NO_FIXPOINT_GROUND").is_err()
+    {
+        let dyn_lits: Vec<Vec<(Sym, Vec<Term>)>> = domain
+            .actions
             .iter()
-            .filter(|p| !init_preds.contains(p) && !monitor_adds.contains(*p))
-            .cloned()
+            .map(|a| gating_top_atoms(&a.precond, &add_predicates))
             .collect();
-        if !candidates.is_empty() {
-            let adds_of: Vec<HashSet<Sym>> = domain
-                .actions
-                .iter()
-                .map(|a| {
-                    let mut s = HashSet::new();
-                    collect_add(&a.effect, &mut s);
-                    s
-                })
-                .collect();
-            for (ai, a) in domain.actions.iter().enumerate() {
-                gating_of[ai] = gating_top_atoms(&a.precond, &candidates);
-            }
-            // Fixpoint demotion: a stratum-2 action's gating predicates must
-            // be produced ONLY by stratum-1 actions (multi-level chains demote
-            // to stratum 1 — correct, just unoptimized).
-            loop {
-                let s2_added: HashSet<&Sym> = (0..n_actions)
-                    .filter(|&i| !gating_of[i].is_empty())
-                    .flat_map(|i| adds_of[i].iter())
-                    .collect();
-                let mut changed = false;
-                for g in gating_of.iter_mut() {
-                    if !g.is_empty() && g.iter().any(|(p, _)| s2_added.contains(p)) {
-                        g.clear();
-                        changed = true;
+        let mut reached = init_atom_set.clone();
+        let mut emitted: Vec<FxHashSet<Vec<Sym>>> =
+            (0..n_actions).map(|_| FxHashSet::default()).collect();
+        let mut per_action: Vec<Vec<RawOp>> = (0..n_actions).map(|_| Vec::new()).collect();
+        let action_idx: Vec<usize> = (0..n_actions).collect();
+        loop {
+            let chunks: Vec<Vec<RawOp>> = par::par_map(&action_idx, threads, |&ai| {
+                ground_action(
+                    &domain.actions[ai],
+                    &objects_of_type,
+                    &init_unary,
+                    &reached,
+                    &add_predicates,
+                    &del_predicates,
+                    &dyn_lits[ai],
+                    dnf_static,
+                    Some(&emitted[ai]),
+                )
+            });
+            let mut new_atom = false;
+            for (ai, ops) in chunks.into_iter().enumerate() {
+                for op in ops {
+                    let args: Vec<Sym> = op
+                        .display
+                        .split_whitespace()
+                        .skip(1)
+                        .map(|s| s.to_string())
+                        .collect();
+                    emitted[ai].insert(args);
+                    for (p, a) in op
+                        .eff
+                        .add
+                        .iter()
+                        .chain(op.eff.cond.iter().flat_map(|ce| ce.add.iter()))
+                    {
+                        if add_predicates.contains(p) && reached.insert((p.clone(), a.clone())) {
+                            new_atom = true;
+                        }
                     }
+                    per_action[ai].push(op);
                 }
-                if !changed {
-                    break;
-                }
+            }
+            if !new_atom {
+                break;
             }
         }
-    }
-
-    let idx1: Vec<usize> = (0..n_actions)
-        .filter(|&i| gating_of[i].is_empty())
-        .collect();
-    let chunks1: Vec<Vec<RawOp>> = par::par_map(&idx1, threads, |&ai| {
-        ground_action(
-            &domain.actions[ai],
-            &objects_of_type,
-            &init_unary,
-            &init_atom_set,
-            &add_predicates,
-            &del_predicates,
-            &[],
-            dnf_static,
-        )
-    });
-    let idx2: Vec<usize> = (0..n_actions)
-        .filter(|&i| !gating_of[i].is_empty())
-        .collect();
-    let chunks2: Vec<Vec<RawOp>> = if idx2.is_empty() {
-        Vec::new()
+        Some(per_action.into_iter().flatten().collect::<Vec<RawOp>>())
     } else {
-        // The join universe: init plus every atom stratum 1 produced on a
-        // gating predicate (unconditional AND conditional adds).
-        let gating_preds: HashSet<&Sym> = idx2
-            .iter()
-            .flat_map(|&i| gating_of[i].iter().map(|(p, _)| p))
-            .collect();
-        let mut join_atoms = init_atom_set.clone();
-        for ops in &chunks1 {
-            for op in ops {
-                for (p, a) in op
-                    .eff
-                    .add
+        None
+    };
+    let raws: Vec<RawOp> = if let Some(r) = fixpoint_raws {
+        r
+    } else {
+        let strat_on = stratified && std::env::var("FF_NO_STRAT_GROUND").is_err();
+        let mut gating_of: Vec<Vec<(Sym, Vec<Term>)>> = vec![Vec::new(); n_actions];
+        if strat_on {
+            // Candidate gating predicates: dynamic, no init atoms, and not added
+            // by the shared monitor block (its adds bypass the action lists).
+            let mut monitor_adds: HashSet<Sym> = HashSet::new();
+            for e in &domain.monitors {
+                collect_add(e, &mut monitor_adds);
+            }
+            let init_preds: HashSet<&Sym> = problem.init_atoms.iter().map(|(p, _)| p).collect();
+            let candidates: HashSet<Sym> = add_predicates
+                .iter()
+                .filter(|p| !init_preds.contains(p) && !monitor_adds.contains(*p))
+                .cloned()
+                .collect();
+            if !candidates.is_empty() {
+                let adds_of: Vec<HashSet<Sym>> = domain
+                    .actions
                     .iter()
-                    .chain(op.eff.cond.iter().flat_map(|ce| ce.add.iter()))
-                {
-                    if gating_preds.contains(p) {
-                        join_atoms.insert((p.clone(), a.clone()));
+                    .map(|a| {
+                        let mut s = HashSet::new();
+                        collect_add(&a.effect, &mut s);
+                        s
+                    })
+                    .collect();
+                for (ai, a) in domain.actions.iter().enumerate() {
+                    gating_of[ai] = gating_top_atoms(&a.precond, &candidates);
+                }
+                // Fixpoint demotion: a stratum-2 action's gating predicates must
+                // be produced ONLY by stratum-1 actions (multi-level chains demote
+                // to stratum 1 — correct, just unoptimized).
+                loop {
+                    let s2_added: HashSet<&Sym> = (0..n_actions)
+                        .filter(|&i| !gating_of[i].is_empty())
+                        .flat_map(|i| adds_of[i].iter())
+                        .collect();
+                    let mut changed = false;
+                    for g in gating_of.iter_mut() {
+                        if !g.is_empty() && g.iter().any(|(p, _)| s2_added.contains(p)) {
+                            g.clear();
+                            changed = true;
+                        }
+                    }
+                    if !changed {
+                        break;
                     }
                 }
             }
         }
-        par::par_map(&idx2, threads, |&ai| {
+
+        let idx1: Vec<usize> = (0..n_actions)
+            .filter(|&i| gating_of[i].is_empty())
+            .collect();
+        let chunks1: Vec<Vec<RawOp>> = par::par_map(&idx1, threads, |&ai| {
             ground_action(
                 &domain.actions[ai],
                 &objects_of_type,
                 &init_unary,
-                &join_atoms,
+                &init_atom_set,
                 &add_predicates,
                 &del_predicates,
-                &gating_of[ai],
+                &[],
                 dnf_static,
+                None,
             )
-        })
+        });
+        let idx2: Vec<usize> = (0..n_actions)
+            .filter(|&i| !gating_of[i].is_empty())
+            .collect();
+        let chunks2: Vec<Vec<RawOp>> = if idx2.is_empty() {
+            Vec::new()
+        } else {
+            // The join universe: init plus every atom stratum 1 produced on a
+            // gating predicate (unconditional AND conditional adds).
+            let gating_preds: HashSet<&Sym> = idx2
+                .iter()
+                .flat_map(|&i| gating_of[i].iter().map(|(p, _)| p))
+                .collect();
+            let mut join_atoms = init_atom_set.clone();
+            for ops in &chunks1 {
+                for op in ops {
+                    for (p, a) in op
+                        .eff
+                        .add
+                        .iter()
+                        .chain(op.eff.cond.iter().flat_map(|ce| ce.add.iter()))
+                    {
+                        if gating_preds.contains(p) {
+                            join_atoms.insert((p.clone(), a.clone()));
+                        }
+                    }
+                }
+            }
+            par::par_map(&idx2, threads, |&ai| {
+                ground_action(
+                    &domain.actions[ai],
+                    &objects_of_type,
+                    &init_unary,
+                    &join_atoms,
+                    &add_predicates,
+                    &del_predicates,
+                    &gating_of[ai],
+                    dnf_static,
+                    None,
+                )
+            })
+        };
+        // Splice both strata back in original action order — the raw-op sequence
+        // (and every downstream tie-break) is ordered exactly as unstratified.
+        let mut raw_chunks: Vec<Vec<RawOp>> = (0..n_actions).map(|_| Vec::new()).collect();
+        for (&ai, ops) in idx1.iter().zip(chunks1) {
+            raw_chunks[ai] = ops;
+        }
+        for (&ai, ops) in idx2.iter().zip(chunks2) {
+            raw_chunks[ai] = ops;
+        }
+        raw_chunks.into_iter().flatten().collect()
     };
-    // Splice both strata back in original action order — the raw-op sequence
-    // (and every downstream tie-break) is ordered exactly as unstratified.
-    let mut raw_chunks: Vec<Vec<RawOp>> = (0..n_actions).map(|_| Vec::new()).collect();
-    for (&ai, ops) in idx1.iter().zip(chunks1) {
-        raw_chunks[ai] = ops;
-    }
-    for (&ai, ops) in idx2.iter().zip(chunks2) {
-        raw_chunks[ai] = ops;
-    }
-    let raws: Vec<RawOp> = raw_chunks.into_iter().flatten().collect();
     let n_easy = raws.iter().filter(|r| !r.multi).count();
     let n_hard = raws.iter().filter(|r| r.multi).count();
 
