@@ -1390,13 +1390,15 @@ fn eval_node(
             .into_iter()
             .filter(|&oi| matches!(kind[oi as usize], Kind::Start { .. } | Kind::Classical))
             .collect();
-        // Drift repair (0.11 Phase 2): the relaxed plan often leads through
-        // END ops here — fired by the agenda, never chosen — so the
-        // Start-only filter can empty a NONEMPTY helpful set and degrade
-        // block (a) to full scans. Fall back to applicable starts adding a
-        // fact the relaxed plan still needs (the LIFT-START whose RUNNING
-        // token its LIFT-END requires). `FF_STRICT_HELPFUL=1` restores.
-        if hf.is_empty() && std::env::var("FF_STRICT_HELPFUL").is_err() {
+        // Drift repair (0.11 Phase 2) — MEASURED NEGATIVE, opt-in via
+        // FF_LAX_HELPFUL=1. The mechanism was real (the Start-only filter
+        // empties a nonempty set when relaxed plans lead through
+        // agenda-fired ENDs; storage's stored helpful averaged 0.0) but the
+        // repair RESTRICTS block (a) where the empty set previously meant a
+        // FULL SCAN — zero new solves anywhere, sokoban-t −3 (the full scan
+        // was finding what the lax set misses). Restriction and repair
+        // pull opposite ways here; recorded in roadmap-0.11.
+        if hf.is_empty() && std::env::var("FF_LAX_HELPFUL").is_ok() {
             hf = crate::heuristic::helpful_needed_adders(task, sc, &s.bits, &s.fv, &s.fdef)
                 .into_iter()
                 .filter(|&oi| matches!(kind[oi as usize], Kind::Start { .. } | Kind::Classical))
