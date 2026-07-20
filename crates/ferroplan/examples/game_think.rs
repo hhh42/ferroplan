@@ -62,5 +62,50 @@ fn main() -> Result<(), String> {
         "tiny think: solved={} after {} evals (bounded, deterministic)",
         tiny.solved, tiny.statistics.evaluated_states
     );
+
+    // Act 2 (0.12): CONCURRENT work. The same bounded-think surface on a
+    // TEMPORAL world — two smiths forge in parallel, the plan comes back
+    // timed, and the game follows the overlapping intervals in real time.
+    let forge_dom = "
+    (define (domain forge) (:requirements :strips :typing :durative-actions)
+      (:types smith)
+      (:predicates (ready ?s - smith) (blade ?s - smith))
+      (:durative-action forge
+        :parameters (?s - smith)
+        :duration (= ?duration 8)
+        :condition (at start (ready ?s))
+        :effect (and (at start (not (ready ?s))) (at end (blade ?s)))))";
+    let forge_prb = "
+    (define (problem two-blades) (:domain forge)
+      (:objects anvil-a anvil-b - smith)
+      (:init (ready anvil-a) (ready anvil-b))
+      (:goal (and (blade anvil-a) (blade anvil-b))))";
+    let mut forge = Session::new(forge_dom, forge_prb, &Options::default())?;
+    let think = forge.replan_budgeted(50_000, Some(128));
+    assert!(think.solved);
+    let plan = think.plan.as_ref().unwrap();
+    println!(
+        "temporal think: {} steps, makespan {:.3} (concurrent — sequential would be 16)",
+        plan.length,
+        plan.makespan.unwrap()
+    );
+    for s in &plan.steps {
+        println!(
+            "  {:>6.3}: {} {} [{}]",
+            s.time.unwrap(),
+            s.action,
+            s.args.join(" "),
+            s.duration.unwrap()
+        );
+    }
+    // anvil-a's blade finishes out-of-band; the rethink covers only anvil-b.
+    forge.set_fact("(blade anvil-a)", true)?;
+    forge.set_fact("(ready anvil-a)", false)?;
+    let rethink = forge.replan_budgeted(50_000, Some(128));
+    assert!(rethink.solved);
+    println!(
+        "temporal rethink after drift: {} step(s)",
+        rethink.plan.as_ref().unwrap().length
+    );
     Ok(())
 }

@@ -20,11 +20,16 @@
 //! # Ok::<(), String>(())
 //! ```
 //!
-//! **Scope (v1).** Classical / numeric / ADL domains — the paths whose search reads
-//! a grounded task's initial state directly. Temporal domains are rejected (the
-//! decision-epoch pipeline re-compiles snap actions per solve; use [`crate::solve`]),
-//! as are PDDL3 preference problems (the metric optimizer compiles the problem per
-//! solve). The goal is fixed at construction.
+//! **Scope.** Classical / numeric / ADL domains, and — since 0.12 — TEMPORAL
+//! (durative-action) domains: the snap compilation grounds once and every
+//! think runs the bounded decision-epoch ladder from the current AT-REST
+//! state (no running intervals between thinks; `set_fact` fences the
+//! compiler's `RUNNING-*` tokens, and a game models an in-flight action by
+//! mirroring its end effects when it completes). Timed initial literals are
+//! rejected — a TIL pins the absolute clock and session thinks are
+//! clock-relative. PDDL3 preference problems stay rejected (the metric
+//! optimizer compiles the problem per solve). The goal is fixed at
+//! construction.
 //!
 //! **Why static facts are rejected.** Grounding enumerates operator parameters
 //! restricted by *static* predicates read from `:init` — a static fact flipped
@@ -33,7 +38,7 @@
 //! operator can add or delete (the world's *dynamic* facts) and errors on the rest.
 //! Fluent values are all runtime-read, so any grounded fluent may be set.
 
-use crate::api::{stats, steps_of, Mode, Options, Plan, Search, Solution};
+use crate::api::{stats, steps_of, timed_steps, Mode, Options, Plan, Search, Solution};
 use crate::ground::ground_task;
 use crate::hash::FxHashMap;
 use crate::packed::PackedTask;
@@ -54,12 +59,26 @@ pub struct Session {
     dynamic: Vec<bool>,
     /// Display name (uppercase, e.g. `(GRAIN)`) -> fluent id.
     fluent_ids: FxHashMap<String, u32>,
+    /// Temporal session state (0.12 Phase 1): the snap compilation, kept so
+    /// each think can REBUILD `build_kind`'s duration table against the
+    /// CURRENT fluent values (a `set_fluent` on a fluent no op modifies must
+    /// flow into parameter-dependent durations, not stay frozen at
+    /// construction). `None` = classical session.
+    temporal: Option<crate::temporal::TemporalCompiled>,
+    /// The demand tier, read ONCE at construction so a session's behavior is
+    /// stable even if the process environment changes between thinks.
+    tier: crate::features::DemandMode,
+    /// Compiler-minted `RUNNING-*` token predicates (temporal only): a
+    /// session's world is AT REST between thinks — no running intervals — so
+    /// `set_fact` fences these exactly as it fences statics.
+    running_preds: Vec<String>,
 }
 
 impl Session {
-    /// Parse, compile `:derived` axioms, and ground once. Errors on parse/grounding
-    /// failure, and on temporal or PDDL3-preference inputs (unsupported — see the
-    /// module docs).
+    /// Parse, compile `:derived` axioms, and ground once (temporal domains
+    /// snap-compile first). Errors on parse/grounding failure, and on
+    /// constraint, preference, or timed-initial-literal inputs (unsupported —
+    /// see the module docs).
     pub fn new(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Session, String> {
         let domain = crate::parser::parse_domain(domain_src).map_err(|e| format!("domain: {e}"))?;
         let problem =
@@ -71,13 +90,6 @@ impl Session {
                  ferroplan::solve per instance"
                 .into());
         }
-        if crate::temporal::is_temporal(&domain) {
-            return Err(
-                "Session does not support temporal (durative-action) domains yet; \
-                 use ferroplan::solve per instance"
-                    .into(),
-            );
-        }
         if crate::pddl3::has_preferences(&problem) {
             return Err("Session does not support PDDL3 preference problems yet; \
                  use ferroplan::solve per instance"
@@ -88,10 +100,32 @@ impl Session {
         } else {
             opts.threads
         };
+        // Temporal domains (0.12 Phase 1): snap-compile + stratified-ground
+        // ONCE; every think then solves from the CURRENT at-rest state. TILs
+        // are rejected — they pin the ABSOLUTE clock, and session thinks are
+        // clock-relative (recorded follow-up if the game needs scheduled
+        // exogenous events).
+        let temporal_c = if crate::temporal::is_temporal(&domain) {
+            if !problem.til.is_empty() {
+                return Err("Session does not support timed initial literals \
+                     (a TIL pins the absolute clock; session thinks are \
+                     clock-relative); use ferroplan::solve per instance"
+                    .into());
+            }
+            Some(crate::temporal::compile(&domain, &problem))
+        } else {
+            None
+        };
         // Force a task even when the base goal is trivially true/false — a session's
         // world moves, so the base-init verdict says nothing about later replans.
-        let task = ground_task(&domain, &problem, threads)
-            .ok_or_else(|| "grounding failed (empty type)".to_string())?;
+        let task = match &temporal_c {
+            Some(c) => match crate::ground::ground_stratified(&c.domain, &c.problem, threads) {
+                crate::ground::Outcome::Task(t) => t,
+                _ => return Err("grounding failed (empty type)".to_string()),
+            },
+            None => ground_task(&domain, &problem, threads)
+                .ok_or_else(|| "grounding failed (empty type)".to_string())?,
+        };
 
         let fact_ids = task
             .fact_names
@@ -117,6 +151,10 @@ impl Session {
             .map(|(i, n)| (n.clone(), i as u32))
             .collect();
 
+        let running_preds = temporal_c
+            .as_ref()
+            .map(|c| c.snaps.iter().map(|s| s.running_pred.clone()).collect())
+            .unwrap_or_default();
         Ok(Session {
             task,
             threads,
@@ -127,7 +165,85 @@ impl Session {
             fact_ids,
             dynamic,
             fluent_ids,
+            temporal: temporal_c,
+            tier: crate::features::demand_mode(),
+            running_preds,
         })
+    }
+
+    /// The temporal think (0.12 Phase 1): rebuild the duration table against
+    /// the CURRENT fluent values (so `set_fluent` on an op-unmodified fluent
+    /// flows into parameter-dependent durations), then run the bounded
+    /// decision-epoch ladder from the current at-rest state. The eval budget
+    /// spans the WHOLE pass ladder; the memory target plumbs to the
+    /// deterministic temporal node cap. No escalation beyond the ladder, no
+    /// decomposer — a think is a bounded call, not a campaign.
+    fn replan_temporal(
+        &self,
+        c: &crate::temporal::TemporalCompiled,
+        budget_evals: Option<usize>,
+        memory_mb: Option<usize>,
+    ) -> Solution {
+        let start = self.task.initial();
+        if self.task.goal_met(&start) {
+            return Solution {
+                solved: true,
+                mode: Mode::Temporal,
+                plan: Some(Plan {
+                    steps: Vec::new(),
+                    length: 0,
+                    metric: None,
+                    makespan: Some(0.0),
+                }),
+                statistics: stats(&self.task, 0, self.threads),
+                notes: vec!["goal already satisfied; the empty plan solves it".into()],
+            };
+        }
+        let (kind, dur_exprs) = crate::temporal::build_kind(&self.task, c);
+        let total = budget_evals.or(self.max_evaluated).unwrap_or(usize::MAX);
+        let mut remaining = total;
+        let node_bytes = memory_mb
+            .map(|mb| mb.saturating_mul(1 << 20))
+            .unwrap_or(crate::search::NODE_CAP_TARGET_BYTES);
+        let tp = crate::temporal::solve_from(
+            &self.task,
+            &kind,
+            &dur_exprs,
+            &start,
+            &self.task.goal_pos,
+            &self.task.goal_num,
+            &[],
+            &[], // TILs rejected at construction
+            self.threads,
+            self.tier,
+            &mut remaining,
+            node_bytes,
+        );
+        let evaluated = total.saturating_sub(remaining);
+        match tp {
+            Some(tp) => {
+                let steps = timed_steps(&tp);
+                Solution {
+                    solved: true,
+                    mode: Mode::Temporal,
+                    plan: Some(Plan {
+                        length: steps.len(),
+                        steps,
+                        metric: None,
+                        makespan: Some(tp.makespan),
+                    }),
+                    statistics: stats(&self.task, evaluated, self.threads),
+                    notes: Vec::new(),
+                }
+            }
+            None => Solution {
+                solved: false,
+                mode: Mode::Temporal,
+                plan: None,
+                statistics: stats(&self.task, evaluated, self.threads),
+                notes: Vec::new(),
+            },
+        }
     }
 
     /// Set a world fact true/false in the current state, e.g.
@@ -144,6 +260,24 @@ impl Session {
                 "fact `{key}` is static — grounding baked it in; changing it could \
                  require operators that were never enumerated"
             ));
+        }
+        // Temporal at-rest fence (0.12 Phase 1): RUNNING-* tokens mark
+        // in-flight intervals — a session's world is AT REST between thinks,
+        // so the game mirrors a completed action's END effects instead of
+        // faking a running one.
+        if !self.running_preds.is_empty() {
+            let head = key
+                .trim_start_matches('(')
+                .split_whitespace()
+                .next()
+                .unwrap_or("");
+            if self.running_preds.iter().any(|p| p == head) {
+                return Err(format!(
+                    "fact `{key}` is a compiler-internal running-interval token; \
+                     a session's world is at rest between thinks — mirror the \
+                     action's end effects instead"
+                ));
+            }
         }
         let (w, b) = (id as usize / 64, id as usize % 64);
         if value {
@@ -198,6 +332,9 @@ impl Session {
     }
 
     fn replan_inner(&self, budget_evals: Option<usize>, memory_mb: Option<usize>) -> Solution {
+        if let Some(c) = &self.temporal {
+            return self.replan_temporal(c, budget_evals, memory_mb);
+        }
         if self.task.goal_met(&self.task.initial()) {
             return Solution {
                 solved: true,
@@ -353,14 +490,104 @@ mod tests {
         assert!(s.set_fluent("(gold)", 1.0).is_err());
     }
 
+    const TDOM: &str = "
+    (define (domain workshop) (:requirements :strips :typing :durative-actions)
+      (:types worker)
+      (:predicates (idle ?w - worker) (built ?w - worker))
+      (:durative-action build
+        :parameters (?w - worker)
+        :duration (= ?duration 5)
+        :condition (at start (idle ?w))
+        :effect (and (at start (not (idle ?w))) (at end (built ?w)))))";
+    const TPRB: &str = "
+    (define (problem shift) (:domain workshop)
+      (:objects w1 w2 - worker)
+      (:init (idle w1) (idle w2))
+      (:goal (and (built w1) (built w2))))";
+
     #[test]
-    fn temporal_domains_are_rejected() {
-        let dom = "
-        (define (domain t) (:requirements :durative-actions)
-          (:predicates (done))
-          (:durative-action work :parameters ()
-            :duration (= ?duration 1) :condition () :effect (at end (done))))";
-        let prb = "(define (problem p) (:domain t) (:init) (:goal (done)))";
-        assert!(Session::new(dom, prb, &Options::default()).is_err());
+    fn temporal_sessions_think_concurrently_and_replan() {
+        // Two workers build in PARALLEL (genuine concurrency: both intervals
+        // overlap); the world drifts (w1's build completes out-of-band) and
+        // the rethink plans only w2's remaining work.
+        let s = Session::new(TDOM, TPRB, &Options::default()).expect("temporal session");
+        let think = s.replan_budgeted(50_000, Some(128));
+        assert!(think.solved, "workshop must solve");
+        let plan = think.plan.as_ref().unwrap();
+        assert_eq!(plan.length, 2, "one build per worker");
+        assert!(plan.makespan.unwrap() < 5.1, "concurrent, not sequential");
+        let (a, b) = (&plan.steps[0], &plan.steps[1]);
+        assert!(a.time.is_some() && a.duration.is_some(), "timed steps");
+        // interval overlap: each starts before the other ends
+        let (ta, da) = (a.time.unwrap(), a.duration.unwrap());
+        let (tb, db) = (b.time.unwrap(), b.duration.unwrap());
+        assert!(ta < tb + db && tb < ta + da, "intervals must overlap");
+
+        let mut s = s;
+        s.set_fact("(built w1)", true).unwrap();
+        s.set_fact("(idle w1)", false).unwrap();
+        let rethink = s.replan_budgeted(50_000, Some(128));
+        assert!(rethink.solved);
+        assert_eq!(
+            rethink.plan.as_ref().unwrap().length,
+            1,
+            "only w2's build remains"
+        );
+    }
+
+    #[test]
+    fn temporal_think_budget_is_bounded_and_deterministic() {
+        let s = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        let tiny = s.replan_budgeted(1, Some(1));
+        assert!(!tiny.solved, "a 1-eval temporal think cannot solve");
+        let run = |threads: usize| {
+            let o = Options {
+                threads,
+                ..Options::default()
+            };
+            let s = Session::new(TDOM, TPRB, &o).expect("session");
+            s.replan_budgeted(50_000, Some(128))
+        };
+        let (t1, t8) = (run(1), run(8));
+        assert!(t1.solved && t8.solved);
+        let key = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| {
+                    (
+                        st.action.clone(),
+                        st.args.clone(),
+                        (st.time.unwrap() * 1000.0).round() as i64,
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(key(&t1), key(&t8), "temporal think differs across threads");
+    }
+
+    #[test]
+    fn temporal_sessions_fence_tils_and_running_tokens() {
+        let til_prb = "(define (problem p) (:domain workshop)
+          (:objects w1 - worker)
+          (:init (idle w1) (at 3 (idle w1)))
+          (:goal (built w1)))";
+        let err = match Session::new(TDOM, til_prb, &Options::default()) {
+            Err(e) => e,
+            Ok(_) => panic!("TIL problem must be rejected"),
+        };
+        assert!(
+            err.contains("timed initial"),
+            "TILs must be rejected: {err}"
+        );
+
+        let mut s = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        let err = s.set_fact("(RUNNING-BUILD w1)", true).unwrap_err();
+        assert!(
+            err.contains("running-interval"),
+            "RUNNING-* must be fenced: {err}"
+        );
     }
 }

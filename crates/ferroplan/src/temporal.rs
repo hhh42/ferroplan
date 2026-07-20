@@ -653,6 +653,7 @@ fn solve_inner(
         .filter_map(|(t, name)| by_display.get(name.as_str()).map(|&oi| (*t, oi)))
         .collect();
 
+    let mut unlimited = usize::MAX;
     solve_from(
         &task,
         &kind,
@@ -664,6 +665,8 @@ fn solve_inner(
         &til_events,
         threads,
         tier,
+        &mut unlimited,
+        crate::search::NODE_CAP_TARGET_BYTES,
     )
 }
 
@@ -924,6 +927,8 @@ pub(crate) fn solve_from(
     til_events: &[(f64, usize)],
     threads: usize,
     tier: DemandMode,
+    budget: &mut usize,
+    node_bytes: usize,
 ) -> Option<TimedPlan> {
     // Fail fast on statically unproducible goals — nothing any pass could reach.
     if statically_unsolvable(task, start, goal_pos, goal_num) {
@@ -996,10 +1001,27 @@ pub(crate) fn solve_from(
             tight.len()
         );
     }
+    // The budget spans the WHOLE pass ladder (a think bounds everything);
+    // RefCell keeps the closure's reborrow simple in serial control flow.
+    let budget = std::cell::RefCell::new(budget);
     let go = |rel: &[bool], prune: bool, tlama: bool| {
         temporal_search(
-            task, kind, dur_exprs, &landmarks, &demand, start, goal_pos, goal_num, forbidden, rel,
-            til_events, prune, tlama, threads,
+            task,
+            kind,
+            dur_exprs,
+            &landmarks,
+            &demand,
+            start,
+            goal_pos,
+            goal_num,
+            forbidden,
+            rel,
+            til_events,
+            prune,
+            tlama,
+            threads,
+            &mut budget.borrow_mut(),
+            node_bytes,
         )
     };
     go(&sound, true, false)
@@ -1522,7 +1544,7 @@ const MAX_NODES: usize = 400_000;
 /// never wall clock). The agenda estimate is TIL count + a small open-interval
 /// allowance; `FF_TEMPORAL_NODE_CAP` overrides the count directly (`0`
 /// disables). Bounded above by the historical 400k count cap.
-fn temporal_node_cap(task: &PackedTask, til_len: usize) -> usize {
+fn temporal_node_cap(task: &PackedTask, til_len: usize, bytes: usize) -> usize {
     if let Ok(v) = std::env::var("FF_TEMPORAL_NODE_CAP") {
         if let Ok(n) = v.trim().parse::<usize>() {
             return if n == 0 { usize::MAX } else { n };
@@ -1535,7 +1557,7 @@ fn temporal_node_cap(task: &PackedTask, til_len: usize) -> usize {
         + task.rel_fluents.len() * 8
         + 2 * agenda_est * 16
         + 160;
-    (crate::search::NODE_CAP_TARGET_BYTES / per_node.max(1)).min(MAX_NODES)
+    (bytes / per_node.max(1)).min(MAX_NODES)
 }
 
 /// One decision-epoch search pass. `prune` restricts block-(a) expansion to the
@@ -1557,6 +1579,8 @@ fn temporal_search(
     prune: bool,
     tlama: bool,
     threads: usize,
+    budget: &mut usize,
+    node_bytes: usize,
 ) -> Option<TimedPlan> {
     // The TLAMA rung is a BOUNDED bet, like the classical ladder's 400k-eval
     // LAMA cap: a failed rung must cost seconds, not the wall — unbounded it
@@ -1564,9 +1588,9 @@ fn temporal_search(
     // solves past the 30 s budget (10→8/30, 2→1/20).
     const TLAMA_NODE_CAP: usize = 50_000;
     let max_nodes = if tlama {
-        temporal_node_cap(task, til_events.len()).min(TLAMA_NODE_CAP)
+        temporal_node_cap(task, til_events.len(), node_bytes).min(TLAMA_NODE_CAP)
     } else {
-        temporal_node_cap(task, til_events.len())
+        temporal_node_cap(task, til_events.len(), node_bytes)
     };
     // Measurement only (FF_RES_DEBUG): dims at pass start, container sizes every
     // 25k stored nodes — the memory-attribution eyes for the temporal path.
@@ -1665,10 +1689,11 @@ fn temporal_search(
                 t0.elapsed().as_millis()
             );
         }
-        if nodes.len() > max_nodes {
+        if nodes.len() > max_nodes || *budget == 0 {
             if dbg {
                 eprintln!(
-                    "[tsearch] node cap {max_nodes} hit at {}ms",
+                    "[tsearch] cap hit (nodes {} / max {max_nodes}, budget left {budget}) at {}ms",
+                    nodes.len(),
                     t0.elapsed().as_millis()
                 );
             }
@@ -1764,6 +1789,10 @@ fn temporal_search(
         // this fans out PER EXPANSION POP, so the scoped-spawn cost recurs every
         // round — at 32-item frontiers it measurably loses (trade-bazaar +39% at
         // t8); it has to amortize against a full unpruned op scan to win.
+        // Think-budget accounting (0.12 Phase 1): every proto costs one h
+        // evaluation; charge the batch SERIALLY (deterministic at any thread
+        // count) before evaluating. Block (b)'s time-advance eval charges 1.
+        *budget = budget.saturating_sub(protos.len());
         const PAR_FRONTIER: usize = 128;
         if workers <= 1 || protos.len() < PAR_FRONTIER {
             for n in protos {
@@ -1813,6 +1842,7 @@ fn temporal_search(
 
         // (b) advance time: fire the earliest pending agenda event — an action END or
         // a timed initial literal. Both apply their grounded op's effect at its time.
+        *budget = budget.saturating_sub(1);
         if let Some(&(te, end_op)) = nodes[ni].agenda.first() {
             if task.op_applicable(end_op, &nodes[ni].state) {
                 let ns = task.apply(end_op, &nodes[ni].state);

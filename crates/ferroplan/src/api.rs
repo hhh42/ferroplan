@@ -432,7 +432,7 @@ fn strip_end_steps(steps: Vec<Step>, constrained: bool) -> Vec<Step> {
 
 /// Convert a temporal plan's timed steps to API [`Step`]s (action head + args + time
 /// + duration). Shared by the temporal solve and the decomposer.
-fn timed_steps(tp: &crate::temporal::TimedPlan) -> Vec<Step> {
+pub(crate) fn timed_steps(tp: &crate::temporal::TimedPlan) -> Vec<Step> {
     tp.steps
         .iter()
         .enumerate()

@@ -220,6 +220,7 @@ fn decompose_inner(
 
             // Solve the contract from the CURRENT state under sibling protection;
             // if infeasible, relax the protection (a real break is caught below).
+            let mut unlimited = usize::MAX;
             let plan_i = match solve_from(
                 &task,
                 &kind,
@@ -231,6 +232,8 @@ fn decompose_inner(
                 &[], // the decomposer doesn't handle timed initial literals
                 threads,
                 tier,
+                &mut unlimited,
+                crate::search::NODE_CAP_TARGET_BYTES,
             )
             .or_else(|| {
                 if forbidden.is_empty() {
@@ -247,6 +250,8 @@ fn decompose_inner(
                         &[],
                         threads,
                         tier,
+                        &mut { usize::MAX },
+                        crate::search::NODE_CAP_TARGET_BYTES,
                     )
                 }
             }) {
