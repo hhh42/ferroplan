@@ -88,6 +88,35 @@ producers, interleaving reachability with enumeration.
   gate inside this cycle, ship the fixtures + measurements + a
   recorded design, not a half-landed grounder.
 
+## Recorded — Phase 3 (2026-07-20): SHIPPED, the measurements chose the design
+
+Fixtures first, as prescribed, and they discriminated the term:
+
+- **bazaar** (vendored: 12 holders × 40 items, any-for-any trade):
+  DENSE-reachable — 197k of the 211k typed candidates are real ops.
+  Interleaving cannot help by construction; the game answer is
+  GROUND-ONCE (5.5 s / 644 MB at world load, then thinks are pure
+  search). Classified, recorded, viable.
+- **elevator-11 p04**: enumerated ~100× its reachable set — 11.1 GB
+  unstratified / 5.7 GB stratified transient for a 16,728-op task.
+  Sparse-reachable: exactly where reached-restriction wins.
+
+**Reached-restricted fixpoint grounding shipped** (temporal entry;
+`FF_NO_FIXPOINT_GROUND=1` falls back to stratified; classical entry
+untouched): every action joins its positive dynamic top-level literals
+against the reached-atom set, rounds to fixpoint, bindings deduped
+across rounds; the producer-known stratification is subsumed. p04 A/B
+same-binary back-to-back: **31.6 s / 5.7 GB → 6.9 s / 48.8 MB (~117×
+transient), identical task dims**; equivalence spots exact (crew /
+elev08 / openstacks / pegsol makespans identical on/off); suite 148/0;
+elevator sweeps val-green (elevator08-numeric back to 29/30).
+
+Residual, honest: elevator-11 coverage stays 3/20 at 30 s — the wall
+MOVED from grounding to search (p05 now solves solo at 49 s, formerly
+a grounding OOM; p04 is search-bound past 90 s). The tail joins the
+recorded guidance family; the grounding lever is spent, and it was
+worth exactly what the fixtures said it would be.
+
 ## Phase 4 — corpus debts (small, bounded)
 
 - **parc-printer-t diagnosis**: 18/30 + 7/20 is the one temporal
