@@ -123,8 +123,8 @@ pub struct SearchCfg {
     /// fallback only.
     pub w_lm: i64,
     /// Per-search retained-memory target in BYTES (0.11 Phase 4, the
-    /// budgeted-think surface): overrides the default 8 GiB
-    /// [`NODE_CAP_TARGET_BYTES`] behind [`node_cap_for`]'s per-node model.
+    /// budgeted-think surface): overrides the default 8 GiB target behind
+    /// the internal `node_cap_for` per-node byte model.
     /// `None` = the default. Deterministic (static task dims only) — a
     /// think budget must bound memory without introducing wall-clock
     /// nondeterminism. `FF_SEARCH_NODE_CAP` still wins when set.
