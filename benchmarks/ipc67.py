@@ -23,6 +23,9 @@ runs with different --out/--raw can be diffed per instance via the raw JSONL.
 Scoring note: IPC quality score (ref-cost / your-cost, capped at 1) needs
 per-instance reference costs, which this corpus does not carry; we report raw
 summed cost instead. Do not present summed cost as an IPC quality score.
+--score-against PRIOR.jsonl computes the IPC formula against a PRIOR RUN's
+per-instance costs (self-relative quality — regression tracking, not an
+official IPC score; label it as such).
 """
 import json, os, re, resource, shutil, subprocess, sys, tempfile, time
 from concurrent.futures import ThreadPoolExecutor
@@ -47,6 +50,20 @@ MODE = arg("--mode", None)  # ff --mode passthrough (None = ff's default, auto)
 # exactly that). Default: physical RAM / jobs, floored at 2 GiB; 0 = off.
 _phys_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1 << 30)
 MEMGB = float(arg("--mem-gb", str(max(2, int(_phys_gb / max(JOBS, 1))))))
+# Self-relative quality: per-instance reference costs from a prior run's raw
+# JSONL (see the scoring note above).
+SCORE_AGAINST = arg("--score-against", None)
+
+
+def load_reference(path):
+    ref = {}
+    with open(path) as f:
+        for line in f:
+            r = json.loads(line)
+            cost = r.get("metric") if r.get("metric") is not None else r.get("length")
+            if r.get("solved") and cost:
+                ref[(r.get("variant") or "", r["instance"])] = cost
+    return ref
 OUT = arg("--out", os.path.join(ROOT, "benchmarks", "ipc67-results.md"))
 RAW = arg("--raw", None)  # per-instance JSONL (default: OUT with .jsonl)
 if RAW is None:
@@ -182,6 +199,7 @@ def run_instance(val, n, d, p):
 def main():
     corpus = corpus_dir()
     val = find_val()
+    reference = load_reference(SCORE_AGAINST) if SCORE_AGAINST else None
     print(f"corpus: {corpus}\nVAL: {val or 'not found (external validation skipped)'}\n"
           f"timeout {TIMEOUT}s, jobs {JOBS}, mode {MODE or 'auto'}", flush=True)
     subprocess.run(["cargo", "build", "--release", "-q", "-p", "ferroplan-cli"],
@@ -204,22 +222,42 @@ def main():
                 raw.write(json.dumps({"ipc": ipc, "variant": vname, **r}) + "\n")
             raw.flush()
             vtag = f"{valok}/{valok + valfail}" if val else "-"
-            summary.append((ipc, vname, solved, len(insts), cost_sum, t_sum, vtag))
+            qual = None
+            if reference is not None:
+                qual = 0.0
+                for r in recs:
+                    cost = r["metric"] if r["metric"] is not None else r["length"]
+                    rc = reference.get((vname, r["instance"]))
+                    if r["solved"] and cost and rc:
+                        qual += min(1.0, rc / cost)
+                    elif r["solved"] and rc is None:
+                        qual += 1.0  # solved something the reference never did
+            summary.append((ipc, vname, solved, len(insts), cost_sum, t_sum, vtag, qual))
+            qtag = f", quality {qual:.2f}" if qual is not None else ""
             print(f"{ipc}/{vname}: {solved}/{len(insts)} solved, "
-                  f"cost {cost_sum:.0f}, {t_sum:.1f}s solve-time, val {vtag}", flush=True)
+                  f"cost {cost_sum:.0f}, {t_sum:.1f}s solve-time, val {vtag}{qtag}", flush=True)
     raw.close()
 
     out = [f"# IPC-2008/2011 {TRACK} full-corpus results\n",
            f"timeout {TIMEOUT}s/instance, jobs {JOBS}, mode {MODE or 'auto'}."
            + (" Plans externally validated with VAL."
               if val else " VAL not available.") + "\n",
-           "| variant | coverage | summed cost | solve time | val |",
-           "|---|---|---|---|---|"]
-    for ipc, v, s, n, c, t, vt in summary:
-        out.append(f"| {ipc}/{v} | {s}/{n} | {c:.0f} | {t:.1f}s | {vt} |")
+           "| variant | coverage | summed cost | solve time | val |"
+           + (" quality |" if reference is not None else ""),
+           "|---|---|---|---|---|" + ("---|" if reference is not None else "")]
+    for ipc, v, s, n, c, t, vt, q in summary:
+        row = f"| {ipc}/{v} | {s}/{n} | {c:.0f} | {t:.1f}s | {vt} |"
+        if reference is not None:
+            row += f" {q:.2f} |"
+        out.append(row)
     total = sum(s for _, _, s, *_ in summary)
     n = sum(n for _, _, _, n, *_ in summary)
     out.append(f"\ntotal coverage: **{total}/{n}**")
+    if reference is not None:
+        qt = sum(q for *_, q in summary if q is not None)
+        out.append(f"\nself-relative quality vs `{SCORE_AGAINST}`: **{qt:.2f}** "
+                   "(IPC formula against our own prior best — regression "
+                   "tracking, NOT an official IPC score)")
     open(OUT, "w").write("\n".join(out) + "\n")
     print(f"\nwrote {OUT} (raw: {RAW}) — total coverage {total}/{n}")
 

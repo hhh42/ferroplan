@@ -1499,7 +1499,17 @@ fn enqueue_evaluated(
                 + demand.weight * demand_deficit(&n.met, demand)
                 + AGENDA_W * n.agenda.len() as i64
         } else {
-            h as i64
+            // Complete-pass agenda ordering (0.12 Phase 4 experiment,
+            // FF_TAGENDA_W=<w>, default off): parc-printer-t's complete pass
+            // drowns in start-spam (avg ~2,076 pending intervals per node) —
+            // an ordering term de-prioritizes interval hoarding WITHOUT
+            // losing completeness (ordering, never pruning). The recorded
+            // AGENDA_W=0 verdict was for the PRUNED pass's key.
+            let wa = std::env::var("FF_TAGENDA_W")
+                .ok()
+                .and_then(|v| v.parse::<i64>().ok())
+                .unwrap_or(0);
+            h as i64 + wa * n.agenda.len() as i64
         };
         let idx = nodes.len();
         nodes.push(n);
