@@ -81,6 +81,30 @@ laxer preferred-operator definition keeps a set alive.
   are nonempty).
 - Acceptance: measured wins or a recorded negative; no sentinel drift.
 
+## Recorded — Phase 2 (2026-07-20): MEASURED NEGATIVE, ships opt-in
+
+The mechanism was real but sharper than the roadmap guessed:
+`relaxed_helpful` already has a last-resort fallback, so the RAW set
+is rarely empty — the drift is the temporal `eval_node`'s
+Start|Classical FILTER emptying a nonempty set when relaxed plans lead
+through agenda-fired END ops (storage's stored helpful averaged 0.0).
+The repair (`helpful_needed_adders`: applicable ops adding a fact the
+relaxed plan still needs) re-armed the sets (storage holds ~1.0–1.3
+deep into the search) but RESTRICTS block (a) on exactly the nodes
+where the empty set previously meant a full scan — zero new solves
+anywhere. Ships opt-in (`FF_LAX_HELPFUL=1`); default is the 0.10
+pruned pass.
+
+**Measurement-conditions caveat, recorded**: today's sweeps read
+sokoban-t at 8/30 + 1/20 vs the scoreboard's 10/30 + 2/20 — an A/B of
+the 0.10 binary against today's box proved it ENVIRONMENTAL (i3 solo:
+35.5 s on the 0.10 binary today vs its recorded 24.7 s under 3-job
+contention on the scoreboard day; the current binary is within ~5% of
+0.10). Wall-clock scoreboards inherit box variance; the borderline
+band (solves within ~5 s of the wall) flips with it. Verdicts above
+are unaffected (no variant showed gains anywhere; crew's 50/50 →
+36/50 under the key-term was margin-scale, not borderline).
+
 ## Phase 3 — one bounded swing at a richer classical h
 
 transport11 needs a different gradient, not a faster one. The bounded,
