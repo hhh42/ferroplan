@@ -46,8 +46,12 @@ fn main() -> Result<(), String> {
     world.set_fact("(at vera field)", true)?;
     world.set_fluent("(grain)", 1.0)?;
 
-    // ...then the world drifts mid-plan (a bird ate a grain): stop, rethink.
+    // ...then the world drifts mid-plan (a bird ate a grain). FOLLOW BEFORE
+    // YOU RETHINK: the suffix replay is free — only a broken suffix spends a
+    // think.
     world.set_fluent("(grain)", 0.0)?;
+    let broken = !world.plan_still_valid(plan, 2);
+    println!("drift broke the plan: {broken} (suffix replay, zero search)");
     let rethink = world.replan_budgeted(100_000, Some(256));
     assert!(rethink.solved);
     println!(

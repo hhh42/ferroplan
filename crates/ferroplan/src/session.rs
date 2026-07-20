@@ -72,6 +72,9 @@ pub struct Session {
     /// session's world is AT REST between thinks — no running intervals — so
     /// `set_fact` fences these exactly as it fences statics.
     running_preds: Vec<String>,
+    /// Op display (`WALK V1 HUT FIELD`) -> op id, for suffix replay
+    /// ([`Session::plan_still_valid`]).
+    op_ids: FxHashMap<String, usize>,
 }
 
 impl Session {
@@ -155,6 +158,12 @@ impl Session {
             .as_ref()
             .map(|c| c.snaps.iter().map(|s| s.running_pred.clone()).collect())
             .unwrap_or_default();
+        let op_ids = task
+            .op_display
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (d.clone(), i))
+            .collect();
         Ok(Session {
             task,
             threads,
@@ -168,6 +177,7 @@ impl Session {
             temporal: temporal_c,
             tier: crate::features::demand_mode(),
             running_preds,
+            op_ids,
         })
     }
 
@@ -244,6 +254,58 @@ impl Session {
                 notes: Vec::new(),
             },
         }
+    }
+
+    /// Follow before you rethink (0.12 Phase 2): does `plan`'s remaining
+    /// suffix (steps `from_step..`) still execute from the CURRENT world
+    /// state and end in the goal? A `true` costs a replay — no search, no
+    /// think budget — so an agent whose world drifted IRRELEVANTLY keeps
+    /// following its plan for free; only a broken suffix warrants a real
+    /// rethink. Exact, not heuristic: classical suffixes replay op-by-op
+    /// (applicability + effects), temporal suffixes replay their timed
+    /// happenings in epoch order (the internal validator's machinery), and
+    /// both end with the goal test.
+    pub fn plan_still_valid(&self, plan: &Plan, from_step: usize) -> bool {
+        let steps = match plan.steps.get(from_step..) {
+            Some(s) => s,
+            None => return false,
+        };
+        let display = |s: &crate::api::Step| {
+            if s.args.is_empty() {
+                s.action.clone()
+            } else {
+                format!("{} {}", s.action, s.args.join(" "))
+            }
+        };
+        if self.temporal.is_some() {
+            let tp = crate::temporal::TimedPlan {
+                steps: steps
+                    .iter()
+                    .map(|s| crate::temporal::TimedStep {
+                        time: s.time.unwrap_or(0.0),
+                        action: display(s),
+                        duration: s.duration,
+                    })
+                    .collect(),
+                makespan: 0.0,
+            };
+            return match crate::temporal::treplay(&self.task, &self.task.initial(), &tp) {
+                Some(end) => self.task.goal_met(&end),
+                None => false,
+            };
+        }
+        let mut state = self.task.initial();
+        for s in steps {
+            let oi = match self.op_ids.get(&display(s)) {
+                Some(&oi) => oi,
+                None => return false,
+            };
+            if !self.task.op_applicable(oi, &state) {
+                return false;
+            }
+            state = self.task.apply(oi, &state);
+        }
+        self.task.goal_met(&state)
     }
 
     /// Set a world fact true/false in the current state, e.g.
@@ -504,6 +566,80 @@ mod tests {
       (:objects w1 w2 - worker)
       (:init (idle w1) (idle w2))
       (:goal (and (built w1) (built w2))))";
+
+    #[test]
+    fn follow_before_you_rethink_scripted_drift() {
+        // The Phase 2 contract, scripted: irrelevant drift costs ZERO search
+        // (the suffix replay says keep following); breaking drift is detected
+        // exactly; think count over the script is exactly 2.
+        let mut s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        let mut thinks = 0;
+
+        thinks += 1;
+        let think = s.replan();
+        assert!(think.solved);
+        let plan = think.plan.unwrap();
+        assert_eq!(plan.length, 3, "walk + harvest x2");
+
+        // Tick 1: the agent FOLLOWS step 0 (walk); the game mirrors it.
+        s.set_fact("(at v1 hut)", false).unwrap();
+        s.set_fact("(at v1 field)", true).unwrap();
+        assert!(
+            s.plan_still_valid(&plan, 1),
+            "suffix after the walk must still execute"
+        );
+
+        // Tick 2: IRRELEVANT drift — a bird delivers grain. The suffix still
+        // reaches the goal (grain 1 + 2 harvests >= 2): keep following, free.
+        s.set_fluent("(grain)", 1.0).unwrap();
+        assert!(
+            s.plan_still_valid(&plan, 1),
+            "helpful drift must not force a rethink"
+        );
+
+        // Tick 3: BREAKING drift — the villager is blown back home; the
+        // remaining harvests are inapplicable. Exactly now we think again.
+        s.set_fact("(at v1 field)", false).unwrap();
+        s.set_fact("(at v1 hut)", true).unwrap();
+        assert!(
+            !s.plan_still_valid(&plan, 1),
+            "breaking drift must be caught"
+        );
+        thinks += 1;
+        let rethink = s.replan();
+        assert!(rethink.solved);
+        assert!(s.plan_still_valid(&rethink.plan.unwrap(), 0));
+
+        assert_eq!(thinks, 2, "the whole script cost exactly two thinks");
+    }
+
+    #[test]
+    fn temporal_suffix_replay_detects_breaks() {
+        let mut s = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        let think = s.replan_budgeted(50_000, Some(128));
+        let plan = think.plan.unwrap();
+        assert!(s.plan_still_valid(&plan, 0), "fresh plan replays");
+
+        // w1's build completed out-of-band: the FULL plan (which re-starts
+        // w1's build) breaks on (idle w1); the w2-only suffix still runs but
+        // no longer reaches the goal alone... it DOES — (built w1) is now
+        // true in the world. Both verdicts must be exact.
+        s.set_fact("(built w1)", true).unwrap();
+        s.set_fact("(idle w1)", false).unwrap();
+        assert!(
+            !s.plan_still_valid(&plan, 0),
+            "re-starting w1's build must break on (idle w1)"
+        );
+        let w2_only = plan
+            .steps
+            .iter()
+            .position(|st| st.args == vec!["W2".to_string()])
+            .unwrap();
+        assert!(
+            s.plan_still_valid(&plan, w2_only.max(1)),
+            "the w2-only suffix still reaches the goal"
+        );
+    }
 
     #[test]
     fn temporal_sessions_think_concurrently_and_replan() {
