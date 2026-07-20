@@ -1003,11 +1003,17 @@ pub(crate) fn solve_from(
         )
     };
     go(&sound, true, false)
-        // The TLAMA rung (0.11 Phase 1): a bounded landmark-dominant pass
-        // between the pruned and complete passes — strictly additive, like
-        // the classical ladder's LAMA rung. FF_NO_TLAMA=1 skips it.
+        // The TLAMA rung (0.11 Phase 1) — MEASURED NEGATIVE, opt-in via
+        // FF_TLAMA=1. Three variants, none positive: the key-term mixed
+        // into the pruned pass fought h (crew 50/50 → 36/50); the unbounded
+        // rung taxed the wall (sokoban-t −3); bounded at 50k nodes it
+        // yielded zero new coverage anywhere. The recorded diagnosis: snap
+        // tasks' fact landmarks are dominated by RUNNING-token chains that
+        // accept in path order REGARDLESS of choices, so the unaccepted
+        // count carries almost no branching signal on these walls — unlike
+        // barman's classical landmarks, which order deep resource chains.
         .or_else(|| {
-            if std::env::var("FF_NO_TLAMA").is_err() {
+            if std::env::var("FF_TLAMA").is_ok() {
                 go(&sound, true, true)
             } else {
                 None

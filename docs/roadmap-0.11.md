@@ -40,6 +40,30 @@ numeric-threshold term.
   sentinels (crew, pegsol, elevator, openstacks-t) unchanged; every
   new solve VAL-validates; t1 ≡ t8.
 
+## Recorded — Phase 1 (2026-07-20): MEASURED NEGATIVE, ships opt-in
+
+Three variants, each measured at the 30 s baseline, none positive:
+
+1. **Key term in the pruned pass**: the landmark gradient FIGHTS h
+   where they disagree — crew-planning 50/50 → 36/50, the 0.10
+   sokoban-t/floor-tile-t gains lost 6 (turn-and-open did gain 1→2/20,
+   the only positive any variant showed).
+2. **Unbounded dedicated rung**: crew/floor-tile restored,
+   parc-printer08-t +1 — but the failed rung burned a full node-cap
+   slice and sokoban-t stayed −3 at the wall.
+3. **Bounded rung (50k nodes)**: zero new coverage anywhere; the
+   parc-printer +1 needed more than the cap; sokoban-t still −3
+   (borderline solves near the 30 s wall cannot afford even a
+   seconds-scale failed bet).
+
+Diagnosis, recorded: snap tasks' fact landmarks are dominated by
+RUNNING-token chains that accept in path order regardless of choices —
+the unaccepted count carries almost no branching signal on these
+walls, unlike barman's classical landmarks (deep resource-chain
+ordering), which is what made the 0.9 rung win. The machinery ships
+opt-in (`FF_TLAMA=1`; default is 0.10 behavior bit-for-bit) with the
+landmark supply counts in the debug dump (`[tsearch] tlama: N`).
+
 ## Phase 2 — helpful-action drift repair
 
 storage/model-train show helpful sets thinning to ZERO away from init:
