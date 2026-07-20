@@ -47,7 +47,26 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.11.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.12.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.12.0 — the game cycle.** `Session` learns TEMPORAL
+> domains: ground a durative world once, then every think is a bounded
+> call returning a timed, genuinely-concurrent plan from the current
+> at-rest state — the temporal path gains a real eval budget spanning
+> its whole pass ladder (it had only node caps), memory targets, and
+> per-think duration rebuilds. **`plan_still_valid`** replays a plan's
+> remaining suffix for free, so drifting worlds only spend a think when
+> the plan actually breaks (the scripted fixture: exactly two thinks
+> across follow / helpful-drift / breaking-drift). **Fixpoint
+> grounding** enumerates from reached atoms instead of typed products —
+> elevator-11 p04 grounds in 6.9 s at 48.8 MB where 0.11 spent 31.6 s
+> at 5.7 GB (~117× less transient, identical task) — and the vendored
+> bazaar fixtures classify the game's any-for-any barter economy as
+> dense-reachable: ground once (5.5 s), think forever. Plus
+> self-relative quality scoring in the corpus runner and a precise
+> diagnosis for the parc-printer-t plateau. Full record:
+> [`docs/roadmap-0.12.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.12.md),
+> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.11.0 — the guidance cycle and the think API.** The
 > game-embedding surface lands: **`Session::replan_budgeted`** makes a

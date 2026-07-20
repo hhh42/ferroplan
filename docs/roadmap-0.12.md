@@ -131,6 +131,23 @@ worth exactly what the fixtures said it would be.
   the 0.10 keys actually bought (i1 solves in ~25 s; the 30 s / 3-job
   methodology clips the family).
 
+## Recorded — Phase 4 (2026-07-20): debts paid, diagnoses filed
+
+- **parc-printer-t DIAGNOSED** (the never-classified plateau): the
+  complete pass drowns in start-spam — avg ~2,076 pending intervals
+  per node (the TMS interleaving family; mechanism now precise). The
+  cheap completeness-preserving experiment (an agenda-size ordering
+  term on the complete pass's key, `FF_TAGENDA_W`) measured NEGATIVE
+  at 30 s; knob stays opt-in, diagnosis recorded.
+- **Self-relative quality scoring shipped**: `ipc67.py
+  --score-against PRIOR.jsonl` computes the IPC formula against a
+  prior run's per-instance costs — regression tracking, explicitly
+  labeled NOT an official IPC score (the corpus carries no reference
+  costs). Smoke: crew 5/5, quality 5.00 vs the 0.10 run.
+- **turn-and-open at realistic budgets**: 0/20 at 60 s (jobs-2 +
+  today's slow box), 1/20 at 120 s (i1 at 77 s, val-green) —
+  search-bound, the guidance family, exactly as classified in 0.10.
+
 ## Phase 5 — 0.12.0 release mechanics
 
 CHANGELOG `[0.12.0]`, workspace bump 0.11.0 → 0.12.0, README refresh,

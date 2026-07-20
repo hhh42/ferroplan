@@ -2,6 +2,75 @@
 
 All notable changes to this project are documented here.
 
+## [0.12.0] - 2026-07-20 — The game cycle: temporal thinks, drift-stable plans, fixpoint grounding
+
+The release where the engine starts serving its actual customer — the
+game from STATUS.md's recorded design answers (cycle record in
+`docs/roadmap-0.12.md`). The corpus was the measuring stick; this
+cycle the stick did its job.
+
+### The temporal Session (genuine concurrency, thought about in bounded time)
+
+- **`Session` accepts durative domains**: snap-compile + stratified
+  grounding ONCE, then every `replan`/`replan_budgeted` runs the
+  bounded decision-epoch ladder from the current AT-REST world state
+  and returns a timed plan (per-step time/duration, makespan, real
+  evaluated-state counts). The world between thinks carries no running
+  intervals: `set_fact` fences the compiler's `RUNNING-*` tokens, and
+  TILs are rejected at construction (they pin the absolute clock;
+  thinks are clock-relative). The demand tier is read once at
+  construction for stable per-session behavior.
+- **The temporal path gains an EVAL BUDGET** (it had only node caps):
+  a think's budget now spans the WHOLE pass ladder, charged serially
+  per evaluation batch — deterministic at any thread count — and the
+  memory target plumbs to the temporal node cap. A budget-exhausted
+  think returns `solved: false` honestly. Duration tables rebuild per
+  think, so `set_fluent` on an op-unmodified fluent flows into
+  parameter-dependent durations instead of staying frozen.
+- Suite-enforced: overlapping-interval concurrency, drift replans,
+  tiny-budget honesty, t1 ≡ t8 timed-step determinism, both fences.
+
+### Follow before you rethink
+
+- **`Session::plan_still_valid(plan, from_step)`**: replay the
+  remaining suffix against the current world state (classical
+  op-by-op; temporal via the validator's happening replay), ending in
+  the goal test. Exact, zero search — irrelevant or even helpful
+  drift keeps the agent following its plan for FREE; only a broken
+  suffix spends a think. The scripted-drift test pins the contract:
+  follow, helpful drift, breaking drift — exactly two thinks
+  end-to-end.
+
+### Fixpoint grounding (the fixtures chose the design)
+
+- **Reached-restricted fixpoint grounding** (temporal entry;
+  `FF_NO_FIXPOINT_GROUND` falls back to stratified): every action
+  joins its positive dynamic literals against the atoms reached so
+  far, rounds to fixpoint — enumeration tracks the REACHABLE op set
+  instead of the typed product, subsuming the 0.10 stratification.
+  elevator-11 p04, same-binary A/B: **31.6 s / 5.7 GB → 6.9 s /
+  48.8 MB (~117× less transient), identical task dims**; equivalence
+  spots exact; elevator-08-numeric back to 29/30 val-green. The
+  residual elevator-11 tail is SEARCH-bound (p05 now solves solo at
+  49 s — formerly a grounding OOM), joining the recorded guidance
+  family.
+- **The bazaar fixtures** (vendored: the game's any-for-any trade
+  economy): measured DENSE-reachable — 197k of 211k typed candidates
+  are real ops, so no grounder can shrink it; ground-once makes it a
+  5.5 s / 644 MB world-load cost and thinks stay pure search.
+  Classified and recorded.
+
+### Corpus debts
+
+- parc-printer-t diagnosed (complete-pass start-spam, ~2,076 pending
+  intervals per node — the TMS family; the cheap ordering experiment
+  measured negative, `FF_TAGENDA_W` stays opt-in).
+- `ipc67.py --score-against PRIOR.jsonl`: self-relative IPC-formula
+  quality scoring for regression tracking (explicitly NOT an official
+  IPC score — the corpus carries no reference costs).
+- turn-and-open at realistic budgets: 1/20 at 120 s, val-green —
+  search-bound as classified.
+
 ## [0.11.0] - 2026-07-20 — The guidance cycle: three honest negatives and the think API
 
 The cycle that attacked the one wall class 0.10 left standing — the
