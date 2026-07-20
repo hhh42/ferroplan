@@ -40,6 +40,31 @@ space, keep the task, no regrounding. One world, changing desires.
   regrounding; t1 ≡ t8; suite tests for retarget-then-replay and
   retarget-to-missing-atom.
 
+## Recorded — Phase 1 (2026-07-20): SHIPPED, and it flushed out a latent bug
+
+`Session::set_goal` landed as designed: any ground conjunction (atoms,
+negated atoms with grounded mirrors, numeric comparisons) over the
+interned fact space, no regrounding, errors-before-mutation on
+everything else (unknown atoms, missing mirrors, `RUNNING-*`, ADL
+connectives, non-ground terms). `plan_still_valid` answers against the
+current goal by construction. Classical + temporal; t1 ≡ t8 across
+retargets; suite 154/0.
+
+Two soundness points the feature forced into the open:
+
+- **The visited key must grow with the goal**: `state_key` omits
+  fluents no precondition/goal reads (the write-only-accumulator
+  dedup), so a retarget onto a formerly-irrelevant fluent re-runs the
+  grounding relevance closure. Relevance only ever GROWS in a session —
+  keys get finer, never coarser. The pace-counter test pins it.
+- **A latent mirror bug, found and fixed**: `set_fact` left a
+  `(NOT (p ...))` complementary mirror STALE when flipping its base —
+  every op with a negative precondition on a session-set fact was
+  silently mis-evaluated (0.11-era bug, invisible until goals could
+  point at mirrors). set_fact now syncs both directions, and the
+  `RUNNING-*` fence looks through `(NOT ...)` so the mirror display
+  cannot dodge it. The lamp fixture pins the end-to-end story.
+
 ## Phase 2 — shared world, many sessions
 
 The immutable ground task behind `Arc`; sessions become cheap forks
