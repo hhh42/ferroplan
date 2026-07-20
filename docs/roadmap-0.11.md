@@ -117,6 +117,20 @@ ladder's best-first ordering (not just the separate LAMA rung),
   recorded-dead-end; this phase is explicitly allowed to conclude
   NEGATIVE without shame — the record is the deliverable.
 
+## Recorded — Phase 3 (2026-07-20): MEASURED NEGATIVE, the record is the deliverable
+
+`FF_CLM=3` vs default at 60 s: transport08 15/30 IDENTICAL solve sets
+(and transport11 0/20 both — the landmark count adds no gradient where
+h^FF is the floor); visit-all 7/20 identical (EHC solves these; the
+term lives on the best-first fallback and never fires — plumbing
+confirmed); floor-tile WORSE with the term (2/20 vs 5/20; builds
+contended with that half of the sweep so the magnitude is suspect, the
+direction is not). Third guidance transfer, third clean negative — the
+cycle's conclusion is itself the finding: **transport/floor-tile-class
+walls need a genuinely different heuristic (red-black / semantic
+landmarks over numeric structure), not reweightings of what exists.**
+`FF_CLM` stays as the experiment hatch; defaults bit-identical.
+
 ## Phase 4 — the budgeted-think API (game track)
 
 The recorded design answers (real-time, episodic stop-and-think,
