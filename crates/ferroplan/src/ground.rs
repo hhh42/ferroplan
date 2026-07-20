@@ -784,7 +784,21 @@ fn intern_cond(intern: &mut Interner, rc: &RCondEff) -> (CondEff, CondAtoms) {
 /// exits); `ground_task` forces a Task even for trivial/unreachable goals — for
 /// validators that must execute a plan regardless of goal triviality.
 pub fn ground(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
-    ground_v(domain, problem, threads, false, false)
+    ground_v(domain, problem, threads, false, false, false)
+}
+
+/// Like [`ground_stratified`] with reached-restricted FIXPOINT enumeration
+/// (0.12 Phase 3): enumeration cost tracks the REACHABLE op set instead of
+/// the typed product (elevator-11 p04: 5.7 GB → 48.8 MB transient). The
+/// SURVIVING op set is identical to the other entries, but fact-id
+/// first-reference order shifts (doomed candidates are never enumerated, so
+/// they no longer intern atoms early) — search tie-breaks move with it,
+/// which cost sokoban-t real coverage in the corpus A/B. The corpus solve
+/// paths therefore stay on [`ground_stratified`]; the temporal SESSION (the
+/// game track) uses this entry, where the memory win is the point and no
+/// scoreboard baseline is disturbed. `FF_NO_FIXPOINT_GROUND=1` falls back.
+pub fn ground_fixpoint(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
+    ground_v(domain, problem, threads, false, true, true)
 }
 
 /// Like [`ground`], with stratified Phase B (see the block in `ground_v`):
@@ -793,13 +807,13 @@ pub fn ground(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
 /// first-reference order may differ from [`ground`], so the classical path
 /// stays on the plain entry. The temporal snap path uses this.
 pub fn ground_stratified(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
-    ground_v(domain, problem, threads, false, true)
+    ground_v(domain, problem, threads, false, true, false)
 }
 
 /// Always return the grounded Task (skips goal TRUE/FALSE/undefined verdicts);
 /// None only on a fatal empty-type error.
 pub fn ground_task(domain: &Domain, problem: &Problem, threads: usize) -> Option<PackedTask> {
-    match ground_v(domain, problem, threads, true, false) {
+    match ground_v(domain, problem, threads, true, false, false) {
         Outcome::Task(t) => Some(t),
         _ => None,
     }
@@ -866,6 +880,7 @@ fn ground_v(
     threads: usize,
     validate: bool,
     stratified: bool,
+    fixpoint: bool,
 ) -> Outcome {
     // ---- type system ----
     let objects_of_type = objects_by_type(domain, problem);
@@ -962,7 +977,7 @@ fn ground_v(
     // Subsumes the producer-known stratification (RUNNING-* literals are
     // dynamic literals like any other). Dense-reachable domains (the bazaar
     // fixture: 197k of 211k candidates real) pay only the round overhead.
-    let fixpoint_raws: Option<Vec<RawOp>> = if stratified
+    let fixpoint_raws: Option<Vec<RawOp>> = if fixpoint
         && std::env::var("FF_NO_FIXPOINT_GROUND").is_err()
     {
         let dyn_lits: Vec<Vec<(Sym, Vec<Term>)>> = domain

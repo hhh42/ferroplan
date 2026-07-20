@@ -122,7 +122,7 @@ impl Session {
         // Force a task even when the base goal is trivially true/false — a session's
         // world moves, so the base-init verdict says nothing about later replans.
         let task = match &temporal_c {
-            Some(c) => match crate::ground::ground_stratified(&c.domain, &c.problem, threads) {
+            Some(c) => match crate::ground::ground_fixpoint(&c.domain, &c.problem, threads) {
                 crate::ground::Outcome::Task(t) => t,
                 _ => return Err("grounding failed (empty type)".to_string()),
             },
