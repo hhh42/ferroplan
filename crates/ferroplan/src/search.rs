@@ -46,13 +46,19 @@ pub(crate) const NODE_CAP_TARGET_BYTES: usize = 8 << 30;
 /// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in
 /// `visited`, plus container overhead.
 pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
+    node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES)
+}
+
+/// [`node_cap_for`] against an explicit byte target (the budgeted-think
+/// surface); `FF_SEARCH_NODE_CAP` still overrides the count directly.
+pub(crate) fn node_cap_for_bytes(task: &PackedTask, bytes: usize) -> usize {
     if let Ok(v) = std::env::var("FF_SEARCH_NODE_CAP") {
         if let Ok(n) = v.trim().parse::<usize>() {
             return if n == 0 { usize::MAX } else { n };
         }
     }
     let per_node = 2 * task.words * 8 + task.fv0.len() * 8 + task.fdef0.len() + 96;
-    NODE_CAP_TARGET_BYTES / per_node.max(1)
+    bytes / per_node.max(1)
 }
 
 /// Tunable weighted-best-first parameters (exposed via the library `Options`).
@@ -116,6 +122,13 @@ pub struct SearchCfg {
     /// experiment: `FF_CLM=<weight>` sets it on the ladder's best-first
     /// fallback only.
     pub w_lm: i64,
+    /// Per-search retained-memory target in BYTES (0.11 Phase 4, the
+    /// budgeted-think surface): overrides the default 8 GiB
+    /// [`NODE_CAP_TARGET_BYTES`] behind [`node_cap_for`]'s per-node model.
+    /// `None` = the default. Deterministic (static task dims only) — a
+    /// think budget must bound memory without introducing wall-clock
+    /// nondeterminism. `FF_SEARCH_NODE_CAP` still wins when set.
+    pub node_bytes_target: Option<usize>,
 }
 
 impl Default for SearchCfg {
@@ -157,6 +170,7 @@ impl SearchCfg {
             g_bound: usize::MAX,
             len_anytime: false,
             w_lm: 0,
+            node_bytes_target: None,
         }
     }
 
@@ -353,7 +367,10 @@ pub fn search_from(
     closure: Option<&ClosureCost>,
 ) -> PlanResult {
     let batch = BATCH;
-    let node_cap = node_cap_for(task);
+    let node_cap = match cfg.node_bytes_target {
+        Some(b) => node_cap_for_bytes(task, b),
+        None => node_cap_for(task),
+    };
     // Phase-time attribution, printed only under FF_RES_DEBUG at the cap
     // return (measurement only — never affects behavior).
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
@@ -758,7 +775,7 @@ pub fn plan_avoiding(
     forbidden: &[bool],
 ) -> PlanOutcome {
     if ehc_first {
-        if let Some((ops, evaluated)) = ehc(task, forbidden) {
+        if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval) {
             return PlanOutcome {
                 ops: Some(ops),
                 evaluated,
@@ -828,7 +845,7 @@ pub fn plan_avoiding(
 /// lower-h state is found, then jump to it and repeat. Returns the plan + states
 /// evaluated, or None if it gets stuck / hits a dead end (caller falls back to
 /// best-first, which is complete). Single-threaded and deterministic.
-fn ehc(task: &PackedTask, forbidden: &[bool]) -> Option<(Vec<usize>, usize)> {
+fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<usize>, usize)> {
     let init = task.initial();
     let mut sc = Scratch::new(task);
     let (mut cur_h, _) = relaxed_helpful(
@@ -853,7 +870,10 @@ fn ehc(task: &PackedTask, forbidden: &[bool]) -> Option<(Vec<usize>, usize)> {
     // lets EHC's near-greedy arm finish those, while the 30k floor keeps small/
     // medium domains bit-identical and the finite cap still hands genuine
     // plateaus off to the complete fallback.
-    let total_cap = (200 * task.n_ops).max(30_000);
+    // The caller's eval budget bounds EHC too (0.11 Phase 4: a think budget
+    // bounds EVERYTHING — a 1-eval think must not solve via EHC's internal
+    // op-scaled cap).
+    let total_cap = (200 * task.n_ops).max(30_000).min(max_eval);
     let mut current = init;
     let mut plan: Vec<usize> = Vec::new();
     loop {

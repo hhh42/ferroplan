@@ -179,10 +179,25 @@ impl Session {
         self.task.fdef0[id as usize].then(|| self.task.fv0[id as usize])
     }
 
+    /// [`Self::replan`] under an explicit THINK BUDGET (0.11 Phase 4, the
+    /// game-embedding surface): `max_evaluated` bounds the states evaluated
+    /// (the deterministic unit — never wall clock) and `memory_mb` bounds the
+    /// search's retained memory via the deterministic per-node byte model
+    /// (see `search::node_cap_for_bytes`). A budget-exhausted think returns
+    /// `solved: false` honestly; identical inputs give identical results at
+    /// any thread count.
+    pub fn replan_budgeted(&self, max_evaluated: usize, memory_mb: Option<usize>) -> Solution {
+        self.replan_inner(Some(max_evaluated), memory_mb)
+    }
+
     /// Solve from the CURRENT world state toward the session's goal, paying only
     /// the search (no re-parse, no re-ground). Same structured [`Solution`] as
     /// [`crate::solve`]; `solved: false` when the goal is unreachable from here.
     pub fn replan(&self) -> Solution {
+        self.replan_inner(None, None)
+    }
+
+    fn replan_inner(&self, budget_evals: Option<usize>, memory_mb: Option<usize>) -> Solution {
         if self.task.goal_met(&self.task.initial()) {
             return Solution {
                 solved: true,
@@ -197,11 +212,12 @@ impl Session {
                 notes: vec!["goal already satisfied; the empty plan solves it".into()],
             };
         }
-        let cfg = crate::search::SearchCfg::from_weights(
+        let mut cfg = crate::search::SearchCfg::from_weights(
             self.weight_g,
             self.weight_h,
-            self.max_evaluated,
+            budget_evals.or(self.max_evaluated),
         );
+        cfg.node_bytes_target = memory_mb.map(|mb| mb.saturating_mul(1 << 20));
         let o = search::plan(&self.task, self.threads, cfg, self.ehc_first);
         let mut notes = Vec::new();
         if o.ehc_fell_back && o.ops.is_some() {
@@ -254,6 +270,44 @@ mod tests {
       (:objects v1 - agent hut field - place)
       (:init (at v1 hut) (road hut field) (road field hut) (fertile field) (= (grain) 0))
       (:goal (>= (grain) 2)))";
+
+    #[test]
+    fn budgeted_think_is_bounded_and_deterministic() {
+        // A tiny budget returns an honest unsolved verdict without blowing
+        // the cap; identical budgets give identical solutions at any thread
+        // count (the eval budget is the deterministic unit, never wall
+        // clock); an adequate budget solves.
+        let s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        let tiny = s.replan_budgeted(1, Some(1));
+        assert!(!tiny.solved, "1-eval think cannot solve the farm");
+        let t1 = {
+            let mut o = Options::default();
+            o.threads = 1;
+            let s = Session::new(DOM, PRB, &o).expect("session");
+            s.replan_budgeted(10_000, Some(64))
+        };
+        let t8 = {
+            let mut o = Options::default();
+            o.threads = 8;
+            let s = Session::new(DOM, PRB, &o).expect("session");
+            s.replan_budgeted(10_000, Some(64))
+        };
+        assert!(t1.solved && t8.solved);
+        let steps = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            steps(&t1),
+            steps(&t8),
+            "budgeted think differs across threads"
+        );
+    }
 
     #[test]
     fn replan_solves_and_tracks_world_state() {
