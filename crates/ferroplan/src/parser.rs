@@ -995,6 +995,22 @@ pub fn parse_problem(src: &str) -> Result<Problem, ParseError> {
     problem_inner(&mut p).map_err(|m| ParseError::new(p.line(), m))
 }
 
+/// Parse a bare goal formula — the same GD grammar a problem's `(:goal ...)`
+/// body accepts, e.g. `(and (at v1 field) (>= (grain) 2))`. The
+/// `Session::set_goal` entry; the input must be exactly one formula.
+pub(crate) fn parse_goal(src: &str) -> Result<Formula, String> {
+    let (toks, lines) = lex(src).map_err(|e| format!("line {}: {}", e.line, e.message))?;
+    let mut p = P::new(toks, lines);
+    let f = parse_formula(&mut p)?;
+    if p.peek().is_some() {
+        return Err(format!(
+            "trailing input after the goal formula (line {})",
+            p.line()
+        ));
+    }
+    Ok(f)
+}
+
 fn problem_inner(p: &mut P) -> Result<Problem, String> {
     p.expect_lparen()?;
     p.expect_kw("DEFINE")?;
