@@ -47,7 +47,26 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.10.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.11.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.11.0 — the guidance cycle and the think API.** The
+> game-embedding surface lands: **`Session::replan_budgeted`** makes a
+> think a *bounded call* — an eval budget (deterministic, never wall
+> clock) plus a retained-memory target — on a ground-once world, with
+> an honest budget-exhausted verdict and thread-count-independent
+> results (its new determinism test immediately caught and fixed a
+> real EHC budget leak); `examples/game_think.rs` walks the episodic
+> think → follow → drift → rethink loop. On the scoreboard side this
+> was the honest cycle: three principled guidance transfers (a
+> temporal LAMA rung, a lax helpful-set fallback, a classical
+> landmark-count term) were built, measured at the baselines, and
+> concluded **negative** — each ships opt-in with its diagnosis
+> recorded, and the finding stands: the remaining walls need a
+> genuinely different heuristic, not reweightings of what exists.
+> Default-path behavior is unchanged, so the 0.10.0 scoreboards remain
+> current. Full record:
+> [`docs/roadmap-0.11.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.11.md),
+> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.10.0 — the walls fall where they can.** Three
 > grounder truths land: **fact-space compaction** (elevator-08-t p22

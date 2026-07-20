@@ -156,3 +156,20 @@ CHANGELOG `[0.11.0]`, workspace bump 0.10.0 → 0.11.0, README refresh,
 suite), scoreboards refreshed with the release binary where phases
 moved them, main fast-forwarded and publish.sh-ready (the user runs
 publish.sh).
+
+## Recorded (cycle close, 2026-07-20)
+
+- **Phase 4 SHIPPED**: `Session::replan_budgeted(max_evaluated,
+  memory_mb)` + `SearchCfg.node_bytes_target` through the per-node
+  byte model; the determinism test caught EHC's op-scaled cap ignoring
+  `max_eval` (a 1-eval think solved anyway) — the caller's budget now
+  bounds EHC too. `examples/game_think.rs` is the episodic
+  walkthrough. Suite 144/0.
+- **Phase 5**: versions 0.10.0 → 0.11.0, CHANGELOG/README refreshed,
+  latest stable confirmed (1.97.1), full gate green. Default-path
+  behavior unchanged from 0.10.0 (all experiments hatched off), so the
+  0.10.0 scoreboards remain current — no refresh needed.
+- **The cycle's finding**: three principled transfers, three clean
+  negatives with recorded diagnoses. The next guidance lever must be a
+  genuinely different h — red-black planning or semantic landmarks
+  over numeric structure — not reweightings of existing signals.

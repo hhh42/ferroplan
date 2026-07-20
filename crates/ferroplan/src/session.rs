@@ -281,14 +281,18 @@ mod tests {
         let tiny = s.replan_budgeted(1, Some(1));
         assert!(!tiny.solved, "1-eval think cannot solve the farm");
         let t1 = {
-            let mut o = Options::default();
-            o.threads = 1;
+            let o = Options {
+                threads: 1,
+                ..Options::default()
+            };
             let s = Session::new(DOM, PRB, &o).expect("session");
             s.replan_budgeted(10_000, Some(64))
         };
         let t8 = {
-            let mut o = Options::default();
-            o.threads = 8;
+            let o = Options {
+                threads: 8,
+                ..Options::default()
+            };
             let s = Session::new(DOM, PRB, &o).expect("session");
             s.replan_budgeted(10_000, Some(64))
         };

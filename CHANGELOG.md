@@ -2,6 +2,61 @@
 
 All notable changes to this project are documented here.
 
+## [0.11.0] - 2026-07-20 — The guidance cycle: three honest negatives and the think API
+
+The cycle that attacked the one wall class 0.10 left standing — the
+heuristic — and reported what it found (cycle record in
+`docs/roadmap-0.11.md`). Three principled guidance transfers were
+implemented, measured at the scoreboard baselines, and concluded
+NEGATIVE; each ships opt-in with its diagnosis recorded, and the
+conclusion is itself the cycle's finding: **the remaining walls
+(transport, storage-t, TMS, model-train, floor-tile) need a genuinely
+different heuristic — red-black or semantic landmarks over numeric
+structure — not reweightings of what exists.** Alongside, the
+game-embedding **budgeted-think API** ships, and its determinism test
+caught and fixed a real budget leak.
+
+### The budgeted-think API (the game track)
+
+- **`Session::replan_budgeted(max_evaluated, memory_mb)`**: a think is
+  a BOUNDED call on a ground-once `Session` — eval budget (the
+  deterministic unit, never wall clock) plus a retained-memory target
+  (`SearchCfg.node_bytes_target` through the per-node byte model). A
+  budget-exhausted think returns `solved: false` honestly; identical
+  budgets give identical plans at any thread count (suite-enforced).
+- **EHC budget-leak fix**: the determinism test caught EHC's internal
+  op-scaled cap ignoring `max_eval` — a 1-eval think solved anyway.
+  The caller's eval budget now bounds EHC too.
+- **`examples/game_think.rs`**: the episodic walkthrough — think →
+  follow → world drifts → rethink → honest tiny-budget verdict.
+
+### The guidance experiments (all opt-in, all defaults bit-identical)
+
+- **Temporal LAMA rung** (`FF_TLAMA=1`): fact-landmark bitsets +
+  landmark-dominant key as a bounded pass in the temporal ladder.
+  Three shapes measured (key-term / unbounded rung / 50k-bounded
+  rung); none positive. Diagnosis: snap tasks' landmarks are
+  RUNNING-token chains that accept in path order regardless of
+  choices — no branching signal, unlike the classical barman
+  landmarks that made the 0.9 rung win.
+- **Lax helpful fallback** (`FF_LAX_HELPFUL=1`): the temporal
+  Start-filter DOES empty nonempty helpful sets on END-led relaxed
+  plans (storage's stored sets averaged 0.0 — mechanism confirmed),
+  but repairing it RESTRICTS expansion exactly where the empty set
+  previously meant a recovering full scan: zero new solves.
+- **Classical landmark-count term** (`FF_CLM=<w>`): transport solve
+  sets identical, visit-all untouched (EHC path), floor-tile worse.
+- **Measurement honesty**: an A/B against the rebuilt 0.10 scoreboard
+  binary proved same-day sokoban-t deltas ENVIRONMENTAL (the box ran
+  ~40% slower than the scoreboard day; the borderline band flips with
+  it) — wall-clock scoreboards inherit box variance; the eval-count
+  budgets the engine uses internally do not.
+
+Default-path behavior is unchanged from 0.10.0 (all experiments
+hatched off; the EHC budget bound only binds when a caller sets an
+eval budget below EHC's op-scaled cap), so the 0.10.0 scoreboards
+remain current.
+
 ## [0.10.0] - 2026-07-19 — The walls fall where they can: grounder truth, temporal recoveries
 
 The frontier cycle (cycle record in `docs/roadmap-0.10.md`; per-item
