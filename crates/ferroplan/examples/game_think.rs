@@ -111,5 +111,50 @@ fn main() -> Result<(), String> {
         "temporal rethink after drift: {} step(s)",
         rethink.plan.as_ref().unwrap().length
     );
+
+    // Act 3 (0.13): the BARTER CHAIN — a forked mind with a retargetable
+    // desire in the vendored bazaar. Vendors release goods only for the
+    // item they want, so wanting the depth-3 item means planning a 3-hop
+    // trade-up chain; drift can make a desire IMPOSSIBLE, and the honest
+    // unsolved verdict is what lets the NPC settle for less.
+    let market = Session::new(
+        include_str!("../../../benchmarks/bench/bazaar-chain-domain.pddl"),
+        include_str!("../../../benchmarks/bench/bazaar-chain.pddl"),
+        &Options::default(),
+    )?;
+    let mut trader = market.fork(); // one mind of a possible population
+    trader.set_goal("(has a0 item3)")?;
+    let think = trader.replan_budgeted(10_000, Some(64));
+    assert!(think.solved);
+    let plan = think.plan.as_ref().unwrap();
+    println!("barter think: {}-hop trade chain", plan.length);
+    for s in &plan.steps {
+        println!("  {} {}", s.action, s.args.join(" "));
+    }
+    // Drift: v2 already bartered item2 away to v3 (an off-screen trade —
+    // and the only legal destination: grounding knows items move along
+    // want-edges, so `(has v5 item2)` isn't even in the fact space).
+    trader.set_fact("(has v2 item2)", false)?;
+    trader.set_fact("(has v3 item2)", true)?;
+    let broken = !trader.plan_still_valid(plan, 0);
+    let rethink = trader.replan_budgeted(10_000, Some(64));
+    println!(
+        "drift broke the chain: {broken}; rethink solved={} — the desire {}",
+        rethink.solved,
+        if rethink.solved {
+            "survives by another route"
+        } else {
+            "is IMPOSSIBLE now (honest verdict, no wasted wandering)"
+        }
+    );
+    // The NPC settles for the reachable rung instead — one world, changing
+    // desires, zero regrounding.
+    trader.set_goal("(has a0 item1)")?;
+    let settle = trader.replan_budgeted(10_000, Some(64));
+    assert!(settle.solved);
+    println!(
+        "retargeted desire: {} step(s) to the reachable rung",
+        settle.plan.as_ref().unwrap().length
+    );
     Ok(())
 }
