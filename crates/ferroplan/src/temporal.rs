@@ -1634,8 +1634,18 @@ fn temporal_search(
     let mut sc = Scratch::new(task);
 
     let (_h0, hf0) = eval_node(task, kind, &mut sc, &init, goal_pos, goal_num, prune)?; // dead-end gate
+                                                                                        // TMS symmetry reduction (0.13 Phase 5): keep the agenda sorted by
+                                                                                        // (time, op id) — CANONICAL, not arrival-ordered. N same-epoch starts of
+                                                                                        // interchangeable intervals (machine-shop's kilns, printer sheets) used
+                                                                                        // to reach the same pending MULTISET through N! arrival orders, and the
+                                                                                        // visited key (which contains the agenda) stored every one of them as a
+                                                                                        // distinct state: copies, not classes. With a canonical order, one node
+                                                                                        // represents the class; simultaneous ends fire in op-id order (one valid
+                                                                                        // serialization — symmetric ends touch different tokens and commute).
+                                                                                        // `FF_NO_TSYMM=1` restores arrival order.
+    let symm = std::env::var("FF_NO_TSYMM").is_err();
     let mut root_agenda: Vec<(f64, usize)> = til_events.to_vec();
-    root_agenda.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+    root_agenda.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     // Shift-invariant dedup (see tkey): sound only when no TIL pins the clock.
     let relative = til_events.is_empty() && std::env::var("FF_TEMPORAL_ABS_KEY").is_err();
     // Temporal LAMA (0.11 Phase 1): fact landmarks over the snap task drive
@@ -1698,6 +1708,26 @@ fn temporal_search(
                 hf as f64 / nodes.len() as f64,
                 t0.elapsed().as_millis()
             );
+            // What is the frontier hoarding? The POPPED node's pending ends,
+            // op-grouped (measurement eyes for the start-spam diagnosis).
+            let mut by_op: HashMap<usize, usize> = HashMap::new();
+            for &(_, o) in &nodes[ni].agenda {
+                *by_op.entry(o).or_default() += 1;
+            }
+            let mut counts: Vec<(usize, usize)> = by_op.into_iter().collect();
+            counts.sort_by_key(|&(o, c)| (std::cmp::Reverse(c), o));
+            let head: Vec<String> = counts
+                .iter()
+                .take(4)
+                .map(|&(o, c)| format!("{}x {}", c, task.op_display[o]))
+                .collect();
+            eprintln!(
+                "[tsearch]   popped: time {:.1} g {} agenda {} [{}]",
+                nodes[ni].time,
+                nodes[ni].g,
+                nodes[ni].agenda.len(),
+                head.join(", ")
+            );
         }
         if nodes.len() > max_nodes || *budget == 0 {
             if dbg {
@@ -1756,9 +1786,43 @@ fn temporal_search(
                             }
                         };
                         let ns = task.apply(oi, &nodes[ni].state);
-                        let mut ag = nodes[ni].agenda.clone();
                         let te = time + dur;
-                        let pos = ag.partition_point(|x| x.0 <= te);
+                        // Identical-interval reduction (0.13 Phase 5, second
+                        // arm): a start that changes NOTHING in the state
+                        // while the same end op is already pending at or
+                        // before `te` adds a redundant COPY of a running
+                        // interval — machine-shop re-fires a lit kiln and
+                        // re-bakes a baking piece forever this way, each
+                        // copy minting a "new" visited key. Dropping the
+                        // copy is sound for a plain-STRIPS end (numeric /
+                        // conditional end effects are not idempotent): the
+                        // start contributed nothing, and the copy's end can
+                        // only repeat adds/deletes the earlier pending end
+                        // already performs by then — in any VALID plan the
+                        // extra end is a no-op, so the plan minus the copy
+                        // stays valid.
+                        if symm
+                            && nodes[ni]
+                                .agenda
+                                .iter()
+                                .any(|&(t, o)| o == end_op && t <= te)
+                            && task.num_eff.slice(end_op).is_empty()
+                            && task.cond_effs(end_op).next().is_none()
+                            && ns.bits == nodes[ni].state.bits
+                            && ns.fv == nodes[ni].state.fv
+                            && ns.fdef == nodes[ni].state.fdef
+                        {
+                            continue;
+                        }
+                        let mut ag = nodes[ni].agenda.clone();
+                        // Canonical (time, op) position under symmetry
+                        // reduction; arrival order (after all equal times)
+                        // under FF_NO_TSYMM.
+                        let pos = if symm {
+                            ag.partition_point(|x| x.0 < te || (x.0 == te && x.1 <= end_op))
+                        } else {
+                            ag.partition_point(|x| x.0 <= te)
+                        };
                         ag.insert(pos, (te, end_op));
                         protos.push(TNode {
                             state: ns,

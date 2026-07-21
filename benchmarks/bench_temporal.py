@@ -85,11 +85,22 @@ def main():
     domain = os.path.join(domain_dir, "domain.pddl")
     insts = instances(domain_dir)[:max_inst]
 
+    def domain_for(inst):
+        """Single shared domain.pddl, or the per-instance domains/ layout some
+        IPC variants use (parc-printer-2011's domains/domain-N.pddl) — the
+        shared-file assumption used to FAIL EVERY instance of those variants
+        silently, reading as an honest 0/N."""
+        if os.path.exists(domain):
+            return domain
+        digits = "".join(c if c.isdigit() else " " for c in os.path.basename(inst)).split()
+        cand = os.path.join(domain_dir, "domains", "domain-%s.pddl" % (digits[0] if digits else ""))
+        return cand if os.path.exists(cand) else domain
+
     res = {"domain": domain_dir, "total": len(insts), "solved": 0, "valid": 0,
            "invalid": 0, "unsolved": 0, "parse_error": 0, "val_unavailable": 0,
            "first_invalid": "", "first_parse_error": "", "per_instance": []}
     for inst in insts:
-        status, valid, ms, detail = run_one(domain, inst, timeout)
+        status, valid, ms, detail = run_one(domain_for(inst), inst, timeout)
         name = os.path.basename(inst)
         res["per_instance"].append(
             {"inst": name, "status": status, "valid": valid, "ms": round(ms)})

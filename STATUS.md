@@ -290,6 +290,17 @@ numeric variants are the tails), tempo-sat 326/630 (30 s recon).
    h^FF-guidance wall, same family as transport11/model-train; TMS
    drowns in genuine-concurrency interleavings (avg 47 pending ends
    per node, 15k ops). Both fold into the guidance agenda.
+   *0.13 Phase 5 addendum*: the TMS diagnosis is now mechanism-precise.
+   Agenda-level symmetry reduction shipped (canonical pending-interval
+   order + redundant identical-interval skip, `FF_NO_TSYMM=1` reverts)
+   and eliminated the re-fire/re-bake copies (avg agenda 47→40), but
+   the wall STANDS: the residual blowup is goal-paired PIECE-SUBSET
+   state symmetry — interchangeable pieces distinguished only by which
+   `(baked-structure p q)` pair they serve, so every subset-assignment
+   of "which identical piece is baking" is a distinct visited state.
+   Collapsing it needs goal-respecting object-symmetry orbits (a real
+   symmetry-breaking engine), filed with the research fence, not the
+   agenda.
 8. **Runner polish** — SHIPPED 2026-07-19 (0.10 Phase 1): ipc67.py
    VALs tempo-sat plans (timestamped rendering, `-t` at ff's 0.001 ε,
    auto-finds the get-val.sh build) and caps each job's address space

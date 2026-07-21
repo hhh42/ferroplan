@@ -17,7 +17,7 @@ name = "ff"
 path = "src/main.rs"
 
 [dependencies]
-ferroplan = { path = "../ferroplan", version = "0.12.0" }
+ferroplan = { path = "../ferroplan", version = "0.13.0" }
 clap = { version = "4", features = ["derive"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

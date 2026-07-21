@@ -47,7 +47,29 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.12.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.13.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.13.0 — the many-minds cycle.** One world, a
+> population of planners. **`Session::set_goal`** retargets a mind —
+> any ground conjunction over the interned fact space, no regrounding,
+> honest errors for desires the world cannot express (and it flushed
+> out a latent mirror-sync bug in `set_fact`, now fixed).
+> **`Session::fork`** makes minds cheap: the grounded payload shares
+> behind `Arc`, so 12 bazaar NPCs cost one ~1.9 s grounding plus
+> ~0.4 KB of private state each — forks diverge freely with no
+> cross-mind interference and thread-count determinism intact.
+> **`Session::replan_following`** keeps NPCs steady under drift:
+> replay the broken plan's surviving prefix, search only the tail
+> (measured: churn 1 at 3 evals where the unbiased rethink churns 16
+> at 2,899). The game track gains its own scoreboard —
+> [`benchmarks/bazaar-thinks.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/bazaar-thinks.md):
+> solo trade chains are heuristic-transparent (11 hops, sub-ms,
+> every tick), contended chains show honest budget-exhaustion curves.
+> The temporal search gains agenda symmetry reduction (canonical
+> pending-interval order + redundant-copy skip, `FF_NO_TSYMM=1`
+> reverts). Full record:
+> [`docs/roadmap-0.13.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.13.md),
+> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.12.0 — the game cycle.** `Session` learns TEMPORAL
 > domains: ground a durative world once, then every think is a bounded
