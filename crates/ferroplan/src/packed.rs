@@ -7,6 +7,7 @@
 
 use crate::bitset;
 use crate::types::{eval_numpre, AssignOp, NumEff, NumPre};
+use std::sync::Arc;
 
 /// A grounded ADL conditional effect `(when condition effect)`: if `cond_pos`
 /// hold, `cond_neg` are absent, and `cond_num` are satisfied IN THE SOURCE STATE,
@@ -23,10 +24,22 @@ pub struct CondEff {
 }
 
 /// Compressed-sparse-row container: item `i` owns `flat[off[i]..off[i+1]]`.
-#[derive(Clone, Debug, Default)]
+/// `Arc`-backed since 0.13 so a [`PackedTask`] clone shares the payload —
+/// N sessions over one world cost one grounding, not N (`Session::fork`).
+#[derive(Debug)]
 pub struct Csr<T> {
-    pub flat: Vec<T>,
-    pub off: Vec<u32>,
+    pub flat: Arc<[T]>,
+    pub off: Arc<[u32]>,
+}
+
+// Manual impl: an Arc bump needs no `T: Clone`, and the derive would demand it.
+impl<T> Clone for Csr<T> {
+    fn clone(&self) -> Self {
+        Csr {
+            flat: Arc::clone(&self.flat),
+            off: Arc::clone(&self.off),
+        }
+    }
 }
 
 impl<T> Csr<T> {
@@ -59,20 +72,27 @@ impl<T> CsrBuilder<T> {
     }
     pub fn finish(self) -> Csr<T> {
         Csr {
-            flat: self.flat,
-            off: self.off,
+            flat: self.flat.into(),
+            off: self.off.into(),
         }
     }
 }
 
 /// The grounded planning task in data-oriented form.
+///
+/// `Clone` is CHEAP by design (0.13 Phase 2): the grounded payload — operator
+/// CSR columns, names, achiever indexes, the monitor block — sits behind `Arc`
+/// and is shared by every clone; only the small per-clone state (current
+/// facts/fluents, goal, fluent relevance) is copied. `Session::fork` builds a
+/// population of minds over ONE world this way.
+#[derive(Clone)]
 pub struct PackedTask {
     pub n_facts: usize,
     pub words: usize,
     pub n_ops: usize,
 
     /// Per-op pretty name for the plan line, e.g. `WALK A0 P0 P1`.
-    pub op_display: Vec<String>,
+    pub op_display: Arc<[String]>,
 
     pub pre_pos: Csr<u32>,
     pub add: Csr<u32>,
@@ -87,11 +107,11 @@ pub struct PackedTask {
     /// order — by every op whose [`Self::monitored`] bit is set. Empty on
     /// every constraint-free task. Iterate per-op conditional effects
     /// through [`Self::cond_effs`], never `cond` alone.
-    pub shared_cond: Vec<CondEff>,
+    pub shared_cond: Arc<[CondEff]>,
     /// Per-op: does this op apply [`Self::shared_cond`]? Set for ops
     /// grounded from actions carrying the monitor block; false for the
     /// synthetic bookkeeping ops (P3*, TRAJ-END, REACH-GOAL).
-    pub monitored: Vec<bool>,
+    pub monitored: Arc<[bool]>,
 
     /// fact id -> ops that add it (achiever lookup, avoids O(n_ops) scans).
     pub add_by_fact: Csr<u32>,
@@ -109,9 +129,9 @@ pub struct PackedTask {
     pub goal_pos: Vec<u32>,
     pub goal_num: Vec<NumPre>,
 
-    pub fact_names: Vec<String>,
+    pub fact_names: Arc<[String]>,
     /// fluent id -> display string `(NAME ARGS)` (for metric/cost-fluent lookup).
-    pub fluent_names: Vec<String>,
+    pub fluent_names: Arc<[String]>,
 
     // timing-footer stats
     pub n_easy: usize,

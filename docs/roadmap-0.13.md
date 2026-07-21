@@ -83,6 +83,39 @@ holding only their own state view (facts, fluents, goal, stats).
   surgery, ship the measurement + a recorded design, not a half-landed
   refactor.
 
+## Recorded — Phase 2 (2026-07-21): SHIPPED, no invasive surgery needed
+
+The honest-exit clause went unused: the mutability seam was already
+clean. Everything a session mutates after construction was ALREADY
+seven small fields (current facts/fluents, goal, fluent relevance);
+the rest of `PackedTask` is written once at grounding and only read.
+So the payload — CSR operator columns, names, achiever indexes, the
+monitor block — moved behind `Arc` INSIDE the same read API (`Csr`
+keeps `slice()`, slices deref transparently), `PackedTask` derives a
+cheap `Clone`, and NOT ONE line of search code changed. The session's
+lookup maps (fact/fluent/op ids, mirrors, the temporal compilation)
+share the same way.
+
+`Session::fork()`: an independent mind over the same world, starting
+from the parent's CURRENT state and goal, free to diverge — no shared
+tie-breaks, no cross-mind writes. Suite 158/0 (4 new: payload-sharing
+`Arc::ptr_eq` pins, sibling isolation, temporal population, forked
+t1 ≡ t8).
+
+Measured on the vendored bazaar (`many_minds` example; also corrected
+the 0.12 "644 MB each" framing — that was load-PEAK RSS; retained is
+~40 MB/session, ~16 MB of it payload):
+
+- world load, once: ~1.9 s through a ~516 MB transient peak
+- 12 forks + 12 retargets: **~0.0 ms, +0.0 MB RSS** (~0.4 KB private
+  state per mind — KB, not the bar's MB)
+- 12 divergent thinks: 0.05 s total
+- the old way, per mind: ~1.7 s + ~40 MB retained, twelve times over
+
+New `Session::world_bytes()` / `mind_bytes()` accessors give embedders
+the shared-vs-private split (documented as flat-bytes floors); Phase 3
+reads per-mind retained memory from them.
+
 ## Phase 3 — the barter think benchmark
 
 The corpus was the planner's measuring stick; the game track needs its

@@ -31,7 +31,10 @@
 //! optimizer compiles the problem per solve). The goal is retargetable
 //! (0.13 Phase 1): [`Session::set_goal`] swaps in any ground conjunction
 //! over the already-interned fact space without regrounding — one world,
-//! changing desires.
+//! changing desires. And a session is forkable (0.13 Phase 2):
+//! [`Session::fork`] clones a mind over the SAME grounded world — the
+//! grounded payload shares behind `Arc`, so a bazaar of N NPCs costs one
+//! grounding plus N small state views, each free to diverge.
 //!
 //! **Why static facts are rejected.** Grounding enumerates operator parameters
 //! restricted by *static* predicates read from `:init` — a static fact flipped
@@ -46,6 +49,7 @@ use crate::hash::FxHashMap;
 use crate::packed::PackedTask;
 use crate::search;
 use crate::types::{Expr, Formula, NExpr, NumPre, Term};
+use std::sync::Arc;
 
 /// The predicate head of a fact display (`(AT V1 HUT)` -> `AT`), looking
 /// through a complementary-mirror wrapper (`(NOT (RUNNING-BUILD W1))` ->
@@ -74,19 +78,21 @@ pub struct Session {
     weight_h: f64,
     max_evaluated: Option<usize>,
     ehc_first: bool,
-    /// Display name (uppercase, e.g. `(AT V1 FIELD)`) -> fact id.
-    fact_ids: FxHashMap<String, u32>,
+    /// Display name (uppercase, e.g. `(AT V1 FIELD)`) -> fact id. Shared by
+    /// every fork (0.13 Phase 2) — immutable after construction, like every
+    /// `Arc`'d field below: N minds, one copy.
+    fact_ids: Arc<FxHashMap<String, u32>>,
     /// Per fact id: does any operator add or delete it? (Static facts are baked
     /// into the grounding and must not change — see the module docs.)
-    dynamic: Vec<bool>,
+    dynamic: Arc<[bool]>,
     /// Display name (uppercase, e.g. `(GRAIN)`) -> fluent id.
-    fluent_ids: FxHashMap<String, u32>,
+    fluent_ids: Arc<FxHashMap<String, u32>>,
     /// Temporal session state (0.12 Phase 1): the snap compilation, kept so
     /// each think can REBUILD `build_kind`'s duration table against the
     /// CURRENT fluent values (a `set_fluent` on a fluent no op modifies must
     /// flow into parameter-dependent durations, not stay frozen at
     /// construction). `None` = classical session.
-    temporal: Option<crate::temporal::TemporalCompiled>,
+    temporal: Option<Arc<crate::temporal::TemporalCompiled>>,
     /// The demand tier, read ONCE at construction so a session's behavior is
     /// stable even if the process environment changes between thinks.
     tier: crate::features::DemandMode,
@@ -96,13 +102,13 @@ pub struct Session {
     running_preds: Vec<String>,
     /// Op display (`WALK V1 HUT FIELD`) -> op id, for suffix replay
     /// ([`Session::plan_still_valid`]).
-    op_ids: FxHashMap<String, usize>,
+    op_ids: Arc<FxHashMap<String, usize>>,
     /// Complementary-mirror pairing (0.13 Phase 1), BOTH directions: when
     /// grounding created a `(NOT (p ...))` mirror fact (negative
     /// preconditions/goals), [`Session::set_fact`] on either side keeps the
     /// other in sync — a stale mirror would silently corrupt every
     /// applicability and goal test that reads it.
-    mirror: FxHashMap<u32, u32>,
+    mirror: Arc<FxHashMap<u32, u32>>,
 }
 
 impl Session {
@@ -210,15 +216,45 @@ impl Session {
             weight_h: opts.weight_h,
             max_evaluated: opts.max_evaluated,
             ehc_first: opts.search != Search::BestFirst,
-            fact_ids,
-            dynamic,
-            fluent_ids,
-            temporal: temporal_c,
+            fact_ids: Arc::new(fact_ids),
+            dynamic: dynamic.into(),
+            fluent_ids: Arc::new(fluent_ids),
+            temporal: temporal_c.map(Arc::new),
             tier: crate::features::demand_mode(),
             running_preds,
-            op_ids,
-            mirror,
+            op_ids: Arc::new(op_ids),
+            mirror: Arc::new(mirror),
         })
+    }
+
+    /// Fork this mind (0.13 Phase 2): an independent `Session` over the SAME
+    /// grounded world. N minds cost ONE grounding — the fork shares the
+    /// grounded payload (operator columns, names, achiever indexes, the
+    /// temporal compilation) behind `Arc` and copies only the small per-mind
+    /// state: current facts and fluents, goal, fluent relevance.
+    ///
+    /// The fork starts from this session's CURRENT state and goal (not the
+    /// problem's `:init`), then diverges freely: its [`Session::set_fact`] /
+    /// [`Session::set_goal`] / [`Session::replan`] never touch a sibling —
+    /// no shared tie-breaks, no cross-mind interference. Each fork keeps the
+    /// parent's options (threads, weights, budget) and demand tier.
+    pub fn fork(&self) -> Session {
+        Session {
+            task: self.task.clone(),
+            threads: self.threads,
+            weight_g: self.weight_g,
+            weight_h: self.weight_h,
+            max_evaluated: self.max_evaluated,
+            ehc_first: self.ehc_first,
+            fact_ids: Arc::clone(&self.fact_ids),
+            dynamic: Arc::clone(&self.dynamic),
+            fluent_ids: Arc::clone(&self.fluent_ids),
+            temporal: self.temporal.clone(),
+            tier: self.tier,
+            running_preds: self.running_preds.clone(),
+            op_ids: Arc::clone(&self.op_ids),
+            mirror: Arc::clone(&self.mirror),
+        }
     }
 
     /// The temporal think (0.12 Phase 1): rebuild the duration table against
@@ -639,6 +675,50 @@ impl Session {
             }
             Expr::Neg(a) => NExpr::Neg(Box::new(self.goal_nexpr(a)?)),
         })
+    }
+
+    /// Estimated retained bytes of the SHARED grounded payload — operator
+    /// columns, names, achiever indexes, the monitor block. This exists once
+    /// per world however many forks live in it ([`Session::fork`]); flat
+    /// array/string bytes only (nested conditional-effect allocations are
+    /// not walked), so treat it as a floor, not an audit.
+    pub fn world_bytes(&self) -> usize {
+        use std::mem::size_of_val;
+        let t = &self.task;
+        let strings = |v: &[String]| {
+            v.iter()
+                .map(|s| s.len() + size_of::<String>())
+                .sum::<usize>()
+        };
+        strings(&t.op_display)
+            + strings(&t.fact_names)
+            + strings(&t.fluent_names)
+            + size_of_val(&t.pre_pos.flat[..])
+            + size_of_val(&t.add.flat[..])
+            + size_of_val(&t.del.flat[..])
+            + size_of_val(&t.pre_num.flat[..])
+            + size_of_val(&t.num_eff.flat[..])
+            + size_of_val(&t.cond.flat[..])
+            + size_of_val(&t.shared_cond[..])
+            + size_of_val(&t.monitored[..])
+            + size_of_val(&t.add_by_fact.flat[..])
+            + size_of_val(&t.neff_by_fluent.flat[..])
+    }
+
+    /// Estimated retained bytes of this mind's PRIVATE state — current
+    /// facts and fluents, goal, fluent relevance. This is what one more
+    /// [`Session::fork`] costs; same flat-bytes caveat as
+    /// [`Session::world_bytes`].
+    pub fn mind_bytes(&self) -> usize {
+        use std::mem::size_of_val;
+        let t = &self.task;
+        size_of_val(&t.init_bits[..])
+            + size_of_val(&t.fv0[..])
+            + size_of_val(&t.fdef0[..])
+            + size_of_val(&t.goal_pos[..])
+            + size_of_val(&t.goal_num[..])
+            + size_of_val(&t.relevant_fluent[..])
+            + size_of_val(&t.rel_fluents[..])
     }
 
     /// Read a fact in the current state (`None` if it was never grounded).
@@ -1189,6 +1269,108 @@ mod tests {
         assert!(
             err.contains("running-interval"),
             "RUNNING-* must be fenced: {err}"
+        );
+    }
+
+    #[test]
+    fn fork_shares_the_world_and_inherits_current_state() {
+        let mut s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        // Move the world BEFORE forking: the fork starts from here, not :init.
+        s.set_fact("(at v1 hut)", false).unwrap();
+        s.set_fact("(at v1 field)", true).unwrap();
+        s.set_fluent("(grain)", 1.0).unwrap();
+        let f = s.fork();
+        assert_eq!(f.fact("(at v1 field)"), Some(true));
+        assert_eq!(f.fluent("(grain)"), Some(1.0));
+        // The grounded payload is SHARED, not copied — the whole point.
+        assert!(Arc::ptr_eq(&s.task.fact_names, &f.task.fact_names));
+        assert!(Arc::ptr_eq(&s.task.op_display, &f.task.op_display));
+        assert!(Arc::ptr_eq(&s.task.add.flat, &f.task.add.flat));
+        assert!(Arc::ptr_eq(&s.fact_ids, &f.fact_ids));
+        let sol = f.replan();
+        assert!(sol.solved);
+        assert_eq!(sol.plan.unwrap().length, 1, "one harvest from here");
+    }
+
+    #[test]
+    fn forks_diverge_without_touching_siblings() {
+        let s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        let mut hungry = s.fork();
+        let mut idle = s.fork();
+        // One mind's world-writes and retarget...
+        hungry.set_fluent("(grain)", 1.0).unwrap();
+        hungry.set_goal("(>= (grain) 5)").unwrap();
+        // ...are invisible to its sibling and its parent.
+        assert_eq!(idle.fluent("(grain)"), Some(0.0));
+        assert_eq!(s.fluent("(grain)"), Some(0.0));
+        let h = hungry.replan();
+        assert!(h.solved);
+        assert_eq!(h.plan.unwrap().length, 5, "walk + 4 more harvests");
+        let i = idle.replan();
+        assert!(i.solved);
+        assert_eq!(
+            i.plan.unwrap().length,
+            3,
+            "sibling still walks + harvests 2"
+        );
+        assert_eq!(s.replan().plan.unwrap().length, 3, "parent unmoved");
+        // A fork's relevance growth (set_goal onto a new fluent elsewhere)
+        // stays its own: idle's key/goal are untouched by hungry's retarget.
+        idle.set_fact("(at v1 hut)", false).unwrap();
+        idle.set_fact("(at v1 field)", true).unwrap();
+        assert_eq!(hungry.fact("(at v1 field)"), Some(false));
+    }
+
+    #[test]
+    fn fork_temporal_population_thinks_independently() {
+        let s = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        let mut a = s.fork();
+        let mut b = s.fork();
+        a.set_goal("(built w1)").unwrap();
+        b.set_goal("(built w2)").unwrap();
+        let pa = a.replan_budgeted(50_000, Some(128));
+        let pb = b.replan_budgeted(50_000, Some(128));
+        assert!(pa.solved && pb.solved);
+        assert_eq!(
+            pa.plan.as_ref().unwrap().steps[0].args,
+            vec!["W1".to_string()]
+        );
+        assert_eq!(
+            pb.plan.as_ref().unwrap().steps[0].args,
+            vec!["W2".to_string()]
+        );
+        // Parent still wants both and still gets both.
+        assert_eq!(s.replan_budgeted(50_000, Some(128)).plan.unwrap().length, 2);
+    }
+
+    #[test]
+    fn fork_keeps_thread_determinism() {
+        let run = |threads: usize| {
+            let o = Options {
+                threads,
+                ..Options::default()
+            };
+            let s = Session::new(DOM, PRB, &o).expect("session");
+            let mut f = s.fork();
+            f.set_fluent("(grain)", 1.0).unwrap();
+            f.set_goal("(>= (grain) 4)").unwrap();
+            f.replan_budgeted(10_000, Some(64))
+        };
+        let (t1, t8) = (run(1), run(8));
+        assert!(t1.solved && t8.solved);
+        let steps = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            steps(&t1),
+            steps(&t8),
+            "forked think differs across threads"
         );
     }
 }

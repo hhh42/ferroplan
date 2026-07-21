@@ -27,7 +27,7 @@ fn main() {
         ground_ms
     );
     let mut by_head: HashMap<&str, usize> = HashMap::new();
-    for name in &task.fact_names {
+    for name in task.fact_names.iter() {
         let head = name
             .trim_start_matches('(')
             .split_whitespace()

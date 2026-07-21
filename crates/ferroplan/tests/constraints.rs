@@ -633,7 +633,7 @@ fn gate_and_ground(d: &str, p: &str) -> (Vec<String>, usize) {
         .iter()
         .filter(|d| d.starts_with("REACH-GOAL"))
         .count();
-    (task.op_display.clone(), reach)
+    (task.op_display.to_vec(), reach)
 }
 
 #[test]
