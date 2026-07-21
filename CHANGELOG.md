@@ -81,9 +81,13 @@ between "a session" and "a population" (cycle record in
   and a start that changes nothing while its identical end is already
   pending (re-firing a lit kiln, re-baking a baking piece) is skipped
   as a redundant interval copy (sound for plain-STRIPS ends).
-  temporal-machine-shop's wall survives both (diagnosis sharpened: the
-  residual is goal-paired PIECE-subset state symmetry, out of scope
-  for agenda-level reduction — recorded in the roadmap).
+  Corpus verdict (630-instance sweep, all solves VAL-green): total
+  **387 → 388**, with **match-cellar 6→10** (+4), floor-tile 3→4,
+  elevator-numeric 28→29; one named casualty, parking #16, a
+  tie-break shift recoverable under the hatch. temporal-machine-shop's
+  wall survives both levers (diagnosis sharpened: the residual is
+  goal-paired PIECE-subset state symmetry, out of scope for
+  agenda-level reduction — recorded in the roadmap).
 - `bench_temporal.py` now handles the per-instance-domain IPC layout
   (parc-printer-2011's `domains/domain-N.pddl`); the shared-file
   assumption silently failed every instance of those variants.

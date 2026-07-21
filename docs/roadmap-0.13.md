@@ -229,6 +229,47 @@ agenda combinatorially.
   (the scoreboard defends itself — 0.12 proved it).
 - Deliberately LAST and severable: if it slips, 0.13 ships without it.
 
+## Recorded — Phase 5 (2026-07-21): the scoped lever shipped; the wall stands, better lit
+
+Two sound reductions landed in the decision-epoch search (default on,
+`FF_NO_TSYMM=1` reverts): CANONICAL (time, op) pending-interval order
+(same-epoch starts of interchangeable intervals minted N! visited keys
+per pending multiset) and the identical-interval skip (a start that
+changes nothing while its end op is already pending at-or-before its
+end time is a redundant copy of a running interval — machine-shop
+re-fires lit kilns and re-bakes baking pieces forever; sound to drop
+for plain-STRIPS ends).
+
+**The TMS bar was not met, and the negative is now mechanism-precise**:
+the reductions kill the copies (avg agenda 47→40, duplicate ends gone)
+but the wall is goal-paired PIECE-SUBSET state symmetry —
+interchangeable pieces distinguished only by which `(baked-structure
+p q)` pair they serve, every subset-assignment of "which identical
+piece is baking" a distinct visited state, avg_helpful ≈ 1–3 on a
+15,384-op task. Collapsing it needs goal-respecting object-symmetry
+orbits: a research-fence item, not an agenda tweak (STATUS.md item 7
+addendum).
+
+**The corpus verdict** (full 630-instance sweep, 30 s / jobs 3,
+all solves VAL-green; per-instance A/B vs the committed raw baseline):
++17 / −1, total **388/630** vs the recorded 387. The genuine
+symmetry-attributable movement: **match-cellar 6→10** (+4 — a new
+level; both baselines agree at 6), floor-tile 3→4, elevator-numeric
+28→29. The one genuine casualty: **parking #16** (4.2 s → timeout even
+solo; solves under `FF_NO_TSYMM=1`) — a tie-break shift, named and
+hatch-recoverable. Elevator's apparent ±2 domain deltas verified as
+30 s-edge JOB-CONTENTION variance (the "lost" instances solve solo in
+25–28 s), the same flutter the old md-vs-jsonl mismatch already showed
+(the 0.10 scoreboard md said 387 while its own committed raw jsonl
+sums to 372 — the refreshed pair now agrees with itself).
+
+**A harness bug found by bisecting a phantom**: parc-printer-2011 read
+as 0/20 through `bench_temporal.py` — its shared-`domain.pddl`
+assumption silently failed every instance of per-instance-domain IPC
+variants. Three releases got bisected before the "regression" turned
+out to be the harness; fixed (`domains/domain-N.pddl` fallback), 7/20
+reproduces exactly.
+
 ## Phase 6 — 0.13.0 release mechanics
 
 CHANGELOG `[0.13.0]`, workspace bump, README refresh, `rustup update
