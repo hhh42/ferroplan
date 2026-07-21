@@ -21,6 +21,21 @@ const PRB_X2: &str = include_str!("../../../benchmarks/bench/bazaar-chain-x2.pdd
 
 const DEPTHS: [usize; 8] = [1, 2, 3, 4, 6, 8, 10, 11];
 
+/// Levenshtein distance over step sequences — the churn metric: how many
+/// step insertions/deletions/substitutions turn the old plan into the new.
+fn edit_distance(a: &[String], b: &[String]) -> usize {
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    for (i, sa) in a.iter().enumerate() {
+        let mut cur = vec![i + 1];
+        for (j, sb) in b.iter().enumerate() {
+            let sub = prev[j] + usize::from(sa != sb);
+            cur.push(sub.min(prev[j + 1] + 1).min(cur[j] + 1));
+        }
+        prev = cur;
+    }
+    prev[b.len()]
+}
+
 /// One depth x budget sweep over a grounded world: every cell is a forked
 /// mind + `set_goal(goal(k))` + ONE bounded think. Returns (depth, first
 /// solving budget) per depth for the onset report.
@@ -126,6 +141,98 @@ fn main() -> Result<(), String> {
     sweep(&world_x2, &[1_000, 4_000, 16_000, 64_000, 256_000], |k| {
         format!("(and (has a0 itemA{k}) (has a0 itemB{k}))")
     })?;
+
+    println!();
+    println!("## Plan churn under drift (follow, don't dither — 0.13 Phase 4)");
+    println!();
+    println!("A broken plan forces a rethink; an UNCONSTRAINED rethink can thrash");
+    println!("to a structurally different plan — visible NPC dithering even when");
+    println!("both plans are fine. `replan_following` replays the still-applicable");
+    println!("prefix and searches only the tail. Scripted drift on the contended");
+    println!("fixture: a mind plans the depth-8 double chain; then one of the");
+    println!("plan's own vendor-vendor trades happens OFF-SCREEN before the mind");
+    println!("moves — the world advanced along the plan but out of order, replay");
+    println!("breaks, the goal stays reachable. Two scripted drifts: the FIRST");
+    println!("breaking pre-trade (early hole) and the LAST (deep hole). Churn =");
+    println!("Levenshtein edit distance between old and new step sequences (lower");
+    println!("= steadier NPC).");
+    println!();
+    let mut planner = world_x2.fork();
+    planner.set_goal("(and (has a0 itemA8) (has a0 itemB8))")?;
+    let prior = planner.replan_budgeted(64_000, Some(256));
+    assert!(prior.solved);
+    let prior = prior.plan.unwrap();
+    let disp = |p: &ferroplan::Plan| -> Vec<String> {
+        p.steps
+            .iter()
+            .map(|s| format!("{} {}", s.action, s.args.join(" ")))
+            .collect()
+    };
+    let old = disp(&prior);
+    println!(
+        "- prior plan: {} steps for >= 16 trades of work (vendor-vendor \
+         pre-trades included)",
+        old.len()
+    );
+    // Discover the breaking drifts by pure replay (no search): pre-execute
+    // one vendor-vendor step's effects and ask plan_still_valid.
+    let drifted = |step: &ferroplan::Step| -> Result<Option<Session>, String> {
+        if step.args[0] == "A0" {
+            return Ok(None); // the mind's own move can't happen off-screen
+        }
+        let (a, b, x, y) = (&step.args[0], &step.args[1], &step.args[2], &step.args[3]);
+        let mut m = planner.fork();
+        m.set_fact(&format!("(has {a} {x})"), false)?;
+        m.set_fact(&format!("(has {b} {y})"), false)?;
+        m.set_fact(&format!("(has {a} {y})"), true)?;
+        m.set_fact(&format!("(has {b} {x})"), true)?;
+        Ok((!m.plan_still_valid(&prior, 0)).then_some(m))
+    };
+    let mut breaking: Vec<(usize, Session)> = Vec::new();
+    for (i, s) in prior.steps.iter().enumerate() {
+        if let Some(m) = drifted(s)? {
+            breaking.push((i, m));
+        }
+    }
+    let picks: Vec<&(usize, Session)> = vec![
+        breaking.first().expect("a breaking drift"),
+        breaking.last().unwrap(),
+    ];
+    for (i, mind) in picks {
+        let step = &prior.steps[*i];
+        println!();
+        println!(
+            "Drift: `{} {}` (plan step {i}) already happened off-screen:",
+            step.action,
+            step.args.join(" ")
+        );
+        let t = Instant::now();
+        let followed = mind.replan_following(&prior, 0, 64_000, Some(256));
+        let follow_ms = t.elapsed().as_secs_f64() * 1e3;
+        let t = Instant::now();
+        let unbiased = mind.replan_budgeted(64_000, Some(256));
+        let unbiased_ms = t.elapsed().as_secs_f64() * 1e3;
+        let report = |label: &str, sol: &ferroplan::Solution, ms: f64| match &sol.plan {
+            Some(p) => println!(
+                "- {label}: {} steps, churn {} vs prior, {} evals, {ms:.1} ms{}",
+                p.length,
+                edit_distance(&old, &disp(p)),
+                sol.statistics.evaluated_states,
+                sol.notes
+                    .first()
+                    .map(|n| format!(" — {n}"))
+                    .unwrap_or_default()
+            ),
+            None => println!(
+                "- {label}: BUDGET-EXHAUSTED at 64k evals ({} spent, {ms:.1} ms) — \
+                 the honest verdict; the biased rethink is not just steadier, it \
+                 is the difference between answering and not",
+                sol.statistics.evaluated_states
+            ),
+        };
+        report("biased (`replan_following`)", &followed, follow_ms);
+        report("unbiased (`replan_budgeted`)", &unbiased, unbiased_ms);
+    }
 
     let mind = world_x2.fork();
     println!();

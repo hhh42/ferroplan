@@ -28,7 +28,7 @@ EVERY TICK. That is the game-track headline.
 | 6 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 0.1 |
 | 8 | 8 @ 9 | 8 @ 9 | 8 @ 9 | 8 @ 9 | 8 @ 9 | 0.2 |
 | 10 | 10 @ 11 | 10 @ 11 | 10 @ 11 | 10 @ 11 | 10 @ 11 | 0.3 |
-| 11 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 0.3 |
+| 11 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 0.4 |
 
 Where budget-exhausted verdicts begin:
 
@@ -53,14 +53,14 @@ here.
 
 | depth k | B=1000 | B=4000 | B=16000 | B=64000 | B=256000 | think ms (max B) |
 |---|---|---|---|---|---|---|
-| 1 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 0.0 |
+| 1 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 0.1 |
 | 2 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 0.1 |
-| 3 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 0.3 |
-| 4 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 36.3 |
-| 6 | -- | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 89.8 |
-| 8 | -- | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 233.8 |
-| 10 | -- | -- | 20 @ 4460 | 20 @ 4460 | 20 @ 4460 | 275.4 |
-| 11 | -- | -- | 22 @ 4711 | 22 @ 4711 | 22 @ 4711 | 457.0 |
+| 3 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 0.2 |
+| 4 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 27.8 |
+| 6 | -- | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 83.2 |
+| 8 | -- | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 181.3 |
+| 10 | -- | -- | 20 @ 4460 | 20 @ 4460 | 20 @ 4460 | 230.2 |
+| 11 | -- | -- | 22 @ 4711 | 22 @ 4711 | 22 @ 4711 | 408.7 |
 
 Where budget-exhausted verdicts begin:
 
@@ -72,6 +72,30 @@ Where budget-exhausted verdicts begin:
 - depth 8: solves from B=4000
 - depth 10: solves from B=16000
 - depth 11: solves from B=16000
+
+## Plan churn under drift (follow, don't dither — 0.13 Phase 4)
+
+A broken plan forces a rethink; an UNCONSTRAINED rethink can thrash
+to a structurally different plan — visible NPC dithering even when
+both plans are fine. `replan_following` replays the still-applicable
+prefix and searches only the tail. Scripted drift on the contended
+fixture: a mind plans the depth-8 double chain; then one of the
+plan's own vendor-vendor trades happens OFF-SCREEN before the mind
+moves — the world advanced along the plan but out of order, replay
+breaks, the goal stays reachable. Two scripted drifts: the FIRST
+breaking pre-trade (early hole) and the LAST (deep hole). Churn =
+Levenshtein edit distance between old and new step sequences (lower
+= steadier NPC).
+
+- prior plan: 16 steps for >= 16 trades of work (vendor-vendor pre-trades included)
+
+Drift: `TRADE V3 V4 ITEMA3 ITEMA4` (plan step 2) already happened off-screen:
+- biased (`replan_following`): 15 steps, churn 12 vs prior, 2540 evals, 91.5 ms — followed 2 still-applicable step(s) of the prior plan; searched only the tail
+- unbiased (`replan_budgeted`): 15 steps, churn 12 vs prior, 2997 evals, 111.1 ms — EHC found no improving state; used weighted best-first
+
+Drift: `TRADE V6 V7 ITEMB6 ITEMA8` (plan step 13) already happened off-screen:
+- biased (`replan_following`): 15 steps, churn 1 vs prior, 3 evals, 0.1 ms — followed 13 still-applicable step(s) of the prior plan; searched only the tail
+- unbiased (`replan_budgeted`): 14 steps, churn 16 vs prior, 2899 evals, 123.6 ms — EHC found no improving state; used weighted best-first
 
 ## Per-mind retained memory and world load
 

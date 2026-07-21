@@ -751,6 +751,127 @@ impl Session {
         self.replan_inner(None, None)
     }
 
+    /// Follow, don't dither (0.13 Phase 4): a bounded rethink BIASED toward
+    /// the broken plan's structure. When drift breaks a plan mid-flight, an
+    /// unconstrained rethink can thrash to a structurally different plan —
+    /// visible NPC dithering even when both plans are fine. This variant
+    /// replays the still-applicable PREFIX of the old plan's remaining
+    /// suffix (steps `from_step..`, up to the first inapplicable step —
+    /// pure replay, zero search), then searches only for a new TAIL from
+    /// where the prefix ends: the new plan shares the prefix by
+    /// construction, so churn is confined to the part drift actually broke.
+    ///
+    /// The bias can cost budget, never completeness or honesty: if the goal
+    /// is met anywhere along the prefix the plan is cut there (no search);
+    /// if NO tail exists from the prefix end (the prefix may have walked
+    /// somewhere the new goal cannot be reached from), the rethink falls
+    /// back to an unbiased [`Session::replan_budgeted`] with the same
+    /// budget, and the returned statistics count BOTH searches. Both legs
+    /// are the ordinary deterministic bounded think (t1 ≡ t8).
+    ///
+    /// The bias applies to classical sessions; a temporal plan's prefix
+    /// ends mid-interval — not the at-rest state a session may stand in —
+    /// so temporal sessions delegate to the plain bounded think.
+    pub fn replan_following(
+        &self,
+        prior: &Plan,
+        from_step: usize,
+        max_evaluated: usize,
+        memory_mb: Option<usize>,
+    ) -> Solution {
+        if self.temporal.is_some() {
+            return self.replan_inner(Some(max_evaluated), memory_mb);
+        }
+        let display = |s: &crate::api::Step| {
+            if s.args.is_empty() {
+                s.action.clone()
+            } else {
+                format!("{} {}", s.action, s.args.join(" "))
+            }
+        };
+        let mut state = self.task.initial();
+        let mut prefix: Vec<crate::api::Step> = Vec::new();
+        for s in prior.steps.get(from_step..).unwrap_or(&[]) {
+            if self.task.goal_met(&state) {
+                break;
+            }
+            let oi = match self.op_ids.get(&display(s)) {
+                Some(&oi) if self.task.op_applicable(oi, &state) => oi,
+                _ => break,
+            };
+            state = self.task.apply(oi, &state);
+            prefix.push(s.clone());
+        }
+        let renumber = |mut steps: Vec<crate::api::Step>| {
+            for (i, s) in steps.iter_mut().enumerate() {
+                s.index = i;
+            }
+            steps
+        };
+        if self.task.goal_met(&state) {
+            let steps = renumber(prefix);
+            return Solution {
+                solved: true,
+                mode: Mode::Ff,
+                plan: Some(Plan {
+                    length: steps.len(),
+                    steps,
+                    metric: None,
+                    makespan: None,
+                }),
+                statistics: stats(&self.task, 0, self.threads),
+                notes: vec!["prior plan's own steps reach the goal (pure replay)".into()],
+            };
+        }
+        // Search for a tail from the prefix end. The shared payload (Phase 2)
+        // makes this seeded task view an Arc bump plus small state vectors.
+        let mut seeded = self.task.clone();
+        seeded.init_bits = state.bits;
+        seeded.fv0 = state.fv;
+        seeded.fdef0 = state.fdef;
+        let mut cfg = crate::search::SearchCfg::from_weights(
+            self.weight_g,
+            self.weight_h,
+            Some(max_evaluated),
+        );
+        cfg.node_bytes_target = memory_mb.map(|mb| mb.saturating_mul(1 << 20));
+        let o = search::plan(&seeded, self.threads, cfg, self.ehc_first);
+        match o.ops {
+            Some(ops) => {
+                let followed = prefix.len();
+                let mut steps = prefix;
+                steps.extend(steps_of(&seeded, &ops, None));
+                let steps = renumber(steps);
+                Solution {
+                    solved: true,
+                    mode: Mode::Ff,
+                    plan: Some(Plan {
+                        length: steps.len(),
+                        steps,
+                        metric: None,
+                        makespan: None,
+                    }),
+                    statistics: stats(&self.task, o.evaluated, self.threads),
+                    notes: vec![format!(
+                        "followed {followed} still-applicable step(s) of the prior \
+                         plan; searched only the tail"
+                    )],
+                }
+            }
+            None => {
+                // No tail from the prefix end — unbiased rethink, honest totals.
+                let mut sol = self.replan_inner(Some(max_evaluated), memory_mb);
+                sol.statistics.evaluated_states += o.evaluated;
+                sol.notes.push(
+                    "prefix-follow found no tail within budget; fell back to an \
+                     unbiased rethink"
+                        .into(),
+                );
+                sol
+            }
+        }
+    }
+
     fn replan_inner(&self, budget_evals: Option<usize>, memory_mb: Option<usize>) -> Solution {
         if let Some(c) = &self.temporal {
             return self.replan_temporal(c, budget_evals, memory_mb);
@@ -1341,6 +1462,85 @@ mod tests {
         );
         // Parent still wants both and still gets both.
         assert_eq!(s.replan_budgeted(50_000, Some(128)).plan.unwrap().length, 2);
+    }
+
+    #[test]
+    fn replan_following_preserves_the_surviving_prefix() {
+        // Drift that invalidates the plan WITHOUT breaking any step's
+        // applicability (the goal just isn't met at the end anymore): the
+        // whole suffix replays as the prefix, search adds only the tail.
+        let mut s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        let prior = s.replan();
+        assert!(prior.solved);
+        let prior = prior.plan.unwrap(); // walk, harvest, harvest
+        s.set_fluent("(grain)", -1.0).unwrap();
+        assert!(!s.plan_still_valid(&prior, 0), "goal shortfall breaks it");
+        let sol = s.replan_following(&prior, 0, 10_000, Some(64));
+        assert!(sol.solved);
+        let steps = &sol.plan.as_ref().unwrap().steps;
+        assert_eq!(steps.len(), 4, "old 3 steps + one more harvest");
+        for (i, old) in prior.steps.iter().enumerate() {
+            assert_eq!(steps[i].action, old.action, "prefix must be verbatim");
+            assert_eq!(steps[i].args, old.args);
+        }
+        assert!(
+            sol.notes.iter().any(|n| n.contains("followed 3")),
+            "{:?}",
+            sol.notes
+        );
+    }
+
+    #[test]
+    fn replan_following_cuts_at_goal_mid_prefix() {
+        // The prior plan OVERSHOOTS after drift (grain already 1): the goal
+        // is met two steps in, the plan is cut there — pure replay, zero
+        // search spent.
+        let mut s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        let prior = s.replan().plan.unwrap();
+        s.set_fluent("(grain)", 1.0).unwrap();
+        let sol = s.replan_following(&prior, 0, 10_000, Some(64));
+        assert!(sol.solved);
+        assert_eq!(sol.plan.as_ref().unwrap().length, 2, "walk + one harvest");
+        assert_eq!(sol.statistics.evaluated_states, 0, "replay, not search");
+    }
+
+    #[test]
+    fn replan_following_falls_back_when_the_prefix_strands() {
+        // A prior "plan" whose first step is a WRONG PICK (trades the seed
+        // for junk nobody wants): the prefix replays into a dead end, the
+        // seeded search finds no tail, and the fallback unbiased rethink
+        // still solves — the bias may cost budget, never completeness.
+        let dom = include_str!("../../../benchmarks/bench/bazaar-chain-domain.pddl");
+        let prb = include_str!("../../../benchmarks/bench/bazaar-chain.pddl");
+        let mut s = Session::new(dom, prb, &Options::default()).expect("session");
+        s.set_goal("(has a0 item1)").unwrap();
+        let bad = Plan {
+            steps: vec![crate::api::Step {
+                index: 0,
+                action: "TRADE".into(),
+                args: ["A0", "V1", "ITEM0", "JUNK0"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                time: None,
+                duration: None,
+            }],
+            length: 1,
+            metric: None,
+            makespan: None,
+        };
+        let sol = s.replan_following(&bad, 0, 50_000, Some(128));
+        assert!(sol.solved, "fallback must recover: {:?}", sol.notes);
+        assert_eq!(
+            sol.plan.as_ref().unwrap().length,
+            1,
+            "trade item0 for item1"
+        );
+        assert!(
+            sol.notes.iter().any(|n| n.contains("fell back")),
+            "{:?}",
+            sol.notes
+        );
     }
 
     #[test]

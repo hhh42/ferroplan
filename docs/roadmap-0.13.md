@@ -177,6 +177,42 @@ When a rethink IS forced, bias it toward the broken plan's structure.
   the knob ships opt-in unless the win is clean (`FF_*` hatch either
   way).
 
+## Recorded — Phase 4 (2026-07-21): SHIPPED on the cheapest candidate
+
+`Session::replan_following(prior, from_step, budget, mem)`: replay the
+still-applicable PREFIX of the broken plan's remaining suffix (pure
+replay, zero search), then search only for a tail from where the
+prefix ends — the new plan shares the prefix by construction. The
+Phase 2 payload sharing made the seeded start state a cheap task view
+(Arc bumps + small vectors), so this landed with NO search surgery;
+the second candidate (shared-op tie-break preference) was never
+needed. Completeness is fenced: goal met mid-prefix cuts the plan
+there; no tail found falls back to an unbiased rethink with honest
+combined eval counts. Temporal sessions delegate to the plain bounded
+think (a timed prefix ends mid-interval, not at-rest). Opt-in by
+construction — it is a separate method, so no `FF_*` hatch is needed
+(recorded as the hatch decision).
+
+Measured (scoreboard section in `benchmarks/bazaar-thinks.md`;
+scripted drift = one of the plan's own vendor-vendor pre-trades
+happens off-screen, discovered by replay so the script survives plan
+changes):
+
+- **early hole** (step 2 of 16): biased 15 steps / churn 12 / 2,540
+  evals vs unbiased 15 / 12 / 2,997 — little prefix to save, mild win.
+- **deep hole** (step 13 of 16): biased **churn 1, 3 evals, 0.1 ms**
+  (follows 13 steps, patches one) vs unbiased **churn 16, 2,899
+  evals, 124 ms** — a completely restructured plan, one step shorter.
+  The bias trades that one step of quality for a three-orders-of-
+  magnitude cheaper, visibly steadier NPC; the unbiased path remains
+  one call away when quality matters.
+- The probe run also caught a drift where the unbiased rethink
+  BUDGET-EXHAUSTS at 64k evals while the biased one answers in 6 —
+  following is sometimes the difference between answering and not.
+
+Suite 161/0 (3 new: verbatim-prefix preservation, goal-met-mid-prefix
+cut with zero search, stranded-prefix fallback recovery).
+
 ## Phase 5 — TMS symmetry reduction (the corpus stretch)
 
 The one remaining wall with a DIAGNOSED mechanism (0.12 Phase 4
