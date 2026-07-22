@@ -488,14 +488,17 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   `always-within`) and the temporal path are still **rejected by name**
   rather than silently dropped (`FF_CONSTRAINTS_REJECT=1` restores the
   pre-0.7 blanket rejection).
-- **Temporal**: durative actions with constant or parameter-dependent durations
-  and required concurrency are supported, and **plans are VAL-validated** on real
-  IPC temporal domains (44/45 produced plans valid — see
-  [`benchmarks/temporal-results.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/temporal-results.md)). Coverage is
-  currently search-limited (the decision-epoch search times out on large
-  instances). Duration *inequalities* (`(>= ?duration L)` / `(<= ?duration U)` /
-  `and` ranges) are supported — the search commits to the shortest feasible
-  duration — as are **timed initial literals** (`(at <time> <literal>)` in `:init`).
+- **Temporal**: durative actions with constant, parameter-dependent, or
+  state-dependent durations and required concurrency are supported, and **every
+  solved plan on the full IPC-2008/2011 tempo-sat corpus is VAL-validated**
+  (388/630 at 30 s, 388/388 valid — see
+  [`benchmarks/ipc67-temporal.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-temporal.md)). Coverage on
+  the remainder is search-limited: the recorded walls (machine-shop, storage,
+  model-train, turn-and-open) are guidance problems, not semantics. Duration
+  *inequalities* (`(>= ?duration L)` / `(<= ?duration U)` / `and` ranges) are
+  supported — the search commits to the shortest feasible duration — as are
+  **timed initial literals** (`(at <time> <literal>)` in `:init`) and
+  `?duration` inside numeric effect expressions (duration-dependent effects).
   Continuous (`#t`) effects are not yet supported.
 - **Derived predicates** (`:derived`): static/stratified axioms are supported
   (closed into the initial state); *dynamic* derived predicates (bodies over

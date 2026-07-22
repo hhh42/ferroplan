@@ -38,7 +38,7 @@ of that gap:
 
 The last piece for openstacks was the *scheduling* of the shared `stacks-avail`
 resource, invisible to the satisfaction term because it appears in no preference.
-That is exactly what the opt-in **ESPC penalty loop** (`FF_ESPC`) now does: its λ
+That is exactly what the **ESPC penalty loop** (default-on since 0.5; `FF_NO_ESPC` opts out) does: its λ
 schedule drives a partitioned composition that prices `stacks-avail` as a global
 constraint — taking openstacks **ahead of SGPlan5 on p04–p08**.
 
@@ -75,6 +75,6 @@ a goal-interaction graph over the mutex variables, and on a conflict the resolve
 merges the actual conflicting pair. The result shortens **blocks plans ~25%**
 where goals share structure but aren't resource-coupled; on resource-coupled
 domains naive decomposition still re-traverses the shared resource — which the
-opt-in ESPC penalty loop (`FF_ESPC`) now prices as a global constraint. Method,
+default-on ESPC penalty loop (`FF_NO_ESPC` opts out) now prices as a global constraint. Method,
 coverage numbers, and findings:
 [`docs/invariants-measurement.md`](https://github.com/hhh42/ferroplan/blob/main/docs/invariants-measurement.md).

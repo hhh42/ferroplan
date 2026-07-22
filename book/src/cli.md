@@ -8,7 +8,7 @@ The `ff` binary is a drop-in for Metric-FF's `ff -o domain -f problem`.
 | `-f, --problem <FILE>` | PDDL problem |
 | `--json` | emit a structured JSON `Solution` instead of classic text |
 | `--json-request <FILE>` | self-contained `{domain, problem, options}` JSON job (`-` = stdin) |
-| `--mode <auto\|ff\|partition\|pddl3\|temporal>` | planning strategy (default `auto`) |
+| `--mode <auto\|ff\|partition\|pddl3\|temporal\|portfolio>` | planning strategy (default `auto`) |
 | `--search <auto\|ehc\|best-first\|ehc-then-best-first>` | search strategy |
 | `--weight-g <W>` / `--weight-h <W>` | best-first path-length / heuristic weights |
 | `--max-evaluated <N>` | cap on nodes evaluated before giving up |
@@ -21,7 +21,9 @@ The `ff` binary is a drop-in for Metric-FF's `ff -o domain -f problem`.
 `auto` routes by problem features: classic FF for classical/numeric, the PDDL3
 metric optimizer when the problem has preferences, and the decision-epoch temporal
 search when the domain has `:durative-action`s. `partition` selects the
-SGPlan-style partition-and-resolve mode. Run `ff --help` for the full list.
+SGPlan-style partition-and-resolve mode; `portfolio` runs the budget-aware
+sequential strategy ladder on one shared eval pool. Run `ff --help` for the
+full list.
 
 ```sh
 ff -o domain.pddl -f problem.pddl --json

@@ -110,7 +110,7 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -p ferroplan -p ferroplan-cli
 if [[ "${RUN_HEAVY:-0}" == 1 ]]; then
   cargo test --release -p ferroplan -p ferroplan-cli -- --include-ignored
 else
-  cargo test -p ferroplan -p ferroplan-cli
+  cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp
 fi
 # Build the library tarball and verify it compiles in isolation.
 cargo package -p ferroplan
@@ -137,7 +137,7 @@ fi
 if [[ "$ALREADY_ON_INDEX" != 1 ]]; then
   if [[ "$ASSUME_YES" != 1 ]]; then
     echo
-    echo "About to PUBLISH ferroplan ${VERSION} and ferroplan-cli ${VERSION} to crates.io."
+    echo "About to PUBLISH ferroplan, ferroplan-cli, and ferroplan-mcp ${VERSION} to crates.io."
     echo "This is irreversible (a version can only be yanked, never deleted/reused)."
     read -r -p "Type the version (${VERSION}) to confirm: " reply
     [[ "$reply" == "$VERSION" ]] || { echo "aborted."; exit 1; }
@@ -158,6 +158,9 @@ if [[ "$ALREADY_ON_INDEX" != 1 ]]; then
 
   echo "==> Publishing the CLI"
   cargo publish -p ferroplan-cli
+
+  echo "==> Publishing the MCP server"
+  cargo publish -p ferroplan-mcp
 fi
 
 # Tag the release — but skip if it already exists on the remote (e.g. this run is

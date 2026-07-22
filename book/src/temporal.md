@@ -10,8 +10,11 @@ decision-epoch forward search; the CLI prints the IPC temporal plan format.
   **conditions** and **effects**.
 - **Durations** that are constants *or* **parameter-dependent**, e.g.
   `:duration (= ?duration (/ (distance ?a ?b) (speed ?v)))` — evaluated per
-  grounded action against the initial state (the static fluents temporal
-  durations usually read).
+  grounded action against the initial state, or **per expansion against the
+  current state** when the duration reads a fluent some action modifies
+  (state-dependent durations, since 0.12). `?duration` is also accepted
+  inside numeric *effect* expressions (duration-dependent effects like
+  `(increase (energy ?x) (* ?duration (recharge-rate ?x)))`, since 0.10).
 - **Duration inequalities** — `(>= ?duration L)` / `(<= ?duration U)` and `and`
   ranges; the search commits to the shortest feasible duration.
 - **Timed initial literals** — `(at <time> <literal>)` in `:init`; each becomes a
@@ -33,7 +36,10 @@ existing grounder and relaxed-plan heuristic can be reused:
 The duration and the `over all` invariant live in a side table the temporal
 search consumes: a decision-epoch search advances time over an agenda of pending
 end-events, only letting `A-END` fire `duration` after its matching `A-START`,
-and checking the invariant at both happenings.
+and checking the invariant at both happenings. Since 0.13 the pending-interval
+agenda is **symmetry-reduced** (canonical ordering + redundant identical-interval
+elimination, `FF_NO_TSYMM=1` reverts) — same-epoch starts of interchangeable
+intervals no longer multiply the visited space.
 
 ## Output
 
@@ -87,19 +93,23 @@ replans as the world changes.
 ## Validation against VAL
 
 Plans are validated with [VAL](https://github.com/KCL-Planning/VAL), the IPC plan
-validator, on real IPC temporal domains (2002–2014). **44 of 45 produced plans
-are VAL-valid** under PDDL2.1 continuous-time semantics — confirming the
-snap-action compilation, `over all` invariants, required concurrency, and
-ε-separation are correct. (Testing against VAL is what surfaced the ε-separation
-requirement in the first place.) Coverage is currently **search-limited**: at a
-short budget many instances time out or the decision-epoch search exhausts. See
-[`benchmarks/temporal-results.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/temporal-results.md).
+validator. On the full IPC-2008/2011 tempo-sat corpus (630 instances, 30 s each),
+ferroplan solves **388 — and every one of the 388 plans is VAL-valid** under
+PDDL2.1 continuous-time semantics, confirming the snap-action compilation,
+`over all` invariants, required concurrency, and ε-separation are correct.
+(Testing against VAL is what surfaced the ε-separation requirement in the first
+place; since 0.10 the pass totally ε-orders execution, so same-instant mutexes —
+conditional-effect ones included — are impossible by construction.) Coverage on
+the unsolved remainder is **search-limited**: the recorded walls are guidance
+problems, not semantics. See
+[`benchmarks/ipc67-temporal.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-temporal.md).
 
 ## Not yet supported
 
-**Continuous** (`#t`) / duration-dependent numeric effects and ε-separation of
-*conditional*-effect mutexes are not handled yet. PDDL3 trajectory constraints
+**Continuous** (`#t`) effects are not handled (discrete duration-dependent
+effects via `?duration` are — see above). PDDL3 trajectory constraints
 (`(:constraints …)`) are enforced on the *classical* path (untimed operators,
 since 0.7) but not on the temporal path — a durative-action domain that
 declares them is rejected rather than silently ignored. Temporal **search
-performance** (coverage on large instances) is the main open work item.
+guidance** on the recorded wall domains (machine-shop, storage, model-train,
+turn-and-open) is the main open work item.

@@ -1,8 +1,9 @@
 # Releasing ferroplan
 
-The workspace publishes **two** crates to crates.io: the library `ferroplan` and
-the CLI `ferroplan-cli` (the `ff` binary), which depends on the library. They must
-be published **in that order**.
+The workspace publishes **three** crates to crates.io: the library `ferroplan`,
+the CLI `ferroplan-cli` (the `ff` binary), and the MCP server `ferroplan-mcp` —
+the latter two depend on the library. They must be published **in that order**
+(library first).
 
 > **TL;DR:** after `cargo login <token>`, run [`./publish.sh`](publish.sh) from a
 > machine with crates.io access — it runs the full pre-flight below, then publishes
@@ -46,17 +47,36 @@ and tag (`vX.Y.Z`).
 ## Publish (order matters)
 
 ```sh
-# 1. the library first — the CLI depends on it
+# 1. the library first — everything else depends on it
 cargo publish -p ferroplan
 
 # 2. then the CLI (now that `ferroplan` is on the index)
 cargo publish -p ferroplan-cli
+
+# 3. then the MCP server (in the publish set since 0.14.0)
+cargo publish -p ferroplan-mcp
 ```
 
-> A `cargo publish -p ferroplan-cli --dry-run` BEFORE the library is on crates.io
-> fails with `no matching package named 'ferroplan' found` — this is expected, not
-> a packaging bug. Verify the CLI with `cargo build -p ferroplan-cli` instead, and
-> publish it only after step 1 has landed.
+> A `cargo publish --dry-run` for the CLI or MCP crate BEFORE the library is on
+> crates.io fails with `no matching package named 'ferroplan' found` — this is
+> expected, not a packaging bug. Verify them with
+> `cargo build -p ferroplan-cli -p ferroplan-mcp` instead, and publish only
+> after step 1 has landed.
+
+## The Python wheel (staged, published separately)
+
+`crates/ferroplan-py` versions with the workspace (bump its `version` in BOTH
+`Cargo.toml` and `pyproject.toml` alongside the workspace bump) but publishes
+to **PyPI**, not crates.io, via [maturin](https://www.maturin.rs):
+
+```sh
+pip install maturin
+maturin build --release -m crates/ferroplan-py/Cargo.toml   # -> target/wheels/*.whl
+maturin publish -m crates/ferroplan-py/Cargo.toml           # needs a PyPI token
+```
+
+The wheel build is part of the pre-flight from 0.14.0 on; publishing it is a
+separate, optional step (the crates.io release does not depend on it).
 
 Each crate package bundles `README.md` and both `LICENSE-*` files (symlinked into
 the crate dirs) so the crates.io page and tarball are complete.

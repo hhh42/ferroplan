@@ -26,10 +26,17 @@ It combines:
   and **PDDL3 trajectory constraints** (`(:constraints ...)`) — the six
   untimed modal operators enforced via monitor-automaton compilation,
   hard and soft alike;
-- **PDDL2.1 temporal** planning — durative actions with constant or
-  parameter-dependent durations and required concurrency (see
+- **PDDL2.1 temporal** planning — durative actions with constant,
+  parameter-dependent, or state-dependent durations, timed initial
+  literals, and required concurrency (see
   [Temporal planning](./temporal.md));
-- an optional **SGPlan-style partition-and-resolve** mode.
+- a **game-embedding `Session`** — ground a world once, then run a whole
+  population of minds in it: bounded deterministic thinks, free
+  plan-validity replays, retargetable goals, cheap forks, scheduled
+  events, in-flight intervals (see
+  [Game embedding](./session.md));
+- an optional **SGPlan-style partition-and-resolve** mode, and a
+  budget-aware sequential **portfolio** mode (`--mode portfolio`).
 
 It is offered as a Rust **library** (with a structured, JSON-serializable API)
 and the **`ff`** command-line binary, a drop-in for Metric-FF.

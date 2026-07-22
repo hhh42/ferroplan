@@ -372,6 +372,50 @@ the surfaces that have waited since 0.5:
   ONLY 0/N classical variant (0/20 at 60 s) — diagnose whether it is
   the transport11 guidance wall verbatim or something cheaper.
 
+## Recorded — Phase 8 (2026-07-22): SHIPPED — the book catches up to the engine
+
+The mdBook was six releases stale (last touched at 0.8.0). Reworked
+against the current record, chapter by chapter:
+
+- **A new flagship chapter** — *Game embedding (the `Session`)* — the
+  0.11→0.14 API arc in one place: bounded thinks, follow-before-you-
+  rethink, retargetable goals, population forks, actor scoping,
+  scheduled worlds, in-flight intervals, the fences, and the memory
+  accessors; linked from the library chapter, the intro, and the
+  living-bazaar demo page.
+- Stale claims fixed everywhere found: temporal VAL story updated from
+  the 0.9-era "44/45" to the current 388/630-all-VAL-green corpus
+  sweep; "ε-separation of conditional mutexes not handled" (fixed in
+  0.10 — the Phase 7 verification); duration-dependent effects and
+  state-dependent durations documented; ESPC described as default-on
+  (it has been since 0.5) in three places; symmetry reduction and the
+  portfolio mode surfaced; install chapter gains `cargo install`.
+- `tuning.md` gains the 0.9→0.14 knob sections it was missing
+  (`FF_NO_TSYMM`, `FF_TEMPORAL_NODE_CAP`, `FF_TEMPORAL_ABS_KEY`,
+  `FF_TLAMA`, `FF_LAX_HELPFUL`, `FF_TAGENDA_W`,
+  `FF_NO_FIXPOINT_GROUND`, `FF_NO_DNF_STATIC`, `FF_NO_TRAJ_END`,
+  `FF_CLM`, `FF_LEN_ANYTIME`, `FF_LEN_SWEEP_EVALS`), each labeled with
+  its measured verdict. README limitations re-audited. Book BUILD
+  verified with mdbook.
+
+Platform, staged for the user's publish:
+
+- **ferroplan-mcp joins the publish set**: `publish = true`, LICENSE
+  symlinks added (they were missing), `publish.sh` publishes it third
+  (library → cli → mcp), dry-run branch build-checks it, RELEASING.md
+  documents the order. Build-checked green.
+- **ferroplan-py versions with the workspace** (0.1.0 → 0.14.0 in both
+  manifests, re-locked) and **the wheel builds**:
+  `ferroplan-0.14.0-cp38-abi3-manylinux_2_34_x86_64.whl` via maturin —
+  the pre-flight gains the wheel build; PyPI publishing stays a
+  separate optional step (RELEASING.md).
+
+Ride-along diagnosis closed: **transport-sequential-satisficing-2011
+IS the transport11 guidance wall verbatim** — instance-1 (40 nodes, 16
+packages) is search-bound past 90 s solo, the recorded avg_helpful→0
+family, nothing cheaper hiding underneath. It waits on Phase 11's
+landmark rung, which targets exactly this domain.
+
 ## Phase 9 — temporal follow-biased rethinks (the severable keeper)
 
 The recorded 0.13 limit — `replan_following` delegates temporal

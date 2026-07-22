@@ -23,6 +23,23 @@ results are deterministic and thread-count independent.
 | `FF_TDECOMP` | off | route the temporal path through the partition-and-resolve decomposer first (the `decompose` API always does, regardless). |
 | `FF_TCONC` | off | run the concurrent scheduling phase — repack a plan onto actor objects to minimize makespan. |
 | `FF_TDEMAND_W` | `3` | weight of the temporal demand seed. |
+| `FF_NO_TSYMM` | symmetry on | disable the 0.13 pending-interval **symmetry reduction** (canonical agenda order + redundant identical-interval elimination). The restore hatch for its one named corpus casualty (parking-2011 #16). |
+| `FF_TEMPORAL_NODE_CAP` | byte model | override the deterministic temporal stored-node cap directly (`0` disables; default derives from the memory target and static task dims). |
+| `FF_TEMPORAL_ABS_KEY` | relative | restore ABSOLUTE agenda times in the visited key on TIL-free tasks (the pre-0.10 behavior; relative keying dedups retimed permutations). |
+| `FF_TLAMA` | off | **experimental**: the temporal LAMA rung (fact-landmark-dominant key). Measured negative — snap-task landmarks are RUNNING-token chains with no branching signal. |
+| `FF_LAX_HELPFUL` | off | **experimental**: re-arm empty temporal helpful sets with a lax fallback instead of a full scan. Measured zero new solves. |
+| `FF_TAGENDA_W` | `0` | **experimental**: complete-pass agenda-size ordering term (de-prioritize interval hoarding). Measured negative on parc-printer-t. |
+| `FF_NO_FIXPOINT_GROUND` | fixpoint (Session) | make the `Session`'s temporal entry use stratified grounding instead of reached-restricted **fixpoint grounding** (the ~117× transient-memory win on sparse-reachable worlds). Corpus/CLI paths always use stratified — their tie-breaks pin the scoreboard baselines. |
+
+## Classical search (experiments & restore hatches)
+
+| var | default | effect |
+|---|---|---|
+| `FF_NO_DNF_STATIC` | resolve | disable static resolution inside precondition DNF expansion (restore the 2^k `imply` blowup the 0.10 fix removed — openstacks-ADL 6/30 → 30/30). |
+| `FF_NO_TRAJ_END` | end-action | restore the exponential goal-DNF construction for hard trajectory monitors (pre-0.8). |
+| `FF_CLM` | off | **experimental**: classical landmark-count guidance term. Measured negative (transport unchanged, floor-tile worse). |
+| `FF_LEN_ANYTIME` | off | **experimental**: keep draining the open list after the first plan, returning the shortest found. Measured −9 coverage at 60 s; opt-in only. |
+| `FF_LEN_SWEEP_EVALS` | off | **experimental**: iterated-weight anytime re-sweeps for unit-cost plan length (~1.8% shorter at ~28× evals). |
 
 ## PDDL3 preference optimizer
 

@@ -11,9 +11,8 @@ authors.workspace = true
 keywords.workspace = true
 categories.workspace = true
 readme = "README.md"
-# Not published to crates.io yet (the release ships `ferroplan` + `ferroplan-cli`);
-# flip this when we add it to the publish set.
-publish = false
+# In the publish set since 0.14.0 (library -> cli -> mcp, in that order).
+publish = true
 
 [[bin]]
 name = "ferroplan-mcp"

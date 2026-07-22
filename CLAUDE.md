@@ -8,5 +8,6 @@
   recorded negative, fixtures first, scoreboards defend themselves.
 - Full pre-flight before any cut: latest stable, `fmt --check`, clippy
   `--all-targets --all-features -D warnings`, `test --all` (release),
-  doc `-D warnings`, `bench --no-run`, ferroplan-py re-lock,
-  `publish -p ferroplan --dry-run`. See `RELEASING.md`.
+  doc `-D warnings`, `bench --no-run`, ferroplan-py version+re-lock,
+  `publish -p ferroplan --dry-run`, build-check `ferroplan-mcp`, and
+  the maturin wheel build (0.14+). See `RELEASING.md`.

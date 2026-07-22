@@ -36,7 +36,7 @@ provably-optimal `collect`/`forgo` phase tail. Three pieces make it scale:
   budget problem. This is what broke the storage/tpp large-instance plateau
   (storage now beats SGPlan5 on p01–p07).
 
-For resource-coupled domains an **opt-in ESPC penalty loop** (`FF_ESPC`, after
+For resource-coupled domains a **default-on ESPC penalty loop** (opt out with `FF_NO_ESPC`; after
 Hsu–Wah's extended-saddle-point method) prices a shared resource as a global
 constraint across a partitioned search — the lever that puts openstacks ahead of
 SGPlan5 on its larger instances. Every knob has a restore hatch (`FF_PREF_COMPILED`,

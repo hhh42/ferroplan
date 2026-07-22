@@ -24,4 +24,12 @@ editor — also runs in the browser (it's a larger download; give it a moment).
 Keys: **E** toggles the editor, **Tab** switches problem/domain, **S** solves,
 **Space** plays the plan; drag nodes, scroll to zoom, click to inspect.
 
+## The living bazaar
+
+A replay of a real multi-mind `Session` tick-loop run — two planners in one
+barter world, with and without contention claims (see
+[Game embedding](./session.md)):
+
+> ### [▶ Open the living-bazaar replay](./demo/bazaar-live.html)
+
 For everything-else (the CLI, the library, install), see the rest of the docs.
