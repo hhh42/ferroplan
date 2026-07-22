@@ -22,19 +22,23 @@
 //!
 //! **Scope.** Classical / numeric / ADL domains, and — since 0.12 — TEMPORAL
 //! (durative-action) domains: the snap compilation grounds once and every
-//! think runs the bounded decision-epoch ladder from the current AT-REST
-//! state (no running intervals between thinks; `set_fact` fences the
-//! compiler's `RUNNING-*` tokens, and a game models an in-flight action by
-//! mirroring its end effects when it completes). Timed initial literals are
-//! rejected — a TIL pins the absolute clock and session thinks are
-//! clock-relative. PDDL3 preference problems stay rejected (the metric
-//! optimizer compiles the problem per solve). The goal is retargetable
-//! (0.13 Phase 1): [`Session::set_goal`] swaps in any ground conjunction
-//! over the already-interned fact space without regrounding — one world,
-//! changing desires. And a session is forkable (0.13 Phase 2):
-//! [`Session::fork`] clones a mind over the SAME grounded world — the
-//! grounded payload shares behind `Arc`, so a bazaar of N NPCs costs one
-//! grounding plus N small state views, each free to diverge.
+//! think runs the bounded decision-epoch ladder from the current state.
+//! Since 0.14 the world may be IN FLIGHT: [`Session::apply_start`] begins a
+//! durative action now, thinks and validity replays carry its pending end
+//! as a real happening (a plan is valid THROUGH every running interval),
+//! and [`Session::elapse`] fires due ends — no more manual end-effect
+//! mirroring. The world can also carry a SCHEDULE (0.14 Phase 3):
+//! [`Session::set_timed_fact`] plants clock-relative events (market closes
+//! in five) that thinks plan around and `elapse` fires. Absolute-clock
+//! TILs stay rejected at construction — session time is always relative to
+//! NOW. PDDL3 preference problems stay rejected (the metric optimizer
+//! compiles the problem per solve). The goal is retargetable (0.13):
+//! [`Session::set_goal`] swaps in any ground conjunction over the interned
+//! fact space without regrounding. A session is forkable (0.13):
+//! [`Session::fork`] clones a mind over the SAME grounded world — one
+//! grounding, N small state views. And a mind is scopeable (0.14):
+//! [`Session::restrict_ops`] confines its plans to its own actions, the
+//! many-minds correctness primitive.
 //!
 //! **Why static facts are rejected.** Grounding enumerates operator parameters
 //! restricted by *static* predicates read from `:init` — a static fact flipped
@@ -124,6 +128,13 @@ pub struct Session {
     /// kept in sync inside the op's own effects). Built once at construction
     /// (empty for classical sessions), shared by forks.
     til_setters: Arc<FxHashMap<(u32, bool), usize>>,
+    /// IN-FLIGHT intervals (0.14 Phase 5): `(remaining, end_op)` for every
+    /// durative action the world is currently executing
+    /// ([`Session::apply_start`]). They ride into thinks and replays as
+    /// root-agenda happenings — a mind rethinks WHILE its kiln fires — and
+    /// [`Session::elapse`] fires the due ends, retiring the
+    /// mirror-the-end-effects idiom.
+    running: Vec<(f64, usize)>,
 }
 
 /// Extend a freshly grounded TEMPORAL task with scheduled-event setter ops
@@ -352,7 +363,91 @@ impl Session {
             forbidden: Vec::new(),
             timed: Vec::new(),
             til_setters: Arc::new(til_setters),
+            running: Vec::new(),
         })
+    }
+
+    /// The world begins executing a durative action NOW (0.14 Phase 5): the
+    /// start's effects apply immediately (including the compiler's
+    /// `RUNNING-*` token) and the interval's end joins the session's
+    /// in-flight set, due after the action's duration (resolved against the
+    /// CURRENT fluent values, like every think). From here the mind can
+    /// rethink mid-interval: pending ends ride into thinks and
+    /// [`Session::plan_still_valid`] replays as scheduled happenings — and a
+    /// returned plan is valid THROUGH every running end (the search fires
+    /// them and the goal must hold once no end is pending; conservative, and
+    /// sound). [`Session::elapse`] fires ends as their moments pass, so the
+    /// old mirror-the-end-effects idiom is retired: start with
+    /// `apply_start`, advance with `elapse`, and the world stays honest.
+    ///
+    /// `name` is the plan-step form, e.g. `"(fire urn)"`. Errors: classical
+    /// sessions (no durations), unknown actions, and starts whose
+    /// preconditions do not hold in the current state.
+    pub fn apply_start(&mut self, name: &str) -> Result<(), String> {
+        let c = match &self.temporal {
+            Some(c) => Arc::clone(c),
+            None => {
+                return Err("apply_start needs a TEMPORAL session (classical \
+                     actions are instantaneous — apply them with set_fact)"
+                    .into())
+            }
+        };
+        let inner = name
+            .trim()
+            .strip_prefix('(')
+            .and_then(|r| r.strip_suffix(')'))
+            .ok_or_else(|| format!("expected `(action args...)`, got `{name}`"))?
+            .to_ascii_uppercase();
+        let mut words = inner.split_whitespace();
+        let head = words.next().unwrap_or("");
+        let rest: Vec<&str> = words.collect();
+        let disp = if rest.is_empty() {
+            format!("{head}-START")
+        } else {
+            format!("{head}-START {}", rest.join(" "))
+        };
+        let &start_op = self
+            .op_ids
+            .get(&disp)
+            .ok_or_else(|| format!("unknown durative action `{name}` (no grounded `{disp}`)"))?;
+        let (kind, dur_exprs) = crate::temporal::build_kind(&self.task, &c);
+        let (dur, end_op) = match kind[start_op] {
+            crate::temporal::Kind::Start { dur, end_op, dexp } => {
+                let d = if dexp == u32::MAX {
+                    dur
+                } else {
+                    match dur_exprs[dexp as usize].eval(&self.task.fv0, &self.task.fdef0) {
+                        Some(v) if v.is_finite() && v > 0.0 => v,
+                        _ => {
+                            return Err(format!(
+                                "duration of `{name}` does not resolve to a positive \
+                                 value in the current state"
+                            ))
+                        }
+                    }
+                };
+                (d, end_op)
+            }
+            _ => return Err(format!("`{name}` is not a durative action start")),
+        };
+        let start_state = self.task.initial();
+        if !self.task.op_applicable(start_op, &start_state) {
+            return Err(format!(
+                "`{name}` is not applicable in the current state — its start \
+                 preconditions do not hold"
+            ));
+        }
+        let ns = self.task.apply(start_op, &start_state);
+        self.task.init_bits = ns.bits;
+        self.task.fv0 = ns.fv;
+        self.task.fdef0 = ns.fdef;
+        self.running.push((dur, end_op));
+        self.running.sort_by(|a, b| {
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.1.cmp(&b.1))
+        });
+        Ok(())
     }
 
     /// Restrict this mind to the ops `keep` accepts (0.14 Phase 1): every op
@@ -408,6 +503,7 @@ impl Session {
             forbidden: self.forbidden.clone(),
             timed: self.timed.clone(),
             til_setters: Arc::clone(&self.til_setters),
+            running: self.running.clone(),
         }
     }
 
@@ -425,7 +521,10 @@ impl Session {
         memory_mb: Option<usize>,
     ) -> Solution {
         let start = self.task.initial();
-        if self.task.goal_met(&start) {
+        // A running interval's end could still UNMEET the goal — only an
+        // at-rest world takes the trivial exit; in-flight worlds run the
+        // search, which verifies the goal holds through every pending end.
+        if self.task.goal_met(&start) && self.running.is_empty() {
             return Solution {
                 solved: true,
                 mode: Mode::Temporal,
@@ -445,14 +544,22 @@ impl Session {
         let node_bytes = memory_mb
             .map(|mb| mb.saturating_mul(1 << 20))
             .unwrap_or(crate::search::NODE_CAP_TARGET_BYTES);
-        // Pending scheduled events ride in as think-relative TIL events
-        // (their times are already relative to NOW, which is this think's
-        // clock zero). Already sorted deterministically at insertion.
-        let til_events: Vec<(f64, usize)> = self
+        // Pending scheduled events AND running-interval ends ride in as the
+        // think's root agenda (times are relative to NOW, this think's clock
+        // zero). Ends are real ops with real preconditions; the search fires
+        // them at their moments and a goal only counts once no action end is
+        // pending — a returned plan is valid THROUGH the running intervals.
+        let mut til_events: Vec<(f64, usize)> = self
             .timed
             .iter()
             .map(|&(t, f, v)| (t, self.til_setters[&(f, v)]))
             .collect();
+        til_events.extend(self.running.iter().copied());
+        til_events.sort_by(|a, b| {
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.1.cmp(&b.1))
+        });
         let tp = crate::temporal::solve_from_seeded(
             &self.task,
             &kind,
@@ -535,7 +642,8 @@ impl Session {
             let horizon = steps
                 .iter()
                 .map(|s| s.time.unwrap_or(0.0) + s.duration.unwrap_or(0.0))
-                .fold(0.0, f64::max);
+                .fold(0.0, f64::max)
+                .max(self.running.iter().map(|&(t, _)| t).fold(0.0, f64::max));
             for &(t, f, v) in &self.timed {
                 if t <= horizon {
                     tp.steps.push(crate::temporal::TimedStep {
@@ -544,6 +652,16 @@ impl Session {
                         duration: None,
                     });
                 }
+            }
+            // Running-interval ends are REAL happenings the suffix must
+            // survive (their preconditions checked in replay — drift that
+            // breaks an interval breaks every plan living through it).
+            for &(t, end_op) in &self.running {
+                tp.steps.push(crate::temporal::TimedStep {
+                    time: t,
+                    action: self.task.op_display[end_op].clone(),
+                    duration: None,
+                });
             }
             let mut exempt: Vec<usize> = self.til_setters.values().copied().collect();
             exempt.sort_unstable();
@@ -669,27 +787,66 @@ impl Session {
         Ok(())
     }
 
-    /// The game's clock moved forward by `dt`: decay every pending
-    /// scheduled event, FIRING (in time order, mirrors kept in sync) those
-    /// whose moment passed. World facts changed by the game itself still go
-    /// through [`Session::set_fact`] — `elapse` only advances the schedule.
-    pub fn elapse(&mut self, dt: f64) -> Result<(), String> {
+    /// The game's clock moved forward by `dt`: decay every pending schedule
+    /// entry, FIRING those whose moment passed in time order — scheduled
+    /// events ([`Session::set_timed_fact`], mirrors kept in sync) and
+    /// running-interval ENDS ([`Session::apply_start`], the action's at-end
+    /// effects). Returns the intervals whose ends could NOT fire — an end
+    /// whose preconditions no longer hold means drift broke the interval
+    /// mid-flight; its effects are dropped and the game decides what that
+    /// means. World facts changed by the game itself still go through
+    /// [`Session::set_fact`] — `elapse` only advances the schedule.
+    pub fn elapse(&mut self, dt: f64) -> Result<Vec<String>, String> {
         if !(dt.is_finite() && dt >= 0.0) {
             return Err(format!("elapse needs a non-negative, finite dt (got {dt})"));
         }
+        // Merge both schedules into one due list, fired in time order.
+        enum Due {
+            Event(u32, bool),
+            End(usize),
+        }
+        let mut due: Vec<(f64, Due)> = Vec::new();
         let timed = std::mem::take(&mut self.timed);
         for (t, id, value) in timed {
             if t <= dt {
-                self.write_fact_bit(id, value);
-                let m = self.mirror.get(&id).copied();
-                if let Some(m) = m {
-                    self.write_fact_bit(m, !value);
-                }
+                due.push((t, Due::Event(id, value)));
             } else {
                 self.timed.push((t - dt, id, value));
             }
         }
-        Ok(())
+        let running = std::mem::take(&mut self.running);
+        for (t, end_op) in running {
+            if t <= dt {
+                due.push((t, Due::End(end_op)));
+            } else {
+                self.running.push((t - dt, end_op));
+            }
+        }
+        due.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        let mut broken = Vec::new();
+        for (_, d) in due {
+            match d {
+                Due::Event(id, value) => {
+                    self.write_fact_bit(id, value);
+                    let m = self.mirror.get(&id).copied();
+                    if let Some(m) = m {
+                        self.write_fact_bit(m, !value);
+                    }
+                }
+                Due::End(end_op) => {
+                    let state = self.task.initial();
+                    if self.task.op_applicable(end_op, &state) {
+                        let ns = self.task.apply(end_op, &state);
+                        self.task.init_bits = ns.bits;
+                        self.task.fv0 = ns.fv;
+                        self.task.fdef0 = ns.fdef;
+                    } else {
+                        broken.push(self.task.op_display[end_op].clone());
+                    }
+                }
+            }
+        }
+        Ok(broken)
     }
 
     fn write_fact_bit(&mut self, id: u32, value: bool) {
@@ -2089,6 +2246,138 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(steps(&t1), steps(&t8), "timed think differs across threads");
+    }
+
+    #[test]
+    fn apply_start_lets_a_mind_think_mid_interval() {
+        // The world starts w1's build; the think happens WHILE it runs: the
+        // plan covers only w2 (w1's interval is already in flight) and is
+        // valid THROUGH w1's pending end.
+        let mut s = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        s.apply_start("(build w1)").unwrap();
+        assert_eq!(s.fact("(idle w1)"), Some(false), "start effects applied");
+        let think = s.replan_budgeted(50_000, Some(128));
+        assert!(think.solved);
+        let plan = think.plan.as_ref().unwrap();
+        assert!(
+            plan.steps
+                .iter()
+                .all(|st| st.args != vec!["W1".to_string()]),
+            "w1 is already building — the plan must not restart it: {:?}",
+            plan.steps
+        );
+        assert!(s.plan_still_valid(plan, 0));
+        // Double-start is not applicable (idle w1 is gone).
+        assert!(s.apply_start("(build w1)").is_err());
+        // Classical sessions have no durations.
+        let mut c = Session::new(DOM, PRB, &Options::default()).expect("session");
+        assert!(c.apply_start("(walk v1 hut field)").is_err());
+    }
+
+    #[test]
+    fn elapse_fires_interval_ends_retiring_the_mirror_idiom() {
+        let mut s = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        s.apply_start("(build w1)").unwrap();
+        let broken = s.elapse(2.0).unwrap();
+        assert!(broken.is_empty());
+        assert_eq!(s.fact("(built w1)"), Some(false), "3 units still to go");
+        let broken = s.elapse(3.0).unwrap();
+        assert!(broken.is_empty());
+        assert_eq!(
+            s.fact("(built w1)"),
+            Some(true),
+            "the end fired its own effects — no manual mirroring"
+        );
+    }
+
+    #[test]
+    fn a_think_can_be_just_waiting_for_a_running_end() {
+        // `grid` drops (power) at start and restores it at end (duration 1).
+        // With the goal (power) and grid IN FLIGHT, the honest plan is to
+        // wait: zero steps, makespan = the pending end's moment.
+        let mut s = Session::new(SEQ_DOM, SEQ_PRB, &Options::default()).expect("session");
+        s.set_goal("(power)").unwrap();
+        s.apply_start("(grid)").unwrap();
+        assert_eq!(s.fact("(power)"), Some(false), "mid-cycle: power is down");
+        let think = s.replan_budgeted(50_000, Some(128));
+        assert!(think.solved, "waiting for the running end must solve");
+        let plan = think.plan.unwrap();
+        assert_eq!(plan.length, 0, "no new starts — the wait IS the plan");
+        assert!(
+            (plan.makespan.unwrap() - 1.0).abs() < 0.01,
+            "makespan is the pending end's moment, got {:?}",
+            plan.makespan
+        );
+    }
+
+    #[test]
+    fn drift_that_breaks_a_running_interval_is_honest() {
+        // `hold` requires (power) OVER ALL. Kill power mid-flight: the plan
+        // fails validation, and the elapse that reaches the end reports the
+        // interval broken instead of applying its effects.
+        let oa_dom = "
+        (define (domain oa) (:requirements :strips :typing :durative-actions)
+          (:types w)
+          (:predicates (idle ?x - w) (staged ?x - w) (power))
+          (:durative-action hold :parameters (?x - w) :duration (= ?duration 5)
+            :condition (and (at start (idle ?x)) (over all (power)))
+            :effect (and (at start (not (idle ?x))) (at end (staged ?x))))
+          (:durative-action grid :parameters () :duration (= ?duration 1)
+            :condition (at start (power))
+            :effect (and (at start (not (power))) (at end (power)))))";
+        let oa_prb = "
+        (define (problem p) (:domain oa)
+          (:objects w1 - w)
+          (:init (idle w1) (power))
+          (:goal (staged w1)))";
+        let mut s = Session::new(oa_dom, oa_prb, &Options::default()).expect("session");
+        s.apply_start("(hold w1)").unwrap();
+        let think = s.replan_budgeted(50_000, Some(128));
+        assert!(think.solved);
+        let plan = think.plan.unwrap();
+        assert!(s.plan_still_valid(&plan, 0));
+        s.set_fact("(power)", false).unwrap();
+        assert!(
+            !s.plan_still_valid(&plan, 0),
+            "a broken running interval breaks every plan living through it"
+        );
+        let broken = s.elapse(5.0).unwrap();
+        assert_eq!(broken.len(), 1, "the failed end is reported: {broken:?}");
+        assert!(broken[0].contains("HOLD"), "{broken:?}");
+        assert_eq!(
+            s.fact("(staged w1)"),
+            Some(false),
+            "a broken interval's end effects are dropped"
+        );
+    }
+
+    #[test]
+    fn in_flight_thinks_stay_deterministic_across_threads() {
+        let run = |threads: usize| {
+            let o = Options {
+                threads,
+                ..Options::default()
+            };
+            let mut s = Session::new(TDOM, TPRB, &o).expect("session");
+            s.apply_start("(build w1)").unwrap();
+            s.replan_budgeted(50_000, Some(128))
+        };
+        let (t1, t8) = (run(1), run(8));
+        assert!(t1.solved && t8.solved);
+        let steps = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone(), st.time))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            steps(&t1),
+            steps(&t8),
+            "in-flight think differs across threads"
+        );
     }
 
     #[test]

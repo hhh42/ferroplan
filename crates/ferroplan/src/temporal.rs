@@ -2352,11 +2352,11 @@ pub(crate) fn treplay_with_exempt(
                 let op = find(&step.action)?;
                 hs.push(H {
                     time: step.time,
-                    // Exempt ops are injected exogenous events: the search
-                    // fires agenda events BEFORE starting actions at the
-                    // same epoch, so they sort with the ends (ahead of
-                    // same-instant starts), matching that convention.
-                    is_start: exempt.binary_search(&op).is_err(),
+                    // Exempt ops (injected exogenous events) and injected
+                    // `-END` happenings (a session's running intervals) fire
+                    // from the agenda BEFORE same-instant starts in the
+                    // search; the replay sorts them with the ends to match.
+                    is_start: exempt.binary_search(&op).is_err() && !head.ends_with("-END"),
                     op,
                 });
             }

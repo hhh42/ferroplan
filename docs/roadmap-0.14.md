@@ -255,6 +255,44 @@ carried-agenda thinks, so a mind can rethink WHILE its kiln fires.
   0.14 without this.
 - Deliberately LAST and severable: if it slips, 0.14 ships without it.
 
+## Recorded — Phase 5 (2026-07-22): SHIPPED — the fence lifted, with ZERO engine changes
+
+The severable stretch landed whole, and the honest-exit clause went
+unused for the best reason: Phase 3 had already built the mechanism.
+A running interval is just a root-agenda happening — `(remaining,
+end_op)` enters the think through the same parameter as scheduled
+events, where the time-advance block already fires `Kind::End`
+entries with real applicability checks and the termination condition
+already refuses a goal while any action end is pending. The at-rest
+fence came down without touching the search.
+
+The surface that replaced it:
+
+- **`Session::apply_start("(fire urn)")`** — the world begins a
+  durative action NOW: start effects (including the `RUNNING-*`
+  token) apply immediately, the duration resolves against current
+  fluents, and the end joins the in-flight set. Thinks happen
+  MID-INTERVAL: the plan covers what remains (never restarts the
+  running action) and is valid THROUGH every pending end —
+  conservative and sound (the search verifies the goal holds once no
+  end is pending). A think can even be PURE WAITING: goal `(power)`
+  with the grid cycle in flight returns the zero-step plan whose
+  makespan is the pending end's moment.
+- **`Session::elapse(dt)`** now fires due interval ends alongside due
+  scheduled events, in merged time order — the end applies its own
+  at-end effects, RETIRING the mirror-the-end-effects idiom 0.12
+  prescribed. An end whose preconditions drift broke (an over-all
+  condition killed mid-flight) is REPORTED in the return value with
+  its effects dropped — the game decides what a ruined firing means.
+- Validity replays inject running ends as real checked happenings
+  (drift that breaks an interval breaks every plan living through
+  it), sorted by the search's own events-before-starts convention.
+
+Suite 175/0 (5 new: mid-interval thinks, mirror-idiom retirement,
+wait-is-the-plan, broken-interval honesty incl. over-all kills,
+in-flight t1 ≡ t8). The module docs' scope paragraph rewritten — the
+0.12 "AT REST between thinks" contract is now historical.
+
 ## Phase 6 — 0.14.0 release mechanics
 
 CHANGELOG `[0.14.0]`, workspace bump + cli/mcp pins, README refresh,
