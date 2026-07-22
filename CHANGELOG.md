@@ -2,6 +2,80 @@
 
 All notable changes to this project are documented here.
 
+## [0.14.0] - 2026-07-22 — The living-bazaar cycle: the population runs
+
+0.13 built a population of minds; 0.14 makes them live together — the
+tick loop driven end-to-end, contention prevented rather than
+survived, and worlds that carry schedules and running intervals
+between thinks (cycle record in `docs/roadmap-0.14.md`).
+
+### The tick loop, measured (`bazaar_live`)
+
+- N actor-scoped forked minds, one authoritative world, serial tick
+  order — so conflict attribution is EXACT (a break found at a mind's
+  turn can only be rival-caused) and the whole simulation replays
+  byte-identical at any thread count. Emits the live-loop section of
+  `benchmarks/bazaar-thinks.md`.
+- **`Session::restrict_ops(keep)`** — the actor-scoping correctness
+  primitive: a mind plans only its OWN actions; a rival's moves reach
+  it as `set_fact` drift, never as plan steps. Plumbs to the
+  `forbidden` masks both engines already carried; replays and
+  `replan_following` prefixes reject forbidden steps; forks inherit.
+- **`Session::goal_met()`** — the pure state test ("is it done"),
+  suite-pinned as distinct from a zero-budget think ("could I still
+  plan"); the first loop draft confused the two and silently marked
+  an idle mind successful.
+- Measured: disjoint goals 4/4 met, zero conflicts, quiescent in 3
+  ticks / 0.5 ms; overlapping goals in the one-way barter economy are
+  MUTUALLY DESTRUCTIVE (1/4 met — stolen rungs cannot come back), so
+  contention needed prevention, not post-hoc replanning.
+
+### Contention, prevented (claims)
+
+- All loop-side policy over the `restrict_ops` primitive: a CLAIM is
+  an item a rival's active plan still intends to receive; minds mask
+  claimed takes before thinking and WAIT (not dormancy) while blocked.
+  On the new jointly-satisfiable crossed-chain fixture
+  (`bazaar-chain-x2m`): naive = both goals met but the raided mind
+  pays 6 conflicts / 387 evals / churn 12; claims = zero conflicts,
+  one think each, 21 evals, churn 0.
+
+### The scheduled world (`set_timed_fact` / `elapse`)
+
+- Clock-RELATIVE world events ("in 5 units the market closes") ride
+  into every think as think-relative timed happenings and into
+  `plan_still_valid` replays; `elapse(dt)` decays the schedule and
+  fires due events, mirrors synced. Plans beat closing windows or
+  fail honestly; thinks WAIT through outages with scheduled repairs
+  (pending events seed the heuristic session-side; the CLI/corpus
+  paths are byte-identical — spot-verified against the temporal
+  baseline).
+- The static fence held twice over: grounding strips statics from
+  runtime preconditions, so scheduling one could not soundly change
+  behavior — refused, with the domain contract documented (an
+  exogenous-changeable fact must be touched by some domain action).
+- Recorded limit: a goal whose enabler exists ONLY via events never
+  grounds — an honest construction error.
+
+### In-flight intervals (`apply_start`) — the at-rest fence lifted
+
+- **`Session::apply_start("(fire urn)")`**: the world begins a
+  durative action NOW; thinks happen MID-INTERVAL (plans cover what
+  remains, never restart the running action, and are valid THROUGH
+  every pending end — a think can even be pure waiting: zero steps,
+  makespan = the pending end's moment). `elapse` fires due ends with
+  their own at-end effects, RETIRING 0.12's mirror-the-end-effects
+  idiom; ends broken by drift are reported, effects dropped. Landed
+  with ZERO engine changes — a running interval is a root-agenda
+  happening, the machinery scheduled events already used.
+
+### The visible bazaar
+
+- The browser demo gains `bazaar-live.html` — a replay of a real
+  deterministic tick-loop run (naive vs claims, from
+  `bazaar_live --trace`) — and the wants-gated bazaar domain in the
+  solver picker.
+
 ## [0.13.0] - 2026-07-21 — The many-minds cycle: one world, a population of planners
 
 0.12 proved one agent thinking in one world; 0.13 closes the distance

@@ -47,7 +47,27 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.13.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.14.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.14.0 — the living-bazaar cycle.** The population
+> runs. The tick loop is driven end-to-end (`bazaar_live`): N
+> actor-scoped minds (**`Session::restrict_ops`** — a mind plans only
+> its OWN actions; rivals arrive as drift) in one authoritative world,
+> byte-deterministic, with exact conflict attribution — and the
+> measured lesson that naive pursuit in a contended one-way economy is
+> mutually destructive, while loop-side CLAIMS (mask what a rival's
+> plan still needs) drop conflicts to zero at ~18× less search.
+> Worlds carry a SCHEDULE: **`set_timed_fact`** plants clock-relative
+> events thinks must beat — or wait through — and **`elapse`** fires
+> them. And the at-rest fence is gone: **`apply_start`** puts a
+> durative action in flight, thinks happen MID-INTERVAL, and `elapse`
+> fires interval ends itself, retiring the mirror-the-end-effects
+> idiom — all with zero search-engine changes. Plus
+> **`Session::goal_met()`**, the bazaar in the
+> [browser demo](https://hhh42.github.io/ferroplan/demo/bazaar-live.html),
+> and a refreshed classical scoreboard. Full record:
+> [`docs/roadmap-0.14.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.14.md),
+> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.13.0 — the many-minds cycle.** One world, a
 > population of planners. **`Session::set_goal`** retargets a mind —
