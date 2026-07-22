@@ -159,6 +159,50 @@ new plumbing, not new search.
   events after the plan completes, and events that make the goal
   unreachable (honest unsolved).
 
+## Recorded — Phase 3 (2026-07-22): SHIPPED — and waiting works better than scoped
+
+`Session::set_timed_fact(dt, name, value)` (temporal sessions): in
+`dt` units, the fact flips — clock-RELATIVE, exactly dodging 0.12's
+TIL rejection. `Session::elapse(dt)` decays the schedule as the game's
+clock moves, firing due events (mirrors synced) in time order. Pending
+events ride into every think as think-relative TIL events and into
+`plan_still_valid` replays (a suffix replays WITH the events it would
+live through; events past the plan's span are the game's future).
+
+The machinery underneath, all fenced:
+
+- Per-dynamic-fact setter ops appended POST-grounding behind a minted
+  never-true `TIL-NEVER` fact — invisible to the relaxation (no
+  achiever registration, unsatisfiable precondition: zero heuristic
+  pollution) and to the start block; only agendas fire them.
+  `Kind::Til` now fires UNCONDITIONALLY at time-advance (exogenous
+  events don't ask permission) — provably behavior-preserving for the
+  CLI path, whose compiled TIL ops carry `True` preconditions
+  (spot-checked: crew-2011 i1 and parc-printer-2011 i1 byte-match the
+  fresh baseline lengths).
+- **The static fence earned its keep twice**: probing showed grounding
+  STRIPS static facts from runtime preconditions — flipping one by
+  event could not soundly change behavior, so `set_timed_fact` refuses
+  statics with the same honesty as `set_fact`. The domain contract:
+  an exogenous-changeable fact (power, market-open) must be touched by
+  SOME domain action to be schedulable.
+- **Waiting works** — better than the roadmap dared scope: pending
+  events seed each node's heuristic state with their add-effects
+  (session-path only, `seed_til_h`; CLI passes false and stays
+  byte-identical), so an outage the agenda will repair no longer reads
+  as a relaxed dead end. A think IDLES through a scheduled outage and
+  acts when the enabler returns (suite-pinned: fuel out at 2, back at
+  9 → the firing starts at 9). Replay ties resolve by the search's own
+  convention (events fire before same-instant starts).
+- The recorded limit is narrower than feared: a goal whose enabler
+  exists ONLY via events never grounds — an honest construction
+  error, not a silent unsolvable.
+
+Acceptance delivered: window-beating (fires at t=4 under a t=12
+shutdown — `game_think` Act 4), unbeatable windows honestly unsolved,
+post-plan events ignored by validity, waiting through outages, fences
+(classical/dt/static/unknown), timed t1 ≡ t8. Suite 170/0.
+
 ## Phase 4 — the visible bazaar
 
 Fold the live loop into a demo surface people can see: the browser

@@ -930,6 +930,33 @@ pub(crate) fn solve_from(
     budget: &mut usize,
     node_bytes: usize,
 ) -> Option<TimedPlan> {
+    solve_from_seeded(
+        task, kind, dur_exprs, start, goal_pos, goal_num, forbidden, til_events, threads, tier,
+        budget, node_bytes, false,
+    )
+}
+
+/// [`solve_from`] with `seed_til_h`: seed every node's heuristic state with
+/// the ADD effects of its still-pending TIL events, so an outage the agenda
+/// will REPAIR does not read as a relaxed dead end (a think can wait
+/// through it — 0.14 Phase 3). Session-only: the CLI/corpus paths pass
+/// `false` and stay byte-identical.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn solve_from_seeded(
+    task: &PackedTask,
+    kind: &[Kind],
+    dur_exprs: &[NExpr],
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+    til_events: &[(f64, usize)],
+    threads: usize,
+    tier: DemandMode,
+    budget: &mut usize,
+    node_bytes: usize,
+    seed_til_h: bool,
+) -> Option<TimedPlan> {
     // Fail fast on statically unproducible goals — nothing any pass could reach.
     if statically_unsolvable(task, start, goal_pos, goal_num) {
         return None;
@@ -1022,6 +1049,7 @@ pub(crate) fn solve_from(
             threads,
             &mut budget.borrow_mut(),
             node_bytes,
+            seed_til_h,
         )
     };
     go(&sound, true, false)
@@ -1517,6 +1545,33 @@ fn enqueue_evaluated(
     }
 }
 
+/// A node's heuristic state under TIL seeding (0.14 Phase 3): the node's
+/// state plus the ADD effects of its still-pending TIL events — an outage
+/// the agenda will repair must not read as a relaxed dead end. `None` when
+/// seeding is off or nothing on the agenda is a TIL (the common case:
+/// byte-identical evaluation).
+fn til_seeded_state(
+    task: &PackedTask,
+    kind: &[Kind],
+    agenda: &[(f64, usize)],
+    s: &State,
+    seed: bool,
+) -> Option<State> {
+    if !seed {
+        return None;
+    }
+    let mut out: Option<State> = None;
+    for &(_, op) in agenda {
+        if matches!(kind[op], Kind::Til) && !task.add.slice(op).is_empty() {
+            let st = out.get_or_insert_with(|| s.clone());
+            for &f in task.add.slice(op) {
+                crate::bitset::set(&mut st.bits, f as usize);
+            }
+        }
+    }
+    out
+}
+
 /// Evaluate, dedup, and enqueue a candidate node with the weighted heap key.
 #[allow(clippy::too_many_arguments)]
 fn push_node(
@@ -1533,9 +1588,19 @@ fn push_node(
     goal_num: &[NumPre],
     prune: bool,
     relative: bool,
+    seed_til_h: bool,
     n: TNode,
 ) {
-    if let Some((h, helpful)) = eval_node(task, kind, sc, &n.state, goal_pos, goal_num, prune) {
+    let hs = til_seeded_state(task, kind, &n.agenda, &n.state, seed_til_h);
+    if let Some((h, helpful)) = eval_node(
+        task,
+        kind,
+        sc,
+        hs.as_ref().unwrap_or(&n.state),
+        goal_pos,
+        goal_num,
+        prune,
+    ) {
         enqueue_evaluated(
             task, nodes, heap, visited, landmarks, lms, demand, prune, relative, n, h, helpful,
         );
@@ -1591,6 +1656,7 @@ fn temporal_search(
     threads: usize,
     budget: &mut usize,
     node_bytes: usize,
+    seed_til_h: bool,
 ) -> Option<TimedPlan> {
     // The TLAMA rung is a BOUNDED bet, like the classical ladder's 400k-eval
     // LAMA cap: a failed rung must cost seconds, not the wall — unbounded it
@@ -1633,16 +1699,25 @@ fn temporal_search(
     let init = start.clone();
     let mut sc = Scratch::new(task);
 
-    let (_h0, hf0) = eval_node(task, kind, &mut sc, &init, goal_pos, goal_num, prune)?; // dead-end gate
-                                                                                        // TMS symmetry reduction (0.13 Phase 5): keep the agenda sorted by
-                                                                                        // (time, op id) — CANONICAL, not arrival-ordered. N same-epoch starts of
-                                                                                        // interchangeable intervals (machine-shop's kilns, printer sheets) used
-                                                                                        // to reach the same pending MULTISET through N! arrival orders, and the
-                                                                                        // visited key (which contains the agenda) stored every one of them as a
-                                                                                        // distinct state: copies, not classes. With a canonical order, one node
-                                                                                        // represents the class; simultaneous ends fire in op-id order (one valid
-                                                                                        // serialization — symmetric ends touch different tokens and commute).
-                                                                                        // `FF_NO_TSYMM=1` restores arrival order.
+    let root_seed = til_seeded_state(task, kind, til_events, &init, seed_til_h);
+    let (_h0, hf0) = eval_node(
+        task,
+        kind,
+        &mut sc,
+        root_seed.as_ref().unwrap_or(&init),
+        goal_pos,
+        goal_num,
+        prune,
+    )?; // dead-end gate
+        // TMS symmetry reduction (0.13 Phase 5): keep the agenda sorted by
+        // (time, op id) — CANONICAL, not arrival-ordered. N same-epoch starts of
+        // interchangeable intervals (machine-shop's kilns, printer sheets) used
+        // to reach the same pending MULTISET through N! arrival orders, and the
+        // visited key (which contains the agenda) stored every one of them as a
+        // distinct state: copies, not classes. With a canonical order, one node
+        // represents the class; simultaneous ends fire in op-id order (one valid
+        // serialization — symmetric ends touch different tokens and commute).
+        // `FF_NO_TSYMM=1` restores arrival order.
     let symm = std::env::var("FF_NO_TSYMM").is_err();
     let mut root_agenda: Vec<(f64, usize)> = til_events.to_vec();
     root_agenda.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
@@ -1884,6 +1959,7 @@ fn temporal_search(
                     goal_num,
                     prune,
                     relative,
+                    seed_til_h,
                     n,
                 );
             }
@@ -1892,7 +1968,18 @@ fn temporal_search(
                 &protos,
                 workers,
                 || Scratch::new(task),
-                |wsc, n| eval_node(task, kind, wsc, &n.state, goal_pos, goal_num, prune),
+                |wsc, n| {
+                    let hs = til_seeded_state(task, kind, &n.agenda, &n.state, seed_til_h);
+                    eval_node(
+                        task,
+                        kind,
+                        wsc,
+                        hs.as_ref().unwrap_or(&n.state),
+                        goal_pos,
+                        goal_num,
+                        prune,
+                    )
+                },
             );
             for (n, ev) in protos.into_iter().zip(evals) {
                 if let Some((h, helpful)) = ev {
@@ -1916,9 +2003,14 @@ fn temporal_search(
 
         // (b) advance time: fire the earliest pending agenda event — an action END or
         // a timed initial literal. Both apply their grounded op's effect at its time.
+        // TILs fire UNCONDITIONALLY: exogenous events don't ask permission (their
+        // compiled ops historically carried `True` preconditions, so this is
+        // behavior-preserving there — and it lets the session's scheduled-event
+        // setters live behind a never-true fence that hides them from the
+        // relaxation and block (a) without blocking their firing).
         *budget = budget.saturating_sub(1);
         if let Some(&(te, end_op)) = nodes[ni].agenda.first() {
-            if task.op_applicable(end_op, &nodes[ni].state) {
+            if matches!(kind[end_op], Kind::Til) || task.op_applicable(end_op, &nodes[ni].state) {
                 let ns = task.apply(end_op, &nodes[ni].state);
                 let ag = nodes[ni].agenda[1..].to_vec();
                 push_node(
@@ -1935,6 +2027,7 @@ fn temporal_search(
                     goal_num,
                     prune,
                     relative,
+                    seed_til_h,
                     TNode {
                         state: ns,
                         time: te,
@@ -2213,6 +2306,20 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
 /// simulation loop, minus the duration cross-check and goal check, over the SAME
 /// grounded `task` whose `op_display` the plan's steps name.
 pub(crate) fn treplay(task: &PackedTask, state: &State, plan: &TimedPlan) -> Option<State> {
+    treplay_with_exempt(task, state, plan, &[])
+}
+
+/// [`treplay`] where ops in `exempt` (sorted) skip the applicability check —
+/// the session's scheduled-event setters (0.14 Phase 3) sit behind a
+/// never-true fence exactly so nothing BUT an agenda/replay fires them, and
+/// exogenous events don't ask permission (the same exemption the search's
+/// time-advance block applies to `Kind::Til`).
+pub(crate) fn treplay_with_exempt(
+    task: &PackedTask,
+    state: &State,
+    plan: &TimedPlan,
+    exempt: &[usize],
+) -> Option<State> {
     let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
     struct H {
         time: f64,
@@ -2241,11 +2348,18 @@ pub(crate) fn treplay(task: &PackedTask, state: &State, plan: &TimedPlan) -> Opt
                     is_start: false,
                 });
             }
-            None => hs.push(H {
-                time: step.time,
-                op: find(&step.action)?,
-                is_start: true,
-            }),
+            None => {
+                let op = find(&step.action)?;
+                hs.push(H {
+                    time: step.time,
+                    // Exempt ops are injected exogenous events: the search
+                    // fires agenda events BEFORE starting actions at the
+                    // same epoch, so they sort with the ends (ahead of
+                    // same-instant starts), matching that convention.
+                    is_start: exempt.binary_search(&op).is_err(),
+                    op,
+                });
+            }
         }
     }
     // Same ε-grid-rounded ordering as `validate` (ends before starts at one epoch),
@@ -2253,7 +2367,7 @@ pub(crate) fn treplay(task: &PackedTask, state: &State, plan: &TimedPlan) -> Opt
     hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
     let mut s = state.clone();
     for h in &hs {
-        if !task.op_applicable(h.op, &s) {
+        if exempt.binary_search(&h.op).is_err() && !task.op_applicable(h.op, &s) {
             return None;
         }
         s = task.apply(h.op, &s);

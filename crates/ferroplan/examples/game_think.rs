@@ -156,5 +156,65 @@ fn main() -> Result<(), String> {
         "retargeted desire: {} step(s) to the reachable rung",
         settle.plan.as_ref().unwrap().length
     );
+
+    // Act 4 (0.14): the SCHEDULED world. The kiln district's fuel line
+    // closes at a known hour — `set_timed_fact` schedules the clock-relative
+    // event, and thinks plan AROUND the window: fire early, or wait through
+    // a scheduled outage for the line's return.
+    let kiln_dom = "
+    (define (domain kilnyard) (:requirements :strips :typing :durative-actions)
+      (:types pot)
+      (:predicates (raw ?p - pot) (glazed ?p - pot) (fired ?p - pot) (fuel))
+      (:durative-action glaze :parameters (?p - pot) :duration (= ?duration 4)
+        :condition (at start (raw ?p))
+        :effect (and (at start (not (raw ?p))) (at end (glazed ?p))))
+      (:durative-action fire :parameters (?p - pot) :duration (= ?duration 6)
+        :condition (and (at start (glazed ?p)) (at start (fuel)))
+        :effect (at end (fired ?p)))
+      (:durative-action fuel-line :parameters () :duration (= ?duration 1)
+        :condition (at start (fuel))
+        :effect (and (at start (not (fuel))) (at end (fuel)))))";
+    let kiln_prb = "
+    (define (problem morning-batch) (:domain kilnyard)
+      (:objects urn - pot)
+      (:init (raw urn) (fuel))
+      (:goal (fired urn)))";
+    let mut yard = Session::new(kiln_dom, kiln_prb, &Options::default())?;
+    // The fuel line shuts at t=12: glaze (4) then fire (6) fits if the firing
+    // starts inside the window.
+    yard.set_timed_fact(12.0, "(fuel)", false)?;
+    let think = yard.replan_budgeted(50_000, Some(128));
+    assert!(think.solved);
+    let fire = think
+        .plan
+        .as_ref()
+        .unwrap()
+        .steps
+        .iter()
+        .find(|s| s.action == "FIRE")
+        .unwrap();
+    println!(
+        "scheduled world: fuel dies at 12; the think fires at t={:.1} — inside the window",
+        fire.time.unwrap()
+    );
+    // A maintenance outage with a KNOWN end: fuel out at 2, back at 9. The
+    // think waits through it (the agenda carries the repair).
+    let mut yard = Session::new(kiln_dom, kiln_prb, &Options::default())?;
+    yard.set_timed_fact(2.0, "(fuel)", false)?;
+    yard.set_timed_fact(9.0, "(fuel)", true)?;
+    let think = yard.replan_budgeted(50_000, Some(128));
+    assert!(think.solved);
+    let fire = think
+        .plan
+        .as_ref()
+        .unwrap()
+        .steps
+        .iter()
+        .find(|s| s.action == "FIRE")
+        .unwrap();
+    println!(
+        "scheduled outage [2, 9): the think WAITS and fires at t={:.1}",
+        fire.time.unwrap()
+    );
     Ok(())
 }

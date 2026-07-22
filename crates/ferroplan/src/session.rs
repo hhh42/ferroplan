@@ -115,6 +115,111 @@ pub struct Session {
     /// plan ITS OWN actions ([`Session::restrict_ops`]); a rival's moves
     /// reach it as world drift, never as plan steps.
     forbidden: Vec<bool>,
+    /// Pending scheduled events (0.14 Phase 3, temporal only): `(dt, fact,
+    /// value)` — in `dt` time units from NOW, the fact flips. Sorted by
+    /// (dt, fact, value) for deterministic firing; fed to every think as
+    /// think-relative TIL events; decayed/fired by [`Session::elapse`].
+    timed: Vec<(f64, u32, bool)>,
+    /// (fact, value) -> the agenda-fired setter op that applies it (mirror
+    /// kept in sync inside the op's own effects). Built once at construction
+    /// (empty for classical sessions), shared by forks.
+    til_setters: Arc<FxHashMap<(u32, bool), usize>>,
+}
+
+/// Extend a freshly grounded TEMPORAL task with scheduled-event setter ops
+/// (0.14 Phase 3): per dynamic fact `f`, `TILSET-f` (adds `f`, deletes its
+/// mirror) and `TILCLR-f` (deletes `f`, adds its mirror). Every setter sits
+/// behind a freshly minted, never-true `TIL-NEVER` fact: the relaxation and
+/// the search's start block cannot see them (no heuristic pollution, no
+/// spurious achievers — they are deliberately NOT in `add_by_fact`), and
+/// only a pre-seeded agenda fires them (`Kind::Til` fires unconditionally —
+/// exogenous events don't ask permission). Returns (fact, value) -> op id.
+fn append_til_setters(
+    task: &mut PackedTask,
+    dynamic: &[bool],
+    mirror: &FxHashMap<u32, u32>,
+) -> FxHashMap<(u32, bool), usize> {
+    use crate::packed::CsrBuilder;
+    let never = task.n_facts as u32;
+    task.n_facts += 1;
+    task.words = task.n_facts.div_ceil(64);
+    let mut init_bits = task.init_bits.clone();
+    init_bits.resize(task.words, 0);
+    task.init_bits = init_bits;
+    let mut fact_names = task.fact_names.to_vec();
+    fact_names.push("TIL-NEVER".into());
+
+    let rebuild = |extra: &[(Vec<u32>, Vec<u32>, Vec<u32>)]| {
+        let (mut pre, mut add, mut del) = (CsrBuilder::new(), CsrBuilder::new(), CsrBuilder::new());
+        for oi in 0..task.n_ops {
+            pre.push_row(task.pre_pos.slice(oi).iter().copied());
+            add.push_row(task.add.slice(oi).iter().copied());
+            del.push_row(task.del.slice(oi).iter().copied());
+        }
+        for (p, a, d) in extra {
+            pre.push_row(p.iter().copied());
+            add.push_row(a.iter().copied());
+            del.push_row(d.iter().copied());
+        }
+        (pre.finish(), add.finish(), del.finish())
+    };
+    let mut map = FxHashMap::default();
+    let mut rows: Vec<(Vec<u32>, Vec<u32>, Vec<u32>)> = Vec::new();
+    let mut names: Vec<String> = Vec::new();
+    for f in 0..dynamic.len() as u32 {
+        if !dynamic[f as usize] {
+            continue;
+        }
+        let m = mirror.get(&f).copied();
+        for value in [true, false] {
+            let (mut a, mut d) = if value {
+                (vec![f], m.map(|m| vec![m]).unwrap_or_default())
+            } else {
+                (m.map(|m| vec![m]).unwrap_or_default(), vec![f])
+            };
+            a.sort_unstable();
+            d.sort_unstable();
+            map.insert((f, value), task.n_ops + rows.len());
+            names.push(format!("{}-{f}", if value { "TILSET" } else { "TILCLR" }));
+            rows.push((vec![never], a, d));
+        }
+    }
+    let (pre, add, del) = rebuild(&rows);
+    task.pre_pos = pre;
+    task.add = add;
+    task.del = del;
+    fn extend_empty<T: Clone>(csr: &mut crate::packed::Csr<T>, n: usize) {
+        let mut b = crate::packed::CsrBuilder::new();
+        for i in 0..csr.off.len() - 1 {
+            b.push_row(csr.slice(i).iter().cloned());
+        }
+        for _ in 0..n {
+            b.push_row(std::iter::empty());
+        }
+        *csr = b.finish();
+    }
+    extend_empty(&mut task.pre_num, rows.len());
+    extend_empty(&mut task.num_eff, rows.len());
+    extend_empty(&mut task.cond, rows.len());
+    // add_by_fact grows a row for TIL-NEVER but the setters are NOT
+    // registered as achievers — the whole point of the fence.
+    {
+        let mut b = CsrBuilder::new();
+        for i in 0..task.add_by_fact.off.len() - 1 {
+            b.push_row(task.add_by_fact.slice(i).iter().copied());
+        }
+        b.push_row(std::iter::empty());
+        task.add_by_fact = b.finish();
+    }
+    let mut op_display = task.op_display.to_vec();
+    op_display.extend(names);
+    let mut monitored = task.monitored.to_vec();
+    monitored.resize(task.n_ops + rows.len(), false);
+    task.op_display = op_display.into();
+    task.monitored = monitored.into();
+    task.fact_names = fact_names.into();
+    task.n_ops += rows.len();
+    map
 }
 
 impl Session {
@@ -148,7 +253,7 @@ impl Session {
         // are rejected — they pin the ABSOLUTE clock, and session thinks are
         // clock-relative (recorded follow-up if the game needs scheduled
         // exogenous events).
-        let temporal_c = if crate::temporal::is_temporal(&domain) {
+        let mut temporal_c = if crate::temporal::is_temporal(&domain) {
             if !problem.til.is_empty() {
                 return Err("Session does not support timed initial literals \
                      (a TIL pins the absolute clock; session thinks are \
@@ -194,16 +299,10 @@ impl Session {
             .map(|(i, n)| (n.clone(), i as u32))
             .collect();
 
-        let running_preds = temporal_c
+        let running_preds: Vec<String> = temporal_c
             .as_ref()
             .map(|c| c.snaps.iter().map(|s| s.running_pred.clone()).collect())
             .unwrap_or_default();
-        let op_ids = task
-            .op_display
-            .iter()
-            .enumerate()
-            .map(|(i, d)| (d.clone(), i))
-            .collect();
         // Mirror pairing: a fact displayed `(NOT (P ...))` complements the
         // fact displayed `(P ...)` (when the latter was interned at all).
         let mut mirror = FxHashMap::default();
@@ -215,6 +314,26 @@ impl Session {
                 }
             }
         }
+        // Scheduled-event setters (0.14 Phase 3, temporal only): per dynamic
+        // fact, agenda-fired TIL ops behind the never-true fence. Appended
+        // AFTER the maps above so `fact_ids` never resolves the fence fact.
+        let mut task = task;
+        let til_setters = match temporal_c.as_mut() {
+            Some(c) => {
+                let map = append_til_setters(&mut task, &dynamic, &mirror);
+                for &op in map.values() {
+                    c.til_ops.push((0.0, task.op_display[op].clone()));
+                }
+                map
+            }
+            None => FxHashMap::default(),
+        };
+        let op_ids = task
+            .op_display
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (d.clone(), i))
+            .collect();
         Ok(Session {
             task,
             threads,
@@ -231,6 +350,8 @@ impl Session {
             op_ids: Arc::new(op_ids),
             mirror: Arc::new(mirror),
             forbidden: Vec::new(),
+            timed: Vec::new(),
+            til_setters: Arc::new(til_setters),
         })
     }
 
@@ -285,6 +406,8 @@ impl Session {
             op_ids: Arc::clone(&self.op_ids),
             mirror: Arc::clone(&self.mirror),
             forbidden: self.forbidden.clone(),
+            timed: self.timed.clone(),
+            til_setters: Arc::clone(&self.til_setters),
         }
     }
 
@@ -322,7 +445,15 @@ impl Session {
         let node_bytes = memory_mb
             .map(|mb| mb.saturating_mul(1 << 20))
             .unwrap_or(crate::search::NODE_CAP_TARGET_BYTES);
-        let tp = crate::temporal::solve_from(
+        // Pending scheduled events ride in as think-relative TIL events
+        // (their times are already relative to NOW, which is this think's
+        // clock zero). Already sorted deterministically at insertion.
+        let til_events: Vec<(f64, usize)> = self
+            .timed
+            .iter()
+            .map(|&(t, f, v)| (t, self.til_setters[&(f, v)]))
+            .collect();
+        let tp = crate::temporal::solve_from_seeded(
             &self.task,
             &kind,
             &dur_exprs,
@@ -330,11 +461,12 @@ impl Session {
             &self.task.goal_pos,
             &self.task.goal_num,
             &self.forbidden,
-            &[], // TILs rejected at construction
+            &til_events,
             self.threads,
             self.tier,
             &mut remaining,
             node_bytes,
+            true, // pending events seed h: waits through repaired outages
         );
         let evaluated = total.saturating_sub(remaining);
         match tp {
@@ -385,7 +517,7 @@ impl Session {
             }
         };
         if self.temporal.is_some() {
-            let tp = crate::temporal::TimedPlan {
+            let mut tp = crate::temporal::TimedPlan {
                 steps: steps
                     .iter()
                     .map(|s| crate::temporal::TimedStep {
@@ -396,7 +528,31 @@ impl Session {
                     .collect(),
                 makespan: 0.0,
             };
-            return match crate::temporal::treplay(&self.task, &self.task.initial(), &tp) {
+            // The suffix replays WITH the scheduled events it would live
+            // through (0.14 Phase 3): pending events inside the plan's span
+            // join the happening list. Events strictly after the plan
+            // completes are the game's future, not the plan's problem.
+            let horizon = steps
+                .iter()
+                .map(|s| s.time.unwrap_or(0.0) + s.duration.unwrap_or(0.0))
+                .fold(0.0, f64::max);
+            for &(t, f, v) in &self.timed {
+                if t <= horizon {
+                    tp.steps.push(crate::temporal::TimedStep {
+                        time: t,
+                        action: self.task.op_display[self.til_setters[&(f, v)]].clone(),
+                        duration: None,
+                    });
+                }
+            }
+            let mut exempt: Vec<usize> = self.til_setters.values().copied().collect();
+            exempt.sort_unstable();
+            return match crate::temporal::treplay_with_exempt(
+                &self.task,
+                &self.task.initial(),
+                &tp,
+                &exempt,
+            ) {
                 Some(end) => self.task.goal_met(&end),
                 None => false,
             };
@@ -426,6 +582,20 @@ impl Session {
     /// (negative preconditions/goals), the mirror is kept in sync
     /// automatically — set either side, both move.
     pub fn set_fact(&mut self, name: &str, value: bool) -> Result<(), String> {
+        let id = self.dynamic_fact_id(name)?;
+        self.write_fact_bit(id, value);
+        if let Some(&m) = self.mirror.get(&id) {
+            self.write_fact_bit(m, !value);
+        }
+        Ok(())
+    }
+
+    /// Resolve a fact display through the writability fences shared by
+    /// [`Session::set_fact`] and [`Session::set_timed_fact`]: the fact must
+    /// be grounded, DYNAMIC (statics are grounding-baked), and not a
+    /// compiler-internal `RUNNING-*` token (the at-rest fence; `atom_head`
+    /// looks through `(NOT ...)` so a mirror cannot dodge it).
+    fn dynamic_fact_id(&self, name: &str) -> Result<u32, String> {
         let key = name.to_ascii_uppercase();
         let &id = self
             .fact_ids
@@ -437,11 +607,6 @@ impl Session {
                  require operators that were never enumerated"
             ));
         }
-        // Temporal at-rest fence (0.12 Phase 1): RUNNING-* tokens mark
-        // in-flight intervals — a session's world is AT REST between thinks,
-        // so the game mirrors a completed action's END effects instead of
-        // faking a running one. `atom_head` looks through `(NOT ...)` so the
-        // fence also catches a running token's complementary mirror.
         if !self.running_preds.is_empty() {
             let head = atom_head(&key);
             if self.running_preds.iter().any(|p| p == head) {
@@ -452,9 +617,77 @@ impl Session {
                 ));
             }
         }
-        self.write_fact_bit(id, value);
-        if let Some(&m) = self.mirror.get(&id) {
-            self.write_fact_bit(m, !value);
+        Ok(id)
+    }
+
+    /// Schedule a WORLD event (0.14 Phase 3, temporal sessions): in `dt`
+    /// time units from now, the fact flips to `value` — the
+    /// market-opens-at-nine shape, clock-RELATIVE (a session's thinks are
+    /// clock-relative, which is exactly why absolute-clock TILs stay
+    /// rejected at construction). Pending events ride into every think as
+    /// think-relative timed events the plan must live with: a plan can beat
+    /// a closing window or fail honestly, and [`Session::plan_still_valid`]
+    /// replays a suffix WITH the events it would experience. As the game's
+    /// clock advances, call [`Session::elapse`] to decay delays and fire due
+    /// events into the state.
+    ///
+    /// Fences: same writability rules as [`Session::set_fact`]; `dt` must be
+    /// positive and finite (for "now", use `set_fact`); classical sessions
+    /// reject scheduling with a clear error (time has no meaning there).
+    /// The DYNAMIC-fact fence matters doubly here: a truly static fact is
+    /// compiled INTO the grounded ops (stripped from runtime preconditions),
+    /// so flipping it by event could not soundly change behavior — model an
+    /// exogenous-changeable fact (market-open, power) with SOME domain
+    /// action touching it, and it becomes schedulable.
+    ///
+    /// Waiting works: the agenda carries pending events, so a think can
+    /// idle THROUGH an outage and act after an enabler returns. The
+    /// recorded limit is narrower — a goal whose enabler exists ONLY via
+    /// events never grounds (the fact space cannot express it) and fails at
+    /// construction, honestly.
+    pub fn set_timed_fact(&mut self, dt: f64, name: &str, value: bool) -> Result<(), String> {
+        if self.temporal.is_none() {
+            return Err("scheduled events need a TEMPORAL session (a classical \
+                 session has no clock); flip the fact when it happens with \
+                 set_fact instead"
+                .into());
+        }
+        if !(dt.is_finite() && dt > 0.0) {
+            return Err(format!(
+                "event delay must be a positive, finite time offset (got {dt}); \
+                 for `now`, use set_fact"
+            ));
+        }
+        let id = self.dynamic_fact_id(name)?;
+        self.timed.push((dt, id, value));
+        self.timed.sort_by(|a, b| {
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.1.cmp(&b.1))
+                .then(a.2.cmp(&b.2))
+        });
+        Ok(())
+    }
+
+    /// The game's clock moved forward by `dt`: decay every pending
+    /// scheduled event, FIRING (in time order, mirrors kept in sync) those
+    /// whose moment passed. World facts changed by the game itself still go
+    /// through [`Session::set_fact`] — `elapse` only advances the schedule.
+    pub fn elapse(&mut self, dt: f64) -> Result<(), String> {
+        if !(dt.is_finite() && dt >= 0.0) {
+            return Err(format!("elapse needs a non-negative, finite dt (got {dt})"));
+        }
+        let timed = std::mem::take(&mut self.timed);
+        for (t, id, value) in timed {
+            if t <= dt {
+                self.write_fact_bit(id, value);
+                let m = self.mirror.get(&id).copied();
+                if let Some(m) = m {
+                    self.write_fact_bit(m, !value);
+                }
+            } else {
+                self.timed.push((t - dt, id, value));
+            }
         }
         Ok(())
     }
@@ -1690,6 +1923,172 @@ mod tests {
             steps(&t8),
             "restricted think differs across threads"
         );
+    }
+
+    // `power` is exogenous-CHANGEABLE: the `grid` action touches it, making
+    // it dynamic — the scheduling contract. A truly STATIC fact is compiled
+    // INTO the ops (stripped from runtime preconditions), so flipping one by
+    // event could not soundly affect behavior; `set_timed_fact` refuses.
+    const SEQ_DOM: &str = "
+    (define (domain seqshop) (:requirements :strips :typing :durative-actions)
+      (:types w)
+      (:predicates (idle ?x - w) (staged ?x - w) (built ?x - w) (power))
+      (:durative-action stage1 :parameters (?x - w) :duration (= ?duration 5)
+        :condition (at start (idle ?x))
+        :effect (and (at start (not (idle ?x))) (at end (staged ?x))))
+      (:durative-action stage2 :parameters (?x - w) :duration (= ?duration 5)
+        :condition (and (at start (staged ?x)) (at start (power)))
+        :effect (at end (built ?x)))
+      (:durative-action grid :parameters () :duration (= ?duration 1)
+        :condition (at start (power))
+        :effect (and (at start (not (power))) (at end (power)))))";
+    const SEQ_PRB: &str = "
+    (define (problem p) (:domain seqshop)
+      (:objects w1 - w)
+      (:init (idle w1) (power))
+      (:goal (built w1)))";
+
+    #[test]
+    fn timed_events_close_windows_plans_beat_or_fail_honestly() {
+        // stage2 needs (staged w1) — earliest t=5 via stage1 — AND (power).
+        // Power dying at t=20 leaves a window: the plan must fit inside it.
+        let mut s = Session::new(SEQ_DOM, SEQ_PRB, &Options::default()).expect("session");
+        s.set_timed_fact(20.0, "(power)", false).unwrap();
+        let think = s.replan_budgeted(50_000, Some(128));
+        assert!(think.solved, "the window is beatable");
+        let plan = think.plan.unwrap();
+        let s2 = plan.steps.iter().find(|st| st.action == "STAGE2").unwrap();
+        assert!(
+            s2.time.unwrap() < 20.0,
+            "stage2 must start inside the window"
+        );
+        assert!(s.plan_still_valid(&plan, 0), "the winning plan replays");
+        // A LATE hand-built plan walks into the dead window: the replay
+        // experiences the scheduled event and rejects it.
+        let late = Plan {
+            steps: vec![
+                crate::api::Step {
+                    index: 0,
+                    action: "STAGE1".into(),
+                    args: vec!["W1".into()],
+                    time: Some(0.0),
+                    duration: Some(5.0),
+                },
+                crate::api::Step {
+                    index: 1,
+                    action: "STAGE2".into(),
+                    args: vec!["W1".into()],
+                    time: Some(25.0),
+                    duration: Some(5.0),
+                },
+            ],
+            length: 2,
+            metric: None,
+            makespan: Some(30.0),
+        };
+        assert!(
+            !s.plan_still_valid(&late, 0),
+            "the event kills the late plan"
+        );
+        // Power dying at t=3 closes the window before staged can exist.
+        s.set_timed_fact(3.0, "(power)", false).unwrap();
+        assert!(
+            !s.replan_budgeted(50_000, Some(128)).solved,
+            "unbeatable window is an honest unsolved"
+        );
+    }
+
+    #[test]
+    fn timed_events_after_the_plan_are_the_games_future() {
+        let mut s = Session::new(SEQ_DOM, SEQ_PRB, &Options::default()).expect("session");
+        s.set_timed_fact(1000.0, "(power)", false).unwrap();
+        let think = s.replan_budgeted(50_000, Some(128));
+        assert!(think.solved);
+        assert!(s.plan_still_valid(&think.plan.unwrap(), 0));
+    }
+
+    #[test]
+    fn elapse_decays_and_fires_events_in_order() {
+        let mut s = Session::new(SEQ_DOM, SEQ_PRB, &Options::default()).expect("session");
+        s.set_timed_fact(3.0, "(power)", false).unwrap();
+        s.set_timed_fact(6.0, "(idle w1)", false).unwrap();
+        s.elapse(2.0).unwrap();
+        assert_eq!(s.fact("(power)"), Some(true), "not yet due");
+        s.elapse(1.5).unwrap();
+        assert_eq!(s.fact("(power)"), Some(false), "fired");
+        assert_eq!(s.fact("(idle w1)"), Some(true), "still pending");
+        s.elapse(10.0).unwrap();
+        assert_eq!(s.fact("(idle w1)"), Some(false));
+    }
+
+    #[test]
+    fn timed_event_fences_hold() {
+        // Classical sessions have no clock.
+        let mut c = Session::new(DOM, PRB, &Options::default()).expect("session");
+        let err = c.set_timed_fact(5.0, "(at v1 field)", true).unwrap_err();
+        assert!(err.contains("TEMPORAL"), "{err}");
+        // Temporal: same writability fences as set_fact, plus dt sanity.
+        let mut s = Session::new(SEQ_DOM, SEQ_PRB, &Options::default()).expect("session");
+        assert!(s.set_timed_fact(0.0, "(power)", false).is_err());
+        assert!(s.set_timed_fact(-1.0, "(power)", false).is_err());
+        assert!(s.set_timed_fact(5.0, "(no-such)", false).is_err());
+        // The recorded limit: a goal whose enabler exists ONLY via events
+        // never even grounds (the fact space cannot express it) — an honest
+        // construction error, not a silent unsolvable.
+        let unpowered = "
+        (define (problem p) (:domain seqshop)
+          (:objects w1 - w)
+          (:init (idle w1))
+          (:goal (built w1)))";
+        assert!(
+            Session::new(SEQ_DOM, unpowered, &Options::default()).is_err(),
+            "event-only enablers cannot ground — the recorded 0.14 limit"
+        );
+    }
+
+    #[test]
+    fn thinks_wait_through_enabling_events() {
+        // Power dies at t=1 and RETURNS at t=10: stage2's window is
+        // [10, ...] — the agenda carries both events, so the search WAITS
+        // through the outage and starts stage2 after the enabler fires.
+        let mut s = Session::new(SEQ_DOM, SEQ_PRB, &Options::default()).expect("session");
+        s.set_timed_fact(1.0, "(power)", false).unwrap();
+        s.set_timed_fact(10.0, "(power)", true).unwrap();
+        let think = s.replan_budgeted(50_000, Some(128));
+        assert!(think.solved, "waiting through the outage must work");
+        let plan = think.plan.as_ref().unwrap();
+        let s2 = plan.steps.iter().find(|st| st.action == "STAGE2").unwrap();
+        assert!(
+            s2.time.unwrap() >= 10.0,
+            "stage2 must wait for power's return, got t={}",
+            s2.time.unwrap()
+        );
+        assert!(s.plan_still_valid(plan, 0));
+    }
+
+    #[test]
+    fn timed_thinks_stay_deterministic_across_threads() {
+        let run = |threads: usize| {
+            let o = Options {
+                threads,
+                ..Options::default()
+            };
+            let mut s = Session::new(SEQ_DOM, SEQ_PRB, &o).expect("session");
+            s.set_timed_fact(20.0, "(power)", false).unwrap();
+            s.replan_budgeted(50_000, Some(128))
+        };
+        let (t1, t8) = (run(1), run(8));
+        assert!(t1.solved && t8.solved);
+        let steps = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone(), st.time))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(steps(&t1), steps(&t8), "timed think differs across threads");
     }
 
     #[test]
