@@ -215,6 +215,29 @@ a ferroplan-bevy scene — settle by cost at implementation.
   think stats visible. No new engine claims; this phase sells the
   existing ones.
 
+## Recorded — Phase 4 (2026-07-22): SHIPPED — the canned-trace route, as pre-authorized
+
+The browser demo (ferroplan-wasm's pages site) gained the bazaar on
+both of its surfaces, choosing the roadmap's pre-authorized cheap
+route (a full in-page `Session` UI could not be visually verified
+from this environment — recorded as the follow-up, not half-shipped):
+
+- **`bazaar-live.html`** — a self-contained replay page (matching the
+  demo's design system) that animates a REAL deterministic run of the
+  0.14 tick loop: `bazaar_live --trace` emits the event feed (thinks,
+  free follows, trades, conflicts, waits, verdicts) for the x2m
+  crossed-chain fixture under BOTH policies, embedded verbatim. The
+  naive/claims toggle is the Phase 2 story made visible: red
+  conflicts and repeated rethinks vs zero conflicts and one think
+  each. Nav-linked from the solver page; regeneration is one command.
+- **The solver picker** gained the wants-gated bazaar domain (solo
+  11-hop chain + the 22-trade crossed-chain joint goal), so the
+  fixture is solvable in-page like every other demo domain. The
+  pages workflow's module-graph check passes (18 domains).
+
+No new engine claims — this phase sells the existing ones. Trace
+JSON and page script machine-verified (parse + syntax); suite 170/0.
+
 ## Phase 5 — in-flight intervals (the severable stretch)
 
 The deepest game gap: durative worlds still require AT-REST thinks —

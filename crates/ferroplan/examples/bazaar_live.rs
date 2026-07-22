@@ -89,12 +89,19 @@ fn disp_steps(p: &Plan, from: usize) -> Vec<String> {
         .collect()
 }
 
+/// One replayable simulation event: (tick, mind, kind, detail) — the feed
+/// the browser demo's canned-trace page animates (`--trace`).
+type Event = (usize, String, String, String);
+
 /// Drive one row: the named minds toward their goals in a shared world.
+/// With `trace`, every think/follow/trade/conflict/verdict lands in the
+/// event feed.
 fn run_row(
     label: &str,
     prb: &str,
     goals: &[(&'static str, &str)],
     policy: Policy,
+    mut trace: Option<&mut Vec<Event>>,
 ) -> Result<(), String> {
     let world = Session::new(DOM, prb, &Options::default())?;
     let mut minds: Vec<Mind> = Vec::new();
@@ -130,8 +137,16 @@ fn run_row(
         for mi in 0..minds.len() {
             // A pure STATE test — a zero-budget think would answer "could I
             // still plan," and a near-done mind must not confuse the two.
-            if minds[mi].s.goal_met() {
+            if minds[mi].s.goal_met() && !minds[mi].done {
                 minds[mi].done = true;
+                if let Some(t) = trace.as_deref_mut() {
+                    t.push((
+                        tick,
+                        minds[mi].name.into(),
+                        "met".into(),
+                        "goal achieved".into(),
+                    ));
+                }
             }
             if minds[mi].done || minds[mi].failed_thinks >= DORMANT_AFTER {
                 continue;
@@ -144,6 +159,14 @@ fn run_row(
                 .is_some_and(|p| minds[mi].s.plan_still_valid(p, minds[mi].cursor));
             if valid {
                 minds[mi].follows += 1;
+                if let Some(t) = trace.as_deref_mut() {
+                    t.push((
+                        tick,
+                        minds[mi].name.into(),
+                        "follow".into(),
+                        "plan holds — free suffix replay, zero search".into(),
+                    ));
+                }
             } else {
                 // A break counts ONCE: the dead plan is dropped here, so the
                 // retry thinks of a struggling mind don't re-count it. Serial
@@ -155,6 +178,16 @@ fn run_row(
                     minds[mi].conflicts += 1;
                     disp_steps(p, cursor)
                 });
+                if old_suffix.is_some() {
+                    if let Some(t) = trace.as_deref_mut() {
+                        t.push((
+                            tick,
+                            minds[mi].name.into(),
+                            "conflict".into(),
+                            "a rival's trade broke the plan".into(),
+                        ));
+                    }
+                }
                 // Claims: every item a rival's ACTIVE plan still intends to
                 // receive. Masked BEFORE the think; empty under Naive.
                 let claimed: HashSet<String> = if policy == Policy::Naive {
@@ -197,6 +230,17 @@ fn run_row(
                         if let Some(old) = &old_suffix {
                             minds[mi].churn += edit_distance(old, &disp_steps(&new, 0));
                         }
+                        if let Some(t) = trace.as_deref_mut() {
+                            t.push((
+                                tick,
+                                minds[mi].name.into(),
+                                "think".into(),
+                                format!(
+                                    "planned {} trades in {} evals",
+                                    new.length, think.statistics.evaluated_states
+                                ),
+                            ));
+                        }
                         minds[mi].plan = Some(new);
                         minds[mi].cursor = 0;
                         minds[mi].failed_thinks = 0;
@@ -206,8 +250,24 @@ fn run_row(
                             // The blocked exchange may free up as the rival's
                             // plan drains — wait, don't march to dormancy.
                             minds[mi].waits += 1;
+                            if let Some(t) = trace.as_deref_mut() {
+                                t.push((
+                                    tick,
+                                    minds[mi].name.into(),
+                                    "wait".into(),
+                                    "blocked by a rival's claimed exchange — waiting".into(),
+                                ));
+                            }
                         } else {
                             minds[mi].failed_thinks += 1;
+                            if let Some(t) = trace.as_deref_mut() {
+                                let d = if minds[mi].failed_thinks >= DORMANT_AFTER {
+                                    "no plan exists — giving up honestly"
+                                } else {
+                                    "no plan found within budget"
+                                };
+                                t.push((tick, minds[mi].name.into(), "stuck".into(), d.into()));
+                            }
                         }
                         continue;
                     }
@@ -223,6 +283,19 @@ fn run_row(
                 p.steps[minds[mi].cursor].clone()
             };
             let (a, b, x, y) = (&step.args[0], &step.args[1], &step.args[2], &step.args[3]);
+            if let Some(t) = trace.as_deref_mut() {
+                t.push((
+                    tick,
+                    minds[mi].name.into(),
+                    "trade".into(),
+                    format!(
+                        "gives {} to {}, takes {}",
+                        x.to_lowercase(),
+                        b.to_lowercase(),
+                        y.to_lowercase()
+                    ),
+                ));
+            }
             for m in minds.iter_mut() {
                 m.s.set_fact(&format!("(has {a} {x})"), false)?;
                 m.s.set_fact(&format!("(has {b} {y})"), false)?;
@@ -255,6 +328,25 @@ fn run_row(
             "stalled"
         }
     };
+    // Trace mode: the event feed is the product; no markdown.
+    if let Some(t) = trace {
+        for m in &minds {
+            t.push((
+                ticks,
+                m.name.into(),
+                "verdict".into(),
+                format!(
+                    "{} — {} follows, {} conflicts, {} thinks, {} evals",
+                    outcome(m),
+                    m.follows,
+                    m.conflicts,
+                    m.thinks,
+                    m.evals
+                ),
+            ));
+        }
+        return Ok(());
+    }
     println!();
     println!(
         "**{label}** — quiescent after {ticks} ticks, {:.1} ms wall: \
@@ -286,6 +378,24 @@ fn run_row(
 }
 
 fn main() -> Result<(), String> {
+    // --trace: emit the canned deterministic event feed for the browser
+    // demo's replay page instead of the markdown scoreboard section.
+    if std::env::args().any(|a| a == "--trace") {
+        let x2m: &[(&str, &str)] = &[("a0", "(has a0 itemA8)"), ("a1", "(has a1 itemB8)")];
+        let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+        let mut rows = Vec::new();
+        for (label, policy) in [("naive", Policy::Naive), ("claims", Policy::Claims)] {
+            let mut ev: Vec<Event> = Vec::new();
+            run_row(label, PRB_X2M, x2m, policy, Some(&mut ev))?;
+            let items: Vec<String> = ev
+                .iter()
+                .map(|(t, m, k, d)| format!("[{t},\"{}\",\"{}\",\"{}\"]", esc(m), esc(k), esc(d)))
+                .collect();
+            rows.push(format!("\"{label}\": [{}]", items.join(",")));
+        }
+        println!("{{{}}}", rows.join(","));
+        return Ok(());
+    }
     println!();
     println!("## The live loop (0.14 Phases 1+2): N minds, one world, measured");
     println!();
@@ -319,6 +429,7 @@ fn main() -> Result<(), String> {
             ("v7", "(has v7 item11)"),
         ],
         Policy::Naive,
+        None,
     )?;
 
     // The same zero-sum set under claims: prevention cannot make an
@@ -334,6 +445,7 @@ fn main() -> Result<(), String> {
             ("v7", "(has v7 item11)"),
         ],
         Policy::Claims,
+        None,
     )?;
 
     // Disjoint ranges through non-mind vendors only: the control row — the
@@ -348,6 +460,7 @@ fn main() -> Result<(), String> {
             ("v10", "(has v10 item11)"),
         ],
         Policy::Naive,
+        None,
     )?;
 
     // ---- Phase 2 rows: the two-mind crossed-chain fixture ----
@@ -356,13 +469,26 @@ fn main() -> Result<(), String> {
     // so a naive mind can raid the other's lane and strand it. This is the
     // fixture where prevention has something real to prevent.
     let x2m: &[(&str, &str)] = &[("a0", "(has a0 itemA8)"), ("a1", "(has a1 itemB8)")];
-    run_row("Crossed chains x2m, naive", PRB_X2M, x2m, Policy::Naive)?;
-    run_row("Crossed chains x2m, claims", PRB_X2M, x2m, Policy::Claims)?;
+    run_row(
+        "Crossed chains x2m, naive",
+        PRB_X2M,
+        x2m,
+        Policy::Naive,
+        None,
+    )?;
+    run_row(
+        "Crossed chains x2m, claims",
+        PRB_X2M,
+        x2m,
+        Policy::Claims,
+        None,
+    )?;
     run_row(
         "Crossed chains x2m, claims + follow-biased rethinks",
         PRB_X2M,
         x2m,
         Policy::ClaimsFollowing,
+        None,
     )?;
 
     println!();

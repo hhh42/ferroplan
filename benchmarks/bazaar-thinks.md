@@ -56,11 +56,11 @@ here.
 | 1 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 0.0 |
 | 2 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 0.2 |
 | 3 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 0.2 |
-| 4 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 33.0 |
-| 6 | -- | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 105.7 |
-| 8 | -- | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 221.6 |
-| 10 | -- | -- | 20 @ 4460 | 20 @ 4460 | 20 @ 4460 | 301.2 |
-| 11 | -- | -- | 22 @ 4711 | 22 @ 4711 | 22 @ 4711 | 457.7 |
+| 4 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 26.0 |
+| 6 | -- | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 75.8 |
+| 8 | -- | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 167.6 |
+| 10 | -- | -- | 20 @ 4460 | 20 @ 4460 | 20 @ 4460 | 250.7 |
+| 11 | -- | -- | 22 @ 4711 | 22 @ 4711 | 22 @ 4711 | 404.7 |
 
 Where budget-exhausted verdicts begin:
 
@@ -90,18 +90,18 @@ Levenshtein edit distance between old and new step sequences (lower
 - prior plan: 16 steps for >= 16 trades of work (vendor-vendor pre-trades included)
 
 Drift: `TRADE V3 V4 ITEMA3 ITEMA4` (plan step 2) already happened off-screen:
-- biased (`replan_following`): 15 steps, churn 12 vs prior, 2540 evals, 123.8 ms — followed 2 still-applicable step(s) of the prior plan; searched only the tail
-- unbiased (`replan_budgeted`): 15 steps, churn 12 vs prior, 2997 evals, 144.3 ms — EHC found no improving state; used weighted best-first
+- biased (`replan_following`): 15 steps, churn 12 vs prior, 2540 evals, 110.3 ms — followed 2 still-applicable step(s) of the prior plan; searched only the tail
+- unbiased (`replan_budgeted`): 15 steps, churn 12 vs prior, 2997 evals, 117.5 ms — EHC found no improving state; used weighted best-first
 
 Drift: `TRADE V6 V7 ITEMB6 ITEMA8` (plan step 13) already happened off-screen:
 - biased (`replan_following`): 15 steps, churn 1 vs prior, 3 evals, 0.1 ms — followed 13 still-applicable step(s) of the prior plan; searched only the tail
-- unbiased (`replan_budgeted`): 14 steps, churn 16 vs prior, 2899 evals, 172.4 ms — EHC found no improving state; used weighted best-first
+- unbiased (`replan_budgeted`): 14 steps, churn 16 vs prior, 2899 evals, 124.6 ms — EHC found no improving state; used weighted best-first
 
 ## Per-mind retained memory and world load
 
 - shared world payload (once, however many minds): ~0.1 MB solo / ~0.2 MB contended
 - private state per forked mind: ~0.05 KB
-- world load: 0.04 s solo / 0.07 s contended, once; forks are O(state-copy) — see the `many_minds` example for the 12-NPC load story
+- world load: 0.03 s solo / 0.06 s contended, once; forks are O(state-copy) — see the `many_minds` example for the 12-NPC load story
 
 ## The live loop (0.14 Phases 1+2): N minds, one world, measured
 
@@ -116,7 +116,7 @@ last one. A mind gives up after 3 consecutive failed CLAIM-FREE
 thinks; claim-masked failures WAIT instead (the claim releases as
 the rival's plan drains).
 
-**Overlapping goals, naive (zero-sum by construction)** — quiescent after 4 ticks, 2.1 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
+**Overlapping goals, naive (zero-sum by construction)** — quiescent after 4 ticks, 3.6 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
@@ -125,7 +125,7 @@ the rival's plan drains).
 | v5 | `(has v5 item9)` | MET | 1 | 1 | 2 | 15 | 2 | 0 |
 | v7 | `(has v7 item11)` | gave up | 0 | 1 | 4 | 13 | 0 | 0 |
 
-**Overlapping goals, claims (zero-sum: do winners survive?)** — quiescent after 7 ticks, 3.1 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
+**Overlapping goals, claims (zero-sum: do winners survive?)** — quiescent after 7 ticks, 3.3 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
@@ -143,21 +143,21 @@ the rival's plan drains).
 | v7 | `(has v7 item9)` | MET | 1 | 0 | 1 | 4 | 0 | 0 |
 | v10 | `(has v10 item11)` | MET | 0 | 0 | 1 | 2 | 0 | 0 |
 
-**Crossed chains x2m, naive** — quiescent after 9 ticks, 24.9 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
+**Crossed chains x2m, naive** — quiescent after 9 ticks, 27.0 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | MET | 7 | 0 | 1 | 263 | 0 | 0 |
 | a1 | `(has a1 itemB8)` | MET | 1 | 6 | 7 | 387 | 12 | 0 |
 
-**Crossed chains x2m, claims** — quiescent after 9 ticks, 13.4 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
+**Crossed chains x2m, claims** — quiescent after 9 ticks, 10.7 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | MET | 7 | 0 | 1 | 263 | 0 | 0 |
 | a1 | `(has a1 itemB8)` | MET | 7 | 0 | 1 | 21 | 0 | 0 |
 
-**Crossed chains x2m, claims + follow-biased rethinks** — quiescent after 9 ticks, 11.3 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
+**Crossed chains x2m, claims + follow-biased rethinks** — quiescent after 9 ticks, 11.2 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
