@@ -109,6 +109,12 @@ pub struct Session {
     /// other in sync — a stale mirror would silently corrupt every
     /// applicability and goal test that reads it.
     mirror: Arc<FxHashMap<u32, u32>>,
+    /// Per-mind op mask (0.14 Phase 1): `forbidden[oi]` ops are never used by
+    /// this mind's thinks or accepted by its replays. Empty = unrestricted.
+    /// The actor-scoping primitive for many-minds worlds — a mind may only
+    /// plan ITS OWN actions ([`Session::restrict_ops`]); a rival's moves
+    /// reach it as world drift, never as plan steps.
+    forbidden: Vec<bool>,
 }
 
 impl Session {
@@ -224,7 +230,31 @@ impl Session {
             running_preds,
             op_ids: Arc::new(op_ids),
             mirror: Arc::new(mirror),
+            forbidden: Vec::new(),
         })
+    }
+
+    /// Restrict this mind to the ops `keep` accepts (0.14 Phase 1): every op
+    /// whose display (e.g. `TRADE V3 V4 ITEM3 ITEM4`) is rejected becomes
+    /// FORBIDDEN — never chosen by a think, and a plan step using one fails
+    /// [`Session::plan_still_valid`] / the [`Session::replan_following`]
+    /// prefix replay. This is how a mind in a many-minds world plans only
+    /// its OWN actions: restrict to the ops it can actually take, and a
+    /// rival's trades reach it as `set_fact` drift instead of plan steps.
+    ///
+    /// Restriction is part of the mind's identity: [`Session::fork`] copies
+    /// it (re-restrict the fork to change it), determinism is unaffected
+    /// (the mask is an input, t1 ≡ t8 holds), and completeness is honest —
+    /// a goal unreachable within the allowed ops is `solved: false`, not an
+    /// error. Calling again REPLACES the mask; `restrict_ops(|_| true)`
+    /// clears it. World state (`set_fact` / `set_fluent`) is never masked.
+    pub fn restrict_ops(&mut self, mut keep: impl FnMut(&str) -> bool) {
+        let mask: Vec<bool> = self.task.op_display.iter().map(|d| !keep(d)).collect();
+        self.forbidden = if mask.iter().any(|&f| f) {
+            mask
+        } else {
+            Vec::new()
+        };
     }
 
     /// Fork this mind (0.13 Phase 2): an independent `Session` over the SAME
@@ -254,6 +284,7 @@ impl Session {
             running_preds: self.running_preds.clone(),
             op_ids: Arc::clone(&self.op_ids),
             mirror: Arc::clone(&self.mirror),
+            forbidden: self.forbidden.clone(),
         }
     }
 
@@ -298,7 +329,7 @@ impl Session {
             &start,
             &self.task.goal_pos,
             &self.task.goal_num,
-            &[],
+            &self.forbidden,
             &[], // TILs rejected at construction
             self.threads,
             self.tier,
@@ -376,7 +407,11 @@ impl Session {
                 Some(&oi) => oi,
                 None => return false,
             };
-            if !self.task.op_applicable(oi, &state) {
+            // A step this mind may not take invalidates the plan for THIS
+            // mind, however applicable the world finds it.
+            if self.forbidden.get(oi).copied().unwrap_or(false)
+                || !self.task.op_applicable(oi, &state)
+            {
                 return false;
             }
             state = self.task.apply(oi, &state);
@@ -721,6 +756,15 @@ impl Session {
             + size_of_val(&t.rel_fluents[..])
     }
 
+    /// Does the CURRENT world state satisfy the session's goal? A pure state
+    /// test — no search, no plan, no think budget (0.14 Phase 1: the tick
+    /// loop's "am I done" probe; a zero-budget think answers a different
+    /// question — "could I still find a plan" — and near-done minds must not
+    /// confuse the two).
+    pub fn goal_met(&self) -> bool {
+        self.task.goal_met(&self.task.initial())
+    }
+
     /// Read a fact in the current state (`None` if it was never grounded).
     pub fn fact(&self, name: &str) -> Option<bool> {
         let &id = self.fact_ids.get(&name.to_ascii_uppercase())?;
@@ -796,7 +840,12 @@ impl Session {
                 break;
             }
             let oi = match self.op_ids.get(&display(s)) {
-                Some(&oi) if self.task.op_applicable(oi, &state) => oi,
+                Some(&oi)
+                    if !self.forbidden.get(oi).copied().unwrap_or(false)
+                        && self.task.op_applicable(oi, &state) =>
+                {
+                    oi
+                }
                 _ => break,
             };
             state = self.task.apply(oi, &state);
@@ -835,7 +884,7 @@ impl Session {
             Some(max_evaluated),
         );
         cfg.node_bytes_target = memory_mb.map(|mb| mb.saturating_mul(1 << 20));
-        let o = search::plan(&seeded, self.threads, cfg, self.ehc_first);
+        let o = search::plan_avoiding(&seeded, self.threads, cfg, self.ehc_first, &self.forbidden);
         match o.ops {
             Some(ops) => {
                 let followed = prefix.len();
@@ -896,7 +945,13 @@ impl Session {
             budget_evals.or(self.max_evaluated),
         );
         cfg.node_bytes_target = memory_mb.map(|mb| mb.saturating_mul(1 << 20));
-        let o = search::plan(&self.task, self.threads, cfg, self.ehc_first);
+        let o = search::plan_avoiding(
+            &self.task,
+            self.threads,
+            cfg,
+            self.ehc_first,
+            &self.forbidden,
+        );
         let mut notes = Vec::new();
         if o.ehc_fell_back && o.ops.is_some() {
             notes.push("EHC found no improving state; used weighted best-first".into());
@@ -1540,6 +1595,100 @@ mod tests {
             sol.notes.iter().any(|n| n.contains("fell back")),
             "{:?}",
             sol.notes
+        );
+    }
+
+    #[test]
+    fn restrict_ops_scopes_a_mind_to_its_own_actions() {
+        // In the wants-gated bazaar the solver freely plans vendor-vendor
+        // pre-trades (rival moves). An actor-scoped mind must plan around
+        // them: every step's actor is the mind itself, even when that means
+        // a longer chain — and a rival step in a plan fails validation.
+        let dom = include_str!("../../../benchmarks/bench/bazaar-chain-domain.pddl");
+        let prb = include_str!("../../../benchmarks/bench/bazaar-chain.pddl");
+        let mut s = Session::new(dom, prb, &Options::default()).expect("session");
+        s.set_goal("(has a0 item4)").unwrap();
+        let free = s.replan_budgeted(50_000, Some(128));
+        assert!(free.solved);
+        s.restrict_ops(|d| d.starts_with("TRADE A0 "));
+        let scoped = s.replan_budgeted(50_000, Some(128));
+        assert!(scoped.solved, "the own-actor chain exists");
+        for st in &scoped.plan.as_ref().unwrap().steps {
+            assert_eq!(st.args[0], "A0", "actor-scoped plan used a rival move");
+        }
+        // A plan with a rival step is invalid FOR THIS MIND even though the
+        // world could execute it.
+        let rival = Plan {
+            steps: vec![crate::api::Step {
+                index: 0,
+                action: "TRADE".into(),
+                args: ["V2", "V3", "ITEM2", "ITEM3"]
+                    .iter()
+                    .map(|s| s.to_string())
+                    .collect(),
+                time: None,
+                duration: None,
+            }],
+            length: 1,
+            metric: None,
+            makespan: None,
+        };
+        assert!(!s.plan_still_valid(&rival, 0));
+        // Fork inherits the restriction; clearing it restores rival moves.
+        let f = s.fork();
+        assert!(f
+            .replan_budgeted(50_000, Some(128))
+            .plan
+            .unwrap()
+            .steps
+            .iter()
+            .all(|st| st.args[0] == "A0"));
+        s.restrict_ops(|_| true);
+        assert!(s.forbidden.is_empty(), "keep-everything clears the mask");
+    }
+
+    #[test]
+    fn goal_met_is_a_pure_state_test() {
+        let mut s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        assert!(!s.goal_met(), "grain starts at 0, goal needs 2");
+        // A think can still SOLVE from here — that is a different question.
+        assert!(s.replan().solved);
+        assert!(!s.goal_met(), "a solvable goal is not a met goal");
+        s.set_fluent("(grain)", 2.0).unwrap();
+        assert!(s.goal_met());
+        s.set_goal("(>= (grain) 5)").unwrap();
+        assert!(!s.goal_met(), "goal_met answers for the CURRENT goal");
+    }
+
+    #[test]
+    fn restricted_thinks_stay_deterministic_across_threads() {
+        let dom = include_str!("../../../benchmarks/bench/bazaar-chain-domain.pddl");
+        let prb = include_str!("../../../benchmarks/bench/bazaar-chain.pddl");
+        let run = |threads: usize| {
+            let o = Options {
+                threads,
+                ..Options::default()
+            };
+            let mut s = Session::new(dom, prb, &o).expect("session");
+            s.set_goal("(has a0 item6)").unwrap();
+            s.restrict_ops(|d| d.starts_with("TRADE A0 "));
+            s.replan_budgeted(50_000, Some(128))
+        };
+        let (t1, t8) = (run(1), run(8));
+        assert!(t1.solved && t8.solved);
+        let steps = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            steps(&t1),
+            steps(&t8),
+            "restricted think differs across threads"
         );
     }
 

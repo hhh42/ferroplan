@@ -42,6 +42,46 @@ only when broken — the 0.12/0.13 machinery, finally composed.
   simulation replays byte-identical at any thread count.
 - This is measurement, not tuning: whatever the loop shows, it ships.
 
+## Recorded — Phase 1 (2026-07-22): SHIPPED — the loop runs, and the economy is brutal
+
+Two API pieces fell out as correctness needs, not conveniences:
+
+- **`Session::restrict_ops(keep)`** — the actor-scoping primitive,
+  promoted from Phase 2: without it a mind freely plans RIVAL moves
+  (0.13's solver loved vendor-vendor pre-trades), which a tick loop
+  cannot execute. Plumbs to the `forbidden` masks both engines already
+  carried (`plan_avoiding` / `solve_from`); replays and
+  `replan_following` prefixes reject forbidden steps; forks inherit
+  the mask; restricted t1 ≡ t8 suite-pinned.
+- **`Session::goal_met()`** — the pure state test. The first loop
+  draft probed "done" with a zero-budget think and got silently wrong
+  results: a think answers "could I still find a plan," and a
+  near-done mind must not confuse the two (a mind was marked MET
+  without ever acting). Suite-pinned against exactly that confusion.
+
+The `bazaar_live` example drives the serial tick loop (fixed order —
+so conflict attribution is EXACT: a break found at a mind's turn can
+only be rival-caused) and emits the live-loop section of
+`benchmarks/bazaar-thinks.md`. What it measured, shipping as-is:
+
+- **Disjoint control**: 4/4 met, zero conflicts, one think each,
+  quiescent in 3 ticks / 0.5 ms — the loop itself costs nothing.
+- **Overlapping goals**: 1/4 met. First-tick trades DESTROY three of
+  four goals — in a one-way want-edge economy, a stolen rung cannot
+  come back, so the losers' thinks fail honestly (~5 evals to exhaust
+  the own-actor reachable space) and they give up. The one survivor
+  (v5) adapted THROUGH the hole a rival left (churn 2, shortcut past
+  the stolen rung) and met its goal.
+- Conflict counted once per break (the dead plan drops at break
+  time); the whole simulation replays byte-identical at any thread
+  count.
+
+The Phase 2 question is now sharp: naive simultaneous pursuit in a
+contended one-way economy is CATASTROPHIC (75% goal destruction), and
+no rethink discipline can recover a goal the world made unreachable —
+Phase 2's levers must PREVENT the destruction (staggering, masking
+claimed exchanges), not just replan after it.
+
 ## Phase 2 — contention, handled
 
 Whatever Phase 1 measures, make it livable. Levers cheapest first:
