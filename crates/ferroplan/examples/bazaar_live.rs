@@ -103,6 +103,21 @@ fn run_row(
     policy: Policy,
     mut trace: Option<&mut Vec<Event>>,
 ) -> Result<(), String> {
+    run_row_with(label, prb, goals, policy, trace.take(), None)
+}
+
+/// [`run_row`] plus an optional scripted THEFT: at `tick`, `item` moves from
+/// `victim` to `receiver` off-screen — exogenous drift that breaks plans
+/// UNDER claims, so the follow-biased rethink discipline finally has breaks
+/// to work on (the Phase 2 record: under claims alone, nothing ever broke).
+fn run_row_with(
+    label: &str,
+    prb: &str,
+    goals: &[(&'static str, &str)],
+    policy: Policy,
+    mut trace: Option<&mut Vec<Event>>,
+    steal: Option<(usize, &str, &str, &str)>,
+) -> Result<(), String> {
     let world = Session::new(DOM, prb, &Options::default())?;
     let mut minds: Vec<Mind> = Vec::new();
     for &(name, goal) in goals {
@@ -134,6 +149,22 @@ fn run_row(
     for tick in 1..=TICK_CAP {
         ticks = tick;
         let mut anyone_moved = false;
+        if let Some((at, victim, item, receiver)) = steal {
+            if tick == at {
+                for m in minds.iter_mut() {
+                    m.s.set_fact(&format!("(has {victim} {item})"), false)?;
+                    m.s.set_fact(&format!("(has {receiver} {item})"), true)?;
+                }
+                if let Some(t) = trace.as_deref_mut() {
+                    t.push((
+                        tick,
+                        "world".into(),
+                        "theft".into(),
+                        format!("{item} moves {victim} -> {receiver} off-screen"),
+                    ));
+                }
+            }
+        }
         for mi in 0..minds.len() {
             // A pure STATE test — a zero-budget think would answer "could I
             // still plan," and a near-done mind must not confuse the two.
@@ -489,6 +520,27 @@ fn main() -> Result<(), String> {
         x2m,
         Policy::ClaimsFollowing,
         None,
+    )?;
+
+    // ---- Phase 9 rows: exogenous theft — breaks happen even under claims,
+    // so the follow-biased discipline finally gets exercised. itemA4 is
+    // stolen from v4 (moving to its wanter v5) at tick 3, mid-climb.
+    let theft = Some((3, "v4", "itemA4", "v5"));
+    run_row_with(
+        "Crossed chains x2m + scripted theft, claims",
+        PRB_X2M,
+        x2m,
+        Policy::Claims,
+        None,
+        theft,
+    )?;
+    run_row_with(
+        "Crossed chains x2m + scripted theft, claims + follow-biased rethinks",
+        PRB_X2M,
+        x2m,
+        Policy::ClaimsFollowing,
+        None,
+        theft,
     )?;
 
     println!();

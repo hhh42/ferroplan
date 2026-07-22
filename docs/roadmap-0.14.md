@@ -432,6 +432,36 @@ prefix's happenings into an in-flight state, search only the tail.
   close cleanly over concurrent intervals, record why with a worked
   example and keep the delegation.
 
+## Recorded — Phase 9 (2026-07-22): SHIPPED — timed prefixes follow now
+
+The 0.13 delegation is gone. `replan_following` on a temporal session
+replays the prior plan's HAPPENINGS — starts, ends, this session's
+scheduled events, and its real running ends, on the ε grid,
+events-before-starts — up to the first inapplicable one. The stopping
+point is a simulated IN-FLIGHT state: intervals whose starts replayed
+but whose ends lie past the break carry into the tail think as its
+root agenda, exactly like real running intervals (the Phase 5
+machinery, reused whole). The returned plan is the surviving prefix at
+its original times plus the tail shifted by the break moment; no tail
+⇒ unbiased fallback from the REAL state with combined eval counts.
+
+Suite-pinned (178/0, 3 new): the reroute fixture (fast machine dies →
+the whole plan honestly reroutes to the slow one and validates), the
+in-flight carry (a REAL `apply_start` interval is never restarted by
+the followed rethink — only the broken tail reroutes), and timed
+t1 ≡ t8. A same-end-op disambiguation (real interval vs plan interval
+of the same action) is matched by op AND time in the replay.
+
+The claims+following question got its honest answer on the classical
+loop: `bazaar_live` gained scripted-THEFT rows (exogenous drift that
+breaks plans under claims — the Phase 2 record's missing case).
+Measured: on the crossed-chain economy a mid-lane theft is GOAL-FATAL
+under either policy (the reroute currency is exactly what the rival
+consumes; both give up honestly, 283 vs 286 evals) — following is
+moot where breaks are fatal, and its win where breaks are benign was
+already recorded in 0.13 Phase 4 (churn 1 vs 16). Recorded, not
+oversold.
+
 ## Phase 10 — object-symmetry orbits (research target #1)
 
 The 0.13 diagnosis practically wrote the spec: temporal-machine-shop

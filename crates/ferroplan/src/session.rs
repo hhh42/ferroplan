@@ -1214,7 +1214,7 @@ impl Session {
         memory_mb: Option<usize>,
     ) -> Solution {
         if self.temporal.is_some() {
-            return self.replan_inner(Some(max_evaluated), memory_mb);
+            return self.replan_following_temporal(prior, from_step, max_evaluated, memory_mb);
         }
         let display = |s: &crate::api::Step| {
             if s.args.is_empty() {
@@ -1304,6 +1304,237 @@ impl Session {
                 sol.notes.push(
                     "prefix-follow found no tail within budget; fell back to an \
                      unbiased rethink"
+                        .into(),
+                );
+                sol
+            }
+        }
+    }
+
+    /// The temporal arm of [`Session::replan_following`] (0.14 ext Phase 9),
+    /// UNLOCKED by in-flight intervals: replay the prior timed plan's
+    /// happenings — starts, ends, this session's scheduled events, and its
+    /// REAL running ends, on the ε grid, events/ends before same-instant
+    /// starts — until the first inapplicable one. The replay's stopping
+    /// point is a simulated IN-FLIGHT state: intervals whose starts
+    /// replayed but whose ends lie past the break carry into the tail
+    /// think as its root agenda, exactly like real running intervals. The
+    /// returned plan is the surviving prefix (original times) plus the
+    /// tail (times shifted by the break moment) — churn confined to what
+    /// drift actually broke. No tail ⇒ unbiased fallback from the REAL
+    /// state, combined eval counts; the bias never costs completeness.
+    fn replan_following_temporal(
+        &self,
+        prior: &Plan,
+        from_step: usize,
+        max_evaluated: usize,
+        memory_mb: Option<usize>,
+    ) -> Solution {
+        let c = self.temporal.as_ref().expect("temporal arm").clone();
+        let eps = crate::temporal::EPS;
+        let steps: &[crate::api::Step] = prior.steps.get(from_step..).unwrap_or(&[]);
+        enum Hap {
+            /// suffix-step index, start (or instantaneous) op
+            Start(usize, usize),
+            /// end op — from a suffix step's interval or a REAL running one
+            End(usize),
+            /// scheduled-event setter (fires unconditionally)
+            Til(usize),
+        }
+        let display = |s: &crate::api::Step| {
+            if s.args.is_empty() {
+                s.action.clone()
+            } else {
+                format!("{} {}", s.action, s.args.join(" "))
+            }
+        };
+        let mut haps: Vec<(f64, i8, Hap)> = Vec::new();
+        for (si, s) in steps.iter().enumerate() {
+            let t = s.time.unwrap_or(0.0);
+            let d = display(s);
+            match s.duration {
+                Some(dur) => {
+                    let mut it = d.splitn(2, ' ');
+                    let head = it.next().unwrap_or("");
+                    let rest = it.next();
+                    let with = |suffix: &str| match rest {
+                        Some(r) => format!("{head}{suffix} {r}"),
+                        None => format!("{head}{suffix}"),
+                    };
+                    let (so, eo) = match (
+                        self.op_ids.get(&with("-START")),
+                        self.op_ids.get(&with("-END")),
+                    ) {
+                        (Some(&so), Some(&eo)) => (so, eo),
+                        // Unmappable step: nothing to follow — plain rethink.
+                        _ => return self.replan_inner(Some(max_evaluated), memory_mb),
+                    };
+                    haps.push((t, 1, Hap::Start(si, so)));
+                    haps.push((t + dur, 0, Hap::End(eo)));
+                }
+                None => match self.op_ids.get(&d) {
+                    Some(&o) => haps.push((t, 1, Hap::Start(si, o))),
+                    None => return self.replan_inner(Some(max_evaluated), memory_mb),
+                },
+            }
+        }
+        for &(t, f, v) in &self.timed {
+            haps.push((t, 0, Hap::Til(self.til_setters[&(f, v)])));
+        }
+        for &(t, eo) in &self.running {
+            haps.push((t, 0, Hap::End(eo)));
+        }
+        haps.sort_by_key(|&(t, class, _)| ((t / eps).round() as i64, class));
+
+        // Replay UP TO THE FOLLOWED PLAN'S SPAN (its last plan happening):
+        // the mind acts again at the break (or at the plan's end) — anything
+        // scheduled beyond that moment is the tail's future and CARRIES
+        // instead of applying. Track which suffix starts applied and which
+        // plan intervals are open (end op + absolute end time).
+        let horizon = haps
+            .iter()
+            .filter(|(_, _, h)| matches!(h, Hap::Start(..)) || matches!(h, Hap::End(_)))
+            .map(|&(t, _, _)| t)
+            .fold(0.0, f64::max);
+        let mut state = self.task.initial();
+        let mut applied: Vec<bool> = vec![false; steps.len()];
+        let mut open: Vec<(f64, usize)> = Vec::new();
+        let mut break_t: Option<f64> = None;
+        for &(t, _, ref h) in &haps {
+            if break_t.is_some() || (t / eps).round() > (horizon / eps).round() {
+                break;
+            }
+            match *h {
+                Hap::Til(op) => state = self.task.apply(op, &state),
+                Hap::Start(si, op) => {
+                    if !self.forbidden.get(op).copied().unwrap_or(false)
+                        && self.task.op_applicable(op, &state)
+                    {
+                        state = self.task.apply(op, &state);
+                        applied[si] = true;
+                        if let Some(d) = steps[si].duration {
+                            let et = steps[si].time.unwrap_or(0.0) + d;
+                            let eo = haps.iter().find_map(|&(ht, _, ref eh)| match *eh {
+                                Hap::End(eo) if ((ht - et) / eps).abs() < 0.5 => Some(eo),
+                                _ => None,
+                            });
+                            if let Some(eo) = eo {
+                                open.push((et, eo));
+                            }
+                        }
+                    } else {
+                        break_t = Some(t);
+                    }
+                }
+                Hap::End(op) => {
+                    if self.task.op_applicable(op, &state) {
+                        state = self.task.apply(op, &state);
+                        // Match by op AND time: a REAL running interval may
+                        // share its end op with a plan interval of the same
+                        // action — the wrong removal would drop a pending
+                        // end from the tail's agenda.
+                        if let Some(pos) = open
+                            .iter()
+                            .position(|&(et, eo)| eo == op && ((et - t) / eps).abs() < 0.5)
+                        {
+                            open.remove(pos);
+                        }
+                    } else {
+                        break_t = Some(t);
+                    }
+                }
+            }
+        }
+        let bt = break_t.unwrap_or(horizon);
+
+        // Tail root agenda, re-based to the break moment: open plan
+        // intervals, this session's REAL running ends still in the future,
+        // and scheduled events not yet fired.
+        let mut carried: Vec<(f64, usize)> = open
+            .iter()
+            .map(|&(et, eo)| ((et - bt).max(0.0), eo))
+            .collect();
+        for &(t, eo) in &self.running {
+            if (t / eps).round() > (bt / eps).round() {
+                carried.push((t - bt, eo));
+            }
+        }
+        for &(t, f, v) in &self.timed {
+            if (t / eps).round() > (bt / eps).round() {
+                carried.push((t - bt, self.til_setters[&(f, v)]));
+            }
+        }
+        carried.sort_by(|a, b| {
+            a.0.partial_cmp(&b.0)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(a.1.cmp(&b.1))
+        });
+
+        let (kind, dur_exprs) = crate::temporal::build_kind(&self.task, &c);
+        let total = max_evaluated;
+        let mut remaining = total;
+        let node_bytes = memory_mb
+            .map(|mb| mb.saturating_mul(1 << 20))
+            .unwrap_or(crate::search::NODE_CAP_TARGET_BYTES);
+        let tp = crate::temporal::solve_from_seeded(
+            &self.task,
+            &kind,
+            &dur_exprs,
+            &state,
+            &self.task.goal_pos,
+            &self.task.goal_num,
+            &self.forbidden,
+            &carried,
+            self.threads,
+            self.tier,
+            &mut remaining,
+            node_bytes,
+            true,
+        );
+        let evaluated = total.saturating_sub(remaining);
+        match tp {
+            Some(tp) => {
+                let followed = applied.iter().filter(|&&a| a).count();
+                let mut out: Vec<crate::api::Step> = steps
+                    .iter()
+                    .enumerate()
+                    .filter(|&(si, _)| applied[si])
+                    .map(|(_, s)| s.clone())
+                    .collect();
+                let mut makespan: f64 = out
+                    .iter()
+                    .map(|s| s.time.unwrap_or(0.0) + s.duration.unwrap_or(0.0))
+                    .fold(0.0, f64::max);
+                for mut s in timed_steps(&tp) {
+                    s.time = Some(s.time.unwrap_or(0.0) + bt);
+                    makespan = makespan.max(s.time.unwrap_or(0.0) + s.duration.unwrap_or(0.0));
+                    out.push(s);
+                }
+                for (i, s) in out.iter_mut().enumerate() {
+                    s.index = i;
+                }
+                Solution {
+                    solved: true,
+                    mode: Mode::Temporal,
+                    plan: Some(Plan {
+                        length: out.len(),
+                        steps: out,
+                        metric: None,
+                        makespan: Some(makespan),
+                    }),
+                    statistics: stats(&self.task, evaluated, self.threads),
+                    notes: vec![format!(
+                        "followed {followed} still-valid timed step(s) of the prior \
+                         plan through the break at t={bt:.3}; searched only the tail"
+                    )],
+                }
+            }
+            None => {
+                let mut sol = self.replan_inner(Some(max_evaluated), memory_mb);
+                sol.statistics.evaluated_states += evaluated;
+                sol.notes.push(
+                    "timed prefix-follow found no tail within budget; fell back \
+                     to an unbiased rethink"
                         .into(),
                 );
                 sol
@@ -2378,6 +2609,121 @@ mod tests {
             steps(&t8),
             "in-flight think differs across threads"
         );
+    }
+
+    // Two machines, two jobs: FAST does a job in 2, SLOW in 8. Drift can
+    // retire a machine between thinks — the reroute fixture for temporal
+    // follow-biased rethinks.
+    const SHOP_DOM: &str = "
+    (define (domain shop) (:requirements :strips :typing :durative-actions)
+      (:types job machine)
+      (:predicates (todo ?j - job) (done ?j - job) (up ?m - machine) (fast ?m - machine)
+                   (slow ?m - machine))
+      (:durative-action run-fast :parameters (?j - job ?m - machine)
+        :duration (= ?duration 2)
+        :condition (and (at start (todo ?j)) (at start (up ?m)) (at start (fast ?m))
+                        (over all (up ?m)))
+        :effect (and (at start (not (todo ?j))) (at end (done ?j))))
+      (:durative-action run-slow :parameters (?j - job ?m - machine)
+        :duration (= ?duration 8)
+        :condition (and (at start (todo ?j)) (at start (up ?m)) (at start (slow ?m))
+                        (over all (up ?m)))
+        :effect (and (at start (not (todo ?j))) (at end (done ?j))))
+      (:durative-action maintain :parameters (?m - machine)
+        :duration (= ?duration 1)
+        :condition (at start (up ?m))
+        :effect (and (at start (not (up ?m))) (at end (up ?m)))))";
+    const SHOP_PRB: &str = "
+    (define (problem p) (:domain shop)
+      (:objects j1 j2 - job f s - machine)
+      (:init (todo j1) (todo j2) (up f) (up s) (fast f) (slow s))
+      (:goal (and (done j1) (done j2))))";
+
+    #[test]
+    fn temporal_following_keeps_the_prefix_and_reroutes_the_tail() {
+        let mut sess = Session::new(SHOP_DOM, SHOP_PRB, &Options::default()).expect("session");
+        let prior = sess.replan_budgeted(50_000, Some(128));
+        assert!(prior.solved);
+        let prior = prior.plan.unwrap();
+        // Both jobs go to the FAST machine (2 < 8): j1 at t=0, j2 at t~2.
+        assert!(prior.steps.iter().all(|s| s.action == "RUN-FAST"));
+        // Drift: the fast machine dies before j2's run starts.
+        sess.set_fact("(up f)", false).unwrap();
+        assert!(!sess.plan_still_valid(&prior, 0));
+        let followed = sess.replan_following(&prior, 0, 50_000, Some(128));
+        assert!(followed.solved, "{:?}", followed.notes);
+        let plan = followed.plan.as_ref().unwrap();
+        // j1's fast run breaks too (over-all up f) — nothing survives the
+        // replay, so the whole plan reroutes to the slow machine.
+        assert!(
+            plan.steps.iter().all(|s| s.action == "RUN-SLOW"),
+            "{:?}",
+            plan.steps
+        );
+        assert!(sess.plan_still_valid(plan, 0));
+    }
+
+    #[test]
+    fn temporal_following_carries_the_in_flight_interval() {
+        // j1's SLOW run is already IN FLIGHT (real interval) when drift
+        // breaks the plan's fast-machine tail: the followed rethink must
+        // keep the running interval (not restart j1) and reroute only j2.
+        let mut sess = Session::new(SHOP_DOM, SHOP_PRB, &Options::default()).expect("session");
+        sess.apply_start("(run-slow j1 s)").unwrap();
+        let prior = sess.replan_budgeted(50_000, Some(128));
+        assert!(prior.solved);
+        let prior = prior.plan.unwrap();
+        assert_eq!(prior.length, 1, "only j2 needs planning: {:?}", prior.steps);
+        assert_eq!(prior.steps[0].action, "RUN-FAST");
+        sess.set_fact("(up f)", false).unwrap();
+        assert!(!sess.plan_still_valid(&prior, 0));
+        let followed = sess.replan_following(&prior, 0, 50_000, Some(128));
+        assert!(followed.solved, "{:?}", followed.notes);
+        let plan = followed.plan.as_ref().unwrap();
+        assert_eq!(
+            plan.steps
+                .iter()
+                .filter(|s| s.args.first().map(String::as_str) == Some("J1"))
+                .count(),
+            0,
+            "the in-flight j1 interval must not be restarted: {:?}",
+            plan.steps
+        );
+        assert!(
+            plan.steps
+                .iter()
+                .any(|s| s.action == "RUN-SLOW"
+                    && s.args.first().map(String::as_str) == Some("J2")),
+            "{:?}",
+            plan.steps
+        );
+        assert!(sess.plan_still_valid(plan, 0));
+    }
+
+    #[test]
+    fn temporal_following_is_deterministic_across_threads() {
+        let run = |threads: usize| {
+            let o = Options {
+                threads,
+                ..Options::default()
+            };
+            let mut sess = Session::new(SHOP_DOM, SHOP_PRB, &o).expect("session");
+            let prior = sess.replan_budgeted(50_000, Some(128)).plan.unwrap();
+            sess.set_fact("(up f)", false).unwrap();
+            sess.replan_following(&prior, 0, 50_000, Some(128))
+        };
+        let (t1, t8) = (run(1), run(8));
+        assert!(t1.solved && t8.solved);
+        let steps = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone(), st.time))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(steps(&t1), steps(&t8));
     }
 
     #[test]

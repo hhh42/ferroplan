@@ -2380,7 +2380,7 @@ pub(crate) fn treplay_with_exempt(
 // ---------------------------------------------------------------------------
 
 /// PDDL2.1 separation between mutex happenings (the IPC convention).
-const EPS: f64 = 0.001;
+pub(crate) const EPS: f64 = 0.001;
 
 /// Re-time a plan so mutex happenings are ε-separated (PDDL2.1 / VAL validity):
 /// the decision-epoch search coincides dependent happenings (e.g. one action
