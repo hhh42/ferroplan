@@ -99,6 +99,47 @@ Whatever Phase 1 measures, make it livable. Levers cheapest first:
   goal eventually met), bounded churn, measured overhead; negative
   results recorded with the same precision as wins.
 
+## Recorded — Phase 2 (2026-07-22): SHIPPED — claims prevent, and prevention is cheap
+
+All loop-side, exactly as scoped — the engine's only contribution is
+the `restrict_ops` mask it already had. A CLAIM is an item a rival's
+active plan still intends to receive (its remaining steps' takes); a
+mind about to think masks away trades that would take claimed items,
+and a mind that cannot plan under claims WAITS (claims release as the
+rival's plan drains) instead of burning toward dormancy — give-up
+verdicts come only from claim-FREE failures, so they are honest.
+
+The fixture that made it measurable: `bazaar-chain-x2m` (generator
+mode `x2m`) — the crossed chains split across TWO actor minds, a0
+climbing chain A and a1 climbing chain B. Jointly satisfiable (each
+can stay in its lane), yet contended: every vendor stocks both chains
+and will hand a B-rung to an A-offer, so a naive mind raids the other
+lane as currency. Measured (`bazaar_live` rows, shipping as-is):
+
+- **Naive**: 2/2 met, but a1 pays the raid tax — 6 conflicts, 7
+  thinks, 387 evals, churn 12: a0's plan grabs B-rungs, a1 recovers
+  over and over.
+- **Claims**: 2/2 met, ZERO conflicts, one think each, a1 at 21 evals
+  (~18× cheaper), churn 0 — the second mind simply plans AROUND the
+  first's declared route. The first thinker's numbers are identical
+  to naive (no claims exist yet when it plans), which is the correct
+  first-mover semantics, not an artifact.
+- **Claims + follow-biased rethinks**: identical to claims here —
+  under claims nothing broke, so `replan_following` never engaged.
+  The discipline matters exactly when breaks still happen; recorded,
+  not oversold.
+- **The zero-sum row stays zero-sum, now with honest verdicts**:
+  claims cannot make Phase 1's mutually-destructive goal set
+  satisfiable (1/4 met either way — the same deterministic winner),
+  but the losers now WAIT while claims exist and give up only after
+  claim-free thinks fail. Quiet-tick handling lets waiting minds
+  resolve to give-ups instead of ending the run "stalled".
+
+Bar check: no starving mind on the jointly-satisfiable fixture (2/2
+met under claims, zero starvation), bounded churn (0 under claims vs
+12 naive), overhead measured (the mask costs one op-scan per think).
+Suite 164/0 unchanged; the whole simulation stays byte-deterministic.
+
 ## Phase 3 — the scheduled world (relative-time events)
 
 `Session` scheduled events: "in `dt` units, fact F flips" — the
