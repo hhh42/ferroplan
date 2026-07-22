@@ -329,6 +329,30 @@ Two diagnosed soundness bugs from the records, each with a named fix:
 - Bar: both repros VAL-green; full temporal corpus re-validated (the
   388 baseline must not lose a VAL column); suite pins both.
 
+## Recorded — Phase 7 (2026-07-22): both bugs were ALREADY FIXED — the records were stale
+
+Verification before surgery paid off: neither diagnosed soundness bug
+still exists, because the 0.10 ε-separation rewrite replaced the
+pairwise mutex-footprint test with TOTAL ε-ordering — every
+consecutive happening in execution order is ε apart, so simultaneity
+(the only thing any mutex definition can object to) is impossible BY
+CONSTRUCTION, and no footprint under-approximation can ever slip a
+coincidence through again.
+
+- **openstacks-time/instance-2** (the recorded VAL-invalid
+  conditional-effect mutex): re-solved against the fetched ipc-2006
+  corpus, VAL-validated GREEN (`-t 0.001`, 30 steps).
+- **The produce-at-end / consume-at-start under-separation**
+  (rpg-world fixtures): `selfcheck.py` now reports **5 valid, 0
+  flagged** — the 0.10 numeric write-read footprint covered it.
+
+Both stale records amended in place (`benchmarks/temporal-results.md`
+finding 4, `benchmarks/encoding-ab/README.md` item 2) with dated
+resolutions. No engine change was needed; the 388-plan VAL-green
+temporal sweep already standing is the corpus-wide witness. The
+phase's real lesson feeds Phase 8: records that outlive their bugs
+are exactly why the documentation rework exists.
+
 ## Phase 8 — the documentation rework + platform debts
 
 Rework ALL the documentation against the current record, and publish

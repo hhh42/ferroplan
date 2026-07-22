@@ -191,6 +191,9 @@ Two things it bought us immediately (`selfcheck.py`, unit tests in `crates/ferro
    `at start` at the *same* printed time). Nudging the consumer by +0.001 makes the plan
    validate. The fix belongs in the temporal ε-separation / printer (`temporal.rs`
    `epsilon_separate`); it is logged here, not yet applied.
+   *Resolved (verified 2026-07-22, 0.14 extension Phase 7):* fixed by the 0.10
+   numeric-footprint work and the total-ε-ordering rewrite; `selfcheck.py` now
+   reports **5 valid, 0 flagged**.
 
 ### Notes / caveats
 

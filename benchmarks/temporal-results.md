@@ -67,5 +67,11 @@ Harness: [`bench_temporal.py`](bench_temporal.py). Budget: 20 instances/domain,
    *conditional*-effect mutex (ship-order's conditional delete) slips through.
    Rare (1/45); fixing it means extending mutex detection to conditional/numeric
    effects.
+   *Resolved (verified 2026-07-22, 0.14 extension Phase 7):* the 0.10
+   ε-separation rewrite replaced the pairwise mutex test with TOTAL ε-ordering
+   (every consecutive happening ε apart — simultaneity impossible by
+   construction, so no footprint model can under-approximate again).
+   `openstacks-time/instance-2` re-solved and VAL-validated green
+   (`-t 0.001`, 30 steps).
 
 [VAL]: https://github.com/KCL-Planning/VAL
