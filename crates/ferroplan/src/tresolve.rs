@@ -155,7 +155,7 @@ fn decompose_inner(
     if temporal::statically_unsolvable(&task, &task.initial(), &task.goal_pos, &task.goal_num) {
         return None;
     }
-    let (kind, dur_exprs) = build_kind(&task, &c);
+    let (kind, dur_exprs, inv) = build_kind(&task, &c);
     // Rendered whole-goal description for the monolithic-fallback contract.
     let whole_goal = render_subgoal(
         &task,
@@ -225,6 +225,7 @@ fn decompose_inner(
                 &task,
                 &kind,
                 &dur_exprs,
+                &inv,
                 &state,
                 &groups[i].pos,
                 &groups[i].num,
@@ -243,6 +244,7 @@ fn decompose_inner(
                         &task,
                         &kind,
                         &dur_exprs,
+                        &inv,
                         &state,
                         &groups[i].pos,
                         &groups[i].num,

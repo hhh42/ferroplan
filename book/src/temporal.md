@@ -36,10 +36,19 @@ existing grounder and relaxed-plan heuristic can be reused:
 The duration and the `over all` invariant live in a side table the temporal
 search consumes: a decision-epoch search advances time over an agenda of pending
 end-events, only letting `A-END` fire `duration` after its matching `A-START`,
-and checking the invariant at both happenings. Since 0.13 the pending-interval
-agenda is **symmetry-reduced** (canonical ordering + redundant identical-interval
-elimination, `FF_NO_TSYMM=1` reverts) — same-epoch starts of interchangeable
-intervals no longer multiply the visited space.
+and checking the invariant at both happenings **and on every happening in
+between** (0.14): a happening whose effects would delete a running interval's
+invariant fact is refused, so a delete + re-add sneaking through the endpoint
+checks — a bake spanning the gap between two kiln firings — can't happen, and
+nodes whose agenda head can never legally fire are pruned at birth. Since 0.13
+the pending-interval agenda is **symmetry-reduced** (canonical ordering +
+redundant identical-interval elimination, `FF_NO_TSYMM=1` reverts) — same-epoch
+starts of interchangeable intervals no longer multiply the visited space. 0.14
+adds **object-symmetry orbits** on top (`FF_NO_ORBIT=1` reverts): when a
+problem's objects or goal pairs are interchangeable — identical init profiles,
+symmetric goals, a grounded task closed under relabeling — the visited key is
+canonicalized under member permutation, collapsing machine-shop-style
+"which identical piece is which" state blowups.
 
 ## Output
 

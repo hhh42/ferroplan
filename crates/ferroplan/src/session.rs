@@ -410,7 +410,7 @@ impl Session {
             .op_ids
             .get(&disp)
             .ok_or_else(|| format!("unknown durative action `{name}` (no grounded `{disp}`)"))?;
-        let (kind, dur_exprs) = crate::temporal::build_kind(&self.task, &c);
+        let (kind, dur_exprs, _inv) = crate::temporal::build_kind(&self.task, &c);
         let (dur, end_op) = match kind[start_op] {
             crate::temporal::Kind::Start { dur, end_op, dexp } => {
                 let d = if dexp == u32::MAX {
@@ -538,7 +538,7 @@ impl Session {
                 notes: vec!["goal already satisfied; the empty plan solves it".into()],
             };
         }
-        let (kind, dur_exprs) = crate::temporal::build_kind(&self.task, c);
+        let (kind, dur_exprs, inv) = crate::temporal::build_kind(&self.task, c);
         let total = budget_evals.or(self.max_evaluated).unwrap_or(usize::MAX);
         let mut remaining = total;
         let node_bytes = memory_mb
@@ -564,6 +564,7 @@ impl Session {
             &self.task,
             &kind,
             &dur_exprs,
+            &inv,
             &start,
             &self.task.goal_pos,
             &self.task.goal_num,
@@ -1470,7 +1471,7 @@ impl Session {
                 .then(a.1.cmp(&b.1))
         });
 
-        let (kind, dur_exprs) = crate::temporal::build_kind(&self.task, &c);
+        let (kind, dur_exprs, inv) = crate::temporal::build_kind(&self.task, &c);
         let total = max_evaluated;
         let mut remaining = total;
         let node_bytes = memory_mb
@@ -1480,6 +1481,7 @@ impl Session {
             &self.task,
             &kind,
             &dur_exprs,
+            &inv,
             &state,
             &self.task.goal_pos,
             &self.task.goal_num,

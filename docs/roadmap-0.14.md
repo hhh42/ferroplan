@@ -484,6 +484,93 @@ visited state. parc-printer-t (18/30 + 7/20) is the same family.
   casualty and check it solo).
 - Severable: ships behind a default gate only if the sweep is clean.
 
+### Recorded — SHIPPED (the win is real; the wall moved somewhere new)
+
+**The orbit engine works.** `orbits::detect` finds goal-respecting
+member units — SOLO objects and the goal-pair tuples of the TMS shape —
+groups them by (type, init profile) at the lifted level, then
+materializes against the grounded task through template FAMILIES:
+every fact/op/fluent display touching an orbit object joins a
+(head, literal/slot pattern) family with a dense table over member
+coordinates, so a member permutation σ acts on the WHOLE grounded
+task by table lookup. Cross-member facts (TMS grounds `(assemble p q)`
+for every cross-pair combo — the thing that killed the naive
+per-member-template design) permute right along with the per-member
+ones. Soundness is by construction: per-family CLOSURE (each
+equality-pattern class of coordinates uniformly present/absent =
+the grounded task really is closed under every member transposition),
+goal-set σ-invariance checked fact by fact, and wholesale bails on
+TILs / derived rules / constraints / non-total-time metrics. Any σ is
+sound (canon(s)=σ(s), so equal canons ⇒ a true automorphism relates
+the states); the per-member signature sort just picks a good one.
+`FF_NO_ORBIT=1` disables detection; classical paths untouched;
+Session/tresolve pass no orbit (recorded decision, revisit when a
+game needs it).
+
+Probe (instance 1, all 12 ipc-2011 temporal domains): TMS detects
+its 5 pair-orbits [3,2,5,7,5] — visited-space divisor 8.7×10⁸ —
+match-cellar divisor 6, turn-and-open divisor 4, everything else an
+honest `none` (parc-printer-t included: its wall is start-spam, not
+goal-pair symmetry — the "same family" guess in the spec above was
+wrong, and the probe is what says so). Detect cost ≤ 25 ms where
+symmetry exists; the no-candidates exit is lifted-level cheap
+(elevator's 10⁶-display ground scan is skipped unless candidate
+groups exist).
+
+Measured on TMS i1 at equal eval budgets: 5,632 stored nodes with
+orbits vs 13,657 without (the collapse is real), and canonical-key
+pre-dedup before the heuristic eval buys ~3× wall throughput (a key
+is ~4× cheaper than an eval; ~72% of successors are permutation
+duplicates). t1 ≡ t8 preserved: budgets are charged per candidate
+before dedup, and the parallel funnel pre-dedups serially in input
+order.
+
+**Then the trophy nobody asked for: the first-ever TMS plans were
+VAL-RED, and the fault was ancient.** The engine checked `over all`
+invariants at the interval endpoints only ("a sound approximation" —
+its own comment). A delete + re-add BETWEEN the endpoints passes both
+endpoint checks and violates the invariant: TMS bakes happily spanned
+the gap between two kiln firings. `benchmarks/bench/kiln-gap-*.pddl`
+pins it minimally — prep 0..6 forces the tempting bake at 6.001 across
+a scheduled `(ready)` outage at 8..8.001; the old engine takes the
+bait (VAL-red), no orbits involved. The fix is a per-happening
+transition guard: `build_kind` grounds each interval's conjunctive
+propositional invariant into an `InvMap` (end-op → pos/neg fact ids),
+and every happening — starts, classical ops, fired ends, TILs — is
+vetted diff-wise against all pending intervals' invariants (exact
+under conditional effects; the fired entry itself exempt). Same-epoch
+ties scan the equal-time agenda run for a legal firing order instead
+of dead-ending (close the bake, then fire the outage). And because a
+blocked head whose blocker outlives its epoch can NEVER fire, such
+nodes are pruned at birth (`doomed`) before paying for a heuristic —
+goal states can't be pruned (they have no blocked pending end).
+Numeric invariant conjuncts and non-conjunctive shapes remain
+endpoint-only: the recorded limit. kiln-gap flips VAL-green
+(bake at 8.002), suite + 11-domain spot set stay green.
+
+The honest scoreboard: **TMS is still 0/20 at 30 s** — and now we
+know why with precision. Under the (unsound) old semantics, orbits
+solved i1 in 55 s / i2 in 111 s where the baseline solved nothing at
+any budget: the symmetry wall itself is genuinely broken. Under sound
+semantics those plans are illegal, and i1 doesn't solve in 600 s: with
+duplicates collapsed and doomed subtrees pruned, the residual wall is
+the invariant-BLIND RELAXATION — h cannot see that ~25 bakes must nest
+inside narrow kiln windows, so the search cannot coordinate them.
+That is a guidance problem, Phase 11's territory, not more symmetry.
+
+Where orbits pay TODAY: turn-and-open i1 under sound semantics solves
+in 15.1 s with orbits and TIMES OUT at 30 s without — the reduction
+rescues coverage the invariant fix would otherwise cost. match-cellar
+i1 is unchanged (0.006 s either way). The full corpus settlement —
+both scoreboards against the final binary, casualties named and
+solo-checked — is Phase 12's job as planned.
+
+Tests: `tests/orbits.rs` — pair-orbit detection on a mini-TMS fixture
+(cross-member glue combos exercised), canonical-key merges π-related
+states and ONLY those, orbit-path solve, and the kiln-gap outage
+schedule. Probe: `examples/orbit_probe.rs` (+ `FF_ORBIT_DEBUG=1` bail
+narration, `FF_TEVAL_BUDGET` deterministic A/B budgets).
+
 ## Phase 11 — the different heuristic, first rung (research target #2)
 
 Three 0.11 guidance transfers measured negative with the standing

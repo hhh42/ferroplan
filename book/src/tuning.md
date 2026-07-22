@@ -30,6 +30,9 @@ results are deterministic and thread-count independent.
 | `FF_LAX_HELPFUL` | off | **experimental**: re-arm empty temporal helpful sets with a lax fallback instead of a full scan. Measured zero new solves. |
 | `FF_TAGENDA_W` | `0` | **experimental**: complete-pass agenda-size ordering term (de-prioritize interval hoarding). Measured negative on parc-printer-t. |
 | `FF_NO_FIXPOINT_GROUND` | fixpoint (Session) | make the `Session`'s temporal entry use stratified grounding instead of reached-restricted **fixpoint grounding** (the ~117× transient-memory win on sparse-reachable worlds). Corpus/CLI paths always use stratified — their tie-breaks pin the scoreboard baselines. |
+| `FF_NO_ORBIT` | orbits on | disable **object-symmetry orbit** detection (0.14): goal-respecting member permutations canonicalize the temporal visited key, collapsing states that differ only by relabeling interchangeable objects/goal pairs (machine-shop's wall; rescues turn-and-open under the sound invariant semantics). |
+| `FF_ORBIT_DEBUG` | off | narrate orbit detection (candidate groups, bail reasons) and per-solve eval counts on stderr — the probe eyes, never affects the search. |
+| `FF_TEVAL_BUDGET` | unlimited | cap CLI temporal search **evaluations** — the deterministic measuring stick for A/B probes (eval budgets, never wall clock). |
 
 ## Classical search (experiments & restore hatches)
 

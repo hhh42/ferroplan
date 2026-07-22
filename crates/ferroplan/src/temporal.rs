@@ -282,9 +282,12 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
         let invariant = subst_f(&invariant);
 
         // start snap: (at-start conditions + invariant) -> at-start effects + token.
-        // The invariant is also checked at both endpoints (a sound approximation
-        // of `over all`: an interval violation surfaces when the END precondition
-        // fails, e.g. a concurrent action removing the invariant fact).
+        // The invariant is also checked at both endpoints. Endpoint checks alone
+        // were UNSOUND — a delete + re-add BETWEEN the endpoints (kiln-gap
+        // fixture) passed both and failed VAL; the search's per-happening
+        // transition guard ([`InvMap`], `inv_ok`) closes that for conjunctive
+        // propositional invariants. Numeric conjuncts remain endpoint-only
+        // (recorded limit).
         let start_pre = and_formulas(vec![subst_f(&start_cond0), invariant.clone()]);
         let mut start_eff: Vec<Effect> = start_effs0.iter().map(&subst_e).collect();
         start_eff.push(Effect::Add(running.clone(), run_args.clone()));
@@ -468,14 +471,24 @@ fn lm_unaccepted(accepted: &[u64], n: usize) -> i64 {
 /// (a future TIL fires at an absolute time), so the caller passes
 /// `relative = til_events.is_empty()`; `FF_TEMPORAL_ABS_KEY=1` restores
 /// absolute keys everywhere.
-fn tkey(task: &PackedTask, n: &TNode, relative: bool) -> (StateKey, Vec<(i64, usize)>) {
+fn tkey(
+    task: &PackedTask,
+    n: &TNode,
+    relative: bool,
+    orbit: Option<&crate::orbits::OrbitMap>,
+) -> (StateKey, Vec<(i64, usize)>) {
     let base = if relative { n.time } else { 0.0 };
-    let ag = n
+    let ag: Vec<(i64, usize)> = n
         .agenda
         .iter()
         .map(|&(t, o)| (((t - base) * 1000.0).round() as i64, o))
         .collect();
-    (task.state_key(&n.state), ag)
+    match orbit {
+        // Orbit canonicalization (0.14 ext Phase 10): states differing only
+        // by a permutation of interchangeable members share one key.
+        Some(om) => om.canonical_key(task, &n.state, &ag),
+        None => (task.state_key(&n.state), ag),
+    }
 }
 
 /// Evaluate a (possibly parameter-dependent) duration for one grounded
@@ -555,8 +568,10 @@ fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &Sta
 /// Solve a temporal (durative-action) problem by decision-epoch forward search.
 /// Returns a timed plan, or None if unsolved within the node budget. Durations
 /// may be constants or parameter-dependent (evaluated against the initial state);
-/// the `over all` invariant is enforced at the start and end happenings via the
-/// snap preconditions.
+/// the `over all` invariant is enforced at the endpoints via the snap
+/// preconditions AND on every happening in between via the grounded
+/// invariant transition guard (a delete + re-add between the endpoints
+/// used to slip through — the kiln-gap fixture pins the fix).
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
     let ambient = crate::features::demand_mode();
     if let Some(plan) = solve_monolithic(domain, problem, threads, ambient) {
@@ -638,7 +653,7 @@ fn solve_inner(
         _ => return None,
     };
 
-    let (kind, dur_exprs) = build_kind(&task, &c);
+    let (kind, dur_exprs, inv) = build_kind(&task, &c);
     // Resolve each TIL's synthetic applier to its grounded op id (0-arg ⇒ op display
     // is the action name). A TIL whose op didn't ground is silently dropped.
     let by_display: HashMap<&str, usize> = task
@@ -653,11 +668,22 @@ fn solve_inner(
         .filter_map(|(t, name)| by_display.get(name.as_str()).map(|&oi| (*t, oi)))
         .collect();
 
-    let mut unlimited = usize::MAX;
-    solve_from(
+    // Object-symmetry orbits (0.14 ext Phase 10): detected against the COMPILED
+    // lifted pair (op displays are snap-action names). None = no usable symmetry.
+    let orbit = crate::orbits::detect(&c.domain, &c.problem, &task);
+
+    // FF_TEVAL_BUDGET caps search evaluations — the deterministic measuring
+    // stick for A/B probes (eval budgets, never wall clock). Default unlimited.
+    let cap: usize = std::env::var("FF_TEVAL_BUDGET")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(usize::MAX);
+    let mut budget = cap;
+    let r = solve_from_seeded_orbit(
         &task,
         &kind,
         &dur_exprs,
+        &inv,
         &task.initial(),
         &task.goal_pos,
         &task.goal_num,
@@ -665,15 +691,39 @@ fn solve_inner(
         &til_events,
         threads,
         tier,
-        &mut unlimited,
+        &mut budget,
         crate::search::NODE_CAP_TARGET_BYTES,
-    )
+        false,
+        orbit.as_ref(),
+    );
+    if std::env::var("FF_ORBIT_DEBUG").is_ok() {
+        eprintln!(
+            "orbit: solve_inner evals {} solved {}",
+            cap - budget,
+            r.is_some()
+        );
+    }
+    r
 }
+
+/// Grounded `over all` invariant facts per END op id: (positive, negative)
+/// atoms that must hold strictly INSIDE the interval — the search refuses
+/// any happening that deletes a positive (or adds a negative) one while
+/// the interval is pending (kiln-gap fixture: endpoint-only checking
+/// accepted a bake spanning a delete+re-add outage; VAL rejects it).
+/// Ops with non-conjunctive invariants are absent (endpoint-only, as
+/// before); numeric invariant conjuncts also stay endpoint-only — a
+/// recorded limit, the transition test would need comparison re-evaluation.
+pub(crate) type InvMap = crate::hash::FxHashMap<usize, (Vec<u32>, Vec<u32>)>;
 
 /// Classify every grounded op as a durative Start (with resolved duration + paired
 /// end op), End, Classical, or Skip (unresolvable). Shared by `solve` and the
-/// decomposer (`tresolve`), built once per grounded task.
-pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> (Vec<Kind>, Vec<NExpr>) {
+/// decomposer (`tresolve`), built once per grounded task. The third result
+/// is the [`InvMap`] of grounded interval invariants.
+pub(crate) fn build_kind(
+    task: &PackedTask,
+    c: &TemporalCompiled,
+) -> (Vec<Kind>, Vec<NExpr>, InvMap) {
     // Durations are constant or parameter-dependent. A duration reading only
     // UNMODIFIED fluents is resolved once against the initial state (the
     // historical path, bit-identical). One reading a fluent some op assigns
@@ -696,6 +746,7 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> (Vec<Kind>,
         .map(|(i, d)| (d.as_str(), i))
         .collect();
     let mut dur_exprs: Vec<NExpr> = Vec::new();
+    let mut inv: InvMap = InvMap::default();
     let kinds = (0..task.n_ops)
         .map(|oi| {
             let disp = &task.op_display[oi];
@@ -707,6 +758,16 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> (Vec<Kind>,
                     Some(&e) => e,
                     None => return Kind::Skip,
                 };
+                if !matches!(snap.invariant, Formula::True) {
+                    let bind = duration_bind(snap, &args);
+                    let mut pos = Vec::new();
+                    let mut neg = Vec::new();
+                    if ground_inv(&snap.invariant, &bind, task, &mut pos, &mut neg)
+                        && !(pos.is_empty() && neg.is_empty())
+                    {
+                        inv.insert(end_op, (pos, neg));
+                    }
+                }
                 let nexpr = snap
                     .duration
                     .chosen()
@@ -746,7 +807,61 @@ pub(crate) fn build_kind(task: &PackedTask, c: &TemporalCompiled) -> (Vec<Kind>,
             }
         })
         .collect();
-    (kinds, dur_exprs)
+    (kinds, dur_exprs, inv)
+}
+
+/// Collect a conjunctive invariant's grounded (positive, negative) fact
+/// atoms. `true` = the shape is supported (numeric `Comp` and static `Eq`
+/// conjuncts are passed over — endpoint-only, the recorded limit); `false`
+/// = disjunctive/quantified structure, caller keeps endpoint-only checking
+/// for the whole op. An atom that grounded to no task fact is skipped:
+/// statically-true facts have no deleter, never-reachable ones no adder.
+fn ground_inv(
+    f: &Formula,
+    bind: &HashMap<&str, &str>,
+    task: &PackedTask,
+    pos: &mut Vec<u32>,
+    neg: &mut Vec<u32>,
+) -> bool {
+    match f {
+        Formula::True | Formula::Comp(..) | Formula::Eq(..) => true,
+        Formula::And(fs) => fs.iter().all(|g| ground_inv(g, bind, task, pos, neg)),
+        Formula::Atom(p, args) => {
+            if let Some(fid) = ground_atom_id(p, args, bind, task) {
+                pos.push(fid);
+            }
+            true
+        }
+        Formula::Not(g) => match &**g {
+            Formula::Atom(p, args) => {
+                if let Some(fid) = ground_atom_id(p, args, bind, task) {
+                    neg.push(fid);
+                }
+                true
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn ground_atom_id(
+    p: &crate::types::Sym,
+    args: &[Term],
+    bind: &HashMap<&str, &str>,
+    task: &PackedTask,
+) -> Option<u32> {
+    let mut disp = String::from("(");
+    disp.push_str(p);
+    for t in args {
+        disp.push(' ');
+        match t {
+            Term::Const(c) => disp.push_str(c),
+            Term::Var(v) => disp.push_str(bind.get(v.as_str())?),
+        }
+    }
+    disp.push(')');
+    task.fact_id(&disp).map(|x| x as u32)
 }
 
 /// Fluents any op assigns (numeric effects, incl. conditional) — a duration
@@ -920,6 +1035,7 @@ pub(crate) fn solve_from(
     task: &PackedTask,
     kind: &[Kind],
     dur_exprs: &[NExpr],
+    inv: &InvMap,
     start: &State,
     goal_pos: &[u32],
     goal_num: &[NumPre],
@@ -930,9 +1046,9 @@ pub(crate) fn solve_from(
     budget: &mut usize,
     node_bytes: usize,
 ) -> Option<TimedPlan> {
-    solve_from_seeded(
-        task, kind, dur_exprs, start, goal_pos, goal_num, forbidden, til_events, threads, tier,
-        budget, node_bytes, false,
+    solve_from_seeded_orbit(
+        task, kind, dur_exprs, inv, start, goal_pos, goal_num, forbidden, til_events, threads,
+        tier, budget, node_bytes, false, None,
     )
 }
 
@@ -946,6 +1062,7 @@ pub(crate) fn solve_from_seeded(
     task: &PackedTask,
     kind: &[Kind],
     dur_exprs: &[NExpr],
+    inv: &InvMap,
     start: &State,
     goal_pos: &[u32],
     goal_num: &[NumPre],
@@ -956,6 +1073,33 @@ pub(crate) fn solve_from_seeded(
     budget: &mut usize,
     node_bytes: usize,
     seed_til_h: bool,
+) -> Option<TimedPlan> {
+    solve_from_seeded_orbit(
+        task, kind, dur_exprs, inv, start, goal_pos, goal_num, forbidden, til_events, threads,
+        tier, budget, node_bytes, seed_til_h, None,
+    )
+}
+
+/// [`solve_from_seeded`] with orbit canonicalization of the visited key
+/// (0.14 ext Phase 10) — passed from callers that hold the LIFTED
+/// domain/problem needed for detection.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn solve_from_seeded_orbit(
+    task: &PackedTask,
+    kind: &[Kind],
+    dur_exprs: &[NExpr],
+    inv: &InvMap,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+    til_events: &[(f64, usize)],
+    threads: usize,
+    tier: DemandMode,
+    budget: &mut usize,
+    node_bytes: usize,
+    seed_til_h: bool,
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Option<TimedPlan> {
     // Fail fast on statically unproducible goals — nothing any pass could reach.
     if statically_unsolvable(task, start, goal_pos, goal_num) {
@@ -1036,6 +1180,7 @@ pub(crate) fn solve_from_seeded(
             task,
             kind,
             dur_exprs,
+            inv,
             &landmarks,
             &demand,
             start,
@@ -1050,6 +1195,7 @@ pub(crate) fn solve_from_seeded(
             &mut budget.borrow_mut(),
             node_bytes,
             seed_til_h,
+            orbit,
         )
     };
     go(&sound, true, false)
@@ -1469,6 +1615,7 @@ fn eval_node(
 /// keeps parallel evaluation byte-identical to the sequential search.
 #[allow(clippy::too_many_arguments)]
 fn enqueue_evaluated(
+    orbit: Option<&crate::orbits::OrbitMap>,
     task: &PackedTask,
     nodes: &mut Vec<TNode>,
     heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
@@ -1478,6 +1625,30 @@ fn enqueue_evaluated(
     demand: &Demand,
     prune: bool,
     relative: bool,
+    n: TNode,
+    h: i32,
+    helpful: Vec<u32>,
+) {
+    let k = tkey(task, &n, relative, orbit);
+    if visited.insert(k) {
+        enqueue_committed(
+            task, nodes, heap, landmarks, lms, demand, prune, n, h, helpful,
+        );
+    }
+}
+
+/// [`enqueue_evaluated`] after the visited check — callers on the orbit
+/// path dedup BEFORE paying for the heuristic (a canonical key is ~4x
+/// cheaper than an eval on machine-shop-sized tasks) and land here.
+#[allow(clippy::too_many_arguments)]
+fn enqueue_committed(
+    task: &PackedTask,
+    nodes: &mut Vec<TNode>,
+    heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
+    landmarks: &[NumPre],
+    lms: &[u32],
+    demand: &Demand,
+    prune: bool,
     mut n: TNode,
     h: i32,
     helpful: Vec<u32>,
@@ -1491,58 +1662,128 @@ fn enqueue_evaluated(
     const W_H: i64 = 3;
     const W_L: i64 = 3;
     const AGENDA_W: i64 = 0;
-    let k = tkey(task, &n, relative);
-    if visited.insert(k) {
-        n.helpful = helpful;
-        // Cumulative-availability for the demand term: parent's plus this op's
-        // production. Empty (no-op) unless FF_TDEMAND is on.
-        let op = n.ev.map(|(o, _)| o).unwrap_or(usize::MAX);
-        n.met = if op == usize::MAX {
-            nodes[n.father].met.clone()
-        } else {
-            met_child(&nodes[n.father].met, demand, task, op)
-        };
-        // Temporal LAMA (0.11 Phase 1): landmarks accepted along the path.
-        if !lms.is_empty() {
-            n.lm_accepted = nodes[n.father].lm_accepted.clone();
-            lm_accept_into(&mut n.lm_accepted, lms, &n.state);
-        }
-        // Phase 1 (prune): weighted g+h plus the unmet-landmark term AND the
-        // total converging-resource demand deficit (the multi-round gradient the
-        // relaxation is blind to), to break the flat-h plateau on long chains AND
-        // converging DAGs. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte
-        // the old complete search, so nothing it solved before can regress.
-        // The TLAMA rung's key is LANDMARK-DOMINANT (the lama.rs shape:
-        // unaccepted count outweighs h), not a term mixed into the pruned
-        // key — see the measured lesson at the `lms` computation.
-        const W_TLM: i64 = 4;
-        let key = if !lms.is_empty() {
-            W_G * n.g as i64
-                + W_TLM * lm_unaccepted(&n.lm_accepted, lms.len()) * (W_H + 1)
-                + W_H * h as i64
-        } else if prune {
-            W_G * n.g as i64
-                + W_H * h as i64
-                + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
-                + demand.weight * demand_deficit(&n.met, demand)
-                + AGENDA_W * n.agenda.len() as i64
-        } else {
-            // Complete-pass agenda ordering (0.12 Phase 4 experiment,
-            // FF_TAGENDA_W=<w>, default off): parc-printer-t's complete pass
-            // drowns in start-spam (avg ~2,076 pending intervals per node) —
-            // an ordering term de-prioritizes interval hoarding WITHOUT
-            // losing completeness (ordering, never pruning). The recorded
-            // AGENDA_W=0 verdict was for the PRUNED pass's key.
-            let wa = std::env::var("FF_TAGENDA_W")
-                .ok()
-                .and_then(|v| v.parse::<i64>().ok())
-                .unwrap_or(0);
-            h as i64 + wa * n.agenda.len() as i64
-        };
-        let idx = nodes.len();
-        nodes.push(n);
-        heap.push(Reverse((key, idx)));
+    n.helpful = helpful;
+    // Cumulative-availability for the demand term: parent's plus this op's
+    // production. Empty (no-op) unless FF_TDEMAND is on.
+    let op = n.ev.map(|(o, _)| o).unwrap_or(usize::MAX);
+    n.met = if op == usize::MAX {
+        nodes[n.father].met.clone()
+    } else {
+        met_child(&nodes[n.father].met, demand, task, op)
+    };
+    // Temporal LAMA (0.11 Phase 1): landmarks accepted along the path.
+    if !lms.is_empty() {
+        n.lm_accepted = nodes[n.father].lm_accepted.clone();
+        lm_accept_into(&mut n.lm_accepted, lms, &n.state);
     }
+    // Phase 1 (prune): weighted g+h plus the unmet-landmark term AND the
+    // total converging-resource demand deficit (the multi-round gradient the
+    // relaxation is blind to), to break the flat-h plateau on long chains AND
+    // converging DAGs. Phase 2 (full): the ORIGINAL pure-h key — byte-for-byte
+    // the old complete search, so nothing it solved before can regress.
+    // The TLAMA rung's key is LANDMARK-DOMINANT (the lama.rs shape:
+    // unaccepted count outweighs h), not a term mixed into the pruned
+    // key — see the measured lesson at the `lms` computation.
+    const W_TLM: i64 = 4;
+    let key = if !lms.is_empty() {
+        W_G * n.g as i64
+            + W_TLM * lm_unaccepted(&n.lm_accepted, lms.len()) * (W_H + 1)
+            + W_H * h as i64
+    } else if prune {
+        W_G * n.g as i64
+            + W_H * h as i64
+            + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
+            + demand.weight * demand_deficit(&n.met, demand)
+            + AGENDA_W * n.agenda.len() as i64
+    } else {
+        // Complete-pass agenda ordering (0.12 Phase 4 experiment,
+        // FF_TAGENDA_W=<w>, default off): parc-printer-t's complete pass
+        // drowns in start-spam (avg ~2,076 pending intervals per node) —
+        // an ordering term de-prioritizes interval hoarding WITHOUT
+        // losing completeness (ordering, never pruning). The recorded
+        // AGENDA_W=0 verdict was for the PRUNED pass's key.
+        let wa = std::env::var("FF_TAGENDA_W")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(0);
+        h as i64 + wa * n.agenda.len() as i64
+    };
+    let idx = nodes.len();
+    nodes.push(n);
+    heap.push(Reverse((key, idx)));
+}
+
+/// May a happening move the state `old`→`new` while `pending` intervals
+/// run? False iff the transition deletes a positive (or adds a negative)
+/// `over all` invariant fact of some pending interval other than `skip`
+/// (the agenda index being fired — its own interval closes AT this
+/// happening, and end effects may touch their own invariant). Diff-based,
+/// so conditional effects are exact. Invariant facts of pending intervals
+/// are true by induction (their starts required them, every later
+/// happening was vetted here), so `old`-true + `new`-false is precisely
+/// "this happening broke it".
+fn inv_ok(
+    inv: &InvMap,
+    pending: &[(f64, usize)],
+    skip: Option<usize>,
+    old: &State,
+    new: &State,
+) -> bool {
+    if inv.is_empty() {
+        return true;
+    }
+    for (i, &(_, eop)) in pending.iter().enumerate() {
+        if Some(i) == skip {
+            continue;
+        }
+        if let Some((pos, neg)) = inv.get(&eop) {
+            if pos.iter().any(|&f| {
+                crate::bitset::test(&old.bits, f as usize)
+                    && !crate::bitset::test(&new.bits, f as usize)
+            }) || neg.iter().any(|&f| {
+                !crate::bitset::test(&old.bits, f as usize)
+                    && crate::bitset::test(&new.bits, f as usize)
+            }) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// A node whose agenda head can NEVER legally fire is dead: the head must
+/// fire for time to advance, but its unconditional deletes (adds) break
+/// the over-all invariant of a pending interval that outlives the head's
+/// epoch — and no rescue exists: any earlier event that would clear the
+/// invariant fact is vetted by the same guard, and the blocker's own end
+/// fires only after the head. Pruning the subtree at birth (before paying
+/// for its heuristic) is what makes the invariant semantics affordable on
+/// machine-shop: every bake overrunning its kiln window dies here instead
+/// of spawning a doomed (a)-subtree. Goal states are never pruned — a
+/// doomed node has a blocked non-TIL end pending, which the goal test
+/// already rejects.
+fn doomed(task: &PackedTask, inv: &InvMap, n: &TNode) -> bool {
+    if inv.is_empty() {
+        return false;
+    }
+    let Some(&(te, hop)) = n.agenda.first() else {
+        return false;
+    };
+    let hdel = task.del.slice(hop);
+    let hadd = task.add.slice(hop);
+    if hdel.is_empty() && hadd.is_empty() {
+        return false;
+    }
+    n.agenda.iter().skip(1).any(|&(tb, bop)| {
+        tb > te + 1e-9
+            && inv.get(&bop).is_some_and(|(pos, neg)| {
+                hdel.iter()
+                    .any(|f| pos.contains(f) && crate::bitset::test(&n.state.bits, *f as usize))
+                    || hadd.iter().any(|f| {
+                        neg.contains(f) && !crate::bitset::test(&n.state.bits, *f as usize)
+                    })
+            })
+    })
 }
 
 /// A node's heuristic state under TIL seeding (0.14 Phase 3): the node's
@@ -1575,8 +1816,10 @@ fn til_seeded_state(
 /// Evaluate, dedup, and enqueue a candidate node with the weighted heap key.
 #[allow(clippy::too_many_arguments)]
 fn push_node(
+    orbit: Option<&crate::orbits::OrbitMap>,
     task: &PackedTask,
     kind: &[Kind],
+    inv: &InvMap,
     sc: &mut Scratch,
     nodes: &mut Vec<TNode>,
     heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
@@ -1591,6 +1834,22 @@ fn push_node(
     seed_til_h: bool,
     n: TNode,
 ) {
+    if doomed(task, inv, &n) {
+        return;
+    }
+    // Orbit path: dedup on the canonical key BEFORE paying for the
+    // heuristic — most successors of a symmetric task are permutations of
+    // already-seen states, and a key is ~4x cheaper than an eval. Budget
+    // is charged per candidate by the caller either way, so exploration
+    // order and t1 ≡ t8 are unchanged; only wall clock improves. (Dead-end
+    // evals also become visited here, unlike the no-orbit flow — that path
+    // stays byte-identical to the pre-orbit engine.)
+    if orbit.is_some() {
+        let k = tkey(task, &n, relative, orbit);
+        if !visited.insert(k) {
+            return;
+        }
+    }
     let hs = til_seeded_state(task, kind, &n.agenda, &n.state, seed_til_h);
     if let Some((h, helpful)) = eval_node(
         task,
@@ -1601,9 +1860,16 @@ fn push_node(
         goal_num,
         prune,
     ) {
-        enqueue_evaluated(
-            task, nodes, heap, visited, landmarks, lms, demand, prune, relative, n, h, helpful,
-        );
+        if orbit.is_some() {
+            enqueue_committed(
+                task, nodes, heap, landmarks, lms, demand, prune, n, h, helpful,
+            );
+        } else {
+            enqueue_evaluated(
+                orbit, task, nodes, heap, visited, landmarks, lms, demand, prune, relative, n, h,
+                helpful,
+            );
+        }
     }
 }
 
@@ -1643,6 +1909,7 @@ fn temporal_search(
     task: &PackedTask,
     kind: &[Kind],
     dur_exprs: &[NExpr],
+    inv: &InvMap,
     landmarks: &[NumPre],
     demand: &Demand,
     start: &State,
@@ -1657,6 +1924,7 @@ fn temporal_search(
     budget: &mut usize,
     node_bytes: usize,
     seed_til_h: bool,
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Option<TimedPlan> {
     // The TLAMA rung is a BOUNDED bet, like the classical ladder's 400k-eval
     // LAMA cap: a failed rung must cost seconds, not the wall — unbounded it
@@ -1757,7 +2025,7 @@ fn temporal_search(
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
     let mut visited: HashSet<(StateKey, Vec<(i64, usize)>)> = HashSet::new();
-    visited.insert(tkey(task, &nodes[0], relative));
+    visited.insert(tkey(task, &nodes[0], relative, orbit));
 
     while let Some(Reverse((_k, ni))) = heap.pop() {
         // The goal is reached once no *action* end is still pending. Unfired future
@@ -1889,6 +2157,26 @@ fn temporal_search(
                         {
                             continue;
                         }
+                        // Over-all invariant enforcement (kiln-gap fixture):
+                        // the start's at-start effects must not break a
+                        // RUNNING interval's invariant, and the new
+                        // interval's own invariant must hold in the state
+                        // its start produces (start_pre checked the state
+                        // BEFORE effects).
+                        if !inv_ok(inv, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
+                            continue;
+                        }
+                        if let Some((ipos, ineg)) = inv.get(&end_op) {
+                            if ipos
+                                .iter()
+                                .any(|&f| !crate::bitset::test(&ns.bits, f as usize))
+                                || ineg
+                                    .iter()
+                                    .any(|&f| crate::bitset::test(&ns.bits, f as usize))
+                            {
+                                continue;
+                            }
+                        }
                         let mut ag = nodes[ni].agenda.clone();
                         // Canonical (time, op) position under symmetry
                         // reduction; arrival order (after all equal times)
@@ -1915,6 +2203,11 @@ fn temporal_search(
                 Kind::Classical => {
                     if task.op_applicable(oi, &nodes[ni].state) {
                         let ns = task.apply(oi, &nodes[ni].state);
+                        // Instantaneous effects are happenings too — same
+                        // running-invariant vet as starts.
+                        if !inv_ok(inv, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
+                            continue;
+                        }
                         let ag = nodes[ni].agenda.clone();
                         protos.push(TNode {
                             state: ns,
@@ -1946,8 +2239,10 @@ fn temporal_search(
         if workers <= 1 || protos.len() < PAR_FRONTIER {
             for n in protos {
                 push_node(
+                    orbit,
                     task,
                     kind,
+                    inv,
                     &mut sc,
                     &mut nodes,
                     &mut heap,
@@ -1964,6 +2259,22 @@ fn temporal_search(
                 );
             }
         } else {
+            // Same order as the serial path: doomed nodes die first (no
+            // eval, no visited entry), then the orbit pre-dedup.
+            let mut protos = protos;
+            protos.retain(|n| !doomed(task, inv, n));
+            // Orbit pre-dedup, serially IN INPUT ORDER before the fan-out —
+            // the same keys the funnel would compute, so any thread count
+            // sees the identical visited evolution (t1 ≡ t8), and duplicate
+            // permutation-states never reach the parallel evaluators.
+            let protos: Vec<TNode> = if orbit.is_some() {
+                protos
+                    .into_iter()
+                    .filter(|n| visited.insert(tkey(task, n, relative, orbit)))
+                    .collect()
+            } else {
+                protos
+            };
             let evals: Vec<Option<(i32, Vec<u32>)>> = crate::par::par_map_with(
                 &protos,
                 workers,
@@ -1983,20 +2294,28 @@ fn temporal_search(
             );
             for (n, ev) in protos.into_iter().zip(evals) {
                 if let Some((h, helpful)) = ev {
-                    enqueue_evaluated(
-                        task,
-                        &mut nodes,
-                        &mut heap,
-                        &mut visited,
-                        landmarks,
-                        &lms,
-                        demand,
-                        prune,
-                        relative,
-                        n,
-                        h,
-                        helpful,
-                    );
+                    if orbit.is_some() {
+                        enqueue_committed(
+                            task, &mut nodes, &mut heap, landmarks, &lms, demand, prune, n, h,
+                            helpful,
+                        );
+                    } else {
+                        enqueue_evaluated(
+                            orbit,
+                            task,
+                            &mut nodes,
+                            &mut heap,
+                            &mut visited,
+                            landmarks,
+                            &lms,
+                            demand,
+                            prune,
+                            relative,
+                            n,
+                            h,
+                            helpful,
+                        );
+                    }
                 }
             }
         }
@@ -2009,37 +2328,65 @@ fn temporal_search(
         // setters live behind a never-true fence that hides them from the
         // relaxation and block (a) without blocking their firing).
         *budget = budget.saturating_sub(1);
-        if let Some(&(te, end_op)) = nodes[ni].agenda.first() {
-            if matches!(kind[end_op], Kind::Til) || task.op_applicable(end_op, &nodes[ni].state) {
-                let ns = task.apply(end_op, &nodes[ni].state);
-                let ag = nodes[ni].agenda[1..].to_vec();
-                push_node(
-                    task,
-                    kind,
-                    &mut sc,
-                    &mut nodes,
-                    &mut heap,
-                    &mut visited,
-                    landmarks,
-                    &lms,
-                    demand,
-                    goal_pos,
-                    goal_num,
-                    prune,
-                    relative,
-                    seed_til_h,
-                    TNode {
-                        state: ns,
-                        time: te,
-                        agenda: ag,
-                        father: ni,
-                        ev: Some((end_op, te)),
-                        g: pg + 1,
-                        helpful: Vec::new(),
-                        met: Vec::new(),
-                        lm_accepted: Vec::new(),
-                    },
-                );
+        if let Some(&(te, head_op)) = nodes[ni].agenda.first() {
+            // Head inapplicable ⇒ no time-advance successor, exactly as
+            // before. Head applicable but its firing would break a
+            // still-running interval's over-all invariant ⇒ try the other
+            // SAME-EPOCH events in agenda order (kiln-gap tie: the outage
+            // TIL and the bake's end share t=8 — closing the bake first is
+            // the legal order; dead-ending would lose it). Events later in
+            // time are never candidates: they can't fire early.
+            let head_applicable =
+                matches!(kind[head_op], Kind::Til) || task.op_applicable(head_op, &nodes[ni].state);
+            if head_applicable {
+                for j in 0..nodes[ni].agenda.len() {
+                    let (tj, eop) = nodes[ni].agenda[j];
+                    if tj > te {
+                        break;
+                    }
+                    if j > 0
+                        && !(matches!(kind[eop], Kind::Til)
+                            || task.op_applicable(eop, &nodes[ni].state))
+                    {
+                        continue;
+                    }
+                    let ns = task.apply(eop, &nodes[ni].state);
+                    if !inv_ok(inv, &nodes[ni].agenda, Some(j), &nodes[ni].state, &ns) {
+                        continue;
+                    }
+                    let mut ag = nodes[ni].agenda.clone();
+                    ag.remove(j);
+                    push_node(
+                        orbit,
+                        task,
+                        kind,
+                        inv,
+                        &mut sc,
+                        &mut nodes,
+                        &mut heap,
+                        &mut visited,
+                        landmarks,
+                        &lms,
+                        demand,
+                        goal_pos,
+                        goal_num,
+                        prune,
+                        relative,
+                        seed_til_h,
+                        TNode {
+                            state: ns,
+                            time: tj,
+                            agenda: ag,
+                            father: ni,
+                            ev: Some((eop, tj)),
+                            g: pg + 1,
+                            helpful: Vec::new(),
+                            met: Vec::new(),
+                            lm_accepted: Vec::new(),
+                        },
+                    );
+                    break;
+                }
             }
         }
     }
