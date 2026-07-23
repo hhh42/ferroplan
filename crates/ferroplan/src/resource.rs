@@ -186,4 +186,107 @@ mod tests {
         occs.sort_unstable();
         assert_eq!(occs, vec![0, 1, 2, 3], "monotone occupancy along the chain");
     }
+
+    // Transport-shaped micro fixture: one truck, capacity 2 (chain c0-c1-c2),
+    // three package goals — the trip bound must read ⌈3/2⌉ = 2 at init.
+    const TDOM: &str = "(define (domain tinytrans)
+      (:requirements :strips :typing)
+      (:types loc pkg cap)
+      (:predicates (tat ?l - loc) (pat ?p - pkg ?l - loc) (pin ?p - pkg)
+                   (cap ?c - cap) (nxt ?a ?b - cap))
+      (:action mv :parameters (?a ?b - loc)
+        :precondition (tat ?a) :effect (and (not (tat ?a)) (tat ?b)))
+      (:action pick :parameters (?p - pkg ?l - loc ?a ?b - cap)
+        :precondition (and (tat ?l) (pat ?p ?l) (nxt ?a ?b) (cap ?b))
+        :effect (and (not (pat ?p ?l)) (pin ?p) (cap ?a) (not (cap ?b))))
+      (:action drop :parameters (?p - pkg ?l - loc ?a ?b - cap)
+        :precondition (and (tat ?l) (pin ?p) (nxt ?a ?b) (cap ?a))
+        :effect (and (not (pin ?p)) (pat ?p ?l) (cap ?b) (not (cap ?a)))))";
+    // Three locations, so each package's pat/pin mutex group is a STAR
+    // (pin borders every location) and is rightly rejected as a counter —
+    // only the capacity chain qualifies, as in the real transport corpus.
+    const TPROB: &str = "(define (problem tt1) (:domain tinytrans)
+      (:objects l1 l2 l3 - loc p1 p2 p3 - pkg c0 c1 c2 - cap)
+      (:init (tat l1) (pat p1 l1) (pat p2 l1) (pat p3 l1)
+             (cap c2) (nxt c0 c1) (nxt c1 c2))
+      (:goal (and (pat p1 l2) (pat p2 l2) (pat p3 l3))))";
+
+    #[test]
+    fn trip_bound_reads_demand_over_capacity() {
+        let d = parse_domain(TDOM).expect("domain");
+        let p = parse_problem(TPROB).expect("problem");
+        let task = match ground(&d, &p, 1) {
+            Outcome::Task(t) => t,
+            _ => panic!("expected a task"),
+        };
+        let groups = crate::invariants::synthesize(&d, &task);
+        let tb = trip_bound(&task, &groups, &task.init_bits)
+            .expect("capacity chain + linked goals detected");
+        assert_eq!(tb.pool, 2, "one truck, capacity 2");
+        assert_eq!(tb.goals.len(), 3, "all three deliveries are linked");
+        assert_eq!(tb.trips(&task.init_bits), 2, "ceil(3/2) rounds at init");
+    }
+}
+
+/// Resource-trip lower bound (0.14 ext Phase 11, the semantic-landmark
+/// rung): each resource-linked goal (one whose achievers move a counter
+/// level — transport's `drop` restores `capacity`) consumes one unit of a
+/// shared pool per delivery cycle, so meeting `unmet` of them takes at
+/// least `⌈unmet / pool⌉` rounds. Folded as a best-first ORDERING term
+/// (`FF_RESLM=<w>`), never a pruning bound — the delete relaxation is
+/// blind to the counter (levels accumulate), this reads the CONCRETE
+/// state.
+pub struct TripBound {
+    /// Goal facts whose achievers touch a counter level.
+    pub goals: Vec<u32>,
+    /// Total pool capacity: Σ max occupancy over detected counters.
+    pub pool: i64,
+}
+
+impl TripBound {
+    /// `⌈unmet linked goals / pool⌉` in the concrete state `bits`.
+    #[inline]
+    pub fn trips(&self, bits: &[u64]) -> i64 {
+        let unmet = self
+            .goals
+            .iter()
+            .filter(|&&g| !crate::bitset::test(bits, g as usize))
+            .count() as i64;
+        (unmet + self.pool - 1) / self.pool
+    }
+}
+
+/// Build the trip bound for a task, or `None` when no counter resource /
+/// linked goal exists (the term is then a no-op by construction).
+pub fn trip_bound(task: &PackedTask, groups: &[Vec<u32>], init: &[u64]) -> Option<TripBound> {
+    let res = detect_resources(task, groups, init);
+    if res.is_empty() {
+        return None;
+    }
+    let members: FxHashSet<u32> = res
+        .iter()
+        .flat_map(|r| r.members.iter().map(|&(f, _)| f))
+        .collect();
+    let pool: i64 = res
+        .iter()
+        .map(|r| r.members.iter().map(|&(_, o)| o as i64).max().unwrap_or(0))
+        .sum();
+    if pool == 0 {
+        return None;
+    }
+    let goals: Vec<u32> = task
+        .goal_pos
+        .iter()
+        .copied()
+        .filter(|&g| {
+            task.add_by_fact.slice(g as usize).iter().any(|&oi| {
+                task.add
+                    .slice(oi as usize)
+                    .iter()
+                    .chain(task.del.slice(oi as usize).iter())
+                    .any(|f| members.contains(f))
+            })
+        })
+        .collect();
+    (!goals.is_empty()).then_some(TripBound { goals, pool })
 }

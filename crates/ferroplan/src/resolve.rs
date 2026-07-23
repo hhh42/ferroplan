@@ -83,6 +83,19 @@ pub fn solve(
     mutex_groups: &[Vec<u32>],
 ) -> Solved {
     let init = task.initial();
+    // Resource-trip term data (0.14 ext Phase 11, FF_RESLM hatch): built
+    // here because this is where the mutex groups live; the search reads
+    // it only when the weight is set.
+    if std::env::var("FF_RESLM").is_ok() {
+        let tb = crate::resource::trip_bound(task, mutex_groups, &task.init_bits);
+        if std::env::var("FF_RES_DEBUG").is_ok() {
+            match &tb {
+                Some(t) => eprintln!("[RESLM] pool {} linked goals {}", t.pool, t.goals.len()),
+                None => eprintln!("[RESLM] no counter resource / linked goal"),
+            }
+        }
+        let _ = crate::search::RESLM.set(tb);
+    }
     // Seed from the goal-interaction graph over guidance variables (mutex groups);
     // falls back to the finest partition when no groups are supplied.
     let mut groups = interaction_partition(task, mutex_groups);

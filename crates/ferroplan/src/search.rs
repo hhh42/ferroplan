@@ -122,6 +122,15 @@ pub struct SearchCfg {
     /// experiment: `FF_CLM=<weight>` sets it on the ladder's best-first
     /// fallback only.
     pub w_lm: i64,
+    /// Resource-trip ordering term (0.14 ext Phase 11, pre-scaled like
+    /// `w_g`): adds `w_res × ⌈unmet linked goals / pool capacity⌉` to the
+    /// best-first key — the ⌈demand/capacity⌉ semantic-landmark rung the
+    /// delete relaxation can't see (counter levels accumulate under
+    /// relaxation). 0 (default) = absent, key bit-identical. Opt-in:
+    /// `FF_RESLM=<weight>` on the ladder's best-first fallback; the
+    /// [`crate::resource::TripBound`] data rides the `RESLM` cell set by
+    /// `resolve::solve` (which holds the mutex groups).
+    pub w_res: i64,
     /// Per-search retained-memory target in BYTES (0.11 Phase 4, the
     /// budgeted-think surface): overrides the default 8 GiB target behind
     /// the internal `node_cap_for` per-node byte model.
@@ -170,6 +179,7 @@ impl SearchCfg {
             g_bound: usize::MAX,
             len_anytime: false,
             w_lm: 0,
+            w_res: 0,
             node_bytes_target: None,
         }
     }
@@ -284,6 +294,13 @@ impl ClosureCost {
 /// delete-relaxed heuristic, which the free Keyder-Geffner forgo action
 /// blinds). Only the metric B&B passes this; it changes node *ordering* only,
 /// never which nodes are legal.
+/// Data for the `w_res` trip-bound term (0.14 ext Phase 11). Set once per
+/// process by `resolve::solve` (the caller holding the mutex groups) when
+/// `FF_RESLM` is on; read by `search_from` only when `cfg.w_res > 0`. An
+/// experiment hatch, same lifecycle as the env vars that gate it.
+pub(crate) static RESLM: std::sync::OnceLock<Option<crate::resource::TripBound>> =
+    std::sync::OnceLock::new();
+
 pub struct SatGuidance {
     pub prefs: Vec<(PrefPhi, i64)>,
     /// Renewable resources whose live occupancy is penalized on the concrete
@@ -402,6 +419,11 @@ pub fn search_from(
         crate::landmarks::landmarks_for(task, start, goal_pos)
     } else {
         Vec::new()
+    };
+    let reslm: Option<&crate::resource::TripBound> = if cfg.w_res > 0 {
+        RESLM.get().and_then(|o| o.as_ref())
+    } else {
+        None
     };
     let clm_words = clms.len().div_ceil(64);
     let mut root_clm = vec![0u64; clm_words];
@@ -662,6 +684,7 @@ pub fn search_from(
                     } else {
                         0
                     };
+                    let res_term = reslm.map_or(0, |tb| cfg.w_res * tb.trips(&s.bits));
                     let lm_term = if clms.is_empty() {
                         0
                     } else {
@@ -680,6 +703,7 @@ pub fn search_from(
                             cfg.w_g * g as i64
                                 + cfg.w_h * ph as i64
                                 + cfg.w_lm * un
+                                + res_term
                                 + sat_pen
                                 + cost_term,
                             idx,
@@ -695,7 +719,12 @@ pub fn search_from(
                         lm_acc: Vec::new(),
                     });
                     heap.push(Reverse((
-                        cfg.w_g * g as i64 + cfg.w_h * ph as i64 + lm_term + sat_pen + cost_term,
+                        cfg.w_g * g as i64
+                            + cfg.w_h * ph as i64
+                            + lm_term
+                            + res_term
+                            + sat_pen
+                            + cost_term,
                         idx,
                     )));
                 }
@@ -814,6 +843,13 @@ pub fn plan_avoiding(
             let w = v.trim().parse::<f64>().unwrap_or(3.0);
             if w.is_finite() && w > 0.0 {
                 cfg.w_lm = (w.min(1e9) * WEIGHT_SCALE).round() as i64;
+            }
+        }
+        // Resource-trip term (0.14 ext Phase 11), same scoping.
+        if let Ok(v) = std::env::var("FF_RESLM") {
+            let w = v.trim().parse::<f64>().unwrap_or(3.0);
+            if w.is_finite() && w > 0.0 {
+                cfg.w_res = (w.min(1e9) * WEIGHT_SCALE).round() as i64;
             }
         }
     }
