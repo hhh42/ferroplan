@@ -144,6 +144,69 @@ pub fn detect_resources(task: &PackedTask, groups: &[Vec<u32>], init: &[u64]) ->
     out
 }
 
+/// Resource-trip lower bound (0.14 ext Phase 11, the semantic-landmark
+/// rung): each resource-linked goal (one whose achievers move a counter
+/// level — transport's `drop` restores `capacity`) consumes one unit of a
+/// shared pool per delivery cycle, so meeting `unmet` of them takes at
+/// least `⌈unmet / pool⌉` rounds. Folded as a best-first ORDERING term
+/// (`FF_RESLM=<w>`), never a pruning bound — the delete relaxation is
+/// blind to the counter (levels accumulate), this reads the CONCRETE
+/// state.
+pub struct TripBound {
+    /// Goal facts whose achievers touch a counter level.
+    pub goals: Vec<u32>,
+    /// Total pool capacity: Σ max occupancy over detected counters.
+    pub pool: i64,
+}
+
+impl TripBound {
+    /// `⌈unmet linked goals / pool⌉` in the concrete state `bits`.
+    #[inline]
+    pub fn trips(&self, bits: &[u64]) -> i64 {
+        let unmet = self
+            .goals
+            .iter()
+            .filter(|&&g| !crate::bitset::test(bits, g as usize))
+            .count() as i64;
+        (unmet + self.pool - 1) / self.pool
+    }
+}
+
+/// Build the trip bound for a task, or `None` when no counter resource /
+/// linked goal exists (the term is then a no-op by construction).
+pub fn trip_bound(task: &PackedTask, groups: &[Vec<u32>], init: &[u64]) -> Option<TripBound> {
+    let res = detect_resources(task, groups, init);
+    if res.is_empty() {
+        return None;
+    }
+    let members: FxHashSet<u32> = res
+        .iter()
+        .flat_map(|r| r.members.iter().map(|&(f, _)| f))
+        .collect();
+    let pool: i64 = res
+        .iter()
+        .map(|r| r.members.iter().map(|&(_, o)| o as i64).max().unwrap_or(0))
+        .sum();
+    if pool == 0 {
+        return None;
+    }
+    let goals: Vec<u32> = task
+        .goal_pos
+        .iter()
+        .copied()
+        .filter(|&g| {
+            task.add_by_fact.slice(g as usize).iter().any(|&oi| {
+                task.add
+                    .slice(oi as usize)
+                    .iter()
+                    .chain(task.del.slice(oi as usize).iter())
+                    .any(|f| members.contains(f))
+            })
+        })
+        .collect();
+    (!goals.is_empty()).then_some(TripBound { goals, pool })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,67 +289,4 @@ mod tests {
         assert_eq!(tb.goals.len(), 3, "all three deliveries are linked");
         assert_eq!(tb.trips(&task.init_bits), 2, "ceil(3/2) rounds at init");
     }
-}
-
-/// Resource-trip lower bound (0.14 ext Phase 11, the semantic-landmark
-/// rung): each resource-linked goal (one whose achievers move a counter
-/// level — transport's `drop` restores `capacity`) consumes one unit of a
-/// shared pool per delivery cycle, so meeting `unmet` of them takes at
-/// least `⌈unmet / pool⌉` rounds. Folded as a best-first ORDERING term
-/// (`FF_RESLM=<w>`), never a pruning bound — the delete relaxation is
-/// blind to the counter (levels accumulate), this reads the CONCRETE
-/// state.
-pub struct TripBound {
-    /// Goal facts whose achievers touch a counter level.
-    pub goals: Vec<u32>,
-    /// Total pool capacity: Σ max occupancy over detected counters.
-    pub pool: i64,
-}
-
-impl TripBound {
-    /// `⌈unmet linked goals / pool⌉` in the concrete state `bits`.
-    #[inline]
-    pub fn trips(&self, bits: &[u64]) -> i64 {
-        let unmet = self
-            .goals
-            .iter()
-            .filter(|&&g| !crate::bitset::test(bits, g as usize))
-            .count() as i64;
-        (unmet + self.pool - 1) / self.pool
-    }
-}
-
-/// Build the trip bound for a task, or `None` when no counter resource /
-/// linked goal exists (the term is then a no-op by construction).
-pub fn trip_bound(task: &PackedTask, groups: &[Vec<u32>], init: &[u64]) -> Option<TripBound> {
-    let res = detect_resources(task, groups, init);
-    if res.is_empty() {
-        return None;
-    }
-    let members: FxHashSet<u32> = res
-        .iter()
-        .flat_map(|r| r.members.iter().map(|&(f, _)| f))
-        .collect();
-    let pool: i64 = res
-        .iter()
-        .map(|r| r.members.iter().map(|&(_, o)| o as i64).max().unwrap_or(0))
-        .sum();
-    if pool == 0 {
-        return None;
-    }
-    let goals: Vec<u32> = task
-        .goal_pos
-        .iter()
-        .copied()
-        .filter(|&g| {
-            task.add_by_fact.slice(g as usize).iter().any(|&oi| {
-                task.add
-                    .slice(oi as usize)
-                    .iter()
-                    .chain(task.del.slice(oi as usize).iter())
-                    .any(|f| members.contains(f))
-            })
-        })
-        .collect();
-    (!goals.is_empty()).then_some(TripBound { goals, pool })
 }
