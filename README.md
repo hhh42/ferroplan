@@ -65,7 +65,18 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > idiom — all with zero search-engine changes. Plus
 > **`Session::goal_met()`**, the bazaar in the
 > [browser demo](https://hhh42.github.io/ferroplan/demo/bazaar-live.html),
-> and a refreshed classical scoreboard. Full record:
+> and a refreshed classical scoreboard.
+> The research extension closed a real temporal soundness gap —
+> `over all` invariants are now enforced on EVERY happening, not just
+> interval endpoints (a delete + re-add between them used to slip
+> through and fail VAL; the kiln-gap fixture pins it) — and added
+> **object-symmetry orbits** (`FF_NO_ORBIT=1` reverts):
+> interchangeable objects and goal pairs collapse to one canonical
+> visited state, breaking machine-shop's 8.7×10⁸-fold symmetry wall
+> and rescuing turn-and-open under the sound semantics.
+> `replan_following` learned the temporal path, and the
+> ⌈demand/capacity⌉ landmark rung is recorded as the fourth precise
+> guidance negative (`FF_RESLM` hatch). Full record:
 > [`docs/roadmap-0.14.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.14.md),
 > [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
 

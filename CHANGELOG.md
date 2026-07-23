@@ -2,7 +2,7 @@
 
 All notable changes to this project are documented here.
 
-## [0.14.0] - 2026-07-22 — The living-bazaar cycle: the population runs
+## [0.14.0] - 2026-07-23 — The living-bazaar cycle: the population runs
 
 0.13 built a population of minds; 0.14 makes them live together — the
 tick loop driven end-to-end, contention prevented rather than
@@ -75,6 +75,51 @@ between thinks (cycle record in `docs/roadmap-0.14.md`).
   deterministic tick-loop run (naive vs claims, from
   `bazaar_live --trace`) — and the wants-gated bazaar domain in the
   solver picker.
+
+### Extension: the research phases (7–11, absorbed from the withdrawn 0.15 plan)
+
+- **Temporal soundness, the endpoint gap closed.** `over all`
+  invariants were checked at interval endpoints only; a delete +
+  re-add BETWEEN them slipped through both checks and failed VAL —
+  pinned minimally by `benchmarks/bench/kiln-gap-*.pddl` (a bake
+  spanning a scheduled outage of its invariant fact). Every happening
+  — starts, classical ops, fired ends, TILs — is now vetted
+  diff-wise against all pending intervals' grounded invariants;
+  same-epoch ties scan the equal-time agenda for a legal firing
+  order; and nodes whose agenda head can never legally fire (its
+  unconditional effects break the invariant of an interval outliving
+  the head's epoch) are pruned at birth. Numeric invariant conjuncts
+  and non-conjunctive shapes remain endpoint-only (recorded limit).
+- **Object-symmetry orbits** (`orbits.rs`, `FF_NO_ORBIT=1` reverts):
+  when objects or goal PAIRS are interchangeable — identical init
+  profiles, symmetric goals, grounded task closed under relabeling
+  (verified per template family) — the temporal visited key is
+  canonicalized under member permutation. Machine-shop's five pair
+  orbits (state-space divisor 8.7×10⁸) collapse: 5,632 vs 13,657
+  stored nodes at equal eval budgets, ~3× wall throughput from
+  deduping on the canonical key BEFORE paying for the heuristic.
+  Sound-semantics coverage save: turn-and-open i1 solves in 15 s
+  with orbits, times out without. TMS itself stays 0/20 at 30 s —
+  the residual wall is the invariant-blind relaxation, named for a
+  future cycle. Probe: `examples/orbit_probe.rs` (+
+  `FF_ORBIT_DEBUG`, `FF_TEVAL_BUDGET`).
+- **Temporal follow-biased rethinks**: `replan_following` now works
+  on the temporal path (happening replay on the ε grid to the first
+  inapplicable step, in-flight tail think with the carried agenda,
+  prefix + shifted tail) — drift repair keeps commitments in a
+  timed world too.
+- **The semantic-landmark rung, measured negative with the mechanism
+  named** (`FF_RESLM=<w>` hatch, defaults byte-identical): the
+  ⌈demand/capacity⌉ trip bound over detected counter resources adds
+  no gradient h^FF doesn't already carry — 220 instances per arm,
+  identical solve sets everywhere; transport-class walls need
+  drive-level route structure, and storage never had the capacity
+  shape at all (recorded in `docs/roadmap-0.14.md`).
+- **Docs reworked as a platform**: the mdBook gains the Session
+  chapter (game-embedding flagship), every 0.9–0.14 knob in the
+  tuning table, refreshed scoreboard story, and the bazaar-live
+  demo page; `publish.sh` carries all three crates + the wheel
+  build; `CLAUDE.md` codifies the working agreements.
 
 ## [0.13.0] - 2026-07-21 — The many-minds cycle: one world, a population of planners
 
