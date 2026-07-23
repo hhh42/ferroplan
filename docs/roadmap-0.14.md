@@ -593,6 +593,51 @@ scoped rung, not a rewrite:
 - Deliberately capped: one rung, one cycle. This phase is severable
   and its failure is a legitimate, recordable outcome.
 
+### Recorded — MEASURED NEGATIVE, the fourth of its class, with the mechanism named
+
+The rung as built (`FF_RESLM=<w>`): each resource-linked goal — one
+whose achievers move a counter level; transport's `drop` restores
+`capacity` — consumes a unit of a shared pool per delivery cycle, so
+`⌈unmet / pool⌉` trips is a lower bound the delete relaxation cannot
+see (levels accumulate to infinite capacity under relaxation). Read
+off the CONCRETE successor state, folded into the classical ladder's
+best-first fallback key at the FF_CLM scoping, detection riding
+`resource.rs`'s counter machinery (`trip_bound`, tinytrans fixture).
+The detect scan says where it can even matter: transport11 pool 8 /
+16 linked goals, transport08 4/2, elevator11 14/14, elevator08 10/4,
+openstacks11 50/50, openstacks08 5/5, floor-tile11 4/2,
+woodworking08 3/4 — and an honest `none` everywhere else.
+
+**storage never had the shape**: hoists are binary
+`available`/`lifting`, the constraints spatial (`clear` areas). No
+counter chain exists, so the spec's "transport11 + storage" pairing
+was half structural misdiagnosis — recorded, the probe is what says
+so.
+
+Two-arm A/B on one binary, one box, back to back (60 s, jobs 3, all
+10 detecting variants, 220 instances per arm): **identical solve
+counts AND identical solve sets everywhere.** transport11 0/20 both
+arms; transport08 16/30 both; elevator08 30/30, elevator11 10/20,
+openstacks-adl08 30/30, openstacks08 30/30, openstacks11 14/20,
+floor-tile11 5/20, woodworking08 24/30, woodworking11 9/20 — every
+pair equal, not one instance flipped either way.
+
+The mechanism, named: the trip count is a COARSER ECHO of the
+gradient h^FF already carries — both step down as deliveries
+complete — so adding it reweights nothing new; and where h^FF
+plateaus (transport11's drive plateaus: many drives look equally
+useful because the relaxed plan teleports), a term that only moves at
+delivery boundaries cannot discriminate BETWEEN drives, which is the
+actual choice the search faces. Four guidance transfers, four clean
+negatives, one consistent lesson: **transport-class walls need
+drive-level structure — route/spread lower bounds (which locations
+must still be visited, what returns capacity forces) or red-black's
+semantics — not another monotone function of the unmet-goal count.**
+That is the recorded next fence, deliberately NOT jumped this cycle
+(one rung, as capped). `FF_RESLM` stays as the hatch; defaults
+byte-identical (term absent without the env, absent by construction
+off the detect list).
+
 ## Phase 12 — 0.14.0 release mechanics, extended
 
 The Phase 6 mechanics, re-run once at the very end: CHANGELOG
