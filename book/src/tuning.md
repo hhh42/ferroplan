@@ -32,6 +32,10 @@ results are deterministic and thread-count independent.
 | `FF_NO_FIXPOINT_GROUND` | fixpoint (Session) | make the `Session`'s temporal entry use stratified grounding instead of reached-restricted **fixpoint grounding** (the ~117× transient-memory win on sparse-reachable worlds). Corpus/CLI paths always use stratified — their tie-breaks pin the scoreboard baselines. |
 | `FF_NO_ORBIT` | orbits on | disable **object-symmetry orbit** detection (0.14): goal-respecting member permutations canonicalize the temporal visited key, collapsing states that differ only by relabeling interchangeable objects/goal pairs (machine-shop's wall; rescues turn-and-open under the sound invariant semantics). |
 | `FF_ORBIT_DEBUG` | off | narrate orbit detection (candidate groups, bail reasons) and per-solve eval counts on stderr — the probe eyes, never affects the search. |
+| `FF_NO_ORBIT_GEN` | gen-skip on | disable **generation-side stabilizer skipping** (0.15): with orbits detected, an op whose state-fixing member swap maps it to an already-generated sibling is never generated (TMS: 2.4× real evals at equal budget; duplicates 81% → 53%). |
+| `FF_TLIFO` | off | **experimental**: LIFO tie-breaking at equal temporal keys. Measured WORSE on the TMS plateau (best_h 150 vs 110) — dives a high-h corridor. |
+| `FF_TB_FREE_G` | off | **experimental**: don't charge g for time-advance successors. Measured WORSE on TMS (best_h 196) — rides time forward, wasting windows. |
+| `FF_TAGENDA_W_PRUNE` | `0` | **experimental**: the agenda-size term on the PRUNED pass (start-credit counter-account). Measured worse on TMS (best_h 173) though it does push the search deep enough for window blocking to engage. |
 | `FF_TEVAL_BUDGET` | unlimited | cap CLI temporal search **evaluations** — the deterministic measuring stick for A/B probes (eval budgets, never wall clock). |
 
 ## Classical search (experiments & restore hatches)

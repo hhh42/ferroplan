@@ -58,6 +58,62 @@ The TMS follow-through. Fixtures first, mechanism first:
 - Severable: ships behind a default gate unless the tempo-sat sweep
   is clean.
 
+### Recorded — the probe rewrote the phase, and shipped the win it found
+
+**The fixture disproved the framing before anything got built.**
+kiln-pack (8-long kiln windows, 2 slots, two-stage jobs, mixed
+durations, no symmetry) solves near-LINEARLY — 29→539 evals for
+N=2..12. Clean window packing is not a wall for this engine at all;
+doom-pruning already kills every overrun at birth. Whatever
+"window-aware guidance" would have ordered, the search wasn't
+suffering from it.
+
+**What TMS actually suffers from, measured** (TStats probe, per-pass
+`doomed / deduped / evaluated / dead_end / b_blocked / tie_rescue /
+best_h` under FF_RES_DEBUG): at a 60 k candidate budget, 81% of
+generated successors were orbit-permutation DUPLICATES — generated,
+canonically keyed, and thrown away one at a time. The shipped lever:
+**generation-side stabilizer skipping** (`stabilizer_classes` +
+`gen_key`): an op is never generated when a state-fixing member swap
+— verified against cross-member facts, fluents, and the pending
+agenda, then extended class-wide (transpositions compose) — maps it
+to an already-generated sibling. Real evals at the same budget:
+11,113 → 26,562 (2.4×); duplicate share 81% → 53% (the remainder is
+cross-node convergence, which is exactly what the visited key is
+for). Deterministic, t1 ≡ t8, `FF_NO_ORBIT_GEN=1` reverts;
+match-cellar / turn-and-open stay solved VAL-green; suite green;
+kiln-pack byte-identical (no orbits there). Default-on, Phase 6's
+sweep is the referee.
+
+**And the wall, at last, with full precision: the start-credit
+plateau.** best_h = 110 at budgets 15 k / 30 k / 60 k / 120 k /
+300 k — an 8.9 k → 114 k real-eval range (13×) finds h=110 almost
+immediately and NEVER beats it. The mechanism: h^FF pays out for a
+START the moment it fires (the snap-start leaves the relaxed plan,
+h−1) while the interval delivers nothing until its end lands inside
+a legal window — so the pruned pass floods the start-subset lattice
+(the 110 floor is root-h minus the free starts) and never completes
+even one structure. Four ordering schemes measured against it, four
+negatives: FIFO ties (default) 110; `FF_TLIFO` 150 (dives a high-h
+corridor); `FF_TB_FREE_G` 196 (rides time forward, wasting
+windows); `FF_TAGENDA_W_PRUNE=3` — the exact start-credit
+counter-account in the key — 173, though it alone pushes deep
+enough for window blocking to finally engage (b_blocked 26). The
+conclusion the four negatives force: **the credit misallocation is
+inside the relaxation, and no reweighting of its output restores
+the lost discrimination. The named fence: end-gated interval credit
+in h itself (count a snap pair as one unit, paid when the end is
+relaxed-feasible) — h surgery, a future cycle's bet.** TMS stays
+0/20 at 30 s, now for a reason stated to the decimal.
+
+**The second witnesses each have a DIFFERENT wall — "window-aware
+guidance" was never one lever:** storage-t i1 reaches best_h 20
+(guidance is fine!) with 3,494 invariant-BLOCKED agenda heads and
+zero rescues — its wall is spatial `clear`-chain blocking, a
+feasibility shape; model-train i1 reaches best_h 6 with nothing
+blocked and nothing doomed — a last-mile numeric shape. Three walls,
+three mechanisms, all now on file with probe numbers.
+
 ## Phase 2 — numeric invariant conjuncts in the transition guard (correctness sibling)
 
 Phase 10's guard covers conjunctive PROPOSITIONAL invariants; numeric

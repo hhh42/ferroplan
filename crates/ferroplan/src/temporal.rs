@@ -1661,7 +1661,18 @@ fn enqueue_committed(
     const W_G: i64 = 1;
     const W_H: i64 = 3;
     const W_L: i64 = 3;
-    const AGENDA_W: i64 = 0;
+    // Pruned-pass agenda term (0.15 Phase 1 probe, FF_TAGENDA_W_PRUNE=<w>):
+    // the start-credit counter-account. A start drops h by ~1 the moment it
+    // fires (its snap leaves the relaxed plan) while delivering nothing
+    // until its END lands — with w == W_H the credit cancels at start and
+    // pays at the end instead (key = g + 3·(h + agenda)), which is exactly
+    // the accounting TMS's start-spam floor (best_h pinned at 110 across a
+    // 13x budget ladder) says is missing. The historical AGENDA_W=0 stays
+    // the default.
+    let agenda_w: i64 = std::env::var("FF_TAGENDA_W_PRUNE")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(0);
     n.helpful = helpful;
     // Cumulative-availability for the demand term: parent's plus this op's
     // production. Empty (no-op) unless FF_TDEMAND is on.
@@ -1694,7 +1705,7 @@ fn enqueue_committed(
             + W_H * h as i64
             + W_L * landmark_deficit(landmarks, &n.state.fv, &n.state.fdef)
             + demand.weight * demand_deficit(&n.met, demand)
-            + AGENDA_W * n.agenda.len() as i64
+            + agenda_w * n.agenda.len() as i64
     } else {
         // Complete-pass agenda ordering (0.12 Phase 4 experiment,
         // FF_TAGENDA_W=<w>, default off): parc-printer-t's complete pass
@@ -1976,6 +1987,7 @@ fn temporal_search(
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     let no_orbit_gen = std::env::var("FF_NO_ORBIT_GEN").is_ok();
     let lifo = std::env::var("FF_TLIFO").is_ok();
+    let tb_free_g = std::env::var("FF_TB_FREE_G").is_ok();
     let t0 = std::time::Instant::now();
     if dbg {
         eprintln!(
@@ -2465,7 +2477,14 @@ fn temporal_search(
                             agenda: ag,
                             father: ni,
                             ev: Some((eop, tj)),
-                            g: pg + 1,
+                            // FF_TB_FREE_G probe (0.15 Phase 1): firing a due
+                            // end is the WORLD moving, not a decision — not
+                            // charging g lets time-advance compete with the
+                            // start-spam layer on the 1g+3h key (TMS: starts
+                            // each drop h by ~1, so breadth over start
+                            // subsets starves block (b) and no structure
+                            // ever completes).
+                            g: if tb_free_g { pg } else { pg + 1 },
                             helpful: Vec::new(),
                             met: Vec::new(),
                             lm_accepted: Vec::new(),

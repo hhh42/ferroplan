@@ -863,6 +863,7 @@ impl OrbitMap {
                 if class[a] != a as u16 {
                     continue;
                 }
+                #[allow(clippy::needless_range_loop)]
                 for b in (a + 1)..k {
                     if class[b] == b as u16
                         && self.swap_fixes(oi as u16, a as u16, b as u16, state, agenda)
@@ -892,6 +893,7 @@ impl OrbitMap {
         for (d, &c) in coords.iter().enumerate() {
             key.push(classes[fam.axes[d] as usize][c as usize]);
             let mut pat = d as u16;
+            #[allow(clippy::needless_range_loop)]
             for e in 0..d {
                 if fam.axes[e] == fam.axes[d] && coords[e] == c {
                     pat = e as u16;
@@ -953,7 +955,7 @@ impl OrbitMap {
             if let Some((fam, coords)) = self.op_touch.get(&op) {
                 let fam = &self.op_fams[*fam as usize];
                 if touches(&fam.axes, coords) {
-                    let nop = fam.map_with(coords, &sig) as usize;
+                    let nop = fam.map_with(coords, sig) as usize;
                     if nop != op && !agenda.iter().any(|&(t2, o2)| o2 == nop && t2 == t) {
                         return false;
                     }
