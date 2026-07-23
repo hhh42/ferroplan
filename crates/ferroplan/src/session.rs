@@ -709,6 +709,36 @@ impl Session {
         Ok(())
     }
 
+    /// The mind's OBSERVATION surface (0.15 Phase 4): report the world's
+    /// truth for the facts this mind can currently SEE. Belief (this
+    /// session's state) updates to match; facts outside `sight` keep their
+    /// believed values — that is the fog. Returns the sighted displays
+    /// whose observed value DIFFERED from belief, uppercased — the
+    /// surprises' raw material: feed the news to [`Session::plan_still_valid`]
+    /// / [`Session::goal_met`] to decide whether it breaks anything worth a
+    /// rethink (surprise-driven rethinks, not wall-clock paranoia). Same
+    /// writability fences as [`Session::set_fact`]; the whole batch
+    /// validates before any belief moves, so an error leaves belief intact.
+    pub fn observe(&mut self, sight: &[(&str, bool)]) -> Result<Vec<String>, String> {
+        let mut ids = Vec::with_capacity(sight.len());
+        for (name, v) in sight {
+            ids.push((self.dynamic_fact_id(name)?, *v));
+        }
+        let mut surprises = Vec::new();
+        for ((name, _), (id, v)) in sight.iter().zip(ids) {
+            let (w, b) = (id as usize / 64, id as usize % 64);
+            let believed = self.task.init_bits[w] >> b & 1 == 1;
+            if believed != v {
+                surprises.push(name.to_ascii_uppercase());
+                self.write_fact_bit(id, v);
+                if let Some(&m) = self.mirror.get(&id) {
+                    self.write_fact_bit(m, !v);
+                }
+            }
+        }
+        Ok(surprises)
+    }
+
     /// Resolve a fact display through the writability fences shared by
     /// [`Session::set_fact`] and [`Session::set_timed_fact`]: the fact must
     /// be grounded, DYNAMIC (statics are grounding-baked), and not a
@@ -1626,6 +1656,35 @@ mod tests {
       (:objects v1 - agent hut field - place)
       (:init (at v1 hut) (road hut field) (road field hut) (fertile field) (= (grain) 0))
       (:goal (>= (grain) 2)))";
+
+    #[test]
+    fn observe_updates_sight_only_and_reports_surprises() {
+        // The fog contract (0.15 Phase 4): sighted facts snap to the
+        // observed truth and only genuine belief changes count as
+        // surprises; unsighted facts keep their believed values; a bad
+        // batch errors WITHOUT moving belief.
+        let mut s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        // Re-observing what's already believed: no surprises.
+        let quiet = s
+            .observe(&[("(at v1 hut)", true), ("(at v1 field)", false)])
+            .expect("observe");
+        assert!(quiet.is_empty(), "matching observations are not news");
+        // The world moved: v1 is actually at the field now.
+        let news = s
+            .observe(&[("(at v1 hut)", false), ("(at v1 field)", true)])
+            .expect("observe");
+        assert_eq!(news.len(), 2, "both facts differed from belief");
+        assert_eq!(s.fact("(at v1 field)"), Some(true));
+        assert_eq!(s.fact("(at v1 hut)"), Some(false));
+        // A bad batch (unknown fact) must not half-apply.
+        let err = s.observe(&[("(at v1 hut)", true), ("(at v1 nowhere)", true)]);
+        assert!(err.is_err(), "unknown fact errors");
+        assert_eq!(
+            s.fact("(at v1 hut)"),
+            Some(false),
+            "belief untouched by the failed batch"
+        );
+    }
 
     #[test]
     fn budgeted_think_is_bounded_and_deterministic() {

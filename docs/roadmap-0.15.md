@@ -231,6 +231,51 @@ Partial-observability lite, on the machinery that already exists:
   year"), probabilistic belief, and any engine change: belief lives
   in the Session/loop layer or it doesn't ship this cycle.
 
+### Recorded — SHIPPED, and the fog taught more than it was asked to
+
+**`Session::observe(&[(fact, value)]) -> surprises`** — sighted facts
+snap to observed truth (same writability fences as `set_fact`; a bad
+batch errors with belief intact), unsighted facts stay believed, and
+the return is exactly the news: facts whose observed value differed
+from belief. Suite-pinned (matching observations are not news; the
+failed batch moves nothing). Zero engine changes, as fenced.
+
+**Fog in the bazaar** (`Policy::ClaimsFogged`): truth lives in a
+separate authoritative session; per-stall change ledgers (latest value
+per fact, deterministic order) carry what happened to whoever LOOKS.
+A mind observes its own stall at turn start and its partner's stall on
+arrival — a surprise on arrival can invalidate the step it walked over
+for, and the turn is honestly spent discovering. Claims stay public
+(intentions are posted on the board; stalls are fogged). Everything
+replays byte-identical.
+
+Measured, against the standing full-vision rows:
+
+- **Fog overhead (no theft)**: 2/2 goals still met; the fogged mind
+  whose lane crosses the rival's pays 7 conflicts / 8 thinks / churn
+  22 where full vision paid one think — stale third-party belief
+  produces plans that die on contact, and rediscovery is bounded.
+- **Theft discovery**: +1 tick latency, 1 stale follow — the victim
+  was already en route, so the arrival observation is an efficient
+  discovery channel.
+- **The inversion nobody scripted**: under full vision the theft's
+  victim (a0) burns 10 thinks against claim-blocked recovery routes
+  and gives up while a1 sails; under fog a0 discovers late and
+  RECOVERS (4 thinks, MET) — because fog-a1's stale-belief struggles
+  dropped its plan, releasing the claims that had fenced a0's
+  recovery route. Information asymmetry reshuffles the winners,
+  deterministically.
+- **The named pathology: FALSE DORMANCY.** Fog-a1 gave up on a goal
+  full-vision-a1 achieves — under fog, a failed think can mean "my
+  belief is wrong," not "no plan exists," and the dormancy counter
+  can't tell the difference. The fix class (belief-aware dormancy:
+  look — or wander — before quitting) is the game's next policy
+  layer, recorded and deliberately OUT alongside cross-mind modeling.
+
+Docs: the Session chapter gains the belief/fog section;
+`bazaar-thinks.md` carries the two fog rows with surprise /
+stale-follow / discovery-latency columns.
+
 ## Phase 5 — the in-page Session UI (platform, visible)
 
 The deferred browser piece: the bazaar demo page grows a live

@@ -101,6 +101,22 @@ even be pure waiting: zero steps, makespan = the pending end's moment).
 end whose preconditions drift broke is reported, its effects dropped —
 the game decides what a ruined firing means.
 
+## Belief and observation (fog)
+
+A mind's session **is** a belief state: a world copy that drifts from
+the authoritative one. `observe(&[(fact, value)])` is the seeing
+surface — sighted facts snap to the observed truth, everything else
+stays *believed*, and the call returns exactly the facts whose value
+differed from belief: the **surprises**. Feed the news to
+`plan_still_valid` / `goal_met` and rethink only when observation
+breaks something — surprise-driven rethinks, not wall-clock paranoia.
+The fogged bazaar loop (`bazaar_live`, the `claims + fog` rows in
+[`benchmarks/bazaar-thinks.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/bazaar-thinks.md))
+shows the measured shape: a mind sees its own stall each turn and its
+trading partner's stall on arrival; a theft at a third-party stall is
+discovered on contact, one tick late, and information asymmetry
+visibly reshuffles who wins — deterministically, at any thread count.
+
 ## Fences (why some writes are errors)
 
 Honesty over silent wrongness, everywhere:

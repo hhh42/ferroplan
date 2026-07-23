@@ -50,6 +50,12 @@ enum Policy {
     Naive,
     Claims,
     ClaimsFollowing,
+    /// ClaimsFollowing under FOG (0.15 Phase 4): world state is
+    /// authoritative in a separate session; a mind sees only its OWN
+    /// stall (turn-start observation) and its current trading partner's
+    /// stall (pre-trade observation). Claims stay public — intentions
+    /// are posted on the board, stalls are not.
+    ClaimsFogged,
 }
 
 struct Mind {
@@ -67,6 +73,10 @@ struct Mind {
     evals: usize,
     churn: usize,
     waits: usize,
+    // fog metrics (0.15 Phase 4)
+    surprises: usize,
+    first_surprise: Option<usize>,
+    stale_follows: usize,
 }
 
 fn edit_distance(a: &[String], b: &[String]) -> usize {
@@ -118,7 +128,21 @@ fn run_row_with(
     mut trace: Option<&mut Vec<Event>>,
     steal: Option<(usize, &str, &str, &str)>,
 ) -> Result<(), String> {
-    let world = Session::new(DOM, prb, &Options::default())?;
+    let fog = policy == Policy::ClaimsFogged;
+    let mut world = Session::new(DOM, prb, &Options::default())?;
+    // Fog: per-STALL ledger of world changes not yet observed by anyone
+    // looking. `(has h i)` belongs to stall h; a mind drains its own
+    // stall's ledger at turn start and its partner's right before trading.
+    // BTreeMap for deterministic drain order.
+    let mut pending: std::collections::BTreeMap<String, std::collections::BTreeMap<String, bool>> =
+        std::collections::BTreeMap::new();
+    let stall_of = |fact: &str| -> String {
+        fact.trim_start_matches('(')
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or("")
+            .to_ascii_uppercase()
+    };
     let mut minds: Vec<Mind> = Vec::new();
     for &(name, goal) in goals {
         let mut s = world.fork();
@@ -140,6 +164,9 @@ fn run_row_with(
             evals: 0,
             churn: 0,
             waits: 0,
+            surprises: 0,
+            first_surprise: None,
+            stale_follows: 0,
         });
     }
 
@@ -151,9 +178,18 @@ fn run_row_with(
         let mut anyone_moved = false;
         if let Some((at, victim, item, receiver)) = steal {
             if tick == at {
-                for m in minds.iter_mut() {
-                    m.s.set_fact(&format!("(has {victim} {item})"), false)?;
-                    m.s.set_fact(&format!("(has {receiver} {item})"), true)?;
+                let f1 = format!("(has {victim} {item})");
+                let f2 = format!("(has {receiver} {item})");
+                if fog {
+                    world.set_fact(&f1, false)?;
+                    world.set_fact(&f2, true)?;
+                    pending.entry(stall_of(&f1)).or_default().insert(f1, false);
+                    pending.entry(stall_of(&f2)).or_default().insert(f2, true);
+                } else {
+                    for m in minds.iter_mut() {
+                        m.s.set_fact(&f1, false)?;
+                        m.s.set_fact(&f2, true)?;
+                    }
                 }
                 if let Some(t) = trace.as_deref_mut() {
                     t.push((
@@ -166,6 +202,29 @@ fn run_row_with(
             }
         }
         for mi in 0..minds.len() {
+            // Fog: LOOK AT YOUR OWN STALL first — drain its ledger into an
+            // observation. Surprises (belief moved) are the rethink signal;
+            // seeing your own recent trades again is a no-op.
+            if fog {
+                let own = minds[mi].me.trim_start_matches("TRADE ").trim().to_string();
+                if let Some(entries) = pending.get(&own) {
+                    let sight: Vec<(&str, bool)> =
+                        entries.iter().map(|(f, v)| (f.as_str(), *v)).collect();
+                    let news = minds[mi].s.observe(&sight)?;
+                    if !news.is_empty() {
+                        minds[mi].surprises += news.len();
+                        minds[mi].first_surprise.get_or_insert(tick);
+                        if let Some(t) = trace.as_deref_mut() {
+                            t.push((
+                                tick,
+                                minds[mi].name.into(),
+                                "surprise".into(),
+                                format!("own stall changed: {}", news.join(", ")),
+                            ));
+                        }
+                    }
+                }
+            }
             // A pure STATE test — a zero-budget think would answer "could I
             // still plan," and a near-done mind must not confuse the two.
             if minds[mi].s.goal_met() && !minds[mi].done {
@@ -190,6 +249,13 @@ fn run_row_with(
                 .is_some_and(|p| minds[mi].s.plan_still_valid(p, minds[mi].cursor));
             if valid {
                 minds[mi].follows += 1;
+                if fog {
+                    if let Some((at, ..)) = steal {
+                        if tick > at && minds[mi].first_surprise.is_none() {
+                            minds[mi].stale_follows += 1;
+                        }
+                    }
+                }
                 if let Some(t) = trace.as_deref_mut() {
                     t.push((
                         tick,
@@ -247,11 +313,9 @@ fn run_row_with(
                     });
                 }
                 let think = match (&old_plan, policy) {
-                    (Some(p), Policy::ClaimsFollowing) => {
-                        minds[mi]
-                            .s
-                            .replan_following(p, cursor, THINK_EVALS, Some(THINK_MB))
-                    }
+                    (Some(p), Policy::ClaimsFollowing | Policy::ClaimsFogged) => minds[mi]
+                        .s
+                        .replan_following(p, cursor, THINK_EVALS, Some(THINK_MB)),
                     _ => minds[mi].s.replan_budgeted(THINK_EVALS, Some(THINK_MB)),
                 };
                 minds[mi].thinks += 1;
@@ -314,6 +378,41 @@ fn run_row_with(
                 p.steps[minds[mi].cursor].clone()
             };
             let (a, b, x, y) = (&step.args[0], &step.args[1], &step.args[2], &step.args[3]);
+            if fog {
+                // ARRIVE at the partner's stall: observe it before trading.
+                // A surprise here can invalidate the step you walked over
+                // for — you lose the turn, and the normal think path runs
+                // at your next one (discovery costs a tick, honestly).
+                let partner = b.to_ascii_uppercase();
+                if let Some(entries) = pending.get(&partner) {
+                    let sight: Vec<(&str, bool)> =
+                        entries.iter().map(|(f, v)| (f.as_str(), *v)).collect();
+                    let news = minds[mi].s.observe(&sight)?;
+                    if !news.is_empty() {
+                        minds[mi].surprises += news.len();
+                        minds[mi].first_surprise.get_or_insert(tick);
+                        if let Some(t) = trace.as_deref_mut() {
+                            t.push((
+                                tick,
+                                minds[mi].name.into(),
+                                "surprise".into(),
+                                format!(
+                                    "{}'s stall changed: {}",
+                                    b.to_lowercase(),
+                                    news.join(", ")
+                                ),
+                            ));
+                        }
+                        let still = minds[mi]
+                            .plan
+                            .as_ref()
+                            .is_some_and(|p| minds[mi].s.plan_still_valid(p, minds[mi].cursor));
+                        if !still {
+                            continue; // turn spent discovering; rethink next turn
+                        }
+                    }
+                }
+            }
             if let Some(t) = trace.as_deref_mut() {
                 t.push((
                     tick,
@@ -327,11 +426,29 @@ fn run_row_with(
                     ),
                 ));
             }
-            for m in minds.iter_mut() {
-                m.s.set_fact(&format!("(has {a} {x})"), false)?;
-                m.s.set_fact(&format!("(has {b} {y})"), false)?;
-                m.s.set_fact(&format!("(has {a} {y})"), true)?;
-                m.s.set_fact(&format!("(has {b} {x})"), true)?;
+            let deltas = [
+                (format!("(has {a} {x})"), false),
+                (format!("(has {b} {y})"), false),
+                (format!("(has {a} {y})"), true),
+                (format!("(has {b} {x})"), true),
+            ];
+            if fog {
+                // Truth moves; the ACTOR saw its own trade; everyone else
+                // learns from the stall ledgers when they next look.
+                for (f, v) in &deltas {
+                    world.set_fact(f, *v)?;
+                    minds[mi].s.set_fact(f, *v)?;
+                    pending
+                        .entry(stall_of(f))
+                        .or_default()
+                        .insert(f.clone(), *v);
+                }
+            } else {
+                for m in minds.iter_mut() {
+                    for (f, v) in &deltas {
+                        m.s.set_fact(f, *v)?;
+                    }
+                }
             }
             minds[mi].cursor += 1;
             anyone_moved = true;
@@ -388,12 +505,30 @@ fn run_row_with(
     );
     println!();
     println!(
-        "| mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |"
+        "| mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |{}",
+        if fog {
+            " surprises | stale follows | discovery |"
+        } else {
+            ""
+        }
     );
-    println!("|---|---|---|---|---|---|---|---|---|");
+    println!(
+        "|---|---|---|---|---|---|---|---|---|{}",
+        if fog { "---|---|---|" } else { "" }
+    );
     for (m, &(_, goal)) in minds.iter().zip(goals) {
+        let fog_cols = if fog {
+            let disc = match (steal, m.first_surprise) {
+                (Some((at, ..)), Some(t)) if t >= at => format!("+{} ticks", t - at),
+                (Some(_), None) => "never".into(),
+                _ => "-".into(),
+            };
+            format!(" {} | {} | {} |", m.surprises, m.stale_follows, disc)
+        } else {
+            String::new()
+        };
         println!(
-            "| {} | `{}` | {} | {} | {} | {} | {} | {} | {} |",
+            "| {} | `{}` | {} | {} | {} | {} | {} | {} | {} |{}",
             m.name,
             goal,
             outcome(m),
@@ -402,7 +537,8 @@ fn run_row_with(
             m.thinks,
             m.evals,
             m.churn,
-            m.waits
+            m.waits,
+            fog_cols
         );
     }
     Ok(())
@@ -539,6 +675,26 @@ fn main() -> Result<(), String> {
         PRB_X2M,
         x2m,
         Policy::ClaimsFollowing,
+        None,
+        theft,
+    )?;
+
+    // ---- Phase 4 (0.15) rows: FOG — belief vs world. A mind sees its own
+    // stall each turn and its partner's stall on arrival; the theft happens
+    // at a third-party stall, so discovery waits until someone LOOKS.
+    run_row_with(
+        "Crossed chains x2m, claims + fog (no theft — the overhead row)",
+        PRB_X2M,
+        x2m,
+        Policy::ClaimsFogged,
+        None,
+        None,
+    )?;
+    run_row_with(
+        "Crossed chains x2m + scripted theft, claims + fog",
+        PRB_X2M,
+        x2m,
+        Policy::ClaimsFogged,
         None,
         theft,
     )?;
