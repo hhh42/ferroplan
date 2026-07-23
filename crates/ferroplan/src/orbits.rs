@@ -88,6 +88,15 @@ impl Family {
         }
         self.table[ix]
     }
+    /// [`Family::map`] with a functional σ — avoids materializing per-orbit
+    /// permutation vectors for the pairwise stabilizer tests.
+    fn map_with(&self, coords: &[u16], sigma: impl Fn(u16, u16) -> u16) -> u32 {
+        let mut ix = 0usize;
+        for (d, &c) in coords.iter().enumerate() {
+            ix = ix * self.dims[d] as usize + sigma(self.axes[d], c) as usize;
+        }
+        self.table[ix]
+    }
     /// Closure under every member transposition: cells whose coordinates
     /// share an equality pattern (per orbit — different orbits never
     /// interact) must be uniformly present/absent. σ preserves equality
@@ -831,5 +840,126 @@ impl OrbitMap {
         ag.sort_unstable();
         let canon = State { bits, fv, fdef };
         (task.state_key(&canon), ag)
+    }
+
+    /// Stabilizer classes for GENERATION-side symmetry skipping (0.15
+    /// Phase 1): per orbit, group members whose pairwise TRANSPOSITION
+    /// provably fixes the whole state — every touched fact bit, fluent
+    /// value/definedness, and pending-agenda entry maps to an equal one
+    /// (cross-member facts included; the per-member signature alone is NOT
+    /// enough — `(STRUCTURE m1 x)` true with `(STRUCTURE m2 x)` false
+    /// distinguishes m1 from m2 even when their own facts agree). Two ops
+    /// that are the same template on same-class members produce
+    /// π-equivalent successors, so the expansion generates only the first:
+    /// the duplicate never exists instead of being deduped after the fact.
+    /// Swap-fixes is transitive on a chain of pairwise checks
+    /// ((a c) = (a b)(b c)(a b)), so greedy class assignment is exact.
+    pub fn stabilizer_classes(&self, state: &State, agenda: &[(f64, usize)]) -> Vec<Vec<u16>> {
+        let mut out = Vec::with_capacity(self.orbits.len());
+        for (oi, orbit) in self.orbits.iter().enumerate() {
+            let k = orbit.facts.len();
+            let mut class: Vec<u16> = (0..k as u16).collect();
+            for a in 0..k {
+                if class[a] != a as u16 {
+                    continue;
+                }
+                for b in (a + 1)..k {
+                    if class[b] == b as u16
+                        && self.swap_fixes(oi as u16, a as u16, b as u16, state, agenda)
+                    {
+                        class[b] = a as u16;
+                    }
+                }
+            }
+            out.push(class);
+        }
+        out
+    }
+
+    /// Class-canonical GENERATION key for `op` under `classes` (from
+    /// [`Self::stabilizer_classes`]): two ops with equal keys are images of
+    /// one another under a state-fixing σ — same family, per-coordinate
+    /// stabilizer-class representatives, and the same equality pattern
+    /// among same-orbit coordinates (so `(REL m1 m2)` never conflates with
+    /// a hypothetical `(REL m3 m3)`). Any within-class permutation is a
+    /// product of class transpositions, each of which fixes the state, so
+    /// the composed σ fixes it too. `None` = op touches no orbit (always
+    /// generate).
+    pub fn gen_key(&self, op: usize, classes: &[Vec<u16>]) -> Option<(u32, Vec<u16>)> {
+        let (fam_ix, coords) = self.op_touch.get(&op)?;
+        let fam = &self.op_fams[*fam_ix as usize];
+        let mut key = Vec::with_capacity(coords.len() * 2);
+        for (d, &c) in coords.iter().enumerate() {
+            key.push(classes[fam.axes[d] as usize][c as usize]);
+            let mut pat = d as u16;
+            for e in 0..d {
+                if fam.axes[e] == fam.axes[d] && coords[e] == c {
+                    pat = e as u16;
+                    break;
+                }
+            }
+            key.push(pat);
+        }
+        Some((*fam_ix, key))
+    }
+
+    /// Does the transposition (a b) within orbit `oi` fix `state` + `agenda`?
+    fn swap_fixes(&self, oi: u16, a: u16, b: u16, state: &State, agenda: &[(f64, usize)]) -> bool {
+        let sig = |orb: u16, c: u16| -> u16 {
+            if orb == oi {
+                if c == a {
+                    b
+                } else if c == b {
+                    a
+                } else {
+                    c
+                }
+            } else {
+                c
+            }
+        };
+        let touches = |fam_axes: &[u16], coords: &[u16]| -> bool {
+            fam_axes
+                .iter()
+                .zip(coords.iter())
+                .any(|(&ax, &c)| ax == oi && (c == a || c == b))
+        };
+        for (f, fam, coords) in &self.fact_touch {
+            let fam = &self.fact_fams[*fam as usize];
+            if touches(&fam.axes, coords) {
+                let nf = fam.map_with(coords, sig);
+                if crate::bitset::test(&state.bits, *f as usize)
+                    != crate::bitset::test(&state.bits, nf as usize)
+                {
+                    return false;
+                }
+            }
+        }
+        for (fid, fam, coords) in &self.flu_touch {
+            let fam = &self.flu_fams[*fam as usize];
+            if touches(&fam.axes, coords) {
+                let nf = fam.map_with(coords, sig) as usize;
+                let (i, j) = (*fid as usize, nf);
+                if state.fdef[i] != state.fdef[j]
+                    || (state.fdef[i] && (state.fv[i] - state.fv[j]).abs() > 1e-9)
+                {
+                    return false;
+                }
+            }
+        }
+        // Agenda: every touched pending entry's image must be pending at the
+        // SAME time. σ is an involution, so one direction suffices.
+        for &(t, op) in agenda {
+            if let Some((fam, coords)) = self.op_touch.get(&op) {
+                let fam = &self.op_fams[*fam as usize];
+                if touches(&fam.axes, coords) {
+                    let nop = fam.map_with(coords, &sig) as usize;
+                    if nop != op && !agenda.iter().any(|&(t2, o2)| o2 == nop && t2 == t) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
     }
 }

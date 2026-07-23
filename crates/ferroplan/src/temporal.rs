@@ -1710,7 +1710,17 @@ fn enqueue_committed(
     };
     let idx = nodes.len();
     nodes.push(n);
-    heap.push(Reverse((key, idx)));
+    // Tie-break probe (0.15 Phase 1, FF_TLIFO=1): at EQUAL key the min-heap
+    // pops the smallest index — FIFO, i.e. breadth-first across a plateau.
+    // TMS's best_h sits flat at 110 while the frontier balloons; LIFO
+    // commits depth-first through the plateau instead. Deterministic
+    // either way (pure function of insertion order).
+    let tie = if std::env::var("FF_TLIFO").is_ok() {
+        usize::MAX - idx
+    } else {
+        idx
+    };
+    heap.push(Reverse((key, tie)));
 }
 
 /// May a happening move the state `old`→`new` while `pending` intervals
@@ -1749,6 +1759,22 @@ fn inv_ok(
         }
     }
     true
+}
+
+/// Per-pass probe counters (FF_RES_DEBUG only output; the increments are
+/// unconditional u64 adds, cheap enough to keep unguarded). The 0.15
+/// Phase 1 measurement eyes: where do the generated candidates actually
+/// go — doomed at birth, orbit-deduped before eval, evaluated, relaxed
+/// dead ends — and does the pruned pass's best h make progress at all?
+#[derive(Default)]
+struct TStats {
+    doomed: u64,
+    deduped: u64,
+    evaluated: u64,
+    dead_end: u64,
+    b_blocked: u64,
+    tie_rescue: u64,
+    best_h: i32,
 }
 
 /// A node whose agenda head can NEVER legally fire is dead: the head must
@@ -1820,6 +1846,7 @@ fn push_node(
     task: &PackedTask,
     kind: &[Kind],
     inv: &InvMap,
+    stats: &mut TStats,
     sc: &mut Scratch,
     nodes: &mut Vec<TNode>,
     heap: &mut BinaryHeap<Reverse<(i64, usize)>>,
@@ -1835,6 +1862,7 @@ fn push_node(
     n: TNode,
 ) {
     if doomed(task, inv, &n) {
+        stats.doomed += 1;
         return;
     }
     // Orbit path: dedup on the canonical key BEFORE paying for the
@@ -1847,11 +1875,13 @@ fn push_node(
     if orbit.is_some() {
         let k = tkey(task, &n, relative, orbit);
         if !visited.insert(k) {
+            stats.deduped += 1;
             return;
         }
     }
     let hs = til_seeded_state(task, kind, &n.agenda, &n.state, seed_til_h);
-    if let Some((h, helpful)) = eval_node(
+    stats.evaluated += 1;
+    let ev = eval_node(
         task,
         kind,
         sc,
@@ -1859,7 +1889,12 @@ fn push_node(
         goal_pos,
         goal_num,
         prune,
-    ) {
+    );
+    if ev.is_none() {
+        stats.dead_end += 1;
+    }
+    if let Some((h, helpful)) = ev {
+        stats.best_h = stats.best_h.min(h);
         if orbit.is_some() {
             enqueue_committed(
                 task, nodes, heap, landmarks, lms, demand, prune, n, h, helpful,
@@ -1939,6 +1974,8 @@ fn temporal_search(
     // Measurement only (FF_RES_DEBUG): dims at pass start, container sizes every
     // 25k stored nodes — the memory-attribution eyes for the temporal path.
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let no_orbit_gen = std::env::var("FF_NO_ORBIT_GEN").is_ok();
+    let lifo = std::env::var("FF_TLIFO").is_ok();
     let t0 = std::time::Instant::now();
     if dbg {
         eprintln!(
@@ -1952,6 +1989,10 @@ fn temporal_search(
         );
     }
     let mut next_dump = 25_000usize;
+    let mut stats = TStats {
+        best_h: i32::MAX,
+        ..TStats::default()
+    };
     // Worker count for batched successor evaluation (0 = auto, like the classical
     // search). Parallelism only changes evaluation COST — see the funnel comment in
     // the expansion block; plans are identical for any value.
@@ -2023,11 +2064,13 @@ fn temporal_search(
         lm_accepted: root_lm,
     }];
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
-    heap.push(Reverse((0, 0)));
+    heap.push(Reverse((0, if lifo { usize::MAX } else { 0 })));
     let mut visited: HashSet<(StateKey, Vec<(i64, usize)>)> = HashSet::new();
     visited.insert(tkey(task, &nodes[0], relative, orbit));
 
-    while let Some(Reverse((_k, ni))) = heap.pop() {
+    while let Some(Reverse((_k, tie))) = heap.pop() {
+        // Decode the FF_TLIFO tie encoding (see enqueue_committed).
+        let ni = if lifo { usize::MAX - tie } else { tie };
         // The goal is reached once no *action* end is still pending. Unfired future
         // TILs may remain on the agenda — they're exogenous and don't gate completion.
         let ends_pending = nodes[ni]
@@ -2079,6 +2122,11 @@ fn temporal_search(
                     nodes.len(),
                     t0.elapsed().as_millis()
                 );
+                eprintln!(
+                    "[tsearch] stats: doomed {} deduped {} evaluated {} dead_end {} b_blocked {} tie_rescue {} best_h {}",
+                    stats.doomed, stats.deduped, stats.evaluated, stats.dead_end,
+                    stats.b_blocked, stats.tie_rescue, stats.best_h
+                );
             }
             break;
         }
@@ -2112,7 +2160,27 @@ fn temporal_search(
         // order matches the old per-candidate loop exactly, so heap and visited-set
         // evolve identically and the plan is byte-identical for any thread count.
         let mut protos: Vec<TNode> = Vec::new();
+        // Generation-side symmetry skipping (0.15 Phase 1): the 0.14 probe
+        // showed 81% of TMS candidates were orbit-permutation duplicates,
+        // generated and then killed one-by-one on the canonical key. Two
+        // same-template ops on members of one STABILIZER class (their
+        // transposition provably fixes this node's whole state — cross-
+        // member facts and pending agenda included) produce π-equivalent
+        // successors, so only the first is generated; the duplicate never
+        // exists. Pure function of the node → deterministic, t1 ≡ t8.
+        // `FF_NO_ORBIT_GEN=1` restores generate-then-dedup.
+        let gen_classes = orbit
+            .filter(|_| !no_orbit_gen)
+            .map(|om| om.stabilizer_classes(&nodes[ni].state, &nodes[ni].agenda));
+        let mut seen_class: HashSet<(u32, Vec<u16>)> = HashSet::new();
         for oi in candidates {
+            if let (Some(om), Some(cls)) = (orbit, gen_classes.as_ref()) {
+                if let Some(k) = om.gen_key(oi, cls) {
+                    if !seen_class.insert(k) {
+                        continue;
+                    }
+                }
+            }
             match kind[oi] {
                 Kind::Start { dur, end_op, dexp } => {
                     if task.op_applicable(oi, &nodes[ni].state) {
@@ -2243,6 +2311,7 @@ fn temporal_search(
                     task,
                     kind,
                     inv,
+                    &mut stats,
                     &mut sc,
                     &mut nodes,
                     &mut heap,
@@ -2262,16 +2331,21 @@ fn temporal_search(
             // Same order as the serial path: doomed nodes die first (no
             // eval, no visited entry), then the orbit pre-dedup.
             let mut protos = protos;
+            let before = protos.len();
             protos.retain(|n| !doomed(task, inv, n));
+            stats.doomed += (before - protos.len()) as u64;
             // Orbit pre-dedup, serially IN INPUT ORDER before the fan-out —
             // the same keys the funnel would compute, so any thread count
             // sees the identical visited evolution (t1 ≡ t8), and duplicate
             // permutation-states never reach the parallel evaluators.
             let protos: Vec<TNode> = if orbit.is_some() {
-                protos
+                let before = protos.len();
+                let kept: Vec<TNode> = protos
                     .into_iter()
                     .filter(|n| visited.insert(tkey(task, n, relative, orbit)))
-                    .collect()
+                    .collect();
+                stats.deduped += (before - kept.len()) as u64;
+                kept
             } else {
                 protos
             };
@@ -2293,7 +2367,12 @@ fn temporal_search(
                 },
             );
             for (n, ev) in protos.into_iter().zip(evals) {
+                stats.evaluated += 1;
+                if ev.is_none() {
+                    stats.dead_end += 1;
+                }
                 if let Some((h, helpful)) = ev {
+                    stats.best_h = stats.best_h.min(h);
                     if orbit.is_some() {
                         enqueue_committed(
                             task, &mut nodes, &mut heap, landmarks, &lms, demand, prune, n, h,
@@ -2352,7 +2431,13 @@ fn temporal_search(
                     }
                     let ns = task.apply(eop, &nodes[ni].state);
                     if !inv_ok(inv, &nodes[ni].agenda, Some(j), &nodes[ni].state, &ns) {
+                        if j == 0 {
+                            stats.b_blocked += 1;
+                        }
                         continue;
+                    }
+                    if j > 0 {
+                        stats.tie_rescue += 1;
                     }
                     let mut ag = nodes[ni].agenda.clone();
                     ag.remove(j);
@@ -2361,6 +2446,7 @@ fn temporal_search(
                         task,
                         kind,
                         inv,
+                        &mut stats,
                         &mut sc,
                         &mut nodes,
                         &mut heap,
