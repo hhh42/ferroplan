@@ -137,6 +137,36 @@ end).
   (whether a comparison can "never recover" needs value reasoning —
   a different animal than fact monotonicity).
 
+### Recorded — SHIPPED (bait proven, then killed; watch domains clean)
+
+The fixture earned its keep twice before the fix existed: v1's drain
+was schedulable BEFORE the run (the engine innocently found the sound
+order — no bait), so `dip` became hot-gated (only possible inside the
+interval) with `topup` as the pre-run escape. On that shape the
+0.14 engine takes the bait exactly as predicted: `run@0, dip@0.001`
+— level 2 → 0 mid-interval, both endpoint checks pass, **VAL-red**.
+
+The fix rides the InvMap plumbing as spec'd: `ground_inv` grounds
+`Comp` conjuncts to `NumPre` + read-fluent ids (via the duration
+grounder; a conjunct over never-written fluents is dropped — the
+endpoints already check it; a conjunct that fails to ground reverts
+the op to endpoint-only). `inv_ok` re-evaluates a pending interval's
+comparisons only when a read fluent actually moved, and only an
+actual true→false FLIP blocks — the named over-blocking risk
+(a fuel decrease that stays above its floor) never triggers by
+construction. Start self-checks now include the numeric conjuncts on
+the post-effect state. Numeric doom-pruning stays fenced out as
+spec'd. On the fixed engine the fuel-gap plan is `topup → run →
+dip(4→2) → refill` — **VAL-green**, suite-pinned
+(`numeric_over_all_guard_forces_the_topup`).
+
+Watch domains, all VAL-green solves or baseline-consistent: crew-08
+i1, crew-11 i1, transport-t-08 i1, openstacks-t-08 i1 solved
+VAL-green; model-train i1 no-plan — its baseline is 0/30 and its
+wall (Phase 1's probe: best_h 6, nothing blocked) is untouched by
+this guard. The full tempo-sat referee runs at the Phase 6 cut as
+spec'd.
+
 ## Phase 3 — orbits where they don't yet reach (cheap revisit)
 
 The recorded "pass None for now" decisions, re-taken deliberately:

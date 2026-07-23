@@ -157,3 +157,71 @@ fn over_all_invariant_respects_scheduled_outage() {
         "bake [{start}, {end}] must not span the 8..8.001 ready outage"
     );
 }
+
+/// Numeric over-all conjuncts (0.15 Phase 2): endpoint-only checking let a
+/// mid-run dip to 0 pass (level back up by the end — the fuel-gap bait,
+/// VAL-red). The transition guard re-evaluates the grounded comparison on
+/// every happening; the sound schedule tops up BEFORE starting so the
+/// mid-run dip bottoms above the floor.
+const FUEL_DOM: &str = "
+(define (domain fuel-gap)
+  (:requirements :typing :durative-actions :numeric-fluents)
+  (:types rig)
+  (:predicates (idle) (hot) (done) (dipped) (refilled))
+  (:functions (level))
+  (:durative-action run
+    :parameters (?r - rig)
+    :duration (= ?duration 10)
+    :condition (and (at start (idle)) (over all (>= (level) 1)))
+    :effect (and (at start (not (idle))) (at start (hot))
+                 (at end (not (hot))) (at end (done))))
+  (:durative-action topup
+    :parameters (?r - rig)
+    :duration (= ?duration 1)
+    :condition (at start (idle))
+    :effect (at start (increase (level) 2)))
+  (:durative-action dip
+    :parameters (?r - rig)
+    :duration (= ?duration 1)
+    :condition (at start (hot))
+    :effect (and (at start (dipped)) (at start (decrease (level) 2))))
+  (:durative-action refill
+    :parameters (?r - rig)
+    :duration (= ?duration 1)
+    :condition (at start (dipped))
+    :effect (and (at start (refilled)) (at start (increase (level) 2)))))
+";
+
+const FUEL_PROB: &str = "
+(define (problem fuel-gap-1)
+  (:domain fuel-gap)
+  (:objects r1 - rig)
+  (:init (idle) (= (level) 2))
+  (:goal (and (done) (dipped) (refilled)))
+  (:metric minimize (total-time)))
+";
+
+#[test]
+fn numeric_over_all_guard_forces_the_topup() {
+    let d = parse_domain(FUEL_DOM).unwrap();
+    let p = parse_problem(FUEL_PROB).unwrap();
+    let plan = temporal::solve(&d, &p, 1).expect("fuel-gap solves");
+    let at = |needle: &str| {
+        plan.steps
+            .iter()
+            .find(|s| s.action.to_ascii_uppercase().starts_with(needle))
+            .map(|s| s.time)
+    };
+    let (run, dip, topup) = (at("RUN"), at("DIP"), at("TOPUP"));
+    let run = run.expect("plan has run");
+    let dip = dip.expect("plan has dip");
+    // dip is hot-gated (inside the run), so the only sound schedule tops
+    // up before the run starts — level 4 keeps the mid-run dip at 2 >= 1.
+    if dip > run {
+        let topup = topup.expect("mid-run dip requires a prior topup");
+        assert!(
+            topup < run,
+            "topup at {topup} must precede run at {run} (dip at {dip})"
+        );
+    }
+}

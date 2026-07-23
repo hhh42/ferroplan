@@ -286,8 +286,8 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
         // were UNSOUND — a delete + re-add BETWEEN the endpoints (kiln-gap
         // fixture) passed both and failed VAL; the search's per-happening
         // transition guard ([`InvMap`], `inv_ok`) closes that for conjunctive
-        // propositional invariants. Numeric conjuncts remain endpoint-only
-        // (recorded limit).
+        // propositional invariants (0.14) and numeric comparison conjuncts
+        // (0.15, fuel-gap fixture — only actual true→false flips block).
         let start_pre = and_formulas(vec![subst_f(&start_cond0), invariant.clone()]);
         let mut start_eff: Vec<Effect> = start_effs0.iter().map(&subst_e).collect();
         start_eff.push(Effect::Add(running.clone(), run_args.clone()));
@@ -712,9 +712,13 @@ fn solve_inner(
 /// the interval is pending (kiln-gap fixture: endpoint-only checking
 /// accepted a bake spanning a delete+re-add outage; VAL rejects it).
 /// Ops with non-conjunctive invariants are absent (endpoint-only, as
-/// before); numeric invariant conjuncts also stay endpoint-only — a
-/// recorded limit, the transition test would need comparison re-evaluation.
-pub(crate) type InvMap = crate::hash::FxHashMap<usize, (Vec<u32>, Vec<u32>)>;
+/// before). Numeric conjuncts (0.15 Phase 2, the fuel-gap fixture) carry
+/// their grounded comparison plus the fluent ids it reads: a happening
+/// that changes a read fluent re-evaluates the comparison on the
+/// post-happening state, and only an actual true→false flip blocks —
+/// a fuel decrease that stays above its floor sails through.
+pub(crate) type InvMap =
+    crate::hash::FxHashMap<usize, (Vec<u32>, Vec<u32>, Vec<(NumPre, Vec<u32>)>)>;
 
 /// Classify every grounded op as a durative Start (with resolved duration + paired
 /// end op), End, Classical, or Skip (unresolvable). Shared by `solve` and the
@@ -762,10 +766,18 @@ pub(crate) fn build_kind(
                     let bind = duration_bind(snap, &args);
                     let mut pos = Vec::new();
                     let mut neg = Vec::new();
-                    if ground_inv(&snap.invariant, &bind, task, &mut pos, &mut neg)
-                        && !(pos.is_empty() && neg.is_empty())
+                    let mut num = Vec::new();
+                    if ground_inv(
+                        &snap.invariant,
+                        &bind,
+                        task,
+                        &modified,
+                        &mut pos,
+                        &mut neg,
+                        &mut num,
+                    ) && !(pos.is_empty() && neg.is_empty() && num.is_empty())
                     {
-                        inv.insert(end_op, (pos, neg));
+                        inv.insert(end_op, (pos, neg, num));
                     }
                 }
                 let nexpr = snap
@@ -811,8 +823,9 @@ pub(crate) fn build_kind(
 }
 
 /// Collect a conjunctive invariant's grounded (positive, negative) fact
-/// atoms. `true` = the shape is supported (numeric `Comp` and static `Eq`
-/// conjuncts are passed over — endpoint-only, the recorded limit); `false`
+/// atoms and numeric comparisons. `true` = the shape is supported (static
+/// `Eq` conjuncts are passed over; a numeric conjunct whose expressions
+/// don't ground makes the whole op fall back to endpoint-only); `false`
 /// = disjunctive/quantified structure, caller keeps endpoint-only checking
 /// for the whole op. An atom that grounded to no task fact is skipped:
 /// statically-true facts have no deleter, never-reachable ones no adder.
@@ -820,12 +833,38 @@ fn ground_inv(
     f: &Formula,
     bind: &HashMap<&str, &str>,
     task: &PackedTask,
+    modified: &[bool],
     pos: &mut Vec<u32>,
     neg: &mut Vec<u32>,
+    num: &mut Vec<(NumPre, Vec<u32>)>,
 ) -> bool {
     match f {
-        Formula::True | Formula::Comp(..) | Formula::Eq(..) => true,
-        Formula::And(fs) => fs.iter().all(|g| ground_inv(g, bind, task, pos, neg)),
+        Formula::True | Formula::Eq(..) => true,
+        Formula::Comp(op, lhs, rhs) => {
+            let (Some(l), Some(r)) = (
+                ground_duration_nexpr(lhs, bind, task),
+                ground_duration_nexpr(rhs, bind, task),
+            ) else {
+                return false;
+            };
+            let np = NumPre {
+                op: *op,
+                lhs: l,
+                rhs: r,
+            };
+            let mut reads = Vec::new();
+            np.lhs.collect_fluents(&mut reads);
+            np.rhs.collect_fluents(&mut reads);
+            // A comparison over UNWRITTEN fluents can never flip — skip it
+            // (start_pre / end_pre already check it at the endpoints).
+            if reads.iter().any(|&f| modified[f as usize]) {
+                num.push((np, reads));
+            }
+            true
+        }
+        Formula::And(fs) => fs
+            .iter()
+            .all(|g| ground_inv(g, bind, task, modified, pos, neg, num)),
         Formula::Atom(p, args) => {
             if let Some(fid) = ground_atom_id(p, args, bind, task) {
                 pos.push(fid);
@@ -1757,7 +1796,7 @@ fn inv_ok(
         if Some(i) == skip {
             continue;
         }
-        if let Some((pos, neg)) = inv.get(&eop) {
+        if let Some((pos, neg, num)) = inv.get(&eop) {
             if pos.iter().any(|&f| {
                 crate::bitset::test(&old.bits, f as usize)
                     && !crate::bitset::test(&new.bits, f as usize)
@@ -1766,6 +1805,21 @@ fn inv_ok(
                     && crate::bitset::test(&new.bits, f as usize)
             }) {
                 return false;
+            }
+            // Numeric conjuncts (fuel-gap): only an actual true→false FLIP
+            // blocks, and only when a read fluent moved — a drain that
+            // stays above its floor is untouched.
+            for (np, reads) in num {
+                let moved = reads.iter().any(|&f| {
+                    let f = f as usize;
+                    old.fdef[f] != new.fdef[f] || old.fv[f] != new.fv[f]
+                });
+                if moved
+                    && eval_numpre(np, &old.fv, &old.fdef) == Some(true)
+                    && eval_numpre(np, &new.fv, &new.fdef) != Some(true)
+                {
+                    return false;
+                }
             }
         }
     }
@@ -1813,7 +1867,7 @@ fn doomed(task: &PackedTask, inv: &InvMap, n: &TNode) -> bool {
     }
     n.agenda.iter().skip(1).any(|&(tb, bop)| {
         tb > te + 1e-9
-            && inv.get(&bop).is_some_and(|(pos, neg)| {
+            && inv.get(&bop).is_some_and(|(pos, neg, _)| {
                 hdel.iter()
                     .any(|f| pos.contains(f) && crate::bitset::test(&n.state.bits, *f as usize))
                     || hadd.iter().any(|f| {
@@ -2246,13 +2300,16 @@ fn temporal_search(
                         if !inv_ok(inv, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
                             continue;
                         }
-                        if let Some((ipos, ineg)) = inv.get(&end_op) {
+                        if let Some((ipos, ineg, inum)) = inv.get(&end_op) {
                             if ipos
                                 .iter()
                                 .any(|&f| !crate::bitset::test(&ns.bits, f as usize))
                                 || ineg
                                     .iter()
                                     .any(|&f| crate::bitset::test(&ns.bits, f as usize))
+                                || inum
+                                    .iter()
+                                    .any(|(np, _)| eval_numpre(np, &ns.fv, &ns.fdef) != Some(true))
                             {
                                 continue;
                             }
