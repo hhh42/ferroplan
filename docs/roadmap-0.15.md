@@ -182,6 +182,27 @@ The recorded "pass None for now" decisions, re-taken deliberately:
   engages anywhere honest, record that and keep None — this phase
   is allowed to be a two-line negative.
 
+### Recorded — the two-line negative, with the two lines stated precisely
+
+**tresolve keeps None, structurally:** orbit soundness requires the
+WHOLE goal to be σ-invariant, and a contract's subgoal is by
+construction a member-naming subset of it (the decomposer exists to
+split goals apart); its sibling-protection `forbidden` masks likewise
+name members' goal facts. Both disqualifiers are the decomposer's
+identity, not an implementation gap.
+
+**The Session keeps None, structurally + economically:** detection
+reads the LIFTED problem — a session's runtime world (set_fact drift,
+`set_timed_fact` schedules, `apply_start` running intervals, and the
+post-grounding TILSET ops those ride on) is invisible to it, and any
+of them can distinguish members an init-profile check calls
+identical; `restrict_ops` (every bazaar mind) names an actor.
+Detection would be sound only for an unrestricted, event-free,
+drift-free think — the CLI one-shot case, already served — and would
+bill its detection cost against think budgets that are themselves
+milliseconds. Both Nones stay; the CLI documents the σ-invariant-mask
+rule either way.
+
 ## Phase 4 — belief and observation (the game capability)
 
 Partial-observability lite, on the machinery that already exists:
