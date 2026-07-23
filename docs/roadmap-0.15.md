@@ -1,0 +1,175 @@
+# ferroplan 0.15 roadmap — the seen-and-scheduled cycle
+
+Scope settled 2026-07-23, the day the extended 0.14.0 cut. The
+extension left exactly one hard problem with a *fresh, precise*
+mechanism attached and one game capability the deferred list has
+named twice. 0.15 takes both, plus the correctness close-out and the
+platform piece that ride along naturally. One hard bet, two
+near-certain ships, everything traceable to a recorded debt or
+diagnosis — no fresh guesses.
+
+The recorded design answers this cycle serves:
+
+- **The TMS wall moved and we watched it move**: not symmetry
+  (orbits collapsed it), not soundness (the transition guard closed
+  it), but the invariant-BLIND relaxation — h^FF has no concept of
+  "this kiln window closes at t=8 and what you just started will not
+  fit." That is the most actionable temporal-guidance diagnosis on
+  file, and storage-t / model-train are feasibility-window shaped in
+  their own ways.
+- **A mind's Session already IS a belief state** — a world copy that
+  drifts from the authoritative one. The bazaar loop has been
+  simulating perfect information over an architecture built for
+  imperfect information; formalizing observation is cheap relative
+  to what it delivers, and the deferred list has called belief "the
+  game's business" two cycles running.
+- **Soundness debts get closed while the machinery is warm**: the
+  numeric-invariant endpoint limit was recorded in Phase 10 of the
+  extension; its fix reuses the same InvMap plumbing.
+
+## Phase 1 — window-aware temporal guidance (research target, the hard bet)
+
+The TMS follow-through. Fixtures first, mechanism first:
+
+- **Fixtures first**: a minimal windows fixture family
+  (`bench/kiln-pack-*.pddl`) — k jobs of mixed durations, one
+  resource whose invariant-bearing windows open and close on a
+  schedule (kiln firings), instance sizes that step from trivially
+  packable to tight. The MEASUREMENT before the lever: on each size,
+  where do the evals go — window-infeasible starts (already
+  doom-pruned at birth), window-WASTING starts (fit now, strand the
+  remainder), or plateau ordering among equally-h states? The probe
+  decides which lever gets built; do not build first.
+- Candidate levers, cheapest first, ONE gets a real swing:
+  (a) an ordering term from LIVE window slack — for each pending
+  invariant-deleting end at `te`, how much of `[now, te]` do running
+  intervals actually use vs. what still must fit (a concrete-state
+  read, like the demand and trip-bound terms before it); (b) seeding
+  the relaxation with pending-end DELETES (the dual of 0.14's
+  `seed_til_h` adds) so h at least sees that the window CLOSES —
+  riskier: it can make reachable goals look dead, so it must be an
+  ordering signal or a pruned-pass-only bias, never a completeness
+  gate.
+- Bar, the house rule verbatim: TMS off 0/20 at 30 s — or the
+  negative recorded with the same mechanism precision as the four
+  guidance negatives before it. Second witnesses: storage-t,
+  model-train. Zero corpus regressions; casualties named and
+  solo-checked; `FF_*` hatch either way.
+- Severable: ships behind a default gate unless the tempo-sat sweep
+  is clean.
+
+## Phase 2 — numeric invariant conjuncts in the transition guard (correctness sibling)
+
+Phase 10's guard covers conjunctive PROPOSITIONAL invariants; numeric
+conjuncts (`over all (>= (fuel ?v) 0)`) still get endpoint-only
+checking — the recorded limit, and the same delete+re-add shape can
+slip through numerically (drain past the floor, refuel before the
+end).
+
+- Fixtures first: a numeric kiln-gap (`bench/fuel-gap-*.pddl`) the
+  current engine provably takes the bait on, VAL-red, before any fix.
+- The fix reuses the InvMap plumbing: per pending interval, the
+  grounded numeric conjuncts; a happening that writes a fluent read
+  by one re-evaluates the comparison on the post-happening state and
+  is refused on violation. Exact, diff-driven, like the
+  propositional guard.
+- The named risk: over-blocking legitimate concurrent fluent writes
+  (a fuel decrease that STAYS above the floor must pass — only
+  actual violations block). The tempo-sat sweep is the referee;
+  transport-t/model-train/crew are the watch domains.
+- Doom-pruning extension is explicitly OUT of scope for numerics
+  (whether a comparison can "never recover" needs value reasoning —
+  a different animal than fact monotonicity).
+
+## Phase 3 — orbits where they don't yet reach (cheap revisit)
+
+The recorded "pass None for now" decisions, re-taken deliberately:
+
+- `tresolve` (the decomposer) and the Session's temporal thinks
+  currently pass no orbit map. Wire detection in where the
+  soundness conditions hold (a Session with `restrict_ops` masks or
+  asymmetric drift must keep None — the mask must be σ-invariant,
+  same rule the CLI already documents).
+- Bar: byte-identical where detection declines; measured think-cost
+  or coverage delta where it engages (the bazaar fixtures and the
+  decomposer's crew/order corpus are the probes). If nothing
+  engages anywhere honest, record that and keep None — this phase
+  is allowed to be a two-line negative.
+
+## Phase 4 — belief and observation (the game capability)
+
+Partial-observability lite, on the machinery that already exists:
+
+- **`Session::observe(facts)`** — the mind's belief surface: a set
+  of facts (a visibility mask over the fact space) the loop refreshes
+  from the authoritative world each tick; everything outside it
+  stays as believed. `set_fact` drift becomes the OBSERVED channel;
+  belief diverges silently until observation contradicts it.
+- **Surprise semantics**: a replay/validity check against belief is
+  free (0.12's machinery); a SURPRISE is an observation that breaks
+  the current plan or falsifies a believed precondition of an
+  in-flight step. Surprises — not wall-clock paranoia — trigger
+  rethinks.
+- **Fog in the bazaar**: `bazaar_live` gains a visibility policy
+  (own stall + current trading partner); the measured questions:
+  theft-discovery latency (ticks between rival's take and the
+  victim's surprise), wasted follows on stale belief, churn and
+  conflict rate vs. the full-vision baseline rows that already
+  exist in `benchmarks/bazaar-thinks.md`.
+- Determinism unchanged: observation is a pure function of
+  (authoritative state, visibility policy, tick order); the whole
+  fogged simulation replays byte-identical at any thread count.
+- Explicitly OUT: belief over OTHER MINDS' plans or goals (that is
+  cross-mind modeling — still "a different engine and a different
+  year"), probabilistic belief, and any engine change: belief lives
+  in the Session/loop layer or it doesn't ship this cycle.
+
+## Phase 5 — the in-page Session UI (platform, visible)
+
+The deferred browser piece: the bazaar demo page grows a live
+Session panel — inspect a mind's belief vs. the world, poke a fact
+(`set_fact` from the page), watch the surprise → rethink → follow
+cycle run client-side in WASM. The fog work in Phase 4 is what makes
+this panel worth looking at; without it the panel is a state dump.
+
+- Deliverable: `bazaar-live.html` upgraded from canned-trace replay
+  to a LIVE loop driven by the wasm Session bindings; module-graph
+  check stays green; no server, no install, same as every demo page.
+- Scope fence: presentation only — any capability the panel needs
+  that the Session API lacks goes on the record as a Phase 4 gap,
+  not a page-side hack.
+
+## Phase 6 — 0.15.0 cut
+
+The 0.14 extended-cut mechanics, now the standing template: CHANGELOG
+/ README / book refresh, both scoreboards against the final binary
+(binary-A/B attribution, casualties named and solo-checked,
+`mem-cap` environmental deaths tracked separately from engine
+deltas), bazaar-thinks re-emitted, full pre-flight per RELEASING.md —
+`--all-targets` clippy included, the lesson of the one failed
+publish.sh iteration — wheel build, finish in main; the user
+publishes.
+
+## Deferred, on the record (carried forward)
+
+- **transport-class classical guidance**: the fence is named
+  (drive-level route structure / red-black) after FOUR precise
+  negatives; it stays deferred rather than earning a fifth
+  reweighting swing. Nothing cheaper is hiding underneath.
+- **Cross-mind planning** (negotiation, cooperation, plan exchange):
+  belief (Phase 4) is deliberately the LAST stop before this line;
+  crossing it is a different engine and a different year.
+- **Session PDDL3 constraints + the four timed modal operators**:
+  still rejected by name; the 0.7/0.8-era gated designs remain on
+  file.
+- **Continuous `#t` effects and dynamic derived predicates**: still
+  out, tracked in README limitations.
+- **Fixpoint/stratified grounding unification**: still blocked on the
+  interning-order tie-break lottery (sokoban-t 4/10 → 1/10);
+  parking #16 folds into the same tie-break-robustness work.
+- **Numeric doom-pruning** (the "can this comparison ever recover"
+  analysis Phase 2 fences off): waits until the numeric guard has
+  corpus mileage.
+- **Memory-frugal classical grounding for the woodworking-class
+  `mem-cap` deaths**: recorded as environmental in the 0.14 sweep;
+  becomes engine work only if a target box makes it matter.
