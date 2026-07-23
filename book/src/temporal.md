@@ -103,7 +103,7 @@ replans as the world changes.
 
 Plans are validated with [VAL](https://github.com/KCL-Planning/VAL), the IPC plan
 validator. On the full IPC-2008/2011 tempo-sat corpus (630 instances, 30 s each),
-ferroplan solves **388 — and every one of the 388 plans is VAL-valid** under
+ferroplan solves **403 — and every one of the 403 plans is VAL-valid** under
 PDDL2.1 continuous-time semantics, confirming the snap-action compilation,
 `over all` invariants, required concurrency, and ε-separation are correct.
 (Testing against VAL is what surfaced the ε-separation requirement in the first
@@ -120,5 +120,5 @@ effects via `?duration` are — see above). PDDL3 trajectory constraints
 (`(:constraints …)`) are enforced on the *classical* path (untimed operators,
 since 0.7) but not on the temporal path — a durative-action domain that
 declares them is rejected rather than silently ignored. Temporal **search
-guidance** on the recorded wall domains (machine-shop, storage, model-train,
-turn-and-open) is the main open work item.
+guidance** on the recorded wall domains (machine-shop, storage, model-train)
+is the main open work item.

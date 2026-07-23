@@ -650,6 +650,38 @@ landed research phase touch it). Binary-A/B attribution for any
 wall-clock delta; solo re-runs for 30 s-edge casualties. Finish in
 main; the user publishes.
 
+### Recorded — SHIPPED (both scoreboards UP against the final binary)
+
+**Tempo-sat 30 s, jobs 3: 388/630 → 403/630, zero losses, 403/403
+VAL-green.** The gains, attributed: match-cellar 10/20 → **20/20**
+(the orbit reduction — its one 3-member orbit was detected and the
+tail instances fell), turn-and-open 0/20 → 1/20 (the measured
+orbit rescue), elevator-08 21/30 → 23/30 and elevator-11 1/20 → 3/20
+(the invariant transition guard's doomed-subtree pruning cuts dead
+expansion; elevators carry over-all invariants). Not one instance
+lost anywhere: the soundness fix cost nothing the corpus could see,
+and the ε-era claim survives — every solved plan VAL-valid.
+
+**Seq-sat 60 s, jobs 3: 427/580 → 442/580** (the standing refresh
+debt, first full sweep since the 0.9 era). Attribution: +24
+openstacks-ADL-08 (0.10's DNF-static fix, recorded then, finally
+reflected in a full sweep), +1 no-mystery-11. The casualties, named
+and solo-checked: woodworking-08 29→24 and woodworking-11 13→9 are
+ALL `mem-cap` deaths — this box is 15 GB / 3 jobs = 5 GB per job and
+those instances exceed it (solo runs without the cap OOM the whole
+box); an environment casualty of the smaller sweep box, not an
+engine change (today's binary A/B'd against itself in Phase 11
+produced the same counts both arms). elevator-11 #12 is a 60 s-edge
+flip: solo it solves in 50 s. Classical engine defaults remain
+byte-identical this cycle.
+
+Game track re-emitted against the final binary
+(`benchmarks/bazaar-thinks.md`, thinks + live-loop sections).
+Pre-flight per RELEASING.md run to completion on the cut; one
+publish.sh iteration with the user caught a clippy 1.97
+`items_after_test_module` layout nit (fixed, full `--all-targets`
+lint now in the loop). Finished in main; the user publishes.
+
 ## Deferred, on the record (carried from the withdrawn 0.15 spec)
 
 - **Cross-mind planning** (negotiating/cooperating NPCs): still "a
