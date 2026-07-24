@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ferroplan — the living bazaar</title>
+<title>ferroplan — the living bazaar (live)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -18,19 +18,21 @@
   body{background:var(--bg); color:var(--ink); font:15px/1.5 'Space Grotesk',system-ui,sans-serif;}
   ::selection{background:rgba(255,106,58,.28);}
   a{color:var(--cy); text-decoration:none;}
-  .wrap{max-width:960px; margin:0 auto; padding:28px 20px 60px;}
+  .wrap{max-width:980px; margin:0 auto; padding:28px 20px 60px;}
   h1{font-size:26px; margin:0 0 4px;} h1 .acc{color:var(--acc);}
-  .sub{color:var(--mut); margin:0 0 22px; max-width:64ch;}
+  .sub{color:var(--mut); margin:0 0 22px; max-width:70ch;}
   .bar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
   button{background:var(--panel2); color:var(--ink); border:1px solid var(--edge2);
     border-radius:8px; padding:7px 14px; font:inherit; cursor:pointer;}
   button:hover{border-color:var(--acc);}
   button.on{background:var(--acc); border-color:var(--acc); color:#0b0d11; font-weight:600;}
+  button:disabled{opacity:.4; cursor:default;}
   .tick{font-family:'JetBrains Mono',monospace; color:var(--cy); min-width:90px;}
   .lanes{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
   .lane{background:var(--panel); border:1px solid var(--edge); border-radius:12px; padding:14px; min-height:340px;}
-  .lane h2{margin:0 0 10px; font-size:16px;}
+  .lane h2{margin:0 0 2px; font-size:16px;}
   .lane h2 .goal{color:var(--faint); font-size:12px; font-family:'JetBrains Mono',monospace; display:block;}
+  .drift{font-family:'JetBrains Mono',monospace; font-size:11.5px; color:var(--amber); margin:0 0 8px; min-height:16px;}
   .ev{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:3px 0; border-bottom:1px solid var(--edge);
     display:flex; gap:8px; opacity:0; animation:in .25s forwards;}
   @keyframes in{to{opacity:1;}}
@@ -38,82 +40,234 @@
   .k-think{color:var(--cy);} .k-follow{color:var(--green);} .k-trade{color:var(--ink);}
   .k-conflict{color:var(--red); font-weight:700;} .k-wait{color:var(--amber);}
   .k-met{color:var(--green); font-weight:700;} .k-stuck{color:var(--faint);}
-  .k-verdict{color:var(--acc); font-weight:700;}
+  .k-verdict{color:var(--acc); font-weight:700;} .k-surprise{color:var(--amber); font-weight:700;}
+  .k-theft{color:var(--red);}
   .note{background:var(--panel); border:1px solid var(--edge); border-radius:12px;
     padding:14px 16px; margin-top:16px; color:var(--mut); font-size:13.5px;}
   .note b{color:var(--ink);}
+  #status{color:var(--faint); font-family:'JetBrains Mono',monospace; font-size:12px;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>the living <span class="acc">bazaar</span></h1>
-  <p class="sub">Two minds, one wants-gated barter world, replayed from a real
-  deterministic run of ferroplan's <code>Session</code> tick loop (0.14): each
-  mind is a <b>fork</b> of one grounded world, scoped to its own trades,
-  following its plan while the free suffix replay holds and spending a bounded
-  think only when a rival breaks it. Toggle the contention policy and watch the
-  difference claims make. <a href="index.html">&larr; back to the solver demo</a></p>
+  <h1>the living <span class="acc">bazaar</span> <span style="color:var(--faint);font-size:15px">— live, in your browser</span></h1>
+  <p class="sub">Two real <code>Session</code> minds run the wants-gated barter
+  world right here in WASM — no server, no canned trace. Each mind is a
+  <b>fork</b> of one grounded world, scoped to its own trades; it follows its
+  plan while the free suffix replay holds and spends a bounded think only when
+  something breaks. Under <b>fog</b>, truth lives in a separate world session:
+  a mind sees its own stall each turn and its partner's on arrival —
+  everything else is <i>belief</i>. Hit <b>steal</b> mid-run and watch the
+  difference between knowing and finding out.
+  <a href="index.html">&larr; back to the solver demo</a></p>
 
   <div class="bar">
-    <button id="b-naive" class="on">naive</button>
-    <button id="b-claims">claims</button>
+    <button id="b-naive">naive</button>
+    <button id="b-claims" class="on">claims</button>
+    <button id="b-fog">claims + fog</button>
     <span style="width:14px"></span>
     <button id="b-play">&#9654; play</button>
     <button id="b-step">step</button>
+    <button id="b-steal" title="itemA4 vanishes from v4 to v5 — off-screen">steal itemA4</button>
     <button id="b-reset">reset</button>
     <span class="tick" id="tick">tick 0</span>
+    <span id="status">loading wasm…</span>
   </div>
 
   <div class="lanes">
-    <div class="lane"><h2>a0 <span class="goal">wants itemA8 — eight trades up chain A</span></h2><div id="lane-a0"></div></div>
-    <div class="lane"><h2>a1 <span class="goal">wants itemB8 — eight trades up chain B</span></h2><div id="lane-a1"></div></div>
+    <div class="lane"><h2>a0 <span class="goal">wants itemA8 — eight trades up chain A</span></h2><div class="drift" id="drift-a0"></div><div id="lane-a0"></div></div>
+    <div class="lane"><h2>a1 <span class="goal">wants itemB8 — eight trades up chain B</span></h2><div class="drift" id="drift-a1"></div><div id="lane-a1"></div></div>
   </div>
 
   <div class="note" id="note"></div>
 </div>
-<script>
-// Regenerate: cargo run --release -p ferroplan --example bazaar_live -- --trace
-const TRACE = {"naive": [[1,"a0","think","planned 8 trades in 263 evals"],[1,"a0","trade","gives itema0 to v1, takes itema1"],[1,"a1","think","planned 8 trades in 177 evals"],[1,"a1","trade","gives itemb0 to v1, takes itemb1"],[2,"a0","follow","plan holds — free suffix replay, zero search"],[2,"a0","trade","gives itema1 to v2, takes itema2"],[2,"a1","conflict","a rival's trade broke the plan"],[2,"a1","think","planned 7 trades in 105 evals"],[2,"a1","trade","gives itemb1 to v2, takes itemb2"],[3,"a0","follow","plan holds — free suffix replay, zero search"],[3,"a0","trade","gives itema2 to v3, takes itema3"],[3,"a1","conflict","a rival's trade broke the plan"],[3,"a1","think","planned 6 trades in 53 evals"],[3,"a1","trade","gives itemb2 to v3, takes itemb3"],[4,"a0","follow","plan holds — free suffix replay, zero search"],[4,"a0","trade","gives itema3 to v4, takes itema4"],[4,"a1","conflict","a rival's trade broke the plan"],[4,"a1","think","planned 5 trades in 27 evals"],[4,"a1","trade","gives itemb3 to v4, takes itemb4"],[5,"a0","follow","plan holds — free suffix replay, zero search"],[5,"a0","trade","gives itema4 to v5, takes itema5"],[5,"a1","conflict","a rival's trade broke the plan"],[5,"a1","think","planned 4 trades in 14 evals"],[5,"a1","trade","gives itemb4 to v5, takes itemb5"],[6,"a0","follow","plan holds — free suffix replay, zero search"],[6,"a0","trade","gives itema5 to v6, takes itema6"],[6,"a1","conflict","a rival's trade broke the plan"],[6,"a1","think","planned 3 trades in 7 evals"],[6,"a1","trade","gives itemb5 to v6, takes itemb6"],[7,"a0","follow","plan holds — free suffix replay, zero search"],[7,"a0","trade","gives itema6 to v7, takes itema7"],[7,"a1","conflict","a rival's trade broke the plan"],[7,"a1","think","planned 2 trades in 4 evals"],[7,"a1","trade","gives itemb6 to v7, takes itemb7"],[8,"a0","follow","plan holds — free suffix replay, zero search"],[8,"a0","trade","gives itema7 to v8, takes itema8"],[8,"a1","follow","plan holds — free suffix replay, zero search"],[8,"a1","trade","gives itemb7 to v8, takes itemb8"],[9,"a0","met","goal achieved"],[9,"a1","met","goal achieved"],[9,"a0","verdict","MET — 7 follows, 0 conflicts, 1 thinks, 263 evals"],[9,"a1","verdict","MET — 1 follows, 6 conflicts, 7 thinks, 387 evals"]],"claims": [[1,"a0","think","planned 8 trades in 263 evals"],[1,"a0","trade","gives itema0 to v1, takes itema1"],[1,"a1","think","planned 8 trades in 21 evals"],[1,"a1","trade","gives itemb0 to v1, takes itemb1"],[2,"a0","follow","plan holds — free suffix replay, zero search"],[2,"a0","trade","gives itema1 to v2, takes itema2"],[2,"a1","follow","plan holds — free suffix replay, zero search"],[2,"a1","trade","gives itemb1 to v2, takes itemb2"],[3,"a0","follow","plan holds — free suffix replay, zero search"],[3,"a0","trade","gives itema2 to v3, takes itema3"],[3,"a1","follow","plan holds — free suffix replay, zero search"],[3,"a1","trade","gives itemb2 to v3, takes itemb3"],[4,"a0","follow","plan holds — free suffix replay, zero search"],[4,"a0","trade","gives itema3 to v4, takes itema4"],[4,"a1","follow","plan holds — free suffix replay, zero search"],[4,"a1","trade","gives itemb3 to v4, takes itemb4"],[5,"a0","follow","plan holds — free suffix replay, zero search"],[5,"a0","trade","gives itema4 to v5, takes itema5"],[5,"a1","follow","plan holds — free suffix replay, zero search"],[5,"a1","trade","gives itemb4 to v5, takes itemb5"],[6,"a0","follow","plan holds — free suffix replay, zero search"],[6,"a0","trade","gives itema5 to v6, takes itema6"],[6,"a1","follow","plan holds — free suffix replay, zero search"],[6,"a1","trade","gives itemb5 to v6, takes itemb6"],[7,"a0","follow","plan holds — free suffix replay, zero search"],[7,"a0","trade","gives itema6 to v7, takes itema7"],[7,"a1","follow","plan holds — free suffix replay, zero search"],[7,"a1","trade","gives itemb6 to v7, takes itemb7"],[8,"a0","follow","plan holds — free suffix replay, zero search"],[8,"a0","trade","gives itema7 to v8, takes itema8"],[8,"a1","follow","plan holds — free suffix replay, zero search"],[8,"a1","trade","gives itemb7 to v8, takes itemb8"],[9,"a0","met","goal achieved"],[9,"a1","met","goal achieved"],[9,"a0","verdict","MET — 7 follows, 0 conflicts, 1 thinks, 263 evals"],[9,"a1","verdict","MET — 7 follows, 0 conflicts, 1 thinks, 21 evals"]]};
+<script type="module">
+import init, { WasmSession, version } from './pkg/ferroplan_wasm.js';
+import { DOMAINS } from './examples.js';
+
 const NOTES = {
-  naive: "<b>Naive:</b> each mind plans against the current state and ignores the rival's intent. a0 raids chain B as trade currency, so a1's plan keeps breaking — watch the red conflicts and repeated rethinks. Both goals are met, but a1 pays ~18× the search.",
-  claims: "<b>Claims:</b> before thinking, a mind masks away trades that would take an item the rival's active plan still intends to receive (all loop-side — the engine primitive is just an op mask). The second thinker plans around the first's declared route: zero conflicts, one think each."
+  naive: "<b>Naive:</b> each mind plans against the current state and ignores the rival's intent — the raided mind pays conflict after conflict.",
+  claims: "<b>Claims:</b> before thinking, a mind masks trades that would take an item the rival's active plan still intends to receive. Zero conflicts on the crossed chains — and thefts still break plans instantly, because everyone sees everything.",
+  fog: "<b>Claims + fog:</b> intentions stay public (the claim board) but STALLS are fogged — truth lives in a separate world session, minds learn by looking (own stall each turn, partner's stall on arrival), and <code>Session::observe</code> returns the surprises. Steal mid-run: discovery now costs ticks, and belief visibly drifts from the world."
 };
-let mode = "naive", pos = 0, timer = null;
-const lanes = {a0: document.getElementById("lane-a0"), a1: document.getElementById("lane-a1")};
-const tickEl = document.getElementById("tick");
-function reset() {
-  pos = 0; lanes.a0.innerHTML = ""; lanes.a1.innerHTML = "";
-  tickEl.textContent = "tick 0";
-  document.getElementById("note").innerHTML = NOTES[mode];
-  stop();
-}
-function stop() { if (timer) { clearInterval(timer); timer = null; document.getElementById("b-play").innerHTML = "&#9654; play"; } }
-function step() {
-  const ev = TRACE[mode];
-  if (pos >= ev.length) { stop(); return; }
-  const [t, mind, kind, detail] = ev[pos++];
-  tickEl.textContent = "tick " + t;
-  const d = document.createElement("div");
-  d.className = "ev k-" + kind;
-  d.innerHTML = '<span class="t">' + t + "</span><span>" + kind + " — " + detail + "</span>";
+
+const bazaar = DOMAINS.find(d => d.key === 'bazaar-chain');
+const DOM = bazaar.domain;
+const PRB = bazaar.problems.find(p => p.key === 'bazaar-chain-x2m').problem;
+const GOALS = { a0: '(has a0 itemA8)', a1: '(has a1 itemB8)' };
+const THINK_EVALS = 4000, THINK_MB = 64, DORMANT_AFTER = 3;
+
+let mode = 'claims', tick = 0, timer = null, world = null, minds = null;
+let pending = new Map();       // stall -> Map(fact -> bool), fog only
+let stolen = false, stealTick = null;
+
+const $ = id => document.getElementById(id);
+const lanes = { a0: $('lane-a0'), a1: $('lane-a1') };
+
+function ev(mind, kind, detail) {
+  const d = document.createElement('div');
+  d.className = 'ev k-' + kind;
+  d.innerHTML = '<span class="t">' + tick + '</span><span>' + kind + ' — ' + detail + '</span>';
   lanes[mind].appendChild(d);
+  lanes[mind].scrollTop = lanes[mind].scrollHeight;
 }
-document.getElementById("b-step").onclick = () => { stop(); step(); };
-document.getElementById("b-play").onclick = function () {
-  if (timer) { stop(); return; }
-  this.innerHTML = "&#10074;&#10074; pause";
-  timer = setInterval(step, 420);
-};
-document.getElementById("b-reset").onclick = reset;
-for (const m of ["naive", "claims"]) {
-  document.getElementById("b-" + m).onclick = function () {
-    mode = m;
-    document.getElementById("b-naive").classList.toggle("on", m === "naive");
-    document.getElementById("b-claims").classList.toggle("on", m === "claims");
-    reset();
+const stallOf = f => f.replace('(', '').split(/\s+/)[1].toUpperCase();
+const fog = () => mode === 'fog';
+
+function ledger(fact, value) {
+  const s = stallOf(fact);
+  if (!pending.has(s)) pending.set(s, new Map());
+  pending.get(s).set(fact, value);
+}
+
+function applyWorldFact(fact, value, actorMind) {
+  if (fog()) {
+    world.set_fact(fact, value);
+    if (actorMind) actorMind.s.set_fact(fact, value);
+    ledger(fact, value);
+  } else {
+    for (const m of Object.values(minds)) m.s.set_fact(fact, value);
+  }
+}
+
+function observeStall(m, stall, label) {
+  const entries = pending.get(stall.toUpperCase());
+  if (!entries || !entries.size) return [];
+  const sight = [...entries.entries()];
+  const news = JSON.parse(m.s.observe(JSON.stringify(sight)));
+  if (news.length) {
+    m.surprises += news.length;
+    ev(m.name, 'surprise', label + ' changed: ' + news.map(f => f.toLowerCase()).join(', '));
+  }
+  return news;
+}
+
+function driftBadge(m) {
+  if (!fog()) { $('drift-' + m.name).textContent = ''; return; }
+  let unseen = 0;
+  for (const [, facts] of pending) {
+    for (const [f, v] of facts) if (m.s.fact(f) !== v) unseen++;
+  }
+  $('drift-' + m.name).textContent = unseen
+    ? '⚠ belief drifts from the world on ' + unseen + ' fact' + (unseen > 1 ? 's' : '')
+    : 'belief ≡ world';
+}
+
+function makeMinds() {
+  world = new WasmSession(DOM, PRB);
+  minds = {};
+  for (const name of ['a0', 'a1']) {
+    const s = world.fork();
+    s.set_goal(GOALS[name]);
+    s.restrict_prefix_claims('TRADE ' + name.toUpperCase() + ' ', '');
+    minds[name] = { name, s, done: false, failedThinks: 0, follows: 0, conflicts: 0, thinks: 0, surprises: 0 };
+  }
+}
+
+function claimsFor(me) {
+  if (mode === 'naive') return '';
+  const rival = minds[me === 'a0' ? 'a1' : 'a0'];
+  if (rival.done || !rival.s.has_plan()) return '';
+  return JSON.parse(rival.s.suffix_json()).map(st => st.args[3]).join(',');
+}
+
+function mindTurn(m) {
+  if (fog()) observeStall(m, m.name, 'own stall');
+  if (!m.done && m.s.goal_met()) { m.done = true; ev(m.name, 'met', 'goal achieved'); return; }
+  if (m.done || m.failedThinks >= DORMANT_AFTER) return;
+
+  if (!m.s.valid()) {
+    if (m.s.has_plan()) { m.conflicts++; ev(m.name, 'conflict', 'the plan no longer survives replay'); m.s.drop_plan(); }
+    m.s.restrict_prefix_claims('TRADE ' + m.name.toUpperCase() + ' ', claimsFor(m.name));
+    const sol = JSON.parse(m.s.think(THINK_EVALS, THINK_MB));
+    m.thinks++;
+    if (sol.solved && sol.plan) {
+      ev(m.name, 'think', 'planned ' + sol.plan.length + ' trades in ' + sol.statistics.evaluated_states + ' evals');
+      m.failedThinks = 0;
+    } else {
+      m.failedThinks++;
+      ev(m.name, 'stuck', m.failedThinks >= DORMANT_AFTER ? 'giving up' : 'no plan within budget');
+      return;
+    }
+  } else if (m.s.has_plan()) {
+    m.follows++; ev(m.name, 'follow', 'plan holds — free suffix replay');
+  }
+
+  const step = JSON.parse(m.s.step_json());
+  if (!step) return;
+  const [a, b, x, y] = step.args;
+  if (fog()) {
+    observeStall(m, b, b.toLowerCase() + "'s stall");
+    if (!m.s.valid()) { ev(m.name, 'conflict', 'arrived to a changed stall — turn spent discovering'); m.s.drop_plan(); m.conflicts++; return; }
+  }
+  ev(m.name, 'trade', 'gives ' + x.toLowerCase() + ' to ' + b.toLowerCase() + ', takes ' + y.toLowerCase());
+  applyWorldFact('(has ' + a + ' ' + x + ')', false, fog() ? m : null);
+  applyWorldFact('(has ' + b + ' ' + y + ')', false, fog() ? m : null);
+  applyWorldFact('(has ' + a + ' ' + y + ')', true,  fog() ? m : null);
+  applyWorldFact('(has ' + b + ' ' + x + ')', true,  fog() ? m : null);
+  m.s.advance();
+}
+
+function stepTick() {
+  if (!minds) return;
+  tick++;
+  $('tick').textContent = 'tick ' + tick;
+  for (const name of ['a0', 'a1']) mindTurn(minds[name]);
+  for (const name of ['a0', 'a1']) driftBadge(minds[name]);
+  const allDone = Object.values(minds).every(m => m.done || m.failedThinks >= DORMANT_AFTER);
+  if (allDone || tick > 60) {
+    stop();
+    for (const m of Object.values(minds)) {
+      ev(m.name, 'verdict', (m.done ? 'MET' : 'gave up') + ' — ' + m.follows + ' follows, ' + m.conflicts +
+        ' conflicts, ' + m.thinks + ' thinks' + (fog() ? ', ' + m.surprises + ' surprises' : ''));
+    }
+    minds = null;
+  }
+}
+
+function doSteal() {
+  if (!world || stolen) return;
+  stolen = true; stealTick = tick;
+  $('b-steal').disabled = true;
+  applyWorldFact('(has v4 itemA4)', false, null);
+  applyWorldFact('(has v5 itemA4)', true, null);
+  ev('a0', 'theft', 'itemA4 vanished from v4 (nobody saw it happen)');
+}
+
+function reset() {
+  stop(); tick = 0; stolen = false; stealTick = null;
+  pending = new Map();
+  lanes.a0.innerHTML = ''; lanes.a1.innerHTML = '';
+  $('tick').textContent = 'tick 0';
+  $('b-steal').disabled = false;
+  $('note').innerHTML = NOTES[mode];
+  makeMinds();
+  for (const name of ['a0', 'a1']) driftBadge(minds[name]);
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; $('b-play').innerHTML = '&#9654; play'; } }
+
+init().then(() => {
+  $('status').textContent = 'ferroplan ' + version() + ' — grounding…';
+  makeMinds();
+  $('status').textContent = 'ferroplan ' + version() + ' — live';
+  $('note').innerHTML = NOTES[mode];
+  $('b-step').onclick = () => { stop(); if (!minds) reset(); stepTick(); };
+  $('b-play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (!minds) reset();
+    this.innerHTML = '&#10074;&#10074; pause';
+    timer = setInterval(stepTick, 520);
   };
-}
-reset();
+  $('b-steal').onclick = doSteal;
+  $('b-reset').onclick = reset;
+  for (const [btn, m] of [['b-naive', 'naive'], ['b-claims', 'claims'], ['b-fog', 'fog']]) {
+    $(btn).onclick = function () {
+      mode = m;
+      for (const b of ['b-naive', 'b-claims', 'b-fog']) $(b).classList.toggle('on', b === btn);
+      reset();
+    };
+  }
+}).catch(e => { $('status').textContent = 'wasm failed to load: ' + e; });
 </script>
 </body>
 </html>

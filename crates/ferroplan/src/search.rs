@@ -391,7 +391,7 @@ pub fn search_from(
     // Phase-time attribution, printed only under FF_RES_DEBUG at the cap
     // return (measurement only — never affects behavior).
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
-    let t_all = std::time::Instant::now();
+    let t_all = crate::clock::Clock::now();
     let (mut t_h, mut t_exp, mut t_ins) = (0u128, 0u128, 0u128);
 
     let init = start.clone();
@@ -568,7 +568,7 @@ pub fn search_from(
 
         // PARALLEL: evaluate h for the popped batch (the only evaluations),
         // each worker reusing one Scratch across its chunk.
-        let t_phase = std::time::Instant::now();
+        let t_phase = crate::clock::Clock::now();
         let hs: Vec<Option<i32>> = par::par_map_with(
             &popped,
             threads,
@@ -583,7 +583,7 @@ pub fn search_from(
                 }
             },
         );
-        t_h += t_phase.elapsed().as_micros();
+        t_h += t_phase.elapsed_us();
         evaluated += popped.len();
         // The node cap (0.8 Phase 3) trips at the same batch boundary as the
         // eval cap: `nodes.len()` counts INSERTED successors — the quantity
@@ -606,7 +606,7 @@ pub fn search_from(
                     t_h / 1000,
                     t_exp / 1000,
                     t_ins / 1000,
-                    t_all.elapsed().as_millis()
+                    t_all.elapsed_ms()
                 );
             }
             if let Some(ni) = best_acc.or(len_acc) {
@@ -636,7 +636,7 @@ pub fn search_from(
             .zip(hs.iter())
             .filter_map(|(&ni, h)| h.map(|h| (ni, h)))
             .collect();
-        let t_phase = std::time::Instant::now();
+        let t_phase = crate::clock::Clock::now();
         let cand_chunks: Vec<Vec<(usize, usize, State, StateKey, i32)>> =
             par::par_map(&live, threads, |&(ni, ph)| {
                 let st = &nodes[ni].state;
@@ -659,10 +659,10 @@ pub fn search_from(
                 v
             });
 
-        t_exp += t_phase.elapsed().as_micros();
+        t_exp += t_phase.elapsed_us();
 
         // SERIAL: dedup + insert (deterministic order, independent of threads).
-        let t_phase = std::time::Instant::now();
+        let t_phase = crate::clock::Clock::now();
         for chunk in cand_chunks {
             for (pi, oi, s, k, ph) in chunk {
                 let g = nodes[pi].g + 1;
@@ -730,7 +730,7 @@ pub fn search_from(
                 }
             }
         }
-        t_ins += t_phase.elapsed().as_micros();
+        t_ins += t_phase.elapsed_us();
     }
 
     // Open list exhausted. Anytime: the incumbent is optimal under the original

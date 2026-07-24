@@ -908,9 +908,9 @@ mod grounding_cost {
             Some(pair) => pair,
             None => (d, p),
         };
-        let t0 = std::time::Instant::now();
+        let t0 = crate::clock::Clock::now();
         let task = crate::ground::ground_task(&d, &p, 1).expect("ground");
-        let ms = t0.elapsed().as_millis();
+        let ms = t0.elapsed_ms();
         let cond: usize = (0..task.n_ops).map(|oi| task.n_cond_effs(oi)).sum();
         let goal_ops = (0..task.n_ops)
             .filter(|&oi| task.op_display[oi].starts_with("REACH-GOAL"))

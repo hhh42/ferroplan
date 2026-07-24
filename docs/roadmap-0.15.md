@@ -291,6 +291,42 @@ this panel worth looking at; without it the panel is a state dump.
   that the Session API lacks goes on the record as a Phase 4 gap,
   not a page-side hack.
 
+### Recorded — SHIPPED, live and headless-verified (and it flushed a real wasm bug)
+
+**`WasmSession`**: the browser gets the real mind surface —
+constructor/fork/set_goal, `restrict_prefix_claims` (the actor scope +
+public claim board as one mask), `think` (stores the plan; `valid()` is
+the free suffix replay; `step_json`/`suffix_json`/`advance` walk it),
+`set_fact`, `observe` (JSON batch → surprises), `goal_met`, `fact`.
+`bazaar-live.html` is no longer a canned replay: two real forked minds
+run the crossed-chain bazaar in WASM with policy toggles
+(naive / claims / claims+fog), a mid-run **steal** button (the world
+poke), per-mind belief-drift badges, and the surprise → rethink →
+follow cycle visible in the lanes.
+
+**Verified headlessly** (Playwright + the pre-installed Chromium
+against a local static serve): claims reproduces the native trace
+exactly — both minds MET, 7 follows / 0 conflicts / 1 think each —
+and the fog+steal run shows the surprises on arrival, the discovery
+inversion from Phase 4, and a live drift badge. One page-side
+calibration: the web x2m fixture needs a deeper think budget than the
+native fixture (4,000 evals vs 400 — its restricted first think needs
+~413), which is the Phase 4 gap ledger working as designed: a page
+number, not a page-side hack.
+
+**The bug the page flushed out**: `std::time::Instant::now()` PANICS
+on `wasm32-unknown-unknown`, and the engine timed itself
+UNCONDITIONALLY in `search_from` (phase attribution), `heuristic`
+(probe counters), `temporal_search`, and the constraints monitor —
+only the dbg PRINTS were gated. The deployed demo had survived by
+luck: its showcase inputs solve inside EHC, which never reaches the
+timer; any harder input (and every budgeted think) died. Fixed
+lib-wide with `clock::Clock` — a monotonic timestamp that freezes at
+zero on wasm (every timing read is measurement, never behavior), plus
+a panic hook in the wasm crate so future panics surface as readable
+console errors instead of `unreachable`. Native byte-identity: the
+shim IS `Instant` off-wasm.
+
 ## Phase 6 — 0.15.0 cut
 
 The 0.14 extended-cut mechanics, now the standing template: CHANGELOG

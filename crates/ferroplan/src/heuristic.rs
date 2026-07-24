@@ -395,20 +395,20 @@ pub fn relaxed_to(
     goal_num: &[NumPre],
 ) -> Option<i32> {
     use std::sync::atomic::Ordering::Relaxed;
-    let t0 = std::time::Instant::now();
+    let t0 = crate::clock::Clock::now();
     sc.reset(task, bits, fv);
-    T_RESET.fetch_add(t0.elapsed().as_micros() as u64, Relaxed);
+    T_RESET.fetch_add(t0.elapsed_us() as u64, Relaxed);
 
-    let t0 = std::time::Instant::now();
+    let t0 = crate::clock::Clock::now();
     build_rpg(task, sc, goal_pos, goal_num, def, false);
-    T_BUILD.fetch_add(t0.elapsed().as_micros() as u64, Relaxed);
+    T_BUILD.fetch_add(t0.elapsed_us() as u64, Relaxed);
 
     if !goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
         return None;
     }
-    let t0 = std::time::Instant::now();
+    let t0 = crate::clock::Clock::now();
     let r = relaxed_extract(task, sc, bits, fv, goal_pos, goal_num, def);
-    T_EXTRACT.fetch_add(t0.elapsed().as_micros() as u64, Relaxed);
+    T_EXTRACT.fetch_add(t0.elapsed_us() as u64, Relaxed);
     r
 }
 

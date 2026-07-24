@@ -92,3 +92,149 @@ fn parse_search(s: Option<&str>) -> Search {
 fn err_json(msg: &str) -> String {
     serde_json::json!({ "error": msg }).to_string()
 }
+
+/// A live [`ferroplan::Session`] for the browser (0.15 Phase 5): the
+/// in-page bazaar drives real minds — fork, scope, think, observe —
+/// entirely client-side. The wrapper owns the mind's CURRENT PLAN and
+/// cursor so the JS loop mirrors the native `bazaar_live` shape: think
+/// stores the plan, `valid()` is the free suffix replay, `step_json()` /
+/// `advance()` walk it.
+#[wasm_bindgen]
+pub struct WasmSession {
+    inner: ferroplan::Session,
+    plan: Option<ferroplan::api::Plan>,
+    cursor: usize,
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console, js_name = error)]
+    fn js_console_error(s: &str);
+}
+
+#[wasm_bindgen]
+impl WasmSession {
+    /// Ground a world. Errors as a JS string.
+    #[wasm_bindgen(constructor)]
+    pub fn new(domain: &str, problem: &str) -> Result<WasmSession, JsValue> {
+        std::panic::set_hook(Box::new(|info| {
+            js_console_error(&format!("wasm panic: {info}"));
+        }));
+        let opts = Options {
+            threads: 1,
+            ..Default::default()
+        };
+        Ok(WasmSession {
+            inner: ferroplan::Session::new(domain, problem, &opts).map_err(js_err)?,
+            plan: None,
+            cursor: 0,
+        })
+    }
+
+    /// Cheap mind: shares the grounded payload, private state.
+    pub fn fork(&self) -> WasmSession {
+        WasmSession {
+            inner: self.inner.fork(),
+            plan: None,
+            cursor: 0,
+        }
+    }
+
+    pub fn set_goal(&mut self, goal: &str) -> Result<(), JsValue> {
+        self.inner.set_goal(goal).map_err(js_err)
+    }
+
+    /// Actor scoping by op-display prefix — the bazaar's `restrict_ops`
+    /// shape (`"TRADE ALICE "`), and additionally masks any op whose
+    /// 5th token (the item RECEIVED) is in `claimed` (comma-separated,
+    /// empty = no claims): the loop-side claims policy, client-side.
+    pub fn restrict_prefix_claims(&mut self, prefix: String, claimed: String) {
+        let claimed: std::collections::HashSet<String> = claimed
+            .split(',')
+            .map(|s| s.trim().to_ascii_uppercase())
+            .filter(|s| !s.is_empty())
+            .collect();
+        self.inner.restrict_ops(move |d| {
+            d.starts_with(&prefix)
+                && d.split_whitespace()
+                    .nth(4)
+                    .map(|y| !claimed.contains(y.trim_end_matches(')')))
+                    .unwrap_or(true)
+        });
+    }
+
+    /// Bounded think; stores the plan internally and returns the whole
+    /// `Solution` as JSON for display.
+    pub fn think(&mut self, evals: usize, mem_mb: usize) -> String {
+        let sol = self.inner.replan_budgeted(evals, Some(mem_mb));
+        self.plan = if sol.solved { sol.plan.clone() } else { None };
+        self.cursor = 0;
+        serde_json::to_string(&sol).unwrap_or_else(|e| err_json(&format!("serialize: {e}")))
+    }
+
+    /// Free suffix replay of the stored plan from the cursor.
+    pub fn valid(&self) -> bool {
+        self.plan
+            .as_ref()
+            .is_some_and(|p| self.inner.plan_still_valid(p, self.cursor))
+    }
+
+    /// The current step as JSON (`null` when the plan is drained/absent).
+    pub fn step_json(&self) -> String {
+        match self.plan.as_ref().and_then(|p| p.steps.get(self.cursor)) {
+            Some(s) => serde_json::to_string(s).unwrap_or_else(|_| "null".into()),
+            None => "null".into(),
+        }
+    }
+
+    /// Remaining plan steps as JSON (for claims + display).
+    pub fn suffix_json(&self) -> String {
+        match self.plan.as_ref() {
+            Some(p) => serde_json::to_string(&p.steps[self.cursor.min(p.steps.len())..])
+                .unwrap_or_else(|_| "[]".into()),
+            None => "[]".into(),
+        }
+    }
+
+    pub fn advance(&mut self) {
+        self.cursor += 1;
+    }
+
+    pub fn drop_plan(&mut self) {
+        self.plan = None;
+        self.cursor = 0;
+    }
+
+    pub fn has_plan(&self) -> bool {
+        self.plan.is_some()
+    }
+
+    pub fn set_fact(&mut self, name: &str, value: bool) -> Result<(), JsValue> {
+        self.inner.set_fact(name, value).map_err(js_err)
+    }
+
+    /// Observe a JSON batch `[["(has a b)", true], ...]`; returns the
+    /// surprises as a JSON string array.
+    pub fn observe(&mut self, sight_json: &str) -> Result<String, JsValue> {
+        let sight: Vec<(String, bool)> = serde_json::from_str(sight_json).map_err(js_err)?;
+        let refs: Vec<(&str, bool)> = sight.iter().map(|(f, v)| (f.as_str(), *v)).collect();
+        let news = self.inner.observe(&refs).map_err(js_err)?;
+        serde_json::to_string(&news).map_err(js_err)
+    }
+
+    pub fn goal_met(&self) -> bool {
+        self.inner.goal_met()
+    }
+
+    /// Believed value of a fact (`null` if unknown to the grounding).
+    pub fn fact(&self, name: &str) -> JsValue {
+        match self.inner.fact(name) {
+            Some(v) => JsValue::from_bool(v),
+            None => JsValue::NULL,
+        }
+    }
+}
+
+fn js_err(e: impl std::fmt::Display) -> JsValue {
+    JsValue::from_str(&e.to_string())
+}

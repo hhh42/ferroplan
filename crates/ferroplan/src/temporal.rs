@@ -2042,7 +2042,7 @@ fn temporal_search(
     let no_orbit_gen = std::env::var("FF_NO_ORBIT_GEN").is_ok();
     let lifo = std::env::var("FF_TLIFO").is_ok();
     let tb_free_g = std::env::var("FF_TB_FREE_G").is_ok();
-    let t0 = std::time::Instant::now();
+    let t0 = crate::clock::Clock::now();
     if dbg {
         eprintln!(
             "[tsearch] pass start: prune={prune} masked={} words={} fv={} rel_fluents={} tils={} ops={}",
@@ -2158,7 +2158,7 @@ fn temporal_search(
                 visited.len(),
                 ag as f64 / nodes.len() as f64,
                 hf as f64 / nodes.len() as f64,
-                t0.elapsed().as_millis()
+                t0.elapsed_ms()
             );
             // What is the frontier hoarding? The POPPED node's pending ends,
             // op-grouped (measurement eyes for the start-spam diagnosis).
@@ -2186,7 +2186,7 @@ fn temporal_search(
                 eprintln!(
                     "[tsearch] cap hit (nodes {} / max {max_nodes}, budget left {budget}) at {}ms",
                     nodes.len(),
-                    t0.elapsed().as_millis()
+                    t0.elapsed_ms()
                 );
                 eprintln!(
                     "[tsearch] stats: doomed {} deduped {} evaluated {} dead_end {} b_blocked {} tie_rescue {} best_h {}",

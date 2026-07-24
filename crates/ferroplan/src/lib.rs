@@ -45,6 +45,7 @@
 
 // engine (data-oriented core)
 pub mod bitset;
+pub mod clock;
 pub mod derived;
 pub mod features;
 pub mod ground;
