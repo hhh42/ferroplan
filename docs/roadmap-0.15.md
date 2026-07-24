@@ -80,10 +80,16 @@ agenda, then extended class-wide (transpositions compose) — maps it
 to an already-generated sibling. Real evals at the same budget:
 11,113 → 26,562 (2.4×); duplicate share 81% → 53% (the remainder is
 cross-node convergence, which is exactly what the visited key is
-for). Deterministic, t1 ≡ t8, `FF_NO_ORBIT_GEN=1` reverts;
-match-cellar / turn-and-open stay solved VAL-green; suite green;
-kiln-pack byte-identical (no orbits there). Default-on, Phase 6's
-sweep is the referee.
+for). Deterministic, t1 ≡ t8; match-cellar / turn-and-open stay
+solved VAL-green; suite green; kiln-pack byte-identical (no orbits
+there). Default-on going in, Phase 6's sweep is the referee — **and
+the referee ruled against it**: 9 match-cellar instances lost to the
+per-expansion stabilizer scan, zero instances gained anywhere (TMS's
+2.4× throughput bought no solves — its wall is the start-credit
+plateau, not evaluation rate). Shipped as the opt-in hatch
+`FF_ORBIT_GEN=1`; the canonical-key pre-dedup stays default-on
+(pay-per-duplicate, not pay-per-expansion). Full attribution in the
+Phase 6 record.
 
 **And the wall, at last, with full precision: the start-credit
 plateau.** best_h = 110 at budgets 15 k / 30 k / 60 k / 120 k /
@@ -337,6 +343,47 @@ deltas), bazaar-thinks re-emitted, full pre-flight per RELEASING.md —
 `--all-targets` clippy included, the lesson of the one failed
 publish.sh iteration — wheel build, finish in main; the user
 publishes.
+
+### Recorded — the sweep referee earned its title
+
+**The first tempo sweep of the cut candidate came back 390/630 —
+DOWN 13 from 0.14's 403 — and the cut stopped until the regression
+was attributed and fixed.** Per-domain A/B against the 0.14
+scoreboard: match-cellar 20→11 (i12–i20 lost), elevators-08 23→21
+(i22, i23), elevators-11 3→1 (i2, i3). Every loss a 30 s timeout;
+zero VAL-red, zero mem-cap — pure slowdown, no soundness cost.
+
+**Attribution, two distinct mechanisms:**
+
+1. **Gen-skip's per-expansion price** (match-cellar): the lost
+   instances solved in 7.75–15.27 s at 0.14 — a structural 2–4×
+   slowdown, in the one corpus domain that is orbit-RICH but not
+   plateau-walled. `stabilizer_classes` runs per expansion
+   (pairwise swap verification against the full state + agenda);
+   on match-cellar's deep searches that scan costs more than the
+   skipped duplicates ever cost to dedup. The referee arithmetic:
+   **9 instances lost, 0 gained** — TMS's 2.4× eval throughput
+   bought no solves because its wall is the start-credit plateau,
+   not evaluation rate. Verdict executed: gen-skip is now the
+   OPT-IN hatch `FF_ORBIT_GEN=1` (default off); the canonical-key
+   pre-dedup — pay-per-duplicate, not pay-per-expansion — stays
+   default-on, exactly as 0.14 shipped it.
+2. **The numeric guard's bystander tax** (elevators): the lost
+   instances sat at 22–25 s in 0.14 — budget-edge, pushed over by
+   Phase 2's numeric conjunct loop running on every happening in
+   numeric-fluent domains where nearly every op is a BYSTANDER to
+   the invariants it was being checked against. Fix: a per-op
+   write-set pre-filter (`InvTouch`, built once per pass) — an op
+   whose unconditional + conditional + shared-monitor effects can't
+   touch any invariant-watched fact or read fluent exits `inv_ok`
+   (and `doomed`) in constant time. Conservative by construction:
+   the write sets over-approximate, so no real threat is ever
+   skipped; the fuel-gap and kiln-gap fixtures still pin the
+   semantics.
+
+The seq-sat sweep (no temporal code in either fix) retains its
+validity; tempo re-sweeps against the final binary. Final scoreboard
+numbers below close the phase.
 
 ## Deferred, on the record (carried forward)
 

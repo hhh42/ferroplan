@@ -63,8 +63,10 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > toggles, a steal button, belief-drift badges — which flushed out and
 > fixed a real wasm clock panic in the engine's timing paths. On the
 > engine side: **generation-side stabilizer skipping** (2.4× real
-> evaluations on machine-shop at equal budget, `FF_NO_ORBIT_GEN=1`
-> reverts), numeric `over all` conjuncts joined the invariant
+> evaluations on machine-shop at equal budget — an opt-in hatch,
+> `FF_ORBIT_GEN=1`, after the cut's sweep showed the scan costs
+> more than dedup saves on orbit-rich domains off the plateau),
+> numeric `over all` conjuncts joined the invariant
 > transition guard (the fuel-gap fixture pins the bait), and
 > machine-shop's residual wall is named to the decimal — the
 > start-credit plateau, with four measured ordering negatives and the

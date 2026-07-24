@@ -15,11 +15,14 @@ every phase traced to a recorded debt or diagnosis (cycle record in
   N=2..12) — doom-pruning already owns window overruns.
 - What the TStats probe found instead: 81% of TMS candidates were
   orbit-permutation duplicates, generated then discarded.
-  **Generation-side stabilizer skipping** ships (default-on,
-  `FF_NO_ORBIT_GEN=1` reverts): an op is never generated when a
-  state-fixing member swap — verified against cross-member facts,
-  fluents, and the pending agenda — maps it to an already-generated
-  sibling. 2.4× real evaluations at equal budget on TMS.
+  **Generation-side stabilizer skipping** ships as an OPT-IN hatch
+  (`FF_ORBIT_GEN=1`): an op is never generated when a state-fixing
+  member swap — verified against cross-member facts, fluents, and
+  the pending agenda — maps it to an already-generated sibling.
+  2.4× real evaluations at equal budget on TMS — and zero new
+  solves, while the cut's sweep referee found the per-expansion
+  stabilizer scan cost match-cellar 9 solved instances. Default
+  OFF; the canonical-key pre-dedup (0.14) stays default-on.
 - The wall itself, named to the decimal: the **start-credit
   plateau** — h^FF pays for interval starts on firing while they
   deliver nothing until their ends land; best_h pins at 110 across a

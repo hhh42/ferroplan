@@ -1782,8 +1782,66 @@ fn enqueue_committed(
 /// are true by induction (their starts required them, every later
 /// happening was vetted here), so `old`-true + `new`-false is precisely
 /// "this happening broke it".
+/// Per-op static write-set pre-filter for the transition guard (0.15
+/// Phase 6): an op whose effects — unconditional, conditional, and the
+/// shared monitor block alike — cannot touch any fact some invariant
+/// watches (`prop`) or any fluent some numeric conjunct reads (`num`)
+/// can never break a running interval, so [`inv_ok`] skips its pending
+/// scan entirely. Built once per pass; both vectors are empty when the
+/// task has no invariants (callers gate on `inv.is_empty()` first).
+/// This is what keeps the guard pay-per-threat instead of
+/// pay-per-happening on numeric domains where most ops are bystanders
+/// (the elevators regression: every board/leave/move paid the numeric
+/// re-evaluation loop for invariants none of them could violate).
+struct InvTouch {
+    prop: Vec<bool>,
+    num: Vec<bool>,
+}
+
+fn build_inv_touch(task: &PackedTask, inv: &InvMap) -> InvTouch {
+    if inv.is_empty() {
+        return InvTouch {
+            prop: Vec::new(),
+            num: Vec::new(),
+        };
+    }
+    let mut watched: crate::hash::FxHashSet<u32> = Default::default();
+    let mut reads: crate::hash::FxHashSet<u32> = Default::default();
+    for (pos, neg, num) in inv.values() {
+        watched.extend(pos.iter().copied());
+        watched.extend(neg.iter().copied());
+        for (_, r) in num {
+            reads.extend(r.iter().copied());
+        }
+    }
+    let mut prop = vec![false; task.n_ops];
+    let mut num = vec![false; task.n_ops];
+    for oi in 0..task.n_ops {
+        let mut p = task
+            .add
+            .slice(oi)
+            .iter()
+            .chain(task.del.slice(oi))
+            .any(|f| watched.contains(f));
+        let mut n = task
+            .num_eff
+            .slice(oi)
+            .iter()
+            .any(|ne| reads.contains(&ne.target));
+        for ce in task.cond_effs(oi) {
+            p = p || ce.add.iter().chain(&ce.del).any(|f| watched.contains(f));
+            n = n || ce.num.iter().any(|ne| reads.contains(&ne.target));
+        }
+        prop[oi] = p;
+        num[oi] = n;
+    }
+    InvTouch { prop, num }
+}
+
 fn inv_ok(
     inv: &InvMap,
+    touch: &InvTouch,
+    applied: usize,
     pending: &[(f64, usize)],
     skip: Option<usize>,
     old: &State,
@@ -1792,33 +1850,41 @@ fn inv_ok(
     if inv.is_empty() {
         return true;
     }
+    let (chk_prop, chk_num) = (touch.prop[applied], touch.num[applied]);
+    if !chk_prop && !chk_num {
+        return true;
+    }
     for (i, &(_, eop)) in pending.iter().enumerate() {
         if Some(i) == skip {
             continue;
         }
         if let Some((pos, neg, num)) = inv.get(&eop) {
-            if pos.iter().any(|&f| {
-                crate::bitset::test(&old.bits, f as usize)
-                    && !crate::bitset::test(&new.bits, f as usize)
-            }) || neg.iter().any(|&f| {
-                !crate::bitset::test(&old.bits, f as usize)
-                    && crate::bitset::test(&new.bits, f as usize)
-            }) {
+            if chk_prop
+                && (pos.iter().any(|&f| {
+                    crate::bitset::test(&old.bits, f as usize)
+                        && !crate::bitset::test(&new.bits, f as usize)
+                }) || neg.iter().any(|&f| {
+                    !crate::bitset::test(&old.bits, f as usize)
+                        && crate::bitset::test(&new.bits, f as usize)
+                }))
+            {
                 return false;
             }
             // Numeric conjuncts (fuel-gap): only an actual true→false FLIP
             // blocks, and only when a read fluent moved — a drain that
             // stays above its floor is untouched.
-            for (np, reads) in num {
-                let moved = reads.iter().any(|&f| {
-                    let f = f as usize;
-                    old.fdef[f] != new.fdef[f] || old.fv[f] != new.fv[f]
-                });
-                if moved
-                    && eval_numpre(np, &old.fv, &old.fdef) == Some(true)
-                    && eval_numpre(np, &new.fv, &new.fdef) != Some(true)
-                {
-                    return false;
+            if chk_num {
+                for (np, reads) in num {
+                    let moved = reads.iter().any(|&f| {
+                        let f = f as usize;
+                        old.fdef[f] != new.fdef[f] || old.fv[f] != new.fv[f]
+                    });
+                    if moved
+                        && eval_numpre(np, &old.fv, &old.fdef) == Some(true)
+                        && eval_numpre(np, &new.fv, &new.fdef) != Some(true)
+                    {
+                        return false;
+                    }
                 }
             }
         }
@@ -1853,13 +1919,19 @@ struct TStats {
 /// of spawning a doomed (a)-subtree. Goal states are never pruned — a
 /// doomed node has a blocked non-TIL end pending, which the goal test
 /// already rejects.
-fn doomed(task: &PackedTask, inv: &InvMap, n: &TNode) -> bool {
+fn doomed(task: &PackedTask, inv: &InvMap, touch: &InvTouch, n: &TNode) -> bool {
     if inv.is_empty() {
         return false;
     }
     let Some(&(te, hop)) = n.agenda.first() else {
         return false;
     };
+    // Write-set pre-filter: a head that can't touch any watched fact can't
+    // doom anything (touch.prop covers the unconditional dels/adds used
+    // below and more — conservative).
+    if !touch.prop[hop] {
+        return false;
+    }
     let hdel = task.del.slice(hop);
     let hadd = task.add.slice(hop);
     if hdel.is_empty() && hadd.is_empty() {
@@ -1911,6 +1983,7 @@ fn push_node(
     task: &PackedTask,
     kind: &[Kind],
     inv: &InvMap,
+    touch: &InvTouch,
     stats: &mut TStats,
     sc: &mut Scratch,
     nodes: &mut Vec<TNode>,
@@ -1926,7 +1999,7 @@ fn push_node(
     seed_til_h: bool,
     n: TNode,
 ) {
-    if doomed(task, inv, &n) {
+    if doomed(task, inv, touch, &n) {
         stats.doomed += 1;
         return;
     }
@@ -2039,7 +2112,7 @@ fn temporal_search(
     // Measurement only (FF_RES_DEBUG): dims at pass start, container sizes every
     // 25k stored nodes — the memory-attribution eyes for the temporal path.
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
-    let no_orbit_gen = std::env::var("FF_NO_ORBIT_GEN").is_ok();
+    let orbit_gen = std::env::var("FF_ORBIT_GEN").is_ok();
     let lifo = std::env::var("FF_TLIFO").is_ok();
     let tb_free_g = std::env::var("FF_TB_FREE_G").is_ok();
     let t0 = crate::clock::Clock::now();
@@ -2059,6 +2132,10 @@ fn temporal_search(
         best_h: i32::MAX,
         ..TStats::default()
     };
+    // Per-op write-set pre-filter for the transition guard — one linear
+    // scan of the effect tables per pass buys a constant-time bystander
+    // exit in every `inv_ok`/`doomed` call below.
+    let touch = build_inv_touch(task, inv);
     // Worker count for batched successor evaluation (0 = auto, like the classical
     // search). Parallelism only changes evaluation COST — see the funnel comment in
     // the expansion block; plans are identical for any value.
@@ -2234,9 +2311,15 @@ fn temporal_search(
         // member facts and pending agenda included) produce π-equivalent
         // successors, so only the first is generated; the duplicate never
         // exists. Pure function of the node → deterministic, t1 ≡ t8.
-        // `FF_NO_ORBIT_GEN=1` restores generate-then-dedup.
+        // OPT-IN (`FF_ORBIT_GEN=1`): the 0.15 Phase 6 sweep found the
+        // per-expansion stabilizer scan costs more than dedup saves on
+        // orbit-rich domains that aren't start-credit-walled (match-cellar
+        // lost 9 instances to it; TMS's 2.4× eval throughput bought zero
+        // extra solves because its wall is h-shaped, not throughput-shaped).
+        // The canonical-key pre-dedup below stays default-on — it's pay-per-
+        // duplicate, not pay-per-expansion.
         let gen_classes = orbit
-            .filter(|_| !no_orbit_gen)
+            .filter(|_| orbit_gen)
             .map(|om| om.stabilizer_classes(&nodes[ni].state, &nodes[ni].agenda));
         let mut seen_class: HashSet<(u32, Vec<u16>)> = HashSet::new();
         for oi in candidates {
@@ -2297,7 +2380,7 @@ fn temporal_search(
                         // interval's own invariant must hold in the state
                         // its start produces (start_pre checked the state
                         // BEFORE effects).
-                        if !inv_ok(inv, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
+                        if !inv_ok(inv, &touch, oi, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
                             continue;
                         }
                         if let Some((ipos, ineg, inum)) = inv.get(&end_op) {
@@ -2342,7 +2425,7 @@ fn temporal_search(
                         let ns = task.apply(oi, &nodes[ni].state);
                         // Instantaneous effects are happenings too — same
                         // running-invariant vet as starts.
-                        if !inv_ok(inv, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
+                        if !inv_ok(inv, &touch, oi, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
                             continue;
                         }
                         let ag = nodes[ni].agenda.clone();
@@ -2380,6 +2463,7 @@ fn temporal_search(
                     task,
                     kind,
                     inv,
+                    &touch,
                     &mut stats,
                     &mut sc,
                     &mut nodes,
@@ -2401,7 +2485,7 @@ fn temporal_search(
             // eval, no visited entry), then the orbit pre-dedup.
             let mut protos = protos;
             let before = protos.len();
-            protos.retain(|n| !doomed(task, inv, n));
+            protos.retain(|n| !doomed(task, inv, &touch, n));
             stats.doomed += (before - protos.len()) as u64;
             // Orbit pre-dedup, serially IN INPUT ORDER before the fan-out —
             // the same keys the funnel would compute, so any thread count
@@ -2499,7 +2583,7 @@ fn temporal_search(
                         continue;
                     }
                     let ns = task.apply(eop, &nodes[ni].state);
-                    if !inv_ok(inv, &nodes[ni].agenda, Some(j), &nodes[ni].state, &ns) {
+                    if !inv_ok(inv, &touch, eop, &nodes[ni].agenda, Some(j), &nodes[ni].state, &ns) {
                         if j == 0 {
                             stats.b_blocked += 1;
                         }
@@ -2515,6 +2599,7 @@ fn temporal_search(
                         task,
                         kind,
                         inv,
+                        &touch,
                         &mut stats,
                         &mut sc,
                         &mut nodes,
