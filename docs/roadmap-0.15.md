@@ -353,37 +353,54 @@ scoreboard: match-cellar 20→11 (i12–i20 lost), elevators-08 23→21
 (i22, i23), elevators-11 3→1 (i2, i3). Every loss a 30 s timeout;
 zero VAL-red, zero mem-cap — pure slowdown, no soundness cost.
 
-**Attribution, two distinct mechanisms:**
+**Attribution — one structural mechanism, one dissolved suspect,
+solo-proven both directions:**
 
-1. **Gen-skip's per-expansion price** (match-cellar): the lost
-   instances solved in 7.75–15.27 s at 0.14 — a structural 2–4×
-   slowdown, in the one corpus domain that is orbit-RICH but not
+1. **Gen-skip's per-expansion price** (match-cellar, STRUCTURAL):
+   the lost instances solved in 7.75–15.27 s at 0.14 — a 2–4×
+   slowdown in the one corpus domain that is orbit-RICH but not
    plateau-walled. `stabilizer_classes` runs per expansion
    (pairwise swap verification against the full state + agenda);
    on match-cellar's deep searches that scan costs more than the
-   skipped duplicates ever cost to dedup. The referee arithmetic:
-   **9 instances lost, 0 gained** — TMS's 2.4× eval throughput
-   bought no solves because its wall is the start-credit plateau,
-   not evaluation rate. Verdict executed: gen-skip is now the
-   OPT-IN hatch `FF_ORBIT_GEN=1` (default off); the canonical-key
-   pre-dedup — pay-per-duplicate, not pay-per-expansion — stays
-   default-on, exactly as 0.14 shipped it.
-2. **The numeric guard's bystander tax** (elevators): the lost
-   instances sat at 22–25 s in 0.14 — budget-edge, pushed over by
-   Phase 2's numeric conjunct loop running on every happening in
-   numeric-fluent domains where nearly every op is a BYSTANDER to
-   the invariants it was being checked against. Fix: a per-op
-   write-set pre-filter (`InvTouch`, built once per pass) — an op
-   whose unconditional + conditional + shared-monitor effects can't
-   touch any invariant-watched fact or read fluent exits `inv_ok`
-   (and `doomed`) in constant time. Conservative by construction:
-   the write sets over-approximate, so no real threat is ever
-   skipped; the fuel-gap and kiln-gap fixtures still pin the
-   semantics.
+   skipped duplicates ever cost to dedup. Solo proof, both
+   directions: i12 solves in 8.9 s with gen-skip off and TIMES OUT
+   at 30 s with `FF_ORBIT_GEN=1` — same binary, same box, quiet.
+   The referee arithmetic: **9 instances lost, 0 gained** — TMS's
+   2.4× eval throughput bought no solves because its wall is the
+   start-credit plateau, not evaluation rate. Verdict executed:
+   gen-skip is now the OPT-IN hatch `FF_ORBIT_GEN=1` (default
+   off); the canonical-key pre-dedup — pay-per-duplicate, not
+   pay-per-expansion — stays default-on, exactly as 0.14 shipped.
+2. **The elevator flips were BUDGET-EDGE, not engine** — and the
+   first-draft suspect (the numeric guard's per-happening cost)
+   is formally DEAD: both lost variants (elevators-08-strips,
+   elevators-11) are PROPOSITIONAL — there is no numeric conjunct
+   loop to pay — and the A/B is conclusive: the pre-fix binary
+   solves i22 solo in 26.3 s, the fixed binary in 26.0 s, the
+   `FF_ORBIT_GEN=1` counter-probe in 27.1 s. Nothing structural
+   moved. All four lost instances (i22 24.5 s, i23 22.4 s at
+   0.14; i2 25.3 s, i3 22.1 s) live within ~20% of the 30 s wall,
+   where jobs-3 contention jitter flips coins. Named as
+   budget-edge, solo-checked, kept on the casualty list.
 
-The seq-sat sweep (no temporal code in either fix) retains its
-validity; tempo re-sweeps against the final binary. Final scoreboard
-numbers below close the phase.
+**What still shipped from the elevator investigation:** `InvTouch`,
+a per-op write-set pre-filter for the guard (built once per pass):
+an op whose unconditional + conditional + shared-monitor effects
+can't touch any invariant-watched fact or read fluent exits
+`inv_ok`/`doomed` in constant time. Recorded honestly as COST
+HYGIENE — conservative by construction (write sets
+over-approximate, no real threat skipped; fuel-gap and kiln-gap
+fixtures still pin the semantics), motivated by a suspect that
+dissolved under the probe. The guard is now pay-per-threat by
+design rather than by luck of the domain.
+
+**Seq-sat: 441/580 vs 0.14's 442** — the lone casualty is parking
+i12, which solved at 59.93 s (of 60) in the 0.14 sweep and solves
+solo at 58.5 s today with classical code untouched between the two
+binaries: budget-edge, named, solo-checked. The seq sweep retains
+its validity for the cut (both fixes are temporal-only); tempo
+re-sweeps against the final binary. Final scoreboard numbers below
+close the phase.
 
 ## Deferred, on the record (carried forward)
 

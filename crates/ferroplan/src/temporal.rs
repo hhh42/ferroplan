@@ -1789,10 +1789,9 @@ fn enqueue_committed(
 /// can never break a running interval, so [`inv_ok`] skips its pending
 /// scan entirely. Built once per pass; both vectors are empty when the
 /// task has no invariants (callers gate on `inv.is_empty()` first).
-/// This is what keeps the guard pay-per-threat instead of
-/// pay-per-happening on numeric domains where most ops are bystanders
-/// (the elevators regression: every board/leave/move paid the numeric
-/// re-evaluation loop for invariants none of them could violate).
+/// Keeps the guard pay-per-threat instead of pay-per-happening when
+/// most ops are bystanders to every invariant — by design rather than
+/// by luck of the domain's shape.
 struct InvTouch {
     prop: Vec<bool>,
     num: Vec<bool>,
