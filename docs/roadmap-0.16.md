@@ -6,6 +6,17 @@ three competitions this project measures itself against — **IPC-5
 REALLY stands on each, raise the standings where the audit says a
 raise is cheap and honest, and leave the whole picture properly
 documented in one place instead of scattered across cycle records.
+Committed priorities from the same conversation: **the IPC-7
+multi-core track gets entered**, **IPC-6 is the named competition for
+standings raises**, and the IPC-5 OVERALL standing gets reconstructed
+and made well-understood — the remembered "strong second against
+SGPlan" is REAL and on file (the simple-preferences board is
+reference-scored from the official archive and ferroplan beats
+SGPlan5 on openstacks p04–p08); what was never completed is the
+QUALITATIVE board's reference columns, blocked because the official
+archive host is outside this container's network allowlist (both
+graft paths are documented in the board itself and work from a
+normal dev machine — a user-side unblock, flagged).
 
 What the records already admit, going in:
 
@@ -50,6 +61,12 @@ close the measurement gaps:
   where cheap), or BUDGET EDGE (solo-checked). The 0.14/0.15
   discipline verbatim: mem-cap deaths tracked separately from engine
   verdicts.
+- IPC-5 standing reconstruction: the simple-preferences board is the
+  reference-scored anchor; the qualitative board's reference graft is
+  attempted (and honestly re-flagged if the archive stays
+  unreachable from this container); the never-entered 2006 tracks
+  get their first sweep so "overall IPC-5 standing" finally means
+  every track, not one.
 - Deliverable: **`benchmarks/ipc-standings.md`** — one table per
   competition: track / entered? / coverage / quality score (with
   reference source named) or "coverage-only" / gaps by class. The
@@ -58,18 +75,25 @@ close the measurement gaps:
 
 ## Phase 2 — raise what the audit says is cheap (measured, per raise)
 
-Pre-registered candidates, ORDERED BY THE AUDIT, not by appetite —
-each one ships as a measured win or a recorded negative, standard
-budgets, zero-regression rule intact:
+Two raises are COMMITTED by direct request; the rest are ordered by
+the audit, not appetite — each ships as a measured win or a recorded
+negative, standard budgets, zero-regression rule intact:
 
+- **COMMITTED — IPC-7 seq-mco**: enter the track — t2/t4/t8 rows,
+  the data-parallel evaluation story measured under competition
+  rules (wall-clock with all cores is the honest currency there;
+  per-thread-count determinism still holds).
+- **COMMITTED — IPC-6 standings raises**: the audit names the
+  cheapest IPC-6 gaps (going in, the records suggest: transport08's
+  seq-sat tail, the woodworking mem-cap class, model-train-t 0/30
+  with its fresh last-mile-numeric mechanism from the 0.15 probe,
+  sokoban-t-08's tail, and the full net-benefit track beyond the
+  16-instance subset) — the two or three with the best
+  evidence-per-effort get the swings.
 - **IPC-5 time / metric-time**: five cycles of temporal work
   (required concurrency, ε-ordering, the invariant guard, orbits)
   have never been pointed at these. Expectation: real coverage from
   just showing up; walls named where not.
-- **IPC-7 seq-mco**: enter the track — t2/t4/t8 rows, the
-  data-parallel evaluation story measured under competition rules.
-- **IPC-6 net-benefit, full track**: from the 16-instance subset to
-  the whole thing.
 - **Preference-quality follow-ups** (IPC-5): only if the audit shows
   specific instances within reach of the existing optimizer knobs
   (budget, selection) — no new optimizer machinery this cycle.
