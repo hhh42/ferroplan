@@ -3,14 +3,16 @@
 Per `ferroplan-roadmap.md`: updated at the end of every phase. Where this
 file and the code disagree, the code wins and this file gets fixed.
 
-Last update: **0.14 cycle (extended)** — since 0.10 the per-cycle records
+Last update: **0.15 cycle** — since 0.10 the per-cycle records
 in `docs/roadmap-0.N.md` carry the live status (measured wins, recorded
 negatives, scoreboards); this file remains the audited baseline of the
 IPC-roadmap era it covers (0.8–0.9). Highlights since: temporal
 required-concurrency + LAMA rung (0.10–0.11), the game-embedding
 `Session` (temporal thinks, forks, retargetable goals, claims,
 schedules, in-flight intervals — 0.12–0.14), the `over all` invariant
-transition guard and object-symmetry orbits (0.14 ext). Scoreboards:
+transition guard and object-symmetry orbits (0.14 ext), belief/fog +
+the live browser Session and the numeric invariant guard (0.15).
+Scoreboards:
 `benchmarks/ipc67-results.md` (seq-sat), `benchmarks/ipc67-temporal.md`
 (tempo-sat), `benchmarks/bazaar-thinks.md` (game track).
 

@@ -19,6 +19,6 @@ name = "ferroplan-mcp"
 path = "src/main.rs"
 
 [dependencies]
-ferroplan = { path = "../ferroplan", version = "0.14.0" }
+ferroplan = { path = "../ferroplan", version = "0.15.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }

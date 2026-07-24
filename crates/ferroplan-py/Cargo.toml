@@ -4,7 +4,7 @@
 [package]
 name = "ferroplan-py"
 description = "Python bindings for the ferroplan PDDL planner"
-version = "0.14.0"
+version = "0.15.0"
 edition = "2021"
 rust-version = "1.74"
 license = "MIT OR Apache-2.0"

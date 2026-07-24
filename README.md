@@ -47,7 +47,30 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.14.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.15.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.15.0 — the seen-and-scheduled cycle.** Minds learn
+> to SEE: **`Session::observe`** is the belief surface — sighted facts
+> snap to the observed world, everything else stays believed, and the
+> return is exactly the surprises, so rethinks are surprise-driven,
+> not wall-clock paranoia. The bazaar loop gains **fog** (`claims +
+> fog` rows in the scoreboard): own stall each turn, partner's stall
+> on arrival, theft discovered on contact — with a measured winner
+> inversion when information asymmetry reshuffles the market, and
+> "false dormancy" recorded as the next policy layer. The
+> [browser bazaar](https://hhh42.github.io/ferroplan/demo/bazaar-live.html)
+> is now LIVE — real WASM `Session` minds (**`WasmSession`**), policy
+> toggles, a steal button, belief-drift badges — which flushed out and
+> fixed a real wasm clock panic in the engine's timing paths. On the
+> engine side: **generation-side stabilizer skipping** (2.4× real
+> evaluations on machine-shop at equal budget, `FF_NO_ORBIT_GEN=1`
+> reverts), numeric `over all` conjuncts joined the invariant
+> transition guard (the fuel-gap fixture pins the bait), and
+> machine-shop's residual wall is named to the decimal — the
+> start-credit plateau, with four measured ordering negatives and the
+> h-surgery fence on file. Full record:
+> [`docs/roadmap-0.15.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.15.md),
+> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.14.0 — the living-bazaar cycle.** The population
 > runs. The tick loop is driven end-to-end (`bazaar_live`): N

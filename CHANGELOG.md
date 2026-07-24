@@ -2,6 +2,79 @@
 
 All notable changes to this project are documented here.
 
+## [0.15.0] - 2026-07-24 — The seen-and-scheduled cycle
+
+One hard research bet, two capability ships, one platform piece —
+every phase traced to a recorded debt or diagnosis (cycle record in
+`docs/roadmap-0.15.md`).
+
+### The probe that rewrote the hard bet (and the win it found)
+
+- The kiln-pack fixture family disproved "window packing" as
+  machine-shop's wall before anything got built (near-linear evals,
+  N=2..12) — doom-pruning already owns window overruns.
+- What the TStats probe found instead: 81% of TMS candidates were
+  orbit-permutation duplicates, generated then discarded.
+  **Generation-side stabilizer skipping** ships (default-on,
+  `FF_NO_ORBIT_GEN=1` reverts): an op is never generated when a
+  state-fixing member swap — verified against cross-member facts,
+  fluents, and the pending agenda — maps it to an already-generated
+  sibling. 2.4× real evaluations at equal budget on TMS.
+- The wall itself, named to the decimal: the **start-credit
+  plateau** — h^FF pays for interval starts on firing while they
+  deliver nothing until their ends land; best_h pins at 110 across a
+  13× budget ladder, and four ordering schemes measured four
+  negatives (`FF_TLIFO`, `FF_TB_FREE_G`, `FF_TAGENDA_W_PRUNE` stay as
+  hatches). The named fence: end-gated interval credit inside the
+  relaxation — h surgery, a future cycle. The second witnesses have
+  DIFFERENT walls, now on file: storage-t is spatial feasibility
+  (3,494 invariant-blocked heads at best_h 20), model-train is
+  last-mile numeric (best_h 6, nothing blocked).
+
+### Numeric over-all invariants, closed
+
+- The 0.14 transition guard covered propositional conjuncts only;
+  the fuel-gap fixture proved the numeric bait (drain past the floor
+  mid-interval, refill before the end — both endpoint checks pass,
+  VAL-red). Grounded `Comp` conjuncts now ride the InvMap: a happening
+  that moves a read fluent re-evaluates the comparison and only an
+  actual true→false FLIP blocks — above-floor drains sail through by
+  construction. Suite-pinned; watch domains clean.
+
+### Belief and observation (the game capability)
+
+- **`Session::observe(&[(fact, value)]) -> surprises`**: sighted
+  facts snap to observed truth (same fences as `set_fact`; a bad
+  batch moves nothing), unsighted facts stay believed, the return is
+  exactly the news. A mind's session IS a belief state, now formally.
+- **Fog in the bazaar** (`bazaar_live`, `claims + fog` rows): truth
+  in an authoritative session, per-stall change ledgers, own-stall
+  observation each turn + partner-stall on arrival, claims public.
+  Measured: bounded fog overhead, +1-tick theft discovery via the
+  arrival channel, an unscripted WINNER INVERSION (information
+  asymmetry reshuffles outcomes, deterministically), and the named
+  pathology — false dormancy under fog — recorded as the next policy
+  layer.
+
+### The live in-page bazaar (platform)
+
+- **`WasmSession`**: fork / set_goal / restrict+claims mask / think
+  (with internal plan walk) / set_fact / observe / goal_met in the
+  browser. `bazaar-live.html` is a LIVE loop now, not a canned
+  replay: policy toggles, a mid-run steal button, belief-drift
+  badges — headless-verified against the native trace.
+- The page flushed a real bug: `Instant::now()` panics on wasm and
+  the engine timed itself unconditionally — any solve reaching the
+  best-first fallback died in the browser. Fixed lib-wide with a
+  wasm-frozen clock shim (native behavior byte-identical) plus a
+  panic hook that makes future wasm panics readable.
+
+### Also
+
+- Orbits for tresolve/Session: recorded structural negative (contract
+  subgoals and actor masks name members; runtime worlds are invisible
+  to lifted detection) — both keep None deliberately.
+
 ## [0.14.0] - 2026-07-23 — The living-bazaar cycle: the population runs
 
 0.13 built a population of minds; 0.14 makes them live together — the
