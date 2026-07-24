@@ -23,9 +23,9 @@ EVERY TICK. That is the game-track headline.
 |---|---|---|---|---|---|---|
 | 1 | 1 @ 2 | 1 @ 2 | 1 @ 2 | 1 @ 2 | 1 @ 2 | 0.0 |
 | 2 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 0.0 |
-| 3 | 3 @ 4 | 3 @ 4 | 3 @ 4 | 3 @ 4 | 3 @ 4 | 0.1 |
+| 3 | 3 @ 4 | 3 @ 4 | 3 @ 4 | 3 @ 4 | 3 @ 4 | 0.0 |
 | 4 | 4 @ 5 | 4 @ 5 | 4 @ 5 | 4 @ 5 | 4 @ 5 | 0.1 |
-| 6 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 0.1 |
+| 6 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 6 @ 7 | 0.2 |
 | 8 | 8 @ 9 | 8 @ 9 | 8 @ 9 | 8 @ 9 | 8 @ 9 | 0.2 |
 | 10 | 10 @ 11 | 10 @ 11 | 10 @ 11 | 10 @ 11 | 10 @ 11 | 0.3 |
 | 11 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 11 @ 12 | 0.3 |
@@ -55,12 +55,12 @@ here.
 |---|---|---|---|---|---|---|
 | 1 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 2 @ 3 | 0.0 |
 | 2 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 4 @ 6 | 0.1 |
-| 3 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 0.3 |
-| 4 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 30.1 |
-| 6 | -- | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 102.2 |
-| 8 | -- | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 189.0 |
-| 10 | -- | -- | 20 @ 4460 | 20 @ 4460 | 20 @ 4460 | 267.7 |
-| 11 | -- | -- | 22 @ 4711 | 22 @ 4711 | 22 @ 4711 | 459.8 |
+| 3 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 6 @ 10 | 0.2 |
+| 4 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 8 @ 746 | 28.5 |
+| 6 | -- | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 12 @ 2183 | 98.5 |
+| 8 | -- | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 16 @ 3357 | 186.8 |
+| 10 | -- | -- | 20 @ 4460 | 20 @ 4460 | 20 @ 4460 | 252.8 |
+| 11 | -- | -- | 22 @ 4711 | 22 @ 4711 | 22 @ 4711 | 495.6 |
 
 Where budget-exhausted verdicts begin:
 
@@ -90,12 +90,12 @@ Levenshtein edit distance between old and new step sequences (lower
 - prior plan: 16 steps for >= 16 trades of work (vendor-vendor pre-trades included)
 
 Drift: `TRADE V3 V4 ITEMA3 ITEMA4` (plan step 2) already happened off-screen:
-- biased (`replan_following`): 15 steps, churn 12 vs prior, 2540 evals, 124.0 ms — followed 2 still-applicable step(s) of the prior plan; searched only the tail
-- unbiased (`replan_budgeted`): 15 steps, churn 12 vs prior, 2997 evals, 151.5 ms — EHC found no improving state; used weighted best-first
+- biased (`replan_following`): 15 steps, churn 12 vs prior, 2540 evals, 130.0 ms — followed 2 still-applicable step(s) of the prior plan; searched only the tail
+- unbiased (`replan_budgeted`): 15 steps, churn 12 vs prior, 2997 evals, 151.0 ms — EHC found no improving state; used weighted best-first
 
 Drift: `TRADE V6 V7 ITEMB6 ITEMA8` (plan step 13) already happened off-screen:
 - biased (`replan_following`): 15 steps, churn 1 vs prior, 3 evals, 0.1 ms — followed 13 still-applicable step(s) of the prior plan; searched only the tail
-- unbiased (`replan_budgeted`): 14 steps, churn 16 vs prior, 2899 evals, 154.9 ms — EHC found no improving state; used weighted best-first
+- unbiased (`replan_budgeted`): 14 steps, churn 16 vs prior, 2899 evals, 168.0 ms — EHC found no improving state; used weighted best-first
 
 ## Per-mind retained memory and world load
 
@@ -116,7 +116,7 @@ last one. A mind gives up after 3 consecutive failed CLAIM-FREE
 thinks; claim-masked failures WAIT instead (the claim releases as
 the rival's plan drains).
 
-**Overlapping goals, naive (zero-sum by construction)** — quiescent after 4 ticks, 2.1 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
+**Overlapping goals, naive (zero-sum by construction)** — quiescent after 4 ticks, 2.4 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
@@ -125,7 +125,7 @@ the rival's plan drains).
 | v5 | `(has v5 item9)` | MET | 1 | 1 | 2 | 15 | 2 | 0 |
 | v7 | `(has v7 item11)` | gave up | 0 | 1 | 4 | 13 | 0 | 0 |
 
-**Overlapping goals, claims (zero-sum: do winners survive?)** — quiescent after 7 ticks, 3.0 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
+**Overlapping goals, claims (zero-sum: do winners survive?)** — quiescent after 7 ticks, 4.1 ms wall: 1/4 goals met (state-verified), 3 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
@@ -134,7 +134,7 @@ the rival's plan drains).
 | v5 | `(has v5 item9)` | MET | 3 | 0 | 1 | 11 | 0 | 0 |
 | v7 | `(has v7 item11)` | gave up | 0 | 0 | 6 | 8 | 0 | 3 |
 
-**Disjoint goals (the control)** — quiescent after 3 ticks, 0.5 ms wall: 4/4 goals met (state-verified), 0 gave up or stalled.
+**Disjoint goals (the control)** — quiescent after 3 ticks, 0.7 ms wall: 4/4 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
@@ -143,49 +143,49 @@ the rival's plan drains).
 | v7 | `(has v7 item9)` | MET | 1 | 0 | 1 | 4 | 0 | 0 |
 | v10 | `(has v10 item11)` | MET | 0 | 0 | 1 | 2 | 0 | 0 |
 
-**Crossed chains x2m, naive** — quiescent after 9 ticks, 21.2 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
+**Crossed chains x2m, naive** — quiescent after 9 ticks, 26.0 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | MET | 7 | 0 | 1 | 263 | 0 | 0 |
 | a1 | `(has a1 itemB8)` | MET | 1 | 6 | 7 | 387 | 12 | 0 |
 
-**Crossed chains x2m, claims** — quiescent after 9 ticks, 10.1 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
+**Crossed chains x2m, claims** — quiescent after 9 ticks, 10.5 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | MET | 7 | 0 | 1 | 263 | 0 | 0 |
 | a1 | `(has a1 itemB8)` | MET | 7 | 0 | 1 | 21 | 0 | 0 |
 
-**Crossed chains x2m, claims + follow-biased rethinks** — quiescent after 9 ticks, 10.1 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
+**Crossed chains x2m, claims + follow-biased rethinks** — quiescent after 9 ticks, 10.9 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | MET | 7 | 0 | 1 | 263 | 0 | 0 |
 | a1 | `(has a1 itemB8)` | MET | 7 | 0 | 1 | 21 | 0 | 0 |
 
-**Crossed chains x2m + scripted theft, claims** — quiescent after 11 ticks, 13.9 ms wall: 1/2 goals met (state-verified), 1 gave up or stalled.
+**Crossed chains x2m + scripted theft, claims** — quiescent after 11 ticks, 14.8 ms wall: 1/2 goals met (state-verified), 1 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | gave up | 1 | 1 | 10 | 283 | 0 | 6 |
 | a1 | `(has a1 itemB8)` | MET | 7 | 0 | 1 | 21 | 0 | 0 |
 
-**Crossed chains x2m + scripted theft, claims + follow-biased rethinks** — quiescent after 11 ticks, 13.3 ms wall: 1/2 goals met (state-verified), 1 gave up or stalled.
+**Crossed chains x2m + scripted theft, claims + follow-biased rethinks** — quiescent after 11 ticks, 16.3 ms wall: 1/2 goals met (state-verified), 1 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits |
 |---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | gave up | 1 | 1 | 10 | 286 | 0 | 6 |
 | a1 | `(has a1 itemB8)` | MET | 7 | 0 | 1 | 21 | 0 | 0 |
 
-**Crossed chains x2m, claims + fog (no theft — the overhead row)** — quiescent after 16 ticks, 21.1 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
+**Crossed chains x2m, claims + fog (no theft — the overhead row)** — quiescent after 16 ticks, 23.5 ms wall: 2/2 goals met (state-verified), 0 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits | surprises | stale follows | discovery |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | a0 | `(has a0 itemA8)` | MET | 7 | 0 | 1 | 263 | 0 | 0 | 0 | 0 | - |
 | a1 | `(has a1 itemB8)` | MET | 7 | 7 | 8 | 214 | 22 | 0 | 16 | 0 | - |
 
-**Crossed chains x2m + scripted theft, claims + fog** — quiescent after 13 ticks, 19.3 ms wall: 1/2 goals met (state-verified), 1 gave up or stalled.
+**Crossed chains x2m + scripted theft, claims + fog** — quiescent after 13 ticks, 22.5 ms wall: 1/2 goals met (state-verified), 1 gave up or stalled.
 
 | mind | goal | outcome | free follows | conflicts | thinks | evals | churn | waits | surprises | stale follows | discovery |
 |---|---|---|---|---|---|---|---|---|---|---|---|

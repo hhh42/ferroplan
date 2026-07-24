@@ -103,7 +103,7 @@ replans as the world changes.
 
 Plans are validated with [VAL](https://github.com/KCL-Planning/VAL), the IPC plan
 validator. On the full IPC-2008/2011 tempo-sat corpus (630 instances, 30 s each),
-ferroplan solves **403 — and every one of the 403 plans is VAL-valid** under
+ferroplan solves **399 — and every one of the 399 plans is VAL-valid** under
 PDDL2.1 continuous-time semantics, confirming the snap-action compilation,
 `over all` invariants, required concurrency, and ε-separation are correct.
 (Testing against VAL is what surfaced the ε-separation requirement in the first

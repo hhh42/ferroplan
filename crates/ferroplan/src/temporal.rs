@@ -2379,7 +2379,15 @@ fn temporal_search(
                         // interval's own invariant must hold in the state
                         // its start produces (start_pre checked the state
                         // BEFORE effects).
-                        if !inv_ok(inv, &touch, oi, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
+                        if !inv_ok(
+                            inv,
+                            &touch,
+                            oi,
+                            &nodes[ni].agenda,
+                            None,
+                            &nodes[ni].state,
+                            &ns,
+                        ) {
                             continue;
                         }
                         if let Some((ipos, ineg, inum)) = inv.get(&end_op) {
@@ -2424,7 +2432,15 @@ fn temporal_search(
                         let ns = task.apply(oi, &nodes[ni].state);
                         // Instantaneous effects are happenings too — same
                         // running-invariant vet as starts.
-                        if !inv_ok(inv, &touch, oi, &nodes[ni].agenda, None, &nodes[ni].state, &ns) {
+                        if !inv_ok(
+                            inv,
+                            &touch,
+                            oi,
+                            &nodes[ni].agenda,
+                            None,
+                            &nodes[ni].state,
+                            &ns,
+                        ) {
                             continue;
                         }
                         let ag = nodes[ni].agenda.clone();
@@ -2582,7 +2598,15 @@ fn temporal_search(
                         continue;
                     }
                     let ns = task.apply(eop, &nodes[ni].state);
-                    if !inv_ok(inv, &touch, eop, &nodes[ni].agenda, Some(j), &nodes[ni].state, &ns) {
+                    if !inv_ok(
+                        inv,
+                        &touch,
+                        eop,
+                        &nodes[ni].agenda,
+                        Some(j),
+                        &nodes[ni].state,
+                        &ns,
+                    ) {
                         if j == 0 {
                             stats.b_blocked += 1;
                         }

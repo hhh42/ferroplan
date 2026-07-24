@@ -527,7 +527,7 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
 - **Temporal**: durative actions with constant, parameter-dependent, or
   state-dependent durations and required concurrency are supported, and **every
   solved plan on the full IPC-2008/2011 tempo-sat corpus is VAL-validated**
-  (403/630 at 30 s, 403/403 valid — see
+  (399/630 at 30 s, 399/399 valid — see
   [`benchmarks/ipc67-temporal.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-temporal.md)). Coverage on
   the remainder is search-limited: the recorded walls (machine-shop, storage,
   model-train) are guidance problems, not semantics — and since the 0.14

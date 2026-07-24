@@ -399,8 +399,20 @@ i12, which solved at 59.93 s (of 60) in the 0.14 sweep and solves
 solo at 58.5 s today with classical code untouched between the two
 binaries: budget-edge, named, solo-checked. The seq sweep retains
 its validity for the cut (both fixes are temporal-only); tempo
-re-sweeps against the final binary. Final scoreboard numbers below
-close the phase.
+re-sweeps against the final binary.
+
+**Final scoreboards (the cut's numbers):** tempo-sat **399/630, 0
+VAL-red, 35 mem-cap** (0.14: 403, same 35 mem-cap class) —
+match-cellar fully recovered at 20/20; the four-instance gap is
+exactly the elevator budget-edge class, and the paired solo A/B on
+the same quiet box settles it as ENVIRONMENT, not engine: the
+0.14.0 binary solves i22 in 26.2 s, the 0.15 final binary in
+23.2 s — the shipping binary is FASTER on the very instance the
+sweep flipped, with ±3 s run-to-run jitter on a 30 s wall.
+Seq-sat **441/580, 20 mem-cap** (0.14: 442, 22 mem-cap; parking
+i12 the named budget-edge casualty). Both scoreboards from the
+final binary; raw JSONLs promoted to the standing baseline names
+for the next cut's A/B.
 
 ## Deferred, on the record (carried forward)
 
