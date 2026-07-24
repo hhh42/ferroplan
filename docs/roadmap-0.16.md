@@ -84,7 +84,7 @@ close the measurement gaps:
 
 ## Phase 2 — raise what the audit says is cheap (measured, per raise)
 
-Two raises are COMMITTED by direct request; the rest are ordered by
+Three raises are COMMITTED by direct request; the rest are ordered by
 the audit, not appetite — each ships as a measured win or a recorded
 negative, standard budgets, zero-regression rule intact:
 
@@ -99,13 +99,33 @@ negative, standard budgets, zero-regression rule intact:
   sokoban-t-08's tail, and the full net-benefit track beyond the
   16-instance subset) — the two or three with the best
   evidence-per-effort get the swings.
+- **COMMITTED (added mid-phase, 2026-07-24, by direct request) —
+  qualitative-tpp selection extension**: the archive graft proved
+  the tpp sweep (0–8 vs SGPlan5) is the SAME selection-problem
+  shape 0.6 already closed on simple preferences, plus ordering
+  couplings: the big-weight families are per-goods end-state
+  choices (`p4A`/`p5A`/`p7A`, quantified `exists`-level goal
+  preferences) and `sometime-before` level-orderings
+  (`p6A/B/C` — goods5 before goods4, weight 13 × level
+  groundings), and SGPlan5's archived p05 plan (metric 27, 86
+  actions, goods5 ferried FIRST) is a textbook of both. The
+  extension: let the 0.6 selection layer see quantified /
+  monitor-compiled preference families and emit its choice as
+  ORDERED hard-goal contracts; `tresolve`'s contract decomposition
+  already executes ordered subgoals — selection chooses what and
+  in what order, tresolve reaches it. Probe first (attribution
+  against SGPlan's simulated end state), then the machinery;
+  measured on the now-reference-scored qualitative board. This is
+  the one exception to the no-new-optimizer-machinery fence below,
+  carved by direct request.
 - **IPC-5 time / metric-time**: five cycles of temporal work
   (required concurrency, ε-ordering, the invariant guard, orbits)
   have never been pointed at these. Expectation: real coverage from
   just showing up; walls named where not.
-- **Preference-quality follow-ups** (IPC-5): only if the audit shows
-  specific instances within reach of the existing optimizer knobs
-  (budget, selection) — no new optimizer machinery this cycle.
+- **Preference-quality follow-ups** (IPC-5, beyond the committed
+  tpp extension): only if the audit shows specific instances within
+  reach of the existing optimizer knobs (budget, selection) — no
+  OTHER new optimizer machinery this cycle.
 - **Feature gaps stay gaps** unless one is BOTH cheap and
   standings-relevant; the four timed modal operators have survived
   three deferred lists and need a better reason than a table row.
