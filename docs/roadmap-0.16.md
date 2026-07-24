@@ -17,6 +17,15 @@ QUALITATIVE board's reference columns, blocked because the official
 archive host is outside this container's network allowlist (both
 graft paths are documented in the board itself and work from a
 normal dev machine — a user-side unblock, flagged).
+**[RESOLVED mid-phase, 2026-07-24: the user hand-retrieved
+`IPC5-results.tgz` (the Wayback held only a 301 for it — the live
+redirect still served the bytes) and it is now vendored at
+`benchmarks/IPC5-results.tgz`. The qualitative graft is DONE — see
+the board: 12W/3T/23L vs SGPlan5 overall, dead even (4–4) on three
+of five domains, tpp swept with the all-forgo plateau now provable
+against the field (ferroplan's p05–p08 row coincides exactly with
+MIPS-BDD's). The archive also unlocks reference-scored quality
+columns for the 2006 audit tracks.]**
 
 What the records already admit, going in:
 

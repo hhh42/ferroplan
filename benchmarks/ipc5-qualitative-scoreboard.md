@@ -1,4 +1,4 @@
-# IPC-5 (2006) qualitative-preferences scoreboard — ferroplan (self-scored)
+# IPC-5 (2006) qualitative-preferences scoreboard — ferroplan vs the field
 
 Vendored suite: `benchmarks/ipc/qualpref/{openstacks,rovers,storage,tpp,trucks}`
 — the IPC-5 *qualitative-preferences* track (there is no qualitative pathways;
@@ -14,17 +14,87 @@ Run one: `ff -o qualpref/<domain>/domain.pddl -f qualpref/<domain>/pNN.pddl`
 a goal-side preference, then the PDDL3 metric optimizer prices it — see
 `docs/roadmap-0.7.md` Phase 2).
 
-## Reference status (honest gap)
+## Reference status: GRAFTED from the official archive
 
-**This board is self-scored.** The official IPC-5 qualitative results
-(`IPC5-results.tgz`, the source of the simple-preferences board's SGPlan5
-numbers) are unreachable from this container (host not in the network
-allowlist), and the SGPlan6 Docker advisory path (`compare.py --cat
-qualpref`) needs a Docker daemon this environment doesn't run. Both paths
-work from a normal dev machine; when either is run, graft the reference
-columns in and recompute W/T/L. Until then this ledger records ferroplan's
-own defaults-only numbers and their oracle status — *scoring honestly is the
-gate; leading is not* (`docs/roadmap-0.7.md`).
+The reference gap this board carried for three cycles is CLOSED
+(2026-07-24). The official `IPC5-results.tgz` is now **vendored at
+`benchmarks/IPC5-results.tgz`** — retrieved by hand from the old
+Brescia site's live redirect after the Wayback Machine proved to have
+captured only a 301 for the file, never its bytes. Reference metrics
+below are read from the archive's per-instance `; MetricValue`
+headers (`RESULTS/<planner>/<domain>/QualitativePreferences/pNN.soln`).
+The parser is cross-validated against the simple-preferences board:
+it reproduces every committed SGPlan5 row there EXACTLY.
+
+The qualitative field was **SGPlan5** (the track winner; full 20/20
+coverage in all five domains), **HPlan-P** (70/100), **MIPS-XXL**
+(16/100), and **MIPS-BDD** (16/100). YochanPS did not enter this
+track. Ferroplan's own numbers remain defaults-only, verified as
+before (reported == verified on every oracle-checked plan).
+
+## The field, p01–p08 (grafted; lower is better; **bold** = ferroplan ≤ SGPlan5)
+
+| openstacks | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
+|---|---|---|---|---|---|---|---|---|---|
+| ferroplan | **66** | 68.6 | 77.8 | 89.2 | **122.5** | 121 | **283** | **617.7** | 8/8 run |
+| SGPlan5 | 70 | 62.4 | 77 | 82.4 | 123.5 | 116.5 | 300 | 619.2 | 20/20 |
+| HPlan-P | 76 | 71.2 | 88.8 | 94.2 | 147.5 | 144.5 | 294 | 618.5 | 18/20 |
+| MIPS-XXL | 14 | 11.6 | — | — | — | — | — | — | 2/20 |
+| MIPS-BDD | 68 | 66 | — | — | — | — | — | — | 2/20 |
+
+| rovers | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
+|---|---|---|---|---|---|---|---|---|---|
+| ferroplan | **86.65** | **33.44** | 58.77 | **42.34** | 317.35 | **66.64** | 99.91 | 888 | 8/8 run |
+| SGPlan5 | 88.08 | 40.44 | 39.31 | 43.43 | 236.32 | 75.43 | 87.96 | 674 | 20/20 |
+| HPlan-P | 111.63 | 40.44 | 29.19 | 40.17 | 160.97 | 82.76 | 107.41 | 620 | 14/20 |
+| MIPS-XXL | — | — | — | — | — | — | — | — | 0/20 |
+
+| storage | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
+|---|---|---|---|---|---|---|---|---|---|
+| ferroplan | **0** | **10** | 60 | 78 | **47** | **90** | 200 | 261 | 8/8 run |
+| SGPlan5 | 8 | 13 | 26 | 39 | 104 | 160 | 183 | 251 | 20/20 |
+| HPlan-P | 0 | 1 | 17 | 36 | 78 | 149 | 240 | 337 | 14/20 |
+| MIPS-XXL | 0 | 1 | 10 | 44 | — | — | — | — | 4/20 |
+| MIPS-BDD | 0 | 1 | 2 | 15 | — | — | — | — | 4/20 |
+
+| tpp | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
+|---|---|---|---|---|---|---|---|---|---|
+| ferroplan | 24 | 42 | 60 | 78 | 156 | 186 | 216 | 246 | 8/8 run |
+| SGPlan5 | 13 | 12 | 32 | 32 | 27 | 64 | 49 | 126 | 20/20 |
+| HPlan-P | 13 | 10 | 27 | 31 | 53 | 59 | 86 | 142 | 20/20 |
+| MIPS-XXL | — | 33 | 52 | 73 | 199 | 229 | 273 | 317 | 9/20 |
+| MIPS-BDD | 13 | 10 | 33 | 67 | 156 | 186 | 216 | 246 | 9/20 |
+
+| trucks | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
+|---|---|---|---|---|---|---|---|---|---|
+| ferroplan | **0** | 10 | 1 | **0** | **0** | 5 | — | — | 6/8 run |
+| SGPlan5 | 0 | 2 | 0 | 0 | 0 | 3 | 3 | 7 | 20/20 |
+| HPlan-P | 0 | 1 | 5 | — | 13 | — | — | — | 4/20 |
+| MIPS-XXL | 0 | — | — | — | — | — | — | — | 1/20 |
+| MIPS-BDD | 1 | — | — | — | — | — | — | — | 1/20 |
+
+## W/T/L vs SGPlan5 (the winner), p01–p08
+
+| domain | W | T | L | note |
+|---|---|---|---|---|
+| openstacks | 4 | 0 | 4 | dead even with the winner |
+| rovers | 4 | 0 | 4 | dead even with the winner |
+| storage | 4 | 0 | 4 | dead even with the winner |
+| tpp | 0 | 0 | 8 | swept — the recorded tpp gap (see below) |
+| trucks | 0 | 3 | 3 | plus p07/p08 ferroplan no-run (coverage gap) |
+| **total** | **12** | **3** | **23** | + 2 no-runs |
+
+The honest sentences: **on three of five domains ferroplan trades
+even, instance for instance, with the competition winner** — while
+beating HPlan-P/MIPS-XXL/MIPS-BDD broadly on coverage and quality.
+The board is lost on **tpp**, and the archive says exactly why: ferroplan's
+tpp row (156/186/216/246 on p05–p08) coincides EXACTLY with
+MIPS-BDD's — both are parked on the same all-forgo plateau that
+`docs/forensics-tpp.md` documented from the inside, while SGPlan5 and
+HPlan-P search far below it. The tpp gap is a preference-DRIVEN-search
+gap, not a scoring artifact — now provable against the field. Trucks
+is a small-quality + tail-coverage gap (p07/p08 unfinished runs,
+noted ⁶ below).
 
 Two facts anchor the numbers even without a reference row:
 

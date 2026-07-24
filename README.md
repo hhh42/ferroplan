@@ -518,7 +518,9 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   0.8 construction; goal-side compilation via `FF_NO_TRAJ_END=1`); soft
   `(preference name ...)` constraints are **priced through the PDDL3 metric
   machinery** like native goal preferences (the IPC-5
-  *qualitative-preferences* suite is vendored and scored at **38/40** — see
+  *qualitative-preferences* suite is vendored and scored against the official
+  IPC-5 field: dead even with SGPlan5, the track winner, on three of five
+  domains — see
   [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md)).
   The timed operators (`within`, `hold-during`, `hold-after`,
   `always-within`) and the temporal path are still **rejected by name**

@@ -25,3 +25,15 @@ with attribution.
 These files retain their original licensing from the IPC / potassco mirror. They
 are included only as runnable benchmark examples; ferroplan itself is dual MIT /
 Apache-2.0.
+
+## Official results archive
+
+`benchmarks/IPC5-results.tgz` is the official IPC-5 (2006) competition
+results archive (`RESULTS/<planner>/<domain>/<track>/pNN.soln`, per-instance
+plans with `; MetricValue` headers), produced by the IPC-5 organizers
+(Gerevini, Long et al., hosted at the University of Brescia). Vendored
+2026-07-24, hand-retrieved from the original site's live redirect — the
+Wayback Machine holds only a 301 for this file, so the vendored copy also
+serves as preservation. It is the reference source for both preference
+scoreboards (`ipc5-scoreboard.md`, `ipc5-qualitative-scoreboard.md`) and
+the IPC-5 quality columns of the standings audit.
