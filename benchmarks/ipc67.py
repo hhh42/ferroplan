@@ -40,6 +40,10 @@ def arg(name, default):
 
 TIMEOUT = int(arg("--timeout", "60"))
 TRACK = arg("--track", "seq-sat")
+# ff-side thread count per instance (0.16: the IPC-7 multi-core track runs
+# one instance with ALL cores — pair --threads N with --jobs 1 there).
+THREADS = arg("--threads", "1")
+LIST_ONLY = "--list" in sys.argv  # enumerate variants and exit (audit eyes)
 ONLY = arg("--only", None)
 MAXI = int(arg("--max-instances", "0"))  # 0 = all
 JOBS = int(arg("--jobs", "1"))
@@ -74,6 +78,24 @@ TRACK_PATTERNS = {
     "net-benefit": r"net-benefit",
     "seq-opt": r"sequential-optimal",
     "tempo-sat": r"temporal-satisficing",
+    # IPC-5 (2006) deterministic tracks — different naming scheme (0.16
+    # standings audit). Preferences tracks stay on the curated vendored
+    # boards (benchmarks/ipc5-*.md); these are the never-swept ones.
+    "prop-2006": r"propositional(-strips)?$",
+    "time-2006": r"(?<!metric)-time(-strips)?$",
+    "metric-time-2006": r"metric-time(-strips)?$",
+    "constraints-2006": r"constraints",
+    # IPC-7 (2011) sequential multi-core — the data-parallel track.
+    "seq-mco": r"sequential-multi-core",
+}
+
+# Which competition directories each track lives in.
+TRACK_IPCS = {
+    "prop-2006": ("ipc-2006",),
+    "time-2006": ("ipc-2006",),
+    "metric-time-2006": ("ipc-2006",),
+    "constraints-2006": ("ipc-2006",),
+    "seq-mco": ("ipc-2011",),
 }
 
 
@@ -100,7 +122,7 @@ def find_val():
 def variants(corpus):
     pat = re.compile(TRACK_PATTERNS[TRACK])
     out = []
-    for ipc in ("ipc-2008", "ipc-2011"):
+    for ipc in TRACK_IPCS.get(TRACK, ("ipc-2008", "ipc-2011")):
         droot = os.path.join(corpus, ipc, "domains")
         if not os.path.isdir(droot):
             continue
@@ -163,7 +185,7 @@ def val_check(val, domain, problem, steps, temporal=False):
 
 def run_instance(val, n, d, p):
     """One ff invocation → per-instance record dict."""
-    cmd = [FF, "-o", d, "-f", p, "--json", "--threads", "1"]
+    cmd = [FF, "-o", d, "-f", p, "--json", "--threads", THREADS]
     if MODE:
         cmd += ["--mode", MODE]
 
@@ -198,6 +220,10 @@ def run_instance(val, n, d, p):
 
 def main():
     corpus = corpus_dir()
+    if LIST_ONLY:
+        for ipc, vname, vdir in variants(corpus):
+            print(f"{ipc}  {vname}  ({len(instances(vdir))} instances)")
+        return
     val = find_val()
     reference = load_reference(SCORE_AGAINST) if SCORE_AGAINST else None
     print(f"corpus: {corpus}\nVAL: {val or 'not found (external validation skipped)'}\n"
