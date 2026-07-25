@@ -84,6 +84,53 @@ close the measurement gaps:
   honest sentence per competition at the top. This document is the
   phase's bar; the sweeps are its inputs.
 
+### Recorded — every gap measured, the deliverable scripted, one verdict flipped
+
+The audit ran everything it promised, all against the 0.15.0 binary
+at standard budgets with VAL on every plan; the deliverable is
+GENERATED (`benchmarks/standings.py` — in-flight sweeps fenced out by
+their missing `.md` sibling), refreshed at every cut.
+
+**First-ever numbers on the never-swept tracks:**
+
+- IPC-5 propositional **354/450** — with the first archive-backed
+  quality column: plan length vs best-of-field (IPC-4 champions
+  included), **52W/48T/164L, mean quality 0.91** over 264 scored.
+  96 timeouts, zero rejects — the parser/gate eats all of 2006.
+- IPC-5 time **76/130** (54 timeouts) — real coverage from showing
+  up, as predicted. Quality column blocked by a named RUNNER debt:
+  makespan is not recorded (the track's currency).
+- IPC-5 metric-time **55/200** (101 timeouts, 28 mem-cap, 16
+  rejects) — the weak track, numeric-temporal shaped, exactly where
+  the 0.15 model-train last-mile mechanism points.
+- IPC-5 constraints **5/120** — 100 instant rejects: the four timed
+  modal operators, rejected BY NAME as designed; the deferred-list
+  entry now has a coverage price on it (a fifth of the track).
+- IPC-6 net-benefit, full track, refreshed: **217/270** (41
+  timeouts, 12 mem-cap).
+- **IPC-7 seq-mco ENTERED** (jobs 1, all cores, wall-clock per the
+  competition rule; 4-core box): **t2 193/280, t4 189/280, t8
+  193/280** — oversubscription (t8) nets to a wash against t2; the
+  t4 dip is exactly 5 floor-tile engine-rejects (i7–i12 class, a
+  thread-scaled memory signature; 1 recurs at t8) — solo-checked in
+  Phase 2.
+
+**The verdict the archive flipped** (full narrative on the
+qualitative board): the reference graft first read 12W/3T/23L vs
+SGPlan5 — measured against the board's 0.7/0.8-era ferroplan column.
+Re-measured on today's defaults: **24W/4T/10L — ahead of the track
+winner**, rovers 7–1 / storage 6–2 / tpp 6–1–1 won outright,
+openstacks split, trucks trailing (1–3–2 + p07/p08 600 s no-runs).
+The committed "qualitative-tpp raise" thus landed chiefly by honest
+re-measurement; the residuals (tpp p07 57-vs-49, trucks p04/p06
+quality, trucks p07/p08 no-runs) carry to Phase 2.
+
+**Standings infrastructure shipped alongside** (Phase 3 pulled
+forward): `standings.py`, `ipc-standings.md`, the book's Standings
+chapter (live-included tables), README's Benchmarks reorganization,
+and the vendored official archive with provenance
+(`benchmarks/IPC5-results.tgz`, ATTRIBUTION.md).
+
 ## Phase 2 — raise what the audit says is cheap (measured, per raise)
 
 Three raises are COMMITTED by direct request; the rest are ordered by

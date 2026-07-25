@@ -34,6 +34,6 @@ for scoring semantics and the failure-class definitions.
 | tempo-sat | yes | 111/240 | coverage + VAL | 17 mem-cap, 112 timeout |
 | seq-mco t2 | yes (first entry, 0.16) | 193/280 | wall-clock per competition rule (4-core box; t8 oversubscribed) | 87 timeout |
 | seq-mco t4 | yes (first entry, 0.16) | 189/280 | wall-clock per competition rule (4-core box; t8 oversubscribed) | 5 engine-reject/error, 86 timeout |
-| seq-mco t8 | sweep in flight / not yet run | — | wall-clock per competition rule (4-core box; t8 oversubscribed) | — |
+| seq-mco t8 | yes (first entry, 0.16) | 193/280 | wall-clock per competition rule (4-core box; t8 oversubscribed) | 1 engine-reject/error, 86 timeout |
 | seq-opt | out of scope by design (satisficing planner) | — | — | — |
 
