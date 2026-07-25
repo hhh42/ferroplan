@@ -15,3 +15,4 @@
 - [Performance](./performance.md)
 - [Benchmarks](./benchmarks.md)
 - [Benchmark results](./results.md)
+- [Competition standings](./standings.md)
