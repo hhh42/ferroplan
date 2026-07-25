@@ -197,8 +197,21 @@ def run_instance(val, n, d, p):
            "length": None, "val": None, "notes": None}
     t = time.perf_counter()
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT,
-                           preexec_fn=_limit)
+        # One retry after a breather on spawn failure: a memory-bloated
+        # PREDECESSOR can make this instance's fork() fail (the 0.16
+        # seq-mco t4 sweep lost floor-tile i7-i12 to exactly this — a
+        # consecutive spawn-fail cluster while the system recovered, logged
+        # as engine rejects). The retry runs on a recovered system; if it
+        # fails again the row is honestly marked spawn-fail, not engine.
+        for attempt in (0, 1):
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True,
+                                   timeout=TIMEOUT, preexec_fn=_limit)
+                break
+            except (OSError, subprocess.SubprocessError) as e:
+                if isinstance(e, subprocess.TimeoutExpired) or attempt == 1:
+                    raise
+                time.sleep(5)
         el = time.perf_counter() - t
         if r.returncode != 0 and "allocation" in (r.stderr or ""):
             rec["notes"] = "mem-cap"
@@ -213,6 +226,8 @@ def run_instance(val, n, d, p):
                                        temporal=plan.get("makespan") is not None)
     except subprocess.TimeoutExpired:
         rec["time"] = TIMEOUT
+    except (OSError, subprocess.SubprocessError):
+        rec["notes"] = "spawn-fail"
     except Exception:
         pass
     return rec

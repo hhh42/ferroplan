@@ -89,8 +89,15 @@ def solved(r):
 def classify(r, budget):
     if solved(r):
         return "solved"
-    if (r.get("notes") or "") == "mem-cap":
+    notes = r.get("notes") or ""
+    if notes == "mem-cap":
         return "mem-cap"
+    if notes == "spawn-fail":
+        # Runner-side fork failure under memory pressure (environmental;
+        # see run_instance's retry note in ipc67.py). Pre-0.16-fix sweeps
+        # logged these as engine-reject/error — the 0.16 record names the
+        # floor-tile t4/t8 cluster explicitly.
+        return "spawn-fail"
     t = r.get("time")
     if t is None:
         return "engine-reject/error"
