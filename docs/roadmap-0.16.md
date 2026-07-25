@@ -179,6 +179,51 @@ negative, standard budgets, zero-regression rule intact:
   standings-relevant; the four timed modal operators have survived
   three deferred lists and need a better reason than a table row.
 
+### Recorded — two raises delivered, one dissolved, one honest negative
+
+- **seq-mco: ENTERED** (the Phase 1 sweeps double as the Phase 2
+  delivery): t2 **193/280**, t4 **189/280**, t8 **193/280** —
+  first-ever rows, competition wall-clock rules, 4-core box.
+  Oversubscription (t8) nets to a wash; the t4 dip decoded to
+  RUNNER fork failures under memory pressure (floor-tile i7–i12
+  consecutive-spawn cluster; solo: an ordinary timeout, capped or
+  not) — `ipc67.py` now retries a failed spawn after a breather and
+  classifies persistent ones `spawn-fail` (environmental), its own
+  standings class.
+- **The qualitative-tpp selection extension: DISSOLVED by its own
+  probe** — the standing pattern (0.15 Phase 1) repeats: the probe
+  rewrote the phase. The extension was committed against the
+  board's 0-8 tpp rout; the first `[sel]` probe showed selection
+  ENGAGING (monitor facts included) and the metric landing at 13,
+  not the board's 24 — the board was 0.7/0.8-era stale. The full
+  re-measurement (Phase 1 record) took tpp to **6W/1T/1L** and the
+  overall board to **24W/4T/10L vs SGPlan5** with ZERO new
+  machinery: the 0.5.1 barrier default, 0.6 selection layer, and
+  0.10 DNF static resolution had already done the work, unmeasured
+  for seven cycles. No extension is built this cycle. Residuals,
+  named: tpp p07 (57 vs 49), trucks p04/p06 quality (2 vs 0,
+  4 vs 3), and trucks p07/p08 — which the probe demoted from wall
+  to BUDGET-BOUND: p07 solves on pure defaults at ~1100 s with
+  metric 6 (winner: 3); the board keeps its 600 s convention and
+  the ⁶ rows stand, with this data point on file. The quality
+  residue is the shared-timeline scheduling shape recorded since
+  the 0.6 simple-preferences forensics.
+- **IPC-6 raises: an honest negative.** The audit priced every
+  gap, and every large one sits behind a fence this project has
+  already named and deliberately deferred: model-train-t 0/30
+  (numeric last-mile — the 0.17 numeric-heuristic bet),
+  transport-t 4/30 and transport-seq 16/30 (the four-negative
+  route-structure fence), sokoban-t 10/30 (the fixpoint tie-break
+  lottery), woodworking/elevator mem-caps (environmental class).
+  The one unfenced candidate — crew-planning net-benefit 10/30,
+  never probed — probed to a GENUINE search wall: i15 grinds past
+  240 s solo (4× the sweep budget) with no restart/resource debug
+  events, a pure search-space grind. No cheap IPC-6 raise exists
+  at standard budgets; the raises route through the 0.17 engine
+  bets, with the audit as their targeting data. Zero engine code
+  changed this cycle — the 0.15.0-binary scoreboards ARE the final
+  ones.
+
 ## Phase 3 — documentation as the deliverable
 
 - The book gains a **Standings** chapter: the three competitions,

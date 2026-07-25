@@ -47,7 +47,28 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.15.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.16.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.16.0 — the standings cycle.** A measurement
+> release: zero engine changes, and the project's standings made
+> honest, scripted, and substantially BETTER than the books said.
+> The official IPC-5 results archive is vendored and grafted, and
+> re-measuring the qualitative-preferences board on today's defaults
+> flipped its verdict: **ferroplan beats SGPlan5 — the IPC-5
+> qualitative track winner — 24W/4T/10L**, winning rovers, storage,
+> and tpp outright (the old board was seven cycles stale). Every
+> deterministic satisficing track of IPC-5/6/7 is now swept and
+> tabled in one generated document
+> ([`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md),
+> rendered as the book's new
+> [Standings chapter](https://hhh42.github.io/ferroplan/standings.html)) —
+> including the IPC-7 **sequential multi-core track, entered for the
+> first time** (t2/t4/t8: 193/189/193 of 280 under competition
+> wall-clock rules), first-ever IPC-5
+> propositional/time/metric-time/constraints rows, and every
+> remaining gap priced with its mechanism named. Full record:
+> [`docs/roadmap-0.16.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.16.md);
+> next up: [`docs/roadmap-0.17.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.17.md).
 
 > **What's new in 0.15.0 — the seen-and-scheduled cycle.** Minds learn
 > to SEE: **`Session::observe`** is the belief surface — sighted facts
