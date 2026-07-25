@@ -61,14 +61,15 @@ fn qual_reported_equals_verified_everywhere() {
 #[test]
 #[ignore = "heavy IPC qualitative-preferences solve; opt-in via --include-ignored"]
 fn ipc5_qual_metric_no_regression() {
-    // p01 snapshot ceilings (must not regress upward). Locked 2026-07-16 from
-    // the Phase-2 defaults sweep (see benchmarks/ipc5-qualitative-scoreboard.md).
+    // p01 snapshot ceilings (must not regress upward). Re-locked 2026-07-25
+    // from the 0.16 re-measurement (see benchmarks/ipc5-qualitative-scoreboard.md
+    // — rovers 86.65 -> 68.04 and tpp 24 -> 13 since the 2026-07-16 lock).
     // 1e-6 slack: summed f64 metrics carry accumulation noise.
     for (d, ceiling) in [
         ("openstacks", 66.0),
-        ("rovers", 86.64633),
+        ("rovers", 68.039),
         ("storage", 0.0),
-        ("tpp", 24.0),
+        ("tpp", 13.0),
         ("trucks", 0.0),
     ] {
         let (m, _) = run(d, "p01");

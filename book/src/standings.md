@@ -17,13 +17,13 @@ Two kinds of honesty markers appear throughout:
   official results archive (`benchmarks/IPC5-results.tgz` — see
   `benchmarks/ATTRIBUTION.md` for provenance): per-instance
   `MetricValue`s of SGPlan5, HPlan-P, MIPS-XXL, MIPS-BDD and the
-  rest of the 2006 field. The headline there: **dead even with
-  SGPlan5 — the track winner — on three of five qualitative
-  domains** (openstacks, rovers, storage, 4W–4L each), with the tpp
-  gap mechanically attributed (a preference-selection shape, not a
-  search deficit — the raise is on the 0.16 Phase 2 list). The
-  IPC-5 propositional track is quality-scored by plan length
-  against the archive field.
+  rest of the 2006 field. The headline there: **ferroplan beats
+  SGPlan5 — the track winner — 24W/4T/10L on the qualitative
+  suite**, winning rovers, storage, and tpp outright and splitting
+  openstacks (the graft's first pass, scored against a stale
+  0.8-era ledger, read 12/3/23 — the correction narrative is on the
+  board). The IPC-5 propositional track is quality-scored by plan
+  length against the archive field.
 - **Coverage-only** means no aligned reference exists yet: either no
   official per-instance archive is vendored (IPC-6/7), or the
   runner does not record the track's quality currency (makespan for

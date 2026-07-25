@@ -36,7 +36,7 @@ before (reported == verified on every oracle-checked plan).
 
 | openstacks | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
 |---|---|---|---|---|---|---|---|---|---|
-| ferroplan | **66** | 68.6 | 77.8 | 89.2 | **122.5** | 121 | **283** | **617.7** | 8/8 run |
+| ferroplan (0.16) | **66** | 68.6 | 77.8 | 89.2 | **122.5** | 121 | **283** | **617.7** | 8/8 run |
 | SGPlan5 | 70 | 62.4 | 77 | 82.4 | 123.5 | 116.5 | 300 | 619.2 | 20/20 |
 | HPlan-P | 76 | 71.2 | 88.8 | 94.2 | 147.5 | 144.5 | 294 | 618.5 | 18/20 |
 | MIPS-XXL | 14 | 11.6 | — | — | — | — | — | — | 2/20 |
@@ -44,14 +44,14 @@ before (reported == verified on every oracle-checked plan).
 
 | rovers | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
 |---|---|---|---|---|---|---|---|---|---|
-| ferroplan | **86.65** | **33.44** | 58.77 | **42.34** | 317.35 | **66.64** | 99.91 | 888 | 8/8 run |
+| ferroplan (0.16) | **68.04** | **32.67** | **29.19** | **26.06** | 238.66 | **37.39** | **37.64** | **556** | 8/8 run |
 | SGPlan5 | 88.08 | 40.44 | 39.31 | 43.43 | 236.32 | 75.43 | 87.96 | 674 | 20/20 |
 | HPlan-P | 111.63 | 40.44 | 29.19 | 40.17 | 160.97 | 82.76 | 107.41 | 620 | 14/20 |
 | MIPS-XXL | — | — | — | — | — | — | — | — | 0/20 |
 
 | storage | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
 |---|---|---|---|---|---|---|---|---|---|
-| ferroplan | **0** | **10** | 60 | 78 | **47** | **90** | 200 | 261 | 8/8 run |
+| ferroplan (0.16) | **0** | **1** | **2** | **5** | **47** | **90** | 200 | 261 | 8/8 run |
 | SGPlan5 | 8 | 13 | 26 | 39 | 104 | 160 | 183 | 251 | 20/20 |
 | HPlan-P | 0 | 1 | 17 | 36 | 78 | 149 | 240 | 337 | 14/20 |
 | MIPS-XXL | 0 | 1 | 10 | 44 | — | — | — | — | 4/20 |
@@ -59,7 +59,7 @@ before (reported == verified on every oracle-checked plan).
 
 | tpp | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
 |---|---|---|---|---|---|---|---|---|---|
-| ferroplan | 24 | 42 | 60 | 78 | 156 | 186 | 216 | 246 | 8/8 run |
+| ferroplan (0.16) | **13** | **10** | **26** | **29** | **23** | **41** | 57 | **93** | 8/8 run |
 | SGPlan5 | 13 | 12 | 32 | 32 | 27 | 64 | 49 | 126 | 20/20 |
 | HPlan-P | 13 | 10 | 27 | 31 | 53 | 59 | 86 | 142 | 20/20 |
 | MIPS-XXL | — | 33 | 52 | 73 | 199 | 229 | 273 | 317 | 9/20 |
@@ -67,7 +67,7 @@ before (reported == verified on every oracle-checked plan).
 
 | trucks | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 | track cov. |
 |---|---|---|---|---|---|---|---|---|---|
-| ferroplan | **0** | 10 | 1 | **0** | **0** | 5 | — | — | 6/8 run |
+| ferroplan (0.16) | **0** | **1** | **0** | 2 | **0** | 4 | — | — | 6/8 run |
 | SGPlan5 | 0 | 2 | 0 | 0 | 0 | 3 | 3 | 7 | 20/20 |
 | HPlan-P | 0 | 1 | 5 | — | 13 | — | — | — | 4/20 |
 | MIPS-XXL | 0 | — | — | — | — | — | — | — | 1/20 |
@@ -75,26 +75,33 @@ before (reported == verified on every oracle-checked plan).
 
 ## W/T/L vs SGPlan5 (the winner), p01–p08
 
+Re-measured 2026-07-25 with the current engine (the first graft,
+computed against the stale 0.8-era ledger, read 12W/3T/23L — that
+verdict measured a planner seven cycles old and is superseded):
+
 | domain | W | T | L | note |
 |---|---|---|---|---|
 | openstacks | 4 | 0 | 4 | dead even with the winner |
-| rovers | 4 | 0 | 4 | dead even with the winner |
-| storage | 4 | 0 | 4 | dead even with the winner |
-| tpp | 0 | 0 | 8 | swept — the recorded tpp gap (see below) |
-| trucks | 0 | 3 | 3 | plus p07/p08 ferroplan no-run (coverage gap) |
-| **total** | **12** | **3** | **23** | + 2 no-runs |
+| rovers | 7 | 0 | 1 | ahead of the winner (p05 the lone loss, 238.7 vs 236.3) |
+| storage | 6 | 0 | 2 | ahead of the winner (p07/p08 the tail losses) |
+| tpp | 6 | 1 | 1 | ahead of the winner (p07 the lone loss, 57 vs 49) |
+| trucks | 1 | 3 | 2 | plus p07/p08 ferroplan no-run (coverage gap) |
+| **total** | **24** | **4** | **10** | + 2 no-runs |
 
-The honest sentences: **on three of five domains ferroplan trades
-even, instance for instance, with the competition winner** — while
-beating HPlan-P/MIPS-XXL/MIPS-BDD broadly on coverage and quality.
-The board is lost on **tpp**, and the archive says exactly why: ferroplan's
-tpp row (156/186/216/246 on p05–p08) coincides EXACTLY with
-MIPS-BDD's — both are parked on the same all-forgo plateau that
-`docs/forensics-tpp.md` documented from the inside, while SGPlan5 and
-HPlan-P search far below it. The tpp gap is a preference-DRIVEN-search
-gap, not a scoring artifact — now provable against the field. Trucks
-is a small-quality + tail-coverage gap (p07/p08 unfinished runs,
-noted ⁶ below).
+The honest sentences: **ferroplan, on today's defaults, beats the
+IPC-5 qualitative-preferences winner 24–10 across the 38 comparable
+instances, winning three domains outright (rovers, storage, tpp),
+splitting openstacks, and trailing only on trucks** — while beating
+HPlan-P/MIPS-XXL/MIPS-BDD broadly on coverage and quality. A
+correction, on the record: the first graft, scored against the stale
+ledger, attributed a tpp rout to an all-forgo plateau (the stale row
+coincided exactly with MIPS-BDD's) — that DIAGNOSIS described the
+0.7/0.8-era engine faithfully, but the machinery that retired it
+(the 0.5.1 barrier default and the 0.6 selection layer maturing
+through 0.10's DNF static resolution) had already shipped; the
+board simply had never been re-measured. What remains is small and
+named: tpp p07 (57 vs 49), trucks p04/p06 quality (2 vs 0, 4 vs 3),
+and the trucks p07/p08 600 s no-runs (⁶ below).
 
 Two facts anchor the numbers even without a reference row:
 
@@ -102,53 +109,53 @@ Two facts anchor the numbers even without a reference row:
   independent verifier replays the plan over the ORIGINAL problem, folds
   every constraint preference's semantics over the trajectory (never the
   compiled monitors), grounds all inner quantifiers, and recomputes the
-  metric. Checked exactly: all five p01s plus storage p05 on pure defaults
-  (`tests/ipc5_qual_metric.rs`, asserted in CI's heavy tier) plus spot
-  checks on storage p03 (60), openstacks p05 (122.5), tpp p08 (246),
-  trucks p05 (0), rovers p08 (888), and — new in 0.8 — storage p07 (200)
-  and p08 (261) via `examples/verify_plan.rs` — every one equal.
+  metric. `tests/ipc5_qual_metric.rs` asserts reported == verified on
+  all five p01s in CI's heavy tier (value-independent, so engine
+  improvements keep it green; the p01 regression CEILINGS in the same
+  file are re-locked to the current metrics), and the 0.7/0.8 spot
+  checks via `examples/verify_plan.rs` (storage p03/p05/p07/p08,
+  openstacks p05, tpp p08, trucks p05, rovers p08) all verified exact
+  against the plans of their day.
 - **Metrics agree at every thread count wherever both complete** (t1 ≡ t8 on
   all 34 instances with both runs inside budget — of the 36 with a metric,
   only storage p06 and trucks p06 lack a completed t1 run; the largest
   instances need a longer wall budget at 1 thread — budget-bound, never
   divergent).
 
-## ferroplan, p01–p08 (metric; wall seconds at 8 threads)
+## ferroplan, p01–p08 (metric; wall seconds, 4-core box, pure defaults)
+
+Re-measured 2026-07-25 (the 0.16 standings cycle) with the 0.15.0
+binary — defaults only, 600 s cap per instance, one sweep. **The
+previous ledger was the 0.7/0.8-era engine and had gone badly stale
+on three domains**: seven cycles of engine work (the 0.10
+precondition-DNF static resolution is the likely prime mover on the
+`imply`/`exists`-heavy preference compilations, with the richer-h
+and optimizer maturation behind it — per-cycle attribution not
+reconstructed; this is a standings ledger, not a bisect) had
+silently taken rovers 86.65→68.04 (p01) … 888→556 (p08), storage
+p02–p04 10/60/78→**1/2/5**, and tpp — the board's recorded rout —
+24/42/60/78/156/186/216/246 → **13/10/26/29/23/41/57/93**. The
+0.8-era numbers survive in this file's git history.
 
 | domain | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
 |---|---|---|---|---|---|---|---|---|
-| openstacks | 66 | 68.6 | 77.8 | 89.2 | 122.5 | 121¹ | 283¹ | 617.7¹ |
-| rovers | 86.65 | 33.44 | 58.77 | 42.34 | 317.35² | 66.64² | 99.91 | 888 |
-| storage | 0 | 10 | 60 | 78 | 47³ | 90³⁴ | 200³⁵ | 261³⁵ |
-| tpp | 24 | 42 | 60 | 78 | 156 | 186 | 216 | 246 |
-| trucks | 0 | 10 | 1 | 0 | 0 | 5⁴ | —⁶ | —⁶ |
-| *t8 secs* | | | | | | | | |
-| openstacks | 7.7 | 7.5 | 69 | 65 | 48 | 295 | 354 | 351 |
-| rovers | 7.0 | 4.4 | 6.8 | 6.9 | 149 | 165 | 69 | 146 |
-| storage | 0.0 | 6.9 | 8.7 | 16 | 186 | 313 | ⁵ | ⁵ |
-| tpp | 4.2 | 6.2 | 7.6 | 8.7 | 15 | 23 | 21 | 25 |
-| trucks | 1.2 | 6.8 | 6.8 | 4.8 | 16 | 373 | — | — |
+| openstacks | 66 | 68.6 | 77.8 | 89.2 | 122.5 | 121 | 283 | 617.7 |
+| rovers | 68.04 | 32.67 | 29.19 | 26.06 | 238.66 | 37.39 | 37.64 | 556 |
+| storage | 0 | 1 | 2 | 5 | 47 | 90 | 200 | 261 |
+| tpp | 13 | 10 | 26 | 29 | 23 | 41 | 57 | 93 |
+| trucks | 0 | 1 | 0 | 2 | 0 | 4 | —⁶ | —⁶ |
+| *secs* | | | | | | | | |
+| openstacks | 5.8 | 5.8 | 68 | 62 | 43 | 245 | 313 | 277 |
+| rovers | 29 | 23 | 37 | 38 | 125 | 52 | 65 | 130 |
+| storage | 0.0 | 0.1 | 19 | 24 | 126 | 178 | 322 | 328 |
+| tpp | 0.1 | 10 | 17 | 19 | 48 | 57 | 68 | 90 |
+| trucks | 0.1 | 19 | 15 | 42 | 61 | 422 | — | — |
 
-¹ openstacks p07/p08 exceed the sweep's default 300 s but complete at BOTH
-thread counts inside a 600 s budget (equal metrics t1/t8); p06 completes at
-t8 just under the default budget (294 s) and needs ~530 s at t1.
-² rovers p05/p06 at 1 thread need ~350–400 s (equal metrics).
-³ storage p05–p08 ran `FF_NO_ESPC=1` in the 0.7 sweep; **since 0.8 the
-same metrics reproduce on PURE DEFAULTS** (ESPC no longer engages on
-monitor artifacts — finding 2 below). p05 completes at both thread counts
-(0.7 sweep t1: 503 s).
-⁴ t1 exceeds the 600 s budget on storage p06 and trucks p06 (t8 metric
-shown; budget-bound, not divergent).
-⁵ storage p07/p08: **first covered in 0.8** — the 0.7 sweep had no metric
-(15 GB grounding OOM; finding 2). Measured on the 0.8 box (4 cores, pure
-defaults): p07 metric 200 in 292 s (grounds in 313 ms at 109 MB peak),
-p08 metric 261 in 338 s (676 ms / 174 MB); both spot-checked
-reported == verified exact. Wall times are from the 4-core box and are
-not comparable to this table's 8-thread column.
-⁶ trucks p07/p08: no metric — both thread counts exceed 600 s. The trucks
-tail was already the hardest simple-preferences draw (0.6 Phase-4 record:
-shared-timeline scheduling out of selection's reach); the qualitative
-variants add `sometime-before` ordering constraints on top. The 0.7
+⁶ trucks p07/p08: still no metric — the 600 s cap is exceeded. The
+trucks tail was already the hardest simple-preferences draw (0.6
+Phase-4 record: shared-timeline scheduling out of selection's
+reach); the qualitative variants add `sometime-before` ordering
+constraints on top. The 0.7
 Phase-4 gate (temporal selection, carried to 0.9) is the recorded lever.
 
 ## Coverage

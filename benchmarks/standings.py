@@ -209,7 +209,8 @@ def main():
         "[`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |",
         "| qualitative-preferences | yes | see board | reference-scored — "
         "[`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md)"
-        " (12W/3T/23L vs SGPlan5; even 4–4 on 3 of 5 domains) | — |",
+        " (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp"
+        " won outright) | — |",
         "| complex-preferences | no (modal operators rejected by name) "
         "| — | — | feature gap, on the deferred list |",
         "",

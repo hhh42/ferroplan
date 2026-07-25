@@ -20,12 +20,14 @@ normal dev machine — a user-side unblock, flagged).
 **[RESOLVED mid-phase, 2026-07-24: the user hand-retrieved
 `IPC5-results.tgz` (the Wayback held only a 301 for it — the live
 redirect still served the bytes) and it is now vendored at
-`benchmarks/IPC5-results.tgz`. The qualitative graft is DONE — see
-the board: 12W/3T/23L vs SGPlan5 overall, dead even (4–4) on three
-of five domains, tpp swept with the all-forgo plateau now provable
-against the field (ferroplan's p05–p08 row coincides exactly with
-MIPS-BDD's). The archive also unlocks reference-scored quality
-columns for the 2006 audit tracks.]**
+`benchmarks/IPC5-results.tgz`. The qualitative graft is DONE — and
+its first verdict (12W/3T/23L, computed against the board's
+0.7/0.8-era ferroplan column) forced a re-measurement that
+became the cycle's biggest raise: the CURRENT engine scores
+**24W/4T/10L vs SGPlan5**, winning rovers/storage/tpp outright —
+see the board for the full correction narrative. The archive also
+unlocks reference-scored quality columns for the 2006 audit
+tracks.]**
 
 What the records already admit, going in:
 

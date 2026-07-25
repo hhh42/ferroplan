@@ -14,7 +14,7 @@ for scoring semantics and the failure-class definitions.
 | metric-time | yes | 55/200 | coverage-only (makespan not recorded — runner debt) | 16 engine-reject/error, 28 mem-cap, 101 timeout |
 | constraints | yes | 5/120 | coverage-only (timed modal ops rejected by name) | 100 engine-reject/error, 15 timeout |
 | simple-preferences | yes | see board | reference-scored — [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |
-| qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (12W/3T/23L vs SGPlan5; even 4–4 on 3 of 5 domains) | — |
+| qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won outright) | — |
 | complex-preferences | no (modal operators rejected by name) | — | — | feature gap, on the deferred list |
 
 ## IPC-6 (2008)
