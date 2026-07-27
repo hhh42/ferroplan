@@ -53,6 +53,14 @@ SWEEPS = {
     "ipc7-mco-t2.jsonl": ("seq-mco t2", "ipc7", 60),
     "ipc7-mco-t4.jsonl": ("seq-mco t4", "ipc7", 60),
     "ipc7-mco-t8.jsonl": ("seq-mco t8", "ipc7", 60),
+    # The modern corpora (0.17 frontier cycle).
+    "ipc2014-sat.jsonl": ("2014 seq-sat", "modern", 60),
+    "ipc2014-agile.jsonl": ("2014 seq-agile", "modern", 60),
+    "ipc2014-tempo.jsonl": ("2014 tempo-sat", "modern", 30),
+    "ipc2014-mco-t4.jsonl": ("2014 seq-mco t4", "modern", 60),
+    "ipc2018-sat.jsonl": ("2018 seq-sat", "modern", 60),
+    "ipc2023-agile.jsonl": ("2023 classical", "modern", 60),
+    "ipc2023-numeric.jsonl": ("2023 numeric", "modern", 60),
 }
 
 # our 2006 variant name -> (archive domain dir, archive track dir prefix)
@@ -89,6 +97,12 @@ def solved(r):
 def classify(r, budget):
     if solved(r):
         return "solved"
+    if r.get("solved") and r.get("val") is False:
+        # The engine reported a plan; VAL rejected it. A first-class
+        # signal — either an engine soundness bug or a harness/VAL
+        # configuration gap on that corpus — never to be lumped into
+        # search losses. The audit record investigates per corpus.
+        return "VAL-RED"
     notes = r.get("notes") or ""
     if notes == "mem-cap":
         return "mem-cap"
@@ -289,6 +303,89 @@ def main():
     lines += [
         "| seq-opt | out of scope by design (satisficing planner) | — | "
         "— | — |",
+        "",
+    ]
+
+    # ---------------- The modern corpora (0.17) ----------------
+    corpus = os.path.join(B, ".ipc-corpus")
+
+    def load_bounds():
+        """Best-known cost per (year, domain, instance) from the official
+        bounds files (2023: dict path->[lo,hi]; 2018: list of [path,cost],
+        several entries per instance — the minimum is the best known)."""
+        best = {}
+        p23 = os.path.join(corpus, "ipc-2023", "bounds.json")
+        if os.path.exists(p23):
+            for path, (_, hi) in json.load(open(p23)).items():
+                m = re.match(r"agl/([\w-]+)/p(\d+)\.pddl", path)
+                if m and hi is not None:
+                    best[("2023", m.group(1), int(m.group(2)))] = float(hi)
+        p18 = os.path.join(corpus, "ipc-2018", "cost_bounds.json")
+        if os.path.exists(p18):
+            for path, cost in json.load(open(p18)):
+                m = re.match(r"sat/([\w-]+)/p(\d+)\.pddl", path)
+                if m and cost is not None:
+                    k = ("2018", m.group(1), int(m.group(2)))
+                    best[k] = min(best.get(k, float("inf")), float(cost))
+        return best
+
+    def bounds_quality(rows, year, suffix):
+        best = load_bounds()
+        w = t = l = 0
+        ratios = []
+        for r in rows:
+            if not solved(r):
+                continue
+            dom = r["variant"].removesuffix(suffix)
+            ref = best.get((year, dom, r["instance"]))
+            ours = r.get("metric") if r.get("metric") is not None else r.get("length")
+            if ref is None or ours is None:
+                continue
+            ratios.append(min(ref / ours, 1.0) if ours else 1.0)
+            w += ours < ref
+            t += ours == ref
+            l += ours > ref
+        if not ratios:
+            return None
+        return (
+            f"vs best-known bounds: {w}W/{t}T/{l}L, mean quality "
+            f"{sum(ratios)/len(ratios):.2f} ({len(ratios)} scored)"
+        )
+
+    lines += ["## The modern corpora (IPC 2014 / 2018 / 2023 — first entered 0.17)", ""]
+    lines += [
+        "| track | entered | coverage | quality | failure classes |",
+        "|---|---|---|---|---|",
+    ]
+    MODERN_Q = {
+        "2018 seq-sat": ("2018", "-sequential-satisficing"),
+        "2023 classical": ("2023", "-agile"),
+    }
+    for label in ["2014 seq-sat", "2014 seq-agile", "2014 tempo-sat",
+                  "2014 seq-mco t4", "2018 seq-sat", "2023 classical",
+                  "2023 numeric"]:
+        d = data.get(label)
+        if d is None:
+            lines.append(f"| {label} | sweep in flight / not yet run | — | — | — |")
+            continue
+        rows, budget = d
+        s, n, fails = coverage_line(rows, budget)
+        if label in MODERN_Q:
+            q = bounds_quality(rows, *MODERN_Q[label]) or "coverage-only"
+        elif label == "2023 numeric":
+            q = ("field CSVs vendored (ipc-2023n/results) — per-domain "
+                 "comparison in the audit record")
+        elif label == "2014 seq-mco t4":
+            q = "wall-clock per competition rule (4-core box)"
+        else:
+            q = "coverage + VAL"
+        lines.append(f"| {label} | yes (first entry, 0.17) | {s}/{n} | {q} | {fails} |")
+    lines += [
+        "",
+        "The 2023 classical corpus is swept on its agile instances at the "
+        "standard 60 s satisficing budget (the competition's agile budget "
+        "is 300 s — these rows are BASELINES, marked as such, not "
+        "competition entries).",
         "",
     ]
 
