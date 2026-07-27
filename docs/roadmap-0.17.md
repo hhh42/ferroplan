@@ -103,16 +103,21 @@ reference PLANS per instance + best-known bounds; IPC 2023 numeric
 every new corpus from day one.
 
 The big-catalog stress test (fixture:
-`benchmarks/bench/gen_catalog.py`) settled two rankings with
-numbers: **grounding is NOT the village's blocker** (10,000-item
-catalogs ground+solve in 37 s / 42 MB — static resolution holds;
-lifted search demoted to a watch item), and **consumption IS**:
-with consumable inputs the search wanders (895-step plan at N=100)
-and walls by N=300 — h^FF's delete relaxation is structurally
-blind to resource consumption. The novelty rung is therefore both
-the field-proven bet AND the village-critical one; the Phase 3
-favorite is confirmed with a measured, in-repo failure case as its
-fixture.
+`benchmarks/bench/gen_catalog.py`) settled the rankings with
+numbers — after correcting ITSELF once, on the record: **grounding
+is NOT the village's blocker** (10,000-item catalogs ground+solve
+in 37 s / 42 MB; lifted search demoted to a watch item), and the
+first-draft "consumption wall" (wandering 895-step plans, N=300
+timeout) turned out to be a FIXTURE artifact — the draft DAG grew
+deeper with N, making minimal plans exponential under consumption.
+Depth-capped to the shape real crafting has (4 layers, width
+scaling), the consumable village profile solves in 2.65 s at
+N=3000: **nothing blocks the village at realistic scale.** The
+novelty rung keeps its Phase 3 slot on the FIELD case (the
+2018/2023 corpora, where it lives inside every modern winner); its
+referee is the corpus A/B, and the fixture lesson — depth is the
+enemy, width is not — goes straight into the Phase 4 village
+design.
 
 ## Phase 2 — first standings on the modern corpus
 

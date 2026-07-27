@@ -1,0 +1,15 @@
+(define (domain catalog)
+  (:requirements :strips :typing)
+  (:types item)
+  (:predicates (have ?i - item) (raw ?i - item)
+               (needs1 ?out - item ?in - item)
+               (needs2 ?out - item ?in - item))
+  (:action gather
+    :parameters (?i - item)
+    :precondition (raw ?i)
+    :effect (have ?i))
+  (:action make
+    :parameters (?out - item ?a - item ?b - item)
+    :precondition (and (needs1 ?out ?a) (needs2 ?out ?b)
+                       (have ?a) (have ?b))
+    :effect (and (have ?out) (not (have ?a)) (not (have ?b)))))

@@ -27,13 +27,23 @@ import os
 import sys
 
 
-def gen(n, consume, outdir):
+def gen(n, consume, outdir, depth=4):
+    # Depth is CAPPED (default 4): real crafting chains are shallow and
+    # wide (a chair is wood->planks->parts->chair, not a 12-deep tower).
+    # The first fixture draft let depth grow with N, which under
+    # consumption makes the MINIMAL plan exponential in depth (every make
+    # re-makes its whole input subtree) — that measures plan length, not
+    # search quality. Fixed depth keeps plans polynomial so the knob N
+    # scales exactly what the village scales: catalog WIDTH.
     layers = []
     items = [f"i{k}" for k in range(n)]
-    # layer sizes halve; layer 0 gets the remainder (raw items)
+    # layer sizes shrink geometrically across `depth` layers; layer 0
+    # (raw) gets the remainder
     sizes = []
     rest = n
-    while rest > 1:
+    for _ in range(depth - 1):
+        if rest <= 1:
+            break
         top = max(1, rest // 3)
         sizes.append(top)
         rest -= top
@@ -89,6 +99,8 @@ def gen(n, consume, outdir):
 if __name__ == "__main__":
     n = int(sys.argv[1])
     consume = "--consume" in sys.argv
+    depth = int(sys.argv[sys.argv.index("--depth") + 1]) \
+        if "--depth" in sys.argv else 4
     out = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv \
         else f"catalog-{n}{'-consume' if consume else ''}"
-    gen(n, consume, out)
+    gen(n, consume, out, depth)

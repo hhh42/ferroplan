@@ -153,13 +153,27 @@ profile look in some later cycle).
 | 300 | TIMEOUT 60 s | the wall |
 | 1,000 | TIMEOUT 120 s | — |
 
-**This is the village's actual blocker, measured before the village
-exists**: h^FF's delete relaxation reuses every gathered item
-infinitely, so consumption makes the heuristic near-blind — the
-search re-gathers in circles (the 895-step plan at N=100) and walls
-by N=300. The fix class is exactly bet #1 (novelty-driven
-exploration breaks h-plateaus without needing h accuracy) plus the
-existing 0.15 trip-bound resource machinery (`FF_RESLM`) extended
-to consumption counting. The ranking above is therefore MEASURED,
-not just literature: the novelty rung is both the field's proven
-idea AND the village's needed one.
+**Correction, recorded the same day**: the first read blamed h^FF's
+consumption-blindness — but the fixture itself was rigged. Its
+recipe DAG grew DEEPER with N, and under consumption every make
+re-makes its whole input subtree: the MINIMAL plan is exponential
+in depth (the 895 steps at N=100 were largely forced, not
+wandering), which measures plan length, not search quality. With
+depth CAPPED at the shape real crafting has (4 layers, width
+scaling — `--depth`, now the generator default):
+
+| N items (consume, depth 4) | wall | plan |
+|---|---|---|
+| 300 | 0.03 s | 15 |
+| 1,000 | 0.33 s | 15 |
+| 3,000 | 2.65 s | 15 |
+
+**The village profile — wide consumable catalogs at honest depth —
+is comfortable for the current engine to N=3000 and beyond.**
+Neither grounding NOR consumption blocks the village at realistic
+scale; both scares dissolved under fixture discipline. The novelty
+rung's case therefore rests where the literature put it: the
+2018/2023 corpus baselines are its referee, not the village. (The
+rung itself was built and behaves correctly — the A/B on the
+depth-4 fixture is exactly neutral, as it should be on instances
+the earlier rungs already own.)

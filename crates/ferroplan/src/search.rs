@@ -803,6 +803,18 @@ pub fn plan_avoiding(
     ehc_first: bool,
     forbidden: &[bool],
 ) -> PlanOutcome {
+    // Probe hatch (A/B eyes for the novelty rung): skip straight to it.
+    if std::env::var("FF_NOVELTY_ONLY").is_ok() {
+        if let Some((ops, evaluated)) =
+            crate::novelty::search(task, threads, cfg.max_eval, forbidden)
+        {
+            return PlanOutcome {
+                ops: Some(ops),
+                evaluated,
+                ehc_fell_back: true,
+            };
+        }
+    }
     if ehc_first {
         if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval) {
             return PlanOutcome {
@@ -820,6 +832,25 @@ pub fn plan_avoiding(
             const LAMA_CAP: usize = 400_000;
             if let Some((ops, evaluated)) =
                 crate::lama::search(task, threads, LAMA_CAP.min(cfg.max_eval), forbidden)
+            {
+                return PlanOutcome {
+                    ops: Some(ops),
+                    evaluated,
+                    ehc_fell_back: true,
+                };
+            }
+        }
+        // Novelty rung (0.17 Phase 3): both h-driven rungs have now died,
+        // i.e. the relaxed gradient is flat OR WRONG — the measured wrong
+        // case is resource consumption (the catalog-consume fixture),
+        // where h^FF's delete relaxation reuses every consumable and the
+        // search wanders. Width-1 novelty-first exploration visits
+        // structurally new states without asking h's permission. Bounded
+        // like the LAMA rung; `FF_NO_NOVELTY=1` removes it.
+        if std::env::var("FF_NO_NOVELTY").is_err() {
+            const NOVELTY_CAP: usize = 400_000;
+            if let Some((ops, evaluated)) =
+                crate::novelty::search(task, threads, NOVELTY_CAP.min(cfg.max_eval), forbidden)
             {
                 return PlanOutcome {
                     ops: Some(ops),
