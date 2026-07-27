@@ -92,6 +92,28 @@ commitments):
   honest read on where village scale breaks the engine, BEFORE the
   village domain is built.
 
+### Recorded — the memo is written, the corpora are local, and the stress test renamed the bet
+
+`docs/landscape-2026.md` delivered with the ranked gap list; all
+four corpora fetched and verified (IPC 2014 via potassco — 66
+variants including a 2014 seq-mco track; IPC 2018 sat — 12 domains
++ official cost bounds; IPC 2023 classical — 7 domains + official
+reference PLANS per instance + best-known bounds; IPC 2023 numeric
+— 20 domains + official result CSVs). Quality references exist for
+every new corpus from day one.
+
+The big-catalog stress test (fixture:
+`benchmarks/bench/gen_catalog.py`) settled two rankings with
+numbers: **grounding is NOT the village's blocker** (10,000-item
+catalogs ground+solve in 37 s / 42 MB — static resolution holds;
+lifted search demoted to a watch item), and **consumption IS**:
+with consumable inputs the search wanders (895-step plan at N=100)
+and walls by N=300 — h^FF's delete relaxation is structurally
+blind to resource consumption. The novelty rung is therefore both
+the field-proven bet AND the village-critical one; the Phase 3
+favorite is confirmed with a measured, in-repo failure case as its
+fixture.
+
 ## Phase 2 — first standings on the modern corpus
 
 - Sweep IPC 2014/2018/2023 satisficing (+ agile timing discipline

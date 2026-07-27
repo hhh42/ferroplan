@@ -87,6 +87,14 @@ TRACK_PATTERNS = {
     "constraints-2006": r"constraints",
     # IPC-7 (2011) sequential multi-core — the data-parallel track.
     "seq-mco": r"sequential-multi-core",
+    # 0.17 modern-corpus tracks (directory-scoped via TRACK_IPCS).
+    "seq-sat-2014": r"sequential-satisficing",
+    "seq-agile-2014": r"sequential-agile",
+    "seq-mco-2014": r"sequential-multi-core",
+    "tempo-sat-2014": r"temporal-satisficing",
+    "sat-2018": r"sequential-satisficing",
+    "agile-2023": r"-agile$",
+    "numeric-2023": r"numeric-satisficing",
 }
 
 # Which competition directories each track lives in.
@@ -96,6 +104,17 @@ TRACK_IPCS = {
     "metric-time-2006": ("ipc-2006",),
     "constraints-2006": ("ipc-2006",),
     "seq-mco": ("ipc-2011",),
+    # The modern corpora (0.17 frontier cycle; fetched/normalized by
+    # get-ipc.sh). 2014 reuses the potassco variant naming, so the standing
+    # seq-sat/tempo-sat patterns apply, scoped to its directory; 2018/2023
+    # use the normalized names get-ipc.sh writes.
+    "seq-sat-2014": ("ipc-2014",),
+    "seq-agile-2014": ("ipc-2014",),
+    "seq-mco-2014": ("ipc-2014",),
+    "tempo-sat-2014": ("ipc-2014",),
+    "sat-2018": ("ipc-2018",),
+    "agile-2023": ("ipc-2023",),
+    "numeric-2023": ("ipc-2023n",),
 }
 
 
