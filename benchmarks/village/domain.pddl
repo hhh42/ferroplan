@@ -35,7 +35,9 @@
   (:functions
     (stock ?i - item)          ; the worker's carried stock of an item kind
     (money)
-    (qty1 ?r - recipe)         ; input quantities consumed
+    (req1 ?r - recipe)         ; input stock REQUIRED to work (>= consumed)
+    (req2 ?r - recipe)         ; ... a fixture input has req>0, qty=0
+    (qty1 ?r - recipe)         ; input quantities CONSUMED
     (qty2 ?r - recipe)
     (yield ?r - recipe)        ; output quantity produced
     (gather-time ?i - item)
@@ -73,8 +75,8 @@
                     (at start (out ?r ?o))
                     (at start (needs-tool ?r ?t)) (at start (holding ?w ?t))
                     (at start (station-of ?r ?s))
-                    (at start (>= (stock ?a) (qty1 ?r)))
-                    (at start (>= (stock ?b) (qty2 ?r))))
+                    (at start (>= (stock ?a) (req1 ?r)))
+                    (at start (>= (stock ?b) (req2 ?r))))
     :effect (and (at start (decrease (stock ?a) (qty1 ?r)))
                  (at start (decrease (stock ?b) (qty2 ?r)))
                  (at end (increase (stock ?o) (yield ?r)))))

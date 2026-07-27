@@ -22,12 +22,12 @@
     (tool-at saw sawmill) (tool-at mallet workshop)
     ;; saw-planks: 2 oak -> 3 plank, saw, sawmill, 4 ticks
     (in1 saw-planks oak) (in2 saw-planks oak) (out saw-planks plank)
-    (= (qty1 saw-planks) 1) (= (qty2 saw-planks) 1) (= (yield saw-planks) 3)
+    (= (req1 saw-planks) 1) (= (req2 saw-planks) 1) (= (qty1 saw-planks) 1) (= (qty2 saw-planks) 1) (= (yield saw-planks) 3)
     (needs-tool saw-planks saw) (station-of saw-planks sawmill)
     (= (make-time saw-planks) 4)
     ;; join-stool: 3 plank (+0 extra) -> 1 stool, mallet, workshop, 5 ticks
     (in1 join-stool plank) (in2 join-stool plank) (out join-stool stool)
-    (= (qty1 join-stool) 2) (= (qty2 join-stool) 1) (= (yield join-stool) 1)
+    (= (req1 join-stool) 2) (= (req2 join-stool) 1) (= (qty1 join-stool) 2) (= (qty2 join-stool) 1) (= (yield join-stool) 1)
     (needs-tool join-stool mallet) (station-of join-stool workshop)
     (= (make-time join-stool) 5)
     (market town-market) (= (price stool) 12) (= (price oak) 1)

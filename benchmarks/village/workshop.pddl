@@ -31,14 +31,13 @@
     (tool-at tongs smithy)
     ;; forge-chisel: 1 iron + 1 branch -> 1 chisel (an ITEM), tongs, smithy
     (in1 forge-chisel iron) (in2 forge-chisel branch) (out forge-chisel chisel)
-    (= (qty1 forge-chisel) 1) (= (qty2 forge-chisel) 1) (= (yield forge-chisel) 1)
+    (= (req1 forge-chisel) 1) (= (req2 forge-chisel) 1) (= (qty1 forge-chisel) 1) (= (qty2 forge-chisel) 1) (= (yield forge-chisel) 1)
     (needs-tool forge-chisel tongs) (station-of forge-chisel smithy)
     (= (make-time forge-chisel) 6)
-    ;; carve-decoy: 1 branch + 1 chisel-as-material kept via qty2=0 trick?
-    ;; No tricks: carving CONSUMES nothing of the chisel (qty2 0) but
-    ;; requires chisel STOCK >= 1 as a workbench fixture.
+    ;; carve-decoy: consumes 1 branch; the chisel is a FIXTURE input —
+    ;; required in stock (req2 1) but not consumed (qty2 0).
     (in1 carve-decoy branch) (in2 carve-decoy chisel) (out carve-decoy decoy)
-    (= (qty1 carve-decoy) 1) (= (qty2 carve-decoy) 0) (= (yield carve-decoy) 1)
+    (= (req1 carve-decoy) 1) (= (req2 carve-decoy) 1) (= (qty1 carve-decoy) 1) (= (qty2 carve-decoy) 0) (= (yield carve-decoy) 1)
     (needs-tool carve-decoy chisel-tool) (station-of carve-decoy carvery)
     (= (make-time carve-decoy) 4)
     (tool-at chisel-tool carvery)
