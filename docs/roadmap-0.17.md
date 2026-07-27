@@ -131,6 +131,47 @@ design.
   is a BASELINE, not a challenge. The deliverable is knowing the
   distance, per domain, with the failure classes named.
 
+### Recorded — seven tracks entered, the distance known, four red flags decoded
+
+All seven sweeps ran at standard budgets against the 0.16.0-behavior
+binary (VAL on everything; full rows in `ipc-standings.md`,
+generated): IPC-2014 seq-sat **95/280**, seq-agile **94/280**,
+tempo-sat **42/200** (+23 VAL-RED — see below), seq-mco t4 entered;
+IPC-2018 sat **30/240** with the first bounds-scored quality column
+(0W/1T/13L vs best-known, mean 0.72); IPC-2023 classical **26/140**
+at the 60 s baseline budget (bounds quality 0W/11T/15L, mean 0.88 —
+ties on 11 of 26!); IPC-2023 numeric **112/400**, ferroplan's first
+number on the modern numeric track. The distance to the modern
+field is now measured, not imagined: 2018-hard domains (agricola,
+organic-synthesis, snake) are where two decades of FD machinery
+show; the numeric track lands right where the memo's #2 bet
+(subgoaling-class numeric h) points.
+
+**The VAL-RED classes, solo-probed and decoded, one per cluster:**
+
+- **drone-numeric (16) and data-network-2018 (8): VAL-side, not
+  engine.** VAL's parser rejects both DOMAINS outright ("Parser
+  failed to read file" / "Problem in domain definition!") — our
+  plans never got judged. Classified harness-gap; the runner keeps
+  them VAL-RED rather than quietly counting them solved (honesty
+  over coverage), with the note that a VAL upgrade or per-domain
+  exemption is runner work, not engine work.
+- **match-cellar-2014 (20) and map-analyzer-2014 (3): a REAL
+  engine bug, named to the mechanism — the ε-EMISSION ORDER
+  INVERSION.** The 2014 match-cellar's tight 5/2 packing makes a
+  mend's end and its match's end land on the SAME internal epoch;
+  the tie-scan legally fires mend-end before match-end (the
+  kiln-gap machinery working as designed) — but the ε-separation
+  EMISSION pass staggers the STARTS, so the emitted mend end
+  (start+ε+2.0) crosses the emitted match end by exactly ε, and
+  VAL reads the invariant as broken for 0.001. Internally sound,
+  emitted unsound: the pass must preserve internal same-epoch
+  order for ends riding on shifted starts. Same family as the
+  ε-separation mutex gaps that led the 0.14 extension; **named
+  correctness debt, leads 0.18** — not rushed into this cut's
+  temporal engine (a fix invalidates every temporal board and
+  demands full re-sweeps).
+
 ## Phase 3 — engine bets, memo-ranked (measured, per bet)
 
 - Top-of-list bets from the Phase 1 memo get the cycle's swings —
