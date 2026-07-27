@@ -139,6 +139,26 @@ design.
   flip. The novelty rung is the going-in favorite; the memo can
   overrule it.
 
+### Recorded — the rung is built; the referee sweep closes the phase
+
+**The novelty rung ships** (`crates/ferroplan/src/novelty.rs`):
+width-1 BFWS-style greedy best-first — open list ordered by state
+novelty first (a fact never seen in the unachieved-goal-count
+cell), h second — with the LAMA rung's proven skeleton (dual
+preferred/normal heaps, deferred parent-h, deterministic funnel,
+t1 ≡ t8 pinned by test) as the classical ladder's THIRD bounded
+rung: it runs only after EHC and LAMA both give up, so it can only
+add coverage. `FF_NO_NOVELTY=1` removes it; `FF_NOVELTY_ONLY=1`
+probes it. Two design lessons paid for and recorded: a FINER
+novelty partition (an early draft added parent-h to the cell)
+makes nearly everything novel and measurably degenerates to plain
+h-greed (byte-identical plans), and the fixture that motivated the
+rung corrected itself (Phase 1 record) — so the rung's REFEREE is
+the corpus A/B (the new 2018/2023/2014 tracks plus the standing
+classical boards, novelty binary vs the committed baselines),
+which runs when the Phase 2 chain frees the box. Verdict lands in
+this record.
+
 ## Phase 4 — the village (the abstract core, owned here)
 
 - **The domain**: abstract verbs only — `pickup`, `make`, `hire`,
@@ -157,6 +177,42 @@ design.
   big-object benchmark.
 - The game project consumes this domain; content packs extend the
   catalogs without touching the rules.
+
+### Recorded — the village stands, three rungs deep
+
+**`benchmarks/village/`** ships the abstract core exactly as
+committed: ONE gather / make / buy / sell (plus walk and
+pickup-tool), every piece of content — items, recipes with
+required-vs-consumed quantities (`req1/req2` vs `qty1/qty2`; a
+fixture input like a chisel has req 1, qty 0 — the qty-only first
+draft let carving happen without a chisel, caught and fixed), tool
+and station gates, prices, travel times — as INIT DATA. Rung 1
+(craftsman: tools → gather → two-recipe chain → market, makespan
+21) and rung 2 (workshop: buy iron, forge the chisel carving
+requires, makespan 61) solve on defaults, tests pinning the forced
+chain structure. Rung 3 (`examples/village.rs`) demonstrates the
+HIRE mechanism: workers fork the one grounded world scoped to
+their own labor, a hire is `set_goal`, a re-hire is another —
+mara's decoy contract correctly forces her through the
+iron-buy/forge/carve chain. The scaling dimension is priced by the
+depth-capped catalog stress test (width to N=3000 comfortable).
+
+**Finding for the fence ledger**: the communal village exhibits the
+START-CREDIT PLATEAU in miniature — h^FF pays for each GATHER
+start on firing, gather-spam floods the pruned pass (19 pending
+gather intervals on one popped node), and a 200k think dies where
+a 1M think sails. The h-surgery bet (end-gated interval credit)
+now has a GAME-SHAPED witness next to TMS on its file.
+
+## Phase 5 — the screens (severable)
+
+**SEVERED to 0.18, as one coherent deliverable**: the village live
+page needs the live tick-loop village underneath it (the thing
+rung 3 deliberately did not build), and shipping the loop and its
+page together — with plan introspection views beside them — is one
+experience, not two halves. The severance is the roadmap's own
+marking ("severable") exercised, not a cut corner: rung 3 proves
+the hire mechanism; the page shows it moving, next cycle.
 
 ## Phase 5 — the screens (severable)
 
