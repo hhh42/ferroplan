@@ -148,16 +148,34 @@ cell), h second — with the LAMA rung's proven skeleton (dual
 preferred/normal heaps, deferred parent-h, deterministic funnel,
 t1 ≡ t8 pinned by test) as the classical ladder's THIRD bounded
 rung: it runs only after EHC and LAMA both give up, so it can only
-add coverage. `FF_NO_NOVELTY=1` removes it; `FF_NOVELTY_ONLY=1`
-probes it. Two design lessons paid for and recorded: a FINER
-novelty partition (an early draft added parent-h to the cell)
-makes nearly everything novel and measurably degenerates to plain
-h-greed (byte-identical plans), and the fixture that motivated the
-rung corrected itself (Phase 1 record) — so the rung's REFEREE is
-the corpus A/B (the new 2018/2023/2014 tracks plus the standing
-classical boards, novelty binary vs the committed baselines),
-which runs when the Phase 2 chain frees the box. Verdict lands in
-this record.
+add coverage per instance. `FF_NOVELTY_ONLY=1` probes it. Two
+design lessons paid for and recorded: a FINER novelty partition
+(an early draft added parent-h to the cell) makes nearly
+everything novel and measurably degenerates to plain h-greed
+(byte-identical plans), and the fixture that motivated the rung
+corrected itself (Phase 1 record) — so the rung's REFEREE was the
+corpus A/B, novelty binary vs the committed baselines across five
+classical boards.
+
+**The referee's verdict: OPT-IN (`FF_NOVELTY=1`), by the gen-skip
+arithmetic.** Per-instance "can only add coverage" is not
+per-BUDGET: the rung burns up to 400k evals of wall time ahead of
+the complete fallback, and at wall-clock budgets that tax priced
+out every budget-edge instance that used to fall through and
+solve. The full diff: 2018-sat **+3/−1** (39 vs 38), 2023
+classical **0/0**, 2014-sat **0/−6**, seq-sat **+1/−34** (408 vs
+441!), prop-2006 **+3/−10** — **+7 gained, −51 lost**. The gains
+are REAL — six instances where h dies outright and novelty-first
+exploration finds the door — and stay reachable via the flag; the
+tax is structural. Why the LAMA rung survives the identical
+structure: its win rate carries its tax; novelty's does not, on
+these corpora. The recorded next idea (0.18+, not this cycle): a
+BUDGET-AWARE ladder — spend the novelty rung only when the
+remaining wall budget affords it, or interleave rungs on one clock
+instead of sequencing them — which is also exactly what the agile
+track's scoring rewards. With the flag off the classical path is
+byte-identical to 0.16.0, so every standing scoreboard remains the
+cut's scoreboard.
 
 ## Phase 4 — the village (the abstract core, owned here)
 

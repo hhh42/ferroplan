@@ -19,10 +19,15 @@
 //! there carries a novelty component (docs/landscape-2026.md). Novelty-
 //! first exploration does not ask h for permission to visit a
 //! structurally new state. This rung runs BOUNDED after the LAMA rung
-//! gives up and before the complete weighted fallback, so it can only
-//! add coverage; its referee is the corpus A/B, per the house rule.
-//! `FF_NO_NOVELTY=1` removes it, and explicit `--search bfs` never
-//! enters it. (`FF_NOVELTY_ONLY=1` is the probe hatch.)
+//! gives up and before the complete weighted fallback — and the corpus
+//! referee made it OPT-IN (`FF_NOVELTY=1`): "can only add coverage"
+//! is true per-instance but not per-BUDGET — the rung's wall-time tax
+//! ahead of the complete fallback cost 51 budget-edge instances against
+//! 7 gained across the classical boards (full arithmetic in the 0.17
+//! Phase 3 record). The gains are real where h truly dies (+3 on
+//! 2018-sat, +3 on prop-2006) and stay reachable via the flag.
+//! (`FF_NOVELTY_ONLY=1` is the probe hatch; `--search bfs` never
+//! enters either.)
 //!
 //! Determinism: identical contract and structure to the LAMA rung —
 //! fixed pop batches from dual (preferred/normal) heaps, order-preserving

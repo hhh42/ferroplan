@@ -31,7 +31,10 @@ fn hire(name: &str, s: &mut Session, contract: &str) -> Result<usize, String> {
         (Some(p), true) => p.clone(),
         _ => return Err(format!("{name}: contract {contract} unplannable")),
     };
-    println!("hired {name} on `{contract}` -> {} steps:", plan.steps.len());
+    println!(
+        "hired {name} on `{contract}` -> {} steps:",
+        plan.steps.len()
+    );
     for st in &plan.steps {
         println!(
             "   {:>7.3}  {} {}",

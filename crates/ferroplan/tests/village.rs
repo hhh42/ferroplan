@@ -6,10 +6,7 @@
 use ferroplan::{solve, Options};
 
 fn base() -> String {
-    format!(
-        "{}/../../benchmarks/village",
-        env!("CARGO_MANIFEST_DIR")
-    )
+    format!("{}/../../benchmarks/village", env!("CARGO_MANIFEST_DIR"))
 }
 
 fn run(problem: &str) -> ferroplan::Solution {

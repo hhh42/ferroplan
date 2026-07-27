@@ -42,6 +42,7 @@ results are deterministic and thread-count independent.
 
 | var | default | effect |
 |---|---|---|
+| `FF_NOVELTY` | off | **experimental**: the width-1 BFWS-style novelty rung (0.17) — a third bounded classical rung after EHC and LAMA fail, open list ordered by state novelty then h. Referee-measured: +7/−51 across the classical boards at wall-clock budgets (the rung's wall-time tax ahead of the complete fallback prices out budget-edge instances); the +3 on 2018-sat and +3 on prop-2006 are real where h dies outright. `FF_NOVELTY_ONLY=1` probes the rung alone. |
 | `FF_NO_DNF_STATIC` | resolve | disable static resolution inside precondition DNF expansion (restore the 2^k `imply` blowup the 0.10 fix removed — openstacks-ADL 6/30 → 30/30). |
 | `FF_NO_TRAJ_END` | end-action | restore the exponential goal-DNF construction for hard trajectory monitors (pre-0.8). |
 | `FF_CLM` | off | **experimental**: classical landmark-count guidance term. Measured negative (transport unchanged, floor-tile worse). |

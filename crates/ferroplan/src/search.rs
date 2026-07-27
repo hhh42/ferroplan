@@ -840,14 +840,17 @@ pub fn plan_avoiding(
                 };
             }
         }
-        // Novelty rung (0.17 Phase 3): both h-driven rungs have now died,
-        // i.e. the relaxed gradient is flat OR WRONG — the measured wrong
-        // case is resource consumption (the catalog-consume fixture),
-        // where h^FF's delete relaxation reuses every consumable and the
-        // search wanders. Width-1 novelty-first exploration visits
-        // structurally new states without asking h's permission. Bounded
-        // like the LAMA rung; `FF_NO_NOVELTY=1` removes it.
-        if std::env::var("FF_NO_NOVELTY").is_err() {
+        // Novelty rung (0.17 Phase 3), OPT-IN (`FF_NOVELTY=1`): width-1
+        // novelty-first exploration for where the relaxed gradient is flat
+        // or wrong. The referee A/B flipped it off-by-default: as a third
+        // bounded rung it BURNS WALL TIME ahead of the complete fallback,
+        // and under wall-clock budgets that tax cost 51 instances across
+        // the classical boards against 7 gained (+3 on 2018-sat and +3 on
+        // prop-2006 are real and stay reachable via the flag) — the same
+        // referee arithmetic that made gen-skip opt-in in 0.15. The LAMA
+        // rung survives the same structure because its win rate carries
+        // its tax; novelty's does not, on today's corpora.
+        if std::env::var("FF_NOVELTY").is_ok() {
             const NOVELTY_CAP: usize = 400_000;
             if let Some((ops, evaluated)) =
                 crate::novelty::search(task, threads, NOVELTY_CAP.min(cfg.max_eval), forbidden)
