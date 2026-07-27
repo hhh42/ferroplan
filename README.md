@@ -47,7 +47,24 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.16.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.17.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.17.0 — the frontier cycle.** Ferroplan measures
+> itself against the MODERN field for the first time: IPC 2014, 2018,
+> and 2023 (classical AND numeric) are fetched, entered, and tabled —
+> seven new tracks, 1,820 instances, quality scored against official
+> best-known bounds where they exist
+> ([standings](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md)).
+> The research map behind the push is
+> [`docs/landscape-2026.md`](https://github.com/hhh42/ferroplan/blob/main/docs/landscape-2026.md);
+> its first engine bet — a BFWS-style **novelty rung** — shipped,
+> met its referee, and lost honestly (+7/−51 at wall-clock budgets:
+> opt-in via `FF_NOVELTY=1`, mechanism and next idea on record). And
+> **the village is here**: the abstract crafting-economy domain the
+> RPG simulation builds on (`benchmarks/village/` — one gather/make/
+> buy/sell rule, catalogs as pure data) with hiring as a Session
+> goal contract (`examples/village.rs`). Full record:
+> [`docs/roadmap-0.17.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.17.md).
 
 > **What's new in 0.16.0 — the standings cycle.** A measurement
 > release: zero engine changes, and the project's standings made

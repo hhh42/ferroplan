@@ -2,6 +2,81 @@
 
 All notable changes to this project are documented here.
 
+## [0.17.0] - 2026-07-27 — The frontier cycle
+
+The push toward "best PDDL planner in general," measured against the
+modern field for the first time — and the abstract village domain
+the RPG simulation builds on (cycle record in `docs/roadmap-0.17.md`).
+
+### The landscape, mapped with receipts
+
+- **`docs/landscape-2026.md`**: where planning went after 2011 — the
+  IPC 2018/2023 winners run novelty/width search and lifted planning
+  over FD-class machinery; NLM-CutPlan's numeric LM-cut family swept
+  the 2023 numeric track (its Orbit variant validating ferroplan's
+  symmetry direction from the optimal side); the ranked engine-gap
+  list with an honest in-this-engine cost per idea.
+- **Four corpora fetched, normalized, and scripted** (`get-ipc.sh`):
+  IPC-2014 (66 variants), IPC-2018 sat (+official cost bounds),
+  IPC-2023 classical (+official reference plans and best-known
+  bounds), IPC-2023 numeric (+official result CSVs). Seven new
+  runner tracks; 1,820 instances.
+
+### First standings on the modern field
+
+- IPC-2014: seq-sat **95/280**, seq-agile **94/280**, tempo-sat
+  **42/200**, seq-mco entered at t4. IPC-2018 sat: **30/240** with
+  the first bounds-scored quality column. IPC-2023 classical:
+  **26/140** at the 60 s baseline (quality ties best-known on 11 of
+  26 solved). IPC-2023 numeric: **112/400** — ferroplan's first
+  number on the modern numeric track. All rows generated into
+  `benchmarks/ipc-standings.md` with failure classes counted.
+- Four VAL-red clusters decoded per-cluster: two VAL-side (VAL's
+  parser rejects the drone-numeric and data-network domains), two a
+  real engine bug **named to the mechanism** — the ε-emission order
+  inversion (same-epoch end pairs, legally reordered internally,
+  get their emitted ends crossed by ε-staggered starts; the same
+  family as 0.14-ext's ε mutex gaps). Named correctness debt;
+  leads 0.18.
+
+### The novelty rung (and its referee)
+
+- Width-1 BFWS-style novelty search ships as an OPT-IN third
+  classical rung (`FF_NOVELTY=1`): after EHC and LAMA fail, a
+  bounded novelty-first exploration for where the relaxed gradient
+  is flat or wrong. The referee A/B across five classical boards
+  flipped it off-by-default: **+7 gained, −51 lost** at wall-clock
+  budgets — the rung's wall-time tax ahead of the complete fallback
+  prices out budget-edge instances (the gen-skip arithmetic,
+  repeated). The six h-dies-outright gains are real and reachable
+  via the flag; the budget-aware ladder is the recorded 0.18+ idea.
+  With the flag off the classical path is byte-identical to 0.16.0,
+  so every standing scoreboard carries forward.
+
+### The village (the game's domain, owned here)
+
+- **`benchmarks/village/`**: the abstract crafting-economy core by
+  direct request — ONE gather / make / buy / sell rule, every piece
+  of content (items, recipes with required-vs-consumed quantities,
+  tool/station gates, prices, travel times) as INIT DATA; content
+  packs extend catalogs, never rules. Craftsman and workshop rungs
+  solve on defaults with tests pinning the forced chains;
+  **`examples/village.rs`** demonstrates hiring as a Session goal
+  contract (fork → restrict to own labor → `set_goal`; re-hire is
+  another `set_goal`).
+- The big-catalog stress test (`benchmarks/bench/gen_catalog.py`)
+  priced village scale before the village was built — including its
+  own correction: grounding holds to 10,000-item catalogs (37 s /
+  42 MB); the draft "consumption wall" was a fixture artifact
+  (exponential-depth plans), and at honest depth the consumable
+  profile solves in 2.65 s at N=3000. Depth is the enemy; width is
+  not — baked into the village design.
+- Finding for the fence ledger: the village exhibits the
+  start-credit plateau in miniature (gather-spam floods the pruned
+  pass) — the h-surgery bet now has a game-shaped witness.
+- The village live page + plan introspection views severed WHOLE to
+  0.18: the page needs the live tick-loop village under it.
+
 ## [0.16.0] - 2026-07-25 — The standings cycle
 
 A measurement release: zero engine-code changes, and the largest
