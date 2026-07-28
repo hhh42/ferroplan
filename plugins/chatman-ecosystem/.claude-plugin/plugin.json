@@ -33,7 +33,6 @@
     "./agents/receipt-auditor.md",
     "./agents/source-manufacturer.md"
   ],
-  "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json",
   "lspServers": "./.lsp.json",
   "experimental": {
