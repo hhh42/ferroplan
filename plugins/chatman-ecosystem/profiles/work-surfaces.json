@@ -12,61 +12,180 @@
     "verificationCost",
     "downstreamConsequence"
   ],
+  "surface_paths_note": "Repository paths per surface, keyed by candidate id. Kept out of `candidates` so that `candidates` can be passed verbatim to the ferroplan-mcp `cmca_allocate` tool, whose input is strict (`deny_unknown_fields`) and rejects an unknown `paths` key.",
+  "surface_paths": {
+    "correctness": [
+      "crates/ferroplan/src/verify.rs",
+      "crates/ferroplan/src/temporal",
+      "crates/ferroplan/tests"
+    ],
+    "planner-core": [
+      "crates/ferroplan/src/search",
+      "crates/ferroplan/src/heuristic",
+      "crates/ferroplan/src/ground"
+    ],
+    "session-runtime": [
+      "crates/ferroplan/src/session.rs",
+      "book/src/session.md"
+    ],
+    "mcp-protocol": [
+      "crates/ferroplan-mcp"
+    ],
+    "claude-plugin": [
+      "plugins/chatman-ecosystem",
+      ".claude-plugin"
+    ],
+    "semantic-projection": [
+      "plugins/chatman-ecosystem/ontology",
+      "plugins/chatman-ecosystem/profiles"
+    ],
+    "receipt-security": [
+      "plugins/chatman-ecosystem/hooks",
+      "plugins/chatman-ecosystem/scripts",
+      "crates/ferroplan-mcp/src/admission.rs",
+      "crates/ferroplan-mcp/src/session.rs"
+    ],
+    "evidence": [
+      "benchmarks",
+      "crates/ferroplan/benches",
+      ".github/workflows"
+    ]
+  },
   "candidates": [
     {
       "id": "correctness",
       "parent": null,
-      "paths": ["crates/ferroplan/src/verify.rs", "crates/ferroplan/src/temporal", "crates/ferroplan/tests"],
-      "factors": [0.9, 10.0, 0.9, 0.3, 0.8, 0.9, 1.0, 1.0, 0.9, 1000.0],
+      "factors": [
+        0.9,
+        10.0,
+        0.9,
+        0.3,
+        0.8,
+        0.9,
+        1.0,
+        1.0,
+        0.9,
+        1000.0
+      ],
       "cost": 1.0
     },
     {
       "id": "planner-core",
       "parent": 0,
-      "paths": ["crates/ferroplan/src/search", "crates/ferroplan/src/heuristic", "crates/ferroplan/src/ground"],
-      "factors": [0.9, 9.0, 0.8, 0.4, 0.8, 0.9, 1.0, 1.0, 0.8, 800.0],
+      "factors": [
+        0.9,
+        9.0,
+        0.8,
+        0.4,
+        0.8,
+        0.9,
+        1.0,
+        1.0,
+        0.8,
+        800.0
+      ],
       "cost": 1.0
     },
     {
       "id": "session-runtime",
       "parent": 0,
-      "paths": ["crates/ferroplan/src/session.rs", "book/src/session.md"],
-      "factors": [0.9, 9.0, 0.8, 0.6, 0.9, 0.9, 1.0, 1.0, 0.8, 900.0],
+      "factors": [
+        0.9,
+        9.0,
+        0.8,
+        0.6,
+        0.9,
+        0.9,
+        1.0,
+        1.0,
+        0.8,
+        900.0
+      ],
       "cost": 1.0
     },
     {
       "id": "mcp-protocol",
       "parent": 2,
-      "paths": ["crates/ferroplan-mcp"],
-      "factors": [0.8, 8.0, 0.6, 0.8, 0.8, 0.8, 1.0, 1.0, 0.7, 700.0],
+      "factors": [
+        0.8,
+        8.0,
+        0.6,
+        0.8,
+        0.8,
+        0.8,
+        1.0,
+        1.0,
+        0.7,
+        700.0
+      ],
       "cost": 1.0
     },
     {
       "id": "claude-plugin",
       "parent": 3,
-      "paths": ["plugins/chatman-ecosystem", ".claude-plugin"],
-      "factors": [0.8, 8.0, 0.7, 0.9, 0.9, 0.8, 1.0, 1.0, 0.7, 750.0],
+      "factors": [
+        0.8,
+        8.0,
+        0.7,
+        0.9,
+        0.9,
+        0.8,
+        1.0,
+        1.0,
+        0.7,
+        750.0
+      ],
       "cost": 1.0
     },
     {
       "id": "semantic-projection",
       "parent": 4,
-      "paths": ["plugins/chatman-ecosystem/ontology", "plugins/chatman-ecosystem/profiles"],
-      "factors": [0.7, 8.0, 0.7, 0.9, 0.8, 0.8, 1.0, 1.0, 0.8, 850.0],
+      "factors": [
+        0.7,
+        8.0,
+        0.7,
+        0.9,
+        0.8,
+        0.8,
+        1.0,
+        1.0,
+        0.8,
+        850.0
+      ],
       "cost": 1.0
     },
     {
       "id": "receipt-security",
       "parent": 4,
-      "paths": ["plugins/chatman-ecosystem/hooks", "plugins/chatman-ecosystem/scripts", "crates/ferroplan-mcp/src/admission.rs", "crates/ferroplan-mcp/src/session.rs"],
-      "factors": [0.9, 10.0, 0.8, 0.7, 0.9, 0.9, 1.0, 1.0, 0.9, 1000.0],
+      "factors": [
+        0.9,
+        10.0,
+        0.8,
+        0.7,
+        0.9,
+        0.9,
+        1.0,
+        1.0,
+        0.9,
+        1000.0
+      ],
       "cost": 1.0
     },
     {
       "id": "evidence",
       "parent": 0,
-      "paths": ["benchmarks", "crates/ferroplan/benches", ".github/workflows"],
-      "factors": [0.7, 7.0, 0.8, 0.7, 0.8, 0.7, 1.0, 1.0, 0.9, 650.0],
+      "factors": [
+        0.7,
+        7.0,
+        0.8,
+        0.7,
+        0.8,
+        0.7,
+        1.0,
+        1.0,
+        0.9,
+        650.0
+      ],
       "cost": 1.0
     }
   ]

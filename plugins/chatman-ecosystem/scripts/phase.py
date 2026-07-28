@@ -29,6 +29,7 @@ except ImportError:  # pragma: no cover
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mcp_client import McpClient, McpToolError, tool_structured_result  # noqa: E402
+from plugin_data import plugin_data_root as resolve_plugin_data_root  # noqa: E402
 
 STATE_SCHEMA = "urn:chatman:claude-code-phase-state:v1"
 EVENT_SCHEMA = "urn:chatman:claude-code-phase-event:v1"
@@ -79,10 +80,7 @@ def project_key(cwd: str) -> str:
 
 
 def plugin_data_root() -> Path:
-    configured = os.environ.get("CLAUDE_PLUGIN_DATA")
-    if configured:
-        return Path(configured)
-    return Path.home() / ".claude" / "chatman-ecosystem-data"
+    return resolve_plugin_data_root()
 
 
 def project_directory(cwd: str) -> Path:
