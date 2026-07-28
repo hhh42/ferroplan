@@ -9,7 +9,6 @@
     }
   },
   "enabledPlugins": {
-    "chatman-ecosystem@chatman-ecosystem": true,
-    "claude-code-config-lsp@chatman-ecosystem": true
+    "chatman-ecosystem@chatman-ecosystem": true
   }
 }
