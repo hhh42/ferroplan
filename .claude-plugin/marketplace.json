@@ -1,24 +1,48 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "chatman-ecosystem",
   "owner": {
     "name": "Sean Chatman",
     "email": "info@chatmangpt.com"
   },
-  "metadata": {
-    "description": "Receipted, allocation-aware deterministic planning plugins for Claude Code"
-  },
+  "description": "Ontology-driven, phase-changing Claude Code plugins for deterministic planning, semantic admission, allocation, configuration law, and proof-carrying repository work",
   "plugins": [
     {
       "name": "chatman-ecosystem",
       "source": "./plugins/chatman-ecosystem",
-      "description": "Closed-loop Claude Code control using BCINR, the Chatman Multifractal Cascade Allocator, persistent Ferroplan sessions, hooks, agents, and receipts",
+      "description": "Design-for-combinatorial-maximalism control plane using claude-code-config-lsp, BCINR, CMCA, persistent Ferroplan sessions, hooks, agents, monitors, and receipts",
+      "dependencies": [
+        "claude-code-config-lsp"
+      ],
       "category": "development",
       "tags": [
         "planning",
         "pddl",
+        "rdf",
         "mcp",
+        "lsp",
+        "agents",
+        "hooks",
         "receipts",
-        "self-hosting"
+        "self-hosting",
+        "phase-change"
+      ],
+      "strict": true
+    },
+    {
+      "name": "claude-code-config-lsp",
+      "source": {
+        "source": "github",
+        "repo": "seanchatmangpt/claude-code-config-lsp"
+      },
+      "description": "Ontology-generated LSP diagnostics, completion, hover, semantic tokens, Declare conformance, and validation for Claude Code configuration surfaces",
+      "category": "development",
+      "tags": [
+        "lsp",
+        "configuration",
+        "ontology",
+        "declare",
+        "conformance"
       ],
       "strict": true
     }
