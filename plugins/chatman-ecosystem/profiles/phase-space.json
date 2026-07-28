@@ -1,0 +1,218 @@
+{
+  "schema": "urn:chatman:claude-code-phase-space:v1",
+  "name": "Chatman combinatorial phase space",
+  "design_law": "maximize reversible construction over orthogonal dimensions; admit only combinations satisfying every invariant",
+  "raw_combination_count": 648,
+  "dimensions": {
+    "epistemic": {
+      "initial": "latent",
+      "states": {
+        "latent": {
+          "capabilities": ["discover"],
+          "agents": ["rdf-observer"],
+          "skills": ["observe"]
+        },
+        "observed": {
+          "capabilities": ["discover", "project-rdf", "detect-surprise"],
+          "agents": ["rdf-observer", "config-law-architect"],
+          "skills": ["observe", "configure"]
+        },
+        "admitted": {
+          "capabilities": ["discover", "project-rdf", "detect-surprise", "semantic-admission"],
+          "agents": ["rdf-observer", "config-law-architect", "receipt-auditor"],
+          "skills": ["observe", "configure", "admit"]
+        }
+      },
+      "transitions": [
+        ["latent", "observed"],
+        ["observed", "admitted"],
+        ["admitted", "observed"]
+      ]
+    },
+    "allocation": {
+      "initial": "unallocated",
+      "states": {
+        "unallocated": {
+          "capabilities": ["enumerate-work-surfaces"],
+          "agents": ["cmca-allocator"],
+          "skills": ["allocate"]
+        },
+        "allocated": {
+          "capabilities": ["enumerate-work-surfaces", "cmca-allocation", "allocation-receipt"],
+          "agents": ["cmca-allocator", "receipt-auditor"],
+          "skills": ["allocate", "admit"]
+        }
+      },
+      "transitions": [
+        ["unallocated", "allocated"],
+        ["allocated", "unallocated"]
+      ]
+    },
+    "planning": {
+      "initial": "unplanned",
+      "states": {
+        "unplanned": {
+          "capabilities": ["goal-authoring"],
+          "agents": ["ferroplan-planner"],
+          "skills": ["plan"]
+        },
+        "candidate": {
+          "capabilities": ["goal-authoring", "persistent-session", "suffix-replay", "bounded-replan"],
+          "agents": ["ferroplan-planner", "source-manufacturer"],
+          "skills": ["plan", "manufacture"]
+        },
+        "validated": {
+          "capabilities": ["goal-authoring", "persistent-session", "suffix-replay", "bounded-replan", "independent-validation"],
+          "agents": ["ferroplan-planner", "independent-validator", "receipt-auditor"],
+          "skills": ["plan", "validate", "audit"]
+        }
+      },
+      "transitions": [
+        ["unplanned", "candidate"],
+        ["candidate", "validated"],
+        ["candidate", "unplanned"],
+        ["validated", "unplanned"]
+      ]
+    },
+    "actuation": {
+      "initial": "sealed",
+      "states": {
+        "sealed": {
+          "capabilities": ["proposal-only"],
+          "agents": ["ecosystem-controller"],
+          "skills": ["phase-change"]
+        },
+        "manufacturing": {
+          "capabilities": ["proposal-only", "reversible-source-actuation"],
+          "agents": ["source-manufacturer", "ecosystem-controller"],
+          "skills": ["manufacture", "phase-change"]
+        },
+        "receipted": {
+          "capabilities": ["proposal-only", "reversible-source-actuation", "receipt-chain"],
+          "agents": ["receipt-auditor", "ecosystem-controller"],
+          "skills": ["admit", "audit", "phase-change"]
+        },
+        "publishable": {
+          "capabilities": ["proposal-only", "reversible-source-actuation", "receipt-chain", "protected-publication"],
+          "agents": ["receipt-auditor", "ecosystem-controller"],
+          "skills": ["audit", "publish", "phase-change"]
+        }
+      },
+      "transitions": [
+        ["sealed", "manufacturing"],
+        ["manufacturing", "receipted"],
+        ["receipted", "publishable"],
+        ["manufacturing", "sealed"],
+        ["receipted", "sealed"],
+        ["publishable", "sealed"]
+      ]
+    },
+    "drift": {
+      "initial": "stable",
+      "states": {
+        "stable": {
+          "capabilities": ["follow-valid-plan"],
+          "agents": ["ferroplan-planner"],
+          "skills": ["plan"]
+        },
+        "drifted": {
+          "capabilities": ["observe-surprise", "replay-suffix", "replan-tail"],
+          "agents": ["rdf-observer", "ferroplan-planner"],
+          "skills": ["observe", "plan"]
+        },
+        "refused": {
+          "capabilities": ["typed-refusal", "evidence-preservation"],
+          "agents": ["receipt-auditor", "ecosystem-controller"],
+          "skills": ["audit"]
+        }
+      },
+      "transitions": [
+        ["stable", "drifted"],
+        ["drifted", "stable"],
+        ["stable", "refused"],
+        ["drifted", "refused"],
+        ["refused", "drifted"]
+      ]
+    },
+    "conformance": {
+      "initial": "unknown",
+      "states": {
+        "unknown": {
+          "capabilities": ["config-discovery"],
+          "agents": ["config-law-architect"],
+          "skills": ["configure"]
+        },
+        "nonconformant": {
+          "capabilities": ["config-discovery", "lsp-diagnostics", "declare-refusal"],
+          "agents": ["config-law-architect", "source-manufacturer"],
+          "skills": ["configure", "manufacture"]
+        },
+        "conformant": {
+          "capabilities": ["config-discovery", "lsp-diagnostics", "declare-admission", "config-completion"],
+          "agents": ["config-law-architect", "receipt-auditor"],
+          "skills": ["configure", "audit"]
+        }
+      },
+      "transitions": [
+        ["unknown", "nonconformant"],
+        ["unknown", "conformant"],
+        ["nonconformant", "conformant"],
+        ["conformant", "nonconformant"]
+      ]
+    }
+  },
+  "invariants": [
+    {
+      "id": "allocation-requires-admission",
+      "when": {"allocation": "allocated"},
+      "requires": {"epistemic": "admitted"}
+    },
+    {
+      "id": "candidate-plan-requires-allocation",
+      "when": {"planning": "candidate"},
+      "requires": {"allocation": "allocated"}
+    },
+    {
+      "id": "validated-plan-requires-candidate",
+      "when": {"planning": "validated"},
+      "requires_any_prior": [{"planning": "candidate"}]
+    },
+    {
+      "id": "manufacturing-requires-candidate-plan",
+      "when": {"actuation": "manufacturing"},
+      "requires_any": [{"planning": "candidate"}, {"planning": "validated"}]
+    },
+    {
+      "id": "receipt-requires-validation",
+      "when": {"actuation": "receipted"},
+      "requires": {"planning": "validated"}
+    },
+    {
+      "id": "publication-requires-complete-standing",
+      "when": {"actuation": "publishable"},
+      "requires": {
+        "epistemic": "admitted",
+        "allocation": "allocated",
+        "planning": "validated",
+        "drift": "stable",
+        "conformance": "conformant"
+      }
+    },
+    {
+      "id": "refusal-seals-actuation",
+      "when": {"drift": "refused"},
+      "requires": {"actuation": "sealed"}
+    },
+    {
+      "id": "nonconformance-blocks-publication",
+      "when": {"conformance": "nonconformant"},
+      "forbids": {"actuation": "publishable"}
+    }
+  ],
+  "composition": {
+    "capabilities": "set union over every selected dimension state",
+    "agents": "set union over every selected dimension state; controller may invoke any lawful subset",
+    "skills": "set union over every selected dimension state; full bodies remain lazy until invoked",
+    "authority": "no union may raise a component above its declared claim ceiling"
+  }
+}

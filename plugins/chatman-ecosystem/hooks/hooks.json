@@ -1,0 +1,87 @@
+{
+  "description": "Observe repository mutations, update the combinatorial phase vector, fence protected actuation, and require the Ferroplan receipt frontier before stopping",
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Loading Chatman ecosystem standing"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/phase.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Projecting the active phase combination"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Checking admitted actuation frontier"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Receipting repository observation"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/phase.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Collapsing affected phase dimensions"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Write|Edit|NotebookEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Receipting failed actuation observation"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/phase.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Marking phase drift after failure"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
+            "timeout": 10,
+            "statusMessage": "Closing the observation-plan-receipt loop"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+(define (problem ferroplan-self-host-default)
+  (:domain ferroplan-self-host)
+  (:objects ferroplan - repository)
+  (:init
+    (epistemic-latent ferroplan)
+    (unallocated ferroplan)
+    (unplanned ferroplan)
+    (actuation-sealed ferroplan)
+    (stable ferroplan)
+    (config-unknown ferroplan)
+    (dirty ferroplan)
+    (= (pending-events ferroplan) 0)
+    (= (risk ferroplan) 2)
+    (= (available-capacity ferroplan) 8)
+  )
+  (:goal
+    (and
+      (receipt-bound ferroplan)
+      (validator-green ferroplan)
+    )
+  )
+)

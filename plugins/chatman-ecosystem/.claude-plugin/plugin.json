@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "chatman-ecosystem",
+  "displayName": "Chatman Phase Engine",
+  "description": "A phase-changing, proof-carrying Claude Code control plane combining configuration LSP law, RDF admission, BCINR, CMCA allocation, persistent Ferroplan planning, specialized agents, hooks, monitors, and chained receipts",
+  "author": {
+    "name": "Sean Chatman",
+    "email": "info@chatmangpt.com"
+  },
+  "homepage": "https://github.com/seanchatmangpt/ferroplan",
+  "repository": "https://github.com/seanchatmangpt/ferroplan",
+  "license": "MIT OR Apache-2.0",
+  "keywords": [
+    "ferroplan",
+    "bcinr",
+    "cmca",
+    "pddl",
+    "rdf",
+    "claude-code",
+    "phase-change",
+    "combinatorial-maximalism",
+    "self-hosting",
+    "receipts"
+  ],
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
+  "lspServers": "./.lsp.json",
+  "experimental": {
+    "monitors": "./monitors/monitors.json"
+  },
+  "userConfig": {
+    "ferroplan_root": {
+      "type": "directory",
+      "title": "Ferroplan checkout",
+      "description": "Optional exact Ferroplan checkout used to launch the three Rust MCP servers. Leave empty when their binaries are installed or Claude Code is running in Ferroplan itself.",
+      "required": false
+    },
+    "config_lsp_root": {
+      "type": "directory",
+      "title": "Claude config LSP checkout",
+      "description": "Optional checkout containing claude-code-config-lsp. Leave empty when the binary is installed or the repository is beside Ferroplan.",
+      "required": false
+    },
+    "bcinr_root": {
+      "type": "directory",
+      "title": "BCINR checkout",
+      "description": "Optional BCINR checkout used to launch bcinr-mcp. Leave empty when the binary is installed or the repository is beside Ferroplan.",
+      "required": false
+    }
+  }
+}

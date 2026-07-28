@@ -1,0 +1,22 @@
+{
+  "claude-code-config": {
+    "command": "sh",
+    "args": [
+      "${CLAUDE_PLUGIN_ROOT}/scripts/run-config-lsp.sh"
+    ],
+    "extensionToLanguage": {
+      ".json": "claude-code-config",
+      ".md": "claude-code-config",
+      ".toml": "claude-code-config",
+      ".sh": "claude-code-config"
+    },
+    "env": {
+      "CLAUDE_CODE_CONFIG_LSP_ROOT": "${user_config.config_lsp_root}"
+    },
+    "transport": "stdio",
+    "startupTimeout": 30000,
+    "shutdownTimeout": 10000,
+    "restartOnCrash": true,
+    "maxRestarts": 3
+  }
+}

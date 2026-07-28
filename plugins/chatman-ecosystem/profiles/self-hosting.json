@@ -1,0 +1,84 @@
+{
+  "schema": "urn:chatman:claude-code-self-host-profile:v1",
+  "repository": "seanchatmangpt/ferroplan",
+  "planner": {
+    "authority": "ferroplan-session",
+    "domain": "world/ferroplan-self-host-domain.pddl",
+    "problem": "world/ferroplan-self-host-problem.pddl",
+    "claim_ceiling": "candidate-plan",
+    "persistent": true,
+    "default_max_evaluated": 50000,
+    "default_memory_mb": 256
+  },
+  "allocator": {
+    "authority": "bcinr-cmca",
+    "name": "Chatman Multifractal Cascade Allocator",
+    "revision": "fb9321d27882169acc83aaca0639b319cd3b7900",
+    "node_count": 8,
+    "factor_order": [
+      "accessFrequency",
+      "businessValue",
+      "recomputationCost",
+      "retrievalDemand",
+      "schedulingDemand",
+      "searchDemand",
+      "standing",
+      "validity",
+      "verificationCost",
+      "downstreamConsequence"
+    ],
+    "claim_ceiling": "bounded-allocation"
+  },
+  "semantic_admission": {
+    "ontology": "ontology/chatman-ecosystem.ttl",
+    "shapes": "ontology/chatman-shapes.ttl",
+    "oracle": "bcinr",
+    "claim_ceiling": "admitted-observation"
+  },
+  "actuation": {
+    "exclusive_broker": "claude-code-hooks",
+    "zero_unreceipted_actuation": true,
+    "protected_commands": [
+      "git push",
+      "git merge",
+      "git rebase",
+      "git reset --hard",
+      "git clean -f",
+      "gh pr create",
+      "gh pr merge",
+      "cargo publish",
+      "npm publish",
+      "recursive forced deletion",
+      "state-changing HTTP requests"
+    ]
+  },
+  "standing": [
+    "UNKNOWN",
+    "BUILD_BROKEN",
+    "PARTIAL_ALIVE",
+    "ALIVE"
+  ],
+  "roles": {
+    "observer": "rdf-observer",
+    "allocator": "cmca-allocator",
+    "planner": "ferroplan-planner",
+    "manufacturer": "source-manufacturer",
+    "validator": "independent-validator",
+    "auditor": "receipt-auditor",
+    "controller": "ecosystem-controller"
+  },
+  "receipt_chain": {
+    "algorithm": "BLAKE3",
+    "binds": [
+      "observation-frontier",
+      "rdf-projection",
+      "cmca-input",
+      "cmca-output",
+      "pddl-domain",
+      "pddl-problem",
+      "candidate-plan",
+      "independent-validation",
+      "predecessor-receipt"
+    ]
+  }
+}
