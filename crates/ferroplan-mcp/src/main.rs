@@ -1,254 +1,229 @@
 //! `ferroplan-mcp` — a Model Context Protocol server exposing the ferroplan planner
-//! to an LLM agent: `solve`, `validate`, and `decompose` as MCP tools.
+//! to an LLM agent: `solve`, `parse`, `validate`, and `decompose` as MCP tools.
 //!
 //! This is the README's bet made operational — the agent *authors and supervises*
 //! PDDL and the planner runs deterministically. The agent writes a domain + problem,
 //! calls `solve` (or `decompose` for a too-big goal), reads the structured result,
 //! and iterates; `validate` independently checks a plan under ferroplan's semantics.
 //!
-//! Transport: MCP stdio — newline-delimited JSON-RPC 2.0, one message per line, no
-//! embedded newlines. No async runtime; a blocking read loop over stdin keeps the
-//! dependency surface to `serde`/`serde_json`, matching the rest of the workspace.
-//! The server never panics on bad input: malformed JSON-RPC yields an error response,
-//! a failing tool yields an `isError` tool result, and the loop continues until EOF.
+//! Transport: MCP stdio via the `rmcp` SDK (async, tokio). Tool schemas are derived
+//! from `schemars::JsonSchema` on each request struct rather than hand-written JSON
+//! Schema literals. `resources/*` exposes one resource per tool with the tool's
+//! semantic description pulled from `plugins/chatman-ecosystem/ontology/
+//! ferroplan-domain.ttl` (statically extracted at build time into
+//! `TOOL_ONTOLOGY_SUMMARY`, embedded via `include_str!` — see `build.rs`/module doc
+//! below for why static extraction was chosen over a live SPARQL engine).
 
-use serde_json::{json, Value};
-use std::io::{self, BufRead, Write};
+use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::wrapper::Parameters;
+use rmcp::model::{
+    ErrorData as McpError, ListResourcesResult, ReadResourceRequestParams, ReadResourceResult,
+    Resource, ResourceContents, ServerCapabilities, ServerInfo,
+};
+use rmcp::service::RequestContext;
+use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceExt};
+use schemars::JsonSchema;
+use serde::Deserialize;
 
-/// MCP protocol version we implement (echoed back from the client's `initialize` if
-/// it sends one, so we interoperate with clients on a newer revision).
-const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
+// Static per-tool semantic descriptions, sourced from
+// `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl`'s `rdfs:comment`
+// annotations on the `fp:McpTool` instances for this server. Generated at
+// compile time by `build.rs` (not a live TTL/SPARQL parse at startup)
+// because the ontology is static per release and a build-time/embedded
+// constant is simpler and cheaper than standing up a SPARQL engine for
+// four fixed strings — see build.rs for the extraction logic.
+include!(concat!(env!("OUT_DIR"), "/main_ontology.rs"));
 
-fn main() {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    let mut out = stdout.lock();
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SolveRequest {
+    /// PDDL domain source
+    domain: String,
+    /// PDDL problem source
+    problem: String,
+    /// Optional solver Options: mode (auto|ff|partition|pddl3|temporal), search
+    /// (auto|ehc|best-first|ehc-then-best-first), weight_g, weight_h, threads,
+    /// max_evaluated, optimize. Omitted fields use defaults.
+    #[serde(default)]
+    options: Option<ferroplan::Options>,
+}
 
-    for line in stdin.lock().lines() {
-        let Ok(line) = line else { break }; // stdin closed / read error → exit
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ParseRequest {
+    /// A PDDL domain OR problem source string.
+    pddl: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ValidateRequest {
+    /// PDDL domain source
+    domain: String,
+    /// PDDL problem source
+    problem: String,
+    /// Plan to check: classical `step N: (action args)` lines, or a temporal
+    /// `t: (action args) [dur]` plan.
+    plan: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct DecomposeRequest {
+    /// PDDL domain source (durative actions)
+    domain: String,
+    /// PDDL problem source
+    problem: String,
+    /// Optional solver Options (see `solve`).
+    #[serde(default)]
+    options: Option<ferroplan::Options>,
+}
+
+#[derive(Debug, Clone)]
+struct Ferroplan {
+    tool_router: ToolRouter<Self>,
+}
+
+impl Ferroplan {
+    fn new() -> Self {
+        Self {
+            tool_router: Self::tool_router(),
         }
-        let msg: Value = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(e) => {
-                // JSON-RPC parse error: id unknown, so reply with null id.
-                send(
-                    &mut out,
-                    &error_obj(Value::Null, -32700, &format!("parse error: {e}")),
-                );
-                continue;
-            }
+    }
+}
+
+#[tool_router]
+impl Ferroplan {
+    #[tool(
+        description = "Plan a PDDL domain + problem with ferroplan and return the structured \
+            Solution (typed steps, makespan/metric, statistics). Handles STRIPS, typing, ADL, \
+            numeric fluents, derived axioms, PDDL3 preferences, and PDDL2.1 temporal (durative \
+            actions) — mode is auto-detected. A solved:false result is a normal answer, not an \
+            error."
+    )]
+    fn solve(
+        &self,
+        Parameters(req): Parameters<SolveRequest>,
+    ) -> Result<String, String> {
+        let opts = req.options.unwrap_or_default();
+        let sol = ferroplan::solve(&req.domain, &req.problem, &opts).map_err(|e| e.to_string())?;
+        pretty(&sol)
+    }
+
+    #[tool(
+        description = "Syntax-check a PDDL source string and return a structure summary \
+            WITHOUT grounding or solving — fast feedback while authoring. Auto-detects domain \
+            vs problem; reports ok/error (with a line number) plus name, requirements, and \
+            counts (types/predicates/actions, or objects/init/goal/metric). Use to catch PDDL \
+            mistakes before `solve`."
+    )]
+    fn parse(&self, Parameters(req): Parameters<ParseRequest>) -> Result<String, String> {
+        pretty(&ferroplan::parse(&req.pddl))
+    }
+
+    #[tool(
+        description = "Independently validate a plan against a domain + problem under \
+            ferroplan's own execution semantics (auto-detects classical vs temporal). Returns \
+            whether the plan is executable and goal-reaching, with a reason if not. Use to \
+            check a plan you wrote or one solve produced."
+    )]
+    fn validate(&self, Parameters(req): Parameters<ValidateRequest>) -> Result<String, String> {
+        match ferroplan::plan::validate_plan(&req.domain, &req.problem, &req.plan)? {
+            ferroplan::plan::Validity::Valid => Ok("Plan valid".to_string()),
+            ferroplan::plan::Validity::Invalid(why) => Ok(format!("Plan invalid: {why}")),
+        }
+    }
+
+    #[tool(
+        description = "Decompose a temporal goal too big for one-shot search into ordered, \
+            individually-solved contracts, stitched into one validated plan. Returns the \
+            inspectable Decomposition: each contract's named sub-goal, sub-plan, and timeline \
+            offset, plus the stitched plan. A goal that can't be split falls back to a single \
+            monolithic contract (reported honestly)."
+    )]
+    fn decompose(
+        &self,
+        Parameters(req): Parameters<DecomposeRequest>,
+    ) -> Result<String, String> {
+        let opts = req.options.unwrap_or_default();
+        let dec =
+            ferroplan::decompose(&req.domain, &req.problem, &opts).map_err(|e| e.to_string())?;
+        pretty(&dec)
+    }
+}
+
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for Ferroplan {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(rmcp::model::Implementation::new(
+            "ferroplan",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(
+            "Author a PDDL domain + problem, then call `solve` (or `decompose` for a goal too \
+             big for one-shot search) and read the structured result. `validate` independently \
+             checks a plan. Read `ferroplan://tools/<name>` resources for semantic \
+             (ontology-sourced) descriptions of each tool.",
+        )
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        let resources = ["solve", "parse", "validate", "decompose"]
+            .into_iter()
+            .map(|name| {
+                Resource::new(
+                    format!("ferroplan://tools/{name}"),
+                    format!("{name} (semantic summary)"),
+                )
+                .with_description(format!(
+                    "Ontology-sourced semantics for the `{name}` tool, from \
+                     ferroplan-domain.ttl."
+                ))
+                .with_mime_type("application/json")
+            })
+            .collect();
+        Ok(ListResourcesResult {
+            resources,
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        let name = request
+            .uri
+            .strip_prefix("ferroplan://tools/")
+            .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
+        let ontology_comment = match name {
+            "solve" => SOLVE_ONTOLOGY,
+            "parse" => PARSE_ONTOLOGY,
+            "validate" => VALIDATE_ONTOLOGY,
+            "decompose" => DECOMPOSE_ONTOLOGY,
+            _ => return Err(McpError::resource_not_found(request.uri.clone(), None)),
         };
-
-        // A request has an `id`; a notification does not (and gets no reply).
-        let id = msg.get("id").cloned();
-        let method = msg.get("method").and_then(Value::as_str).unwrap_or("");
-        let params = msg.get("params").cloned().unwrap_or(Value::Null);
-
-        match dispatch(method, params) {
-            Outcome::Reply(result) => {
-                if let Some(id) = id {
-                    send(
-                        &mut out,
-                        &json!({"jsonrpc": "2.0", "id": id, "result": result}),
-                    );
-                }
-            }
-            Outcome::Err(code, message) => {
-                if let Some(id) = id {
-                    send(&mut out, &error_obj(id, code, &message));
-                }
-            }
-            Outcome::Silent => {} // notification: no response
-        }
-    }
-}
-
-/// What to do with a dispatched message.
-enum Outcome {
-    /// Send this `result` (only if the message was a request).
-    Reply(Value),
-    /// Send a JSON-RPC error with this code/message (only if a request).
-    Err(i64, String),
-    /// A notification (or otherwise no reply).
-    Silent,
-}
-
-fn dispatch(method: &str, params: Value) -> Outcome {
-    match method {
-        "initialize" => {
-            let version = params
-                .get("protocolVersion")
-                .and_then(Value::as_str)
-                .unwrap_or(DEFAULT_PROTOCOL_VERSION)
-                .to_string();
-            Outcome::Reply(json!({
-                "protocolVersion": version,
-                "capabilities": { "tools": {} },
-                "serverInfo": {
-                    "name": "ferroplan",
-                    "version": env!("CARGO_PKG_VERSION"),
-                },
-                "instructions": "Author a PDDL domain + problem, then call `solve` \
-                    (or `decompose` for a goal too big for one-shot search) and read \
-                    the structured result. `validate` independently checks a plan.",
-            }))
-        }
-        // Notifications — no reply.
-        "notifications/initialized" | "notifications/cancelled" => Outcome::Silent,
-        "ping" => Outcome::Reply(json!({})),
-        "tools/list" => Outcome::Reply(json!({ "tools": tool_specs() })),
-        "tools/call" => call_tool(params),
-        other => Outcome::Err(-32601, format!("method not found: {other}")),
-    }
-}
-
-/// The tool catalogue advertised to the client.
-fn tool_specs() -> Value {
-    json!([
-        {
-            "name": "solve",
-            "description": "Plan a PDDL domain + problem with ferroplan and return the \
-                structured Solution (typed steps, makespan/metric, statistics). Handles \
-                STRIPS, typing, ADL, numeric fluents, derived axioms, PDDL3 preferences, \
-                and PDDL2.1 temporal (durative actions) — mode is auto-detected. A \
-                solved:false result is a normal answer, not an error.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "domain": { "type": "string", "description": "PDDL domain source" },
-                    "problem": { "type": "string", "description": "PDDL problem source" },
-                    "options": {
-                        "type": "object",
-                        "description": "Optional solver Options: mode (auto|ff|partition|pddl3|temporal), search (auto|ehc|best-first|ehc-then-best-first), weight_g, weight_h, threads, max_evaluated, optimize. Omitted fields use defaults."
-                    }
-                },
-                "required": ["domain", "problem"]
-            }
-        },
-        {
-            "name": "parse",
-            "description": "Syntax-check a PDDL source string and return a structure \
-                summary WITHOUT grounding or solving — fast feedback while authoring. \
-                Auto-detects domain vs problem; reports ok/error (with a line number) \
-                plus name, requirements, and counts (types/predicates/actions, or \
-                objects/init/goal/metric). Use to catch PDDL mistakes before `solve`.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "pddl": {
-                        "type": "string",
-                        "description": "A PDDL domain OR problem source string."
-                    }
-                },
-                "required": ["pddl"]
-            }
-        },
-        {
-            "name": "validate",
-            "description": "Independently validate a plan against a domain + problem \
-                under ferroplan's own execution semantics (auto-detects classical vs \
-                temporal). Returns whether the plan is executable and goal-reaching, \
-                with a reason if not. Use to check a plan you wrote or one solve produced.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "domain": { "type": "string", "description": "PDDL domain source" },
-                    "problem": { "type": "string", "description": "PDDL problem source" },
-                    "plan": {
-                        "type": "string",
-                        "description": "Plan to check: classical `step N: (action args)` lines, or a temporal `t: (action args) [dur]` plan."
-                    }
-                },
-                "required": ["domain", "problem", "plan"]
-            }
-        },
-        {
-            "name": "decompose",
-            "description": "Decompose a temporal goal too big for one-shot search into \
-                ordered, individually-solved contracts, stitched into one validated plan. \
-                Returns the inspectable Decomposition: each contract's named sub-goal, \
-                sub-plan, and timeline offset, plus the stitched plan. A goal that can't \
-                be split falls back to a single monolithic contract (reported honestly).",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "domain": { "type": "string", "description": "PDDL domain source (durative actions)" },
-                    "problem": { "type": "string", "description": "PDDL problem source" },
-                    "options": { "type": "object", "description": "Optional solver Options (see `solve`)." }
-                },
-                "required": ["domain", "problem"]
-            }
-        }
-    ])
-}
-
-/// Dispatch a `tools/call`. Tool-execution failures are returned as `isError` tool
-/// results (not JSON-RPC errors), per the MCP convention, so the agent sees the
-/// message and can correct its PDDL.
-fn call_tool(params: Value) -> Outcome {
-    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-    let args = params.get("arguments").cloned().unwrap_or(Value::Null);
-    let result = match name {
-        "solve" => tool_solve(&args),
-        "parse" => tool_parse(&args),
-        "validate" => tool_validate(&args),
-        "decompose" => tool_decompose(&args),
-        other => return Outcome::Err(-32602, format!("unknown tool: {other}")),
-    };
-    Outcome::Reply(match result {
-        Ok(text) => json!({ "content": [text_block(&text)] }),
-        Err(text) => json!({ "content": [text_block(&text)], "isError": true }),
-    })
-}
-
-fn tool_solve(args: &Value) -> Result<String, String> {
-    let domain = require_str(args, "domain")?;
-    let problem = require_str(args, "problem")?;
-    let opts = parse_options(args)?;
-    let sol = ferroplan::solve(domain, problem, &opts).map_err(|e| e.to_string())?;
-    pretty(&sol)
-}
-
-fn tool_parse(args: &Value) -> Result<String, String> {
-    let pddl = require_str(args, "pddl")?;
-    pretty(&ferroplan::parse(pddl))
-}
-
-fn tool_validate(args: &Value) -> Result<String, String> {
-    let domain = require_str(args, "domain")?;
-    let problem = require_str(args, "problem")?;
-    let plan = require_str(args, "plan")?;
-    match ferroplan::plan::validate_plan(domain, problem, plan)? {
-        ferroplan::plan::Validity::Valid => Ok("Plan valid".to_string()),
-        ferroplan::plan::Validity::Invalid(why) => Ok(format!("Plan invalid: {why}")),
-    }
-}
-
-fn tool_decompose(args: &Value) -> Result<String, String> {
-    let domain = require_str(args, "domain")?;
-    let problem = require_str(args, "problem")?;
-    let opts = parse_options(args)?;
-    let dec = ferroplan::decompose(domain, problem, &opts).map_err(|e| e.to_string())?;
-    pretty(&dec)
-}
-
-// --- helpers ---------------------------------------------------------------
-
-fn require_str<'a>(args: &'a Value, key: &str) -> Result<&'a str, String> {
-    args.get(key)
-        .and_then(Value::as_str)
-        .ok_or_else(|| format!("missing required string argument `{key}`"))
-}
-
-/// Deserialize the optional `options` object into [`ferroplan::Options`] (partial
-/// objects are fine — omitted fields use defaults); absent ⇒ defaults.
-fn parse_options(args: &Value) -> Result<ferroplan::Options, String> {
-    match args.get("options") {
-        None | Some(Value::Null) => Ok(ferroplan::Options::default()),
-        Some(v) => serde_json::from_value(v.clone()).map_err(|e| format!("invalid options: {e}")),
+        let body = serde_json::json!({
+            "tool": name,
+            "source": "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
+            "rdfs_comment": ontology_comment,
+        });
+        Ok(ReadResourceResult::new(vec![ResourceContents::text(
+            serde_json::to_string_pretty(&body).unwrap_or_default(),
+            request.uri,
+        )]))
     }
 }
 
@@ -256,18 +231,15 @@ fn pretty<T: serde::Serialize>(v: &T) -> Result<String, String> {
     serde_json::to_string_pretty(v).map_err(|e| e.to_string())
 }
 
-fn text_block(text: &str) -> Value {
-    json!({ "type": "text", "text": text })
-}
-
-fn error_obj(id: Value, code: i64, message: &str) -> Value {
-    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
-}
-
-/// Write one JSON-RPC message as a single line (newline-delimited stdio transport).
-fn send(out: &mut impl Write, msg: &Value) {
-    // A serialized JSON value never contains a raw newline, so one line per message.
-    if writeln!(out, "{msg}").is_ok() {
-        let _ = out.flush();
-    }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let service = Ferroplan::new()
+        .serve(rmcp::transport::stdio())
+        .await
+        .map_err(|e| {
+            eprintln!("serving error: {e}");
+            e
+        })?;
+    service.waiting().await?;
+    Ok(())
 }

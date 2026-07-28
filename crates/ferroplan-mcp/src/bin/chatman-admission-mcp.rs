@@ -6,22 +6,39 @@
 
 #![forbid(unsafe_code)]
 
+use rmcp::handler::server::router::tool::ToolRouter;
+use rmcp::handler::server::wrapper::Parameters;
+use rmcp::model::{
+    CallToolResult, ContentBlock, ErrorData as McpError, ListResourcesResult,
+    ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
+    ServerCapabilities, ServerInfo,
+};
+use rmcp::service::RequestContext;
+use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceExt};
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
-use std::io::{self, BufRead, Write};
 
-const PROTOCOL_VERSION: &str = "2024-11-05";
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
 const RECEIPT_DOMAIN: &[u8] = b"urn:chatman:claude-code-admission:v1\0";
 
-#[derive(Debug, Deserialize)]
+// Static per-tool semantic descriptions sourced from
+// `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl`'s `rdfs:comment`
+// annotations. The ontology flags this server's tool schemas as
+// UNVERIFIED/lower-fidelity relative to session-mcp's, so field shapes here
+// follow the actual Rust source (this file), not the ontology — only the
+// prose semantic summary below is drawn from the ontology. Generated at
+// compile time by `build.rs` — see that file for the extraction logic.
+include!(concat!(env!("OUT_DIR"), "/admission_ontology.rs"));
+
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct DigestInput {
     value: Value,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct BindAllocationInput {
     candidates: Value,
@@ -31,7 +48,7 @@ struct BindAllocationInput {
     previous_receipt: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct BindPlanInput {
     session_think: Value,
@@ -42,170 +59,161 @@ struct BindPlanInput {
     previous_receipt: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct VerifyInput {
     envelope: Value,
 }
 
-enum Outcome {
-    Reply(Value),
-    Error(i64, String),
-    Silent,
+#[derive(Debug, Clone)]
+struct ChatmanAdmission {
+    tool_router: ToolRouter<Self>,
 }
 
-fn main() {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    let mut out = stdout.lock();
-
-    for line in stdin.lock().lines() {
-        let Ok(line) = line else { break };
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
+impl ChatmanAdmission {
+    fn new() -> Self {
+        Self {
+            tool_router: Self::tool_router(),
         }
+    }
+}
 
-        let message: Value = match serde_json::from_str(line) {
-            Ok(value) => value,
-            Err(error) => {
-                send(
-                    &mut out,
-                    &rpc_error(Value::Null, -32700, &format!("parse error: {error}")),
-                );
-                continue;
-            }
+#[tool_router]
+impl ChatmanAdmission {
+    #[tool(description = "Compute a BLAKE3 digest over recursively key-sorted canonical JSON.")]
+    fn canonical_digest(
+        &self,
+        Parameters(input): Parameters<DigestInput>,
+    ) -> Result<CallToolResult, McpError> {
+        to_result(tool_canonical_digest(input))
+    }
+
+    #[tool(
+        description = "Bind exactly eight CMCA candidates, the allocation result, the \
+            observation frontier, the admitted BCINR revision, and an optional predecessor."
+    )]
+    fn bind_allocation_receipt(
+        &self,
+        Parameters(input): Parameters<BindAllocationInput>,
+    ) -> Result<CallToolResult, McpError> {
+        to_result(tool_bind_allocation(input))
+    }
+
+    #[tool(
+        description = "Bind a solved Session result, allocation receipt, observation frontier, \
+            independent validator result, and optional predecessor."
+    )]
+    fn bind_plan_receipt(
+        &self,
+        Parameters(input): Parameters<BindPlanInput>,
+    ) -> Result<CallToolResult, McpError> {
+        to_result(tool_bind_plan(input))
+    }
+
+    #[tool(
+        description = "Recompute both payload digest and chained receipt without trusting the \
+            envelope declarations."
+    )]
+    fn verify_receipt(
+        &self,
+        Parameters(input): Parameters<VerifyInput>,
+    ) -> Result<CallToolResult, McpError> {
+        to_result(tool_verify(input))
+    }
+}
+
+#[tool_handler(router = self.tool_router)]
+impl ServerHandler for ChatmanAdmission {
+    fn get_info(&self) -> ServerInfo {
+        ServerInfo::new(
+            ServerCapabilities::builder()
+                .enable_tools()
+                .enable_resources()
+                .build(),
+        )
+        .with_server_info(rmcp::model::Implementation::new(
+            "chatman-admission",
+            env!("CARGO_PKG_VERSION"),
+        ))
+        .with_instructions(
+            "Bind canonical observation, allocation, plan, validation, and predecessor \
+             commitments. This server admits evidence; it does not plan or actuate. Read \
+             `chatman-admission://tools/<name>` resources for ontology-sourced semantics.",
+        )
+    }
+
+    async fn list_resources(
+        &self,
+        _request: Option<rmcp::model::PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListResourcesResult, McpError> {
+        let resources = [
+            "canonical_digest",
+            "bind_allocation_receipt",
+            "bind_plan_receipt",
+            "verify_receipt",
+        ]
+        .into_iter()
+        .map(|name| {
+            Resource::new(
+                format!("chatman-admission://tools/{name}"),
+                format!("{name} (semantic summary)"),
+            )
+            .with_description(format!(
+                "Ontology-sourced semantics for the `{name}` tool, from ferroplan-domain.ttl."
+            ))
+            .with_mime_type("application/json")
+        })
+        .collect();
+        Ok(ListResourcesResult {
+            resources,
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    async fn read_resource(
+        &self,
+        request: ReadResourceRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ReadResourceResult, McpError> {
+        let name = request
+            .uri
+            .strip_prefix("chatman-admission://tools/")
+            .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
+        let ontology_comment = match name {
+            "canonical_digest" => DIGEST_ONTOLOGY,
+            "bind_allocation_receipt" => BIND_ALLOC_ONTOLOGY,
+            "bind_plan_receipt" => BIND_PLAN_ONTOLOGY,
+            "verify_receipt" => VERIFY_ONTOLOGY,
+            _ => return Err(McpError::resource_not_found(request.uri.clone(), None)),
         };
-
-        let id = message.get("id").cloned();
-        let method = message
-            .get("method")
-            .and_then(Value::as_str)
-            .unwrap_or("");
-        let params = message.get("params").cloned().unwrap_or(Value::Null);
-
-        match dispatch(method, params) {
-            Outcome::Reply(result) => {
-                if let Some(id) = id {
-                    send(
-                        &mut out,
-                        &json!({"jsonrpc": "2.0", "id": id, "result": result}),
-                    );
-                }
-            }
-            Outcome::Error(code, message) => {
-                if let Some(id) = id {
-                    send(&mut out, &rpc_error(id, code, &message));
-                }
-            }
-            Outcome::Silent => {}
-        }
+        let body = json!({
+            "tool": name,
+            "source": "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
+            "rdfs_comment": ontology_comment,
+        });
+        Ok(ReadResourceResult::new(vec![ResourceContents::text(
+            serde_json::to_string_pretty(&body).unwrap_or_default(),
+            request.uri,
+        )]))
     }
 }
 
-fn dispatch(method: &str, params: Value) -> Outcome {
-    match method {
-        "initialize" => Outcome::Reply(json!({
-            "protocolVersion": params
-                .get("protocolVersion")
-                .and_then(Value::as_str)
-                .unwrap_or(PROTOCOL_VERSION),
-            "capabilities": {"tools": {}},
-            "serverInfo": {
-                "name": "chatman-admission",
-                "version": env!("CARGO_PKG_VERSION")
-            },
-            "instructions": "Bind canonical observation, allocation, plan, validation, and predecessor commitments. This server admits evidence; it does not plan or actuate."
-        })),
-        "notifications/initialized" | "notifications/cancelled" => Outcome::Silent,
-        "ping" => Outcome::Reply(json!({})),
-        "tools/list" => Outcome::Reply(json!({"tools": tool_specs()})),
-        "tools/call" => call_tool(params),
-        other => Outcome::Error(-32601, format!("method not found: {other}")),
-    }
-}
-
-fn tool_specs() -> Value {
-    json!([
-        {
-            "name": "canonical_digest",
-            "description": "Compute a BLAKE3 digest over recursively key-sorted canonical JSON.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {"value": {}},
-                "required": ["value"],
-                "additionalProperties": false
-            }
-        },
-        {
-            "name": "bind_allocation_receipt",
-            "description": "Bind exactly eight CMCA candidates, the allocation result, the observation frontier, the admitted BCINR revision, and an optional predecessor.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "candidates": {"type": "array", "minItems": 8, "maxItems": 8},
-                    "allocation_result": {"type": "object"},
-                    "observation_frontier": {"type": "object"},
-                    "previous_receipt": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
-                },
-                "required": ["candidates", "allocation_result", "observation_frontier"],
-                "additionalProperties": false
-            }
-        },
-        {
-            "name": "bind_plan_receipt",
-            "description": "Bind a solved Session result, allocation receipt, observation frontier, independent validator result, and optional predecessor.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {
-                    "session_think": {"type": "object"},
-                    "allocation_receipt": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-                    "observation_frontier": {"type": "object"},
-                    "validator_result": {"type": "object"},
-                    "previous_receipt": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
-                },
-                "required": ["session_think", "allocation_receipt", "observation_frontier", "validator_result"],
-                "additionalProperties": false
-            }
-        },
-        {
-            "name": "verify_receipt",
-            "description": "Recompute both payload digest and chained receipt without trusting the envelope declarations.",
-            "inputSchema": {
-                "type": "object",
-                "properties": {"envelope": {"type": "object"}},
-                "required": ["envelope"],
-                "additionalProperties": false
-            }
+/// Map the existing `Result<Value, String>` tool-body convention onto rmcp's
+/// `CallToolResult`, preserving the prior `structuredContent` behavior on success.
+fn to_result(result: Result<Value, String>) -> Result<CallToolResult, McpError> {
+    Ok(match result {
+        Ok(value) => {
+            let mut r = CallToolResult::success(vec![ContentBlock::text(pretty(&value))]);
+            r.structured_content = Some(value);
+            r
         }
-    ])
-}
-
-fn call_tool(params: Value) -> Outcome {
-    let name = params.get("name").and_then(Value::as_str).unwrap_or("");
-    let args = params.get("arguments").cloned().unwrap_or(Value::Null);
-    let result = match name {
-        "canonical_digest" => tool_canonical_digest(&args),
-        "bind_allocation_receipt" => tool_bind_allocation(&args),
-        "bind_plan_receipt" => tool_bind_plan(&args),
-        "verify_receipt" => tool_verify(&args),
-        other => return Outcome::Error(-32602, format!("unknown tool: {other}")),
-    };
-
-    Outcome::Reply(match result {
-        Ok(value) => json!({
-            "content": [{"type": "text", "text": pretty(&value)}],
-            "structuredContent": value
-        }),
-        Err(message) => json!({
-            "content": [{"type": "text", "text": message}],
-            "isError": true
-        }),
+        Err(message) => CallToolResult::error(vec![ContentBlock::text(message)]),
     })
 }
 
-fn tool_canonical_digest(args: &Value) -> Result<Value, String> {
-    let input: DigestInput = decode(args)?;
+fn tool_canonical_digest(input: DigestInput) -> Result<Value, String> {
     let canonical = canonicalize(&input.value);
     Ok(json!({
         "schema": "urn:chatman:canonical-digest:v1",
@@ -215,8 +223,7 @@ fn tool_canonical_digest(args: &Value) -> Result<Value, String> {
     }))
 }
 
-fn tool_bind_allocation(args: &Value) -> Result<Value, String> {
-    let input: BindAllocationInput = decode(args)?;
+fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
     validate_digest(input.previous_receipt.as_deref(), "previous_receipt")?;
 
     let candidates = canonicalize(&input.candidates);
@@ -252,8 +259,7 @@ fn tool_bind_allocation(args: &Value) -> Result<Value, String> {
     make_envelope("allocation", payload, input.previous_receipt)
 }
 
-fn tool_bind_plan(args: &Value) -> Result<Value, String> {
-    let input: BindPlanInput = decode(args)?;
+fn tool_bind_plan(input: BindPlanInput) -> Result<Value, String> {
     validate_digest(Some(&input.allocation_receipt), "allocation_receipt")?;
     validate_digest(input.previous_receipt.as_deref(), "previous_receipt")?;
 
@@ -261,7 +267,11 @@ fn tool_bind_plan(args: &Value) -> Result<Value, String> {
     let plan = session_think
         .get("plan")
         .filter(|value| !value.is_null())
-        .or_else(|| session_think.pointer("/solution/plan").filter(|value| !value.is_null()))
+        .or_else(|| {
+            session_think
+                .pointer("/solution/plan")
+                .filter(|value| !value.is_null())
+        })
         .cloned()
         .ok_or_else(|| "session_think does not contain a solved plan".to_owned())?;
     let session_receipt = session_think
@@ -299,8 +309,7 @@ fn tool_bind_plan(args: &Value) -> Result<Value, String> {
     make_envelope("plan", payload, input.previous_receipt)
 }
 
-fn tool_verify(args: &Value) -> Result<Value, String> {
-    let input: VerifyInput = decode(args)?;
+fn tool_verify(input: VerifyInput) -> Result<Value, String> {
     let object = input
         .envelope
         .as_object()
@@ -311,9 +320,7 @@ fn tool_verify(args: &Value) -> Result<Value, String> {
             .get("payload")
             .ok_or_else(|| "envelope lacks payload".to_owned())?,
     );
-    let previous = object
-        .get("previous_receipt")
-        .and_then(Value::as_str);
+    let previous = object.get("previous_receipt").and_then(Value::as_str);
     validate_digest(previous, "previous_receipt")?;
     let declared_payload = required_str(object, "payload_digest")?;
     let declared_receipt = required_str(object, "receipt")?;
@@ -401,7 +408,9 @@ fn require_array_len(value: &Value, field: &str, length: usize) -> Result<(), St
         .ok_or_else(|| format!("{field} must be an array"))?
         .len();
     if actual != length {
-        return Err(format!("{field} requires exactly {length} items; received {actual}"));
+        return Err(format!(
+            "{field} requires exactly {length} items; received {actual}"
+        ));
     }
     Ok(())
 }
@@ -421,6 +430,7 @@ fn validate_digest(value: Option<&str>, field: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn decode<T: DeserializeOwned>(value: &Value) -> Result<T, String> {
     serde_json::from_value(value.clone()).map_err(|error| error.to_string())
 }
@@ -429,12 +439,15 @@ fn pretty(value: &Value) -> String {
     serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }
 
-fn rpc_error(id: Value, code: i64, message: &str) -> Value {
-    json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}})
-}
-
-fn send(out: &mut impl Write, message: &Value) {
-    if writeln!(out, "{message}").is_ok() {
-        let _ = out.flush();
-    }
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let service = ChatmanAdmission::new()
+        .serve(rmcp::transport::stdio())
+        .await
+        .map_err(|e| {
+            eprintln!("serving error: {e}");
+            e
+        })?;
+    service.waiting().await?;
+    Ok(())
 }

@@ -5,9 +5,10 @@ use serde_json::{json, Value};
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-/// Send a batch of JSON-RPC messages (one per line), close stdin, and collect every
-/// response line as parsed JSON.
-fn drive(messages: &[Value]) -> Vec<Value> {
+/// Send a batch of JSON-RPC messages verbatim (one per line), close stdin, and collect
+/// every response line as parsed JSON. Callers are responsible for a spec-conformant
+/// `initialize`/`notifications/initialized` handshake if the server requires one.
+fn raw_drive(messages: &[Value]) -> Vec<Value> {
     let bin = env!("CARGO_BIN_EXE_ferroplan-mcp");
     let mut child = Command::new(bin)
         .stdin(Stdio::piped())
@@ -30,14 +31,51 @@ fn drive(messages: &[Value]) -> Vec<Value> {
         .collect()
 }
 
+fn handshake_initialize() -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": "__handshake__",
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "protocol-test", "version": "0"}
+        }
+    })
+}
+
+fn handshake_initialized() -> Value {
+    json!({"jsonrpc": "2.0", "method": "notifications/initialized"})
+}
+
+/// Like `raw_drive`, but performs the real MCP handshake rmcp requires
+/// (`initialize` with `capabilities`/`clientInfo`, then
+/// `notifications/initialized`) before sending `messages`, and strips the
+/// handshake's own response so callers see only responses to `messages`.
+fn drive(messages: &[Value]) -> Vec<Value> {
+    let mut all = vec![handshake_initialize(), handshake_initialized()];
+    all.extend_from_slice(messages);
+    let mut resp = raw_drive(&all);
+    assert!(!resp.is_empty(), "expected at least the handshake response");
+    resp.remove(0); // drop the initialize response
+    resp
+}
+
 const DOM: &str = "(define (domain d) (:requirements :strips) (:predicates (p) (q)) \
     (:action a :precondition (p) :effect (and (not (p)) (q))))";
 const PROB: &str = "(define (problem pr) (:domain d) (:init (p)) (:goal (q)))";
 
 #[test]
 fn initialize_advertises_server_and_tools() {
-    let resp = drive(&[
-        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}),
+    let resp = raw_drive(&[
+        json!({
+            "jsonrpc":"2.0","id":1,"method":"initialize",
+            "params":{
+                "protocolVersion":"2025-06-18",
+                "capabilities": {},
+                "clientInfo": {"name": "protocol-test", "version": "0"}
+            }
+        }),
         json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
         json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
     ]);
@@ -48,13 +86,23 @@ fn initialize_advertises_server_and_tools() {
     // protocolVersion is echoed from the client.
     assert_eq!(resp[0]["result"]["protocolVersion"], "2025-06-18");
 
-    let names: Vec<&str> = resp[1]["result"]["tools"]
+    let mut names: Vec<&str> = resp[1]["result"]["tools"]
         .as_array()
         .unwrap()
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["solve", "parse", "validate", "decompose"]);
+    names.sort_unstable();
+    assert_eq!(names, ["decompose", "parse", "solve", "validate"]);
+}
+
+/// Find the response whose `id` matches, tolerating the async server's freedom
+/// to resolve concurrent in-flight requests out of arrival order.
+fn find_response(resp: &[Value], id: i64) -> Value {
+    resp.iter()
+        .find(|v| v["id"] == json!(id))
+        .unwrap_or_else(|| panic!("no response with id {id} in {resp:?}"))
+        .clone()
 }
 
 #[test]
@@ -80,7 +128,9 @@ fn solve_tool_returns_a_plan() {
     let sol: Value = serde_json::from_str(text).expect("solve returns a JSON Solution");
     assert_eq!(sol["solved"], true);
     assert_eq!(sol["plan"]["steps"][0]["action"], "A");
-    assert!(resp[0]["result"].get("isError").is_none());
+    // rmcp always sets `isError` explicitly (`false` on success), unlike the prior
+    // hand-rolled server which omitted the field entirely on success.
+    assert_eq!(resp[0]["result"]["isError"], false);
 }
 
 #[test]
@@ -102,10 +152,13 @@ fn bad_args_are_tool_errors_unknown_method_is_rpc_error() {
         // unknown JSON-RPC method → -32601
         json!({"jsonrpc":"2.0","id":2,"method":"no/such/method"}),
     ]);
-    assert_eq!(resp[0]["result"]["isError"], true);
-    assert!(resp[0]["result"]["content"][0]["text"]
+    // The server may resolve concurrent in-flight requests out of order, so match by id.
+    let tool_call = find_response(&resp, 1);
+    let unknown_method = find_response(&resp, 2);
+    assert_eq!(tool_call["result"]["isError"], true);
+    assert!(tool_call["result"]["content"][0]["text"]
         .as_str()
         .unwrap()
         .contains("domain"));
-    assert_eq!(resp[1]["error"]["code"], -32601);
+    assert_eq!(unknown_method["error"]["code"], -32601);
 }
