@@ -1,9 +1,8 @@
-//! Independent receipt admission for the Claude Code self-hosting loop.
+//! Canonical evidence admission for the Claude Code self-hosting loop.
 //!
-//! Ferroplan establishes candidate-plan and suffix-validity claims. BCINR/CMCA
-//! establishes bounded allocation claims. This server binds their exact inputs
-//! and outputs, the hook observation frontier, independent validation evidence,
-//! and a predecessor receipt into canonical BLAKE3 envelopes.
+//! This server does not plan, allocate, validate, or actuate. It binds the
+//! exact outputs of those independent authorities into replayable BLAKE3
+//! envelopes with explicit predecessor commitments.
 
 #![forbid(unsafe_code)]
 
@@ -12,9 +11,15 @@ use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use std::io::{self, BufRead, Write};
 
-const DEFAULT_PROTOCOL_VERSION: &str = "2024-11-05";
+const PROTOCOL_VERSION: &str = "2024-11-05";
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
 const RECEIPT_DOMAIN: &[u8] = b"urn:chatman:claude-code-admission:v1\0";
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DigestInput {
+    value: Value,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -43,10 +48,10 @@ struct VerifyInput {
     envelope: Value,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct DigestInput {
-    value: Value,
+enum Outcome {
+    Reply(Value),
+    Error(i64, String),
+    Silent,
 }
 
 fn main() {
@@ -60,16 +65,18 @@ fn main() {
         if line.is_empty() {
             continue;
         }
+
         let message: Value = match serde_json::from_str(line) {
             Ok(value) => value,
             Err(error) => {
                 send(
                     &mut out,
-                    &error_obj(Value::Null, -32700, &format!("parse error: {error}")),
+                    &rpc_error(Value::Null, -32700, &format!("parse error: {error}")),
                 );
                 continue;
             }
         };
+
         let id = message.get("id").cloned();
         let method = message
             .get("method")
@@ -86,9 +93,9 @@ fn main() {
                     );
                 }
             }
-            Outcome::Err(code, message) => {
+            Outcome::Error(code, message) => {
                 if let Some(id) = id {
-                    send(&mut out, &error_obj(id, code, &message));
+                    send(&mut out, &rpc_error(id, code, &message));
                 }
             }
             Outcome::Silent => {}
@@ -96,34 +103,25 @@ fn main() {
     }
 }
 
-enum Outcome {
-    Reply(Value),
-    Err(i64, String),
-    Silent,
-}
-
 fn dispatch(method: &str, params: Value) -> Outcome {
     match method {
-        "initialize" => {
-            let version = params
+        "initialize" => Outcome::Reply(json!({
+            "protocolVersion": params
                 .get("protocolVersion")
                 .and_then(Value::as_str)
-                .unwrap_or(DEFAULT_PROTOCOL_VERSION);
-            Outcome::Reply(json!({
-                "protocolVersion": version,
-                "capabilities": {"tools": {}},
-                "serverInfo": {
-                    "name": "chatman-admission",
-                    "version": env!("CARGO_PKG_VERSION")
-                },
-                "instructions": "Bind canonical observation, allocation, plan, validation, and predecessor commitments. This server admits evidence; it does not plan or actuate."
-            }))
-        }
+                .unwrap_or(PROTOCOL_VERSION),
+            "capabilities": {"tools": {}},
+            "serverInfo": {
+                "name": "chatman-admission",
+                "version": env!("CARGO_PKG_VERSION")
+            },
+            "instructions": "Bind canonical observation, allocation, plan, validation, and predecessor commitments. This server admits evidence; it does not plan or actuate."
+        })),
         "notifications/initialized" | "notifications/cancelled" => Outcome::Silent,
         "ping" => Outcome::Reply(json!({})),
         "tools/list" => Outcome::Reply(json!({"tools": tool_specs()})),
         "tools/call" => call_tool(params),
-        other => Outcome::Err(-32601, format!("method not found: {other}")),
+        other => Outcome::Error(-32601, format!("method not found: {other}")),
     }
 }
 
@@ -141,7 +139,7 @@ fn tool_specs() -> Value {
         },
         {
             "name": "bind_allocation_receipt",
-            "description": "Bind the exact eight CMCA candidates, allocation result, observation frontier, BCINR revision, and predecessor into a replayable receipt envelope.",
+            "description": "Bind exactly eight CMCA candidates, the allocation result, the observation frontier, the admitted BCINR revision, and an optional predecessor.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -156,7 +154,7 @@ fn tool_specs() -> Value {
         },
         {
             "name": "bind_plan_receipt",
-            "description": "Bind a solved persistent-session plan, allocation receipt, exact observation frontier, independent validator result, and predecessor receipt.",
+            "description": "Bind a solved Session result, allocation receipt, observation frontier, independent validator result, and optional predecessor.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -172,7 +170,7 @@ fn tool_specs() -> Value {
         },
         {
             "name": "verify_receipt",
-            "description": "Recompute and verify a Chatman admission envelope without trusting its declared receipt or payload digest.",
+            "description": "Recompute both payload digest and chained receipt without trusting the envelope declarations.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"envelope": {"type": "object"}},
@@ -191,8 +189,9 @@ fn call_tool(params: Value) -> Outcome {
         "bind_allocation_receipt" => tool_bind_allocation(&args),
         "bind_plan_receipt" => tool_bind_plan(&args),
         "verify_receipt" => tool_verify(&args),
-        other => return Outcome::Err(-32602, format!("unknown tool: {other}")),
+        other => return Outcome::Error(-32602, format!("unknown tool: {other}")),
     };
+
     Outcome::Reply(match result {
         Ok(value) => json!({
             "content": [{"type": "text", "text": pretty(&value)}],
@@ -218,18 +217,10 @@ fn tool_canonical_digest(args: &Value) -> Result<Value, String> {
 
 fn tool_bind_allocation(args: &Value) -> Result<Value, String> {
     let input: BindAllocationInput = decode(args)?;
-    validate_receipt(input.previous_receipt.as_deref(), "previous_receipt")?;
+    validate_digest(input.previous_receipt.as_deref(), "previous_receipt")?;
 
     let candidates = canonicalize(&input.candidates);
-    let candidate_rows = candidates
-        .as_array()
-        .ok_or_else(|| "candidates must be an array".to_owned())?;
-    if candidate_rows.len() != 8 {
-        return Err(format!(
-            "CMCA allocation admission requires exactly eight candidates; received {}",
-            candidate_rows.len()
-        ));
-    }
+    require_array_len(&candidates, "candidates", 8)?;
 
     let allocation_result = canonicalize(&input.allocation_result);
     let revision = allocation_result
@@ -243,52 +234,42 @@ fn tool_bind_allocation(args: &Value) -> Result<Value, String> {
     }
     let allocations = allocation_result
         .pointer("/payload/allocations")
-        .and_then(Value::as_array)
         .ok_or_else(|| "allocation_result lacks payload.allocations".to_owned())?;
-    if allocations.len() != 8 {
-        return Err(format!(
-            "allocation_result requires eight allocation rows; received {}",
-            allocations.len()
-        ));
-    }
+    require_array_len(allocations, "allocation_result.payload.allocations", 8)?;
 
     let observation_frontier = canonicalize(&input.observation_frontier);
-    let candidates_digest = digest_value(&candidates)?;
-    let allocation_result_digest = digest_value(&allocation_result)?;
-    let observation_frontier_digest = digest_value(&observation_frontier)?;
     let payload = canonicalize(&json!({
         "schema": "urn:chatman:allocation-admission-payload:v1",
         "bcinr_revision": BCINR_REVISION,
+        "candidates_digest": digest_value(&candidates)?,
         "candidates": candidates,
-        "candidates_digest": candidates_digest,
+        "allocation_result_digest": digest_value(&allocation_result)?,
         "allocation_result": allocation_result,
-        "allocation_result_digest": allocation_result_digest,
-        "observation_frontier": observation_frontier,
-        "observation_frontier_digest": observation_frontier_digest
+        "observation_frontier_digest": digest_value(&observation_frontier)?,
+        "observation_frontier": observation_frontier
     }));
+
     make_envelope("allocation", payload, input.previous_receipt)
 }
 
 fn tool_bind_plan(args: &Value) -> Result<Value, String> {
     let input: BindPlanInput = decode(args)?;
-    validate_receipt(Some(&input.allocation_receipt), "allocation_receipt")?;
-    validate_receipt(input.previous_receipt.as_deref(), "previous_receipt")?;
+    validate_digest(Some(&input.allocation_receipt), "allocation_receipt")?;
+    validate_digest(input.previous_receipt.as_deref(), "previous_receipt")?;
 
     let session_think = canonicalize(&input.session_think);
     let plan = session_think
         .get("plan")
         .filter(|value| !value.is_null())
-        .or_else(|| {
-            session_think
-                .pointer("/solution/plan")
-                .filter(|value| !value.is_null())
-        })
+        .or_else(|| session_think.pointer("/solution/plan").filter(|value| !value.is_null()))
+        .cloned()
         .ok_or_else(|| "session_think does not contain a solved plan".to_owned())?;
     let session_receipt = session_think
         .get("receipt")
         .and_then(Value::as_str)
+        .map(str::to_owned)
         .ok_or_else(|| "session_think lacks a receipt".to_owned())?;
-    validate_receipt(Some(session_receipt), "session_think.receipt")?;
+    validate_digest(Some(&session_receipt), "session_think.receipt")?;
 
     let validator_result = canonicalize(&input.validator_result);
     let validator_valid = validator_result
@@ -300,23 +281,21 @@ fn tool_bind_plan(args: &Value) -> Result<Value, String> {
         return Err("independent validator did not admit the candidate plan".to_owned());
     }
 
-    let canonical_plan = canonicalize(plan);
+    let plan = canonicalize(&plan);
     let observation_frontier = canonicalize(&input.observation_frontier);
-    let plan_digest = digest_value(&canonical_plan)?;
-    let observation_frontier_digest = digest_value(&observation_frontier)?;
-    let validator_result_digest = digest_value(&validator_result)?;
     let payload = canonicalize(&json!({
         "schema": "urn:chatman:plan-admission-payload:v1",
         "session_receipt": session_receipt,
         "session_think": session_think,
-        "plan": canonical_plan,
-        "plan_digest": plan_digest,
+        "plan_digest": digest_value(&plan)?,
+        "plan": plan,
         "allocation_receipt": input.allocation_receipt,
+        "observation_frontier_digest": digest_value(&observation_frontier)?,
         "observation_frontier": observation_frontier,
-        "observation_frontier_digest": observation_frontier_digest,
-        "validator_result": validator_result,
-        "validator_result_digest": validator_result_digest
+        "validator_result_digest": digest_value(&validator_result)?,
+        "validator_result": validator_result
     }));
+
     make_envelope("plan", payload, input.previous_receipt)
 }
 
@@ -326,44 +305,35 @@ fn tool_verify(args: &Value) -> Result<Value, String> {
         .envelope
         .as_object()
         .ok_or_else(|| "envelope must be an object".to_owned())?;
-    let kind = object
-        .get("kind")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "envelope lacks kind".to_owned())?;
+    let kind = required_str(object, "kind")?;
     let payload = canonicalize(
         object
             .get("payload")
             .ok_or_else(|| "envelope lacks payload".to_owned())?,
     );
-    let previous_receipt = object
+    let previous = object
         .get("previous_receipt")
-        .and_then(Value::as_str)
-        .map(str::to_owned);
-    validate_receipt(previous_receipt.as_deref(), "previous_receipt")?;
-    let declared_receipt = object
-        .get("receipt")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "envelope lacks receipt".to_owned())?;
-    validate_receipt(Some(declared_receipt), "receipt")?;
-    let declared_payload_digest = object
-        .get("payload_digest")
-        .and_then(Value::as_str)
-        .ok_or_else(|| "envelope lacks payload_digest".to_owned())?;
-    validate_receipt(Some(declared_payload_digest), "payload_digest")?;
+        .and_then(Value::as_str);
+    validate_digest(previous, "previous_receipt")?;
+    let declared_payload = required_str(object, "payload_digest")?;
+    let declared_receipt = required_str(object, "receipt")?;
+    validate_digest(Some(declared_payload), "payload_digest")?;
+    validate_digest(Some(declared_receipt), "receipt")?;
 
-    let expected_payload_digest = digest_value(&payload)?;
-    let expected_receipt = receipt_for(kind, &payload, previous_receipt.as_deref())?;
-    let receipt_valid = expected_receipt == declared_receipt;
-    let payload_digest_valid = expected_payload_digest == declared_payload_digest;
+    let expected_payload = digest_value(&payload)?;
+    let expected_receipt = receipt_for(kind, &payload, previous)?;
+    let payload_digest_valid = declared_payload == expected_payload;
+    let receipt_valid = declared_receipt == expected_receipt;
+
     Ok(json!({
         "schema": "urn:chatman:receipt-verification:v1",
-        "valid": receipt_valid && payload_digest_valid,
-        "receipt_valid": receipt_valid,
+        "valid": payload_digest_valid && receipt_valid,
         "payload_digest_valid": payload_digest_valid,
+        "receipt_valid": receipt_valid,
+        "declared_payload_digest": declared_payload,
+        "expected_payload_digest": expected_payload,
         "declared_receipt": declared_receipt,
         "expected_receipt": expected_receipt,
-        "declared_payload_digest": declared_payload_digest,
-        "expected_payload_digest": expected_payload_digest,
         "kind": kind
     }))
 }
@@ -388,12 +358,11 @@ fn make_envelope(
 }
 
 fn receipt_for(kind: &str, payload: &Value, previous: Option<&str>) -> Result<String, String> {
-    let bytes = canonical_bytes(payload)?;
     let mut hasher = blake3::Hasher::new();
     hasher.update(RECEIPT_DOMAIN);
     update_framed(&mut hasher, kind.as_bytes());
     update_framed(&mut hasher, previous.unwrap_or("").as_bytes());
-    update_framed(&mut hasher, &bytes);
+    update_framed(&mut hasher, &canonical_bytes(payload)?);
     Ok(hasher.finalize().to_hex().to_string())
 }
 
@@ -408,11 +377,11 @@ fn canonicalize(value: &Value) -> Value {
         Value::Object(object) => {
             let mut keys: Vec<&String> = object.keys().collect();
             keys.sort_unstable();
-            let mut canonical = Map::new();
+            let mut result = Map::new();
             for key in keys {
-                canonical.insert(key.clone(), canonicalize(&object[key]));
+                result.insert(key.clone(), canonicalize(&object[key]));
             }
-            Value::Object(canonical)
+            Value::Object(result)
         }
         _ => value.clone(),
     }
@@ -426,7 +395,25 @@ fn digest_value(value: &Value) -> Result<String, String> {
     Ok(blake3::hash(&canonical_bytes(value)?).to_hex().to_string())
 }
 
-fn validate_receipt(value: Option<&str>, field: &str) -> Result<(), String> {
+fn require_array_len(value: &Value, field: &str, length: usize) -> Result<(), String> {
+    let actual = value
+        .as_array()
+        .ok_or_else(|| format!("{field} must be an array"))?
+        .len();
+    if actual != length {
+        return Err(format!("{field} requires exactly {length} items; received {actual}"));
+    }
+    Ok(())
+}
+
+fn required_str<'a>(object: &'a Map<String, Value>, field: &str) -> Result<&'a str, String> {
+    object
+        .get(field)
+        .and_then(Value::as_str)
+        .ok_or_else(|| format!("envelope lacks string `{field}`"))
+}
+
+fn validate_digest(value: Option<&str>, field: &str) -> Result<(), String> {
     let Some(value) = value else { return Ok(()) };
     if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         return Err(format!("{field} must be a 64-character hexadecimal digest"));
@@ -442,7 +429,7 @@ fn pretty(value: &Value) -> String {
     serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }
 
-fn error_obj(id: Value, code: i64, message: &str) -> Value {
+fn rpc_error(id: Value, code: i64, message: &str) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message}})
 }
 
