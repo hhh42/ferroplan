@@ -172,7 +172,7 @@ fn tool_specs() -> Value {
         },
         {
             "name": "verify_receipt",
-            "description": "Recompute and verify a Chatman admission envelope without trusting its declared receipt.",
+            "description": "Recompute and verify a Chatman admission envelope without trusting its declared receipt or payload digest.",
             "inputSchema": {
                 "type": "object",
                 "properties": {"envelope": {"type": "object"}},
@@ -219,18 +219,20 @@ fn tool_canonical_digest(args: &Value) -> Result<Value, String> {
 fn tool_bind_allocation(args: &Value) -> Result<Value, String> {
     let input: BindAllocationInput = decode(args)?;
     validate_receipt(input.previous_receipt.as_deref(), "previous_receipt")?;
-    let candidates = input
-        .candidates
+
+    let candidates = canonicalize(&input.candidates);
+    let candidate_rows = candidates
         .as_array()
         .ok_or_else(|| "candidates must be an array".to_owned())?;
-    if candidates.len() != 8 {
+    if candidate_rows.len() != 8 {
         return Err(format!(
             "CMCA allocation admission requires exactly eight candidates; received {}",
-            candidates.len()
+            candidate_rows.len()
         ));
     }
-    let revision = input
-        .allocation_result
+
+    let allocation_result = canonicalize(&input.allocation_result);
+    let revision = allocation_result
         .pointer("/payload/bcinr_revision")
         .and_then(Value::as_str)
         .ok_or_else(|| "allocation_result lacks payload.bcinr_revision".to_owned())?;
@@ -239,8 +241,7 @@ fn tool_bind_allocation(args: &Value) -> Result<Value, String> {
             "allocation_result BCINR revision `{revision}` does not match admitted `{BCINR_REVISION}`"
         ));
     }
-    let allocations = input
-        .allocation_result
+    let allocations = allocation_result
         .pointer("/payload/allocations")
         .and_then(Value::as_array)
         .ok_or_else(|| "allocation_result lacks payload.allocations".to_owned())?;
@@ -251,15 +252,19 @@ fn tool_bind_allocation(args: &Value) -> Result<Value, String> {
         ));
     }
 
+    let observation_frontier = canonicalize(&input.observation_frontier);
+    let candidates_digest = digest_value(&candidates)?;
+    let allocation_result_digest = digest_value(&allocation_result)?;
+    let observation_frontier_digest = digest_value(&observation_frontier)?;
     let payload = canonicalize(&json!({
         "schema": "urn:chatman:allocation-admission-payload:v1",
         "bcinr_revision": BCINR_REVISION,
-        "candidates": input.candidates,
-        "candidates_digest": digest_value(&canonicalize(&input.candidates))?,
-        "allocation_result": input.allocation_result,
-        "allocation_result_digest": digest_value(&canonicalize(&input.allocation_result))?,
-        "observation_frontier": input.observation_frontier,
-        "observation_frontier_digest": digest_value(&canonicalize(&input.observation_frontier))?
+        "candidates": candidates,
+        "candidates_digest": candidates_digest,
+        "allocation_result": allocation_result,
+        "allocation_result_digest": allocation_result_digest,
+        "observation_frontier": observation_frontier,
+        "observation_frontier_digest": observation_frontier_digest
     }));
     make_envelope("allocation", payload, input.previous_receipt)
 }
@@ -269,51 +274,48 @@ fn tool_bind_plan(args: &Value) -> Result<Value, String> {
     validate_receipt(Some(&input.allocation_receipt), "allocation_receipt")?;
     validate_receipt(input.previous_receipt.as_deref(), "previous_receipt")?;
 
-    let plan = input
-        .session_think
+    let session_think = canonicalize(&input.session_think);
+    let plan = session_think
         .get("plan")
         .filter(|value| !value.is_null())
         .or_else(|| {
-            input
-                .session_think
+            session_think
                 .pointer("/solution/plan")
                 .filter(|value| !value.is_null())
         })
         .ok_or_else(|| "session_think does not contain a solved plan".to_owned())?;
-    let session_receipt = input
-        .session_think
+    let session_receipt = session_think
         .get("receipt")
         .and_then(Value::as_str)
         .ok_or_else(|| "session_think lacks a receipt".to_owned())?;
     validate_receipt(Some(session_receipt), "session_think.receipt")?;
 
-    let validator_valid = input
-        .validator_result
+    let validator_result = canonicalize(&input.validator_result);
+    let validator_valid = validator_result
         .get("valid")
         .and_then(Value::as_bool)
-        .or_else(|| {
-            input
-                .validator_result
-                .get("ok")
-                .and_then(Value::as_bool)
-        })
+        .or_else(|| validator_result.get("ok").and_then(Value::as_bool))
         .ok_or_else(|| "validator_result must declare boolean `valid` or `ok`".to_owned())?;
     if !validator_valid {
         return Err("independent validator did not admit the candidate plan".to_owned());
     }
 
     let canonical_plan = canonicalize(plan);
+    let observation_frontier = canonicalize(&input.observation_frontier);
+    let plan_digest = digest_value(&canonical_plan)?;
+    let observation_frontier_digest = digest_value(&observation_frontier)?;
+    let validator_result_digest = digest_value(&validator_result)?;
     let payload = canonicalize(&json!({
         "schema": "urn:chatman:plan-admission-payload:v1",
         "session_receipt": session_receipt,
-        "session_think": input.session_think,
+        "session_think": session_think,
         "plan": canonical_plan,
-        "plan_digest": digest_value(&canonical_plan)?,
+        "plan_digest": plan_digest,
         "allocation_receipt": input.allocation_receipt,
-        "observation_frontier": input.observation_frontier,
-        "observation_frontier_digest": digest_value(&canonicalize(&input.observation_frontier))?,
-        "validator_result": input.validator_result,
-        "validator_result_digest": digest_value(&canonicalize(&input.validator_result))?
+        "observation_frontier": observation_frontier,
+        "observation_frontier_digest": observation_frontier_digest,
+        "validator_result": validator_result,
+        "validator_result_digest": validator_result_digest
     }));
     make_envelope("plan", payload, input.previous_receipt)
 }
@@ -328,28 +330,41 @@ fn tool_verify(args: &Value) -> Result<Value, String> {
         .get("kind")
         .and_then(Value::as_str)
         .ok_or_else(|| "envelope lacks kind".to_owned())?;
-    let payload = object
-        .get("payload")
-        .cloned()
-        .ok_or_else(|| "envelope lacks payload".to_owned())?;
+    let payload = canonicalize(
+        object
+            .get("payload")
+            .ok_or_else(|| "envelope lacks payload".to_owned())?,
+    );
     let previous_receipt = object
         .get("previous_receipt")
         .and_then(Value::as_str)
         .map(str::to_owned);
     validate_receipt(previous_receipt.as_deref(), "previous_receipt")?;
-    let declared = object
+    let declared_receipt = object
         .get("receipt")
         .and_then(Value::as_str)
         .ok_or_else(|| "envelope lacks receipt".to_owned())?;
-    validate_receipt(Some(declared), "receipt")?;
-    let expected = receipt_for(kind, &canonicalize(&payload), previous_receipt.as_deref())?;
+    validate_receipt(Some(declared_receipt), "receipt")?;
+    let declared_payload_digest = object
+        .get("payload_digest")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "envelope lacks payload_digest".to_owned())?;
+    validate_receipt(Some(declared_payload_digest), "payload_digest")?;
+
+    let expected_payload_digest = digest_value(&payload)?;
+    let expected_receipt = receipt_for(kind, &payload, previous_receipt.as_deref())?;
+    let receipt_valid = expected_receipt == declared_receipt;
+    let payload_digest_valid = expected_payload_digest == declared_payload_digest;
     Ok(json!({
         "schema": "urn:chatman:receipt-verification:v1",
-        "valid": expected == declared,
-        "declared_receipt": declared,
-        "expected_receipt": expected,
-        "kind": kind,
-        "payload_digest": digest_value(&canonicalize(&payload))?
+        "valid": receipt_valid && payload_digest_valid,
+        "receipt_valid": receipt_valid,
+        "payload_digest_valid": payload_digest_valid,
+        "declared_receipt": declared_receipt,
+        "expected_receipt": expected_receipt,
+        "declared_payload_digest": declared_payload_digest,
+        "expected_payload_digest": expected_payload_digest,
+        "kind": kind
     }))
 }
 
@@ -358,12 +373,14 @@ fn make_envelope(
     payload: Value,
     previous_receipt: Option<String>,
 ) -> Result<Value, String> {
+    let payload = canonicalize(&payload);
+    let payload_digest = digest_value(&payload)?;
     let receipt = receipt_for(kind, &payload, previous_receipt.as_deref())?;
     Ok(json!({
         "schema": "urn:chatman:admission-envelope:v1",
         "kind": kind,
         "algorithm": "BLAKE3",
-        "payload_digest": digest_value(&payload)?,
+        "payload_digest": payload_digest,
         "payload": payload,
         "previous_receipt": previous_receipt,
         "receipt": receipt
