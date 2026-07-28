@@ -1,0 +1,34 @@
+@prefix ce: <urn:chatman:ecosystem:> .
+@prefix cmca: <urn:chatman:cmca:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ce:ObservationShape a sh:NodeShape ;
+  sh:targetClass ce:Observation ;
+  sh:closed true ;
+  sh:ignoredProperties ( rdf:type ) ;
+  sh:property [ sh:path ce:observes ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:Repository ] ;
+  sh:property [ sh:path ce:sequence ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:nonNegativeInteger ] ;
+  sh:property [ sh:path ce:contentDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] .
+
+ce:ReceiptShape a sh:NodeShape ;
+  sh:targetClass ce:Receipt ;
+  sh:property [ sh:path ce:contentDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path ce:binds ; sh:minCount 1 ] .
+
+ce:WorkSurfaceShape a sh:NodeShape ;
+  sh:targetClass ce:WorkSurface ;
+  sh:closed true ;
+  sh:ignoredProperties ( rdf:type ) ;
+  sh:property [ sh:path cmca:parentIndex ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive -1 ; sh:maxInclusive 7 ] ;
+  sh:property [ sh:path cmca:accessFrequency ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:businessValue ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:recomputationCost ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:retrievalDemand ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:schedulingDemand ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:searchDemand ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:standing ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:validity ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:verificationCost ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path cmca:downstreamConsequence ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] .
