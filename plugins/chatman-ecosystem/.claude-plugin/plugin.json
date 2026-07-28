@@ -31,6 +31,12 @@
     "monitors": "./monitors/monitors.json"
   },
   "userConfig": {
+    "ferroplan_root": {
+      "type": "directory",
+      "title": "Ferroplan checkout",
+      "description": "Optional exact Ferroplan checkout used to launch the three Rust MCP servers. Leave empty when their binaries are installed or Claude Code is running in Ferroplan itself.",
+      "required": false
+    },
     "config_lsp_root": {
       "type": "directory",
       "title": "Claude config LSP checkout",
