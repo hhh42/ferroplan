@@ -1,0 +1,108 @@
+@prefix ce: <urn:chatman:ecosystem:> .
+@prefix cmca: <urn:chatman:cmca:> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ce:System a rdfs:Class .
+ce:Repository a rdfs:Class .
+ce:Observation a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:Admission a rdfs:Class ; rdfs:subClassOf prov:Activity .
+ce:Allocation a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:CandidatePlan a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:ValidatedPlan a rdfs:Class ; rdfs:subClassOf ce:CandidatePlan .
+ce:Receipt a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:Refusal a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:AgentRole a rdfs:Class .
+ce:Capability a rdfs:Class .
+ce:WorkSurface a rdfs:Class .
+
+ce:observes a rdf:Property ; rdfs:domain ce:Observation ; rdfs:range ce:Repository .
+ce:admits a rdf:Property ; rdfs:domain ce:Admission ; rdfs:range prov:Entity .
+ce:allocatesTo a rdf:Property ; rdfs:domain ce:Allocation ; rdfs:range ce:WorkSurface .
+ce:plannedBy a rdf:Property ; rdfs:domain ce:CandidatePlan ; rdfs:range ce:System .
+ce:validatedBy a rdf:Property ; rdfs:domain ce:ValidatedPlan ; rdfs:range ce:AgentRole .
+ce:binds a rdf:Property ; rdfs:domain ce:Receipt ; rdfs:range prov:Entity .
+ce:previousReceipt a rdf:Property ; rdfs:domain ce:Receipt ; rdfs:range ce:Receipt .
+ce:claimCeiling a rdf:Property ; rdfs:range xsd:string .
+ce:standing a rdf:Property ; rdfs:range xsd:string .
+ce:authority a rdf:Property ; rdfs:range ce:System .
+ce:oracle a rdf:Property ; rdfs:range ce:System .
+ce:mayActuate a rdf:Property ; rdfs:range xsd:boolean .
+ce:requiresReceipt a rdf:Property ; rdfs:range xsd:boolean .
+ce:sourceRevision a rdf:Property ; rdfs:range xsd:string .
+ce:contentDigest a rdf:Property ; rdfs:range xsd:string .
+ce:sequence a rdf:Property ; rdfs:range xsd:nonNegativeInteger .
+ce:pendingEventCount a rdf:Property ; rdfs:range xsd:nonNegativeInteger .
+ce:factorOrder a rdf:Property ; rdfs:range rdf:List .
+
+cmca:accessFrequency a rdf:Property ; rdfs:range xsd:decimal .
+cmca:businessValue a rdf:Property ; rdfs:range xsd:decimal .
+cmca:recomputationCost a rdf:Property ; rdfs:range xsd:decimal .
+cmca:retrievalDemand a rdf:Property ; rdfs:range xsd:decimal .
+cmca:schedulingDemand a rdf:Property ; rdfs:range xsd:decimal .
+cmca:searchDemand a rdf:Property ; rdfs:range xsd:decimal .
+cmca:standing a rdf:Property ; rdfs:range xsd:decimal .
+cmca:validity a rdf:Property ; rdfs:range xsd:decimal .
+cmca:verificationCost a rdf:Property ; rdfs:range xsd:decimal .
+cmca:downstreamConsequence a rdf:Property ; rdfs:range xsd:decimal .
+cmca:parentIndex a rdf:Property ; rdfs:range xsd:integer .
+cmca:allocationShare a rdf:Property ; rdfs:range xsd:decimal .
+
+ce:ClaudeCode a ce:System ;
+  dcterms:title "Claude Code" ;
+  ce:claimCeiling "proposal-and-supervision" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:Ferroplan a ce:System ;
+  dcterms:title "Ferroplan deterministic planner" ;
+  ce:claimCeiling "candidate-plan" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:BCINR a ce:System ;
+  dcterms:title "Bounded Constant-time Invariant Numeric Runtime" ;
+  ce:claimCeiling "admission-oracle" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:CMCA a ce:System ;
+  dcterms:title "Chatman Multifractal Cascade Allocator" ;
+  ce:claimCeiling "bounded-allocation" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:BRCE a ce:System ;
+  dcterms:title "Brokered Receipted Capability Execution" ;
+  ce:claimCeiling "exclusive-actuation-broker" ;
+  ce:mayActuate true ;
+  ce:requiresReceipt true .
+
+ce:ObserverRole a ce:AgentRole ; dcterms:title "RDF observer" .
+ce:AllocatorRole a ce:AgentRole ; dcterms:title "CMCA allocator" .
+ce:PlannerRole a ce:AgentRole ; dcterms:title "Ferroplan planner" .
+ce:ManufacturerRole a ce:AgentRole ; dcterms:title "Source manufacturer" .
+ce:ValidatorRole a ce:AgentRole ; dcterms:title "Independent validator" .
+ce:AuditorRole a ce:AgentRole ; dcterms:title "Receipt auditor" .
+
+ce:ProtectedActuationPolicy a odrl:Set ;
+  odrl:permission [
+    odrl:action odrl:use ;
+    odrl:constraint [
+      odrl:leftOperand ce:standing ;
+      odrl:operator odrl:eq ;
+      odrl:rightOperand "ALIVE"
+    ]
+  ] ;
+  odrl:prohibition [
+    odrl:action odrl:use ;
+    odrl:constraint [
+      odrl:leftOperand ce:pendingEventCount ;
+      odrl:operator odrl:gt ;
+      odrl:rightOperand 0
+    ]
+  ] .
