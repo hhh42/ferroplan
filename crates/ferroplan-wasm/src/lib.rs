@@ -233,6 +233,93 @@ impl WasmSession {
             None => JsValue::NULL,
         }
     }
+
+    /// Begin a durative action NOW (temporal sessions only): resolves its
+    /// duration against current fluent values, checks the start's
+    /// preconditions hold, applies the start's effects, and joins the
+    /// interval's end to the session's in-flight set — due after the
+    /// resolved duration. Call `elapse` to fire the end when its time
+    /// arrives. Errors on classical sessions, unknown actions, unresolved
+    /// durations, and starts whose preconditions don't currently hold.
+    pub fn apply_start(&mut self, name: &str) -> Result<(), JsValue> {
+        self.inner.apply_start(name).map_err(js_err)
+    }
+
+    /// Scope this mind to only the ops whose display starts with `prefix`
+    /// (case-sensitive, e.g. `"TRADE ALICE "`) — a wasm-friendly variant of
+    /// the core `restrict_ops(impl FnMut(&str) -> bool)`, which can't cross
+    /// the JS boundary as a closure. Every non-matching op becomes
+    /// forbidden: never chosen by a think, and any plan step using one
+    /// fails `valid()`. Calling again replaces the mask; pass an empty
+    /// `prefix` to keep every op (clears the restriction). See also
+    /// `restrict_prefix_claims` for the bazaar-demo's additional
+    /// claims-mask shape.
+    pub fn restrict_prefix(&mut self, prefix: String) {
+        self.inner.restrict_ops(move |d| d.starts_with(&prefix));
+    }
+
+    /// Schedule a future world event on a temporal session: in `dt` time
+    /// units from now, `name` flips to `value`. Requires a temporal session
+    /// and a positive, finite `dt` (use `set_fact` for "now"). The event
+    /// feeds into every subsequent think/`valid()` as a think-relative
+    /// scheduled happening — models exogenous future changes (e.g. "the
+    /// market closes in five") a plan must beat or wait through.
+    pub fn set_timed_fact(&mut self, dt: f64, name: &str, value: bool) -> Result<(), JsValue> {
+        self.inner.set_timed_fact(dt, name, value).map_err(js_err)
+    }
+
+    /// Advance the game's clock by `dt`: fires every scheduled event and
+    /// running-interval end whose moment has passed (in time order),
+    /// updating world state. Returns the display names of any interval
+    /// ends that could NOT fire (their preconditions no longer held —
+    /// drift broke the interval mid-flight; their effects are dropped).
+    /// World changes the game itself makes still go through `set_fact` /
+    /// `observe`; `elapse` only advances the schedule.
+    pub fn elapse(&mut self, dt: f64) -> Result<Vec<String>, JsValue> {
+        self.inner.elapse(dt).map_err(js_err)
+    }
+
+    /// Estimated retained bytes of the SHARED grounded payload (op
+    /// displays, fact/fluent names, packed CSR arrays) — paid once per
+    /// world no matter how many forks share it. Flat array/string bytes
+    /// only, so treat it as a floor, not a full audit.
+    pub fn world_bytes(&self) -> usize {
+        self.inner.world_bytes()
+    }
+
+    /// Estimated retained bytes of THIS mind's private state (current
+    /// facts/fluents, goal, fluent relevance) — what one more `fork()`
+    /// costs. Same flat-bytes caveat as `world_bytes`.
+    pub fn mind_bytes(&self) -> usize {
+        self.inner.mind_bytes()
+    }
+
+    /// A budgeted rethink biased toward `prior_json`'s structure (avoids
+    /// visible "dithering" between structurally different but equally
+    /// valid plans after drift): replays `prior_json`'s remaining suffix
+    /// from `from_step` step-by-step (pure replay, no search) up to the
+    /// first inapplicable step or an early goal-met, then searches only
+    /// for a new tail from where the prefix replay stopped. Falls back to
+    /// an unbiased bounded think if no tail exists from the prefix's end.
+    /// `prior_json` is a JSON-encoded `Plan` (e.g. from a prior `think()`
+    /// call's `Solution.plan`). Returns the `Solution` as JSON; also
+    /// stores the resulting plan internally and resets the cursor, like
+    /// `think`.
+    pub fn replan_following(
+        &mut self,
+        prior_json: &str,
+        from_step: usize,
+        evals: usize,
+        mem_mb: usize,
+    ) -> Result<String, JsValue> {
+        let prior: ferroplan::api::Plan = serde_json::from_str(prior_json).map_err(js_err)?;
+        let sol = self
+            .inner
+            .replan_following(&prior, from_step, evals, Some(mem_mb));
+        self.plan = if sol.solved { sol.plan.clone() } else { None };
+        self.cursor = 0;
+        Ok(serde_json::to_string(&sol).unwrap_or_else(|e| err_json(&format!("serialize: {e}"))))
+    }
 }
 
 fn js_err(e: impl std::fmt::Display) -> JsValue {
