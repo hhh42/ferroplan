@@ -1,0 +1,95 @@
+{
+  "schema": "urn:chatman:claude-code-config-schema-epoch:v1",
+  "observed_on": "2026-07-27",
+  "authorities": {
+    "claude-loader": {
+      "role": "runtime-load-and-install-authority",
+      "claim_ceiling": "plugin-load-conformance",
+      "validation_command": "claude plugin validate",
+      "sources": [
+        "https://code.claude.com/docs/en/plugins-reference",
+        "https://code.claude.com/docs/en/plugin-marketplaces",
+        "https://code.claude.com/docs/en/hooks",
+        "https://code.claude.com/docs/en/plugin-dependencies"
+      ]
+    },
+    "claude-code-config-lsp": {
+      "role": "modeled-editor-and-declare-oracle",
+      "claim_ceiling": "modeled-surface-conformance",
+      "repository": "seanchatmangpt/claude-code-config-lsp",
+      "observed_head": "1896770a9a51119e0555f48584366afb8332635d",
+      "ontology_digest_source_sha": "7bb1c92fd8a6491b7bea99fe794ae9d3e57f2fa3",
+      "status": "PARTIAL_ALIVE"
+    }
+  },
+  "known_deltas": [
+    {
+      "id": "plugin-version-optional",
+      "lsp_model": "plugin.json version required",
+      "current_loader": "only name is required; omitted version uses git commit SHA",
+      "resolution": "loader-wins"
+    },
+    {
+      "id": "marketplace-owner-object",
+      "lsp_model": "owner is a string",
+      "current_loader": "owner is an object with required name and optional email",
+      "resolution": "loader-wins"
+    },
+    {
+      "id": "marketplace-source-union",
+      "lsp_model": "source is an HTTPS string or local:path",
+      "current_loader": "source is a relative path string or typed github, url, git-subdir, or npm object",
+      "resolution": "loader-wins"
+    },
+    {
+      "id": "component-path-unions",
+      "lsp_model": "skills and agents are arrays; hooks and MCP are inline objects",
+      "current_loader": "skills, commands, agents, hooks, MCP, and LSP components accept string, array, or object forms as applicable",
+      "resolution": "loader-wins"
+    },
+    {
+      "id": "lsp-server-map",
+      "lsp_model": "lspServers is an array containing name fields",
+      "current_loader": "lspServers is a map from server name to configuration or a path to .lsp.json",
+      "resolution": "loader-wins"
+    },
+    {
+      "id": "expanded-hook-types",
+      "lsp_model": "command hooks only",
+      "current_loader": "command, http, mcp_tool, prompt, and experimental agent hooks",
+      "resolution": "loader-wins"
+    },
+    {
+      "id": "plugin-dependencies",
+      "lsp_model": "not modeled",
+      "current_loader": "dependencies with optional semver and cross-marketplace policy",
+      "resolution": "loader-only"
+    },
+    {
+      "id": "experimental-monitors-themes",
+      "lsp_model": "not modeled",
+      "current_loader": "experimental.monitors and experimental.themes; legacy top-level forms warn",
+      "resolution": "loader-only"
+    },
+    {
+      "id": "user-config-and-channels",
+      "lsp_model": "not modeled",
+      "current_loader": "userConfig and channels are supported manifest surfaces",
+      "resolution": "loader-only"
+    },
+    {
+      "id": "plugin-root-agent-skill-patterns",
+      "lsp_model": "recognizes .claude/agents and .claude/skills patterns",
+      "current_loader": "plugin agents and skills live at agents/ and skills/ under plugin root",
+      "resolution": "loader-wins; LSP result is partial until ontology expands"
+    }
+  ],
+  "federated_conformance_law": {
+    "plugin-load": "claude plugin validate must pass",
+    "modeled-editor-surfaces": "claude-code-config-lsp diagnostics and Declare traces must be recorded",
+    "known-epoch-delta": "an LSP diagnostic matching a declared delta cannot alone refuse current loader conformance",
+    "unknown-delta": "remain UNKNOWN until reconciled",
+    "phase-advance": "conformance=conformant requires loader validation plus no unresolved non-epoch LSP error",
+    "claim-separation": "loader validity does not prove semantic correctness; LSP conformance does not prove plugin loadability outside its modeled epoch"
+  }
+}
