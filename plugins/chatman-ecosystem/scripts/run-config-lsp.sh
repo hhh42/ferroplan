@@ -15,6 +15,7 @@ fi
 
 if [ -n "$root" ] && [ -f "$root/Cargo.toml" ]; then
   exec cargo run \
+    --locked \
     --quiet \
     --manifest-path "$root/Cargo.toml" \
     --bin claude-code-config-lsp \
@@ -22,5 +23,5 @@ if [ -n "$root" ] && [ -f "$root/Cargo.toml" ]; then
 fi
 
 printf '%s\n' \
-  "cannot resolve claude-code-config-lsp; install the binary, configure config_lsp_root, or place the checkout beside Ferroplan" >&2
+  "cannot resolve claude-code-config-lsp from an installed binary or a locked checkout" >&2
 exit 69
