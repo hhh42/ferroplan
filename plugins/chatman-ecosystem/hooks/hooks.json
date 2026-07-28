@@ -31,6 +31,17 @@
             "statusMessage": "Checking admitted actuation frontier"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/generated-guard.py\"",
+            "timeout": 10,
+            "statusMessage": "Checking ontology-generated file freshness"
+          }
+        ]
       }
     ],
     "PostToolUse": [
