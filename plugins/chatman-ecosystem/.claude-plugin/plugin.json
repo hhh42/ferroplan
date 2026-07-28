@@ -1,6 +1,8 @@
 {
+  "$schema": "https://code.claude.com/schemas/plugin.json",
   "name": "chatman-ecosystem",
-  "description": "Closed-loop repository development with BCINR admission, CMCA allocation, persistent Ferroplan sessions, hooks, agents, and receipt chaining",
+  "displayName": "Chatman Phase Engine",
+  "description": "A phase-changing, proof-carrying Claude Code control plane combining configuration LSP law, RDF admission, BCINR, CMCA allocation, persistent Ferroplan planning, specialized agents, hooks, monitors, and chained receipts",
   "author": {
     "name": "Sean Chatman",
     "email": "info@chatmangpt.com"
@@ -13,8 +15,19 @@
     "bcinr",
     "cmca",
     "pddl",
+    "rdf",
+    "claude-code",
+    "phase-change",
+    "combinatorial-maximalism",
     "self-hosting",
     "receipts"
   ],
+  "dependencies": [
+    "claude-code-config-lsp"
+  ],
+  "skills": "./skills/",
+  "agents": "./agents/",
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
   "defaultEnabled": true
 }
