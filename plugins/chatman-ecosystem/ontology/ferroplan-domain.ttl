@@ -1,0 +1,719 @@
+@prefix fp: <urn:chatman:ferroplan-domain:v1#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+
+# =============================================================================
+# ferroplan-domain.ttl — the planning-domain model for ferroplan: Options,
+# Plan/Step, Solution/Statistics, Contract/Decomposition, ParseReport family,
+# Session's method surface, and the three MCP servers' tool I/O shapes.
+#
+# Sibling to chatman-ecosystem.ttl (authority graph / phase space); this file
+# is purely about *how ferroplan plans*, not about the actuation-authority
+# graph that surrounds it. Where source material marked a field/behavior
+# "inferred" (i.e. not backed by a doc comment, only by reading code), the
+# rdfs:comment here is prefixed "Inferred:" rather than stated as documented
+# fact. Comments without that prefix are drawn from the crate's own doc
+# comments (rustdoc `///` / `//!`) as extracted from source.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Enums: Mode, Search
+# -----------------------------------------------------------------------------
+
+fp:Mode a rdfs:Class ;
+  dcterms:title "Mode" ;
+  rdfs:comment "The planning mode ferroplan::api::Options selects. Serialized lowercase. Source: api.rs enum Mode." .
+
+fp:ModeAuto a fp:Mode ;
+  rdfs:label "auto" ;
+  rdfs:comment "Default mode. PDDL3 metric mode if the problem has preferences/metric, else classic FF." .
+
+fp:ModeFf a fp:Mode ;
+  rdfs:label "ff" ;
+  rdfs:comment "Classic delete-relaxation FF best-first over the whole task." .
+
+fp:ModePartition a fp:Mode ;
+  rdfs:label "partition" ;
+  rdfs:comment "SGPlan-style partition-and-resolve." .
+
+fp:ModePddl3 a fp:Mode ;
+  rdfs:label "pddl3" ;
+  rdfs:comment "PDDL3 soft-goal preferences + anytime branch-and-bound metric optimization." .
+
+fp:ModeTemporal a fp:Mode ;
+  rdfs:label "temporal" ;
+  rdfs:comment "PDDL2.1 durative actions via decision-epoch temporal search." .
+
+fp:ModePortfolio a fp:Mode ;
+  rdfs:label "portfolio" ;
+  rdfs:comment "Sequential portfolio over complementary classical configurations under one shared eval budget (ferroplan-roadmap.md Phase 6). Classical-search only: temporal and preference/metric problems keep their own machinery (this mode falls back to it, like `auto`)." .
+
+fp:Search a rdfs:Class ;
+  dcterms:title "Search" ;
+  rdfs:comment "The search strategy within a Mode. Serialized kebab-case. Source: api.rs enum Search." .
+
+fp:SearchAuto a fp:Search ;
+  rdfs:label "auto" ;
+  rdfs:comment "Default. Let the engine choose: enforced hill-climbing, then weighted best-first if EHC gets stuck (the FF/Metric-FF default — fast on most problems)." .
+
+fp:SearchEhc a fp:Search ;
+  rdfs:label "ehc" ;
+  rdfs:comment "Enforced hill-climbing (+ helpful actions), falling back to best-first if it finds no improving state (kept complete)." .
+
+fp:SearchBestFirst a fp:Search ;
+  rdfs:label "best-first" ;
+  rdfs:comment "Weighted best-first over the whole task (complete; ignores helpful actions)." .
+
+fp:SearchEhcThenBestFirst a fp:Search ;
+  rdfs:label "ehc-then-best-first" ;
+  rdfs:comment "EHC first, fall back to best-first if it gets stuck (same as `auto`)." .
+
+# -----------------------------------------------------------------------------
+# Options
+# -----------------------------------------------------------------------------
+
+fp:Options a rdfs:Class ;
+  dcterms:title "Options" ;
+  rdfs:comment "Solve/replan configuration passed to ferroplan::api::solve, ::decompose, and Session::new. All fields have serde defaults, matching impl Default for Options (mode: auto, search: auto, helpful_actions: true, weight_g: 1.0, weight_h: 5.0, threads: 0, max_evaluated: None, optimize: true). Source: api.rs struct Options." .
+
+fp:mode a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range fp:Mode ;
+  rdfs:comment "Planning mode (`auto` routes by problem features). serde default: Mode::Auto." .
+
+fp:search a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range fp:Search ;
+  rdfs:comment "Search strategy within the mode. serde default: Search::Auto." .
+
+fp:helpfulActions a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range xsd:boolean ;
+  rdfs:comment "Restrict expansion to helpful actions (used by EHC; no effect on plain best-first yet). serde default: true (default_true)." .
+
+fp:weightG a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range xsd:double ;
+  rdfs:comment "Best-first `g` (path-length) weight. serde default: 1.0 (default_weight_g)." .
+
+fp:weightH a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range xsd:double ;
+  rdfs:comment "Best-first `h` (heuristic) weight. Default `1·g + 5·h`. serde default: 5.0 (default_weight_h)." .
+
+fp:threads a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Worker threads; `0` = auto (`min(cores, 6)` or `FFDP_THREADS`). serde default: 0." .
+
+fp:maxEvaluated a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Cap on evaluated states; absent/None = engine default. serde default: None. Optional field." .
+
+fp:optimize a rdf:Property ;
+  rdfs:domain fp:Options ; rdfs:range xsd:boolean ;
+  rdfs:comment "PDDL3: optimize the metric (`true`) vs. return a satisficing plan over the hard goals only (`false`). serde default: true (default_true)." .
+
+# -----------------------------------------------------------------------------
+# Step, Plan
+# -----------------------------------------------------------------------------
+
+fp:Step a rdfs:Class ;
+  dcterms:title "Step" ;
+  rdfs:comment "One grounded action in the plan. Source: api.rs struct Step." .
+
+fp:stepIndex a rdf:Property ;
+  rdfs:domain fp:Step ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: position of this step in the plan." .
+
+fp:action a rdf:Property ;
+  rdfs:domain fp:Step ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: the action name." .
+
+fp:args a rdf:Property ;
+  rdfs:domain fp:Step ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: the action's grounded arguments (Vec<String>, omitted from JSON when empty)." .
+
+fp:time a rdf:Property ;
+  rdfs:domain fp:Step ; rdfs:range xsd:double ;
+  rdfs:comment "Temporal mode: the action's dispatch time. Optional, present only in temporal plans." .
+
+fp:duration a rdf:Property ;
+  rdfs:domain fp:Step ; rdfs:range xsd:double ;
+  rdfs:comment "Temporal mode: the durative action's duration (absent for instantaneous). Optional." .
+
+fp:Plan a rdfs:Class ;
+  dcterms:title "Plan" ;
+  rdfs:comment "A found plan. Source: api.rs struct Plan." .
+
+fp:steps a rdf:Property ;
+  rdfs:domain fp:Plan ; rdfs:range fp:Step ;
+  rdfs:comment "Inferred: the ordered plan steps. Also reused on fp:Contract for its own sub-plan steps." .
+
+fp:length a rdf:Property ;
+  rdfs:domain fp:Plan ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: number of steps." .
+
+fp:metric a rdf:Property ;
+  rdfs:domain fp:Plan ; rdfs:range xsd:double ;
+  rdfs:comment "PDDL3 metric value (cost), when a metric was optimized. Optional; type is ferroplan::api::Metric = f64." .
+
+fp:makespan a rdf:Property ;
+  rdfs:domain fp:Plan ; rdfs:range xsd:double ;
+  rdfs:comment "Temporal mode: total plan makespan. Optional on Plan; also used on fp:Contract as the sub-plan's own makespan (required there, not optional)." .
+
+# -----------------------------------------------------------------------------
+# Statistics, Solution
+# -----------------------------------------------------------------------------
+
+fp:Statistics a rdfs:Class ;
+  dcterms:title "Statistics" ;
+  rdfs:comment "Grounding/search statistics. Source: api.rs struct Statistics (Default derivable)." .
+
+fp:groundedFacts a rdf:Property ;
+  rdfs:domain fp:Statistics ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: number of grounded facts." .
+
+fp:groundedActions a rdf:Property ;
+  rdfs:domain fp:Statistics ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: number of grounded actions." .
+
+fp:evaluatedStates a rdf:Property ;
+  rdfs:domain fp:Statistics ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: number of states evaluated during search. This is the deterministic accounting unit used by Session::replan_budgeted's max_evaluated cap — never wall-clock time." .
+
+fp:statisticsThreads a rdf:Property ;
+  rdfs:domain fp:Statistics ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: worker threads actually used for this solve." .
+
+fp:Solution a rdfs:Class ;
+  dcterms:title "Solution" ;
+  rdfs:comment "The result of a solve. Returned by ferroplan::api::solve, and (as the same shape) by Session::replan / replan_budgeted / replan_following. Source: api.rs struct Solution." .
+
+fp:solved a rdf:Property ;
+  rdfs:domain fp:Solution ; rdfs:range xsd:boolean ;
+  rdfs:comment "Inferred: whether a plan was found. Also reused on fp:Decomposition (whether a possibly-stitched plan was produced)." .
+
+fp:solutionMode a rdf:Property ;
+  rdfs:domain fp:Solution ; rdfs:range fp:Mode ;
+  rdfs:comment "Inferred: the mode actually used to solve (may differ from the requested Options.mode after `auto`/`portfolio` routing or temporal escalation)." .
+
+fp:plan a rdf:Property ;
+  rdfs:domain fp:Solution ; rdfs:range fp:Plan ;
+  rdfs:comment "Inferred: the found plan, if solved. Optional; omitted from JSON when absent. Also reused on fp:Decomposition for the stitched whole-goal plan." .
+
+fp:statistics a rdf:Property ;
+  rdfs:domain fp:Solution ; rdfs:range fp:Statistics ;
+  rdfs:comment "Inferred: grounding/search stats for this solve." .
+
+fp:notes a rdf:Property ;
+  rdfs:domain fp:Solution ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: human-readable annotations (e.g. fallback/escalation notices, such as a temporal-escalation note gated by FF_NO_ESCALATE). Also reused on fp:Decomposition. Vec<String>, omitted from JSON when empty." .
+
+# -----------------------------------------------------------------------------
+# SolveError
+# -----------------------------------------------------------------------------
+
+fp:SolveError a rdfs:Class ;
+  dcterms:title "SolveError" ;
+  rdfs:comment "Errors that prevent producing a fp:Solution. The Err arm of ferroplan::api::solve and ferroplan::api::decompose's Result<Solution|Decomposition, SolveError>. Source: api.rs enum SolveError (thiserror::Error)." .
+
+fp:SolveErrorDomainParse a fp:SolveError ;
+  dcterms:title "DomainParse" ;
+  rdfs:comment "The domain PDDL failed to parse. Wraps a crate::types::ParseError. Display: \"domain parse error: {0}\". Source: api.rs SolveError::DomainParse." .
+
+fp:SolveErrorProblemParse a fp:SolveError ;
+  dcterms:title "ProblemParse" ;
+  rdfs:comment "The problem PDDL failed to parse. Wraps a crate::types::ParseError. Display: \"problem parse error: {0}\". Source: api.rs SolveError::ProblemParse." .
+
+fp:SolveErrorEmptyType a fp:SolveError ;
+  dcterms:title "EmptyType" ;
+  rdfs:comment "A predicate or action argument uses a type name that is unknown or has no declared objects, so no ground instance can ever satisfy it. Fields: kind (xsd:string, e.g. \"predicate\" or \"action\"), pred (xsd:string, the predicate/action name), ty (xsd:string, the offending type name). Display: \"{kind} {pred} uses an unknown or empty type {ty}\". Source: api.rs SolveError::EmptyType { kind, pred, ty }." .
+
+fp:solveErrorKind a rdf:Property ;
+  rdfs:domain fp:SolveErrorEmptyType ; rdfs:range xsd:string ;
+  rdfs:comment "Which surface declared the offending type: \"predicate\" or \"action\", per SolveError::EmptyType.kind." .
+
+fp:solveErrorPred a rdf:Property ;
+  rdfs:domain fp:SolveErrorEmptyType ; rdfs:range xsd:string ;
+  rdfs:comment "Name of the predicate or action that references the offending type, per SolveError::EmptyType.pred." .
+
+fp:solveErrorType a rdf:Property ;
+  rdfs:domain fp:SolveErrorEmptyType ; rdfs:range xsd:string ;
+  rdfs:comment "The unknown or empty type name, per SolveError::EmptyType.ty." .
+
+fp:SolveErrorDerived a fp:SolveError ;
+  dcterms:title "Derived" ;
+  rdfs:comment "A derived-predicate definition is invalid (e.g. unsupported recursion or an unresolvable body). Wraps a xsd:string message. Display: \"derived predicate error: {0}\". Source: api.rs SolveError::Derived(String)." .
+
+fp:SolveErrorUnsupported a fp:SolveError ;
+  dcterms:title "Unsupported" ;
+  rdfs:comment "The domain/problem uses a PDDL feature this build doesn't support. Wraps a xsd:string message. Display: \"unsupported feature: {0}\". Source: api.rs SolveError::Unsupported(String)." .
+
+# -----------------------------------------------------------------------------
+# Contract, Decomposition
+# -----------------------------------------------------------------------------
+
+fp:Contract a rdfs:Class ;
+  dcterms:title "Contract" ;
+  rdfs:comment "One contract in a Decomposition: a sub-goal small enough for the temporal search to solve whole, the sub-plan that achieves it, and where that sub-plan sits in the stitched global timeline. Source: api.rs struct Contract." .
+
+fp:contractIndex a rdf:Property ;
+  rdfs:domain fp:Contract ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: position of this contract in the ordered list." .
+
+fp:goal a rdf:Property ;
+  rdfs:domain fp:Contract ; rdfs:range xsd:string ;
+  rdfs:comment "The sub-goal this contract discharges, rendered for inspection (e.g. `(order o1), (order o2)` or `coin >= 15`)." .
+
+fp:offset a rdf:Property ;
+  rdfs:domain fp:Contract ; rdfs:range xsd:double ;
+  rdfs:comment "Offset of this contract's sub-plan in the stitched whole-goal timeline." .
+
+fp:Decomposition a rdfs:Class ;
+  dcterms:title "Decomposition" ;
+  rdfs:comment "The inspectable result of decomposing a temporal goal into solvable contracts: the ordered contracts, the stitched whole-goal plan, and whether the goal had to fall back to a single monolithic solve (un-splittable, or the split didn't validate — then there is exactly one contract: the whole goal). Returned by ferroplan::api::decompose. Source: api.rs struct Decomposition." .
+
+fp:contracts a rdf:Property ;
+  rdfs:domain fp:Decomposition ; rdfs:range fp:Contract ;
+  rdfs:comment "Inferred: the ordered sub-contracts (or one, if monolithic)." .
+
+fp:monolithic a rdf:Property ;
+  rdfs:domain fp:Decomposition ; rdfs:range xsd:boolean ;
+  rdfs:comment "True when the goal couldn't be split — `contracts` is then the single whole goal." .
+
+# -----------------------------------------------------------------------------
+# ParseReport, DomainSummary, ProblemSummary
+# -----------------------------------------------------------------------------
+
+fp:ParseReport a rdfs:Class ;
+  dcterms:title "ParseReport" ;
+  rdfs:comment "A \"just parse\" report: validate PDDL syntax and summarize the structure without grounding or solving. Auto-detects domain vs problem. `ok` is `false` with `error` set on a parse failure. Serde-serializable — for editor tooling, an LLM authoring loop that wants fast syntax feedback, or the MCP `parse` tool. For the full typed AST, use ferroplan::parser::parse_domain / parse_problem. Returned by ferroplan::api::parse. Source: api.rs struct ParseReport." .
+
+fp:ok a rdf:Property ;
+  rdfs:domain fp:ParseReport ; rdfs:range xsd:boolean ;
+  rdfs:comment "Inferred: whether parsing succeeded." .
+
+fp:kind a rdf:Property ;
+  rdfs:domain fp:ParseReport ; rdfs:range xsd:string ;
+  rdfs:comment "\"domain\" or \"problem\" (best-effort classification, set even on error)." .
+
+fp:reportName a rdf:Property ;
+  rdfs:domain fp:ParseReport ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: the parsed domain/problem name (lowercased)." .
+
+fp:requirements a rdf:Property ;
+  rdfs:domain fp:ParseReport ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: PDDL :requirement strings (domain only; problem-file requirements are over-read per source comment at api.rs:269)." .
+
+fp:error a rdf:Property ;
+  rdfs:domain fp:ParseReport ; rdfs:range xsd:string ;
+  rdfs:comment "Parse error (with line number) when `ok` is false." .
+
+fp:domain a rdf:Property ;
+  rdfs:domain fp:ParseReport ; rdfs:range fp:DomainSummary ;
+  rdfs:comment "Inferred: structure summary when kind is domain. Optional." .
+
+fp:problem a rdf:Property ;
+  rdfs:domain fp:ParseReport ; rdfs:range fp:ProblemSummary ;
+  rdfs:comment "Inferred: structure summary when kind is problem. Optional." .
+
+fp:DomainSummary a rdfs:Class ;
+  dcterms:title "DomainSummary" ;
+  rdfs:comment "Structure summary of a parsed domain (signatures rendered as `name argtypes…`). Source: api.rs struct DomainSummary." .
+
+fp:types a rdf:Property ;
+  rdfs:domain fp:DomainSummary ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: declared type names (lowercased)." .
+
+fp:predicates a rdf:Property ;
+  rdfs:domain fp:DomainSummary ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: predicate signatures rendered via render_sig." .
+
+fp:functions a rdf:Property ;
+  rdfs:domain fp:DomainSummary ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: function signatures rendered via render_sig." .
+
+fp:actions a rdf:Property ;
+  rdfs:domain fp:DomainSummary ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: action names (lowercased)." .
+
+fp:durativeActions a rdf:Property ;
+  rdfs:domain fp:DomainSummary ; rdfs:range xsd:string ;
+  rdfs:comment "Inferred: durative-action names (lowercased)." .
+
+fp:derived a rdf:Property ;
+  rdfs:domain fp:DomainSummary ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: count of :derived axioms." .
+
+fp:ProblemSummary a rdfs:Class ;
+  dcterms:title "ProblemSummary" ;
+  rdfs:comment "Structure summary of a parsed problem. Source: api.rs struct ProblemSummary." .
+
+fp:problemDomainName a rdf:Property ;
+  rdfs:domain fp:ProblemSummary ; rdfs:range xsd:string ;
+  rdfs:comment "The domain name this problem references." .
+
+fp:objects a rdf:Property ;
+  rdfs:domain fp:ProblemSummary ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: object count." .
+
+fp:initFacts a rdf:Property ;
+  rdfs:domain fp:ProblemSummary ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: count of initial-state atoms." .
+
+fp:initFluents a rdf:Property ;
+  rdfs:domain fp:ProblemSummary ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: count of initial numeric-fluent assignments." .
+
+fp:timedInitialLiterals a rdf:Property ;
+  rdfs:domain fp:ProblemSummary ; rdfs:range xsd:nonNegativeInteger ;
+  rdfs:comment "Inferred: count of timed-initial-literals (TILs)." .
+
+fp:hasGoal a rdf:Property ;
+  rdfs:domain fp:ProblemSummary ; rdfs:range xsd:boolean ;
+  rdfs:comment "Inferred: whether a non-trivial goal formula is present." .
+
+fp:hasMetric a rdf:Property ;
+  rdfs:domain fp:ProblemSummary ; rdfs:range xsd:boolean ;
+  rdfs:comment "Inferred: whether a :metric is present." .
+
+# -----------------------------------------------------------------------------
+# Session and its 19 public methods (see note below on the count)
+#
+# The task brief describes "18 public methods"; the full-file extraction of
+# session.rs verified exactly 19 pub fn on Session (new, apply_start,
+# restrict_ops, fork, plan_still_valid, set_fact, observe, set_timed_fact,
+# elapse, set_fluent, set_goal, world_bytes, mind_bytes, goal_met, fact,
+# fluent, replan_budgeted, replan, replan_following). This file models all
+# 19, carrying that count discrepancy forward transparently rather than
+# silently dropping one to hit "18".
+# -----------------------------------------------------------------------------
+
+fp:Session a rdfs:Class ;
+  dcterms:title "Session" ;
+  rdfs:comment "A long-lived, incrementally-mutable planning mind over one grounded PDDL world: ground once via Session::new, then repeatedly mutate belief/goal (set_fact, observe, set_fluent, set_goal) and think (replan, replan_budgeted, replan_following) without re-parsing or re-grounding. Distinct from the one-shot ferroplan::api::solve/decompose functions, which do parse+ground+solve every call. Source: session.rs." .
+
+fp:SessionOperation a rdfs:Class ;
+  dcterms:title "SessionOperation" ;
+  rdfs:comment "An ontology-level description of one public Session method: its parameters, return shape, and the semantic rdfs:comment explaining when/why an agent would call it. Each fp:Session*  instance below is an fp:SessionOperation whose fp:onClass is fp:Session." .
+
+fp:onClass a rdf:Property ;
+  rdfs:domain fp:SessionOperation ; rdfs:range rdfs:Class ;
+  rdfs:comment "The class this operation is a method of." .
+
+fp:parameter a rdf:Property ;
+  rdfs:domain fp:SessionOperation ; rdfs:range xsd:string ;
+  rdfs:comment "One `name: Type` parameter signature string of the operation, in declaration order." .
+
+fp:returns a rdf:Property ;
+  rdfs:domain fp:SessionOperation ; rdfs:range xsd:string ;
+  rdfs:comment "The Rust return type of the operation." .
+
+fp:sourceLocation a rdf:Property ;
+  rdfs:domain fp:SessionOperation ; rdfs:range xsd:string ;
+  rdfs:comment "file:line citation into session.rs for the operation's `pub fn` signature." .
+
+fp:SessionNew a fp:SessionOperation ; rdfs:label "new" ; fp:onClass fp:Session ;
+  fp:parameter "domain_src: &str", "problem_src: &str", "opts: &Options" ;
+  fp:returns "Result<Session, String>" ;
+  fp:sourceLocation "session.rs:241" ;
+  rdfs:comment "Parses domain/problem PDDL, compiles :derived axioms, grounds once (temporal domains snap-compile first via crate::temporal::compile), builds the fact/fluent/op id maps, the dynamic-fact bitset, the complementary-mirror map, and (temporal only) the TIL-setter ops. Errors on parse failure, grounding failure ('empty type'), PDDL3 trajectory constraints, PDDL3 preferences, and — for temporal domains — any timed-initial-literal in the problem, since a session's clock is relative to 'now,' not absolute. This is the one-time grounding entry point; call once per world, then mutate/replan repeatedly." .
+
+fp:SessionApplyStart a fp:SessionOperation ; rdfs:label "apply_start" ; fp:onClass fp:Session ;
+  fp:parameter "name: &str" ;
+  fp:returns "Result<(), String>" ;
+  fp:sourceLocation "session.rs:386" ;
+  rdfs:comment "Begins a durative action NOW (temporal sessions only): looks up the grounded *-START op for `name`, resolves its duration against current fluent values, checks the start's preconditions hold in the current state, applies the start's effects, and pushes (duration, end_op) onto self.running (kept sorted). Call this when the game itself begins executing a durative action; later call elapse to fire the matching end when its time arrives. Errors: called on a classical (non-temporal) session, an unrecognized action name, a duration that doesn't resolve to a finite positive value, or a start whose preconditions don't currently hold." .
+
+fp:SessionRestrictOps a fp:SessionOperation ; rdfs:label "restrict_ops" ; fp:onClass fp:Session ;
+  fp:parameter "keep: impl FnMut(&str) -> bool" ;
+  fp:returns "()" ;
+  fp:sourceLocation "session.rs:467" ;
+  rdfs:comment "Confines this mind's plans to the operators for which keep(op_display) returns true; every rejected op is marked forbidden — never chosen by replan/replan_following/replan_budgeted, and any plan step using one fails plan_still_valid. Used to scope one mind in a many-minds world to only its own actions, so a rival's moves are seen only as world drift (set_fact), never as candidate plan steps. Calling again replaces the mask; restrict_ops(|_| true) clears it entirely. fork copies the current mask." .
+
+fp:SessionFork a fp:SessionOperation ; rdfs:label "fork" ; fp:onClass fp:Session ;
+  fp:returns "Session" ;
+  fp:sourceLocation "session.rs:487" ;
+  rdfs:comment "Creates an independent Session sharing the same grounded world (all Arc'd fields cloned by reference), copying only the small per-mind state (current facts/fluents, goal, restriction mask, timed/running lists). The new session starts from the CURRENT state and goal of self (not the original problem's :init), then diverges independently — its later set_fact/set_goal/replan never affect self or siblings. Use this to get N minds over one grounding, e.g. simulating multiple NPCs/agents in the same world." .
+
+fp:SessionPlanStillValid a fp:SessionOperation ; rdfs:label "plan_still_valid" ; fp:onClass fp:Session ;
+  fp:parameter "plan: &Plan", "from_step: usize" ;
+  fp:returns "bool" ;
+  fp:sourceLocation "session.rs:615" ;
+  rdfs:comment "Checks, without searching, whether plan's remaining suffix (steps from_step..) still executes to completion and satisfies the goal from the CURRENT world state. Classical sessions replay step-by-step (op applicability + effects, honoring forbidden); temporal sessions replay the suffix's timed happenings in epoch order together with any pending scheduled events and running-interval ends. Call this every tick before deciding whether to rethink — true means keep following the existing plan for free; only false warrants a real replan/replan_following." .
+
+fp:SessionSetFact a fp:SessionOperation ; rdfs:label "set_fact" ; fp:onClass fp:Session ;
+  fp:parameter "name: &str", "value: bool" ;
+  fp:returns "Result<(), String>" ;
+  fp:sourceLocation "session.rs:703" ;
+  rdfs:comment "Sets a world fact's truth value in the current state, case-insensitive lookup. Internally resolves through dynamic_fact_id (must be grounded, dynamic, and not a RUNNING-* compiler token), writes the bit, and — if grounding created a complementary (NOT (p ...)) mirror fact — writes the opposite value to the mirror so applicability/goal tests reading either side stay consistent. Call this whenever the game/simulation moves the world and you need the session's belief to match. Errors on unknown or static facts. Authoritative, not perceptual — contrast with observe." .
+
+fp:SessionObserve a fp:SessionOperation ; rdfs:label "observe" ; fp:onClass fp:Session ;
+  fp:parameter "sight: &[(&str, bool)]" ;
+  fp:returns "Result<Vec<String>, String>" ;
+  fp:sourceLocation "session.rs:722" ;
+  rdfs:comment "Applies a batch of currently-sighted fact observations to belief: for each (name, value) pair, if it differs from current belief, updates belief (and its mirror) and records the fact's uppercased display as a 'surprise.' Facts not included in sight keep their prior believed value (the fog-of-war contract). The whole batch is validated before any belief is mutated, so a bad entry leaves belief untouched. Returns the list of surprising fact displays — feed this to plan_still_valid/goal_met to decide whether a rethink is warranted. Call this as the mind's perception step each tick, distinct from set_fact (which is authoritative)." .
+
+fp:SessionSetTimedFact a fp:SessionOperation ; rdfs:label "set_timed_fact" ; fp:onClass fp:Session ;
+  fp:parameter "dt: f64", "name: &str", "value: bool" ;
+  fp:returns "Result<(), String>" ;
+  fp:sourceLocation "session.rs:797" ;
+  rdfs:comment "Schedules a future world event on a temporal session: in dt time units from now, the named fact flips to value. Requires dt positive and finite, and requires a temporal session (classical sessions have no clock — use set_fact for 'now'). The event is inserted (sorted) into self.timed and is fed into every subsequent replan/plan_still_valid/replan_following as a think-relative scheduled happening. Call this to model exogenous future changes (e.g. 'the market closes in five') that plans must beat or wait through." .
+
+fp:SessionElapse a fp:SessionOperation ; rdfs:label "elapse" ; fp:onClass fp:Session ;
+  fp:parameter "dt: f64" ;
+  fp:returns "Result<Vec<String>, String>" ;
+  fp:sourceLocation "session.rs:830" ;
+  rdfs:comment "Advances the session's internal schedule by dt (must be finite, >= 0): fires, in time order, every pending scheduled event and every running-interval end whose due time has passed, applying each end op's effects. Decrements remaining time on entries not yet due. Returns the display names of any interval ends that could NOT fire because their preconditions no longer held (drift broke them mid-flight; their effects are dropped). Call this each time the game's clock moves forward, to keep the session's schedule/in-flight state honest — world changes made directly by the game still go through set_fact." .
+
+fp:SessionSetFluent a fp:SessionOperation ; rdfs:label "set_fluent" ; fp:onClass fp:Session ;
+  fp:parameter "name: &str", "value: f64" ;
+  fp:returns "Result<(), String>" ;
+  fp:sourceLocation "session.rs:894" ;
+  rdfs:comment "Sets a numeric fluent's current value in the state, case-insensitive. Looks up the fluent id, writes task.fv0[id] and marks it defined. Unlike set_fact, all grounded fluents are settable (fluent values are always runtime-read, so no static-fence applies). Errors if the fluent was never grounded." .
+
+fp:SessionSetGoal a fp:SessionOperation ; rdfs:label "set_goal" ; fp:onClass fp:Session ;
+  fp:parameter "goal: &str" ;
+  fp:returns "Result<(), String>" ;
+  fp:sourceLocation "session.rs:929" ;
+  rdfs:comment "Retargets the session's goal to a new ground conjunction over the already-interned fact/fluent space, without regrounding. Accepts nested (and ...) of ground atoms, negated atoms (requires a grounded (NOT ...) mirror), and numeric comparisons; rejects unground terms and ADL connectives (or/exists/forall/=) and PDDL3 preferences. Validates the ENTIRE new goal before touching state (a failed parse/validation leaves the current goal untouched). If the new goal reads a fluent outside the current visited-key relevance set, grows that set via a fixpoint closure over numeric effects so state deduplication stays sound (relevance only ever grows within a session). Call this to give a session/mind a new objective while keeping the same grounded world and current state." .
+
+fp:SessionWorldBytes a fp:SessionOperation ; rdfs:label "world_bytes" ; fp:onClass fp:Session ;
+  fp:returns "usize" ;
+  fp:sourceLocation "session.rs:1141" ;
+  rdfs:comment "Returns an estimated byte count for the SHARED grounded payload (op displays, fact/fluent names, and packed CSR arrays). This cost exists once per world no matter how many forks share it. Flat array/string bytes only — nested conditional-effect allocations aren't walked, so it's a floor estimate, not a full audit. Call this to reason about the memory cost of one grounding vs. many forked minds." .
+
+fp:SessionMindBytes a fp:SessionOperation ; rdfs:label "mind_bytes" ; fp:onClass fp:Session ;
+  fp:returns "usize" ;
+  fp:sourceLocation "session.rs:1168" ;
+  rdfs:comment "Returns an estimated byte count for THIS session's private per-mind state (init_bits, fv0, fdef0, goal_pos, goal_num, relevant_fluent, rel_fluents) — i.e. what one additional fork costs. Same flat-bytes-only caveat as world_bytes." .
+
+fp:SessionGoalMet a fp:SessionOperation ; rdfs:label "goal_met" ; fp:onClass fp:Session ;
+  fp:returns "bool" ;
+  fp:sourceLocation "session.rs:1185" ;
+  rdfs:comment "Pure state test: does the CURRENT world state satisfy the session's current goal? No search, no plan construction, no think budget spent. Distinct from a zero-budget replan_budgeted, which answers 'could I still find a plan' rather than 'am I already done' — intended as the tick loop's cheap 'am I done' probe." .
+
+fp:SessionFact a fp:SessionOperation ; rdfs:label "fact" ; fp:onClass fp:Session ;
+  fp:parameter "name: &str" ;
+  fp:returns "Option<bool>" ;
+  fp:sourceLocation "session.rs:1190" ;
+  rdfs:comment "Reads the current truth value of a fact by display name (case-insensitive), or None if the name was never grounded. Direct bit read, no mutation." .
+
+fp:SessionFluent a fp:SessionOperation ; rdfs:label "fluent" ; fp:onClass fp:Session ;
+  fp:parameter "name: &str" ;
+  fp:returns "Option<f64>" ;
+  fp:sourceLocation "session.rs:1196" ;
+  rdfs:comment "Reads the current value of a fluent by display name (case-insensitive); returns None if never grounded or if grounded but currently undefined. Direct read, no mutation." .
+
+fp:SessionReplanBudgeted a fp:SessionOperation ; rdfs:label "replan_budgeted" ; fp:onClass fp:Session ;
+  fp:parameter "max_evaluated: usize", "memory_mb: Option<usize>" ;
+  fp:returns "Solution" ;
+  fp:sourceLocation "session.rs:1208" ;
+  rdfs:comment "Like replan, but under an explicit think budget: max_evaluated bounds the number of states evaluated (the deterministic accounting unit — never wall-clock time) and memory_mb bounds retained search memory via a deterministic per-node byte model. A budget-exhausted think returns solved: false honestly rather than erroring; identical inputs give identical results regardless of thread count (t1 ≡ t8). Intended as the game-embedding surface where callers need a hard bound per tick." .
+
+fp:SessionReplan a fp:SessionOperation ; rdfs:label "replan" ; fp:onClass fp:Session ;
+  fp:returns "Solution" ;
+  fp:sourceLocation "session.rs:1215" ;
+  rdfs:comment "Solves from the CURRENT world state toward the session's current goal, paying only the search cost (no re-parse, no re-ground). Returns the same structured Solution type as crate::solve; solved: false when the goal is unreachable from the current state. This is the primary per-tick 'think' call once a session's world has been set up/mutated via set_fact/set_fluent/set_goal." .
+
+fp:SessionReplanFollowing a fp:SessionOperation ; rdfs:label "replan_following" ; fp:onClass fp:Session ;
+  fp:parameter "prior: &Plan", "from_step: usize", "max_evaluated: usize", "memory_mb: Option<usize>" ;
+  fp:returns "Solution" ;
+  fp:sourceLocation "session.rs:1240" ;
+  rdfs:comment "A budgeted rethink biased toward prior's structure, to avoid visible 'dithering' between structurally different but equally valid plans after drift. For classical sessions: replays prior's remaining suffix step by step (pure replay, no search) up to the first inapplicable step or until the goal is already met (cutting the plan there for free); then searches ONLY for a new tail from where the prefix replay stopped. If no tail exists from the prefix's end, falls back to an unbiased replan_budgeted, with both searches' evaluation counts summed honestly into the returned Solution.statistics and a note recording the fallback. For temporal sessions, delegates to the private replan_following_temporal (same biased-prefix-then-tail idea, but replaying timed happenings on the ε grid, carrying still-open intervals into the tail think's root agenda)." .
+
+# -----------------------------------------------------------------------------
+# MCP servers
+# -----------------------------------------------------------------------------
+
+fp:McpServer a rdfs:Class ;
+  dcterms:title "MCP server" ;
+  rdfs:comment "A JSON-RPC-over-stdio (line-delimited) Model Context Protocol server exposing ferroplan capability as tools/list + tools/call, per the MCP spec (initialize, notifications/initialized, notifications/cancelled, ping, tools/list, tools/call)." .
+
+fp:McpTool a rdfs:Class ;
+  dcterms:title "MCP tool" ;
+  rdfs:comment "One tool exposed by an fp:McpServer via tools/list, invocable via tools/call. Every tool's JSON-RPC response wraps its Ok(value) as {content:[{type:text,text:pretty(value)}], structuredContent: value}, or on error as {content:[{type:text,text:message}], isError:true}." .
+
+fp:McpToolField a rdfs:Class ;
+  dcterms:title "MCP tool field" ;
+  rdfs:comment "One named field of an MCP tool's input or output, with its type, requiredness/default, and semantic meaning." .
+
+fp:providedBy a rdf:Property ;
+  rdfs:domain fp:McpTool ; rdfs:range fp:McpServer ;
+  rdfs:comment "The MCP server that exposes this tool." .
+
+fp:hasInputField a rdf:Property ;
+  rdfs:domain fp:McpTool ; rdfs:range fp:McpToolField ;
+  rdfs:comment "One field of the tool's JSON input schema." .
+
+fp:hasOutputField a rdf:Property ;
+  rdfs:domain fp:McpTool ; rdfs:range fp:McpToolField ;
+  rdfs:comment "One field of the tool's JSON output shape (the value serialized on success)." .
+
+fp:fieldType a rdf:Property ;
+  rdfs:domain fp:McpToolField ; rdfs:range xsd:string ;
+  rdfs:comment "The field's JSON/Rust type, as a string (e.g. 'String', 'Option<usize>', 'Vec<FactObservation>')." .
+
+fp:required a rdf:Property ;
+  rdfs:domain fp:McpToolField ; rdfs:range xsd:boolean ;
+  rdfs:comment "Whether the field must be present in the request. Fields with a serde default are not required." .
+
+fp:defaultValue a rdf:Property ;
+  rdfs:domain fp:McpToolField ; rdfs:range xsd:string ;
+  rdfs:comment "The field's serde default, rendered as a string, when it has one (e.g. '50000' for session_think.max_evaluated, 'false' for session_open.replace)." .
+
+fp:toolSourceLocation a rdf:Property ;
+  rdfs:domain fp:McpTool ; rdfs:range xsd:string ;
+  rdfs:comment "file:line citation into the server source for this tool's handler function." .
+
+# --- Server 1: ferroplan-session-mcp ---------------------------------------
+
+fp:FerroplanSessionMcp a fp:McpServer ;
+  dcterms:title "ferroplan-session-mcp" ;
+  rdfs:comment "Session-oriented MCP server wrapping ferroplan::Session plus a CMCA allocation tool, with blake3-chained receipts on every mutating call. Source: ferroplan-mcp/src/bin/ferroplan-session-mcp.rs. Server-scoped state: ManagedSession{session, last_plan, cursor, epoch, domain_digest, problem_digest, receipt_head} keyed in ServerState.sessions: BTreeMap<String, ManagedSession>." .
+
+fp:ToolSessionOpen a fp:McpTool ; rdfs:label "session_open" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:374-423" ;
+  rdfs:comment "Opens (grounds) a new Session under session_id and stores it server-side, chaining an 'opened' receipt. Rejects if the session_id already exists unless replace is true. Rejects non-canonical session_ids (must be alphanumeric/-/_/./:)." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "domain" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "PDDL domain text." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "problem" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "PDDL problem text." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "options" ; fp:fieldType "Option<Options>" ; fp:required false ; fp:defaultValue "None (Options::default())" ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "replace" ; fp:fieldType "bool" ; fp:required false ; fp:defaultValue "false" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-session-open:v1\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "domain_digest" ; fp:fieldType "String" ; rdfs:comment "blake3 hex of domain source." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "problem_digest" ; fp:fieldType "String" ; rdfs:comment "blake3 hex of problem source." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "goal_met" ; fp:fieldType "bool" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "world_bytes" ; fp:fieldType "number" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "mind_bytes" ; fp:fieldType "number" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ; rdfs:comment "blake3 hex chain head after this event." ] .
+
+fp:ToolSessionObserve a fp:McpTool ; rdfs:label "session_observe" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:425-472" ;
+  rdfs:comment "Applies fact and/or fluent observations to a session's belief (via Session::observe for facts, Session::set_fluent per changed fluent), bumping epoch if anything surprised, and reports whether the currently-stored plan is still valid from the current cursor. Fluent comparison against the prior value is an exact to_bits() equality check, not epsilon-tolerant." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "facts" ; fp:fieldType "Vec<FactObservation>" ; fp:required false ; fp:defaultValue "[]" ; rdfs:comment "Each item: {fact: String, value: bool}, both required." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "fluents" ; fp:fieldType "Vec<FluentObservation>" ; fp:required false ; fp:defaultValue "[]" ; rdfs:comment "Each item: {fluent: String, value: f64}, both required; value must be finite." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-observation:v1\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "epoch" ; fp:fieldType "u64" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "fact_surprises" ; fp:fieldType "array" ; rdfs:comment "Session::observe's surprise list — uppercased displays of facts whose belief changed." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "fluent_surprises" ; fp:fieldType "array<string>" ; rdfs:comment "Uppercased fluent names whose value changed." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "goal_met" ; fp:fieldType "bool" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "remaining_plan_valid" ; fp:fieldType "bool|null" ; rdfs:comment "null if no stored plan; else Session::plan_still_valid(plan, cursor)." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "replan_required" ; fp:fieldType "bool" ; rdfs:comment "= remaining_plan_valid != Some(true)." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
+
+fp:ToolSessionSetGoal a fp:McpTool ; rdfs:label "session_set_goal" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:474-498" ;
+  rdfs:comment "Retargets a session's goal via Session::set_goal, resets cursor to 0, and bumps epoch. remaining_plan_valid in the response checks plan_still_valid(last_plan, 0) — against the just-reset cursor, not whatever cursor held before the call." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "goal" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Ground conjunction, per Session::set_goal's acceptance rules." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-goal:v1\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "epoch" ; fp:fieldType "u64" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "goal_met" ; fp:fieldType "bool" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "remaining_plan_valid" ; fp:fieldType "bool|null" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
+
+fp:ToolSessionThink a fp:McpTool ; rdfs:label "session_think" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:500-580" ;
+  rdfs:comment "The think step: if the stored last_plan is still valid from the current cursor, short-circuits to a 'follow' decision (searched:false) without invoking any planner, regardless of prefer_follow. Otherwise searches: prefer_follow only changes behavior when a (now-invalid) prior plan exists — then it chooses between Session::replan_following (bias toward the prior plan's structure) and Session::replan_budgeted (from-scratch bounded search); with no prior plan at all it always uses replan_budgeted regardless of prefer_follow. Cursor is always reset to 0 after any search path (both branches). decision is 'replan' if solved else 'bounded-refusal'." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "max_evaluated" ; fp:fieldType "usize" ; fp:required false ; fp:defaultValue "50000" ; rdfs:comment "Must be > 0 — errors 'max_evaluated must be greater than zero' if 0." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "memory_mb" ; fp:fieldType "Option<usize>" ; fp:required false ; fp:defaultValue "None" ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "prefer_follow" ; fp:fieldType "bool" ; fp:required false ; fp:defaultValue "true" ; rdfs:comment "Only consulted when a prior plan exists but has gone invalid; ignored on the 'follow' short-circuit and ignored when there is no prior plan at all." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-think:v1\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "decision" ; fp:fieldType "\"follow\"|\"replan\"|\"bounded-refusal\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "searched" ; fp:fieldType "bool" ; rdfs:comment "false on the follow path, true on the search path." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "cursor" ; fp:fieldType "usize" ; rdfs:comment "Present only on the follow-path output, not the search-path output." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "plan_digest" ; fp:fieldType "String|null" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "plan" ; fp:fieldType "Plan" ; rdfs:comment "Follow-path output only." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "solution" ; fp:fieldType "Solution" ; rdfs:comment "Search-path output only; includes .plan, .solved, .statistics, .notes." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
+
+fp:ToolSessionAdvance a fp:McpTool ; rdfs:label "session_advance" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:582-614" ;
+  rdfs:comment "Moves the session's cursor forward by completed_steps against the stored last_plan's length; errors if that would run past the plan's end. Advancing the cursor does not itself apply any world effects — effects still enter belief only via session_observe (or set_fact/elapse on the underlying Session), per the source comment at line 5 and the tool description at line 288." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "completed_steps" ; fp:fieldType "usize" ; fp:required true ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-advance:v1\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "cursor" ; fp:fieldType "usize" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "plan_length" ; fp:fieldType "usize" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "remaining_plan_valid" ; fp:fieldType "bool|null" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
+
+fp:ToolSessionStatus a fp:McpTool ; rdfs:label "session_status" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:616-633" ;
+  rdfs:comment "Read-only status snapshot of a session — no receipt is chained (nothing mutated)." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-session-status:v1\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "epoch" ; fp:fieldType "u64" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "domain_digest" ; fp:fieldType "String" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "problem_digest" ; fp:fieldType "String" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "goal_met" ; fp:fieldType "bool" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "cursor" ; fp:fieldType "usize" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "plan_length" ; fp:fieldType "usize|null" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "remaining_plan_valid" ; fp:fieldType "bool|null" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "world_bytes" ; fp:fieldType "number" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "mind_bytes" ; fp:fieldType "number" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt_chain_head" ; fp:fieldType "String|null" ] .
+
+fp:ToolSessionClose a fp:McpTool ; rdfs:label "session_close" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:635-642" ;
+  rdfs:comment "Removes the session from server state (frees its grounded world if no other session shares it). No receipt chaining; no error if the session_id doesn't exist." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-session-close:v1\"" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "closed" ; fp:fieldType "bool" ; rdfs:comment "state.sessions.remove(id).is_some()." ] .
+
+fp:ToolCmcaAllocate a fp:McpTool ; rdfs:label "cmca_allocate" ; fp:providedBy fp:FerroplanSessionMcp ;
+  fp:toolSourceLocation "ferroplan-session-mcp.rs:644-762" ;
+  rdfs:comment "Runs the bcinr_cmca (Chatman Multifractal Cascade Allocator) fixed-size allocation over exactly N=8 candidates, validating each candidate's id (non-empty, unique), parent (forest structure: exactly one root, no cycles), fixed-point factors (F entries, finite, in [0, u32::MAX/65536]), and cost. Note: this tool is CMCA/BCINR allocation surface bundled onto the session server, not itself a Session operation — it is the only tool here with no session_id and no receipt chaining on the ManagedSession scheme (it returns a self-contained payload_digest instead)." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "candidates" ; fp:fieldType "Vec<CmcaCandidate>" ; fp:required true ; rdfs:comment "Must have exactly N (8) entries. Each candidate: {id: String (required, non-empty/unique), parent: Option<usize> (default None; if Some, must be < N and != own index), factors: Vec<f64> (required, exactly F entries, each finite/>=0/<=u32::MAX/65536), cost: f64 (default 0.0, same fixed-point validation)}." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload_digest" ; fp:fieldType "String" ; rdfs:comment "blake3 hex of the canonicalized payload." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload" ; fp:fieldType "object" ; rdfs:comment "{schema: \"urn:chatman:cmca-allocation:v1\", name, bcinr_revision, input_digest, node_count, factor_count, lens_count, measure_count, lenses: [{id, q_q16_16}], allocations: [{id, q16_16, share}]}." ] .
+
+# --- Server 2: chatman-admission-mcp -----------------------------------------
+
+fp:ChatmanAdmissionMcp a fp:McpServer ;
+  dcterms:title "chatman-admission-mcp" ;
+  rdfs:comment "Admission/receipt-binding MCP server: computes canonical digests and binds/verifies blake3-chained receipts over allocation and plan payloads, independent of any Session. Inferred: exact per-field JSON schema for these four tools was not captured at extraction-4 field-by-field granularity in the source material available to this ontology; only the four tool names (canonical_digest, bind_allocation_receipt, bind_plan_receipt, verify_receipt) and their general purpose were extracted. Modeled here at that lower confidence, flagged accordingly on each tool." .
+
+fp:ToolCanonicalDigest a fp:McpTool ; rdfs:label "canonical_digest" ; fp:providedBy fp:ChatmanAdmissionMcp ;
+  rdfs:comment "Inferred: computes a canonical (deterministic-serialization) blake3 digest over an arbitrary JSON payload, for use as a stable content-identity input to receipt chaining elsewhere. Exact input/output field schema not captured at fine grain in the extraction available; documented at the tool-name/purpose level only." .
+
+fp:ToolBindAllocationReceipt a fp:McpTool ; rdfs:label "bind_allocation_receipt" ; fp:providedBy fp:ChatmanAdmissionMcp ;
+  rdfs:comment "Inferred: binds a CMCA/BCINR allocation payload (such as cmca_allocate's output) into a chained receipt, analogous in spirit to ferroplan-session-mcp's chain_receipt over SESSION_RECEIPT_DOMAIN, but scoped to allocation payloads rather than session events. Exact input/output field schema not captured at fine grain in the extraction available." .
+
+fp:ToolBindPlanReceipt a fp:McpTool ; rdfs:label "bind_plan_receipt" ; fp:providedBy fp:ChatmanAdmissionMcp ;
+  rdfs:comment "Inferred: binds a ferroplan Plan/Solution payload into a chained receipt, so a downstream actuation broker (per chatman-ecosystem.ttl's ce:BRCE) can require ce:requiresReceipt before treating a candidate plan as admissible. Exact input/output field schema not captured at fine grain in the extraction available." .
+
+fp:ToolVerifyReceipt a fp:McpTool ; rdfs:label "verify_receipt" ; fp:providedBy fp:ChatmanAdmissionMcp ;
+  rdfs:comment "Inferred: verifies a previously-bound receipt (allocation or plan) against its claimed chain head / digest, returning whether the chain is intact. Exact input/output field schema not captured at fine grain in the extraction available." .
+
+# --- Server 3: ferroplan-mcp (main.rs, one-shot tools) -----------------------
+
+fp:FerroplanMcp a fp:McpServer ;
+  dcterms:title "ferroplan-mcp" ;
+  rdfs:comment "The one-shot (non-Session) MCP server wrapping ferroplan::api's stateless entry points directly: solve, parse, validate, decompose. Each call parses + grounds + (solves|checks) fresh, unlike ferroplan-session-mcp's persistent Session which grounds once and is mutated/replanned repeatedly. Source: ferroplan-mcp/src/bin/*/main.rs (or equivalent one-shot binary)." .
+
+fp:ToolSolve a fp:McpTool ; rdfs:label "solve" ; fp:providedBy fp:FerroplanMcp ;
+  rdfs:comment "Wraps ferroplan::api::solve(domain_src, problem_src, opts) -> Result<Solution, SolveError>: parses domain+problem PDDL, grounds, and searches for a plan under the given fp:Options, returning the fp:Solution shape. Inferred: field-by-field JSON request/response schema for the MCP wrapper itself (as opposed to the underlying api::solve signature, which is documented in api.rs) was not captured at fine grain in the extraction available." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "domain" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Inferred: PDDL domain source, mirroring api::solve's domain_src." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "problem" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Inferred: PDDL problem source, mirroring api::solve's problem_src." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "options" ; fp:fieldType "Option<Options>" ; fp:required false ; rdfs:comment "Inferred: mirrors api::solve's opts: &Options, defaulting to Options::default()." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "solution" ; fp:fieldType "Solution" ; rdfs:comment "fp:Solution shape, per api.rs struct Solution." ] .
+
+fp:ToolParse a fp:McpTool ; rdfs:label "parse" ; fp:providedBy fp:FerroplanMcp ;
+  rdfs:comment "Wraps ferroplan::api::parse(src) -> ParseReport: validates PDDL syntax and returns a structure summary without grounding or solving, auto-detecting domain vs problem. Inferred: MCP wrapper's exact JSON field schema not captured at fine grain in the extraction available." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "source" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Inferred: PDDL source text (domain or problem, auto-detected), mirroring api::parse's src." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "report" ; fp:fieldType "ParseReport" ; rdfs:comment "fp:ParseReport shape." ] .
+
+fp:ToolValidate a fp:McpTool ; rdfs:label "validate" ; fp:providedBy fp:FerroplanMcp ;
+  rdfs:comment "Inferred: a validation tool beyond plain syntax parsing — most plausibly checking a domain+problem pair grounds successfully (i.e. exercising ferroplan::api's grounding path without necessarily searching for a full plan), used as a pre-flight check before an expensive solve/decompose call. No struct named Validate*/ValidationReport was present in the extracted api.rs public-surface listing, so this tool's exact backing type and field schema is UNVERIFIED against the source excerpts available to this ontology; modeled at the tool-name/purpose level only." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "domain" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Inferred." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "problem" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Inferred." ] .
+
+fp:ToolDecompose a fp:McpTool ; rdfs:label "decompose" ; fp:providedBy fp:FerroplanMcp ;
+  rdfs:comment "Wraps ferroplan::api::decompose(domain_src, problem_src, opts) -> Result<Decomposition, SolveError>: decomposes a temporal goal into solvable contracts, solves and stitches them, and returns the inspectable fp:Decomposition. Inferred: MCP wrapper's exact JSON field schema not captured at fine grain in the extraction available." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "domain" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Inferred: mirrors api::decompose's domain_src." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "problem" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Inferred: mirrors api::decompose's problem_src." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "options" ; fp:fieldType "Option<Options>" ; fp:required false ; rdfs:comment "Inferred: mirrors api::decompose's opts: &Options." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "decomposition" ; fp:fieldType "Decomposition" ; rdfs:comment "fp:Decomposition shape, per api.rs struct Decomposition." ] .
