@@ -1,6 +1,6 @@
 {
   "schema": "urn:chatman:claude-code-config-schema-epoch:v1",
-  "observed_on": "2026-07-27",
+  "observed_on": "2026-07-28",
   "authorities": {
     "claude-loader": {
       "role": "runtime-load-and-install-authority",
@@ -17,9 +17,10 @@
       "role": "modeled-editor-and-declare-oracle",
       "claim_ceiling": "modeled-surface-conformance",
       "repository": "seanchatmangpt/claude-code-config-lsp",
-      "observed_head": "1896770a9a51119e0555f48584366afb8332635d",
-      "ontology_digest_source_sha": "7bb1c92fd8a6491b7bea99fe794ae9d3e57f2fa3",
-      "status": "PARTIAL_ALIVE"
+      "observed_head": "da7d4daf5d503cb27029e6f8ab624336fb469439",
+      "ontology_digest_source_sha": "1ba224e34a9cf87f2295a8dc0e36266291eddd4d",
+      "status": "PARTIAL_ALIVE",
+      "reconciliation_note": "6 commits since prior observed_head (1896770). Only two touched tracked surfaces: c28078f edited schema/claude-code-config.ttl but solely to fix the settings.json model-id enum (unrelated to any known_delta below). 9f99842 ('expand config-surface validation') added hook `type` support, monitors/themes top-level-legacy warnings, and expanded agent/skill frontmatter fields, but per direct inspection of schema/claude-code-config.ttl at da7d4da, none of that work landed in the ontology itself (no hookEventType/type-enum triple, no monitor/theme class, agent/skill file patterns still only .claude/agents and .claude/skills). That is an ontology/code divergence in claude-code-config-lsp, not a narrowing of any delta below."
     }
   },
   "known_deltas": [
@@ -57,7 +58,8 @@
       "id": "expanded-hook-types",
       "lsp_model": "command hooks only",
       "current_loader": "command, http, mcp_tool, prompt, and experimental agent hooks",
-      "resolution": "loader-wins"
+      "resolution": "loader-wins",
+      "note": "claude-code-config-lsp@9f99842 claims 'expand hook events 6->26, add hook `type` enum' in its commit message, but schema/claude-code-config.ttl@da7d4da (blob 1ba224e) still only carries the pre-existing 5-name TokenHookType semantic-token description (line 396) with no hookEventType/type triples. Whatever that commit changed lives in Rust code outside the ontology-driven surface; unverified whether it changed LSP diagnostic behavior. Treat as unresolved until the ontology itself models it."
     },
     {
       "id": "plugin-dependencies",
@@ -69,7 +71,8 @@
       "id": "experimental-monitors-themes",
       "lsp_model": "not modeled",
       "current_loader": "experimental.monitors and experimental.themes; legacy top-level forms warn",
-      "resolution": "loader-only"
+      "resolution": "loader-only",
+      "note": "claude-code-config-lsp@9f99842 added a check flagging themes/monitors declared top-level instead of nested under experimental, but schema/claude-code-config.ttl@da7d4da has no monitor/theme class or field at all (grep confirms zero matches). Still not modeled at the ontology level; the new check is narrower than full support."
     },
     {
       "id": "user-config-and-channels",
@@ -81,7 +84,8 @@
       "id": "plugin-root-agent-skill-patterns",
       "lsp_model": "recognizes .claude/agents and .claude/skills patterns",
       "current_loader": "plugin agents and skills live at agents/ and skills/ under plugin root",
-      "resolution": "loader-wins; LSP result is partial until ontology expands"
+      "resolution": "loader-wins; LSP result is partial until ontology expands",
+      "note": "claude-code-config-lsp@9f99842 expanded agent/skill frontmatter field recognition (hooks, memory.scope, permissionMode, background, context, initialPrompt, mcpServers, color, plus a 3-layer AgentScope for Global/Project/Plugin), but schema/claude-code-config.ttl@da7d4da's file patterns (lines 122, 132) still only match .claude/agents/*.md and .claude/skills/*/SKILL.md, not the plugin-root agents/ and skills/ paths this delta is actually about. Frontmatter field coverage widened; the path-location gap itself is unchanged."
     }
   ],
   "federated_conformance_law": {
