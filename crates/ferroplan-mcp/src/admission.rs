@@ -1,48 +1,77 @@
-//! Canonical evidence admission for the Claude Code self-hosting loop.
+//! Canonical evidence admission tools, merged into the single `ferroplan-mcp`
+//! binary's `Ferroplan` tool handler (see `crate::main` for the merge).
 //!
-//! This server does not plan, allocate, validate, or actuate. It binds the
+//! These tools do not plan, allocate, validate, or actuate. They bind the
 //! exact outputs of those independent authorities into replayable BLAKE3
 //! envelopes with explicit predecessor commitments.
 
-#![forbid(unsafe_code)]
-
-use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{
-    CallToolResult, ContentBlock, ErrorData as McpError, ListResourcesResult,
-    ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
-    ServerCapabilities, ServerInfo,
-};
-use rmcp::service::RequestContext;
-use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceExt};
+use rmcp::model::{CallToolResult, ContentBlock, ErrorData as McpError};
+use rmcp::tool;
+use rmcp::tool_router;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
+
+use crate::Ferroplan;
 
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
 const RECEIPT_DOMAIN: &[u8] = b"urn:chatman:claude-code-admission:v1\0";
 
 // Static per-tool semantic descriptions sourced from
 // `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl`'s `rdfs:comment`
-// annotations. The ontology flags this server's tool schemas as
+// annotations. The ontology flags this module's tool schemas as
 // UNVERIFIED/lower-fidelity relative to session-mcp's, so field shapes here
 // follow the actual Rust source (this file), not the ontology — only the
 // prose semantic summary below is drawn from the ontology. Generated at
-// compile time by `build.rs` — see that file for the extraction logic.
+// compile time by `build.rs` — see that file for the extraction logic. These
+// constants are read by `crate::main`'s merged
+// `list_resources`/`read_resource`.
 include!(concat!(env!("OUT_DIR"), "/admission_ontology.rs"));
+
+pub(crate) const RESOURCE_TOOLS: &[&str] = &[
+    "canonical_digest",
+    "bind_allocation_receipt",
+    "bind_plan_receipt",
+    "verify_receipt",
+];
+
+pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "canonical_digest" => DIGEST_ONTOLOGY,
+        "bind_allocation_receipt" => BIND_ALLOC_ONTOLOGY,
+        "bind_plan_receipt" => BIND_PLAN_ONTOLOGY,
+        "verify_receipt" => VERIFY_ONTOLOGY,
+        _ => return None,
+    })
+}
+
+/// Schema for an unconstrained JSON value.
+///
+/// `schemars` renders `serde_json::Value` as the boolean schema `true`. That is
+/// valid JSON Schema, but MCP clients reject a boolean where an object subschema
+/// is required, which fails the whole `tools/list` response. An empty object
+/// schema accepts exactly the same instances and validates as an object.
+fn any_json(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({})
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct DigestInput {
+    #[schemars(schema_with = "any_json")]
     value: Value,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct BindAllocationInput {
+    #[schemars(schema_with = "any_json")]
     candidates: Value,
+    #[schemars(schema_with = "any_json")]
     allocation_result: Value,
+    #[schemars(schema_with = "any_json")]
     observation_frontier: Value,
     #[serde(default)]
     previous_receipt: Option<String>,
@@ -51,9 +80,12 @@ struct BindAllocationInput {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct BindPlanInput {
+    #[schemars(schema_with = "any_json")]
     session_think: Value,
     allocation_receipt: String,
+    #[schemars(schema_with = "any_json")]
     observation_frontier: Value,
+    #[schemars(schema_with = "any_json")]
     validator_result: Value,
     #[serde(default)]
     previous_receipt: Option<String>,
@@ -62,24 +94,12 @@ struct BindPlanInput {
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct VerifyInput {
+    #[schemars(schema_with = "any_json")]
     envelope: Value,
 }
 
-#[derive(Debug, Clone)]
-struct ChatmanAdmission {
-    tool_router: ToolRouter<Self>,
-}
-
-impl ChatmanAdmission {
-    fn new() -> Self {
-        Self {
-            tool_router: Self::tool_router(),
-        }
-    }
-}
-
-#[tool_router]
-impl ChatmanAdmission {
+#[tool_router(router = admission_router, vis = "pub")]
+impl Ferroplan {
     #[tool(description = "Compute a BLAKE3 digest over recursively key-sorted canonical JSON.")]
     fn canonical_digest(
         &self,
@@ -119,84 +139,6 @@ impl ChatmanAdmission {
         Parameters(input): Parameters<VerifyInput>,
     ) -> Result<CallToolResult, McpError> {
         to_result(tool_verify(input))
-    }
-}
-
-#[tool_handler(router = self.tool_router)]
-impl ServerHandler for ChatmanAdmission {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
-            ServerCapabilities::builder()
-                .enable_tools()
-                .enable_resources()
-                .build(),
-        )
-        .with_server_info(rmcp::model::Implementation::new(
-            "chatman-admission",
-            env!("CARGO_PKG_VERSION"),
-        ))
-        .with_instructions(
-            "Bind canonical observation, allocation, plan, validation, and predecessor \
-             commitments. This server admits evidence; it does not plan or actuate. Read \
-             `chatman-admission://tools/<name>` resources for ontology-sourced semantics.",
-        )
-    }
-
-    async fn list_resources(
-        &self,
-        _request: Option<rmcp::model::PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        let resources = [
-            "canonical_digest",
-            "bind_allocation_receipt",
-            "bind_plan_receipt",
-            "verify_receipt",
-        ]
-        .into_iter()
-        .map(|name| {
-            Resource::new(
-                format!("chatman-admission://tools/{name}"),
-                format!("{name} (semantic summary)"),
-            )
-            .with_description(format!(
-                "Ontology-sourced semantics for the `{name}` tool, from ferroplan-domain.ttl."
-            ))
-            .with_mime_type("application/json")
-        })
-        .collect();
-        Ok(ListResourcesResult {
-            resources,
-            next_cursor: None,
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let name = request
-            .uri
-            .strip_prefix("chatman-admission://tools/")
-            .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
-        let ontology_comment = match name {
-            "canonical_digest" => DIGEST_ONTOLOGY,
-            "bind_allocation_receipt" => BIND_ALLOC_ONTOLOGY,
-            "bind_plan_receipt" => BIND_PLAN_ONTOLOGY,
-            "verify_receipt" => VERIFY_ONTOLOGY,
-            _ => return Err(McpError::resource_not_found(request.uri.clone(), None)),
-        };
-        let body = json!({
-            "tool": name,
-            "source": "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
-            "rdfs_comment": ontology_comment,
-        });
-        Ok(ReadResourceResult::new(vec![ResourceContents::text(
-            serde_json::to_string_pretty(&body).unwrap_or_default(),
-            request.uri,
-        )]))
     }
 }
 
@@ -437,17 +379,4 @@ fn decode<T: DeserializeOwned>(value: &Value) -> Result<T, String> {
 
 fn pretty(value: &Value) -> String {
     serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let service = ChatmanAdmission::new()
-        .serve(rmcp::transport::stdio())
-        .await
-        .map_err(|e| {
-            eprintln!("serving error: {e}");
-            e
-        })?;
-    service.waiting().await?;
-    Ok(())
 }

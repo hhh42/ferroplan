@@ -563,14 +563,25 @@ fp:toolSourceLocation a rdf:Property ;
   rdfs:domain fp:McpTool ; rdfs:range xsd:string ;
   rdfs:comment "file:line citation into the server source for this tool's handler function." .
 
-# --- Server 1: ferroplan-session-mcp ---------------------------------------
+# --- session_* / cmca_allocate tools -----------------------------------------
+# Formerly a separate server (ferroplan-session-mcp); merged into the single
+# fp:FerroplanMcp process (see below) — all 16 tools, one rmcp ServerHandler.
+# Tool bodies now live in crates/ferroplan-mcp/src/session.rs (a module, not
+# a binary). toolSourceLocation values below cite the #[tool]-annotated
+# method's line, re-verified against the merged source, not carried over
+# from the pre-merge file. Server-scoped state: ManagedSession{session,
+# last_plan, cursor, epoch, domain_digest, problem_digest, receipt_head},
+# now held in a two-level lock (renamed ServerState -> SessionState during
+# the merge, to avoid ambiguity with the merged server's own top-level
+# struct): outer Arc<AsyncMutex<BTreeMap<String, Arc<AsyncMutex<
+# ManagedSession>>>>> keyed by session_id, inner per-session AsyncMutex held
+# for the call duration so a concurrent call against the same session_id
+# queues instead of erroring "unknown session" (fixed post-merge from the
+# original remove-then-reinsert pattern). session_think runs its search via
+# tokio::task::block_in_place while holding the per-session lock.
 
-fp:FerroplanSessionMcp a fp:McpServer ;
-  dcterms:title "ferroplan-session-mcp" ;
-  rdfs:comment "Session-oriented MCP server wrapping ferroplan::Session plus a CMCA allocation tool, with blake3-chained receipts on every mutating call. Source: ferroplan-mcp/src/bin/ferroplan-session-mcp.rs. Server-scoped state: ManagedSession{session, last_plan, cursor, epoch, domain_digest, problem_digest, receipt_head} keyed in ServerState.sessions: BTreeMap<String, ManagedSession>." .
-
-fp:ToolSessionOpen a fp:McpTool ; rdfs:label "session_open" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:374-423" ;
+fp:ToolSessionOpen a fp:McpTool ; rdfs:label "session_open" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:214" ;
   rdfs:comment "Opens (grounds) a new Session under session_id and stores it server-side, chaining an 'opened' receipt. Rejects if the session_id already exists unless replace is true. Rejects non-canonical session_ids (must be alphanumeric/-/_/./:)." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "domain" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "PDDL domain text." ] ;
@@ -586,8 +597,8 @@ fp:ToolSessionOpen a fp:McpTool ; rdfs:label "session_open" ; fp:providedBy fp:F
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "mind_bytes" ; fp:fieldType "number" ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ; rdfs:comment "blake3 hex chain head after this event." ] .
 
-fp:ToolSessionObserve a fp:McpTool ; rdfs:label "session_observe" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:425-472" ;
+fp:ToolSessionObserve a fp:McpTool ; rdfs:label "session_observe" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:225" ;
   rdfs:comment "Applies fact and/or fluent observations to a session's belief (via Session::observe for facts, Session::set_fluent per changed fluent), bumping epoch if anything surprised, and reports whether the currently-stored plan is still valid from the current cursor. Fluent comparison against the prior value is an exact to_bits() equality check, not epsilon-tolerant." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "facts" ; fp:fieldType "Vec<FactObservation>" ; fp:required false ; fp:defaultValue "[]" ; rdfs:comment "Each item: {fact: String, value: bool}, both required." ] ;
@@ -601,8 +612,8 @@ fp:ToolSessionObserve a fp:McpTool ; rdfs:label "session_observe" ; fp:providedB
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "replan_required" ; fp:fieldType "bool" ; rdfs:comment "= remaining_plan_valid != Some(true)." ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
 
-fp:ToolSessionSetGoal a fp:McpTool ; rdfs:label "session_set_goal" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:474-498" ;
+fp:ToolSessionSetGoal a fp:McpTool ; rdfs:label "session_set_goal" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:233" ;
   rdfs:comment "Retargets a session's goal via Session::set_goal, resets cursor to 0, and bumps epoch. remaining_plan_valid in the response checks plan_still_valid(last_plan, 0) — against the just-reset cursor, not whatever cursor held before the call." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "goal" ; fp:fieldType "String" ; fp:required true ; rdfs:comment "Ground conjunction, per Session::set_goal's acceptance rules." ] ;
@@ -612,8 +623,8 @@ fp:ToolSessionSetGoal a fp:McpTool ; rdfs:label "session_set_goal" ; fp:provided
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "remaining_plan_valid" ; fp:fieldType "bool|null" ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
 
-fp:ToolSessionThink a fp:McpTool ; rdfs:label "session_think" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:500-580" ;
+fp:ToolSessionThink a fp:McpTool ; rdfs:label "session_think" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:245" ;
   rdfs:comment "The think step: if the stored last_plan is still valid from the current cursor, short-circuits to a 'follow' decision (searched:false) without invoking any planner, regardless of prefer_follow. Otherwise searches: prefer_follow only changes behavior when a (now-invalid) prior plan exists — then it chooses between Session::replan_following (bias toward the prior plan's structure) and Session::replan_budgeted (from-scratch bounded search); with no prior plan at all it always uses replan_budgeted regardless of prefer_follow. Cursor is always reset to 0 after any search path (both branches). decision is 'replan' if solved else 'bounded-refusal'." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "max_evaluated" ; fp:fieldType "usize" ; fp:required false ; fp:defaultValue "50000" ; rdfs:comment "Must be > 0 — errors 'max_evaluated must be greater than zero' if 0." ] ;
@@ -628,8 +639,8 @@ fp:ToolSessionThink a fp:McpTool ; rdfs:label "session_think" ; fp:providedBy fp
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "solution" ; fp:fieldType "Solution" ; rdfs:comment "Search-path output only; includes .plan, .solved, .statistics, .notes." ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
 
-fp:ToolSessionAdvance a fp:McpTool ; rdfs:label "session_advance" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:582-614" ;
+fp:ToolSessionAdvance a fp:McpTool ; rdfs:label "session_advance" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:256" ;
   rdfs:comment "Moves the session's cursor forward by completed_steps against the stored last_plan's length; errors if that would run past the plan's end. Advancing the cursor does not itself apply any world effects — effects still enter belief only via session_observe (or set_fact/elapse on the underlying Session), per the source comment at line 5 and the tool description at line 288." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "completed_steps" ; fp:fieldType "usize" ; fp:required true ] ;
@@ -639,8 +650,8 @@ fp:ToolSessionAdvance a fp:McpTool ; rdfs:label "session_advance" ; fp:providedB
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "remaining_plan_valid" ; fp:fieldType "bool|null" ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt" ; fp:fieldType "String" ] .
 
-fp:ToolSessionStatus a fp:McpTool ; rdfs:label "session_status" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:616-633" ;
+fp:ToolSessionStatus a fp:McpTool ; rdfs:label "session_status" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:267" ;
   rdfs:comment "Read-only status snapshot of a session — no receipt is chained (nothing mutated)." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-session-status:v1\"" ] ;
@@ -655,44 +666,51 @@ fp:ToolSessionStatus a fp:McpTool ; rdfs:label "session_status" ; fp:providedBy 
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "mind_bytes" ; fp:fieldType "number" ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "receipt_chain_head" ; fp:fieldType "String|null" ] .
 
-fp:ToolSessionClose a fp:McpTool ; rdfs:label "session_close" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:635-642" ;
+fp:ToolSessionClose a fp:McpTool ; rdfs:label "session_close" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:275" ;
   rdfs:comment "Removes the session from server state (frees its grounded world if no other session shares it). No receipt chaining; no error if the session_id doesn't exist." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ; fp:required true ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "schema" ; fp:fieldType "String" ; rdfs:comment "\"urn:chatman:ferroplan-session-close:v1\"" ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "session_id" ; fp:fieldType "String" ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "closed" ; fp:fieldType "bool" ; rdfs:comment "state.sessions.remove(id).is_some()." ] .
 
-fp:ToolCmcaAllocate a fp:McpTool ; rdfs:label "cmca_allocate" ; fp:providedBy fp:FerroplanSessionMcp ;
-  fp:toolSourceLocation "ferroplan-session-mcp.rs:644-762" ;
+fp:ToolCmcaAllocate a fp:McpTool ; rdfs:label "cmca_allocate" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:286" ;
   rdfs:comment "Runs the bcinr_cmca (Chatman Multifractal Cascade Allocator) fixed-size allocation over exactly N=8 candidates, validating each candidate's id (non-empty, unique), parent (forest structure: exactly one root, no cycles), fixed-point factors (F entries, finite, in [0, u32::MAX/65536]), and cost. Note: this tool is CMCA/BCINR allocation surface bundled onto the session server, not itself a Session operation — it is the only tool here with no session_id and no receipt chaining on the ManagedSession scheme (it returns a self-contained payload_digest instead)." ;
   fp:hasInputField [ a fp:McpToolField ; rdfs:label "candidates" ; fp:fieldType "Vec<CmcaCandidate>" ; fp:required true ; rdfs:comment "Must have exactly N (8) entries. Each candidate: {id: String (required, non-empty/unique), parent: Option<usize> (default None; if Some, must be < N and != own index), factors: Vec<f64> (required, exactly F entries, each finite/>=0/<=u32::MAX/65536), cost: f64 (default 0.0, same fixed-point validation)}." ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload_digest" ; fp:fieldType "String" ; rdfs:comment "blake3 hex of the canonicalized payload." ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload" ; fp:fieldType "object" ; rdfs:comment "{schema: \"urn:chatman:cmca-allocation:v1\", name, bcinr_revision, input_digest, node_count, factor_count, lens_count, measure_count, lenses: [{id, q_q16_16}], allocations: [{id, q16_16, share}]}." ] .
 
-# --- Server 2: chatman-admission-mcp -----------------------------------------
+# --- canonical_digest / bind_*_receipt / verify_receipt tools ---------------
+# Formerly a separate server (chatman-admission-mcp); merged into the single
+# fp:FerroplanMcp process. Tool bodies now live in
+# crates/ferroplan-mcp/src/admission.rs. toolSourceLocation values below are
+# newly added (the pre-merge extraction that produced this ontology's
+# "Inferred" comments on these four tools did not have file:line citations
+# available; the merge gave an opportunity to add real ones without
+# resolving the deeper field-schema-fidelity gap those comments still flag).
 
-fp:ChatmanAdmissionMcp a fp:McpServer ;
-  dcterms:title "chatman-admission-mcp" ;
-  rdfs:comment "Admission/receipt-binding MCP server: computes canonical digests and binds/verifies blake3-chained receipts over allocation and plan payloads, independent of any Session. Inferred: exact per-field JSON schema for these four tools was not captured at extraction-4 field-by-field granularity in the source material available to this ontology; only the four tool names (canonical_digest, bind_allocation_receipt, bind_plan_receipt, verify_receipt) and their general purpose were extracted. Modeled here at that lower confidence, flagged accordingly on each tool." .
-
-fp:ToolCanonicalDigest a fp:McpTool ; rdfs:label "canonical_digest" ; fp:providedBy fp:ChatmanAdmissionMcp ;
+fp:ToolCanonicalDigest a fp:McpTool ; rdfs:label "canonical_digest" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "admission.rs:86" ;
   rdfs:comment "Inferred: computes a canonical (deterministic-serialization) blake3 digest over an arbitrary JSON payload, for use as a stable content-identity input to receipt chaining elsewhere. Exact input/output field schema not captured at fine grain in the extraction available; documented at the tool-name/purpose level only." .
 
-fp:ToolBindAllocationReceipt a fp:McpTool ; rdfs:label "bind_allocation_receipt" ; fp:providedBy fp:ChatmanAdmissionMcp ;
-  rdfs:comment "Inferred: binds a CMCA/BCINR allocation payload (such as cmca_allocate's output) into a chained receipt, analogous in spirit to ferroplan-session-mcp's chain_receipt over SESSION_RECEIPT_DOMAIN, but scoped to allocation payloads rather than session events. Exact input/output field schema not captured at fine grain in the extraction available." .
+fp:ToolBindAllocationReceipt a fp:McpTool ; rdfs:label "bind_allocation_receipt" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "admission.rs:93" ;
+  rdfs:comment "Inferred: binds a CMCA/BCINR allocation payload (such as cmca_allocate's output) into a chained receipt, analogous in spirit to the session tools' chain_receipt over SESSION_RECEIPT_DOMAIN, but scoped to allocation payloads rather than session events. Exact input/output field schema not captured at fine grain in the extraction available." .
 
-fp:ToolBindPlanReceipt a fp:McpTool ; rdfs:label "bind_plan_receipt" ; fp:providedBy fp:ChatmanAdmissionMcp ;
+fp:ToolBindPlanReceipt a fp:McpTool ; rdfs:label "bind_plan_receipt" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "admission.rs:104" ;
   rdfs:comment "Inferred: binds a ferroplan Plan/Solution payload into a chained receipt, so a downstream actuation broker (per chatman-ecosystem.ttl's ce:BRCE) can require ce:requiresReceipt before treating a candidate plan as admissible. Exact input/output field schema not captured at fine grain in the extraction available." .
 
-fp:ToolVerifyReceipt a fp:McpTool ; rdfs:label "verify_receipt" ; fp:providedBy fp:ChatmanAdmissionMcp ;
+fp:ToolVerifyReceipt a fp:McpTool ; rdfs:label "verify_receipt" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "admission.rs:115" ;
   rdfs:comment "Inferred: verifies a previously-bound receipt (allocation or plan) against its claimed chain head / digest, returning whether the chain is intact. Exact input/output field schema not captured at fine grain in the extraction available." .
 
-# --- Server 3: ferroplan-mcp (main.rs, one-shot tools) -----------------------
+# --- solve / parse / validate / decompose tools ------------------------------
 
 fp:FerroplanMcp a fp:McpServer ;
   dcterms:title "ferroplan-mcp" ;
-  rdfs:comment "The one-shot (non-Session) MCP server wrapping ferroplan::api's stateless entry points directly: solve, parse, validate, decompose. Each call parses + grounds + (solves|checks) fresh, unlike ferroplan-session-mcp's persistent Session which grounds once and is mutated/replanned repeatedly. Source: ferroplan-mcp/src/bin/*/main.rs (or equivalent one-shot binary)." .
+  rdfs:comment "The single merged MCP server for this repo: all 16 tools in one rmcp ServerHandler/process — solve/parse/validate/decompose (stateless, re-parses+re-grounds fresh each call), the persistent Session lifecycle (session_open/observe/set_goal/think/advance/status/close, grounds once and is mutated/replanned repeatedly) plus cmca_allocate, and the admission/receipt-binding tools (canonical_digest/bind_allocation_receipt/bind_plan_receipt/verify_receipt). Formerly three separate binaries/processes (ferroplan-mcp, ferroplan-session-mcp, chatman-admission-mcp); merged so an agent only has to know about one MCP server, not three. Source: crates/ferroplan-mcp/src/main.rs (solve/parse/validate/decompose + the merged ServerHandler), src/session.rs, src/admission.rs. Resource URIs for all 16 tools are uniformly ferroplan://tools/<name> post-merge (session/admission tools previously used their own ferroplan-session://, chatman-admission:// prefixes)." .
 
 fp:ToolSolve a fp:McpTool ; rdfs:label "solve" ; fp:providedBy fp:FerroplanMcp ;
   rdfs:comment "Wraps ferroplan::api::solve(domain_src, problem_src, opts) -> Result<Solution, SolveError>: parses domain+problem PDDL, grounds, and searches for a plan under the given fp:Options, returning the fp:Solution shape. Inferred: field-by-field JSON request/response schema for the MCP wrapper itself (as opposed to the underlying api::solve signature, which is documented in api.rs) was not captured at fine grain in the extraction available." ;

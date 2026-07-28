@@ -18,14 +18,6 @@ publish = true
 name = "ferroplan-mcp"
 path = "src/main.rs"
 
-[[bin]]
-name = "ferroplan-session-mcp"
-path = "src/bin/ferroplan-session-mcp.rs"
-
-[[bin]]
-name = "chatman-admission-mcp"
-path = "src/bin/chatman-admission-mcp.rs"
-
 [dependencies]
 ferroplan = { path = "../ferroplan", version = "0.17.0", features = ["schema"] }
 serde = { workspace = true }

@@ -2,7 +2,7 @@
   "schema": "urn:chatman:claude-code-self-host-profile:v1",
   "repository": "seanchatmangpt/ferroplan",
   "planner": {
-    "authority": "ferroplan-session",
+    "authority": "ferroplan",
     "domain": "world/ferroplan-self-host-domain.pddl",
     "problem": "world/ferroplan-self-host-problem.pddl",
     "claim_ceiling": "candidate-plan",

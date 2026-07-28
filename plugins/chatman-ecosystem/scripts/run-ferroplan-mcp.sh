@@ -1,16 +1,7 @@
 #!/bin/sh
 set -eu
 
-mode=${1:-session}
-case "$mode" in
-  stateless) binary=ferroplan-mcp ;;
-  session) binary=ferroplan-session-mcp ;;
-  admission) binary=chatman-admission-mcp ;;
-  *)
-    printf '%s\n' "unsupported Ferroplan MCP mode: $mode" >&2
-    exit 64
-    ;;
-esac
+binary=ferroplan-mcp
 
 if command -v "$binary" >/dev/null 2>&1; then
   exec "$binary"

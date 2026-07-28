@@ -1,8 +1,9 @@
-//! Drive the built `chatman-admission-mcp` binary over stdio and check the
-//! JSON-RPC / MCP protocol end to end: initialize, tools/list, each tool's
-//! happy path, tamper-detection in `verify_receipt`, resources, and
-//! malformed-input rejection. Pure protocol-level determinism: no LLM
-//! involved anywhere, only the compiled binary and real BLAKE3 arithmetic.
+//! Drive the built `ferroplan-mcp` binary (the admission tools within the
+//! merged server) over stdio and check the JSON-RPC / MCP protocol end to
+//! end: initialize, tools/list, each tool's happy path, tamper-detection in
+//! `verify_receipt`, resources, and malformed-input rejection. Pure
+//! protocol-level determinism: no LLM involved anywhere, only the compiled
+//! binary and real BLAKE3 arithmetic.
 
 use serde_json::{json, Value};
 use std::io::Write;
@@ -12,12 +13,12 @@ use std::process::{Command, Stdio};
 /// every response line as parsed JSON. Callers are responsible for a spec-conformant
 /// `initialize`/`notifications/initialized` handshake if the server requires one.
 fn raw_drive(messages: &[Value]) -> Vec<Value> {
-    let bin = env!("CARGO_BIN_EXE_chatman-admission-mcp");
+    let bin = env!("CARGO_BIN_EXE_ferroplan-mcp");
     let mut child = Command::new(bin)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .expect("spawn chatman-admission-mcp");
+        .expect("spawn ferroplan-mcp");
     {
         let stdin = child.stdin.as_mut().expect("stdin");
         for m in messages {
@@ -131,31 +132,39 @@ fn initialize_advertises_server_and_tools() {
     ]);
     assert_eq!(resp.len(), 2, "notification must not produce a response");
     assert_eq!(resp[0]["id"], 1);
-    assert_eq!(resp[0]["result"]["serverInfo"]["name"], "chatman-admission");
+    // The three original servers are merged into one `ferroplan` binary; see
+    // `merged_server.rs` for the full 16-tool assertion.
+    assert_eq!(resp[0]["result"]["serverInfo"]["name"], "ferroplan");
     assert_eq!(resp[0]["result"]["protocolVersion"], "2025-06-18");
     let capabilities = &resp[0]["result"]["capabilities"];
-    assert!(capabilities.get("tools").is_some(), "expected tools capability");
+    assert!(
+        capabilities.get("tools").is_some(),
+        "expected tools capability"
+    );
     assert!(
         capabilities.get("resources").is_some(),
         "expected resources capability"
     );
 
-    let mut names: Vec<&str> = resp[1]["result"]["tools"]
+    let names: std::collections::BTreeSet<&str> = resp[1]["result"]["tools"]
         .as_array()
         .unwrap()
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    names.sort_unstable();
-    assert_eq!(
-        names,
-        [
-            "bind_allocation_receipt",
-            "bind_plan_receipt",
-            "canonical_digest",
-            "verify_receipt",
-        ]
-    );
+    // This server's own admission tools must still be present in the merged
+    // tool set (full 16-tool exactness is `merged_server.rs`'s job).
+    for expected in [
+        "bind_allocation_receipt",
+        "bind_plan_receipt",
+        "canonical_digest",
+        "verify_receipt",
+    ] {
+        assert!(
+            names.contains(expected),
+            "missing tool `{expected}`: {names:?}"
+        );
+    }
 }
 
 #[test]
@@ -290,13 +299,20 @@ fn verify_receipt_happy_path_round_trips_a_real_envelope() {
     ]);
     let envelope = structured(&find_response(&resp, 1));
 
-    let resp2 = drive(&[tool_call(2, "verify_receipt", json!({"envelope": envelope}))]);
+    let resp2 = drive(&[tool_call(
+        2,
+        "verify_receipt",
+        json!({"envelope": envelope}),
+    )]);
     let out = structured(&find_response(&resp2, 2));
     assert_eq!(out["schema"], "urn:chatman:receipt-verification:v1");
     assert_eq!(out["valid"], true);
     assert_eq!(out["payload_digest_valid"], true);
     assert_eq!(out["receipt_valid"], true);
-    assert_eq!(out["declared_payload_digest"], out["expected_payload_digest"]);
+    assert_eq!(
+        out["declared_payload_digest"],
+        out["expected_payload_digest"]
+    );
     assert_eq!(out["declared_receipt"], out["expected_receipt"]);
     assert_eq!(out["kind"], "allocation");
 }
@@ -346,7 +362,11 @@ fn verify_rejects_tampered_digest() {
     assert_ne!(tampered_receipt, receipt);
     envelope["receipt"] = json!(tampered_receipt);
 
-    let resp2 = drive(&[tool_call(2, "verify_receipt", json!({"envelope": envelope}))]);
+    let resp2 = drive(&[tool_call(
+        2,
+        "verify_receipt",
+        json!({"envelope": envelope}),
+    )]);
     let out = structured(&find_response(&resp2, 2));
     assert_eq!(out["valid"], false);
     assert_eq!(
@@ -367,26 +387,30 @@ fn resources_list_and_read_expose_tool_semantics() {
         json!({"jsonrpc":"2.0","id":1,"method":"resources/list"}),
         json!({
             "jsonrpc":"2.0","id":2,"method":"resources/read",
-            "params": {"uri": "chatman-admission://tools/canonical_digest"}
+            "params": {"uri": "ferroplan://tools/canonical_digest"}
         }),
     ]);
     let list = find_response(&resp, 1);
-    let mut uris: Vec<&str> = list["result"]["resources"]
+    let uris: std::collections::BTreeSet<&str> = list["result"]["resources"]
         .as_array()
         .unwrap()
         .iter()
         .map(|r| r["uri"].as_str().unwrap())
         .collect();
-    uris.sort_unstable();
-    assert_eq!(
-        uris,
-        [
-            "chatman-admission://tools/bind_allocation_receipt",
-            "chatman-admission://tools/bind_plan_receipt",
-            "chatman-admission://tools/canonical_digest",
-            "chatman-admission://tools/verify_receipt",
-        ]
-    );
+    // The merged server exposes 16 resources total; this admission group's
+    // four must be present (full 16-resource exactness is
+    // `merged_server.rs`'s job).
+    for expected in [
+        "ferroplan://tools/bind_allocation_receipt",
+        "ferroplan://tools/bind_plan_receipt",
+        "ferroplan://tools/canonical_digest",
+        "ferroplan://tools/verify_receipt",
+    ] {
+        assert!(
+            uris.contains(expected),
+            "missing resource `{expected}`: {uris:?}"
+        );
+    }
 
     let read = find_response(&resp, 2);
     let text = read["result"]["contents"][0]["text"]
@@ -411,7 +435,7 @@ fn resources_list_and_read_expose_tool_semantics() {
 fn resources_read_unknown_uri_is_not_found() {
     let resp = drive(&[json!({
         "jsonrpc":"2.0","id":1,"method":"resources/read",
-        "params": {"uri": "chatman-admission://tools/no_such_tool"}
+        "params": {"uri": "ferroplan://tools/no_such_tool"}
     })]);
     let r = find_response(&resp, 1);
     assert!(

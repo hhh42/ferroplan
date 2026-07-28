@@ -10,8 +10,10 @@ src/capabilities.rs is hand-edited because its own ggen-based regeneration is
 currently broken upstream).
 
 crates/ferroplan-mcp's MCP tool resource text (the `*_ONTOLOGY` constants in
-main.rs / bin/*.rs) is also ontology-generated, via crates/ferroplan-mcp/build.rs
-at compile time — but deliberately NOT via a checked-in generated .rs file.
+main.rs / session.rs / admission.rs — one merged binary and its modules, not
+separate bin/*.rs binaries) is also ontology-generated, via
+crates/ferroplan-mcp/build.rs at compile time — but deliberately NOT via a
+checked-in generated .rs file.
 build.rs writes those constants to $OUT_DIR under target/, which is never
 committed and has no path a human could open and hand-edit in this repo. That
 class of generated output needs no entry in GENERATED_PATHS and no hook

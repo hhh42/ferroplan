@@ -6,9 +6,9 @@
 
 use std::collections::HashSet;
 
-use serde::{Deserialize, Serialize};
 #[cfg(feature = "schema")]
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 use crate::ground::{ground, Outcome};
 use crate::packed::PackedTask;

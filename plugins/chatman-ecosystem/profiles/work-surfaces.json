@@ -58,7 +58,7 @@
     {
       "id": "receipt-security",
       "parent": 4,
-      "paths": ["plugins/chatman-ecosystem/hooks", "plugins/chatman-ecosystem/scripts", "crates/ferroplan-mcp/src/bin"],
+      "paths": ["plugins/chatman-ecosystem/hooks", "plugins/chatman-ecosystem/scripts", "crates/ferroplan-mcp/src/admission.rs", "crates/ferroplan-mcp/src/session.rs"],
       "factors": [0.9, 10.0, 0.8, 0.7, 0.9, 0.9, 1.0, 1.0, 0.9, 1000.0],
       "cost": 1.0
     },

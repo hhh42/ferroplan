@@ -1,18 +1,48 @@
-//! `ferroplan-mcp` — a Model Context Protocol server exposing the ferroplan planner
-//! to an LLM agent: `solve`, `parse`, `validate`, and `decompose` as MCP tools.
+//! `ferroplan-mcp` — a single Model Context Protocol server exposing the
+//! ferroplan planner, persistent self-hosting sessions, and Chatman
+//! admission receipts to an LLM agent, as 16 MCP tools:
 //!
-//! This is the README's bet made operational — the agent *authors and supervises*
-//! PDDL and the planner runs deterministically. The agent writes a domain + problem,
-//! calls `solve` (or `decompose` for a too-big goal), reads the structured result,
-//! and iterates; `validate` independently checks a plan under ferroplan's semantics.
+//! - Stateless planning: `solve`, `parse`, `validate`, `decompose` — the
+//!   README's bet made operational: the agent *authors and supervises* PDDL
+//!   and the planner runs deterministically.
+//! - Persistent repository minds: `session_open`, `session_observe`,
+//!   `session_set_goal`, `session_think`, `session_advance`,
+//!   `session_status`, `session_close`, `cmca_allocate` — ground once,
+//!   observe admitted drift, replay the remaining plan, and search only
+//!   when the suffix no longer stands.
+//! - Canonical evidence admission: `canonical_digest`, `bind_allocation_receipt`,
+//!   `bind_plan_receipt`, `verify_receipt` — bind the exact outputs of the
+//!   above authorities into replayable BLAKE3 envelopes with explicit
+//!   predecessor commitments. This part does not plan, allocate, validate,
+//!   or actuate.
 //!
-//! Transport: MCP stdio via the `rmcp` SDK (async, tokio). Tool schemas are derived
-//! from `schemars::JsonSchema` on each request struct rather than hand-written JSON
-//! Schema literals. `resources/*` exposes one resource per tool with the tool's
-//! semantic description pulled from `plugins/chatman-ecosystem/ontology/
-//! ferroplan-domain.ttl` (statically extracted at build time into
-//! `TOOL_ONTOLOGY_SUMMARY`, embedded via `include_str!` — see `build.rs`/module doc
-//! below for why static extraction was chosen over a live SPARQL engine).
+//! Transport: MCP stdio via the `rmcp` SDK (async, tokio multi-thread
+//! runtime — required by the session tools' `session_think`, which runs its
+//! CPU-bound search via `tokio::task::block_in_place` while holding a
+//! per-session lock; see `session.rs`). Tool schemas are derived from
+//! `schemars::JsonSchema` on each request struct rather than hand-written
+//! JSON Schema literals. `resources/*` exposes one resource per tool (16
+//! total), under a single unified `ferroplan://tools/<name>` URI scheme,
+//! with the tool's semantic description pulled from
+//! `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl` (statically
+//! extracted at build time into per-module `*_ONTOLOGY` constants, embedded
+//! via `include_str!` — see `build.rs` for why static extraction was chosen
+//! over a live SPARQL engine; it still generates three separate per-module
+//! files, one per tool group, which this binary's `session`/`admission`
+//! modules `include!` directly).
+//!
+//! This binary previously shipped as three separate binaries
+//! (`ferroplan-mcp`, `ferroplan-session-mcp`, `chatman-admission-mcp`),
+//! merged into one per the `rmcp`-supported multi-router pattern: each tool
+//! group lives in its own module with its own `#[tool_router(router =
+//! <name>, vis = "pub")]` `impl Ferroplan` block (`main_router` here,
+//! `session::session_router`, `admission::admission_router`), and the
+//! merged constructor sums the three `ToolRouter`s (`ToolRouter` implements
+//! `Add`/`AddAssign` as a plain map-union merge by tool name — safe here
+//! since no tool name collides across the three original servers).
+
+mod admission;
+mod session;
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -25,7 +55,8 @@ use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceEx
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-// Static per-tool semantic descriptions, sourced from
+// Static per-tool semantic descriptions for this module's own four
+// (stateless planning) tools, sourced from
 // `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl`'s `rdfs:comment`
 // annotations on the `fp:McpTool` instances for this server. Generated at
 // compile time by `build.rs` (not a live TTL/SPARQL parse at startup)
@@ -33,6 +64,18 @@ use serde::Deserialize;
 // constant is simpler and cheaper than standing up a SPARQL engine for
 // four fixed strings — see build.rs for the extraction logic.
 include!(concat!(env!("OUT_DIR"), "/main_ontology.rs"));
+
+const MAIN_RESOURCE_TOOLS: &[&str] = &["solve", "parse", "validate", "decompose"];
+
+fn main_ontology_comment(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "solve" => SOLVE_ONTOLOGY,
+        "parse" => PARSE_ONTOLOGY,
+        "validate" => VALIDATE_ONTOLOGY,
+        "decompose" => DECOMPOSE_ONTOLOGY,
+        _ => return None,
+    })
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -79,15 +122,17 @@ struct DecomposeRequest {
     options: Option<ferroplan::Options>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct Ferroplan {
     tool_router: ToolRouter<Self>,
+    session_state: session::SessionState,
 }
 
 impl Ferroplan {
     fn new() -> Self {
         Self {
-            tool_router: Self::tool_router(),
+            tool_router: Self::tool_router() + Self::session_router() + Self::admission_router(),
+            session_state: session::SessionState::default(),
         }
     }
 }
@@ -101,10 +146,7 @@ impl Ferroplan {
             actions) — mode is auto-detected. A solved:false result is a normal answer, not an \
             error."
     )]
-    fn solve(
-        &self,
-        Parameters(req): Parameters<SolveRequest>,
-    ) -> Result<String, String> {
+    fn solve(&self, Parameters(req): Parameters<SolveRequest>) -> Result<String, String> {
         let opts = req.options.unwrap_or_default();
         let sol = ferroplan::solve(&req.domain, &req.problem, &opts).map_err(|e| e.to_string())?;
         pretty(&sol)
@@ -141,10 +183,7 @@ impl Ferroplan {
             offset, plus the stitched plan. A goal that can't be split falls back to a single \
             monolithic contract (reported honestly)."
     )]
-    fn decompose(
-        &self,
-        Parameters(req): Parameters<DecomposeRequest>,
-    ) -> Result<String, String> {
+    fn decompose(&self, Parameters(req): Parameters<DecomposeRequest>) -> Result<String, String> {
         let opts = req.options.unwrap_or_default();
         let dec =
             ferroplan::decompose(&req.domain, &req.problem, &opts).map_err(|e| e.to_string())?;
@@ -168,8 +207,13 @@ impl ServerHandler for Ferroplan {
         .with_instructions(
             "Author a PDDL domain + problem, then call `solve` (or `decompose` for a goal too \
              big for one-shot search) and read the structured result. `validate` independently \
-             checks a plan. Read `ferroplan://tools/<name>` resources for semantic \
-             (ontology-sourced) descriptions of each tool.",
+             checks a plan. Open a persistent repository mind with `session_open` and drive it \
+             via `session_observe`/`session_set_goal`/`session_think`/`session_advance`/\
+             `session_status`/`session_close`; `cmca_allocate` runs the pinned Chatman \
+             Multifractal Cascade Allocator. Bind evidence from any of the above into \
+             replayable BLAKE3 envelopes with `canonical_digest`/`bind_allocation_receipt`/\
+             `bind_plan_receipt`/`verify_receipt`. Read `ferroplan://tools/<name>` resources \
+             for semantic (ontology-sourced) descriptions of each tool.",
         )
     }
 
@@ -178,7 +222,7 @@ impl ServerHandler for Ferroplan {
         _request: Option<rmcp::model::PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, McpError> {
-        let resources = ["solve", "parse", "validate", "decompose"]
+        let resources = all_tool_names()
             .into_iter()
             .map(|name| {
                 Resource::new(
@@ -208,13 +252,10 @@ impl ServerHandler for Ferroplan {
             .uri
             .strip_prefix("ferroplan://tools/")
             .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
-        let ontology_comment = match name {
-            "solve" => SOLVE_ONTOLOGY,
-            "parse" => PARSE_ONTOLOGY,
-            "validate" => VALIDATE_ONTOLOGY,
-            "decompose" => DECOMPOSE_ONTOLOGY,
-            _ => return Err(McpError::resource_not_found(request.uri.clone(), None)),
-        };
+        let ontology_comment = main_ontology_comment(name)
+            .or_else(|| session::ontology_comment(name))
+            .or_else(|| admission::ontology_comment(name))
+            .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
         let body = serde_json::json!({
             "tool": name,
             "source": "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
@@ -225,6 +266,17 @@ impl ServerHandler for Ferroplan {
             request.uri,
         )]))
     }
+}
+
+/// All 16 tool names across the three merged tool groups, in a stable order
+/// (stateless planning, then session, then admission).
+fn all_tool_names() -> Vec<&'static str> {
+    MAIN_RESOURCE_TOOLS
+        .iter()
+        .chain(session::RESOURCE_TOOLS)
+        .chain(admission::RESOURCE_TOOLS)
+        .copied()
+        .collect()
 }
 
 fn pretty<T: serde::Serialize>(v: &T) -> Result<String, String> {

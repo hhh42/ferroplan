@@ -98,11 +98,12 @@ If omitted, resolvers first use an installed binary and then look for a sibling 
 
 ## MCP servers
 
-The plugin starts four independent stdio authorities:
+The plugin starts two independent stdio authorities:
 
-- `ferroplan`: stateless parse, solve, validate, and decompose;
-- `ferroplan-session`: persistent `Session`, observation, suffix replay, bounded replanning, and CMCA;
-- `chatman-admission`: canonical digest, allocation envelope, plan envelope, and receipt verification;
+- `ferroplan`: stateless parse/solve/validate/decompose, persistent `Session`
+  (observation, suffix replay, bounded replanning, CMCA), and Chatman
+  admission (canonical digest, allocation envelope, plan envelope, receipt
+  verification) — all 16 tools in one process, one `rmcp` server;
 - `bcinr`: semantic admission, PDDL/POWL, capability, and receipt tools.
 
 ## Live self-hosting world

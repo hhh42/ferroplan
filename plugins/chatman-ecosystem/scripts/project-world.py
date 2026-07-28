@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -58,6 +60,71 @@ GOALS = {
 }
 
 
+def _run_check(cmd: list[str], cwd: str, timeout: float) -> dict[str, Any]:
+    """Run a subprocess check and report whether it ran and whether it succeeded.
+
+    Never raises: any failure to even invoke the command (missing binary,
+    timeout, not a git repo, etc.) is captured as ran=False with a reason,
+    rather than crashing problem-generation.
+    """
+    start = time.monotonic()
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return {
+            "ran": False,
+            "ok": False,
+            "reason": f"{type(error).__name__}: {error}",
+            "duration_seconds": round(time.monotonic() - start, 3),
+        }
+    return {
+        "ran": True,
+        "ok": result.returncode == 0,
+        "returncode": result.returncode,
+        "duration_seconds": round(time.monotonic() - start, 3),
+    }
+
+
+def _git_dirty_check(cwd: str, timeout: float) -> dict[str, Any]:
+    """Return {"ran", "dirty", "reason"?, "duration_seconds"} for `git status --porcelain`.
+
+    `dirty` is None when the check could not be run or the directory isn't a
+    git work tree — callers must fall back to ledger-only inference in that
+    case rather than treating None as False.
+    """
+    start = time.monotonic()
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return {
+            "ran": False,
+            "dirty": None,
+            "reason": f"{type(error).__name__}: {error}",
+            "duration_seconds": round(time.monotonic() - start, 3),
+        }
+    duration = round(time.monotonic() - start, 3)
+    if result.returncode != 0:
+        return {
+            "ran": True,
+            "dirty": None,
+            "reason": f"git status exited {result.returncode} (not a git repo?): {result.stderr.strip()}",
+            "duration_seconds": duration,
+        }
+    return {"ran": True, "dirty": bool(result.stdout.strip()), "duration_seconds": duration}
+
+
 def resolve(project: str | None) -> tuple[str, Path, dict[str, Any], dict[str, Any]]:
     cwd = os.path.realpath(project or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
     profile = phase.load_profile()
@@ -69,7 +136,11 @@ def resolve(project: str | None) -> tuple[str, Path, dict[str, Any], dict[str, A
     return cwd, directory, phase_state, loop_state
 
 
-def problem(project: str | None, goal_name: str) -> tuple[str, dict[str, Any]]:
+def problem(
+    project: str | None,
+    goal_name: str,
+    skip_live_checks: bool = False,
+) -> tuple[str, dict[str, Any]]:
     cwd, _, phase_state, loop_state = resolve(project)
     vector = phase_state["vector"]
     violations = phase.validate_vector(phase.load_profile(), vector)
@@ -88,15 +159,65 @@ def problem(project: str | None, goal_name: str) -> tuple[str, dict[str, Any]]:
     pending = max(0, event_count - admitted_count)
     standing = str(loop_state.get("standing", "UNKNOWN"))
 
-    if pending > 0 or vector["epistemic"] in {"latent", "observed"} or vector["drift"] == "drifted":
+    ledger_dirty = (
+        pending > 0 or vector["epistemic"] in {"latent", "observed"} or vector["drift"] == "drifted"
+    )
+
+    live_checks: dict[str, Any] = {"skipped": skip_live_checks}
+    git_dirty_result: dict[str, Any] = {"ran": False, "dirty": None, "reason": "skipped (--skip-live-checks)"}
+    build_result: dict[str, Any] = {"ran": False, "ok": False, "reason": "skipped (--skip-live-checks)"}
+    test_result: dict[str, Any] = {"ran": False, "ok": False, "reason": "skipped (--skip-live-checks)"}
+
+    if not skip_live_checks:
+        git_dirty_result = _git_dirty_check(cwd, timeout=10.0)
+        # cargo check --workspace is used instead of `cargo build --workspace`:
+        # it exercises the same type/borrow-check/link-resolution surface that
+        # actually breaks most PRs, at a fraction of the wall-clock cost of a
+        # full codegen build. This is a deliberate speed/fidelity tradeoff —
+        # a `cargo check` pass does not guarantee `cargo build` (or
+        # `cargo test`) also succeeds (e.g. codegen-only or test-only
+        # failures can still slip through), so it's a proxy for build-green,
+        # not an exact match.
+        build_result = _run_check(["cargo", "check", "--workspace"], cwd, timeout=180.0)
+        # validator-green: "validator" in this ontology is the independent
+        # validator agent's verdict, which this script has no access to
+        # invoke or query. `cargo test --workspace` is used as an honest,
+        # explicitly-labeled PROXY for validator-green — it is not the same
+        # guarantee as an actual independent-validator run (it can't see
+        # anything the validator agent checks beyond automated test passage,
+        # e.g. spec conformance, review judgment).
+        test_result = _run_check(["cargo", "test", "--workspace"], cwd, timeout=300.0)
+
+    live_checks["git_dirty"] = git_dirty_result
+    live_checks["build_check"] = {**build_result, "command": "cargo check --workspace"}
+    live_checks["validator_proxy_test"] = {**test_result, "command": "cargo test --workspace"}
+
+    git_dirty = git_dirty_result.get("dirty")
+    dirty = ledger_dirty or bool(git_dirty)
+    if dirty:
         facts.add("dirty")
     if vector["allocation"] == "allocated":
         facts.add("allocation-bound")
     if vector["planning"] in {"candidate", "validated"}:
         facts.add("plan-bound")
-    if vector["planning"] == "validated":
-        facts.add("validator-green")
+    # build-green: only asserted when a live `cargo check --workspace` was
+    # actually run and passed in this call. Never fabricated from the cached
+    # phase vector alone.
+    if build_result.get("ran") and build_result.get("ok"):
         facts.add("build-green")
+    # validator-green: proxied by a live `cargo test --workspace` pass when
+    # live checks are enabled; falls back to the cached-vector condition
+    # (vector["planning"] == "validated") when live checks are skipped, so
+    # --skip-live-checks callers keep the old fast-path behavior rather than
+    # silently losing the fact.
+    if (test_result.get("ran") and test_result.get("ok")) or (
+        skip_live_checks and vector["planning"] == "validated"
+    ):
+        facts.add("validator-green")
+    # bcinr-green: depends on the separate BCINR MCP server, which this
+    # script has no cheap/obvious way to invoke or query directly. Left keyed
+    # only to the cached-vector condition — NOT strengthened by a live check.
+    if vector["planning"] == "validated":
         facts.add("bcinr-green")
     if loop_state.get("plan_receipt"):
         facts.add("receipt-bound")
@@ -150,6 +271,9 @@ def problem(project: str | None, goal_name: str) -> tuple[str, dict[str, Any]]:
         "standing": standing,
         "facts": sorted(facts),
         "problem_transport_digest": phase.transport_digest(text),
+        "live_checks": live_checks,
+        "ledger_dirty": ledger_dirty,
+        "git_dirty": git_dirty,
     }
     return text, metadata
 
@@ -160,12 +284,22 @@ def parser() -> argparse.ArgumentParser:
     root.add_argument("--goal", choices=sorted(GOALS), default="receipt")
     root.add_argument("--output")
     root.add_argument("--metadata")
+    root.add_argument(
+        "--skip-live-checks",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip live `git status`/`cargo check`/`cargo test` checks and fall back to the "
+            "cached phase-vector-only behavior (fast, but dirty/build-green/validator-green "
+            "facts are inferred rather than verified)."
+        ),
+    )
     return root
 
 
 def main() -> int:
     args = parser().parse_args()
-    text, metadata = problem(args.project, args.goal)
+    text, metadata = problem(args.project, args.goal, skip_live_checks=args.skip_live_checks)
     if args.output:
         path = Path(args.output)
         path.parent.mkdir(parents=True, exist_ok=True)

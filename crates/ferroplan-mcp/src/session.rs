@@ -1,24 +1,23 @@
-//! Persistent repository planning and CMCA allocation over MCP.
+//! Persistent repository planning and CMCA allocation tools, merged into the
+//! single `ferroplan-mcp` binary's `Ferroplan` tool handler (see `crate::main`
+//! for the merge). This module owns ground-once repository minds: observe
+//! admitted drift, replay the remaining plan, and search only when the
+//! suffix no longer stands.
 //!
-//! `ferroplan-mcp` remains the stateless parse/solve/validate authority. This
-//! binary owns ground-once repository minds: observe admitted drift, replay the
-//! remaining plan, and search only when the suffix no longer stands.
-//!
-//! Transport: MCP over stdio via `rmcp`/`tokio`. Session storage is a
-//! two-level lock: an outer `BTreeMap<String, Arc<AsyncMutex<ManagedSession>>>`
-//! guarded briefly to look up/clone a session's own `Arc<AsyncMutex<..>>`,
-//! then the per-session mutex is held for the duration of the call. This
-//! means concurrent tool calls against *different* sessions never block each
-//! other (the outer lock is only held for the lookup), and concurrent calls
-//! against the *same* session queue on that session's own mutex rather than
-//! racing or erroring — see `KNOWN LIMITATION` below for what queuing does
-//! *not* give you. `session_think` runs its CPU-bound synchronous search
+//! Session storage is a two-level lock: an outer
+//! `BTreeMap<String, Arc<AsyncMutex<ManagedSession>>>` guarded briefly to
+//! look up/clone a session's own `Arc<AsyncMutex<..>>`, then the per-session
+//! mutex is held for the duration of the call. This means concurrent tool
+//! calls against *different* sessions never block each other (the outer
+//! lock is only held for the lookup), and concurrent calls against the
+//! *same* session queue on that session's own mutex rather than racing or
+//! erroring — see `KNOWN LIMITATION` below for what queuing does *not* give
+//! you. `session_think` runs its CPU-bound synchronous search
 //! (`Session::replan_budgeted`/`replan_following`) via
 //! `tokio::task::block_in_place` while still holding the per-session lock,
-//! which requires the multi-thread tokio runtime (enabled below via
-//! `rt-multi-thread` in Cargo.toml and `#[tokio::main]`'s default flavor).
-
-#![forbid(unsafe_code)]
+//! which requires the multi-thread tokio runtime (enabled via
+//! `rt-multi-thread` in Cargo.toml and the merged binary's `#[tokio::main]`'s
+//! default flavor).
 
 use bcinr_cmca::{
     allocator::{
@@ -32,15 +31,10 @@ use bcinr_cmca::{
     },
 };
 use ferroplan::{Options, Plan, Session};
-use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{
-    CallToolResult, ContentBlock, ErrorData as McpError, ListResourcesResult,
-    ReadResourceRequestParams, ReadResourceResult, Resource, ResourceContents,
-    ServerCapabilities, ServerInfo,
-};
-use rmcp::service::RequestContext;
-use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceExt};
+use rmcp::model::{CallToolResult, ContentBlock, ErrorData as McpError};
+use rmcp::tool;
+use rmcp::tool_router;
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
@@ -49,15 +43,43 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
+use crate::Ferroplan;
+
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
 const SESSION_RECEIPT_DOMAIN: &[u8] = b"urn:chatman:ferroplan-session-chain:v1\0";
 
 // Static per-tool semantic descriptions sourced from
 // `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl`'s `rdfs:comment`
-// annotations on the `fp:McpTool` instances for this server (the ontology's
-// highest-fidelity server per the migration brief). Generated at compile
-// time by `build.rs` — see that file for the extraction logic.
+// annotations on the `fp:McpTool` instances for this module's tools.
+// Generated at compile time by `build.rs` — see that file for the extraction
+// logic. These constants are read by `crate::main`'s merged
+// `list_resources`/`read_resource`.
 include!(concat!(env!("OUT_DIR"), "/session_ontology.rs"));
+
+pub(crate) const RESOURCE_TOOLS: &[&str] = &[
+    "session_open",
+    "session_observe",
+    "session_set_goal",
+    "session_think",
+    "session_advance",
+    "session_status",
+    "session_close",
+    "cmca_allocate",
+];
+
+pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "session_open" => OPEN_ONTOLOGY,
+        "session_observe" => OBSERVE_ONTOLOGY,
+        "session_set_goal" => SET_GOAL_ONTOLOGY,
+        "session_think" => THINK_ONTOLOGY,
+        "session_advance" => ADVANCE_ONTOLOGY,
+        "session_status" => STATUS_ONTOLOGY,
+        "session_close" => CLOSE_ONTOLOGY,
+        "cmca_allocate" => CMCA_ONTOLOGY,
+        _ => return None,
+    })
+}
 
 struct ManagedSession {
     session: Session,
@@ -74,11 +96,11 @@ struct ManagedSession {
 /// all operations (including `session_think`'s search) against that one
 /// session without blocking calls against other sessions.
 #[derive(Clone, Default)]
-struct ServerState {
+pub(crate) struct SessionState {
     sessions: Arc<AsyncMutex<BTreeMap<String, Arc<AsyncMutex<ManagedSession>>>>>,
 }
 
-impl ServerState {
+impl SessionState {
     /// Look up a session's own lock, briefly holding the outer map lock to
     /// clone the `Arc`, then release it immediately.
     async fn get(&self, id: &str) -> Result<Arc<AsyncMutex<ManagedSession>>, String> {
@@ -146,6 +168,16 @@ fn default_budget() -> usize {
     50_000
 }
 
+/// Upper bound on `max_evaluated`: since there is no cooperative-cancellation
+/// hook in the search loop (see `do_session_think`'s doc comment), an
+/// unbounded value combined with a client that never sends a sane budget
+/// would tie up a session's per-session lock indefinitely. This is generous
+/// relative to `default_budget` (200x) while still being a real ceiling.
+const MAX_EVALUATED_CEILING: usize = 10_000_000;
+
+/// Upper bound on `memory_mb`, for the same reason.
+const MAX_MEMORY_MB_CEILING: usize = 16_384;
+
 fn default_follow() -> bool {
     true
 }
@@ -186,23 +218,8 @@ struct CmcaInput {
     candidates: Vec<CmcaCandidate>,
 }
 
-#[derive(Clone)]
-struct FerroplanSession {
-    tool_router: ToolRouter<Self>,
-    state: ServerState,
-}
-
-impl FerroplanSession {
-    fn new() -> Self {
-        Self {
-            tool_router: Self::tool_router(),
-            state: ServerState::default(),
-        }
-    }
-}
-
-#[tool_router]
-impl FerroplanSession {
+#[tool_router(router = session_router, vis = "pub")]
+impl Ferroplan {
     #[tool(description = "Parse and ground one persistent Ferroplan Session.")]
     async fn session_open(
         &self,
@@ -284,93 +301,6 @@ impl FerroplanSession {
     }
 }
 
-#[tool_handler(router = self.tool_router)]
-impl ServerHandler for FerroplanSession {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
-            ServerCapabilities::builder()
-                .enable_tools()
-                .enable_resources()
-                .build(),
-        )
-        .with_server_info(rmcp::model::Implementation::new(
-            "ferroplan-session",
-            env!("CARGO_PKG_VERSION"),
-        ))
-        .with_instructions(
-            "Open one grounded repository mind, feed admitted observations, retain valid plan \
-             suffixes, invoke CMCA before scarce-work selection, and use bounded replanning only \
-             after real surprise. Read `ferroplan-session://tools/<name>` resources for \
-             ontology-sourced semantics.",
-        )
-    }
-
-    async fn list_resources(
-        &self,
-        _request: Option<rmcp::model::PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ListResourcesResult, McpError> {
-        let resources = [
-            "session_open",
-            "session_observe",
-            "session_set_goal",
-            "session_think",
-            "session_advance",
-            "session_status",
-            "session_close",
-            "cmca_allocate",
-        ]
-        .into_iter()
-        .map(|name| {
-            Resource::new(
-                format!("ferroplan-session://tools/{name}"),
-                format!("{name} (semantic summary)"),
-            )
-            .with_description(format!(
-                "Ontology-sourced semantics for the `{name}` tool, from ferroplan-domain.ttl."
-            ))
-            .with_mime_type("application/json")
-        })
-        .collect();
-        Ok(ListResourcesResult {
-            resources,
-            next_cursor: None,
-            meta: None,
-        })
-    }
-
-    async fn read_resource(
-        &self,
-        request: ReadResourceRequestParams,
-        _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
-        let name = request
-            .uri
-            .strip_prefix("ferroplan-session://tools/")
-            .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
-        let ontology_comment = match name {
-            "session_open" => OPEN_ONTOLOGY,
-            "session_observe" => OBSERVE_ONTOLOGY,
-            "session_set_goal" => SET_GOAL_ONTOLOGY,
-            "session_think" => THINK_ONTOLOGY,
-            "session_advance" => ADVANCE_ONTOLOGY,
-            "session_status" => STATUS_ONTOLOGY,
-            "session_close" => CLOSE_ONTOLOGY,
-            "cmca_allocate" => CMCA_ONTOLOGY,
-            _ => return Err(McpError::resource_not_found(request.uri.clone(), None)),
-        };
-        let body = json!({
-            "tool": name,
-            "source": "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
-            "rdfs_comment": ontology_comment,
-        });
-        Ok(ReadResourceResult::new(vec![ResourceContents::text(
-            serde_json::to_string_pretty(&body).unwrap_or_default(),
-            request.uri,
-        )]))
-    }
-}
-
 fn to_result(result: Result<Value, String>) -> Result<CallToolResult, McpError> {
     Ok(match result {
         Ok(value) => {
@@ -382,12 +312,12 @@ fn to_result(result: Result<Value, String>) -> Result<CallToolResult, McpError> 
     })
 }
 
-impl FerroplanSession {
+impl Ferroplan {
     async fn do_session_open(&self, input: OpenInput) -> Result<Value, String> {
         validate_session_id(&input.session_id)?;
         let options: Options = input.options.unwrap_or_default();
 
-        let mut sessions = self.state.sessions.lock().await;
+        let mut sessions = self.session_state.sessions.lock().await;
         if sessions.contains_key(&input.session_id) && !input.replace {
             return Err(format!(
                 "session `{}` already exists; set replace=true to discard it",
@@ -436,7 +366,7 @@ impl FerroplanSession {
     }
 
     async fn do_session_observe(&self, input: ObserveInput) -> Result<Value, String> {
-        let session_lock = self.state.get(&input.session_id).await?;
+        let session_lock = self.session_state.get(&input.session_id).await?;
         let mut managed = session_lock.lock().await;
         let managed = &mut *managed;
         let facts: Vec<(&str, bool)> = input
@@ -486,7 +416,7 @@ impl FerroplanSession {
     }
 
     async fn do_session_set_goal(&self, input: GoalInput) -> Result<Value, String> {
-        let session_lock = self.state.get(&input.session_id).await?;
+        let session_lock = self.session_state.get(&input.session_id).await?;
         let mut managed = session_lock.lock().await;
         let managed = &mut *managed;
         managed.session.set_goal(&input.goal)?;
@@ -512,7 +442,7 @@ impl FerroplanSession {
         }))
     }
 
-    /// Concurrency: the per-session lock (see `ServerState::get`) means a
+    /// Concurrency: the per-session lock (see `SessionState::get`) means a
     /// second `session_think` (or any other) call against the *same*
     /// session_id queues on this session's mutex until this call finishes,
     /// rather than racing a remove/reinsert or seeing "unknown session".
@@ -528,8 +458,19 @@ impl FerroplanSession {
         if input.max_evaluated == 0 {
             return Err("max_evaluated must be greater than zero".to_owned());
         }
+        if input.max_evaluated > MAX_EVALUATED_CEILING {
+            return Err(format!(
+                "max_evaluated must be at most {MAX_EVALUATED_CEILING} (no cooperative \
+                 cancellation exists yet to abort an in-flight search early)"
+            ));
+        }
+        if let Some(memory_mb) = input.memory_mb {
+            if memory_mb > MAX_MEMORY_MB_CEILING {
+                return Err(format!("memory_mb must be at most {MAX_MEMORY_MB_CEILING}"));
+            }
+        }
 
-        let session_lock = self.state.get(&input.session_id).await?;
+        let session_lock = self.session_state.get(&input.session_id).await?;
         let mut managed = session_lock.lock().await;
         let managed = &mut *managed;
 
@@ -566,7 +507,7 @@ impl FerroplanSession {
         // Slow path: run the CPU-bound search in place, while still holding
         // the per-session lock, via `block_in_place` (requires the
         // multi-thread tokio runtime — see Cargo.toml's `rt-multi-thread`
-        // feature and this binary's `#[tokio::main]`). Other sessions'
+        // feature and the merged binary's `#[tokio::main]`). Other sessions'
         // calls are unaffected; calls against *this* session queue behind
         // the lock we're holding.
         let max_evaluated = input.max_evaluated;
@@ -620,7 +561,7 @@ impl FerroplanSession {
     }
 
     async fn do_session_advance(&self, input: AdvanceInput) -> Result<Value, String> {
-        let session_lock = self.state.get(&input.session_id).await?;
+        let session_lock = self.session_state.get(&input.session_id).await?;
         let mut managed = session_lock.lock().await;
         let managed = &mut *managed;
         let plan_length = managed
@@ -655,7 +596,7 @@ impl FerroplanSession {
     }
 
     async fn do_session_status(&self, input: SessionIdInput) -> Result<Value, String> {
-        let session_lock = self.state.get(&input.session_id).await?;
+        let session_lock = self.session_state.get(&input.session_id).await?;
         let managed = session_lock.lock().await;
         let managed = &*managed;
         Ok(json!({
@@ -675,7 +616,7 @@ impl FerroplanSession {
     }
 
     async fn do_session_close(&self, input: SessionIdInput) -> Result<Value, String> {
-        let mut sessions = self.state.sessions.lock().await;
+        let mut sessions = self.session_state.sessions.lock().await;
         // Removes the per-session `Arc<AsyncMutex<ManagedSession>>` from the
         // map. If a search (or any other call) is in-flight and holds the
         // inner lock, that Arc keeps the ManagedSession alive until the
@@ -731,7 +672,9 @@ fn tool_cmca_allocate(input: CmcaInput) -> Result<Value, String> {
             None => -1,
             Some(parent_index) if parent_index < N && parent_index != index => parent_index as i32,
             Some(parent_index) => {
-                return Err(format!("candidate `{id}` has invalid parent {parent_index}"))
+                return Err(format!(
+                    "candidate `{id}` has invalid parent {parent_index}"
+                ))
             }
         };
         costs[index] = fixed(candidate.cost, &format!("{id}.cost"))?;
@@ -867,10 +810,12 @@ fn validate_forest(parent: &[i32; N]) -> Result<(), String> {
 fn fixed(value: f64, surface: &str) -> Result<NonNegativeFixed, String> {
     let maximum = f64::from(u32::MAX) / 65_536.0;
     if !value.is_finite() || value < 0.0 || value > maximum {
-        return Err(format!("{surface} must be finite and within [0, {maximum}]"));
+        return Err(format!(
+            "{surface} must be finite and within [0, {maximum}]"
+        ));
     }
     Ok(NonNegativeFixed::from_bits(
-        (value * 65_536.0).round() as u32,
+        (value * 65_536.0).round() as u32
     ))
 }
 
@@ -883,9 +828,9 @@ fn lens_receipt(lenses: &[LensSpec; Q]) -> Vec<Value> {
 
 fn validate_session_id(id: &str) -> Result<(), String> {
     if id.is_empty()
-        || !id.bytes().all(|byte| {
-            byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':')
-        })
+        || !id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':'))
     {
         return Err(format!("session id is not canonical: `{id}`"));
     }
@@ -924,17 +869,4 @@ fn decode<T: DeserializeOwned>(value: &Value) -> Result<T, String> {
 
 fn pretty(value: &Value) -> String {
     serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let service = FerroplanSession::new()
-        .serve(rmcp::transport::stdio())
-        .await
-        .map_err(|e| {
-            eprintln!("serving error: {e}");
-            e
-        })?;
-    service.waiting().await?;
-    Ok(())
 }

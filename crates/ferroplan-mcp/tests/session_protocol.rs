@@ -1,7 +1,8 @@
-//! Drive the built `ferroplan-session-mcp` binary over stdio and check the
-//! per-session locking refactor (Fix 1): concurrent tool calls against the
-//! *same* session_id queue on that session's own lock rather than racing a
-//! remove/reinsert and observing "unknown session".
+//! Drive the built `ferroplan-mcp` binary (the session tools within the
+//! merged server) over stdio and check the per-session locking refactor
+//! (Fix 1): concurrent tool calls against the *same* session_id queue on
+//! that session's own lock rather than racing a remove/reinsert and
+//! observing "unknown session".
 
 use serde_json::{json, Value};
 use std::io::{BufRead, BufReader, Write};
@@ -59,12 +60,12 @@ fn tool_call(id: i64, name: &str, arguments: Value) -> Value {
 /// Uses a fresh handshake against a freshly spawned server so each test gets
 /// an isolated process (no shared state with other tests).
 fn spawn_and_handshake() -> (std::process::Child, BufReader<std::process::ChildStdout>) {
-    let bin = env!("CARGO_BIN_EXE_ferroplan-session-mcp");
+    let bin = env!("CARGO_BIN_EXE_ferroplan-mcp");
     let mut child = Command::new(bin)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .expect("spawn ferroplan-session-mcp");
+        .expect("spawn ferroplan-mcp");
     let mut stdout = BufReader::new(child.stdout.take().expect("stdout"));
     {
         let stdin = child.stdin.as_mut().expect("stdin");
@@ -129,7 +130,11 @@ fn full_session_lifecycle() {
             json!({"session_id": session_id, "domain": DOM, "problem": PROB}),
         ),
     );
-    assert!(!is_error(&open), "session_open failed: {}", tool_text(&open));
+    assert!(
+        !is_error(&open),
+        "session_open failed: {}",
+        tool_text(&open)
+    );
     assert_eq!(
         open["result"]["structuredContent"]["session_id"], session_id,
         "session_open did not echo session_id: {open:?}"
@@ -178,7 +183,11 @@ fn full_session_lifecycle() {
             json!({"session_id": session_id, "max_evaluated": 50_000}),
         ),
     );
-    assert!(!is_error(&think), "session_think failed: {}", tool_text(&think));
+    assert!(
+        !is_error(&think),
+        "session_think failed: {}",
+        tool_text(&think)
+    );
     let decision = think["result"]["structuredContent"]["decision"]
         .as_str()
         .unwrap_or_default();
@@ -245,7 +254,11 @@ fn full_session_lifecycle() {
         &mut stdout,
         &tool_call(7, "session_close", json!({"session_id": session_id})),
     );
-    assert!(!is_error(&close), "session_close failed: {}", tool_text(&close));
+    assert!(
+        !is_error(&close),
+        "session_close failed: {}",
+        tool_text(&close)
+    );
     assert_eq!(
         close["result"]["structuredContent"]["closed"],
         json!(true),
@@ -393,15 +406,13 @@ fn resources_list_and_read_expose_tool_semantics() {
     let resources = list["result"]["resources"]
         .as_array()
         .unwrap_or_else(|| panic!("resources/list returned no resources array: {list:?}"));
-    assert_eq!(
-        resources.len(),
-        8,
-        "expected exactly 8 tool resources: {list:?}"
-    );
+    // The merged server exposes 16 resources total; this session group's
+    // eight must be present (full 16-resource exactness is
+    // `merged_server.rs`'s job).
     let names: std::collections::BTreeSet<&str> = resources
         .iter()
         .filter_map(|r| r["uri"].as_str())
-        .filter_map(|uri| uri.strip_prefix("ferroplan-session://tools/"))
+        .filter_map(|uri| uri.strip_prefix("ferroplan://tools/"))
         .collect();
     let expected: std::collections::BTreeSet<&str> = [
         "session_open",
@@ -415,7 +426,11 @@ fn resources_list_and_read_expose_tool_semantics() {
     ]
     .into_iter()
     .collect();
-    assert_eq!(names, expected, "resource URIs did not match the tool set");
+    assert!(
+        expected.is_subset(&names),
+        "expected session tool resources missing: {:?}",
+        expected.difference(&names).collect::<Vec<_>>()
+    );
 
     let read = call(
         &mut child,
@@ -424,13 +439,17 @@ fn resources_list_and_read_expose_tool_semantics() {
             "jsonrpc": "2.0",
             "id": 2,
             "method": "resources/read",
-            "params": {"uri": "ferroplan-session://tools/session_think"}
+            "params": {"uri": "ferroplan://tools/session_think"}
         }),
     );
     let contents = read["result"]["contents"]
         .as_array()
         .unwrap_or_else(|| panic!("resources/read returned no contents array: {read:?}"));
-    assert_eq!(contents.len(), 1, "expected exactly one content block: {read:?}");
+    assert_eq!(
+        contents.len(),
+        1,
+        "expected exactly one content block: {read:?}"
+    );
     let text = contents[0]["text"].as_str().unwrap_or_default();
     assert!(
         text.contains("session_think") && text.contains("rdfs_comment"),
@@ -514,12 +533,12 @@ fn malformed_input_with_unknown_field_is_rejected() {
 #[test]
 fn concurrent_calls_against_same_session_do_not_see_unknown_session() {
     let session_id = "concurrent-test-session";
-    let bin = env!("CARGO_BIN_EXE_ferroplan-session-mcp");
+    let bin = env!("CARGO_BIN_EXE_ferroplan-mcp");
     let mut child = Command::new(bin)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
-        .expect("spawn ferroplan-session-mcp");
+        .expect("spawn ferroplan-mcp");
     let mut stdout = BufReader::new(child.stdout.take().expect("stdout"));
 
     // Handshake, then session_open, reading each response before sending the
@@ -580,7 +599,10 @@ fn concurrent_calls_against_same_session_do_not_see_unknown_session() {
     // `child.stdout` was already taken into `stdout` above, so read the
     // remaining two response lines from that same handle rather than via
     // `wait_with_output` (which would see an empty stdout pipe here).
-    let resp = vec![read_response_line(&mut stdout), read_response_line(&mut stdout)];
+    let resp = vec![
+        read_response_line(&mut stdout),
+        read_response_line(&mut stdout),
+    ];
     let status_code = child.wait().expect("wait");
     assert!(status_code.success(), "server exited with {status_code:?}");
 

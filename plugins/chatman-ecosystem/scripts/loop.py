@@ -26,6 +26,9 @@ try:
 except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from mcp_client import McpClient, McpToolError, tool_structured_result  # noqa: E402
+
 STATE_SCHEMA = "urn:chatman:claude-code-loop-state:v1"
 EVENT_SCHEMA = "urn:chatman:claude-code-observation:v1"
 
@@ -342,11 +345,45 @@ def pending(project: str | None) -> int:
     return 0
 
 
+def verify_receipt_envelope(envelope_path: str, receipt: str) -> None:
+    """Verify `receipt` against a real MCP envelope via `verify_receipt`.
+
+    Raises SystemExit (same message style as the existing hex-format check)
+    if the envelope cannot be read/parsed, the declared receipt does not
+    match the envelope's own `receipt` field, the MCP call errors, or the
+    server reports the receipt invalid. A format-valid but unverified receipt
+    is never treated as success.
+    """
+    try:
+        envelope = json.loads(Path(envelope_path).read_text(encoding="utf-8"))
+    except OSError as error:
+        raise SystemExit(f"cannot read --envelope {envelope_path}: {error}") from error
+    except json.JSONDecodeError as error:
+        raise SystemExit(f"--envelope {envelope_path} is not valid JSON: {error}") from error
+
+    declared_receipt = envelope.get("receipt") if isinstance(envelope, dict) else None
+    if not isinstance(declared_receipt, str) or declared_receipt.lower() != receipt.lower():
+        raise SystemExit(
+            "--receipt does not match the `receipt` field declared in --envelope"
+        )
+
+    try:
+        with McpClient() as client:
+            result = client.call_tool("verify_receipt", {"envelope": envelope})
+    except McpToolError as error:
+        raise SystemExit(f"receipt verification failed: {error}") from error
+
+    verification = tool_structured_result(result)
+    if not isinstance(verification, dict) or not verification.get("valid"):
+        raise SystemExit(f"receipt verification failed: {json.dumps(verification)}")
+
+
 def admit(args: argparse.Namespace) -> int:
     if not re.fullmatch(r"[0-9a-fA-F]{64}", args.receipt):
         raise SystemExit("receipt must be a 64-character hexadecimal BLAKE3 digest")
     if args.plan_digest and not re.fullmatch(r"[0-9a-fA-F]{64}", args.plan_digest):
         raise SystemExit("plan digest must be a 64-character hexadecimal digest")
+    verify_receipt_envelope(args.envelope, args.receipt)
     cwd, directory = resolve_cli_project(args.project)
     with state_lock(directory):
         state = load_state(directory, cwd)
@@ -411,6 +448,13 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--project")
     command.add_argument("--session", required=True)
     command.add_argument("--receipt", required=True)
+    command.add_argument(
+        "--envelope",
+        required=True,
+        help="Path to the JSON admission envelope returned by bind_plan_receipt/"
+        "bind_allocation_receipt, whose `receipt` field must equal --receipt. "
+        "Verified against the ferroplan-mcp verify_receipt tool before admission.",
+    )
     command.add_argument("--plan-digest")
     command.add_argument(
         "--standing",

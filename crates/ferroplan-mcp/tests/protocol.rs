@@ -86,14 +86,21 @@ fn initialize_advertises_server_and_tools() {
     // protocolVersion is echoed from the client.
     assert_eq!(resp[0]["result"]["protocolVersion"], "2025-06-18");
 
-    let mut names: Vec<&str> = resp[1]["result"]["tools"]
+    let names: std::collections::BTreeSet<&str> = resp[1]["result"]["tools"]
         .as_array()
         .unwrap()
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    names.sort_unstable();
-    assert_eq!(names, ["decompose", "parse", "solve", "validate"]);
+    // The merged server exposes 16 tools total; this stateless-planning
+    // group's four must be present (full 16-tool exactness is
+    // `merged_server.rs`'s job).
+    for expected in ["decompose", "parse", "solve", "validate"] {
+        assert!(
+            names.contains(expected),
+            "missing tool `{expected}`: {names:?}"
+        );
+    }
 }
 
 /// Find the response whose `id` matches, tolerating the async server's freedom
@@ -172,7 +179,10 @@ fn decompose_tool_splits_a_temporal_goal() {
     let text = resp[0]["result"]["content"][0]["text"].as_str().unwrap();
     let dec: Value = serde_json::from_str(text).expect("decompose returns a JSON Decomposition");
     assert_eq!(dec["solved"], true);
-    assert_eq!(dec["monolithic"], false, "two independent deliverables should split");
+    assert_eq!(
+        dec["monolithic"], false,
+        "two independent deliverables should split"
+    );
     let contracts = dec["contracts"].as_array().expect("contracts array");
     assert!(
         contracts.len() >= 2,
@@ -180,8 +190,14 @@ fn decompose_tool_splits_a_temporal_goal() {
         contracts.len()
     );
     for c in contracts {
-        assert!(!c["goal"].as_str().unwrap().is_empty(), "contract has a rendered goal");
-        assert!(!c["steps"].as_array().unwrap().is_empty(), "contract has a sub-plan");
+        assert!(
+            !c["goal"].as_str().unwrap().is_empty(),
+            "contract has a rendered goal"
+        );
+        assert!(
+            !c["steps"].as_array().unwrap().is_empty(),
+            "contract has a sub-plan"
+        );
     }
     assert!(dec["plan"].is_object(), "a stitched plan is present");
 }
@@ -194,25 +210,32 @@ fn resources_list_and_read_expose_tool_semantics() {
                "params":{"uri":"ferroplan://tools/solve"}}),
     ]);
     let list = find_response(&resp, 1);
-    let resources = list["result"]["resources"].as_array().expect("resources array");
-    assert_eq!(resources.len(), 4, "one resource per tool");
-    let mut uris: Vec<&str> = resources
+    let resources = list["result"]["resources"]
+        .as_array()
+        .expect("resources array");
+    // The merged server exposes 16 resources total; this stateless-planning
+    // group's four must be present (full 16-resource exactness is
+    // `merged_server.rs`'s job).
+    let uris: std::collections::BTreeSet<&str> = resources
         .iter()
         .map(|r| r["uri"].as_str().unwrap())
         .collect();
-    uris.sort_unstable();
-    assert_eq!(
-        uris,
-        [
-            "ferroplan://tools/decompose",
-            "ferroplan://tools/parse",
-            "ferroplan://tools/solve",
-            "ferroplan://tools/validate",
-        ]
-    );
+    for expected in [
+        "ferroplan://tools/decompose",
+        "ferroplan://tools/parse",
+        "ferroplan://tools/solve",
+        "ferroplan://tools/validate",
+    ] {
+        assert!(
+            uris.contains(expected),
+            "missing resource `{expected}`: {uris:?}"
+        );
+    }
 
     let read = find_response(&resp, 2);
-    let contents = read["result"]["contents"].as_array().expect("contents array");
+    let contents = read["result"]["contents"]
+        .as_array()
+        .expect("contents array");
     assert_eq!(contents.len(), 1);
     let text = contents[0]["text"].as_str().expect("resource text");
     assert!(!text.is_empty(), "resource body is non-empty");
