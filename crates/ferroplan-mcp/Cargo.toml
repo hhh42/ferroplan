@@ -1,6 +1,6 @@
 [package]
 name = "ferroplan-mcp"
-description = "Model Context Protocol servers for ferroplan planning and persistent self-hosting sessions"
+description = "Model Context Protocol servers for ferroplan planning, persistent self-hosting sessions, and Chatman admission receipts"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -21,6 +21,10 @@ path = "src/main.rs"
 [[bin]]
 name = "ferroplan-session-mcp"
 path = "src/bin/ferroplan-session-mcp.rs"
+
+[[bin]]
+name = "chatman-admission-mcp"
+path = "src/bin/chatman-admission-mcp.rs"
 
 [dependencies]
 ferroplan = { path = "../ferroplan", version = "0.17.0" }
