@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "chatman-ecosystem",
+  "owner": {
+    "name": "Sean Chatman",
+    "email": "info@chatmangpt.com"
+  },
+  "metadata": {
+    "description": "Receipted, allocation-aware deterministic planning plugins for Claude Code"
+  },
+  "plugins": [
+    {
+      "name": "chatman-ecosystem",
+      "source": "./plugins/chatman-ecosystem",
+      "description": "Closed-loop Claude Code control using BCINR, the Chatman Multifractal Cascade Allocator, persistent Ferroplan sessions, hooks, agents, and receipts",
+      "version": "0.1.0",
+      "category": "development",
+      "tags": [
+        "planning",
+        "pddl",
+        "mcp",
+        "receipts",
+        "self-hosting"
+      ],
+      "strict": true
+    }
+  ]
+}
