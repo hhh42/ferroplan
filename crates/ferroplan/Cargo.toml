@@ -15,6 +15,15 @@ readme = "../../README.md"
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
+schemars = { version = "1.2.2", optional = true }
+
+[features]
+# Derives `schemars::JsonSchema` on the public solver-configuration types
+# (`Options`, `Mode`, `Search`, …) so consumers (e.g. an MCP server using
+# `schemars` to auto-generate tool-input JSON Schema) get a proper typed
+# schema instead of an opaque `Value`. Off by default: crates that don't
+# need it (ferroplan-wasm, ferroplan-cli, ferroplan-bevy) don't pay for it.
+schema = ["dep:schemars"]
 
 [dev-dependencies]
 serde_json = { workspace = true }
