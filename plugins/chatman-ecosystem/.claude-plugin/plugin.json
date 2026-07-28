@@ -1,0 +1,20 @@
+{
+  "name": "chatman-ecosystem",
+  "description": "Closed-loop repository development with BCINR admission, CMCA allocation, persistent Ferroplan sessions, hooks, agents, and receipt chaining",
+  "author": {
+    "name": "Sean Chatman",
+    "email": "info@chatmangpt.com"
+  },
+  "homepage": "https://github.com/seanchatmangpt/ferroplan",
+  "repository": "https://github.com/seanchatmangpt/ferroplan",
+  "license": "MIT OR Apache-2.0",
+  "keywords": [
+    "ferroplan",
+    "bcinr",
+    "cmca",
+    "pddl",
+    "self-hosting",
+    "receipts"
+  ],
+  "defaultEnabled": true
+}
