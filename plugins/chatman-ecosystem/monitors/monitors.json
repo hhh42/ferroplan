@@ -1,0 +1,7 @@
+[
+  {
+    "name": "chatman-receipt-frontier",
+    "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" monitor --project \"${CLAUDE_PROJECT_DIR}\"",
+    "description": "Watch repository observation count, admitted frontier, and Gall standing"
+  }
+]
