@@ -1,0 +1,38 @@
+{
+  "mcpServers": {
+    "ferroplan": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/run-ferroplan-mcp.sh",
+        "stateless"
+      ],
+      "env": {
+        "FERROPLAN_ROOT": "${FERROPLAN_ROOT:-${CLAUDE_PROJECT_DIR}}"
+      }
+    },
+    "ferroplan-session": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/run-ferroplan-mcp.sh",
+        "session"
+      ],
+      "env": {
+        "FERROPLAN_ROOT": "${FERROPLAN_ROOT:-${CLAUDE_PROJECT_DIR}}",
+        "CLAUDE_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}"
+      }
+    },
+    "bcinr": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/run-bcinr-mcp.sh"
+      ],
+      "env": {
+        "BCINR_ROOT": "${BCINR_ROOT:-}",
+        "FERROPLAN_ROOT": "${FERROPLAN_ROOT:-${CLAUDE_PROJECT_DIR}}"
+      }
+    }
+  }
+}
