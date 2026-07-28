@@ -13,8 +13,9 @@ if [ -z "$root" ]; then
   fi
 fi
 
-if [ -n "$root" ] && [ -f "$root/Cargo.toml" ]; then
+if [ -n "$root" ] && [ -f "$root/crates/bcinr-mcp/Cargo.toml" ]; then
   exec cargo run \
+    --locked \
     --quiet \
     --manifest-path "$root/Cargo.toml" \
     -p bcinr-mcp \
@@ -23,5 +24,5 @@ if [ -n "$root" ] && [ -f "$root/Cargo.toml" ]; then
 fi
 
 printf '%s\n' \
-  "cannot resolve bcinr-mcp; install it, set BCINR_ROOT, or place the bcinr checkout beside Ferroplan" >&2
+  "cannot resolve bcinr-mcp from an installed binary or a locked BCINR checkout" >&2
 exit 69
