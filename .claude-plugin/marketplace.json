@@ -11,9 +11,6 @@
       "name": "chatman-ecosystem",
       "source": "./plugins/chatman-ecosystem",
       "description": "Design-for-combinatorial-maximalism control plane using claude-code-config-lsp, BCINR, CMCA, persistent Ferroplan sessions, hooks, agents, monitors, and receipts",
-      "dependencies": [
-        "claude-code-config-lsp"
-      ],
       "category": "development",
       "tags": [
         "planning",
@@ -35,7 +32,7 @@
         "source": "github",
         "repo": "seanchatmangpt/claude-code-config-lsp"
       },
-      "description": "Ontology-generated LSP diagnostics, completion, hover, semantic tokens, Declare conformance, and validation for Claude Code configuration surfaces",
+      "description": "Standalone ontology-generated LSP diagnostics, completion, hover, semantic tokens, Declare conformance, and validation for Claude Code configuration surfaces",
       "category": "development",
       "tags": [
         "lsp",
