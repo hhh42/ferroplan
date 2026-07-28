@@ -1,6 +1,6 @@
 [package]
 name = "ferroplan-mcp"
-description = "Model Context Protocol server for the ferroplan PDDL planner (solve / validate / decompose over stdio)"
+description = "Model Context Protocol servers for ferroplan planning and persistent self-hosting sessions"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -18,7 +18,13 @@ publish = true
 name = "ferroplan-mcp"
 path = "src/main.rs"
 
+[[bin]]
+name = "ferroplan-session-mcp"
+path = "src/bin/ferroplan-session-mcp.rs"
+
 [dependencies]
 ferroplan = { path = "../ferroplan", version = "0.17.0" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+blake3 = "1"
+bcinr-cmca = { git = "https://github.com/seanchatmangpt/bcinr", rev = "fb9321d27882169acc83aaca0639b319cd3b7900", package = "bcinr-cmca", features = ["std"] }
