@@ -143,6 +143,132 @@ fn validate_tool_checks_a_plan() {
     assert_eq!(text, "Plan valid");
 }
 
+// Two independent numeric deliverables, each from its own producer — the interaction
+// partition makes each numeric goal its own contract, so this goal actually splits
+// into >= 2 contracts (mirrors ferroplan's own
+// `crates/ferroplan/tests/decompose.rs::splits_a_conjunctive_goal_into_contracts`,
+// chosen so this test exercises a real decomposition rather than the monolithic
+// fallback).
+const TEMPORAL_DOM: &str = "
+(define (domain mk)
+  (:requirements :durative-actions :numeric-fluents)
+  (:functions (a) (b))
+  (:durative-action make-a :parameters () :duration (= ?duration 2)
+    :condition () :effect (at end (increase (a) 1)))
+  (:durative-action make-b :parameters () :duration (= ?duration 3)
+    :condition () :effect (at end (increase (b) 1))))
+";
+const TEMPORAL_PROB: &str = "(define (problem p) (:domain mk)
+  (:init (= (a) 0) (= (b) 0))
+  (:goal (and (>= (a) 1) (>= (b) 1))))";
+
+#[test]
+fn decompose_tool_splits_a_temporal_goal() {
+    let resp = drive(&[json!({
+        "jsonrpc":"2.0","id":1,"method":"tools/call",
+        "params":{"name":"decompose","arguments":{"domain":TEMPORAL_DOM,"problem":TEMPORAL_PROB}}
+    })]);
+    assert_eq!(resp[0]["result"]["isError"], false);
+    let text = resp[0]["result"]["content"][0]["text"].as_str().unwrap();
+    let dec: Value = serde_json::from_str(text).expect("decompose returns a JSON Decomposition");
+    assert_eq!(dec["solved"], true);
+    assert_eq!(dec["monolithic"], false, "two independent deliverables should split");
+    let contracts = dec["contracts"].as_array().expect("contracts array");
+    assert!(
+        contracts.len() >= 2,
+        "expected >= 2 contracts, got {}: {dec}",
+        contracts.len()
+    );
+    for c in contracts {
+        assert!(!c["goal"].as_str().unwrap().is_empty(), "contract has a rendered goal");
+        assert!(!c["steps"].as_array().unwrap().is_empty(), "contract has a sub-plan");
+    }
+    assert!(dec["plan"].is_object(), "a stitched plan is present");
+}
+
+#[test]
+fn resources_list_and_read_expose_tool_semantics() {
+    let resp = drive(&[
+        json!({"jsonrpc":"2.0","id":1,"method":"resources/list"}),
+        json!({"jsonrpc":"2.0","id":2,"method":"resources/read",
+               "params":{"uri":"ferroplan://tools/solve"}}),
+    ]);
+    let list = find_response(&resp, 1);
+    let resources = list["result"]["resources"].as_array().expect("resources array");
+    assert_eq!(resources.len(), 4, "one resource per tool");
+    let mut uris: Vec<&str> = resources
+        .iter()
+        .map(|r| r["uri"].as_str().unwrap())
+        .collect();
+    uris.sort_unstable();
+    assert_eq!(
+        uris,
+        [
+            "ferroplan://tools/decompose",
+            "ferroplan://tools/parse",
+            "ferroplan://tools/solve",
+            "ferroplan://tools/validate",
+        ]
+    );
+
+    let read = find_response(&resp, 2);
+    let contents = read["result"]["contents"].as_array().expect("contents array");
+    assert_eq!(contents.len(), 1);
+    let text = contents[0]["text"].as_str().expect("resource text");
+    assert!(!text.is_empty(), "resource body is non-empty");
+    let body: Value = serde_json::from_str(text).expect("resource body is JSON");
+    assert_eq!(body["tool"], "solve");
+    // The ontology-sourced comment is real prose about the tool, not a placeholder.
+    let comment = body["rdfs_comment"].as_str().expect("rdfs_comment string");
+    assert!(!comment.is_empty(), "ontology comment is non-empty");
+    assert!(
+        comment.to_lowercase().contains("solution") || comment.to_lowercase().contains("plan"),
+        "ontology comment reads like real solve semantics, got: {comment}"
+    );
+}
+
+#[test]
+fn missing_required_field_is_a_tool_error() {
+    let resp = drive(&[
+        // `validate` requires domain/problem/plan — omit `plan`.
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/call",
+               "params":{"name":"validate","arguments":{"domain":DOM,"problem":PROB}}}),
+        // `decompose` requires domain/problem — omit `problem`.
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call",
+               "params":{"name":"decompose","arguments":{"domain":TEMPORAL_DOM}}}),
+    ]);
+    let validate_resp = find_response(&resp, 1);
+    let decompose_resp = find_response(&resp, 2);
+    assert_eq!(validate_resp["result"]["isError"], true);
+    assert!(validate_resp["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("plan"));
+    assert_eq!(decompose_resp["result"]["isError"], true);
+    assert!(decompose_resp["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("problem"));
+}
+
+#[test]
+fn unknown_field_is_a_tool_error() {
+    let resp = drive(&[
+        // `SolveRequest` is `#[serde(deny_unknown_fields)]` — an unrecognized field
+        // must be rejected, not silently ignored.
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/call",
+               "params":{"name":"solve",
+                         "arguments":{"domain":DOM,"problem":PROB,"bogus_field":true}}}),
+        // Same for `parse`.
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call",
+               "params":{"name":"parse","arguments":{"pddl":DOM,"bogus_field":true}}}),
+    ]);
+    let solve_resp = find_response(&resp, 1);
+    let parse_resp = find_response(&resp, 2);
+    assert_eq!(solve_resp["result"]["isError"], true);
+    assert_eq!(parse_resp["result"]["isError"], true);
+}
+
 #[test]
 fn bad_args_are_tool_errors_unknown_method_is_rpc_error() {
     let resp = drive(&[
