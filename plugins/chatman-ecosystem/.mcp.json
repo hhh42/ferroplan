@@ -23,6 +23,18 @@
         "CLAUDE_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}"
       }
     },
+    "chatman-admission": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/scripts/run-ferroplan-mcp.sh",
+        "admission"
+      ],
+      "env": {
+        "FERROPLAN_ROOT": "${FERROPLAN_ROOT:-${CLAUDE_PROJECT_DIR}}",
+        "CLAUDE_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}"
+      }
+    },
     "bcinr": {
       "type": "stdio",
       "command": "sh",
