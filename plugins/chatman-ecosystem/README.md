@@ -7,7 +7,6 @@ It composes:
 - current Claude Code loader validation;
 - `claude-code-config-lsp` diagnostics, completion, semantic tokens, and Declare conformance;
 - RDF/PROV/SHACL-shaped repository observation;
-- BCINR semantic admission and receipts;
 - the Chatman Multifractal Cascade Allocator (CMCA);
 - stateless and persistent Ferroplan planning;
 - reversible manufacturing agents;
@@ -47,7 +46,6 @@ Nothing re-enters an advanced phase without a receipt.
 | Claude Code loader | plugin load/install conformance |
 | claude-code-config-lsp | conformance for its modeled schema epoch |
 | RDF observer | bounded semantic projection |
-| BCINR | semantic admission/oracle result |
 | CMCA | bounded allocation |
 | Ferroplan | deterministic candidate plan and suffix validity |
 | Source manufacturer | reversible source construction |
@@ -72,7 +70,6 @@ The repository also declares the marketplace and plugin in `.claude/settings.jso
 At enable time, the plugin can accept optional checkout locations for:
 
 - `claude-code-config-lsp`;
-- BCINR.
 
 If omitted, resolvers first use an installed binary and then look for a sibling checkout beside Ferroplan. They never install from the network automatically.
 
@@ -104,7 +101,6 @@ The plugin starts two independent stdio authorities:
   (observation, suffix replay, bounded replanning, CMCA), and Chatman
   admission (canonical digest, allocation envelope, plan envelope, receipt
   verification) — all 16 tools in one process, one `rmcp` server;
-- `bcinr`: semantic admission, PDDL/POWL, capability, and receipt tools.
 
 ## Live self-hosting world
 

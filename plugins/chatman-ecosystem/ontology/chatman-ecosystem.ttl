@@ -64,12 +64,6 @@ ce:Ferroplan a ce:System ;
   ce:mayActuate false ;
   ce:requiresReceipt true .
 
-ce:BCINR a ce:System ;
-  dcterms:title "Bounded Constant-time Invariant Numeric Runtime" ;
-  ce:claimCeiling "admission-oracle" ;
-  ce:mayActuate false ;
-  ce:requiresReceipt true .
-
 ce:CMCA a ce:System ;
   dcterms:title "Chatman Multifractal Cascade Allocator" ;
   ce:claimCeiling "bounded-allocation" ;

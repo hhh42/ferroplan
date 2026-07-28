@@ -11,7 +11,7 @@ Validate the exact committed or working-tree surface using distinct evidence whe
 
 - `claude-code-config-lsp` diagnostics and Declare conformance for configuration;
 - Cargo format/check/Clippy/test commands for Rust source;
-- BCINR admission and receipt tools for semantic and proof boundaries;
+- admission and receipt tools for proof boundaries;
 - stateless Ferroplan `validate` for plan execution semantics;
 - an external validator such as VAL when the claim requires engine independence;
 - exact digest comparison for domain, problem, plan, allocation, and receipt envelopes.

@@ -214,11 +214,6 @@ def problem(
         skip_live_checks and vector["planning"] == "validated"
     ):
         facts.add("validator-green")
-    # bcinr-green: depends on the separate BCINR MCP server, which this
-    # script has no cheap/obvious way to invoke or query directly. Left keyed
-    # only to the cached-vector condition — NOT strengthened by a live check.
-    if vector["planning"] == "validated":
-        facts.add("bcinr-green")
     if loop_state.get("plan_receipt"):
         facts.add("receipt-bound")
     if vector["drift"] == "refused" or standing == "BUILD_BROKEN":

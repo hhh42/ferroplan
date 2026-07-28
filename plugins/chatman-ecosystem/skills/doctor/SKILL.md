@@ -25,7 +25,7 @@ Diagnose `$ARGUMENTS` without repairing automatically.
    cargo check -p ferroplan-mcp --bin ferroplan-mcp
    ```
 6. Generate the live PDDL problem and parse both domain and problem with stateless Ferroplan.
-7. Ping `ferroplan` (all 16 tools: parse/solve/validate/decompose, persistent Session, Chatman admission) and `bcinr` MCP servers.
+7. Ping the `ferroplan` MCP server (all 16 tools: parse/solve/validate/decompose, persistent Session, Chatman admission).
 8. Read phase and hook status; validate every phase invariant.
 9. Verify the latest admission envelope when present.
 

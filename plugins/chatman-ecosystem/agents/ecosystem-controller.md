@@ -31,7 +31,6 @@ Authority graph:
 
 - `claude-code-config-lsp`: configuration diagnostics, completion, semantic tokens, and Declare conformance;
 - RDF observer: bounded semantic projection only;
-- BCINR: independent semantic/admission oracle;
 - CMCA: bounded allocation only;
 - Ferroplan Session: deterministic candidate plans and suffix replay;
 - source manufacturer: reversible construction only;

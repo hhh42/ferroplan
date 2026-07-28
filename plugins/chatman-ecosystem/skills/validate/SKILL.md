@@ -12,7 +12,6 @@ Exercise the exact claimed surfaces using distinct authorities where available:
 
 - claude-code-config-lsp conformance;
 - Cargo format/check/Clippy/tests;
-- BCINR semantic admission;
 - Ferroplan plan replay;
 - external VAL or another independent semantic implementation when required;
 - canonical digest and receipt verification.

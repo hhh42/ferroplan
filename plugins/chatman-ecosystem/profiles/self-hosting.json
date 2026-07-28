@@ -32,7 +32,8 @@
   "semantic_admission": {
     "ontology": "ontology/chatman-ecosystem.ttl",
     "shapes": "ontology/chatman-shapes.ttl",
-    "oracle": "bcinr",
+    "oracle": null,
+    "oracle_note": "No independent semantic oracle is wired. The BCINR MCP server was removed from the ecosystem because `crates/bcinr-mcp` is out of scope in the BCINR workspace. Semantic admission is therefore self-asserted, not independently checked, and the claim ceiling must not be raised on the strength of it.",
     "claim_ceiling": "admitted-observation"
   },
   "actuation": {

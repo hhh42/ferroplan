@@ -249,7 +249,7 @@ def hook() -> int:
         context = (
             "Chatman ecosystem control loop is active. Before source actuation, invoke "
             "the chatman-ecosystem:self-host skill. Persistent Ferroplan sessions preserve "
-            "valid plan suffixes; BCINR is the independent semantic oracle; CMCA allocates "
+            "valid plan suffixes; CMCA allocates "
             "the admitted eight-node work frontier. Hook observations are proposals until "
             "their latest event frontier is bound to a BLAKE3 session receipt."
         )

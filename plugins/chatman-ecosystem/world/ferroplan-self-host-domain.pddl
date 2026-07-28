@@ -30,7 +30,6 @@
     (dirty ?r - repository)
     (source-changed ?r - repository)
     (build-green ?r - repository)
-    (bcinr-green ?r - repository)
     (validator-green ?r - repository)
     (allocation-bound ?r - repository)
     (plan-bound ?r - repository)
@@ -142,20 +141,12 @@
       (not (blocked ?r)))
     :effect (and (build-green ?r)))
 
-  (:action run-bcinr-admission
-    :parameters (?r - repository)
-    :precondition (and
-      (build-green ?r)
-      (epistemic-admitted ?r)
-      (not (blocked ?r)))
-    :effect (and (bcinr-green ?r)))
-
   (:action run-independent-validation
     :parameters (?r - repository)
     :precondition (and
       (candidate-plan ?r)
       (build-green ?r)
-      (bcinr-green ?r)
+      (epistemic-admitted ?r)
       (config-conformant ?r)
       (not (blocked ?r)))
     :effect (and
