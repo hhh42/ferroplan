@@ -23,7 +23,16 @@
     "receipts"
   ],
   "skills": "./skills/",
-  "agents": "./agents/",
+  "agents": [
+    "./agents/cmca-allocator.md",
+    "./agents/config-law-architect.md",
+    "./agents/ecosystem-controller.md",
+    "./agents/ferroplan-planner.md",
+    "./agents/independent-validator.md",
+    "./agents/rdf-observer.md",
+    "./agents/receipt-auditor.md",
+    "./agents/source-manufacturer.md"
+  ],
   "hooks": "./hooks/hooks.json",
   "mcpServers": "./.mcp.json",
   "lspServers": "./.lsp.json",

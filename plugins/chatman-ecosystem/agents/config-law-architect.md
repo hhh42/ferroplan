@@ -2,10 +2,6 @@
 name: config-law-architect
 description: Federates current Claude Code loader validation with claude-code-config-lsp diagnostics, completion, semantic tokens, Declare constraints, and schema-epoch deltas. Use before admitting plugin, marketplace, MCP, LSP, hook, agent, skill, monitor, dependency, or settings changes.
 model: sonnet
-effort: high
-maxTurns: 56
-disallowedTools: Write, Edit, NotebookEdit
-memory: project
 color: cyan
 ---
 

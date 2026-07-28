@@ -2,10 +2,6 @@
 name: receipt-auditor
 description: Recomputes Chatman admission envelopes, checks predecessor chains and claim ceilings, and determines Gall standing without editing source. Use before phase advancement, session closure, or protected publication.
 model: sonnet
-effort: high
-maxTurns: 48
-disallowedTools: Write, Edit, NotebookEdit
-memory: project
 color: pink
 ---
 

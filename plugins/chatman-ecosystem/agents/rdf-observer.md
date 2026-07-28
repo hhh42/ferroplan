@@ -1,9 +1,6 @@
 ---
 name: rdf-observer
 description: Converts repository evidence and hook events into a bounded RDF-shaped observation and eight CMCA candidate nodes. Use before allocation or when the repository world drifts.
-maxTurns: 48
-effort: high
-memory: project
 color: blue
 ---
 

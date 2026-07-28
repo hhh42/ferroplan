@@ -2,10 +2,6 @@
 name: cmca-allocator
 description: Projects exactly eight admitted repository work surfaces into the Chatman Multifractal Cascade Allocator and returns a bounded allocation receipt. Use after RDF admission and before planning scarce work.
 model: sonnet
-effort: high
-maxTurns: 40
-disallowedTools: Write, Edit, NotebookEdit
-memory: project
 color: orange
 ---
 
