@@ -1,6 +1,7 @@
 {
-  "schema": "urn:chatman:claude-code-config-schema-epoch:v1",
-  "observed_on": "2026-07-28",
+  "schema": "urn:chatman:claude-code-config-schema-epoch:v2",
+  "observed_on": "2026-07-29",
+  "release": "26.7.29",
   "authorities": {
     "claude-loader": {
       "role": "runtime-load-and-install-authority",
@@ -9,8 +10,22 @@
       "sources": [
         "https://code.claude.com/docs/en/plugins-reference",
         "https://code.claude.com/docs/en/plugin-marketplaces",
+        "https://code.claude.com/docs/en/sub-agents",
         "https://code.claude.com/docs/en/hooks",
         "https://code.claude.com/docs/en/plugin-dependencies"
+      ],
+      "observed_facts": [
+        "defaultEnabled is supported in plugin.json and marketplace entries",
+        "plugin agents support tools, disallowedTools, model, maxTurns, skills, memory, effort, background, isolation, color, and initialPrompt",
+        "plugin agents ignore hooks, mcpServers, and permissionMode",
+        "isolation=worktree creates an isolated temporary git worktree",
+        "PostToolBatch fires once after a parallel tool batch and does not support matchers",
+        "SessionStart matchers are startup, resume, clear, and compact",
+        "project-scope plugins do not load background monitors",
+        "monitors can start on-skill-invoke:<skill-name>",
+        "plugin settings.json currently supports only agent and subagentStatusLine",
+        "plugin userConfig is read from user, managed, or --settings sources rather than project pluginConfigs",
+        "LSP dispatch maps file extensions to language identifiers and has no bounded path matcher"
       ]
     },
     "claude-code-config-lsp": {
@@ -20,14 +35,15 @@
       "observed_head": "da7d4daf5d503cb27029e6f8ab624336fb469439",
       "ontology_digest_source_sha": "1ba224e34a9cf87f2295a8dc0e36266291eddd4d",
       "status": "PARTIAL_ALIVE",
-      "reconciliation_note": "6 commits since prior observed_head (1896770). Only two touched tracked surfaces: c28078f edited schema/claude-code-config.ttl but solely to fix the settings.json model-id enum (unrelated to any known_delta below). 9f99842 ('expand config-surface validation') added hook `type` support, monitors/themes top-level-legacy warnings, and expanded agent/skill frontmatter fields, but per direct inspection of schema/claude-code-config.ttl at da7d4da, none of that work landed in the ontology itself (no hookEventType/type-enum triple, no monitor/theme class, agent/skill file patterns still only .claude/agents and .claude/skills). That is an ontology/code divergence in claude-code-config-lsp, not a narrowing of any delta below."
+      "registration_policy": "standalone-opt-in-or-explicit-cli-only",
+      "reconciliation_note": "The LSP remains useful for diagnostics, completion, hover, semantic tokens, Declare traces, and CLI conformance. Its ontology and executable behavior do not yet model every current loader surface. It must not own every JSON, Markdown, TOML, and shell file through the main Chatman plugin."
     }
   },
   "known_deltas": [
     {
       "id": "plugin-version-optional",
       "lsp_model": "plugin.json version required",
-      "current_loader": "only name is required; omitted version uses git commit SHA",
+      "current_loader": "version is optional; omitted versions use the git commit SHA",
       "resolution": "loader-wins"
     },
     {
@@ -55,16 +71,30 @@
       "resolution": "loader-wins"
     },
     {
-      "id": "expanded-hook-types",
-      "lsp_model": "command hooks only",
-      "current_loader": "command, http, mcp_tool, prompt, and experimental agent hooks",
+      "id": "lsp-path-bounding",
+      "lsp_model": "not modeled",
+      "current_loader": "extensionToLanguage dispatch has no repository-path predicate",
+      "resolution": "main-plugin-registration-forbidden",
+      "note": "The standalone config LSP may be installed explicitly. The main Chatman plugin cannot lawfully claim common extensions globally."
+    },
+    {
+      "id": "expanded-hook-types-and-events",
+      "lsp_model": "partial",
+      "current_loader": "command, http, mcp_tool, prompt, and experimental agent hooks across the current lifecycle event set",
       "resolution": "loader-wins",
-      "note": "claude-code-config-lsp@9f99842 claims 'expand hook events 6->26, add hook `type` enum' in its commit message, but schema/claude-code-config.ttl@da7d4da (blob 1ba224e) still only carries the pre-existing 5-name TokenHookType semantic-token description (line 396) with no hookEventType/type triples. Whatever that commit changed lives in Rust code outside the ontology-driven surface; unverified whether it changed LSP diagnostic behavior. Treat as unresolved until the ontology itself models it."
+      "note": "PostToolBatch, ConfigChange, WorktreeCreate, and WorktreeRemove are used by v26.7.29. SessionStart remains bounded to startup, resume, clear, and compact."
+    },
+    {
+      "id": "plugin-agent-authority-fields",
+      "lsp_model": "partial and path-limited",
+      "current_loader": "plugin agents support tools, disallowedTools, maxTurns, skills, memory, effort, background, isolation, color, and initialPrompt",
+      "resolution": "loader-wins",
+      "note": "Plugin agents ignore hooks, mcpServers, and permissionMode. v26.7.29 uses only loader-supported mechanical authority fields."
     },
     {
       "id": "plugin-dependencies",
       "lsp_model": "not modeled",
-      "current_loader": "dependencies with optional semver and cross-marketplace policy",
+      "current_loader": "dependencies support optional semver and cross-marketplace policy",
       "resolution": "loader-only"
     },
     {
@@ -72,28 +102,36 @@
       "lsp_model": "not modeled",
       "current_loader": "experimental.monitors and experimental.themes; legacy top-level forms warn",
       "resolution": "loader-only",
-      "note": "claude-code-config-lsp@9f99842 added a check flagging themes/monitors declared top-level instead of nested under experimental, but schema/claude-code-config.ttl@da7d4da has no monitor/theme class or field at all (grep confirms zero matches). Still not modeled at the ontology level; the new check is narrower than full support."
+      "note": "Project-scope plugins do not load monitors. Personal-scope monitor activation can be bounded with on-skill-invoke."
     },
     {
       "id": "user-config-and-channels",
       "lsp_model": "not modeled",
       "current_loader": "userConfig and channels are supported manifest surfaces",
+      "resolution": "loader-only",
+      "note": "Current pluginConfigs are sourced from user, managed, or --settings sources. Project pluginConfigs are ignored."
+    },
+    {
+      "id": "plugin-settings-keys",
+      "lsp_model": "not modeled",
+      "current_loader": "plugin settings.json accepts only agent and subagentStatusLine",
       "resolution": "loader-only"
     },
     {
       "id": "plugin-root-agent-skill-patterns",
       "lsp_model": "recognizes .claude/agents and .claude/skills patterns",
-      "current_loader": "plugin agents and skills live at agents/ and skills/ under plugin root",
-      "resolution": "loader-wins; LSP result is partial until ontology expands",
-      "note": "claude-code-config-lsp@9f99842 expanded agent/skill frontmatter field recognition (hooks, memory.scope, permissionMode, background, context, initialPrompt, mcpServers, color, plus a 3-layer AgentScope for Global/Project/Plugin), but schema/claude-code-config.ttl@da7d4da's file patterns (lines 122, 132) still only match .claude/agents/*.md and .claude/skills/*/SKILL.md, not the plugin-root agents/ and skills/ paths this delta is actually about. Frontmatter field coverage widened; the path-location gap itself is unchanged."
+      "current_loader": "plugin agents and skills live at agents/ and skills/ under the plugin root",
+      "resolution": "loader-wins; lsp-result-is-partial"
     }
   ],
   "federated_conformance_law": {
-    "plugin-load": "claude plugin validate must pass",
-    "modeled-editor-surfaces": "claude-code-config-lsp diagnostics and Declare traces must be recorded",
+    "plugin-load": "claude plugin validate must pass on the exact release surface",
+    "source-projection": "scripts/validate-claude-projection.py must pass",
+    "modeled-editor-surfaces": "bounded claude-code-config-lsp diagnostics and Declare traces must be recorded when available",
     "known-epoch-delta": "an LSP diagnostic matching a declared delta cannot alone refuse current loader conformance",
     "unknown-delta": "remain UNKNOWN until reconciled",
-    "phase-advance": "conformance=conformant requires loader validation plus no unresolved non-epoch LSP error",
-    "claim-separation": "loader validity does not prove semantic correctness; LSP conformance does not prove plugin loadability outside its modeled epoch"
+    "ownership": "loader validity cannot override generated-artifact ownership drift",
+    "phase-advance": "conformance=conformant requires loader validation plus no unresolved non-epoch modeled error and no ownership refusal",
+    "claim-separation": "loader validity does not prove semantic correctness; modeled conformance does not prove runtime loadability outside its epoch"
   }
 }
