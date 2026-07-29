@@ -70,7 +70,7 @@ freely; no fork's writes or tie-breaks ever touch a sibling.
 many-minds correctness primitive. A rival's moves reach it as
 `set_fact` drift, never as plan steps, and loop-side policies (like
 masking exchanges a rival's plan has claimed) compose on top of it.
-The [`bazaar_live` example](https://github.com/hhh42/ferroplan/blob/main/crates/ferroplan/examples/bazaar_live.rs)
+The [`bazaar_live` example](https://github.com/seanchatmangpt/ferroplan/blob/main/crates/ferroplan/examples/bazaar_live.rs)
 drives the whole tick loop — and the
 [browser demo replays a real run](./demo/bazaar-live.html).
 
@@ -111,7 +111,7 @@ differed from belief: the **surprises**. Feed the news to
 `plan_still_valid` / `goal_met` and rethink only when observation
 breaks something — surprise-driven rethinks, not wall-clock paranoia.
 The fogged bazaar loop (`bazaar_live`, the `claims + fog` rows in
-[`benchmarks/bazaar-thinks.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/bazaar-thinks.md))
+[`benchmarks/bazaar-thinks.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/bazaar-thinks.md))
 shows the measured shape: a mind sees its own stall each turn and its
 trading partner's stall on arrival; a theft at a third-party stall is
 discovered on contact, one tick late, and information asymmetry

@@ -63,7 +63,7 @@ create_github_release() {
     echo "==> gh CLI not found — skipping the GitHub Release."
     echo "    Install: https://cli.github.com/, then \`gh auth login\`, then re-run:"
     echo "      ./publish.sh --release-only ${ver}"
-    echo "    Or create it by hand: https://github.com/hhh42/ferroplan/releases/new?tag=${tag}"
+    echo "    Or create it by hand: https://github.com/seanchatmangpt/ferroplan/releases/new?tag=${tag}"
     return 0
   fi
   local header notes_file title
@@ -87,7 +87,7 @@ create_github_release() {
     echo "==> Creating the GitHub Release for ${tag}"
     gh release create "$tag" --title "$title" --notes-file "$notes_file"
   fi
-  echo "    https://github.com/hhh42/ferroplan/releases/tag/${tag}"
+  echo "    https://github.com/seanchatmangpt/ferroplan/releases/tag/${tag}"
 }
 
 if [[ "$RELEASE_ONLY" == 1 ]]; then
