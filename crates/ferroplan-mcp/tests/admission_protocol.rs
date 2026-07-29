@@ -107,6 +107,14 @@ fn eight_candidates() -> Value {
     json!([1, 2, 3, 4, 5, 6, 7, 8])
 }
 
+/// Eight candidates with real `id`s (unlike `eight_candidates`'s bare
+/// integers) so a recursive descent can name one of them as `selected_node`.
+fn eight_candidates_with_ids(prefix: &str) -> Value {
+    json!((0..8)
+        .map(|i| json!({"id": format!("{prefix}-{i}")}))
+        .collect::<Vec<Value>>())
+}
+
 fn allocation_result_with(revision: &str, n_allocations: usize) -> Value {
     json!({
         "payload": {
@@ -218,7 +226,11 @@ fn canonical_digest_accepts_a_stringified_json_value() {
 /// that transit already lost, it never reinterprets a real string field.
 #[test]
 fn canonical_digest_leaves_a_non_json_string_untouched() {
-    let resp = drive(&[tool_call(1, "canonical_digest", json!({"value": "just text"}))]);
+    let resp = drive(&[tool_call(
+        1,
+        "canonical_digest",
+        json!({"value": "just text"}),
+    )]);
     let out = structured(&find_response(&resp, 1));
     assert_eq!(out["canonical"], json!("just text"));
 }
@@ -242,7 +254,8 @@ fn bind_allocation_receipt_accepts_stringified_candidates_and_allocation_result(
     assert_eq!(out["schema"], "urn:chatman:admission-envelope:v1");
     assert_eq!(out["kind"], "allocation");
     assert_eq!(
-        out["payload"]["candidates"], eight_candidates(),
+        out["payload"]["candidates"],
+        eight_candidates(),
         "stringified candidates must be recovered as the real array, not left as text"
     );
     assert_eq!(
@@ -546,5 +559,161 @@ fn malformed_input_unknown_field_on_bind_allocation_is_rejected() {
     assert_eq!(
         r["result"]["isError"], true,
         "unknown field must be a tool error, got: {r:?}"
+    );
+}
+
+/// Checkpoint 9 ("Recursive Multifractal Allocation"): a local eight-node
+/// frontier can bind as the descent of one selected node inside a prior,
+/// independently re-verified parent allocation envelope — not just chain
+/// sequentially via `previous_receipt`. Depth one and depth two are both
+/// exercised against the real tool, on the real compiled binary, in one
+/// server process.
+#[test]
+fn bind_allocation_receipt_recursive_descent_happy_path() {
+    let resp = drive(&[
+        tool_call(
+            1,
+            "bind_allocation_receipt",
+            json!({
+                "candidates": eight_candidates_with_ids("root"),
+                "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+                "observation_frontier": {"frontier": "empty"},
+            }),
+        ),
+        tool_call(
+            2,
+            "bind_allocation_receipt",
+            json!({
+                "candidates": eight_candidates_with_ids("root"),
+                "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+                "observation_frontier": {"frontier": "empty"},
+            }),
+        ),
+    ]);
+    let parent = structured(&find_response(&resp, 1));
+    assert_eq!(parent, structured(&find_response(&resp, 2)));
+
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": eight_candidates_with_ids("root-3-child"),
+            "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+            "observation_frontier": {"frontier": "root-3 descent"},
+            "parent_allocation": parent,
+            "selected_node": "root-3",
+        }),
+    )]);
+    let child = structured(&find_response(&resp, 1));
+    assert_eq!(child["schema"], "urn:chatman:admission-envelope:v1");
+    assert_eq!(
+        child["payload"]["parent_allocation_receipt"], parent["receipt"],
+        "child binds the parent's real, independently re-verified receipt"
+    );
+    assert_eq!(child["payload"]["selected_node"], "root-3");
+    assert_eq!(
+        child["payload"]["selected_node_candidate"],
+        json!({"id": "root-3"}),
+        "the exact parent candidate the descent expands is embedded, not just its id"
+    );
+}
+
+/// A `parent_allocation` whose `receipt` field was hand-edited after the
+/// fact must be refused, not trusted — this is the "parent receipt
+/// mismatch refusal" required-proof line for Checkpoint 9.
+#[test]
+fn bind_allocation_receipt_recursive_descent_rejects_tampered_parent_receipt() {
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": eight_candidates_with_ids("root"),
+            "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+            "observation_frontier": {},
+        }),
+    )]);
+    let mut parent = structured(&find_response(&resp, 1));
+    let real_receipt = parent["receipt"].as_str().unwrap().to_owned();
+    let mut tampered_receipt = real_receipt.clone();
+    let first_char = tampered_receipt.remove(0);
+    tampered_receipt.insert(0, if first_char == '0' { '1' } else { '0' });
+    parent["receipt"] = json!(tampered_receipt);
+
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": eight_candidates_with_ids("child"),
+            "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+            "observation_frontier": {},
+            "parent_allocation": parent,
+            "selected_node": "root-0",
+        }),
+    )]);
+    let r = find_response(&resp, 1);
+    assert_eq!(r["result"]["isError"], true);
+    let text = r["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        text.contains("refusing an unverifiable parent"),
+        "text was: {text}"
+    );
+}
+
+/// `selected_node` must actually name one of the parent's eight candidates —
+/// a fabricated node id is refused, not silently accepted.
+#[test]
+fn bind_allocation_receipt_recursive_descent_rejects_unknown_selected_node() {
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": eight_candidates_with_ids("root"),
+            "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+            "observation_frontier": {},
+        }),
+    )]);
+    let parent = structured(&find_response(&resp, 1));
+
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": eight_candidates_with_ids("child"),
+            "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+            "observation_frontier": {},
+            "parent_allocation": parent,
+            "selected_node": "root-99-does-not-exist",
+        }),
+    )]);
+    let r = find_response(&resp, 1);
+    assert_eq!(r["result"]["isError"], true);
+    let text = r["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        text.contains("is not a candidate in parent_allocation"),
+        "text was: {text}"
+    );
+}
+
+/// `parent_allocation` and `selected_node` are a paired descent claim —
+/// providing only one is refused rather than silently binding a rootless or
+/// nodeless descent.
+#[test]
+fn bind_allocation_receipt_recursive_descent_requires_both_fields_together() {
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": eight_candidates_with_ids("root"),
+            "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+            "observation_frontier": {},
+            "selected_node": "root-0",
+        }),
+    )]);
+    let r = find_response(&resp, 1);
+    assert_eq!(r["result"]["isError"], true);
+    let text = r["result"]["content"][0]["text"].as_str().unwrap();
+    assert!(
+        text.contains("must be provided together"),
+        "text was: {text}"
     );
 }

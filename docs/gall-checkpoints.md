@@ -467,11 +467,73 @@ Each descent binds the parent allocation receipt. Each return binds the local re
   untested. The in-array tree support (above) is real but is a different,
   narrower thing than what this checkpoint asks for.
 
-**Next step**: decide whether recursive CMCA should be modeled as (a) a new
-MCP tool/field for parent-receipt-bound descent, or (b) documented as
-out-of-scope and the checkpoint's "Working system" text narrowed to match
-what actually exists (single-call tree allocation). Don't leave the
-mismatch unresolved.
+**Next step (resolved 2026-07-29, second pass)**: chose option (a). Added
+`parent_allocation` (the complete parent allocation envelope) and
+`selected_node` (the parent candidate's `id`) as a paired optional field
+pair on `bind_allocation_receipt`
+(`crates/ferroplan-mcp/src/admission.rs`). When both are present, the new
+`bind_descent` helper **independently re-verifies** the parent envelope
+(recomputes its `payload_digest` and `receipt` exactly as `verify_receipt`
+would — does not trust the caller's self-declared fields), confirms
+`selected_node` names one of the parent's eight candidates, and — only then
+— binds `parent_allocation_receipt`, `selected_node`, and the exact matched
+`selected_node_candidate` into the child's payload. This is genuine
+cross-call recursive descent, not the same thing as the in-array `parent`
+tree support from the first pass.
+
+Live evidence — real `cargo test -p ferroplan-mcp --test admission_protocol`
+run against the compiled binary over stdio (not a mock), 4 new tests, all
+passing alongside the pre-existing 15:
+
+```text
+test bind_allocation_receipt_recursive_descent_happy_path ... ok
+test bind_allocation_receipt_recursive_descent_rejects_tampered_parent_receipt ... ok
+test bind_allocation_receipt_recursive_descent_rejects_unknown_selected_node ... ok
+test bind_allocation_receipt_recursive_descent_requires_both_fields_together ... ok
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+Required-proof line coverage:
+- Depth one allocation — pre-existing, re-confirmed.
+- Depth two allocation — new, `..._happy_path` binds a real child envelope
+  against a real parent envelope produced by the same tool in the same
+  process, and asserts the child payload carries the parent's actual
+  receipt and the exact selected candidate object.
+- Parent receipt mismatch refusal — new, `..._rejects_tampered_parent_receipt`
+  hand-edits one hex character of an otherwise-valid parent envelope's
+  `receipt` field; `bind_descent` recomputes and refuses with "refusing an
+  unverifiable parent" rather than trusting the declared value.
+- Missing/fabricated selected-node refusal — new,
+  `..._rejects_unknown_selected_node` and
+  `..._requires_both_fields_together` cover a `selected_node` absent from
+  the parent's candidates, and either field supplied without its pair.
+- Cyclic ancestry refusal — **still not implemented**, and this is being
+  named honestly rather than glossed: `bind_allocation_receipt` is a pure,
+  stateless function call with no access to any receipt ledger across
+  calls, so it cannot detect "receipt C's ancestor chain already contains
+  receipt C" — that would require a persistent chain store (the Python
+  `loop.py`/`phase.py` side, not this Rust tool) to walk. Out of this
+  slice's scope; named for whoever picks up Checkpoint 19 (full-chain
+  replay) or wires a chain-walking admission service.
+- Deterministic replay at each depth — implied by the existing BLAKE3
+  canonicalization path (unchanged), not independently re-tested this pass.
+- "Consequence returned upward" — still only half-modeled: a child can now
+  prove which parent node it descends from, but there is no tool call that
+  attaches the child's finished receipt back onto the parent envelope or
+  its selected candidate. Descent is real; the return leg is not built.
+
+**Current standing:** `PARTIAL_ALIVE` (upgraded from the first pass's
+"architecturally absent" finding — the schema gap is now closed and
+exercised with real, passing tests; the standing stays `PARTIAL_ALIVE`
+rather than `ALIVE` because cyclic-ancestry refusal and the upward-return
+leg are both still open, not because of any doubt about what was just
+built).
+
+**Next step**: (1) wire a chain-walking cycle check somewhere with access
+to receipt history (likely `loop.py`/`phase.py`, not this stateless Rust
+tool); (2) decide and implement the "consequence returned upward" shape —
+e.g. a `bind_descent_return` tool that takes a child receipt and the parent
+envelope/selected_node and produces an updated parent-side record.
 
 ---
 
@@ -968,3 +1030,89 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — second pass: recursive CMCA descent (Checkpoint 9), and a backlog note
+
+**Housekeeping first, since it changes how to read the rest of this
+file**: `main` still only carried the first pass's single audit entry
+above, but by the time this pass started, five other same-day sessions had
+already each branched off `main`, done real work, and opened **draft,
+unmerged, unreviewed** PRs against it — none of which `main`'s copy of this
+file reflects yet, because none have landed:
+
+- PR #3 `gall-checkpoints/2026-07-29-clean-install-plugin-version` —
+  Checkpoint 2: fixed the missing `plugin.json` `version` field, documented
+  a real (harness-level, not plugin-fixable) LSP loader defect found via a
+  genuine clean-cache install.
+- PR #4 `gall-checkpoints/2026-07-29-agent-tools-frontmatter` and PR #5
+  `gall-checkpoints/2026-07-29-agent-tool-grants` — **both** target
+  Checkpoint 3 with different, unreconciled mechanisms (`disallowedTools`
+  deny-list vs. `tools:` allow-list plus a `PreToolUse` Bash-write fence).
+  Each PR's own body flags the collision and explicitly declines to
+  resolve it, calling reconciliation "a maintainer call, not something this
+  pass should make unilaterally." Still open as of this pass.
+- PR #6 `gall-checkpoints/2026-07-29-val-cmake-policy-fix` — Checkpoint 13:
+  landed the `get-val.sh` cmake-policy fix named in the first pass, plus a
+  `cargo fmt` fix; left wiring `$FERROPLAN_VAL`'s output into
+  `bind_plan_receipt`'s `validator_result` as its own next step.
+- PR #7 `gall-checkpoints/2026-07-29-worktree-manufacture` — Checkpoint 11:
+  implemented and live-verified `plugins/chatman-ecosystem/scripts/manufacture-in-worktree.py`
+  (real worktree create/apply/test/cleanup, all four scenarios), left the
+  phase-collapse proof as needing a session that starts with the plugin
+  already installed.
+
+This pass did **not** attempt to merge, close, or otherwise referee any of
+PR #3/#4/#5/#6/#7 — that authority wasn't given to this run either, and
+piling a sixth opinion onto the Checkpoint 3 collision specifically would
+make it worse, not better. Flagging it here instead: **the backlog of
+unreconciled, unmerged same-day work is now the actual blocker on this
+file's own "Finish in main" working agreement** (see `CLAUDE.md`), more
+than any single checkpoint's remaining proof obligations. A human (or a
+session explicitly asked to referee) needs to actually merge PR #3/#6/#7
+(each additive, no known collisions with each other) and decide PR #4 vs.
+PR #5 before the picture in this file and the picture in `main` can agree
+again.
+
+**What this pass actually did**: picked Checkpoint 9 (Recursive
+Multifractal Allocation) — the one named next step from the first pass's
+audit entry that no other same-day branch had touched, avoiding a sixth
+collision. Implemented option (a) from the first pass's own fork in the
+road: added `parent_allocation`/`selected_node` fields to
+`bind_allocation_receipt` (`crates/ferroplan-mcp/src/admission.rs`), which
+independently re-verify a claimed parent allocation envelope (recomputing
+its digest and receipt, not trusting its declared fields) before binding
+the descent. Added 4 new integration tests in
+`crates/ferroplan-mcp/tests/admission_protocol.rs` exercising the happy
+path (real depth-1 → depth-2 descent), tampered-parent-receipt refusal,
+unknown-selected-node refusal, and the paired-fields requirement — all
+passing against the real compiled binary (`cargo test -p ferroplan-mcp
+--test admission_protocol`, 19/19 including the 4 new ones). `cargo fmt -p
+ferroplan-mcp --check` and `cargo clippy -p ferroplan-mcp --all-targets
+--all-features -- -D warnings` both clean. `cargo test -p ferroplan-mcp -p
+ferroplan` (all four test binaries plus doctests) green. See Checkpoint 9's
+own section above for the full evidence and what's still open (cyclic
+ancestry refusal, the upward-return leg).
+
+**Environment note, not a defect in this change**: `cargo check --workspace`
+/ `cargo test --workspace` fail before reaching any of this pass's code,
+because the unrelated `ferroplan-bevy` crate's `bevy@0.19.0` dependency
+requires rustc 1.95.0 and this container has rustc 1.94.1. Pre-existing,
+reproduced on a stash of this pass's own changes (i.e. present on `main`
+too), unrelated to the Rust admission/session crates this pass touched.
+Named honestly rather than worked around — `cargo check -p ferroplan-mcp -p
+ferroplan` and the scoped test/fmt/clippy commands above are what this pass
+could actually run clean, and are what CI's `ferroplan-mcp` job (as opposed
+to the repo-wide `Format`/`Existing repository CI` jobs PR #2 already flags
+as separately broken) actually exercises.
+
+Upgraded: 9 (`PARTIAL_ALIVE` stays `PARTIAL_ALIVE`, but the "architecturally
+absent" schema gap named in the first pass is now closed and evidenced,
+not just decided-upon). Left untouched: everything else — this pass stayed
+inside Checkpoint 9 rather than spreading across the backlog above.
+
+Named next steps, not yet started: the PR #3/#6/#7 merge + PR #4/#5
+reconciliation named above (needs a human or an explicitly-authorized
+referee pass, not another same-day drive-by); Checkpoint 9's own
+cycle-detection and upward-return gaps; wiring `$FERROPLAN_VAL` into
+`validator_result` (Checkpoint 13, named by PR #6); the Checkpoint 11
+phase-collapse proof (named by PR #7).

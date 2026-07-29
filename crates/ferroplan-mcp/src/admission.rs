@@ -99,6 +99,19 @@ struct BindAllocationInput {
     observation_frontier: Value,
     #[serde(default)]
     previous_receipt: Option<String>,
+    /// The complete, previously-bound allocation envelope this call descends
+    /// from (recursive CMCA: this local frontier is the eight-candidate
+    /// expansion of one node inside that parent allocation). Must pair with
+    /// `selected_node`. The envelope is independently re-verified, not
+    /// trusted from its own `receipt` field, so a tampered or fabricated
+    /// parent envelope is refused rather than silently bound.
+    #[serde(default)]
+    #[schemars(schema_with = "any_json")]
+    parent_allocation: Option<Value>,
+    /// The `id` of the parent allocation's candidate this local eight-node
+    /// frontier expands. Must exist in `parent_allocation`'s candidate array.
+    #[serde(default)]
+    selected_node: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -134,7 +147,10 @@ impl Ferroplan {
 
     #[tool(
         description = "Bind exactly eight CMCA candidates, the allocation result, the \
-            observation frontier, the admitted BCINR revision, and an optional predecessor."
+            observation frontier, the admitted BCINR revision, and an optional predecessor. \
+            Pass parent_allocation (a prior, independently re-verified allocation envelope) \
+            and selected_node (one of its candidate ids) together to bind this local eight-node \
+            frontier as a recursive descent from that parent node."
     )]
     fn bind_allocation_receipt(
         &self,
@@ -211,7 +227,19 @@ fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
     require_array_len(allocations, "allocation_result.payload.allocations", 8)?;
 
     let observation_frontier = canonicalize(&coerce_stringified_json(input.observation_frontier));
-    let payload = canonicalize(&json!({
+
+    let descent = match (input.parent_allocation, input.selected_node) {
+        (Some(parent_allocation), Some(selected_node)) => Some(bind_descent(
+            coerce_stringified_json(parent_allocation),
+            selected_node,
+        )?),
+        (None, None) => None,
+        _ => {
+            return Err("parent_allocation and selected_node must be provided together".to_owned())
+        }
+    };
+
+    let mut payload = json!({
         "schema": "urn:chatman:allocation-admission-payload:v1",
         "bcinr_revision": BCINR_REVISION,
         "candidates_digest": digest_value(&candidates)?,
@@ -220,9 +248,90 @@ fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
         "allocation_result": allocation_result,
         "observation_frontier_digest": digest_value(&observation_frontier)?,
         "observation_frontier": observation_frontier
-    }));
+    });
+    if let Some((parent_receipt, selected_node, parent_candidate)) = descent {
+        let object = payload
+            .as_object_mut()
+            .expect("payload literal is always a JSON object");
+        object.insert(
+            "parent_allocation_receipt".to_owned(),
+            Value::String(parent_receipt),
+        );
+        object.insert("selected_node".to_owned(), Value::String(selected_node));
+        object.insert("selected_node_candidate".to_owned(), parent_candidate);
+    }
+    let payload = canonicalize(&payload);
 
     make_envelope("allocation", payload, input.previous_receipt)
+}
+
+/// Independently re-verify a claimed parent allocation envelope (recomputing
+/// its payload digest and receipt exactly as `verify_receipt` would, not
+/// trusting its self-declared fields) and confirm `selected_node` names one
+/// of its eight candidates. Returns the parent's verified receipt, the
+/// selected node id, and the matched candidate for embedding in the child
+/// payload — this is the "parent allocation receipt" and "selected node"
+/// half of Checkpoint 9's descent diagram. A tampered or fabricated parent
+/// envelope, or a `selected_node` absent from the parent's candidates,
+/// refuses here rather than being silently bound.
+fn bind_descent(
+    parent_allocation: Value,
+    selected_node: String,
+) -> Result<(String, String, Value), String> {
+    let object = parent_allocation
+        .as_object()
+        .ok_or_else(|| "parent_allocation must be an object".to_owned())?;
+    let kind = required_str(object, "kind")?;
+    if kind != "allocation" {
+        return Err(format!(
+            "parent_allocation must be an allocation envelope, found kind `{kind}`"
+        ));
+    }
+    let payload = canonicalize(
+        object
+            .get("payload")
+            .ok_or_else(|| "parent_allocation lacks payload".to_owned())?,
+    );
+    let previous = object.get("previous_receipt").and_then(Value::as_str);
+    validate_digest(previous, "parent_allocation.previous_receipt")?;
+    let declared_payload_digest = required_str(object, "payload_digest")?;
+    let declared_receipt = required_str(object, "receipt")?;
+    validate_digest(
+        Some(declared_payload_digest),
+        "parent_allocation.payload_digest",
+    )?;
+    validate_digest(Some(declared_receipt), "parent_allocation.receipt")?;
+
+    let expected_payload_digest = digest_value(&payload)?;
+    if declared_payload_digest != expected_payload_digest {
+        return Err(
+            "parent_allocation.payload_digest does not match its own payload; refusing an unverifiable parent".to_owned(),
+        );
+    }
+    let expected_receipt = receipt_for(kind, &payload, previous)?;
+    if declared_receipt != expected_receipt {
+        return Err(
+            "parent_allocation.receipt does not match its own payload/predecessor; refusing an unverifiable parent".to_owned(),
+        );
+    }
+
+    let parent_candidates = payload
+        .get("candidates")
+        .and_then(Value::as_array)
+        .ok_or_else(|| {
+            "parent_allocation.payload.candidates is missing or not an array".to_owned()
+        })?;
+    let candidate = parent_candidates
+        .iter()
+        .find(|candidate| {
+            candidate.get("id").and_then(Value::as_str) == Some(selected_node.as_str())
+        })
+        .cloned()
+        .ok_or_else(|| {
+            format!("selected_node `{selected_node}` is not a candidate in parent_allocation")
+        })?;
+
+    Ok((declared_receipt.to_owned(), selected_node, candidate))
 }
 
 fn tool_bind_plan(input: BindPlanInput) -> Result<Value, String> {
