@@ -11,8 +11,10 @@
     "each copy keys the ledger by whatever cwd its command ran from, so a `cd` forks the ledger for one repository; four ledger directories exist today",
     "roots.project_root() is the built fix and is wired into none of the six",
     "any per-copy repair is a partial fix by construction: the ledgers only reconverge when all six agree, so five corrected copies leave the fork intact",
-    "roots.project_root() is now wired into project_key/project_directory directly, so all six callers inherit anchoring without per-caller edits (they already import from roots.py per commit 6e9b81a) -- but no test yet exercises a caller script end-to-end to confirm it observes one ledger, only the roots.py primitive is covered",
-    "the pre-fix forked ledger directory (280f6a60fadbc82431436afd, the old subdirectory-cwd key) is not deleted or migrated by this fix -- it stops growing going forward but its prior contents are not reconciled into the repo-root ledger"
+    "roots.project_root() is now wired into project_key/project_directory directly, so all six callers inherit anchoring without per-caller edits (they already import from roots.py per commit 6e9b81a)",
+    "the pre-fix forked ledger directory (280f6a60fadbc82431436afd, the old subdirectory-cwd key) is not deleted or migrated by this fix -- it stops growing going forward but its prior contents are not reconciled into the repo-root ledger",
+    "grant-actuation.py is the sixth caller and is NOT covered by the new end-to-end test: reaching its project_directory read requires a live ferroplan-mcp verify_receipt round trip first, so it needs its own needs_cargo-marked test rather than being faked here",
+    "project_root() only anchors a checkout carrying the Ferroplan marker (crates/ferroplan-mcp/Cargo.toml) or an env-provided root related to the target path; a generic git-init fixture unrelated to Ferroplan does not get anchored at all and falls back to raw-realpath divergence -- confirmed by hand, which is why the new end-to-end test runs against the real checkout (root and plugins/chatman-ecosystem) under an isolated CLAUDE_PLUGIN_DATA rather than a synthetic git fixture"
   ],
   "negative_falsifier": {
     "file": "plugins/chatman-ecosystem/scripts/plugin_data.py",
@@ -21,10 +23,10 @@
     "why_this_counts": "the defect demonstrated itself in the session that documented it -- an unambiguous, reproducible negative"
   },
   "positive_witness": {
-    "file": "plugins/chatman-ecosystem/tests/test_roots.py:190",
-    "result": "1 passed in 0.17s",
-    "test": "plugins/chatman-ecosystem/tests/test_roots.py::test_project_key_is_identical_for_cwd_and_its_subdirectory",
-    "why_this_counts": "roots.project_key/project_directory now anchor at roots.project_root() when one resolves, so repo-root and subdirectory cwds hash to the same ledger key; independently verified by calling project_key('.') and project_key('plugins/chatman-ecosystem') and confirming identical digests, then encoded as this regression test."
+    "file": "plugins/chatman-ecosystem/tests/test_ledger_end_to_end.py",
+    "result": "4 passed in 1.87s",
+    "test": "plugins/chatman-ecosystem/tests/test_ledger_end_to_end.py (all four tests)",
+    "why_this_counts": "test_roots.py::test_project_key_is_identical_for_cwd_and_its_subdirectory proved only the shared primitive. This runs loop.py, phase.py, effective-phase.py, event-summary.py, and actuation-intent.py as real subprocesses -- the way hooks and the CLI actually invoke them -- firing hooks from plugins/chatman-ecosystem and reading state back from the repo root (and vice versa), against the real checkout so project_root() genuinely anchors. All five callers converge on one ledger directory: a mutation event counted from the subdirectory is visible to loop.py status and phase.py status run from the root, effective-phase.py's projection reflects it, event-summary.py's write lands in the same directory loop.py reads, and actuation-intent.py's BRCE refusal cites the exact pending count observed elsewhere."
   },
   "reason": "NO_REPLAY",
   "replay_host": null,

@@ -1298,6 +1298,10 @@ agree, so five corrected copies leave the fork intact.
 
 **Update (2026-07-29):** `roots.project_key`/`project_directory` now anchor at `roots.project_root()` (all six former copies already import from `roots.py` as of `6e9b81a`); verified `project_key('.') == project_key('plugins/chatman-ecosystem')` and added `test_project_key_is_identical_for_cwd_and_its_subdirectory` in `plugins/chatman-ecosystem/tests/test_roots.py` as positive witness. Standing raised to `PARTIAL_ALIVE` — partial because no test yet asserts the six *callers* observe one ledger end-to-end (only the shared `roots.py` primitive is covered).
 
+**Update (2026-07-29, second pass).** The named next step is closed for five of the six callers. New file `plugins/chatman-ecosystem/tests/test_ledger_end_to_end.py` runs `loop.py`, `phase.py`, `effective-phase.py`, `event-summary.py`, and `actuation-intent.py` as real subprocesses — firing hooks from `plugins/chatman-ecosystem` and reading state back from the repository root, and vice versa, against the *real* checkout (a synthetic `git init` fixture does **not** exercise the anchor at all: `project_root()` only anchors a checkout carrying the Ferroplan marker or an env-provided root related to the target path, confirmed by hand — a generic fixture repo falls back to the pre-fix raw-realpath behavior and would have made this test vacuous). `CLAUDE_PLUGIN_DATA` stays isolated under `tmp_path` throughout, so nothing touches the real `~/.claude` ledger. All four tests pass, and the previously-unused `git_project`/`run_script` fixtures in `conftest.py` (built for exactly this, never called) are now exercised.
+
+`grant-actuation.py` is the sixth caller and remains uncovered: reaching its `project_directory` read requires a live `ferroplan-mcp` `verify_receipt` round trip, which needs `needs_cargo` treatment rather than being faked. That is the new, narrower next step — nothing else about this checkpoint's proof obligation is still open at the test level. Standing held at `PARTIAL_ALIVE` (`NO_REPLAY`): the promotion law still requires replay outside this session regardless of test count.
+
 ---
 
 ## Admission Frontier TOCTOU (CE-GALL-33)
@@ -1390,6 +1394,61 @@ weakening it to `\b` still fails the `commit-graph` case in the sibling table.
 ---
 
 # Audit log
+
+## 2026-07-29 — scheduled routine pass (branch `gall-checkpoints/2026-07-29-ledger-e2e`)
+
+Housekeeping first, because it mattered: session `HEAD` was found **detached**
+at `348e07f`, 19 commits ahead of the locally-cached `origin/main` with no
+branch pointing at it — the DX architecture cycle's entire history (checkpoints
+22–34, the CE-GALL-32 anchor fix and its regression fix) existed only in
+reflog-reachable commits. A rescue branch (`chatman-dx-cycle`) was created and
+pushed. On fetch, `origin/main` turned out to already be at `348e07f` — a prior
+session had pushed it directly per this repo's "finish in main" working
+agreement, and the local remote-tracking ref was simply stale. No data was
+actually at risk; the stale cache made it look that way. Local `main` was
+fast-forwarded to match.
+
+With that resolved, picked up CE-GALL-32's named next step from the entry
+below: "no test yet asserts the six *callers* observe one ledger end-to-end
+(only the shared `roots.py` primitive is covered)." Added
+`plugins/chatman-ecosystem/tests/test_ledger_end_to_end.py`, running `loop.py`,
+`phase.py`, `effective-phase.py`, `event-summary.py`, and `actuation-intent.py`
+as real subprocesses from two different directories inside the actual
+checkout (repo root and `plugins/chatman-ecosystem`), with `CLAUDE_PLUGIN_DATA`
+isolated under `tmp_path`. All four tests pass; full suite went from 320 to
+324. This exercises the `git_project`/`run_script` fixtures already sitting in
+`conftest.py` unused since they were added — built for exactly this and never
+called until now.
+
+**One finding worth recording on its own.** Before writing the test, I checked
+whether `roots.project_root()` would anchor a *generic* git repository (a bare
+`git init` fixture unrelated to Ferroplan), since the existing `git_project`
+fixture's docstring claims exactly that use. It does not: `project_root()`'s
+default marker is `crates/ferroplan-mcp/Cargo.toml` (`FERROPLAN_MARKER`), so a
+throwaway repo without that file never anchors and silently falls back to the
+pre-CE-GALL-32-fix raw-realpath behavior — root and subdirectory keys would
+diverge, and a test built on that fixture would have been vacuous (it would
+pass by exercising the *unfixed* path, not the fix). This is not a defect in
+the shipped fix — chatman-ecosystem's stated purpose is self-hosting on
+Ferroplan itself, not operating on arbitrary user repositories — but it is a
+sharp edge in the test fixture's own docstring, which overclaims what it
+proves. The end-to-end test instead runs against the real checkout, where
+`project_root()` genuinely anchors. Recorded rather than silently routed around,
+per this file's own discipline.
+
+`grant-actuation.py` is the sixth caller and is still not covered: reaching its
+`project_directory` read path requires a live `ferroplan-mcp` `verify_receipt`
+round trip (an MCP call), which this pass did not attempt to fake. It needs a
+`needs_cargo`-marked test as its own follow-on. CE-GALL-32's receipt and this
+file's checkpoint section were both updated with the new evidence; standing
+held at `PARTIAL_ALIVE` (`NO_REPLAY`) — more of the checkpoint's proof
+obligation is now discharged, but the promotion law's replay-outside-session
+requirement is untouched by adding tests within the same session.
+
+Not attempted this pass, named rather than silently skipped: the
+`grant-actuation.py` coverage gap above; anything else in the Recommended
+Release Sequence or checkpoints 22–34 beyond CE-GALL-32's specific named next
+step, per this file's "prefer finishing a started thread" instruction.
 
 ## 2026-07-29 — parallel-agent iteration (branch `chatman-dx-cycle`)
 
