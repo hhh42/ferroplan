@@ -1,23 +1,31 @@
 ---
 name: phase-change
-description: Inspect and advance the Chatman combinatorial phase vector using exact MCP receipts. Use when repository work changes epistemic, allocation, planning, actuation, drift, or configuration standing.
+description: Inspect and advance the Chatman combinatorial phase vector using exact MCP receipts while separating canonical snapshots from pending effective state. Use when epistemic, allocation, planning, actuation, drift, or conformance standing changes.
 effort: high
 ---
 
 Operate the phase engine for `$ARGUMENTS`.
 
-1. Read `profiles/phase-space.json` and run:
+1. Read `profiles/phase-space.json`.
+2. Project the effective state:
    ```sh
-   python3 "$CLAUDE_PLUGIN_ROOT/scripts/phase.py" status --project "$CLAUDE_PROJECT_DIR"
+   python3 "$CLAUDE_PLUGIN_ROOT/scripts/effective-phase.py" \
+     --project "$CLAUDE_PROJECT_DIR"
    ```
-2. Read the pending observation ledger:
+3. Inspect the canonical snapshot:
    ```sh
-   python3 "$CLAUDE_PLUGIN_ROOT/scripts/loop.py" pending --project "$CLAUDE_PROJECT_DIR"
+   python3 "$CLAUDE_PLUGIN_ROOT/scripts/phase.py" status \
+     --project "$CLAUDE_PROJECT_DIR"
    ```
-3. Invoke only the agents and skills active in the current phase projection.
-4. Obtain authoritative MCP evidence for every requested advancement.
-5. Audit the target vector against every invariant.
-6. Advance dimensions only with a 64-hex admission receipt and its envelope:
+4. Read the pending observation ledger:
+   ```sh
+   python3 "$CLAUDE_PLUGIN_ROOT/scripts/loop.py" pending \
+     --project "$CLAUDE_PROJECT_DIR"
+   ```
+5. Invoke only agents and skills active in the effective projection.
+6. Obtain authoritative MCP evidence for every requested advancement.
+7. Audit the target vector against every invariant and authority ceiling.
+8. Advance dimensions only with a verified 64-hex receipt and exact envelope:
    ```sh
    python3 "$CLAUDE_PLUGIN_ROOT/scripts/phase.py" transition \
      --project "$CLAUDE_PROJECT_DIR" \
@@ -26,10 +34,7 @@ Operate the phase engine for `$ARGUMENTS`.
      --envelope <path-to-envelope.json> \
      --reason <reason>
    ```
-   `--envelope` is the JSON admission envelope returned by
-   `bind_plan_receipt`/`bind_allocation_receipt` (its `receipt` field must
-   equal `--receipt`); `phase.py transition` calls `verify_receipt` on it
-   before advancing.
-7. Never use phase state as execution proof. The phase runtime is a projection over authoritative receipts.
 
-A repository mutation automatically collapses the vector to observed, unallocated, unplanned, sealed, drifted, and conformance-unknown. Re-establish only the dimensions supported by new evidence.
+`phase.py transition` verifies the envelope through the MCP `verify_receipt` tool. Refuse any undeclared transition, invalid invariant, stale frontier, bad predecessor, or unavailable evidence.
+
+Never use phase state as execution proof. The canonical snapshot is a receipt-bound cache. Pending observation candidates project the effective vector to observed, unallocated, unplanned, sealed, drifted, and conformance-unknown until they are admitted.
