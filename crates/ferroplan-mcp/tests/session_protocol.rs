@@ -389,6 +389,154 @@ fn cmca_allocate_returns_an_allocation() {
     assert!(status_code.success(), "server exited with {status_code:?}");
 }
 
+/// Builds `count` candidates, each with `factors` factor values, arranged as
+/// one root plus a linear chain of children so any well-formed candidate
+/// count still passes `validate_forest` and the test isolates exactly the
+/// count/factor-count check under test.
+fn candidates_of_shape(count: usize, factors: usize) -> Vec<Value> {
+    (0..count)
+        .map(|i| {
+            json!({
+                "id": format!("node-{i}"),
+                "parent": if i == 0 { Value::Null } else { json!(0) },
+                "factors": vec![0.5_f64; factors],
+                "cost": 1.0
+            })
+        })
+        .collect()
+}
+
+/// Gall Checkpoint 8 ("Top-Level CMCA Allocation") required-proof line:
+/// "Seven ... candidates refused." `cmca_allocate` is pinned to exactly
+/// N=8 candidates; seven must be a typed refusal, not a short allocation.
+#[test]
+fn cmca_allocate_rejects_seven_candidates() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates_of_shape(7, 10)}),
+        ),
+    );
+    assert!(
+        is_error(&resp),
+        "7 candidates must be refused, got: {resp:?}"
+    );
+    let text = tool_text(&resp);
+    assert!(
+        text.contains('7') && text.contains('8'),
+        "expected the refusal to name both the received (7) and required (8) counts: {text}"
+    );
+
+    drop(child.stdin.take());
+    let status_code = child.wait().expect("wait");
+    assert!(status_code.success(), "server exited with {status_code:?}");
+}
+
+/// Gall Checkpoint 8 required-proof line: "... or nine candidates refused."
+#[test]
+fn cmca_allocate_rejects_nine_candidates() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates_of_shape(9, 10)}),
+        ),
+    );
+    assert!(
+        is_error(&resp),
+        "9 candidates must be refused, got: {resp:?}"
+    );
+    let text = tool_text(&resp);
+    assert!(
+        text.contains('9') && text.contains('8'),
+        "expected the refusal to name both the received (9) and required (8) counts: {text}"
+    );
+
+    drop(child.stdin.take());
+    let status_code = child.wait().expect("wait");
+    assert!(status_code.success(), "server exited with {status_code:?}");
+}
+
+/// Gall Checkpoint 8 required-proof line: "Wrong factor count refused." Eight
+/// candidates (the correct node count) but nine factors each instead of the
+/// pinned ten.
+#[test]
+fn cmca_allocate_rejects_wrong_factor_count() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates_of_shape(8, 9)}),
+        ),
+    );
+    assert!(
+        is_error(&resp),
+        "9 factors per candidate must be refused, got: {resp:?}"
+    );
+    let text = tool_text(&resp);
+    assert!(
+        text.contains("10 factors"),
+        "expected the refusal to name the required factor count (10): {text}"
+    );
+
+    drop(child.stdin.take());
+    let status_code = child.wait().expect("wait");
+    assert!(status_code.success(), "server exited with {status_code:?}");
+}
+
+/// Gall Checkpoint 8 required-proof line: "Repeated input produces identical
+/// allocation evidence." Two separate `ferroplan-mcp` processes, each fed
+/// the exact same candidate set, must produce byte-identical
+/// `payload_digest`/`payload` output — determinism across process
+/// boundaries, not just within one call.
+#[test]
+fn cmca_allocate_is_deterministic_across_processes() {
+    let candidates = candidates_of_shape(8, 10);
+
+    let (mut child1, mut stdout1) = spawn_and_handshake();
+    let resp1 = call(
+        &mut child1,
+        &mut stdout1,
+        &tool_call(1, "cmca_allocate", json!({"candidates": candidates.clone()})),
+    );
+    drop(child1.stdin.take());
+    assert!(child1.wait().expect("wait").success());
+
+    let (mut child2, mut stdout2) = spawn_and_handshake();
+    let resp2 = call(
+        &mut child2,
+        &mut stdout2,
+        &tool_call(1, "cmca_allocate", json!({"candidates": candidates})),
+    );
+    drop(child2.stdin.take());
+    assert!(child2.wait().expect("wait").success());
+
+    let content1 = &resp1["result"]["structuredContent"];
+    let content2 = &resp2["result"]["structuredContent"];
+    assert!(content1["payload_digest"].is_string());
+    assert_eq!(
+        content1["payload_digest"], content2["payload_digest"],
+        "identical candidates must yield identical payload digests across process runs"
+    );
+    assert_eq!(
+        content1["payload"], content2["payload"],
+        "identical candidates must yield byte-identical allocation payloads"
+    );
+}
+
 /// resources/list must expose exactly one resource per tool (8 tools:
 /// session_open, session_observe, session_set_goal, session_think,
 /// session_advance, session_status, session_close, cmca_allocate), and

@@ -218,7 +218,11 @@ fn canonical_digest_accepts_a_stringified_json_value() {
 /// that transit already lost, it never reinterprets a real string field.
 #[test]
 fn canonical_digest_leaves_a_non_json_string_untouched() {
-    let resp = drive(&[tool_call(1, "canonical_digest", json!({"value": "just text"}))]);
+    let resp = drive(&[tool_call(
+        1,
+        "canonical_digest",
+        json!({"value": "just text"}),
+    )]);
     let out = structured(&find_response(&resp, 1));
     assert_eq!(out["canonical"], json!("just text"));
 }
@@ -242,7 +246,8 @@ fn bind_allocation_receipt_accepts_stringified_candidates_and_allocation_result(
     assert_eq!(out["schema"], "urn:chatman:admission-envelope:v1");
     assert_eq!(out["kind"], "allocation");
     assert_eq!(
-        out["payload"]["candidates"], eight_candidates(),
+        out["payload"]["candidates"],
+        eight_candidates(),
         "stringified candidates must be recovered as the real array, not left as text"
     );
     assert_eq!(
@@ -440,6 +445,58 @@ fn verify_rejects_tampered_digest() {
     );
     assert_eq!(out["declared_receipt"], tampered_receipt);
     assert_ne!(out["expected_receipt"], json!(tampered_receipt));
+}
+
+/// Gall Checkpoint 8 ("Top-Level CMCA Allocation") required-proof line:
+/// "Tampered allocation result refused." Closes the gap `verify_rejects_
+/// tampered_digest`'s own doc comment names: that test only mutates the
+/// `receipt` field. Here the *payload content itself* (the bound
+/// `allocation_result`, i.e. the CMCA allocation) is mutated in place, with
+/// both `payload_digest` and `receipt` left exactly as bound — proving
+/// `verify_receipt` independently recomputes the payload digest from the
+/// actual payload bytes rather than trusting the envelope's self-reported
+/// digest.
+#[test]
+fn verify_rejects_tampered_allocation_payload() {
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": eight_candidates(),
+            "allocation_result": allocation_result_with(BCINR_REVISION, 8),
+            "observation_frontier": {"frontier": "empty"},
+        }),
+    )]);
+    let mut envelope = structured(&find_response(&resp, 1));
+
+    let baseline = drive(&[tool_call(
+        1,
+        "verify_receipt",
+        json!({"envelope": envelope.clone()}),
+    )]);
+    assert_eq!(structured(&find_response(&baseline, 1))["valid"], true);
+
+    // Mutate the bound allocation result itself — the actual CMCA output,
+    // not the receipt or digest fields — leaving `payload_digest` and
+    // `receipt` exactly as originally bound.
+    let original_allocations = envelope["payload"]["allocations"].clone();
+    envelope["payload"]["allocations"] = json!([0, 0, 0, 0, 0, 0, 0, 0]);
+    assert_ne!(envelope["payload"]["allocations"], original_allocations);
+
+    let resp2 = drive(&[tool_call(
+        2,
+        "verify_receipt",
+        json!({"envelope": envelope}),
+    )]);
+    let out = structured(&find_response(&resp2, 2));
+    assert_eq!(
+        out["valid"], false,
+        "a tampered allocation result must not verify: {out:?}"
+    );
+    assert_eq!(
+        out["payload_digest_valid"], false,
+        "the recomputed payload digest must disagree once the payload content changed: {out:?}"
+    );
 }
 
 #[test]

@@ -1,6 +1,7 @@
 # Gall Checkpoints for the Chatman Ecosystem
 
-Last updated: 2026-07-29 (session audit, see "Audit log" at the end).
+Last updated: 2026-07-29 (session audit, second pass — see "Audit log" at
+the end).
 
 Each checkpoint must be a **complete, useful system at its own scale**. A
 checkpoint is not passed because source exists. It is passed only when its
@@ -406,17 +407,69 @@ CMCA returns bounded shares and binds:
 * Tampered allocation result refused.
 * Repeated input produces identical allocation evidence.
 
-**Current standing:** `PARTIAL_ALIVE`
-
 The 8-candidate/10-factor happy path was exercised repeatedly this session
-with real allocation receipts bound and admitted. The refusal cases (7/9
-candidates, wrong factor count, wrong BCINR revision, tampered allocation
-result) were **not** all individually re-verified in the 2026-07-29 pass —
-only the receipt-tamper case (see Checkpoint 19) and CMCA's own
-parent-index/cycle refusals (see Checkpoint 9) were.
+with real allocation receipts bound and admitted.
 
-**Next step**: run the four untested refusal cases explicitly and record
-output here before upgrading past `PARTIAL_ALIVE`.
+2026-07-29 audit (second pass) closed the four refusal cases the first pass
+left untested, each as a real `cargo test` against the compiled
+`ferroplan-mcp` binary over stdio (not a fixture or a mock):
+
+- **7 candidates refused** — new test `cmca_allocate_rejects_seven_candidates`
+  (`crates/ferroplan-mcp/tests/session_protocol.rs`). `cmca_allocate` returns
+  a tool error `"CMCA requires exactly 8 nodes; received 7"`.
+- **9 candidates refused** — new test `cmca_allocate_rejects_nine_candidates`.
+  Same error shape, `"received 9"`.
+- **Wrong factor count refused** — new test
+  `cmca_allocate_rejects_wrong_factor_count` (8 candidates, 9 factors each).
+  Error: `"candidate `node-0` requires 10 factors; received 9"`.
+- **Wrong BCINR revision refused** — already covered by the pre-existing
+  `bind_allocation_receipt_rejects_wrong_bcinr_revision` test; reran it this
+  pass (`cargo test -p ferroplan-mcp --test admission_protocol`) to confirm
+  it's still green, rather than assuming stale coverage still holds.
+- **Tampered allocation result refused** — new test
+  `verify_rejects_tampered_allocation_payload`
+  (`crates/ferroplan-mcp/tests/admission_protocol.rs`). This closes a gap
+  the *existing* `verify_rejects_tampered_digest` test's own doc comment
+  named as uncovered: that test only flips a character of the `receipt`
+  field. The new test instead mutates `payload.allocations` (the actual
+  bound CMCA output) in place, leaving `payload_digest`/`receipt` exactly as
+  bound, and confirms `verify_receipt` still catches it —
+  `payload_digest_valid: false, valid: false` — proving the server
+  recomputes the payload digest from real payload bytes rather than
+  trusting the envelope's self-reported digest.
+
+Also added `cmca_allocate_is_deterministic_across_processes`
+(`session_protocol.rs`): two *separate* `ferroplan-mcp` processes fed the
+same 8-candidate/10-factor input produce byte-identical `payload_digest`
+and `payload` — closing "Repeated input produces identical allocation
+evidence" with cross-process evidence, not just same-call determinism.
+
+All 6 new/reconfirmed tests pass: `cargo test -p ferroplan-mcp --test
+session_protocol` (10/10) and `cargo test -p ferroplan-mcp --test
+admission_protocol` (16/16). `cargo fmt --check` and `cargo clippy -p
+ferroplan-mcp --all-targets --all-features -- -D warnings` are both clean on
+this change.
+
+Every required-proof line this checkpoint states now has an exhibited
+automated test against the real compiled binary:
+
+| Required proof | Test | Status |
+|---|---|---|
+| Exactly eight candidates accepted | `cmca_allocate_returns_an_allocation` | pass |
+| Seven candidates refused | `cmca_allocate_rejects_seven_candidates` | pass |
+| Nine candidates refused | `cmca_allocate_rejects_nine_candidates` | pass |
+| Wrong factor count refused | `cmca_allocate_rejects_wrong_factor_count` | pass |
+| Wrong BCINR revision refused | `bind_allocation_receipt_rejects_wrong_bcinr_revision` | pass |
+| Tampered allocation result refused | `verify_rejects_tampered_allocation_payload` | pass |
+| Repeated input → identical evidence | `cmca_allocate_is_deterministic_across_processes` | pass |
+
+**Current standing:** `ALIVE` for the automated-test surface (`cargo test -p
+ferroplan-mcp` — 6 new/reconfirmed tests, all green — plus `cargo fmt
+--check` and `cargo clippy -p ferroplan-mcp --all-targets --all-features --
+-D warnings` clean). Not claimed beyond that surface: this is compiled-binary
+protocol-level evidence, not a live end-to-end run through a real Claude
+agent session (that rung belongs to Checkpoint 12's ladder, not this
+checkpoint's own required proof).
 
 ---
 
@@ -968,3 +1021,69 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — second pass (scheduled routine, evening run)
+
+**Backlog discovered before picking new work.** Before touching anything,
+checked `git branch -r` and GitHub: eight same-day sibling sessions had
+already run against this file's first-pass audit and opened **eight open,
+draft, unreviewed, unmerged pull requests** (#2 crown/v26.7.29,
+#3 Checkpoint 2, #4 and #5 and #9 — three competing implementations of
+Checkpoint 3's `tools:`/`disallowedTools`/bash-fence mechanism, #6
+Checkpoint 13, #7 Checkpoint 11, #8 Checkpoint 9, #10 which itself
+diagnosed and documented this exact backlog). None of the eight are
+merged, so this file's copy on `main` (what every fresh session reads
+first) has been stale relative to all of that work all day. PR #10's own
+body already recommended #5 as the strongest Checkpoint 3 candidate but
+declined to merge or close #4/#9 unilaterally, calling it "a maintainer
+call" — every session that has looked at this same backlog today reached
+the same conclusion independently. This pass does the same: it does not
+merge, close, or supersede any of #2–#10, and does not open a fourth
+competing branch against Checkpoint 3's already-contested 8 agent files.
+This is now flagged to the user directly (outside this file) as a
+governance problem this routine cannot resolve on its own — resolving it
+needs a human to pick a Checkpoint 3 winner and start merging the backlog,
+or the doc on `main` will keep drifting further behind reality with every
+future run.
+
+**One concrete update to a named open item**: PR #10's test plan left
+"PR #2's `test` check run finishing green" as an open checkbox, in
+progress at write time. Rechecked this pass via
+`mcp__github__pull_request_read` (`get_check_runs`) on PR #2
+(`agent/v26.7.29-claude-projection`, head `af865f8`): all three checks —
+`projection-law`, `ferroplan-mcp`, and the plain `test` job — now show
+`status: completed, conclusion: success`. PR #2 is CI-green end to end for
+the first time since it was opened. Still draft, 0 reviews, not merged —
+only the CI-red blocker is resolved, not the review/merge step.
+
+**New work: closed all four of Checkpoint 8's named refusal-case gaps.**
+No same-day sibling branch had touched Checkpoint 8 ("Top-Level CMCA
+Allocation") — genuinely unclaimed territory, not a fifth collision. Added
+6 new/reconfirmed `cargo test` cases against the real compiled
+`ferroplan-mcp` binary over stdio (not fixtures): `cmca_allocate` refusing
+7 candidates, refusing 9 candidates, refusing a wrong (9, not 10) factor
+count, `verify_receipt` refusing a payload-content-tampered allocation
+result (closing a gap the pre-existing `verify_rejects_tampered_digest`
+test's own doc comment named as uncovered), and cross-process determinism
+of `cmca_allocate` output. Reran the pre-existing
+`bind_allocation_receipt_rejects_wrong_bcinr_revision` test to confirm the
+fifth required-proof line is still covered rather than assuming stale
+evidence still holds. Full receipts: `cargo test -p ferroplan-mcp --test
+session_protocol` → 10/10 pass; `cargo test -p ferroplan-mcp --test
+admission_protocol` → 16/16 pass; `cargo fmt --check` clean; `cargo clippy
+-p ferroplan-mcp --all-targets --all-features -- -D warnings` clean.
+Checkpoint 8 upgraded `PARTIAL_ALIVE` → `ALIVE` (test-surface scope,
+explicitly not claimed beyond it — see the checkpoint's own standing text
+for the exact boundary).
+
+**Not attempted this pass**: reconciling PR #4/#5/#9 (explicitly deferred,
+see above); anything on checkpoints 6, 7, 10, 12, 14, 16–18, 20, 21 (no
+new evidence, standings unchanged); `cargo check --workspace` /
+`cargo test --workspace` (PR #8's audit already found and reproduced a
+pre-existing, unrelated `ferroplan-bevy`/`bevy@0.19.0` rustc-version gate
+on this container — not re-verified this pass since it doesn't bear on
+anything touched here; scoped `cargo test -p ferroplan-mcp -p ferroplan`
+was run instead and is fully green).
+
+Branch: `gall-checkpoints/2026-07-29-cmca-refusal-evidence`. PR opened
+against `main` (see PR list) with this same evidence inline.
