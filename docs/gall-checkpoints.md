@@ -1363,6 +1363,109 @@ observations. This is the gap in that claim, and no test covers it.
 
 # Audit log
 
+## 2026-07-29 — fourth pass: the same-day backlog has reached 10 unmerged draft PRs
+
+**Addendum written after rebasing onto `origin/main`, before pushing**: the
+findings below ("`main` is still exactly at `61d0983`") were true when this
+pass started but stopped being true partway through this same run — `main`
+advanced 9 commits (`d126b61`..`d26ab22`, the "DX architecture cycle") while
+this pass was mid-flight, apparently pushed directly per this repo's own
+"finish in main" working agreement rather than through any of PRs #2–#11.
+That cycle appears to genuinely resolve real ground covered by several of
+those PRs (real `cmca_allocate_recursive` in the actual MCP server —
+overlaps PR #8; ontology-generated agent authority via SHACL — overlaps
+PR #4/#5/#9's `tools:`/`disallowedTools` frontmatter approaches; a new
+`plugin` CI job with a real pytest harness) and adds its own new checkpoints
+22–33 with a formal receipt schema, none of which existed when this pass's
+findings below were written. This pass did not re-derive or verify any of
+that new cycle's claims — it only discovered the advance by rebasing this
+branch onto `origin/main` before pushing, and is noting it here rather than
+silently rewriting the narrative below to pretend it always knew. Whether
+PRs #2–#11 are now fully superseded, partially superseded, or still add
+distinct value on top of the DX cycle is **not evaluated by this pass** —
+that determination needs someone to actually diff each PR's branch against
+the new `main`, which is exactly the kind of maintainer-review step this
+pass's own conclusion (below) already said was needed.
+
+This scheduled run started by re-reading this file on `main` (still frozen
+at the first pass above) and picking up Checkpoint 2's named next step, the
+same way every prior pass this file documents did. Before doing new work,
+`git ls-remote origin` was run to check for an existing same-day branch per
+this file's own instructions — that step had been skipped or come back
+empty in earlier passes (each one only checked `git branch -r` against
+already-fetched refs, which starts empty in a fresh container). Fetching
+every remote branch and cross-referencing with `list_pull_requests` surfaced
+the real scale of today's parallel activity for the first time in one
+place:
+
+```text
+PR #2  agent/v26.7.29-claude-projection                        open draft  (the v26.7.29 crown, Checkpoint 21)
+PR #3  gall-checkpoints/2026-07-29-clean-install-plugin-version open draft  (Checkpoint 2 — fixes plugin.json version, finds LSP loader defect)
+PR #4  gall-checkpoints/2026-07-29-agent-tools-frontmatter      open draft  (Checkpoint 3 — disallowedTools deny-list)
+PR #5  gall-checkpoints/2026-07-29-agent-tool-grants            open draft  (Checkpoint 3 — tools: allow-list + bash-write-fence.py hook)
+PR #6  gall-checkpoints/2026-07-29-val-cmake-policy-fix         open draft  (Checkpoint 13 — get-val.sh cmake flag)
+PR #7  gall-checkpoints/2026-07-29-worktree-manufacture         open draft  (Checkpoint 11 — manufacture-in-worktree.py)
+PR #8  gall-checkpoints/2026-07-29-recursive-cmca               open draft  (Checkpoint 9 — parent_allocation/selected_node descent)
+PR #9  gall-checkpoints/2026-07-29-agent-tool-restrictions      open draft  (Checkpoint 3 — a third, independent disallowedTools pass)
+PR #10 gall-checkpoints/2026-07-29-resolve-pr2-ci-and-reconcile-backlog open draft (fixes PR #2's CI fmt drift; first to document the backlog)
+PR #11 gall-checkpoints/2026-07-29-cmca-refusal-evidence        open draft  (Checkpoint 8 — closes all 4 named refusal-case gaps, upgrades 8 to ALIVE)
+```
+
+None are merged. `main` is still exactly at `61d0983`, the commit that
+created this file. Every one of #3–#11 branched from that same stale point,
+so every one of them re-derives the same "first pass" context, and — worse
+— **Checkpoint 3 alone has three unreconciled, mutually incompatible
+branches (#4, #5, #9)** touching the identical 8 agent frontmatter files
+with two different mechanisms (`disallowedTools` deny-list vs. `tools:`
+allow-list, one of which also adds a `bash-write-fence.py` `PreToolUse`
+hook the others don't have). PR #10 and PR #11 had each already
+independently reached this exact same observation earlier today and each
+concluded, in their own PR bodies, that reconciling it "needs a human
+maintainer call, not another automated pass" — but neither could confirm
+whether the user had actually been told outside of a PR description nobody
+had reviewed yet. This pass's own read of `docs/gall-checkpoints.md` (the
+"Recommended Release Sequence" + "how to use this file" instructions this
+session was invoked to follow) has no mechanism to detect an unreviewed PR
+backlog on its own — it only surfaced by explicitly fetching every remote
+branch, which nothing forced this pass to do differently from the seven
+passes before it that didn't.
+
+**Judgment call made this pass**: given three same-day sessions (this one,
+PR #10, PR #11) have now independently reached "this needs a human, not
+another PR," this pass did **not** open an eleventh competing branch on
+Checkpoint 3, Checkpoint 9, Checkpoint 11, or Checkpoint 13 (all already
+claimed today), and did not attempt to unilaterally pick a winner among
+PR #4/#5/#9 or merge/close any of them — that authority was never granted
+to this run. Instead:
+
+- Did new, real, previously-untried work on Checkpoint 6 ("Generated
+  Artifact Ownership"), the one item on the Recommended Release Sequence's
+  neighborhood that no other same-day branch had touched: ran
+  `generated-guard.py` with real synthetic `PreToolUse` payloads (see
+  Checkpoint 6 above for the exact commands/output) and found a genuine,
+  previously-undocumented soundness gap — its one `GENERATED_PATHS` entry,
+  `crates/ferroplan-wasm/src/lib.rs`, has no actual ontology-driven
+  generator anywhere in the repo, so the mtime-freshness check it performs
+  can be bypassed by touching the ontology file's mtime without any real
+  regeneration occurring.
+- Independently reran Checkpoint 2's clean-cache install sequence (own
+  empty `~/.claude/plugins` cache, confirmed via `claude plugin list`
+  before acting) and cross-confirmed PR #3's two findings exactly
+  (`--strict` version-field failure, LSP loader `config_lsp_root` error) —
+  documented as a cross-confirmation under Checkpoint 2, not reclaimed as a
+  new discovery, and deliberately did not push a competing one-line
+  `plugin.json` fix since PR #3 already carries that exact diff.
+- Flagging this backlog to the user directly (outside this file, via the
+  session's own notification channel) rather than only writing it into yet
+  another unreviewed PR description, since three same-day PR bodies saying
+  the same thing to nobody is not the same as the user actually knowing.
+
+**Not done this pass, and deliberately not claimed**: reconciling PR
+#4/#5/#9, merging any of #2–#11, or advancing Checkpoints 3, 9, 11, 13, 19,
+20, or 21 beyond what #2–#11 already carry on their own unmerged branches.
+
+Branch: `gall-checkpoints/2026-07-29-generated-guard-audit`.
+
 ## 2026-07-29 — DX architecture cycle (branch `chatman-dx-cycle`)
 
 Seven commits. 141 tests where there were none, and a separate CI `plugin` job
@@ -1468,84 +1571,3 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
-
-## 2026-07-29 — fourth pass: the same-day backlog has reached 10 unmerged draft PRs
-
-This scheduled run started by re-reading this file on `main` (still frozen
-at the first pass above) and picking up Checkpoint 2's named next step, the
-same way every prior pass this file documents did. Before doing new work,
-`git ls-remote origin` was run to check for an existing same-day branch per
-this file's own instructions — that step had been skipped or come back
-empty in earlier passes (each one only checked `git branch -r` against
-already-fetched refs, which starts empty in a fresh container). Fetching
-every remote branch and cross-referencing with `list_pull_requests` surfaced
-the real scale of today's parallel activity for the first time in one
-place:
-
-```text
-PR #2  agent/v26.7.29-claude-projection                        open draft  (the v26.7.29 crown, Checkpoint 21)
-PR #3  gall-checkpoints/2026-07-29-clean-install-plugin-version open draft  (Checkpoint 2 — fixes plugin.json version, finds LSP loader defect)
-PR #4  gall-checkpoints/2026-07-29-agent-tools-frontmatter      open draft  (Checkpoint 3 — disallowedTools deny-list)
-PR #5  gall-checkpoints/2026-07-29-agent-tool-grants            open draft  (Checkpoint 3 — tools: allow-list + bash-write-fence.py hook)
-PR #6  gall-checkpoints/2026-07-29-val-cmake-policy-fix         open draft  (Checkpoint 13 — get-val.sh cmake flag)
-PR #7  gall-checkpoints/2026-07-29-worktree-manufacture         open draft  (Checkpoint 11 — manufacture-in-worktree.py)
-PR #8  gall-checkpoints/2026-07-29-recursive-cmca               open draft  (Checkpoint 9 — parent_allocation/selected_node descent)
-PR #9  gall-checkpoints/2026-07-29-agent-tool-restrictions      open draft  (Checkpoint 3 — a third, independent disallowedTools pass)
-PR #10 gall-checkpoints/2026-07-29-resolve-pr2-ci-and-reconcile-backlog open draft (fixes PR #2's CI fmt drift; first to document the backlog)
-PR #11 gall-checkpoints/2026-07-29-cmca-refusal-evidence        open draft  (Checkpoint 8 — closes all 4 named refusal-case gaps, upgrades 8 to ALIVE)
-```
-
-None are merged. `main` is still exactly at `61d0983`, the commit that
-created this file. Every one of #3–#11 branched from that same stale point,
-so every one of them re-derives the same "first pass" context, and — worse
-— **Checkpoint 3 alone has three unreconciled, mutually incompatible
-branches (#4, #5, #9)** touching the identical 8 agent frontmatter files
-with two different mechanisms (`disallowedTools` deny-list vs. `tools:`
-allow-list, one of which also adds a `bash-write-fence.py` `PreToolUse`
-hook the others don't have). PR #10 and PR #11 had each already
-independently reached this exact same observation earlier today and each
-concluded, in their own PR bodies, that reconciling it "needs a human
-maintainer call, not another automated pass" — but neither could confirm
-whether the user had actually been told outside of a PR description nobody
-had reviewed yet. This pass's own read of `docs/gall-checkpoints.md` (the
-"Recommended Release Sequence" + "how to use this file" instructions this
-session was invoked to follow) has no mechanism to detect an unreviewed PR
-backlog on its own — it only surfaced by explicitly fetching every remote
-branch, which nothing forced this pass to do differently from the seven
-passes before it that didn't.
-
-**Judgment call made this pass**: given three same-day sessions (this one,
-PR #10, PR #11) have now independently reached "this needs a human, not
-another PR," this pass did **not** open an eleventh competing branch on
-Checkpoint 3, Checkpoint 9, Checkpoint 11, or Checkpoint 13 (all already
-claimed today), and did not attempt to unilaterally pick a winner among
-PR #4/#5/#9 or merge/close any of them — that authority was never granted
-to this run. Instead:
-
-- Did new, real, previously-untried work on Checkpoint 6 ("Generated
-  Artifact Ownership"), the one item on the Recommended Release Sequence's
-  neighborhood that no other same-day branch had touched: ran
-  `generated-guard.py` with real synthetic `PreToolUse` payloads (see
-  Checkpoint 6 above for the exact commands/output) and found a genuine,
-  previously-undocumented soundness gap — its one `GENERATED_PATHS` entry,
-  `crates/ferroplan-wasm/src/lib.rs`, has no actual ontology-driven
-  generator anywhere in the repo, so the mtime-freshness check it performs
-  can be bypassed by touching the ontology file's mtime without any real
-  regeneration occurring.
-- Independently reran Checkpoint 2's clean-cache install sequence (own
-  empty `~/.claude/plugins` cache, confirmed via `claude plugin list`
-  before acting) and cross-confirmed PR #3's two findings exactly
-  (`--strict` version-field failure, LSP loader `config_lsp_root` error) —
-  documented as a cross-confirmation under Checkpoint 2, not reclaimed as a
-  new discovery, and deliberately did not push a competing one-line
-  `plugin.json` fix since PR #3 already carries that exact diff.
-- Flagging this backlog to the user directly (outside this file, via the
-  session's own notification channel) rather than only writing it into yet
-  another unreviewed PR description, since three same-day PR bodies saying
-  the same thing to nobody is not the same as the user actually knowing.
-
-**Not done this pass, and deliberately not claimed**: reconciling PR
-#4/#5/#9, merging any of #2–#11, or advancing Checkpoints 3, 9, 11, 13, 19,
-20, or 21 beyond what #2–#11 already carry on their own unmerged branches.
-
-Branch: `gall-checkpoints/2026-07-29-generated-guard-audit`.
