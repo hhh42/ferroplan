@@ -1,0 +1,219 @@
+{
+  "$defs": {
+    "Standing": {
+      "description": "The six canonical standings, strongest first.",
+      "enum": [
+        "ALIVE",
+        "PARTIAL_ALIVE",
+        "BLOCKED",
+        "BUILD_BROKEN",
+        "UNKNOWN",
+        "UNSUPPORTED"
+      ],
+      "title": "Standing",
+      "type": "string"
+    },
+    "StandingReason": {
+      "description": "Why a standing is capped. Never a standing in its own right.",
+      "enum": [
+        "DEFECT_OPEN",
+        "DEPENDENCY_MISSING",
+        "MOCKED",
+        "NO_FALSIFIER",
+        "NO_REPLAY",
+        "REFUSED_BY_POLICY"
+      ],
+      "title": "StandingReason",
+      "type": "string"
+    },
+    "Witness": {
+      "additionalProperties": false,
+      "description": "A named, executing piece of evidence.\n\n`why_this_counts` is required rather than optional: a test name alone does\nnot say what it establishes, and a witness whose relevance cannot be stated\nin a sentence is usually not a witness.",
+      "properties": {
+        "file": {
+          "description": "Where it lives, as path:line.",
+          "title": "File",
+          "type": "string"
+        },
+        "result": {
+          "title": "Result",
+          "type": "string"
+        },
+        "test": {
+          "description": "Test id or command that produces this evidence.",
+          "title": "Test",
+          "type": "string"
+        },
+        "why_this_counts": {
+          "title": "Why This Counts",
+          "type": "string"
+        }
+      },
+      "required": [
+        "test",
+        "file",
+        "result",
+        "why_this_counts"
+      ],
+      "title": "Witness",
+      "type": "object"
+    }
+  },
+  "$id": "urn:chatman:gall-checkpoint-receipt:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Evidence for one Gall checkpoint.\n\nA Gall checkpoint is \"the smallest closed, receipted transformation proving\none complete category transition with explicit inputs, outputs, refusals,\nand verification\" (mfw, 15-galls-law-evolutionary-construction.omdoc:37).\n\nTwo rules from the sibling repositories are encoded as fields here rather\nthan left to prose:\n\n* `negative_falsifier` is nullable, and null is a *claim* -- that no\n  executing negative fixture exists yet. bcinr's rule is that a falsifier\n  must be \"a genuine Gall-checkpoint negative fixture, not a comment\n  describing one\", so a checkpoint with a null falsifier cannot be ALIVE.\n* `replayed_outside_session` exists because wasm4pm's promotion law\n  requires replay in a separate session from the one that produced the\n  evidence. A checkpoint cannot certify itself.",
+  "properties": {
+    "blocked_by": {
+      "description": "Checkpoint ids this one waits on.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Blocked By",
+      "type": "array"
+    },
+    "checkpoint": {
+      "description": "Stable id, e.g. CE-GALL-23.",
+      "title": "Checkpoint",
+      "type": "string"
+    },
+    "command": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Command"
+    },
+    "cwd": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cwd"
+    },
+    "date": {
+      "title": "Date",
+      "type": "string"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exit Code"
+    },
+    "git_revision": {
+      "description": "The exact revision this evidence was taken at.",
+      "title": "Git Revision",
+      "type": "string"
+    },
+    "known_anti_patterns": {
+      "description": "Self-declared non-claims, so the receipt does not overclaim.",
+      "items": {
+        "type": "string"
+      },
+      "title": "Known Anti Patterns",
+      "type": "array"
+    },
+    "negative_falsifier": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Witness"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Null means none exists yet -- which bars promotion to ALIVE."
+    },
+    "positive_witness": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Witness"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "reason": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StandingReason"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Why the standing is capped below ALIVE."
+    },
+    "replay_host": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Replay Host"
+    },
+    "replayed_outside_session": {
+      "default": false,
+      "title": "Replayed Outside Session",
+      "type": "boolean"
+    },
+    "schema": {
+      "default": "",
+      "title": "Schema",
+      "type": "string"
+    },
+    "sealed_at_commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sealed At Commit"
+    },
+    "standing": {
+      "$ref": "#/$defs/Standing"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "checkpoint",
+    "title",
+    "git_revision",
+    "date",
+    "standing"
+  ],
+  "title": "GallCheckpointReceipt",
+  "type": "object"
+}

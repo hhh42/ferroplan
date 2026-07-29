@@ -46,7 +46,7 @@ ce:EcosystemController a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:RoutingCeiling ;
   ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:AgentTool ;
   ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
-  ce:maxTurns 80 ;
+  ce:maxTurns "80"^^xsd:positiveInteger ;
   ce:effort "max" .
 
 ce:ConfigLawArchitect a ce:AgentDefinition ;
@@ -55,7 +55,7 @@ ce:ConfigLawArchitect a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:ConfigCeiling ;
   ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool ;
   ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
-  ce:maxTurns 40 ;
+  ce:maxTurns "40"^^xsd:positiveInteger ;
   ce:effort "high" .
 
 ce:RdfObserver a ce:AgentDefinition ;
@@ -64,7 +64,7 @@ ce:RdfObserver a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:ObservationCeiling ;
   ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool ;
   ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
-  ce:maxTurns 40 ;
+  ce:maxTurns "40"^^xsd:positiveInteger ;
   ce:effort "high" .
 
 ce:CmcaAllocator a ce:AgentDefinition ;
@@ -73,7 +73,7 @@ ce:CmcaAllocator a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:AllocationCeiling ;
   ce:allowsTool ce:ReadTool, ce:FerroplanMcpTools ;
   ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool, ce:BashTool ;
-  ce:maxTurns 30 ;
+  ce:maxTurns "30"^^xsd:positiveInteger ;
   ce:effort "high" .
 
 ce:FerroplanPlanner a ce:AgentDefinition ;
@@ -82,7 +82,7 @@ ce:FerroplanPlanner a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:PlanningCeiling ;
   ce:allowsTool ce:ReadTool, ce:FerroplanMcpTools ;
   ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool, ce:BashTool ;
-  ce:maxTurns 50 ;
+  ce:maxTurns "50"^^xsd:positiveInteger ;
   ce:effort "high" .
 
 ce:SourceManufacturer a ce:AgentDefinition ;
@@ -91,7 +91,7 @@ ce:SourceManufacturer a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:ManufactureCeiling ;
   ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
   ce:isolatedBy "worktree" ;
-  ce:maxTurns 80 ;
+  ce:maxTurns "80"^^xsd:positiveInteger ;
   ce:effort "max" .
 
 ce:IndependentValidator a ce:AgentDefinition ;
@@ -100,7 +100,7 @@ ce:IndependentValidator a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:ValidationCeiling ;
   ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:FerroplanMcpTools ;
   ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
-  ce:maxTurns 60 ;
+  ce:maxTurns "60"^^xsd:positiveInteger ;
   ce:effort "max" .
 
 ce:ReceiptAuditor a ce:AgentDefinition ;
@@ -109,7 +109,7 @@ ce:ReceiptAuditor a ce:AgentDefinition ;
   ce:hasClaimCeiling ce:AuditCeiling ;
   ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:FerroplanMcpTools ;
   ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
-  ce:maxTurns 40 ;
+  ce:maxTurns "40"^^xsd:positiveInteger ;
   ce:effort "high" .
 
 ce:EcosystemController ce:maySpawn

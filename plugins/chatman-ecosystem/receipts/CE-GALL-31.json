@@ -1,0 +1,21 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-31",
+  "command": "grep -rn verify_chain crates/ plugins/",
+  "cwd": ".",
+  "date": "2026-07-29",
+  "exit_code": 1,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "the 5-link chain 755a2057 -> c1520c61 -> d56006af -> eb8e4645 -> d72f17f0 is evidence that links recompute, and zero evidence that the chain is a chain"
+  ],
+  "negative_falsifier": null,
+  "positive_witness": null,
+  "reason": "DEPENDENCY_MISSING",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "UNSUPPORTED",
+  "title": "Receipt chain traversal"
+}

@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "ResolutionAttempt": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate": {
+          "title": "Candidate",
+          "type": "string"
+        },
+        "outcome": {
+          "description": "Why this candidate was rejected, or 'accepted'.",
+          "title": "Outcome",
+          "type": "string"
+        },
+        "provenance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provenance"
+        }
+      },
+      "required": [
+        "candidate",
+        "outcome"
+      ],
+      "title": "ResolutionAttempt",
+      "type": "object"
+    }
+  },
+  "$id": "urn:chatman:binary-resolution:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Where an executable was found, and everything tried on the way.\n\nThe attempt list is part of the success payload, not just the failure path:\nknowing a binary resolved via `cargo run` rather than `target/release` is\nthe difference between a fast call and a rebuild.",
+  "properties": {
+    "argv": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Argv",
+      "type": "array"
+    },
+    "attempts": {
+      "items": {
+        "$ref": "#/$defs/ResolutionAttempt"
+      },
+      "title": "Attempts",
+      "type": "array"
+    },
+    "binary": {
+      "title": "Binary",
+      "type": "string"
+    },
+    "environment": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "description": "Steering variables as seen. null means unset, '' means set-but-empty.",
+      "title": "Environment",
+      "type": "object"
+    },
+    "how": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "How"
+    },
+    "project_root": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Project Root"
+    },
+    "resolved": {
+      "title": "Resolved",
+      "type": "boolean"
+    },
+    "schema": {
+      "default": "",
+      "title": "Schema",
+      "type": "string"
+    }
+  },
+  "required": [
+    "binary",
+    "resolved"
+  ],
+  "title": "BinaryResolution",
+  "type": "object"
+}

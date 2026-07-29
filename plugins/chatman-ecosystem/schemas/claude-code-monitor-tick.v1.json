@@ -1,0 +1,41 @@
+{
+  "$id": "urn:chatman:claude-code-monitor-tick:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One line of a monitor stream.\n\nPreviously untagged on both monitors, which made the two streams\nindistinguishable to a consumer reading a merged log.",
+  "properties": {
+    "observed_at_unix_ms": {
+      "title": "Observed At Unix Ms",
+      "type": "integer"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "project": {
+      "title": "Project",
+      "type": "string"
+    },
+    "schema": {
+      "default": "",
+      "title": "Schema",
+      "type": "string"
+    },
+    "stream": {
+      "enum": [
+        "receipt-frontier",
+        "phase-frontier"
+      ],
+      "title": "Stream",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stream",
+    "project",
+    "observed_at_unix_ms"
+  ],
+  "title": "MonitorTick",
+  "type": "object"
+}

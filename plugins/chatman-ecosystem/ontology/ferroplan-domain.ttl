@@ -565,7 +565,7 @@ fp:toolSourceLocation a rdf:Property ;
 
 # --- session_* / cmca_allocate tools -----------------------------------------
 # Formerly a separate server (ferroplan-session-mcp); merged into the single
-# fp:FerroplanMcp process (see below) — all 16 tools, one rmcp ServerHandler.
+# fp:FerroplanMcp process (see below) — all 17 tools, one rmcp ServerHandler.
 # Tool bodies now live in crates/ferroplan-mcp/src/session.rs (a module, not
 # a binary). toolSourceLocation values below cite the #[tool]-annotated
 # method's line, re-verified against the merged source, not carried over
@@ -681,6 +681,14 @@ fp:ToolCmcaAllocate a fp:McpTool ; rdfs:label "cmca_allocate" ; fp:providedBy fp
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload_digest" ; fp:fieldType "String" ; rdfs:comment "blake3 hex of the canonicalized payload." ] ;
   fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload" ; fp:fieldType "object" ; rdfs:comment "{schema: \"urn:chatman:cmca-allocation:v1\", name, bcinr_revision, input_digest, node_count, factor_count, lens_count, measure_count, lenses: [{id, q_q16_16}], allocations: [{id, q16_16, share}]}." ] .
 
+fp:ToolCmcaAllocateRecursive a fp:McpTool ; rdfs:label "cmca_allocate_recursive" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "session.rs:337" ;
+  rdfs:comment "Gall Checkpoint 9 (Recursive Multifractal Allocation): runs cmca_allocate's exact admission law at a root frontier, then descends into zero or more selected admitted nodes, each with a fresh local N=8/F=10 frontier, chaining every depth's payload_digest into the next depth's envelope server-side (never caller-supplied/trusted). Refuses the whole call -- no partial chain -- on: selected_parent_node naming an id that was not an admitted candidate at the immediately preceding depth (ParentNodeUnknown-shaped refusal); selected_parent_node repeating an id already used to enter an earlier depth on the same chain (cyclic-ancestry refusal); or any depth's own admission failing cmca_allocate's underlying candidate/forest/factor law. Same-input calls are byte-identical (deterministic replay) since every depth is a pure function of its own input plus the previous depth's real digest." ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "root" ; fp:fieldType "Vec<CmcaCandidate>" ; fp:required true ; rdfs:comment "Depth-one admitted frontier -- identical shape and law to cmca_allocate's candidates field." ] ;
+  fp:hasInputField [ a fp:McpToolField ; rdfs:label "descents" ; fp:fieldType "Vec<CmcaDescendStep>" ; fp:required false ; fp:defaultValue "[]" ; rdfs:comment "Each step: {selected_parent_node: String (required, must name an admitted id from the immediately preceding depth's frontier, must not repeat an id used to enter an earlier depth), candidates: Vec<CmcaCandidate> (required, exactly N=8 entries, same law as root)}." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload_digest" ; fp:fieldType "String" ; rdfs:comment "blake3 hex of the canonicalized recursive-envelope payload." ] ;
+  fp:hasOutputField [ a fp:McpToolField ; rdfs:label "payload" ; fp:fieldType "object" ; rdfs:comment "{schema: \"urn:chatman:cmca-allocation-recursive:v1\", name, depth_count, depths: [{depth, selected_parent_node: String|null, parent_payload_digest: String|null, allocation_payload_digest, allocation_payload}]}. depth 1's selected_parent_node/parent_payload_digest are null (it is the root); every subsequent depth's parent_payload_digest is the REAL previous depth's allocation_payload_digest, recomputed server-side." ] .
+
 # --- canonical_digest / bind_*_receipt / verify_receipt tools ---------------
 # Formerly a separate server (chatman-admission-mcp); merged into the single
 # fp:FerroplanMcp process. Tool bodies now live in
@@ -710,7 +718,7 @@ fp:ToolVerifyReceipt a fp:McpTool ; rdfs:label "verify_receipt" ; fp:providedBy 
 
 fp:FerroplanMcp a fp:McpServer ;
   dcterms:title "ferroplan-mcp" ;
-  rdfs:comment "The single merged MCP server for this repo: all 16 tools in one rmcp ServerHandler/process — solve/parse/validate/decompose (stateless, re-parses+re-grounds fresh each call), the persistent Session lifecycle (session_open/observe/set_goal/think/advance/status/close, grounds once and is mutated/replanned repeatedly) plus cmca_allocate, and the admission/receipt-binding tools (canonical_digest/bind_allocation_receipt/bind_plan_receipt/verify_receipt). Formerly three separate binaries/processes (ferroplan-mcp, ferroplan-session-mcp, chatman-admission-mcp); merged so an agent only has to know about one MCP server, not three. Source: crates/ferroplan-mcp/src/main.rs (solve/parse/validate/decompose + the merged ServerHandler), src/session.rs, src/admission.rs. Resource URIs for all 16 tools are uniformly ferroplan://tools/<name> post-merge (session/admission tools previously used their own ferroplan-session://, chatman-admission:// prefixes)." .
+  rdfs:comment "The single merged MCP server for this repo: all 17 tools in one rmcp ServerHandler/process — solve/parse/validate/decompose (stateless, re-parses+re-grounds fresh each call), the persistent Session lifecycle (session_open/observe/set_goal/think/advance/status/close, grounds once and is mutated/replanned repeatedly) plus cmca_allocate/cmca_allocate_recursive, and the admission/receipt-binding tools (canonical_digest/bind_allocation_receipt/bind_plan_receipt/verify_receipt). Formerly three separate binaries/processes (ferroplan-mcp, ferroplan-session-mcp, chatman-admission-mcp); merged so an agent only has to know about one MCP server, not three. Source: crates/ferroplan-mcp/src/main.rs (solve/parse/validate/decompose + the merged ServerHandler), src/session.rs, src/admission.rs. Resource URIs for all 17 tools are uniformly ferroplan://tools/<name> post-merge (session/admission tools previously used their own ferroplan-session://, chatman-admission:// prefixes)." .
 
 fp:ToolSolve a fp:McpTool ; rdfs:label "solve" ; fp:providedBy fp:FerroplanMcp ;
   rdfs:comment "Wraps ferroplan::api::solve(domain_src, problem_src, opts) -> Result<Solution, SolveError>: parses domain+problem PDDL, grounds, and searches for a plan under the given fp:Options, returning the fp:Solution shape. Inferred: field-by-field JSON request/response schema for the MCP wrapper itself (as opposed to the underlying api::solve signature, which is documented in api.rs) was not captured at fine grain in the extraction available." ;
