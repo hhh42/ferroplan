@@ -27,6 +27,7 @@ moves the confusion.
 
 from __future__ import annotations
 
+import hashlib
 import os
 import shlex
 import shutil
@@ -46,6 +47,11 @@ from models import (  # noqa: E402
     RootCandidate,
     RootsReport,
 )
+
+try:
+    from plugin_data import plugin_data_root as _resolve_plugin_data_root
+except ImportError:
+    _resolve_plugin_data_root = None
 
 #: Identifies a plugin checkout. Present in both the repo and the install cache.
 PLUGIN_MARKER = Path(".claude-plugin") / "plugin.json"
@@ -118,6 +124,29 @@ def _env_path(name: str) -> Path | None:
     """Read an environment variable as a path, treating empty as absent."""
     raw = os.environ.get(name)
     return Path(raw) if raw else None
+
+
+def _fallback_plugin_data_root() -> Path:
+    if _resolve_plugin_data_root is not None:
+        return _resolve_plugin_data_root()
+    configured = os.environ.get("CLAUDE_PLUGIN_DATA")
+    if configured:
+        return Path(configured)
+    return Path.home() / ".claude" / "plugins" / "data" / "chatman-ecosystem"
+
+
+def project_key(project: str) -> str:
+    """Stable, filesystem-safe identifier for a project checkout.
+
+    Realpaths internally, so a caller may pass a bare cwd string, an
+    already-resolved path, or `CLAUDE_PROJECT_DIR` -- the digest is the same.
+    """
+    return hashlib.sha256(os.path.realpath(project).encode("utf-8")).hexdigest()[:24]
+
+
+def project_directory(project: str) -> Path:
+    """Per-project state directory under the plugin's data root."""
+    return _fallback_plugin_data_root() / "projects" / project_key(project)
 
 
 def plugin_root(start: Path | None = None) -> Path:

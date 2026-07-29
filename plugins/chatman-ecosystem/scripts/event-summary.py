@@ -24,6 +24,7 @@ try:
     from plugin_data import plugin_data_root as resolve_plugin_data_root
 except ImportError:
     resolve_plugin_data_root = None
+from roots import project_directory, project_key  # noqa: E402
 
 SCHEMA = "urn:chatman:claude-code-lifecycle-candidate:v1"
 
@@ -45,14 +46,6 @@ def plugin_data_root() -> Path:
     if configured:
         return Path(configured)
     return Path.home() / ".claude" / "plugins" / "data" / "chatman-ecosystem"
-
-
-def project_key(project: str) -> str:
-    return hashlib.sha256(os.path.realpath(project).encode("utf-8")).hexdigest()[:24]
-
-
-def project_directory(project: str) -> Path:
-    return plugin_data_root() / "projects" / project_key(project)
 
 
 @contextlib.contextmanager

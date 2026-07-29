@@ -36,6 +36,7 @@ from bash_classify import is_mutation as bash_is_mutation  # noqa: E402
 from bash_classify import is_protected as bash_is_protected  # noqa: E402
 from mcp_client import McpClient, McpToolError, tool_structured_result  # noqa: E402
 from plugin_data import plugin_data_root as resolve_plugin_data_root  # noqa: E402
+from roots import project_directory, project_key  # noqa: E402
 
 STATE_SCHEMA = "urn:chatman:claude-code-loop-state:v1"
 EVENT_SCHEMA = "urn:chatman:claude-code-observation:v1"
@@ -50,16 +51,11 @@ def sha256(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
-def project_key(cwd: str) -> str:
-    return hashlib.sha256(os.path.realpath(cwd).encode("utf-8")).hexdigest()[:24]
-
-
 def plugin_data_root() -> Path:
     return resolve_plugin_data_root()
 
 
-def project_dir(cwd: str) -> Path:
-    return plugin_data_root() / "projects" / project_key(cwd)
+project_dir = project_directory
 
 
 def default_state(cwd: str) -> dict[str, Any]:
