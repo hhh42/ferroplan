@@ -1,6 +1,6 @@
 # Gall Checkpoints for the Chatman Ecosystem
 
-Last updated: 2026-07-29 (second same-day session audit, see "Audit log" at
+Last updated: 2026-07-29 (third same-day session audit, see "Audit log" at
 the end).
 
 Each checkpoint must be a **complete, useful system at its own scale**. A
@@ -204,68 +204,54 @@ history):
 - Conclusion at the time: role separation was **prompt-level compliance**,
   not **mechanical enforcement**.
 
-2026-07-29 second-pass audit (this session, later same day) — implemented
-the named next step:
-- Added `tools:`/`disallowedTools:` frontmatter (and `isolation: worktree`
-  for `source-manufacturer`) to all 8 agent `.md` files, adopting exactly
-  the per-agent tool lists PR #2 had already worked out (the smallest slice
-  of that PR's rewrite — not the rest of its body/effort/maxTurns changes).
-- `claude plugin validate plugins/chatman-ecosystem` and `claude plugin
-  validate .` (marketplace) both still `Validation passed with warnings`
-  after the change — the only warning (`version: No version specified`) is
-  pre-existing and reproduces identically on unmodified `main` (verified via
-  `git stash`), so it is not a regression from this change.
-- Live mechanical-refusal test (real nested `claude -p` session, plugin
-  installed via `claude plugin marketplace add . && claude plugin install
-  chatman-ecosystem@chatman-ecosystem`, `--permission-mode acceptEdits`):
-  - `rdf-observer` instructed to `Write` to
-    `/tmp/claude-scratch-rdf-observer-test.txt` → verbatim harness error
-    `Error: No such tool available: Write. Write exists but is not enabled
-    in this context.` File confirmed absent afterward (`ls` → No such file).
-  - `cmca-allocator` instructed to run `Bash` (`echo hello > ...`) →
-    verbatim harness error `Error: No such tool available: Bash. Bash
-    exists but is not enabled in this context.` File confirmed absent.
-  - `source-manufacturer` (which *does* have `Write` in its allow-list)
-    instructed to `Write` to `/tmp/claude-scratch-manufacturer-test.txt` →
-    got a *different* error class entirely: a permission-grant prompt
-    (`Claude requested permissions to write to ..., but you haven't granted
-    it yet.`), not `No such tool available`. This is exactly the expected
-    contrast — the tool is registered for this agent (permission layer
-    applies), whereas for `rdf-observer`/`cmca-allocator` the tool doesn't
-    exist in their resolved set at all (harness layer applies, upstream of
-    permissions). Confirms the allow-list, not just the deny-list, is being
-    honored.
-- **Gap found, not yet resolved**: the same `source-manufacturer` test
-  reported `isolation: worktree` was *not* honored when the subagent was
-  launched directly via `Task` in this test harness — "the agent was
-  launched without `isolation: \"worktree\"`, so no isolated git worktree
-  was created." Whether the frontmatter's `isolation:` field is actually
-  wired to real subagent launches (vs. only to the top-level `Agent` tool's
-  own `isolation` parameter) is unresolved. This affects Checkpoint 3's
-  "Manufacturer runs in a worktree" sub-claim and overlaps Checkpoint 11 —
-  do not use this pass's evidence to claim worktree isolation works.
-- **Not yet re-tested this pass**: `config-law-architect`,
-  `ecosystem-controller`, `ferroplan-planner`, `independent-validator`,
-  `receipt-auditor` were given the same `tools:`/`disallowedTools:`
-  treatment but were not individually live-refusal-tested (only
-  `rdf-observer` and `cmca-allocator` were, plus the allow-list positive
-  case on `source-manufacturer`). The frontmatter is byte-identical in
-  shape to the two that were tested, so the mechanism should generalize,
-  but that is an inference, not a receipt, for the untested five.
-- `ecosystem-controller`'s `tools:` line uses the plain `Agent` tool name
-  (not PR #2's `Agent(chatman-ecosystem:config-law-architect, ...)`
-  restricted-subagent-list syntax) — that finer-grained syntax was not
-  independently confirmed as currently supported, so the conservative form
-  was used instead. Worth revisiting if per-agent Agent-tool scoping turns
-  out to be real syntax.
+2026-07-29 third-pass note (this session, later same day again) — **did
+not land a third competing diff here.** This pass independently started
+the same named next step (adding `tools:`/`disallowedTools:` frontmatter to
+all 8 agents) before discovering — only after committing locally — that
+two other same-day sessions had already opened draft PRs against this
+exact set of files:
+- PR #4 (`gall-checkpoints/2026-07-29-agent-tools-frontmatter`): adds
+  `disallowedTools: Write, Edit, NotebookEdit` only (deny-list, no
+  allow-list) to the 7 non-manufacturing agents.
+- PR #5 (`gall-checkpoints/2026-07-29-agent-tool-grants`): adds `tools:`
+  allow-lists to all 8 agents *and* a `bash-write-fence.py` `PreToolUse`
+  hook closing the "Bash can still write" gap that PR #4 itself flagged.
+  Also fixes a pre-existing `cargo fmt` drift. PR #5's own description
+  explicitly flags that reconciling it with PR #4 "isn't a call a single
+  audit pass should make unilaterally."
 
-**Next step**: live-refusal-test the remaining 5 agents
-(`config-law-architect`, `ecosystem-controller`, `ferroplan-planner`,
-`independent-validator`, `receipt-auditor`) the same way; resolve whether
-`isolation: worktree` frontmatter is actually wired to subagent launches
-(coordinate with Checkpoint 11); decide whether `ecosystem-controller`
-should adopt the `Agent(...)` restricted-subagent-list syntax once its
-support is confirmed.
+Rather than open a *fourth* unreconciled branch touching the same 8 files,
+this pass reverted its local frontmatter edits and did not push them.
+What this pass's now-discarded attempt did verify live, offered here as
+supplementary input for whoever reconciles PR #4/#5 (not as this branch's
+own evidence, since the code isn't shipped here):
+
+- The same allow-list mechanism PR #5 ships was independently reproduced:
+  a nested `claude -p` session (plugin installed via `claude plugin
+  marketplace add . && claude plugin install
+  chatman-ecosystem@chatman-ecosystem`, `--permission-mode acceptEdits`)
+  showed `rdf-observer` and `cmca-allocator` both getting a harness-level
+  `Error: No such tool available: Write`/`Bash` (file confirmed absent
+  afterward), while `source-manufacturer` (allow-listed for `Write`) hit a
+  *different* error class — a permission-grant prompt, not
+  "tool unavailable" — confirming the allow-list is honored distinctly
+  from the deny-list, upstream of the permission layer.
+- **New finding neither PR #4 nor PR #5's descriptions mention**: adding
+  `isolation: worktree` to `source-manufacturer`'s frontmatter and then
+  launching it directly via `Task` did **not** appear to create a real git
+  worktree — the subagent reported "the agent was launched without
+  `isolation: \"worktree\"`, so no isolated git worktree was created."
+  Whether that frontmatter field is wired to direct `Task` launches at all
+  (vs. only to some other invocation path) is unresolved and matters for
+  this checkpoint's "Manufacturer runs in a worktree" sub-claim and for
+  Checkpoint 11. Flagged here so it isn't lost; not independently
+  reproduced a second time in this pass.
+
+**Next step**: someone needs to actually reconcile PR #4 and PR #5 (or
+close one in favor of the other) before this checkpoint's standing can
+move past `PARTIAL_ALIVE`; separately, verify whether `isolation: worktree`
+frontmatter actually triggers real worktree creation on subagent launch
+before either PR claims the "runs in a worktree" sub-clause.
 
 ---
 
@@ -1033,76 +1019,68 @@ implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
 
-## 2026-07-29 — second same-day pass (Recommended Release Sequence #2)
+## 2026-07-29 — third same-day pass (branch collision found and avoided)
 
-Picked up the named next steps from the first pass, in order: added
-`tools:`/`disallowedTools:` frontmatter to all 8 agents (Checkpoint 3, item
-2 in the Recommended Release Sequence), and patched `get-val.sh`'s cmake
-invocation (part of Checkpoint 13, item 4 in the sequence). Did not attempt
-item 1 (clean-cache install) or item 3 (worktree manufacture) this pass —
-see below for why item 3 was touched only incidentally.
+Started on Checkpoint 3 (item 2 in the Recommended Release Sequence),
+independently re-deriving the same `tools:`/`disallowedTools:` frontmatter
+fix the first pass had named as the next step — without first checking
+`git branch -r` for same-day work, despite this file's own instructions
+(and the scheduling prompt) saying to. That check was done late, only
+after committing locally, and turned up three sibling branches/PRs already
+opened by other same-day sessions:
 
-**Checkpoint 3 (Mechanical Agent Authority)** — real work, real evidence,
-not a mock:
-- Adopted PR #2's already-worked-out per-agent `tools:`/`disallowedTools:`
-  lists (not the rest of that PR's rewrite) into the 8 agent `.md` files on
-  `main`. Added `isolation: worktree` to `source-manufacturer` since that
-  sub-claim belongs to this same checkpoint.
-- Verified no regression: `claude plugin validate plugins/chatman-ecosystem`
-  and `claude plugin validate .` both `Validation passed with warnings`
-  before and after the change (`git stash` comparison) — the one warning
-  (`version` unset) is pre-existing and unrelated.
-- Installed the plugin for real in this container (`claude plugin
-  marketplace add . && claude plugin install
-  chatman-ecosystem@chatman-ecosystem`) and ran genuine nested `claude -p`
-  sessions (`--permission-mode acceptEdits`, since `--dangerously-skip-permissions`
-  is blocked for root in this container) to actually spawn subagents and
-  attempt forbidden tool calls:
-  - `rdf-observer` tried `Write` → harness error `No such tool available:
-    Write`; target file confirmed absent afterward.
-  - `cmca-allocator` tried `Bash` → harness error `No such tool available:
-    Bash`; target file confirmed absent afterward.
-  - `source-manufacturer` (which *is* allow-listed for `Write`) tried the
-    same kind of write → got a *different*, permission-layer error
-    (`Claude requested permissions to write to ..., but you haven't granted
-    it yet.`), confirming the allow-list is real too, not just the deny-list.
-- This is a genuine standing change from the first pass's finding ("prompt-
-  level compliance... no mechanical backstop") to actual harness-level
-  denial, independently confirmed by file-absence, for 2 of 8 agents plus
-  one allow-list positive control. Kept the overall label at
-  `PARTIAL_ALIVE` rather than `ALIVE` because 5 of 8 agents were not
-  individually live-tested and the `isolation: worktree` field was found
-  **not** to trigger worktree creation when the subagent was launched
-  directly via `Task` in the same test — an honest gap, not glossed over.
-  Full detail inline under Checkpoint 3 above.
+- **PR #3** (`gall-checkpoints/2026-07-29-clean-install-plugin-version`):
+  did Checkpoint 2's clean-cache install, found and fixed the missing
+  `plugin.json` version, and documented a real LSP-loader defect.
+- **PR #4** (`gall-checkpoints/2026-07-29-agent-tools-frontmatter` — the
+  *exact branch name this pass had also picked*, causing a rejected
+  `git push`): Checkpoint 3, `disallowedTools`-only.
+- **PR #5** (`gall-checkpoints/2026-07-29-agent-tool-grants`): Checkpoint 3
+  again, more thoroughly — `tools:` allow-lists plus a `PreToolUse`
+  Bash-write-fence hook, explicitly flagging that it and PR #4 are
+  unreconciled and asking for that decision rather than making it
+  unilaterally.
 
-**Checkpoint 13 (Independent PDDL Validation)** — closed half the named gap:
+Given two open, unreconciled PRs already covering Checkpoint 3's exact
+files, this pass **reverted its own Checkpoint-3 frontmatter edits rather
+than opening a fourth competing branch** on the same 8 files. What that
+discarded attempt verified live is recorded under Checkpoint 3 above as
+supplementary input for whoever reconciles PR #4/#5 — including one finding
+(the `isolation: worktree` gap) that neither PR's own description mentions.
+Renamed this branch to `gall-checkpoints/2026-07-29-val-cmake-policy-fix`
+to avoid the collision and to reflect what it actually ships.
+
+**What this pass actually lands** — Checkpoint 13 (Independent PDDL
+Validation), the remaining half of item 4 in the Recommended Release
+Sequence not touched by any of PRs #2–#5:
 - Patched `benchmarks/get-val.sh` to pass
-  `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` by default.
-- Verified live: `rm -rf benchmarks/.val && sh benchmarks/get-val.sh` built
-  clean from nothing on this container, no manual flag required, producing
-  `benchmarks/.val/VAL/build/bin/Validate`.
-- Did not attempt the remaining half (`FERROPLAN_VAL` wiring into
-  `validator_result`) this pass — named as the next step again.
+  `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` by default (previously a manual
+  workaround noted in this file but not applied to the script itself).
+- Verified live, from nothing: `rm -rf benchmarks/.val && sh
+  benchmarks/get-val.sh` built clean on this container with no manual flag,
+  producing `benchmarks/.val/VAL/build/bin/Validate`.
+- Did not attempt the remaining half of Checkpoint 13's gap (wiring
+  `FERROPLAN_VAL`'s output into the `validator_result` field a receipt
+  actually binds) — traced it far enough to know it's an
+  independent-validator-agent/prompt concern rather than a
+  `ferroplan-mcp` schema change (`bind_plan_receipt` already accepts
+  caller-supplied `validator_result` JSON; `benchmarks/run.py` and
+  `ipc67.py` already honor `$FERROPLAN_VAL`), but did not implement or test
+  it this pass. Left as the next step.
 
-**Blocked / deferred, not attempted this pass**: Recommended Release
-Sequence item 1 (clean-cache install, Checkpoint 2) still needs an external
-harness per the first pass's finding; not re-attempted. Item 3 (worktree
-manufacture, Checkpoint 11) was not implemented, though this pass
-incidentally surfaced a concrete new fact for it (`isolation: worktree`
-frontmatter alone does not appear to trigger real worktree creation on
-direct `Task` launch — whoever picks up Checkpoint 11 should verify this
-rather than assume the frontmatter field is sufficient).
+Left untouched this pass: Checkpoints 0, 1, 4–12, 14–21 (out of scope;
+Checkpoints 2 and 3 already have open PRs from sibling sessions today, see
+above).
 
 Concrete artifacts left behind by this pass:
-- `plugins/chatman-ecosystem/agents/*.md` — all 8 now carry
-  `tools:`/`disallowedTools:` (and `source-manufacturer` additionally
-  `isolation: worktree`).
-- `benchmarks/get-val.sh` — cmake policy flag now built in.
-- This audit entry.
+- `benchmarks/get-val.sh` — cmake policy flag now built in by default.
+- This audit entry, and the supplementary findings folded into
+  Checkpoint 3's evidence above (not shipped as code in this branch).
 
-Named next steps, not yet started: live-refusal-test the remaining 5
-agents for Checkpoint 3; resolve the `isolation: worktree` discrepancy
-(coordinate with Checkpoint 11); wire `FERROPLAN_VAL` into
-`validator_result` for Checkpoint 13; attempt a genuine clean-cache install
-for Checkpoint 2; resolve PR #2's `CI / test` failure or supersede it.
+Named next steps, not yet started: reconcile PR #4 vs. PR #5 for
+Checkpoint 3 (a human/maintainer call, not a further audit pass); verify
+whether `isolation: worktree` frontmatter actually triggers real worktree
+creation on subagent launch; wire independent-validator's VAL output into
+`bind_plan_receipt`'s `validator_result` for Checkpoint 13; attempt a
+genuine clean-cache install for Checkpoint 2 if PR #3 doesn't already close
+it; resolve PR #2's `CI / test` failure or supersede it.
