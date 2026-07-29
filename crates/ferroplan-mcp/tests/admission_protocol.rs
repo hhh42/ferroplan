@@ -190,6 +190,67 @@ fn canonical_digest_happy_path() {
     assert_eq!(digest, expected);
 }
 
+/// Regression test for a real client-observed defect: an MCP client can send
+/// an `any_json`-schema argument as a JSON-encoded *string* rather than a
+/// native value (observed in practice against this exact tool — the
+/// stringified form defeated `canonicalize`'s key-sorting because the value
+/// never became a `Value::Object`/`Value::Array`). `coerce_stringified_json`
+/// must recover the same canonicalization as a native argument.
+#[test]
+fn canonical_digest_accepts_a_stringified_json_value() {
+    let resp = drive(&[tool_call(
+        1,
+        "canonical_digest",
+        json!({"value": "{\"b\": 2, \"a\": 1}"}),
+    )]);
+    let out = structured(&find_response(&resp, 1));
+    // Same key-sorted result as the native-object happy path, proving the
+    // string was parsed and canonicalized, not merely echoed back.
+    assert_eq!(out["canonical"], json!({"a": 1, "b": 2}));
+    let expected = blake3::hash(&serde_json::to_vec(&json!({"a": 1, "b": 2})).unwrap())
+        .to_hex()
+        .to_string();
+    assert_eq!(out["digest"], expected);
+}
+
+/// A string that is not itself JSON (or parses to a bare scalar) must be
+/// left exactly as-is — `coerce_stringified_json` only recovers structure
+/// that transit already lost, it never reinterprets a real string field.
+#[test]
+fn canonical_digest_leaves_a_non_json_string_untouched() {
+    let resp = drive(&[tool_call(1, "canonical_digest", json!({"value": "just text"}))]);
+    let out = structured(&find_response(&resp, 1));
+    assert_eq!(out["canonical"], json!("just text"));
+}
+
+#[test]
+fn bind_allocation_receipt_accepts_stringified_candidates_and_allocation_result() {
+    // Same inputs as `bind_allocation_receipt_happy_path`, but every
+    // `any_json` argument is JSON-encoded as a string first — reproducing
+    // what a real client was observed sending.
+    let resp = drive(&[tool_call(
+        1,
+        "bind_allocation_receipt",
+        json!({
+            "candidates": serde_json::to_string(&eight_candidates()).unwrap(),
+            "allocation_result":
+                serde_json::to_string(&allocation_result_with(BCINR_REVISION, 8)).unwrap(),
+            "observation_frontier": serde_json::to_string(&json!({"frontier": "empty"})).unwrap(),
+        }),
+    )]);
+    let out = structured(&find_response(&resp, 1));
+    assert_eq!(out["schema"], "urn:chatman:admission-envelope:v1");
+    assert_eq!(out["kind"], "allocation");
+    assert_eq!(
+        out["payload"]["candidates"], eight_candidates(),
+        "stringified candidates must be recovered as the real array, not left as text"
+    );
+    assert_eq!(
+        out["payload"]["bcinr_revision"], BCINR_REVISION,
+        "payload carries the admitted BCINR revision"
+    );
+}
+
 #[test]
 fn bind_allocation_receipt_happy_path() {
     let resp = drive(&[tool_call(

@@ -57,6 +57,30 @@ fn any_json(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
     schemars::json_schema!({})
 }
 
+/// Some MCP clients, faced with the unconstrained `any_json` schema above,
+/// serialize the argument as a JSON-encoded *string* instead of passing the
+/// array/object natively — observed reproducibly against `canonical_digest`,
+/// `bind_allocation_receipt`, and `bind_plan_receipt` in the same session
+/// (the returned "canonical" form preserved the caller's original key order
+/// instead of `canonicalize`'s alphabetical sort, proving the value never
+/// reached `Value::Object`/`Value::Array` in the first place).
+///
+/// Defensively re-parse: a string that itself parses as a JSON array or
+/// object is treated as that parsed value. A plain string that is not JSON
+/// (or that parses to a scalar) is left untouched, so a legitimately
+/// string-typed field can never be corrupted by this — it only ever
+/// recovers structure that was already lost in transit, never invents any.
+fn coerce_stringified_json(value: Value) -> Value {
+    if let Value::String(text) = &value {
+        if let Ok(parsed) = serde_json::from_str::<Value>(text) {
+            if matches!(parsed, Value::Array(_) | Value::Object(_)) {
+                return parsed;
+            }
+        }
+    }
+    value
+}
+
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct DigestInput {
@@ -156,7 +180,7 @@ fn to_result(result: Result<Value, String>) -> Result<CallToolResult, McpError> 
 }
 
 fn tool_canonical_digest(input: DigestInput) -> Result<Value, String> {
-    let canonical = canonicalize(&input.value);
+    let canonical = canonicalize(&coerce_stringified_json(input.value));
     Ok(json!({
         "schema": "urn:chatman:canonical-digest:v1",
         "algorithm": "BLAKE3",
@@ -168,10 +192,10 @@ fn tool_canonical_digest(input: DigestInput) -> Result<Value, String> {
 fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
     validate_digest(input.previous_receipt.as_deref(), "previous_receipt")?;
 
-    let candidates = canonicalize(&input.candidates);
+    let candidates = canonicalize(&coerce_stringified_json(input.candidates));
     require_array_len(&candidates, "candidates", 8)?;
 
-    let allocation_result = canonicalize(&input.allocation_result);
+    let allocation_result = canonicalize(&coerce_stringified_json(input.allocation_result));
     let revision = allocation_result
         .pointer("/payload/bcinr_revision")
         .and_then(Value::as_str)
@@ -186,7 +210,7 @@ fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
         .ok_or_else(|| "allocation_result lacks payload.allocations".to_owned())?;
     require_array_len(allocations, "allocation_result.payload.allocations", 8)?;
 
-    let observation_frontier = canonicalize(&input.observation_frontier);
+    let observation_frontier = canonicalize(&coerce_stringified_json(input.observation_frontier));
     let payload = canonicalize(&json!({
         "schema": "urn:chatman:allocation-admission-payload:v1",
         "bcinr_revision": BCINR_REVISION,
@@ -205,7 +229,7 @@ fn tool_bind_plan(input: BindPlanInput) -> Result<Value, String> {
     validate_digest(Some(&input.allocation_receipt), "allocation_receipt")?;
     validate_digest(input.previous_receipt.as_deref(), "previous_receipt")?;
 
-    let session_think = canonicalize(&input.session_think);
+    let session_think = canonicalize(&coerce_stringified_json(input.session_think));
     let plan = session_think
         .get("plan")
         .filter(|value| !value.is_null())
@@ -223,7 +247,7 @@ fn tool_bind_plan(input: BindPlanInput) -> Result<Value, String> {
         .ok_or_else(|| "session_think lacks a receipt".to_owned())?;
     validate_digest(Some(&session_receipt), "session_think.receipt")?;
 
-    let validator_result = canonicalize(&input.validator_result);
+    let validator_result = canonicalize(&coerce_stringified_json(input.validator_result));
     let validator_valid = validator_result
         .get("valid")
         .and_then(Value::as_bool)
@@ -234,7 +258,7 @@ fn tool_bind_plan(input: BindPlanInput) -> Result<Value, String> {
     }
 
     let plan = canonicalize(&plan);
-    let observation_frontier = canonicalize(&input.observation_frontier);
+    let observation_frontier = canonicalize(&coerce_stringified_json(input.observation_frontier));
     let payload = canonicalize(&json!({
         "schema": "urn:chatman:plan-admission-payload:v1",
         "session_receipt": session_receipt,
@@ -252,8 +276,8 @@ fn tool_bind_plan(input: BindPlanInput) -> Result<Value, String> {
 }
 
 fn tool_verify(input: VerifyInput) -> Result<Value, String> {
-    let object = input
-        .envelope
+    let envelope = coerce_stringified_json(input.envelope);
+    let object = envelope
         .as_object()
         .ok_or_else(|| "envelope must be an object".to_owned())?;
     let kind = required_str(object, "kind")?;
