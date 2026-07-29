@@ -29,23 +29,13 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bash_classify import is_mutation as bash_is_mutation  # noqa: E402
 from mcp_client import McpClient, McpToolError, tool_structured_result  # noqa: E402
 from plugin_data import plugin_data_root as resolve_plugin_data_root  # noqa: E402
 
 STATE_SCHEMA = "urn:chatman:claude-code-phase-state:v1"
 EVENT_SCHEMA = "urn:chatman:claude-code-phase-event:v1"
 RECEIPT_RE = re.compile(r"^[0-9a-fA-F]{64}$")
-MUTATING_BASH = re.compile(
-    r"(?:^|[;&|]\s*)"
-    r"(?:git\s+(?:add|commit|merge|rebase|reset|clean|checkout|switch|branch|tag)|"
-    r"cargo\s+(?:fmt|fix|update|install)|"
-    r"npm\s+(?:install|version)|"
-    r"(?:rm|mv|cp|mkdir|touch|chmod|chown)\b|"
-    r"(?:sed\s+-i|perl\s+-pi)|"
-    r"(?:tee\s+|cat\s+[^|;&]*>)|"
-    r"python(?:3)?\s+[^|;&]*(?:write|generate|update|patch))",
-    re.IGNORECASE,
-)
 
 
 def plugin_root() -> Path:
@@ -396,8 +386,10 @@ def is_mutation(payload: dict[str, Any]) -> bool:
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
         return False
+    # No self-exemption here, by design: a phase vector collapses on every
+    # observed mutation, including the ledger's own.
     command = tool_input.get("command")
-    return isinstance(command, str) and bool(MUTATING_BASH.search(command))
+    return isinstance(command, str) and bash_is_mutation(command)
 
 
 def invalidate_from_mutation(payload: dict[str, Any]) -> None:
