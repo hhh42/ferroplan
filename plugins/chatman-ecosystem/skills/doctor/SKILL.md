@@ -1,32 +1,39 @@
 ---
 name: doctor
-description: Diagnose Chatman Phase Engine installation, configuration, MCP/LSP resolution, Python scripts, Rust binaries, PDDL world projection, phase invariants, and receipt frontier. Use when the plugin fails to load or before claiming operational standing.
+description: Diagnose the complete Chatman Phase Engine projection: loader, ownership, agents, hooks, monitors, MCP resolution, scripts, Rust binaries, PDDL world, phase state, actuation objects, and receipts. Use before claiming operational standing.
 effort: high
 ---
 
 Diagnose `$ARGUMENTS` without repairing automatically.
 
-1. Inspect plugin inventory and loader validation:
+1. Inspect plugin inventory and current loader validation:
    ```sh
    claude plugin details chatman-ecosystem@chatman-ecosystem
-   cd "$CLAUDE_PLUGIN_ROOT" && claude plugin validate .
+   claude plugin validate "$CLAUDE_PLUGIN_ROOT" --strict
    ```
-2. Read `profiles/config-schema-epoch.json` and classify loader/LSP disagreements.
-3. Check Python syntax:
+2. Run source-level projection validation:
    ```sh
-   python3 -m py_compile \
-     "$CLAUDE_PLUGIN_ROOT/scripts/loop.py" \
-     "$CLAUDE_PLUGIN_ROOT/scripts/phase.py" \
-     "$CLAUDE_PLUGIN_ROOT/scripts/project-world.py"
+   python3 "$CLAUDE_PLUGIN_ROOT/scripts/validate-claude-projection.py" \
+     --plugin-root "$CLAUDE_PLUGIN_ROOT"
    ```
-4. Check shell resolver syntax with `sh -n`.
-5. Check Rust binaries in the Ferroplan checkout:
+3. Read `profiles/config-schema-epoch.json`, `profiles/claude-projection.json`, and `profiles/artifact-ownership.json`.
+4. Confirm the main plugin has no global LSP registration and the standalone validator remains explicit.
+5. Check every Python script:
+   ```sh
+   python3 -m compileall -q "$CLAUDE_PLUGIN_ROOT/scripts"
+   ```
+6. Check shell resolver syntax with `sh -n`.
+7. Check Rust binaries:
    ```sh
    cargo check -p ferroplan-mcp --bin ferroplan-mcp
    ```
-6. Generate the live PDDL problem and parse both domain and problem with stateless Ferroplan.
-7. Ping the `ferroplan` MCP server (all 16 tools: parse/solve/validate/decompose, persistent Session, Chatman admission).
-8. Read phase and hook status; validate every phase invariant.
-9. Verify the latest admission envelope when present.
+8. Initialize the single `ferroplan` MCP process; enumerate resources and all sixteen tools; exercise relevant positive and negative fixtures.
+9. Generate the live PDDL problem and parse the exact domain/problem.
+10. Read canonical and effective phase, hook status, lifecycle candidates, intents, and grants.
+11. Confirm only `source-manufacturer` can edit and it declares worktree isolation.
+12. Verify the latest admission envelope and predecessor chain when present.
+13. Check monitor activation predicates and report project-scope monitor suppression as an expected loader boundary.
 
-Report each surface as `ALIVE`, `PARTIAL_ALIVE`, `BUILD_BROKEN`, or `UNKNOWN`. Do not repair, publish, or upgrade standing from inspection alone.
+Report each surface as `ALIVE`, `PARTIAL_ALIVE`, `BLOCKED`, `BUILD_BROKEN`, `UNKNOWN`, or `UNSUPPORTED` with exact evidence and limitations.
+
+Do not repair, publish, or upgrade standing from inspection alone.
