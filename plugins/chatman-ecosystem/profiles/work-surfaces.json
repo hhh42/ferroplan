@@ -1,5 +1,16 @@
 {
-  "schema": "urn:chatman:cmca-work-frontier:v1",
+  "schema": "urn:chatman:cmca-work-frontier:v2",
+  "release": "26.7.29",
+  "node_count": 8,
+  "factor_count": 10,
+  "recursion": {
+    "enabled": true,
+    "branching_factor": 8,
+    "parent_allocation_receipt_required": true,
+    "local_observation_frontier_required": true,
+    "return_consequence_required": true,
+    "law": "every depth is a separately admitted bounded eight-node frontier; never flatten recursive nodes into one unbounded candidate array"
+  },
   "factor_order": [
     "accessFrequency",
     "businessValue",
@@ -12,7 +23,7 @@
     "verificationCost",
     "downstreamConsequence"
   ],
-  "surface_paths_note": "Repository paths per surface, keyed by candidate id. Kept out of `candidates` so that `candidates` can be passed verbatim to the ferroplan-mcp `cmca_allocate` tool, whose input is strict (`deny_unknown_fields`) and rejects an unknown `paths` key.",
+  "surface_paths_note": "Repository paths per surface, keyed by candidate id. Kept out of candidates so candidates can be passed verbatim to the strict ferroplan-mcp cmca_allocate input.",
   "surface_paths": {
     "correctness": [
       "crates/ferroplan/src/verify.rs",
@@ -55,137 +66,49 @@
     {
       "id": "correctness",
       "parent": null,
-      "factors": [
-        0.9,
-        10.0,
-        0.9,
-        0.3,
-        0.8,
-        0.9,
-        1.0,
-        1.0,
-        0.9,
-        1000.0
-      ],
+      "factors": [0.9, 10.0, 0.9, 0.3, 0.8, 0.9, 1.0, 1.0, 0.9, 1000.0],
       "cost": 1.0
     },
     {
       "id": "planner-core",
       "parent": 0,
-      "factors": [
-        0.9,
-        9.0,
-        0.8,
-        0.4,
-        0.8,
-        0.9,
-        1.0,
-        1.0,
-        0.8,
-        800.0
-      ],
+      "factors": [0.9, 9.0, 0.8, 0.4, 0.8, 0.9, 1.0, 1.0, 0.8, 800.0],
       "cost": 1.0
     },
     {
       "id": "session-runtime",
       "parent": 0,
-      "factors": [
-        0.9,
-        9.0,
-        0.8,
-        0.6,
-        0.9,
-        0.9,
-        1.0,
-        1.0,
-        0.8,
-        900.0
-      ],
+      "factors": [0.9, 9.0, 0.8, 0.6, 0.9, 0.9, 1.0, 1.0, 0.8, 900.0],
       "cost": 1.0
     },
     {
       "id": "mcp-protocol",
       "parent": 2,
-      "factors": [
-        0.8,
-        8.0,
-        0.6,
-        0.8,
-        0.8,
-        0.8,
-        1.0,
-        1.0,
-        0.7,
-        700.0
-      ],
+      "factors": [0.8, 8.0, 0.6, 0.8, 0.8, 0.8, 1.0, 1.0, 0.7, 700.0],
       "cost": 1.0
     },
     {
       "id": "claude-plugin",
       "parent": 3,
-      "factors": [
-        0.8,
-        8.0,
-        0.7,
-        0.9,
-        0.9,
-        0.8,
-        1.0,
-        1.0,
-        0.7,
-        750.0
-      ],
+      "factors": [0.8, 8.0, 0.7, 0.9, 0.9, 0.8, 1.0, 1.0, 0.7, 750.0],
       "cost": 1.0
     },
     {
       "id": "semantic-projection",
       "parent": 4,
-      "factors": [
-        0.7,
-        8.0,
-        0.7,
-        0.9,
-        0.8,
-        0.8,
-        1.0,
-        1.0,
-        0.8,
-        850.0
-      ],
+      "factors": [0.7, 8.0, 0.7, 0.9, 0.8, 0.8, 1.0, 1.0, 0.8, 850.0],
       "cost": 1.0
     },
     {
       "id": "receipt-security",
       "parent": 4,
-      "factors": [
-        0.9,
-        10.0,
-        0.8,
-        0.7,
-        0.9,
-        0.9,
-        1.0,
-        1.0,
-        0.9,
-        1000.0
-      ],
+      "factors": [0.9, 10.0, 0.8, 0.7, 0.9, 0.9, 1.0, 1.0, 0.9, 1000.0],
       "cost": 1.0
     },
     {
       "id": "evidence",
       "parent": 0,
-      "factors": [
-        0.7,
-        7.0,
-        0.8,
-        0.7,
-        0.8,
-        0.7,
-        1.0,
-        1.0,
-        0.9,
-        650.0
-      ],
+      "factors": [0.7, 7.0, 0.8, 0.7, 0.8, 0.7, 1.0, 1.0, 0.9, 650.0],
       "cost": 1.0
     }
   ]
