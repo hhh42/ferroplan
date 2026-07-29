@@ -8,8 +8,9 @@ declarations that no consumer was ever checked against.
 
 Sources and their projections:
 
-    scripts/models.py               -->  schemas/*.json   (JSON Schema per urn)
-    ontology/authority-graph.ttl    -->  agents/*.md      (tools, isolation)
+    scripts/models.py               -->  schemas/*.json      (JSON Schema per urn)
+    ontology/authority-graph.ttl    -->  agents/*.md         (tools, isolation)
+    ontology/chatman-ecosystem.ttl  -->  scripts/_standing.py (standing vocabulary)
 
 The agent projection is the one that changes behaviour. The ontology declared
 `ce:allowsTool`/`ce:deniesTool` for all eight agents and an ODRL policy naming
@@ -78,6 +79,91 @@ def schema_projections(root: Path) -> list[Projection]:
         content = json.dumps(schema, indent=2, sort_keys=True) + "\n"
         out.append(Projection(root / "schemas" / urn_to_filename(model.SCHEMA), content))
     return out
+
+
+# --------------------------------------------------------------------------
+# standing vocabulary, from ontology/chatman-ecosystem.ttl
+# --------------------------------------------------------------------------
+
+
+def standing_vocabulary(root: Path) -> tuple[list[tuple[str, int, str]], list[tuple[str, str]]]:
+    """Read the standing values and reasons from the ontology.
+
+    Returned standings are ordered by descending rank so the strongest reads
+    first, which is also the order the generated enum and the documentation
+    table use -- one ordering, decided once, in the source of truth.
+    """
+    graph = rdflib.Graph().parse(root / "ontology" / "chatman-ecosystem.ttl", format="turtle")
+
+    standings = sorted(
+        (
+            str(graph.value(node, DCTERMS.title)),
+            int(graph.value(node, CE.standingRank)),
+            str(graph.value(node, rdflib.RDFS.comment)),
+        )
+        for node in graph.subjects(rdflib.RDF.type, CE.Standing)
+    )
+    reasons = sorted(
+        (str(graph.value(node, DCTERMS.title)), str(graph.value(node, rdflib.RDFS.comment)))
+        for node in graph.subjects(rdflib.RDF.type, CE.StandingReason)
+    )
+    if not standings:
+        raise SystemExit("ontology declares no ce:Standing individuals")
+    return sorted(standings, key=lambda s: -s[1]), reasons
+
+
+def standing_projection(root: Path) -> Projection:
+    standings, reasons = standing_vocabulary(root)
+
+    lines = [
+        '"""Standing vocabulary. GENERATED from ontology/chatman-ecosystem.ttl.',
+        "",
+        "Do not edit. Run `python3 scripts/generate.py build` instead.",
+        "",
+        "Three unreconciled vocabularies existed before this file: loop.py accepted",
+        "four values, docs/gall-checkpoints.md listed seven, and the canonical set has",
+        "six. A standing that cannot be recorded in the ledger is not a standing.",
+        '"""',
+        "",
+        "from __future__ import annotations",
+        "",
+        "from enum import StrEnum",
+        "",
+        "",
+        "class Standing(StrEnum):",
+        '    """The six canonical standings, strongest first."""',
+        "",
+    ]
+    for title, _rank, comment in standings:
+        lines.append(f"    #: {comment}")
+        lines.append(f'    {title} = "{title}"')
+    lines += [
+        "",
+        "",
+        "class StandingReason(StrEnum):",
+        '    """Why a standing is capped. Never a standing in its own right."""',
+        "",
+    ]
+    for title, comment in reasons:
+        lines.append(f"    #: {comment}")
+        lines.append(f'    {title} = "{title}"')
+    lines += [
+        "",
+        "",
+        "#: Advisory ordering for the rule that a checkpoint preserves the standing of",
+        "#: its predecessors. Not a lattice: UNKNOWN and UNSUPPORTED are both 'no",
+        "#: positive claim' and differ in why, not in strength.",
+        "RANK: dict[Standing, int] = {",
+    ]
+    lines += [f"    Standing.{title}: {rank}," for title, rank, _c in standings]
+    lines += [
+        "}",
+        "",
+        "#: Default for a surface that has done work but cannot be promoted.",
+        "DEFAULT = Standing.PARTIAL_ALIVE",
+        "",
+    ]
+    return Projection(root / "scripts" / "_standing.py", "\n".join(lines))
 
 
 # --------------------------------------------------------------------------
@@ -190,7 +276,9 @@ def agent_projections(root: Path) -> list[Projection]:
 
 
 def all_projections(root: Path) -> list[Projection]:
-    return [*schema_projections(root), *agent_projections(root)]
+    # Standing first: models.py imports the generated enum, so schema generation
+    # would read a stale vocabulary if the order were reversed.
+    return [standing_projection(root), *schema_projections(root), *agent_projections(root)]
 
 
 app = typer.Typer(

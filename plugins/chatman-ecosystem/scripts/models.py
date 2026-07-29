@@ -19,9 +19,14 @@ disagree with the shape it labels.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _standing import Standing, StandingReason  # noqa: E402
 
 # --------------------------------------------------------------------------
 # base
@@ -206,7 +211,9 @@ class LoopState(ChatmanModel):
     plan_receipt: str | None = None
     plan_digest: str | None = None
     session_id: str | None = None
-    standing: Literal["ALIVE", "PARTIAL_ALIVE", "BUILD_BROKEN", "UNKNOWN"] = "UNKNOWN"
+    # Typed against the generated vocabulary rather than a local Literal, which
+    # is how this field previously carried only four of the six values.
+    standing: Standing = Standing.UNKNOWN
     updated_at_unix_ms: int = 0
 
     @property

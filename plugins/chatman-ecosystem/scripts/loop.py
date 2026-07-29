@@ -27,6 +27,11 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# `_standing` is generated and imports only `enum`, so it is safe on the hook
+# path, which must stay standard-library only -- the hooks are this plugin's
+# only mechanical authority.
+from _standing import DEFAULT as STANDING_DEFAULT  # noqa: E402
+from _standing import Standing  # noqa: E402
 from mcp_client import McpClient, McpToolError, tool_structured_result  # noqa: E402
 from plugin_data import plugin_data_root as resolve_plugin_data_root  # noqa: E402
 
@@ -456,8 +461,12 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--plan-digest")
     command.add_argument(
         "--standing",
-        choices=("ALIVE", "PARTIAL_ALIVE", "BUILD_BROKEN", "UNKNOWN"),
-        default="PARTIAL_ALIVE",
+        # Projected from ontology/chatman-ecosystem.ttl via scripts/generate.py.
+        # This list was four values while the checkpoint doc used seven, so
+        # BLOCKED and UNSUPPORTED could be claimed but never recorded. A
+        # standing that cannot be recorded in the ledger is not a standing.
+        choices=tuple(Standing),
+        default=str(STANDING_DEFAULT),
     )
     return root
 

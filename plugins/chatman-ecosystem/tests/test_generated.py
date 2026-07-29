@@ -68,8 +68,10 @@ def test_urn_to_filename_keeps_the_version():
 def test_check_detects_a_tampered_projection(tmp_path, monkeypatch):
     """A drift check that cannot fail is worse than no drift check."""
     root = plugin_root()
-    projections = generate.all_projections(root)
-    target = projections[0]
+    # Pick a JSON projection explicitly rather than by position: not every
+    # projection is JSON (the standing vocabulary is generated Python), and a
+    # positional pick silently broke when a new generator was added first.
+    target = next(p for p in generate.all_projections(root) if p.path.suffix == ".json")
 
     original = target.path.read_text(encoding="utf-8")
     tampered = json.loads(original)

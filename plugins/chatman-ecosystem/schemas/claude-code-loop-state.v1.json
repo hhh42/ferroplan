@@ -1,4 +1,19 @@
 {
+  "$defs": {
+    "Standing": {
+      "description": "The six canonical standings, strongest first.",
+      "enum": [
+        "ALIVE",
+        "PARTIAL_ALIVE",
+        "BLOCKED",
+        "BUILD_BROKEN",
+        "UNKNOWN",
+        "UNSUPPORTED"
+      ],
+      "title": "Standing",
+      "type": "string"
+    }
+  },
   "$id": "urn:chatman:claude-code-loop-state:v1",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -59,15 +74,8 @@
       "title": "Session Id"
     },
     "standing": {
-      "default": "UNKNOWN",
-      "enum": [
-        "ALIVE",
-        "PARTIAL_ALIVE",
-        "BUILD_BROKEN",
-        "UNKNOWN"
-      ],
-      "title": "Standing",
-      "type": "string"
+      "$ref": "#/$defs/Standing",
+      "default": "UNKNOWN"
     },
     "updated_at_unix_ms": {
       "default": 0,
