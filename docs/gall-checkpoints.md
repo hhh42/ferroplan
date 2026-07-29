@@ -1,6 +1,6 @@
 # Gall Checkpoints for the Chatman Ecosystem
 
-Last updated: 2026-07-29 (session audit, see "Audit log" at the end).
+Last updated: 2026-07-29 (second session audit, see "Audit log" at the end).
 
 Each checkpoint must be a **complete, useful system at its own scale**. A
 checkpoint is not passed because source exists. It is passed only when its
@@ -161,6 +161,84 @@ Any declared component is missing, rejected, duplicated, or silently ignored.
 update chatman-ecosystem` or equivalent) and confirm it pulls `d047fd9` or
 later; then re-run this checkpoint from a genuinely clean cache (may require
 an external harness, e.g. a throwaway container or a fresh `$HOME`).
+
+2026-07-29 second audit pass (genuinely clean `$HOME`, Claude Code 2.1.220):
+this session's own container started with an **empty** `~/.claude/plugins/`
+(confirmed: `claude plugin list` initially reported "No plugins installed"
+despite `.claude/settings.json` declaring `chatman-ecosystem@chatman-ecosystem`
+enabled) — i.e. exactly the external, separate-cache harness the prior pass
+said this checkpoint needed. Ran the real sequence:
+  ```text
+  claude plugin marketplace add seanchatmangpt/ferroplan
+  claude plugin install chatman-ecosystem@chatman-ecosystem
+  claude plugin validate <cache-path> --strict
+  claude -p "..." --no-session-persistence --session-id <fresh-uuid> --debug --debug-file <log>
+  ```
+- `marketplace add` cloned fresh and landed exactly on `main`'s current tip:
+  `~/.claude/plugins/marketplaces/chatman-ecosystem` → `git rev-parse HEAD`
+  = `61d098355bf27c04ba0e87da3e14a2e7673466dc`, identical to this repo's
+  `main` at audit time. The cache directory is versioned by that same short
+  SHA (`.../cache/chatman-ecosystem/chatman-ecosystem/61d098355bf2/`),
+  closing the "not exercised" gap from the prior pass with a real receipt.
+- `claude plugin install` succeeded, scope `user`, status `✔ enabled`.
+- **New defect (now fixed on this branch)**: `claude plugin validate
+  <cache-path> --strict` **failed** — `‼ version: No version specified.
+  Consider adding a version following semver` promoted to an error by
+  `--strict`. This directly contradicts the first pass's claim that strict
+  validation passes; `plugins/chatman-ecosystem/.claude-plugin/plugin.json`
+  genuinely had no `version` field. Fix: added `"version": "0.17.0"`
+  (matching the workspace `Cargo.toml` version) to `plugin.json`.
+  Re-validated locally after the edit: `claude plugin validate
+  plugins/chatman-ecosystem --strict` → `√ Validation passed`, and `claude
+  plugin validate . --strict` (marketplace manifest) → `√ Validation
+  passed`. Not yet re-verified through a second clean-cache clone (that
+  would require the fix to be on `main`, which it isn't yet on this
+  branch) — the local `--strict` pass is real but is a narrower proof than
+  a fresh `marketplace add` of the fixed commit.
+- **New defect found, not fixed (real falsifier hit)**: the debug log from
+  a genuinely clean session start shows
+  `[ERROR] Failed to load LSP servers for plugin chatman-ecosystem: Error:
+  Plugin option "config_lsp_root" isn't set. Open /plugin manage to
+  configure it, or check that the plugin's userConfig schema declares
+  "config_lsp_root".` — this is exactly the checkpoint's falsifier
+  ("Any declared component is missing, rejected, duplicated, or silently
+  ignored"), triggered by the **default, unconfigured state** every clean
+  install starts in (`config_lsp_root` is declared `"required": false` in
+  `plugin.json`, and its own description says "Leave empty when the binary
+  is installed"). Root-caused, not just observed: the identically-shaped
+  `${user_config.ferroplan_root}` substitution in `.mcp.json` did **not**
+  error under the same unset condition (`MCP server
+  "plugin:chatman-ecosystem:ferroplan": Starting connection` logged with no
+  error) — so Claude Code 2.1.220's LSP-server loader specifically refuses
+  to substitute an unset optional `userConfig` value where the MCP-server
+  loader tolerates it. Confirmed this isn't a plugin-script bug:
+  `scripts/run-config-lsp.sh` already handles an empty
+  `CLAUDE_CODE_CONFIG_LSP_ROOT` (`root=${CLAUDE_CODE_CONFIG_LSP_ROOT:-}`,
+  falls through to a `command -v` / adjacent-checkout search) — the error
+  fires before the script is ever invoked. Attempted
+  `claude plugin install ... --config config_lsp_root=` (explicit empty) to
+  see if an explicitly-empty value differs from unset: rejected outright
+  (`--config config_lsp_root: value is empty. Omit the flag to leave
+  "config_lsp_root" unset.`), so there is no config-side workaround
+  available from inside this plugin's manifest. Could not test the
+  "actually set to a real path" case — no `claude-code-config-lsp` binary
+  or adjacent checkout exists in this environment (named as the exact
+  blocking hop, not silently skipped).
+- Agent/hook/skill discovery reconfirmed on the clean cache specifically
+  (not just the already-warm session used in the first pass): debug log
+  shows `Total plugin agents loaded: 8`, `Registered 9 hooks from 1
+  plugins`, `Total plugin skills loaded: 13`, all agent files individually
+  logged as `Loaded agent from plugin chatman-ecosystem custom file: ...` —
+  matches the manifest's declared 8 agents exactly.
+
+**Next step**: get the `version` field fix merged to `main`, then re-run
+`marketplace add` from a clean cache once more to confirm the fix survives
+a real clone (not just a local-tree validate). Separately, decide how to
+handle the LSP loader defect: either file/track it as a Claude Code CLI
+limitation (unset optional `userConfig` should not hard-fail `lspServers`
+the way it doesn't for `mcpServers`), or restructure `.lsp.json` to avoid a
+direct `${user_config.config_lsp_root}` reference if Claude Code offers any
+other mechanism — not yet investigated.
 
 ---
 
@@ -968,3 +1046,60 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — second pass (clean-cache install, Recommended Release Sequence item 1)
+
+Picked up Checkpoint 2's explicitly named next step from the first pass:
+this scheduled-run session started with a genuinely empty
+`~/.claude/plugins/` cache (verified: `claude plugin list` said "No plugins
+installed" before any action), which is exactly the "external harness /
+fresh `$HOME`" the first pass said it lacked. Used it for a real
+`marketplace add → install → validate → session start` sequence instead of
+re-deriving evidence from the already-warm plugin cache the first pass ran
+against.
+
+Findings (see Checkpoint 2 for full detail and exact commands/output):
+
+1. Clean `marketplace add` clones and lands exactly on `main`'s current tip
+   (`61d098355bf2...`) — confirms the marketplace-refresh path works and is
+   not stale by construction on a fresh clone.
+2. Found a real, reproducible defect: `claude plugin validate --strict`
+   **fails** on `main` (missing `version` field in
+   `plugins/chatman-ecosystem/.claude-plugin/plugin.json`), contradicting
+   the first pass's "passes for both" claim — CLI version or manifest
+   drift, not re-investigated which. **Fixed** on this branch: added
+   `"version": "0.17.0"`; re-validated locally, both plugin and marketplace
+   manifests now pass `--strict`.
+3. Found a second real defect, **not fixed**: the LSP server declared in
+   `.lsp.json` fails to load at session start on any clean/default install,
+   because Claude Code 2.1.220's LSP-server loader hard-refuses an unset
+   optional `userConfig` substitution (`config_lsp_root`) where its
+   MCP-server loader tolerates the identically-shaped `ferroplan_root` case
+   fine. Root-caused to the harness, not the plugin's own
+   `run-config-lsp.sh` (which already has empty-value fallback logic that
+   never gets a chance to run). No config-side workaround exists inside
+   this plugin's manifest (`--config config_lsp_root=` is rejected as
+   invalid-empty by the CLI itself). Could not test the "value actually
+   set" case — no `claude-code-config-lsp` binary or checkout in this
+   environment (blocked hop, named honestly rather than assumed away).
+4. Reconfirmed on the clean cache (not carried over from the first pass):
+   all 8 declared agents load, 9 hooks register, 13 skills load — matches
+   the manifest exactly, no missing/duplicated/silently-ignored component
+   among those three surfaces.
+
+Checkpoint 2 standing: left at `PARTIAL_ALIVE` (the falsifier condition —
+"any declared component is missing, rejected, duplicated, or silently
+ignored" — is now confirmed *hit*, via the LSP loader failure, on real
+clean-cache evidence, not just theorized). This is a stronger and more
+honest `PARTIAL_ALIVE` than before: one open defect fixed (version field),
+the "not exercised" gap from the first pass closed with a real receipt, and
+the remaining gap sharpened to a precisely named external/harness-level
+blocker instead of an untested unknown.
+
+Not attempted this pass: Checkpoint 3's `tools:` frontmatter work (named
+next step from the first pass) — deferred in favor of finishing Checkpoint
+2's already-started thread per this file's own instructions to prefer
+finishing a started thread over starting a new one. Still open for the next
+session.
+
+Branch: `gall-checkpoints/2026-07-29-clean-install-plugin-version`.
