@@ -18,8 +18,9 @@ from __future__ import annotations
 import json
 import os
 import sys
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, TextIO
+from typing import Any, TextIO
 
 from models import ChatmanError, ChatmanModel
 

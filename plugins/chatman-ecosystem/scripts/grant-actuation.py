@@ -16,6 +16,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mcp_client import McpClient, McpToolError, tool_structured_result
+
 try:
     from plugin_data import plugin_data_root as resolve_plugin_data_root
 except ImportError:

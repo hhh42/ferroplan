@@ -11,9 +11,8 @@ from __future__ import annotations
 import itertools
 import math
 
-import pytest
-
 import phase
+import pytest
 
 #: The keys `validate_vector` actually reads (phase.py, `validate_vector`).
 #: Anything else in an invariant is silently ignored, which is exactly how

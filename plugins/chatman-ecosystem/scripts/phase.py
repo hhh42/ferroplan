@@ -20,8 +20,9 @@ import re
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 try:
     import fcntl  # type: ignore
