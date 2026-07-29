@@ -930,16 +930,23 @@ Committed and pushed straight to `agent/v26.7.29-claude-projection`
 (`af865f8`) rather than via a new branch, since fixing PR #2's own CI
 requires a commit on PR #2's own head.
 
-Confirmed via `get_workflow_job` on the re-triggered `test` job (id
-`90646355774`, commit `af865f8`): its `Format`, `Clippy`, and `Test` steps
-each completed with `conclusion: success` — the fmt fix is directly
-confirmed effective, not just inferred from a clean local reproduction.
-The job as a whole was still running at last check (on to a slow,
-unrelated `Heavy IPC regression guards (release)` step; two more steps
-queued after it) — not yet a final green `test` job conclusion, and not
-re-overclaimed as one here. See the dated Audit log entry below for the
-much bigger blocker this pass surfaced: an unreconciled same-day backlog
-of 8 open draft PRs, 3 of them directly colliding on Checkpoint 3's files.
+**Confirmed fully green** (2026-07-29, follow-up check-in): PR #2's `test`
+check run (id `90646355774`, commit `af865f8`) reached `status: completed,
+conclusion: success` at `17:01:13Z`. PR #10's own `test` check run (id
+`90648473795`, commit `f8f44de`) also reached `status: completed,
+conclusion: success` at `17:09:40Z`. The `Heavy IPC regression guards
+(release)` step that both jobs were mid-way through at the prior check was
+not stuck — it and the remaining `Docs`/`Bench compiles` steps completed
+normally. PR #10's `mergeable_state` is `clean`. This closes the loop this
+pass opened: the `CI / test` fmt failure named in the first-pass audit
+entry is confirmed fixed on both PR #2 and (once #10 merges) `main`.
+
+Not upgraded past `PARTIAL_ALIVE`: a green `CI / test` job removes a review
+blocker, it does not by itself establish new crown evidence — PR #2 is
+still `OPEN`/draft with 0 reviews, and the much bigger blocker this pass
+surfaced remains open: an unreconciled same-day backlog of 8 open draft
+PRs, 3 of them directly colliding on Checkpoint 3's files. See the dated
+Audit log entry below.
 
 ---
 
@@ -1104,17 +1111,22 @@ the jobs' final pass/fail conclusion (which could still fail on something
 this pass didn't touch, e.g. the heavy IPC guards or bench compile) was
 not yet observed and is not claimed here.
 
-**Next step:** poll `get_check_runs`/`get_workflow_job` on PR #2 and PR #10
-again once enough time has passed for the `Heavy IPC regression guards`,
-`Docs`, and `Bench compiles` steps to finish, and record the actual final
-conclusion (do not assume green from the `Format`/`Clippy`/`Test` steps
-alone). Once PR #10 merges into `main`, every other open sibling PR (#3,
-#4, #5, #6, #7, #8, #9) should be expected to newly pass (or newly fail on
-a *different*, real reason) the `test` job's fmt step — worth a fast
-recheck across all of them rather than assuming. Then the bigger remaining
-blocker is the backlog table above — reconcile Checkpoint 3's three PRs
-(#4/#5/#9), and get *all* of #2–#9 reviewed/merged into `main` so this file
-on `main` stops being 8 real audit passes behind reality. Until that
-reconciliation happens, every new session reading only `main`'s copy of
-this file is at risk of repeating already-done work exactly as #9 repeated
-#4/#5.
+**Follow-up check-in confirmed the final conclusion, not just the step-level
+signal above:** PR #2's `test` check run reached `status: completed,
+conclusion: success` at `17:01:13Z`; PR #10's own `test` check run reached
+`status: completed, conclusion: success` at `17:09:40Z`. The
+`Heavy IPC regression guards`/`Docs`/`Bench compiles` steps that were still
+queued at the prior check completed normally on both — this was slow, not
+stuck. PR #10 also reports `mergeable_state: clean`. The CI-fix thread this
+pass opened is now closed with a real, final, observed result.
+
+**Next step:** once PR #10 merges into `main`, every other open sibling PR
+(#3, #4, #5, #6, #7, #8, #9) should be expected to newly pass (or newly
+fail on a *different*, real reason) the `test` job's fmt step — worth a
+fast recheck across all of them rather than assuming. Then the bigger
+remaining blocker is the backlog table above — reconcile Checkpoint 3's
+three PRs (#4/#5/#9), and get *all* of #2–#9 reviewed/merged into `main` so
+this file on `main` stops being 8 real audit passes behind reality. Until
+that reconciliation happens, every new session reading only `main`'s copy
+of this file is at risk of repeating already-done work exactly as #9
+repeated #4/#5.
