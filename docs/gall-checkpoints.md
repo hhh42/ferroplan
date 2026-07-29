@@ -1,6 +1,7 @@
 # Gall Checkpoints for the Chatman Ecosystem
 
-Last updated: 2026-07-29 (session audit, see "Audit log" at the end).
+Last updated: 2026-07-29 (session audit, see "Audit log" at the end). Latest
+pass: CE-GALL-35, a genuine clean-cache install run.
 
 Each checkpoint must be a **complete, useful system at its own scale**. A
 checkpoint is not passed because source exists. It is passed only when its
@@ -142,9 +143,51 @@ Any declared component is missing, rejected, duplicated, or silently ignored.
 
 **Current standing:** `PARTIAL_ALIVE` (was `UNKNOWN`)
 
-2026-07-29 audit findings:
-- `claude plugin validate --strict` passes for both the plugin manifest and
-  the marketplace manifest.
+> **2026-07-29 cycle update (CE-GALL-35).** The clean-cache install this
+> checkpoint's prior pass could not exercise ("requires spawning a separate
+> Claude Code process/cache") turned out to be directly reachable: this
+> session's own container ships `~/.claude/plugins/installed_plugins.json`
+> with `"plugins": {}` -- a genuinely empty cache, not a fixture. Run for
+> real: `claude plugin marketplace add /home/user/ferroplan` → `claude
+> plugin install chatman-ecosystem@chatman-ecosystem` → `claude plugin
+> validate --strict` → a real `claude -p` session start. Two of the prior
+> pass's claims did not survive contact with that real run, and both are
+> now fixed with evidence rather than left standing:
+>
+> - **`claude plugin validate --strict` did not pass.** It failed with `×
+>   Validation failed (--strict treats warnings as errors)` because
+>   `plugin.json` declares no `version`. The prior claim that validate
+>   passes was true only in the sense that it had never actually been run
+>   against a fresh install/validate cycle. Fixed by adding `"version":
+>   "0.1.0"` to `plugin.json`; `claude plugin validate --strict` now passes
+>   for both the plugin and marketplace manifests, re-run and confirmed.
+> - **Session start was not loader-error-free.** `SessionStart` and `Stop`
+>   both crashed with a raw `ModuleNotFoundError: No module named 'typer'`
+>   traceback from `scripts/roots.py:39` -- not the shaped refusal
+>   `hookguard.py`'s own docstring promises. `roots.py` imported `typer` and
+>   `emit`/`models` (pydantic) unconditionally at module top, and
+>   `loop.py`/`phase.py` import from `roots` at their own module top, before
+>   either script dispatches on `sys.argv` to decide it is even handling a
+>   hook -- so the entire hook path paid for two third-party packages that
+>   `pyproject.toml`'s own documented policy says it must never require, and
+>   nothing in the plugin's install flow ever installs either. Fixed in
+>   `scripts/roots.py` by deferring both imports to a `_build_cli()` reached
+>   only from `if __name__ == "__main__":`; re-ran the same clean session
+>   start with `typer`/`pydantic` uninstalled and both hooks now succeed
+>   with structured JSON. See CE-GALL-35 below for the full receipt,
+>   including a still-open follow-on: the MCP server launcher itself
+>   (`run-ferroplan-mcp.sh`) still requires `typer` and failed to connect in
+>   this same clean cache.
+>
+> The remaining findings from the prior pass (marketplace-clone staleness,
+> the 8/`.mcp.json`/`.lsp.json`/`monitors`/`skills` component inventory, no
+> loader errors from missing/duplicated components) were not re-litigated
+> this pass and stand as previously recorded.
+
+2026-07-29 audit findings (prior pass, superseded above where noted):
+- ~~`claude plugin validate --strict` passes for both the plugin manifest and
+  the marketplace manifest.~~ **Superseded above: it did not pass, until
+  `plugin.json` gained a `version` field.**
 - All 8 declared agent files, `.mcp.json`, `.lsp.json`,
   `monitors/monitors.json`, `skills/` resolve on disk — no missing,
   duplicated, or silently-ignored component.
@@ -160,16 +203,19 @@ Any declared component is missing, rejected, duplicated, or silently ignored.
   `scripts/actuation-intent.py`, `scripts/grant-actuation.py`,
   `ontology/authority-graph.ttl`) exist in the source repo but are **absent
   from the plugin cache this session actually runs against.**
-- Not exercised: a true clean-cache install
-  (`marketplace add → install → validate → session start` from an empty
-  cache). That requires spawning a separate Claude Code process/cache,
-  outside a single session's tool surface — named as the exact blocking hop,
-  not silently skipped.
+- ~~Not exercised: a true clean-cache install...~~ **Superseded above: it
+  was exercised, in this session's own container.**
 
-**Next step**: reproduce the marketplace-clone refresh path (`claude plugin
-update chatman-ecosystem` or equivalent) and confirm it pulls `d047fd9` or
-later; then re-run this checkpoint from a genuinely clean cache (may require
-an external harness, e.g. a throwaway container or a fresh `$HOME`).
+**Next step**: the ferroplan MCP server cannot start in a genuinely clean
+install either (see CE-GALL-35) -- `run-ferroplan-mcp.sh` calls `roots.py
+resolve`, which still requires `typer` via `_build_cli()`. Either give
+`resolve`/`show` an `argparse`-based path that does not need `typer` (this
+command is invoked by an automated shell launcher on every session start,
+not typed by a human, so `typer`'s ergonomics are not load-bearing there),
+or make the plugin's install flow actually install `typer`/`pydantic`
+somewhere (no such mechanism exists in a Claude Code plugin manifest today).
+Also still open: the marketplace-clone staleness relative to `origin/main`
+from the prior pass.
 
 ---
 
@@ -1113,6 +1159,22 @@ cannot load.
 
 **Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
 
+> **2026-07-29 cycle update (CE-GALL-35) — sharpened.** The non-claim below
+> said runtime acceptance of `hookguard`'s refusal shapes is `UNKNOWN`. It is
+> not unknown for the specific failure this checkpoint exists to guard
+> against: `grep -rn hookguard plugins/chatman-ecosystem/scripts/*.py` shows
+> `hookguard.py` is imported by nothing. `loop.py` and `phase.py` — the only
+> two scripts `hooks.json` actually invokes for `SessionStart`/`Stop` — never
+> import it, and a real clean-cache session start crashed both with a raw
+> `ModuleNotFoundError` traceback (see CE-GALL-35), the exact shape this
+> checkpoint's "Working system" says must never happen. `hookguard` cannot
+> even in principle have caught it: the crash occurred while Python was
+> still importing `loop.py`'s own module body (a transitive `import typer`
+> in `roots.py`, pulled in before `loop.py` dispatches on `sys.argv`), which
+> is before any of `loop.py`'s code — guarded or not — runs. The unit tests
+> below are still real and still pass; what they cover is not wired to what
+> ships.
+
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-25.json`
 
 **Positive witness:** `test_guard_uses_only_the_standard_library` (plugins/chatman-ecosystem/tests/test_hookguard.py) — the last line of defence cannot itself fail on the dependency it is guarding against
@@ -1120,6 +1182,7 @@ cannot load.
 **Negative falsifier:** `test_import_failure_produces_a_refusal` (plugins/chatman-ecosystem/tests/test_hookguard.py) — a simulated ImportError yields a refusal shaped for the event, never a traceback and never a silent exit 0 on a deny path
 
 - Non-claim: no live Claude Code session has been observed honoring a hookguard refusal; runtime acceptance of the emitted shapes is UNKNOWN and is not fixable by more unit tests
+- Non-claim (2026-07-29): sharpened above from UNKNOWN to CONFIRMED UNWIRED — `hookguard.py` is imported by neither `loop.py` nor `phase.py`, the two scripts `hooks.json` actually runs, and could not have caught the CE-GALL-35 import-time crash even if it were imported, since that crash preceded any of loop.py's own code
 
 ---
 
@@ -1387,6 +1450,64 @@ weakening it to `\b` still fails the `commit-graph` case in the sibling table.
 
 ---
 
+## Hook-Path Dependency Leak (CE-GALL-35)
+
+**Defect fixed this cycle** (commit `53e5b59`)
+
+Discovered by actually running Checkpoint 2's clean-cache install rather than
+inspecting the code: this session's own container ships a genuinely empty
+`~/.claude/plugins/installed_plugins.json`, so `claude plugin marketplace add`
+→ `plugin install` → `plugin validate --strict` → a real `claude -p` session
+start were all run for real, not simulated.
+
+`scripts/roots.py` imported `typer` and `emit`/`models` (pydantic)
+unconditionally at module top. `loop.py`, `phase.py`,
+`effective-phase.py`, `grant-actuation.py`, `actuation-intent.py`, and
+`event-summary.py` all import `project_key`/`project_directory` from `roots`
+at their own module top, before any of them dispatch on `sys.argv` to decide
+whether the invocation is even a hook. `pyproject.toml`'s own documented
+policy is `runtime (hooks): standard library only`; the hook path did not
+meet it. Nothing in a Claude Code plugin manifest installs a Python
+dependency for the user, so this was not a hypothetical: `SessionStart` and
+`Stop` both crashed with a raw `ModuleNotFoundError: No module named
+'typer'` traceback in the genuinely clean cache, not the shaped refusal
+`hookguard.py`'s own docstring promises (see CE-GALL-25's sharpened
+non-claim — `hookguard.py` is unwired and could not have caught this
+regardless).
+
+**The fix is a deferral, not a removal.** `typer`/`emit`/`models` now import
+only inside `_build_cli()`, reached solely from `if __name__ == "__main__":`.
+Two things made this non-trivial:
+
+- `resolve`/`show`'s `Annotated[..., typer.Option(...)]` hints are strings
+  under `from __future__ import annotations`; Typer resolves them via
+  `typing.get_type_hints`, which looks them up in the function's
+  `__globals__` — the module dict, not `_build_cli`'s call frame. `typer`
+  and `Format` are stitched into `globals()` inside `_build_cli` for exactly
+  this reason.
+- The `BinaryResolution` → human-projection renderer used to register itself
+  as an import-time side effect (a decorator at module scope), which is what
+  `test_unresolved_binary_is_never_rendered_as_a_shell_argv` (CE-GALL-26)
+  depended on without calling the CLI. Moving it into `_build_cli` broke that
+  test; the actual fix reuses the same optional-import pattern the file
+  already used for `plugin_data` (`try: from emit import renders ... except
+  ImportError: pass`), so the renderer still registers itself whenever
+  `emit`/`models` happen to be importable, without forcing them on the hook
+  path.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-35.json`
+
+**Positive witness:** `test_hook_path_imports_without_typer_or_pydantic` (plugins/chatman-ecosystem/tests/test_roots.py:217) — `loop.py`/`phase.py` import cleanly in a subprocess with typer/pydantic/jsonschema/rdflib/pyshacl all made unimportable via a planted `sitecustomize.py`; a live `claude -p` session against the same clean cache confirmed `SessionStart`/`Stop` succeed with structured JSON instead of a traceback
+
+**Negative falsifier:** the same test, reverted — `git stash` on `scripts/roots.py` reproduces the exact pre-fix traceback and fails the test; the fix makes it pass
+
+- Non-claim: the fix is not replayed outside this session, so it is capped at `PARTIAL_ALIVE` under the promotion law regardless of the suite being green
+- Non-claim: **the MCP server launcher itself is not fixed.** `run-ferroplan-mcp.sh` calls `python3 roots.py resolve --format human`, which still requires `typer` via `_build_cli()`. In this same clean cache, the plugin-scoped `ferroplan` MCP server failed to connect with the identical `ModuleNotFoundError`. A genuinely clean install cannot start the Ferroplan MCP server at all today — named as the next step, not silently left for later
+
+---
+
 ---
 
 # Audit log
@@ -1544,3 +1665,105 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — genuine clean-cache install (CE-GALL-35, branch `gall-checkpoints/2026-07-29-clean-install-plugin-validate`)
+
+Picked up Checkpoint 2's own named next step: "reproduce the marketplace-clone
+refresh path... then re-run this checkpoint from a genuinely clean cache (may
+require an external harness, e.g. a throwaway container or a fresh `$HOME`)."
+This session's own container turned out to already be that harness:
+`~/.claude/plugins/installed_plugins.json` shipped with `"plugins": {}`, a
+real empty cache, not a constructed fixture.
+
+Ran the checkpoint's own required proof chain for real, not by inspection:
+
+```
+claude plugin marketplace add /home/user/ferroplan
+claude plugin install chatman-ecosystem@chatman-ecosystem
+claude plugin validate --strict plugins/chatman-ecosystem
+claude plugin validate --strict .claude-plugin/marketplace.json
+claude -p "..." --debug --debug-file <log>
+```
+
+**Two prior claims did not survive the real run**, and both are fixed with
+evidence in commit `53e5b59`, not just recorded as findings:
+
+1. `claude plugin validate --strict` **failed** (`plugin.json` had no
+   `version`) where the prior pass claimed it passed. The prior claim was
+   true only in the sense that this exact command had never actually been
+   executed against a real install. Fixed by adding `"version": "0.1.0"`.
+2. A clean session start **crashed** `SessionStart`/`Stop` with a raw
+   `ModuleNotFoundError: No module named 'typer'` traceback from
+   `scripts/roots.py:39`, not the "no loader errors" this checkpoint's
+   required proof demands and not the shaped refusal `hookguard.py`'s own
+   docstring promises. Root cause: `roots.py` imported `typer` and
+   `emit`/`models` (pydantic) unconditionally at module top; every hook-path
+   script (`loop.py`, `phase.py`, and four others sharing the CE-GALL-32
+   `project_key` lineage) imports from `roots` at their own module top,
+   before dispatching on `sys.argv` to decide the invocation is even a hook.
+   `pyproject.toml` already documented "runtime (hooks): standard library
+   only" — the code just didn't meet its own stated policy, and nothing in
+   a Claude Code plugin manifest installs a Python dependency for the user,
+   so this was not a hypothetical gap.
+
+**Fixing this took two tries within the same pass.** The first fix (defer
+only `typer`) was verified by re-running the actual clean session start
+rather than trusted on inspection, and that re-run surfaced a second,
+identical leak: `roots.py` also imports `emit.py`, which imports `models.py`,
+which needs `pydantic` — same class of bug, same fix shape. Both are now
+deferred into `_build_cli()`, reached only from `if __name__ ==
+"__main__":`. Making this work correctly required two non-obvious pieces:
+stitching `typer`/`Format` into the module's `globals()` from inside
+`_build_cli` (because `typing.get_type_hints` resolves `Annotated[...,
+typer.Option(...)]` hints against a function's `__globals__`, not its
+enclosing call frame), and re-registering the `BinaryResolution` human
+renderer via the same optional-import pattern already used for
+`plugin_data` in this file, after moving it broke
+`test_unresolved_binary_is_never_rendered_as_a_shell_argv` (CE-GALL-26) —
+a real, caught regression, not a hypothetical one.
+
+New falsifying test `test_hook_path_imports_without_typer_or_pydantic`
+(`tests/test_roots.py:217`) runs `loop.py`/`phase.py` imports in a subprocess
+with a planted `sitecustomize.py` blocking `typer`/`pydantic`; confirmed
+failing against the pre-fix `roots.py` via `git stash` and passing after.
+Full plugin suite: 317 tests green, `ruff check`/`ruff format --check` clean
+on touched files.
+
+**Left open, named rather than fixed:** `run-ferroplan-mcp.sh` — the actual
+MCP server launcher, invoked automatically on every session, not just human
+CLI use — calls `roots.py resolve --format human`, which still requires
+`typer` via `_build_cli()`. In this same clean cache, the plugin-scoped
+`ferroplan` MCP server failed to connect with the identical
+`ModuleNotFoundError`. **A genuinely clean install cannot start the
+Ferroplan MCP server today.** This threatens Checkpoint 7 and is the named
+next step: either give `resolve`/`show` an `argparse` path (the launcher is
+automated, not a human typing flags, so `typer`'s ergonomics are not
+load-bearing there), or find a way to make plugin install actually provision
+`typer`/`pydantic` (no such mechanism exists in a Claude Code plugin manifest
+today, as far as this pass found).
+
+**Bonus finding, not chased further:** the same clean session also logged an
+MCP server entry named plain `"ferroplan"` (no `plugin:chatman-ecosystem:`
+prefix) failing with `cannot open ${CLAUDE_PLUGIN_ROOT}/scripts/...: No such
+file` — an unexpanded environment variable. No root-level `.mcp.json` exists
+in this repository and the cause was not identified with confidence in the
+time available (possibly an artifact of this session's own repeated
+install/update cycles rather than a repository defect); recorded here rather
+than silently dropped, but explicitly **not** claimed as a diagnosed defect.
+
+**CE-GALL-25 sharpened, not just cross-referenced:** confirmed by grep that
+`hookguard.py` is imported by neither `loop.py` nor `phase.py` — the only two
+scripts `hooks.json` actually invokes for `SessionStart`/`Stop`. This is
+stronger than the prior non-claim ("runtime acceptance is UNKNOWN"): it is
+now confirmed unwired, and structurally could not have caught the typer
+crash regardless, since that crash happened while Python was still importing
+`loop.py`'s own module body, before any of `loop.py`'s code — guarded or
+not — runs.
+
+**Not touched this pass:** the marketplace-clone staleness finding from the
+prior Checkpoint 2 pass (this session added a marketplace from a local path,
+which does not reproduce a stale git-clone scenario); Checkpoints 3–34
+generally, beyond the CE-GALL-25 cross-reference above.
+
+Branch: `gall-checkpoints/2026-07-29-clean-install-plugin-validate`, commit
+`53e5b59` (code + test) plus this documentation commit.

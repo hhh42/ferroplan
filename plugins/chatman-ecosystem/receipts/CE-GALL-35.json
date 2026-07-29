@@ -1,0 +1,36 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-35",
+  "command": "python3 -m pytest tests/test_roots.py -q -k typer_or_pydantic",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "53e5b59f2e165e7997793272a664cd9c7f5e7582",
+  "known_anti_patterns": [
+    "roots.py imported typer unconditionally at module top, and emit/models (pydantic) unconditionally alongside it, even though pyproject.toml's own documented policy says 'runtime (hooks): standard library only'",
+    "loop.py, phase.py, effective-phase.py, grant-actuation.py, actuation-intent.py, and event-summary.py all import project_key/project_directory from roots.py at their own module top -- before any of them dispatch on sys.argv to decide whether this invocation is even a hook -- so the entire hook path paid for typer and pydantic on every invocation",
+    "nothing in the plugin's install flow (plugin.json has no postInstall/setup hook, and Claude Code plugin manifests do not support one) ever installs typer or pydantic, so this was not a hypothetical: a genuinely clean `claude plugin marketplace add` + `plugin install` cache crashed SessionStart and Stop with a raw ModuleNotFoundError traceback rather than the shaped refusal hookguard.py's own docstring promises",
+    "hookguard.py exists, is unit-tested (tests/test_hookguard.py, CE-GALL-25), and is never imported by loop.py or phase.py -- grep confirms it. It cannot have caught this failure even in principle: the crash happens while Python is still importing loop.py's own module body, before any of loop.py's code (guarded or not) runs. CE-GALL-25's non-claim 'runtime acceptance is UNKNOWN' should be sharpened: it is not unknown, it is confirmed unwired for import-time failures",
+    "fixing only the typer import was not sufficient: roots.py also imports emit.py, which imports models.py, which requires pydantic -- the identical class of leak, discovered only because the first fix was verified by actually re-running a clean session start rather than trusted on inspection alone",
+    "NOT fixed in this pass: run-ferroplan-mcp.sh (the actual MCP server launcher, invoked automatically by Claude Code on every session, not just human CLI use) calls `python3 roots.py resolve --format human`, which still requires typer via `_build_cli()`. In this same clean-cache session, the plugin-scoped `ferroplan` MCP server failed to connect with the same ModuleNotFoundError. Since nothing installs typer for the user, a genuinely clean install cannot start the Ferroplan MCP server at all -- this is a real, currently-open defect, not a hypothetical, and it threatens Checkpoint 7"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_roots.py:217",
+    "result": "passed (fails against the pre-fix roots.py, verified via `git stash`)",
+    "test": "test_hook_path_imports_without_typer_or_pydantic",
+    "why_this_counts": "runs `import loop` and `import phase` in a real subprocess with a sitecustomize.py that makes typer and pydantic raise ModuleNotFoundError on import, so it cannot pass by accident of whatever happens to be installed in the environment running the suite. Reverting scripts/roots.py to the pre-fix version (git stash) reproduces the exact traceback observed live in the clean claude -p session and fails this test; the fix makes it pass"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_roots.py:217",
+    "result": "passed",
+    "test": "test_hook_path_imports_without_typer_or_pydantic",
+    "why_this_counts": "the same test is also the positive witness: loop.py and phase.py import cleanly with typer/pydantic/jsonschema/rdflib/pyshacl all blocked, and a live `claude -p` run against a genuinely clean plugin cache (no typer, no pydantic installed) confirmed SessionStart and Stop hooks succeed with structured JSON output instead of a raw traceback -- the CLI itself (roots.py resolve/show) was independently re-verified working with typer/pydantic installed, so the fix is additive, not a removal of function"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Hook-path dependency leak: typer and pydantic off loop.py/phase.py's import chain"
+}
