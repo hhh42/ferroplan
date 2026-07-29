@@ -1675,6 +1675,65 @@ weakening it to `\b` still fails the `commit-graph` case in the sibling table.
 
 ---
 
+## Bash-Write Fence for Non-Manufacturing Agents (CE-GALL-35)
+
+**Defect fixed this cycle** (commit `8ae2f9f`)
+
+Checkpoint 3 ("Mechanical Agent Authority") requires that only
+`source-manufacturer` can edit source. `agents/*.md` frontmatter is
+ontology-generated and denies `Write`/`Edit`/`NotebookEdit` to the other 7
+agents (CE-GALL-27), but those same 7 agents keep `Bash`, and a named-tool
+allow-list cannot express "Bash for reads only." Live-probed: `rdf-observer`
+(`tools: Bash, Glob, Grep, Read` — no `Write`/`Edit`) successfully executed
+`echo hi > file` through `Bash` in a genuinely nested `claude --plugin-dir`
+session — the file existed on disk afterward.
+
+Two changes close this. First, `bash_classify.MUTATING_BASH` did not classify
+bare shell redirection (`echo hi > file`) as a mutation at all — only
+`tee`/`cat ... >` were covered — so `_BARE_REDIRECT` was added as a second,
+unanchored check in `is_mutation` (bare redirection can appear anywhere after
+a command's own arguments, not just at a command boundary, so it cannot ride
+on `MUTATING_BASH`'s `_SEGMENT_START`-anchored alternation). Excluded: fd
+duplication (`2>&1`, which redirects a stream, not a file) and `2>/dev/null`
+(the standard idiom for discarding stderr) — both are read-only in effect
+despite the `>` in the text; an earlier draft flagged both as mutations
+before this was caught against 20 synthetic commands. Second, a new
+`PreToolUse` hook, `scripts/bash-write-fence.py`, reads the harness-provided
+`agent_type` field on the hook payload (confirmed live by dumping a hook's
+raw stdin — not self-report), looks up that agent's own `tools:` line, and
+denies the Bash call if `bash_classify.is_mutation` says it mutates and the
+agent has no `Write`/`Edit` grant.
+
+**Method note.** A prior same-day pass tried to establish per-agent tool
+availability by asking an agent to self-report its own tool list, and found
+that method unreliable (an identical prompt against the same agent produced
+three mutually contradictory answers across three runs). This receipt does
+not rely on that method: its evidence is either a file that does or does not
+exist on disk after a live nested-session probe, or an automated regression
+test — never a model's own account of its tools.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-35.json`
+
+**Positive witness:** `test_non_manufacturing_agent_is_denied_a_bash_write`
+(plugins/chatman-ecosystem/tests/test_bash_write_fence.py) — parametrized
+over all 7 non-manufacturing agents, invoking `bash-write-fence.py` as a
+subprocess with each agent's real `agent_type` and asserting both a deny
+decision and that the target file does not exist afterward.
+
+**Negative falsifier:** `test_is_mutation_true`
+(plugins/chatman-ecosystem/tests/test_bash_classify.py) — parametrized on
+`echo hi > /tmp/f.txt`, `echo hi >> /tmp/f.txt`, `cmd 2> err.log`. Reverting
+the `_BARE_REDIRECT` addition makes this fail, which is the literal defect
+this receipt closes.
+
+- Non-claim: the fix is not replayed outside this session, so it is capped at `PARTIAL_ALIVE` under the promotion law regardless of the suite being green
+- Non-claim: this closes only the first half of Checkpoint 3's required proof (edit refusal); the second half ("refuse manufacture outside `actuation=manufacturing`") remains entirely prompt-level and is untouched by this receipt
+- Non-claim: `agent_type` was confirmed present on `PreToolUse` payloads for `--agent`-launched sessions; it was not separately re-confirmed for every invocation shape Claude Code supports (e.g. a `Task`-tool-spawned subagent was not independently probed against this exact fence)
+
+---
+
 ---
 
 # Audit log
