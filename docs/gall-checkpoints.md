@@ -1056,14 +1056,42 @@ confirmed green. Given the local reproduction above passed the exact same
 to go green, but per this file's no-overclaiming discipline the standing
 below states exactly what was and wasn't directly observed.
 
+**A second discovery: the fmt drift is on `main` itself, not just PR #2's
+branch.** This pass's own docs-only PR (#10, no Rust files touched) failed
+the identical `test` / `cargo fmt --all --check` check with the identical
+two-hunk diff in `admission_protocol.rs` (check run id `90647289570`,
+commit `5e0e6a3`). Since #10 branches from `origin/main` and touches no
+Rust file, the only explanation is that `main` itself carries this drift —
+meaning **every** open PR based on `main` (all of #2–#9) inherits this same
+`CI / test` failure regardless of what each one actually changed, unless it
+happened to fix this exact file on its own branch (as #5 and #7 did). This
+is a real, repo-wide, currently-live defect, not specific to PR #2.
+
+Reproduced and fixed on this pass's own branch
+(`gall-checkpoints/2026-07-29-resolve-pr2-ci-and-reconcile-backlog`):
+`cargo fmt --all -- --check` reproduced the identical diff, `cargo fmt
+--all` applied it, re-check clean, `cargo clippy -p ferroplan-mcp
+--all-targets --all-features -- -D warnings` clean, `cargo test -p
+ferroplan-mcp --test admission_protocol` → 15/15 passed. This fix is
+included in the same commit as this file's own update, so merging this PR
+(#10) into `main` fixes the drift for every future PR based on `main`, not
+just this one.
+
 **What changed:** Checkpoint 21's standing evidence updated (still
 `PARTIAL_ALIVE` — the CI fix removes a review blocker, it doesn't establish
 new crown evidence). No other checkpoint standing changed this pass.
 
-**Next step:** confirm PR #2's `test` job actually finished green (poll
-`get_check_runs` on PR #2); then the bigger remaining blocker is the
-backlog table above — reconcile Checkpoint 3's three PRs (#4/#5/#9),
-and get *all* of #2–#9 reviewed/merged into `main` so this file on `main`
-stops being 8 real audit passes behind reality. Until that reconciliation
-happens, every new session reading only `main`'s copy of this file is at
-risk of repeating already-done work exactly as #9 repeated #4/#5.
+**Next step:** confirm PR #2's `test` job actually finished green (it was
+still `in_progress` for several minutes after the push — longer than the
+old fmt-only failure took, consistent with now actually running the full
+build/test instead of failing fast on `fmt`; poll `get_check_runs` on PR #2
+to confirm the final conclusion). Once this PR (#10) merges into `main`,
+every other open sibling PR (#3, #4, #5, #6, #7, #8, #9) should be expected
+to newly pass (or newly fail on a *different*, real reason) the `test`
+job's fmt step — worth a fast recheck across all of them rather than
+assuming. Then the bigger remaining blocker is the backlog table above —
+reconcile Checkpoint 3's three PRs (#4/#5/#9), and get *all* of #2–#9
+reviewed/merged into `main` so this file on `main` stops being 8 real audit
+passes behind reality. Until that reconciliation happens, every new session
+reading only `main`'s copy of this file is at risk of repeating already-done
+work exactly as #9 repeated #4/#5.
