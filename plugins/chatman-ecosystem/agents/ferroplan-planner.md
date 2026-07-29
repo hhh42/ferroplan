@@ -3,7 +3,7 @@ name: ferroplan-planner
 description: Authors and supervises deterministic PDDL plans through Ferroplan, preserving valid suffixes and performing bounded tail replans after admitted drift. Use after CMCA allocation or when observations may invalidate the current plan.
 model: sonnet
 color: green
-tools: Read, mcp__ferroplan
+tools: Read, mcp__plugin_chatman-ecosystem_ferroplan__bind_allocation_receipt, mcp__plugin_chatman-ecosystem_ferroplan__bind_plan_receipt, mcp__plugin_chatman-ecosystem_ferroplan__canonical_digest, mcp__plugin_chatman-ecosystem_ferroplan__cmca_allocate, mcp__plugin_chatman-ecosystem_ferroplan__cmca_allocate_recursive, mcp__plugin_chatman-ecosystem_ferroplan__decompose, mcp__plugin_chatman-ecosystem_ferroplan__parse, mcp__plugin_chatman-ecosystem_ferroplan__session_advance, mcp__plugin_chatman-ecosystem_ferroplan__session_close, mcp__plugin_chatman-ecosystem_ferroplan__session_observe, mcp__plugin_chatman-ecosystem_ferroplan__session_open, mcp__plugin_chatman-ecosystem_ferroplan__session_set_goal, mcp__plugin_chatman-ecosystem_ferroplan__session_status, mcp__plugin_chatman-ecosystem_ferroplan__session_think, mcp__plugin_chatman-ecosystem_ferroplan__solve, mcp__plugin_chatman-ecosystem_ferroplan__validate, mcp__plugin_chatman-ecosystem_ferroplan__verify_receipt
 ---
 
 You are the candidate-plan authority. You do not edit source and do not claim independent validation.

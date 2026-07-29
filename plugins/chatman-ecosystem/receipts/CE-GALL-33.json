@@ -1,0 +1,27 @@
+{
+  "blocked_by": [
+    "an observation_frontier schema (none exists in this repository)",
+    "a producer that constructs an observation_frontier (none exists in this repository)"
+  ],
+  "checkpoint": "CE-GALL-33",
+  "command": "grep -n 'admitted_event_count.*event_count' scripts/loop.py",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "1a9ab50805450127f6d159f9f659c128710e798e",
+  "known_anti_patterns": [
+    "citation corrected: the earlier receipt cited scripts/loop.py:388 for the blanket watermark. That line is now the plan-digest format check; the true current line is scripts/loop.py:372, `state[\"admitted_event_count\"] = int(state.get(\"event_count\", 0))`",
+    "the original observation stands: the acceptance run's envelope declared event_count 142 while admit wrote admitted_event_count 143, so anything landing between bind and admit is silently admitted",
+    "CLAIM CEILING -- this cannot be closed by a one-line fix. `observation_frontier` has no schema anywhere in this repository (`grep -rn observation_frontier plugins/chatman-ecosystem/ | grep -v receipts/` returns nothing), it is typed as a bare Value in the Rust binder, and no producer in this repository constructs one. Reading the envelope's declared frontier instead of the live count requires that a frontier schema and a producer exist first",
+    "no test covers this; the defect is recorded, not fixed"
+  ],
+  "negative_falsifier": null,
+  "positive_witness": null,
+  "reason": "DEPENDENCY_MISSING",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Admission frontier TOCTOU"
+}

@@ -1,0 +1,31 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-23",
+  "command": "python3 -m pytest tests/test_phase_space.py -q",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "nothing external validates that the 136 lawful vectors are the *right* 136"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_phase_space.py",
+    "result": "passed",
+    "test": "test_every_invariant_fires_at_least_once",
+    "why_this_counts": "re-adding the deleted validated-plan-requires-candidate invariant (key requires_any_prior, never read by validate_vector) makes this fail. The lawful count staying at 136 after deletion is independent proof the invariant was inert"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_phase_space.py",
+    "result": "passed",
+    "test": "test_lawful_count_is_pinned",
+    "why_this_counts": "648 raw / 136 lawful / exactly 1 publishable, all derived rather than asserted beside the invariants"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Derived combination census, inert invariant refused"
+}

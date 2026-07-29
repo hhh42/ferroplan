@@ -1,7 +1,7 @@
 //! Proof that merging the three former binaries (`ferroplan-mcp`,
 //! `ferroplan-session-mcp`, `chatman-admission-mcp`) into one `ferroplan-mcp`
 //! binary did not silently drop or duplicate any tool or resource: an exact
-//! 16-tool, 16-resource assertion against the single merged server.
+//! 17-tool, 17-resource assertion against the single merged server.
 
 use serde_json::{json, Value};
 use std::io::Write;
@@ -63,7 +63,7 @@ fn find_response(resp: &[Value], id: i64) -> Value {
         .clone()
 }
 
-const ALL_16_TOOLS: &[&str] = &[
+const ALL_17_TOOLS: &[&str] = &[
     // stateless planning
     "solve",
     "parse",
@@ -78,6 +78,7 @@ const ALL_16_TOOLS: &[&str] = &[
     "session_status",
     "session_close",
     "cmca_allocate",
+    "cmca_allocate_recursive",
     // canonical evidence admission
     "canonical_digest",
     "bind_allocation_receipt",
@@ -86,7 +87,7 @@ const ALL_16_TOOLS: &[&str] = &[
 ];
 
 #[test]
-fn initialize_advertises_all_16_tools() {
+fn initialize_advertises_all_17_tools() {
     let resp = raw_drive(&[
         json!({
             "jsonrpc":"2.0","id":1,"method":"initialize",
@@ -110,23 +111,23 @@ fn initialize_advertises_all_16_tools() {
         .collect();
     names.sort_unstable();
 
-    let mut expected: Vec<&str> = ALL_16_TOOLS.to_vec();
+    let mut expected: Vec<&str> = ALL_17_TOOLS.to_vec();
     expected.sort_unstable();
 
     assert_eq!(
         names.len(),
-        16,
-        "expected exactly 16 tools, got {}: {names:?}",
+        17,
+        "expected exactly 17 tools, got {}: {names:?}",
         names.len()
     );
     assert_eq!(
         names, expected,
-        "merged server tool set does not match expected 16"
+        "merged server tool set does not match expected 17"
     );
 }
 
 #[test]
-fn resources_list_exposes_exactly_16_under_the_unified_scheme() {
+fn resources_list_exposes_exactly_17_under_the_unified_scheme() {
     let resp = drive(&[
         json!({"jsonrpc":"2.0","id":1,"method":"resources/list"}),
         json!({"jsonrpc":"2.0","id":2,"method":"resources/read",
@@ -139,8 +140,8 @@ fn resources_list_exposes_exactly_16_under_the_unified_scheme() {
         .expect("resources array");
     assert_eq!(
         resources.len(),
-        16,
-        "expected exactly 16 resources, got {}: {resources:?}",
+        17,
+        "expected exactly 17 resources, got {}: {resources:?}",
         resources.len()
     );
 
@@ -149,7 +150,7 @@ fn resources_list_exposes_exactly_16_under_the_unified_scheme() {
         .map(|r| r["uri"].as_str().unwrap().to_owned())
         .collect();
     uris.sort_unstable();
-    let mut expected: Vec<String> = ALL_16_TOOLS
+    let mut expected: Vec<String> = ALL_17_TOOLS
         .iter()
         .map(|name| format!("ferroplan://tools/{name}"))
         .collect();
@@ -182,7 +183,7 @@ fn resources_list_exposes_exactly_16_under_the_unified_scheme() {
 /// failing a single test: `schemars` renders an unconstrained
 /// `serde_json::Value` field as `true`. That is legal JSON Schema, but MCP
 /// clients validate `properties.*` as an object and reject the entire
-/// `tools/list` response on the first violation — so all 16 tools vanished at
+/// `tools/list` response on the first violation — so all 17 tools vanished at
 /// once while the server itself remained perfectly well-formed. Boolean
 /// subschemas must therefore be spelled `{}`.
 #[test]
@@ -192,7 +193,7 @@ fn no_tool_input_schema_uses_a_boolean_subschema() {
         .as_array()
         .expect("tools array")
         .clone();
-    assert_eq!(tools.len(), 16, "expected all 16 tools");
+    assert_eq!(tools.len(), 17, "expected all 17 tools");
 
     let offenders: Vec<String> = tools
         .iter()

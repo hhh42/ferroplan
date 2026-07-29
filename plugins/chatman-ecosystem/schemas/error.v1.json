@@ -1,0 +1,47 @@
+{
+  "$id": "urn:chatman:error:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "A failure, as data.\n\nEvery refusal and every resolution failure becomes one of these. The prose\na human reads is rendered from `code` and `context`, not the other way\nround, so a caller can branch on `code` without parsing English.",
+  "properties": {
+    "code": {
+      "description": "Stable machine-readable identifier, SCREAMING_SNAKE.",
+      "title": "Code",
+      "type": "string"
+    },
+    "context": {
+      "additionalProperties": true,
+      "title": "Context",
+      "type": "object"
+    },
+    "message": {
+      "description": "One-line human summary. Never parsed by consumers.",
+      "title": "Message",
+      "type": "string"
+    },
+    "remedy": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "A command or action that would clear this failure.",
+      "title": "Remedy"
+    },
+    "schema": {
+      "default": "",
+      "title": "Schema",
+      "type": "string"
+    }
+  },
+  "required": [
+    "code",
+    "message"
+  ],
+  "title": "ChatmanError",
+  "type": "object"
+}

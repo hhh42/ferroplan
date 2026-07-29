@@ -3,22 +3,27 @@
 
 Gall Checkpoint 3 ("Mechanical Agent Authority") requires that only
 `source-manufacturer` can edit source. Frontmatter `tools:` allow-lists
-(added in a prior pass) already make `Write`/`Edit`/`NotebookEdit`
-structurally absent from the other 7 agents' tool schemas. But those same
-7 agents still legitimately need `Bash` for read-only status/build/test
-commands, and `tools:` is a named-tool allow-list, not a command-shape
-policy — it cannot express "Bash, but only for reads". That gap was found
-live in this session's own probe: `rdf-observer` (tools: Read, Glob, Grep,
-Bash — no Write/Edit) successfully executed `echo ... > file` via Bash
-despite its role prose forbidding edits.
+(ontology-generated, see `generate.py`) already make `Write`/`Edit`/
+`NotebookEdit` structurally absent from the other 7 agents' tool schemas.
+But those same 7 agents still legitimately need `Bash` for read-only
+status/build/test commands, and `tools:` is a named-tool allow-list, not a
+command-shape policy — it cannot express "Bash, but only for reads". That
+gap was found live: `rdf-observer` (Bash but no Write/Edit) successfully
+executed `echo ... > file` via Bash despite its role prose forbidding edits.
 
 This hook closes that specific gap mechanically: it reads the hook
 payload's `agent_type` field (a genuine harness-provided identifier, e.g.
 "chatman-ecosystem:rdf-observer" — not a self-reported tool list), looks
-up that agent's own `tools:` frontmatter line, and denies the Bash call
-if the command looks write-shaped and the agent's allow-list does not
-grant `Write`/`Edit`. Agents with no recognized `agent_type` (the primary
-session, or an agent outside this plugin) are not fenced by this hook.
+up that agent's own `tools:` frontmatter line, and denies the Bash call if
+`bash_classify.is_mutation` says the command mutates and the agent's
+allow-list does not grant `Write`/`Edit`. Agents with no recognized
+`agent_type` (the primary session, or an agent outside this plugin) are
+not fenced by this hook.
+
+Reuses `bash_classify` — the module's own docstring records that three
+independent copies of this exact classification once disagreed with each
+other, so a fourth copy here would repeat that anti-pattern rather than
+learn from it.
 """
 
 from __future__ import annotations
@@ -28,37 +33,10 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bash_classify import is_mutation  # noqa: E402
+
 AGENTS_DIR = Path(__file__).resolve().parent.parent / "agents"
-
-# Broader than loop.py's MUTATING_BASH (which exists for observation-ledger
-# bookkeeping, not enforcement): this must also catch bare shell redirection,
-# since that's the exact gap this hook exists to close.
-#
-# Command-name mutations only count at a command boundary (start of string,
-# or after `;`/`&`/`|`) so words like "cargo" appearing inside an unrelated
-# argument aren't flagged. Redirection is checked separately and
-# unanchored, since `>`/`>>` can appear anywhere after a command's arguments
-# (e.g. `echo hi > file`), not just at the start of a command.
-WRITE_SHAPED_COMMAND = re.compile(
-    r"(?:^|[;&|]\s*)"
-    r"(?:git\s+(?:add|commit|push|merge|rebase|reset|clean|checkout|switch|branch|tag)|"
-    r"gh\s+pr\s+(?:create|merge|close|edit)|"
-    r"cargo\s+(?:fmt|fix|update|publish|install)|"
-    r"npm\s+(?:publish|version|install)|"
-    r"(?:rm|mv|cp|mkdir|touch|chmod|chown|dd|tee|truncate|install|ln)\b|"
-    r"(?:sed\s+-i|perl\s+-pi)|"
-    r"python(?:3)?\s+[^|;&]*(?:write|generate|update|patch))",
-    re.IGNORECASE,
-)
-
-# Bare file redirection (`>`, `>>`, `2>`, `1>`) — but not fd duplication like
-# `2>&1`/`>&2` (redirects a stream to another stream, not a file) or
-# `2>/dev/null` (the standard idiom for discarding stderr, not a real write).
-WRITE_SHAPED_REDIRECT = re.compile(r"\d*>>?(?!&)(?!\s*/dev/null\b)")
-
-
-def is_write_shaped(command: str) -> bool:
-    return bool(WRITE_SHAPED_COMMAND.search(command) or WRITE_SHAPED_REDIRECT.search(command))
 
 
 def read_hook_input() -> dict:
@@ -130,13 +108,13 @@ def main() -> int:
 
     tool_input = payload.get("tool_input")
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
-    if not isinstance(command, str) or not is_write_shaped(command):
+    if not isinstance(command, str) or not is_mutation(command):
         return 0
 
     return deny(
         "BASH_WRITE_FENCE: "
         f"agent '{name}' declares tools: {', '.join(sorted(tools)) or '(none)'} "
-        "— no Write/Edit grant — and this Bash command looks write-shaped. "
+        "— no Write/Edit grant — and this Bash command mutates. "
         "Gall Checkpoint 3 makes source-manufacturer the sole source editor; "
         "route this change through an allocation receipt, a candidate plan "
         "step, and source-manufacturer instead of writing through Bash."

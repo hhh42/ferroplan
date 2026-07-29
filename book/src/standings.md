@@ -46,17 +46,17 @@ marked as oversubscribed.
 
 ## Reading the boards
 
-- [`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)
+- [`benchmarks/ipc5-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)
   — IPC-5 simple preferences, ferroplan vs the official field.
-- [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md)
+- [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md)
   — IPC-5 qualitative preferences, reference-grafted with the full
   W/T/L accounting.
-- [`benchmarks/ipc67-results.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-results.md)
-  / [`benchmarks/ipc67-temporal.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-temporal.md)
-  / [`benchmarks/ipc67-netben.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-netben.md)
+- [`benchmarks/ipc67-results.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc67-results.md)
+  / [`benchmarks/ipc67-temporal.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc67-temporal.md)
+  / [`benchmarks/ipc67-netben.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc67-netben.md)
   — the standing IPC-6/7 scoreboards (seq-sat, tempo-sat,
   net-benefit), per-variant.
-- [`benchmarks/ipc5-prop.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-prop.md)
+- [`benchmarks/ipc5-prop.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-prop.md)
   and siblings (`ipc5-time`, `ipc5-metric-time`, `ipc5-constraints`)
   — the 2006 deterministic-track sweeps, first entered in 0.16.
 - `benchmarks/ipc7-mco-t{2,4,8}.md` — the multi-core rows.

@@ -45,7 +45,7 @@ the [tuning reference](./tuning.md).
 
 On the largest instances exact optimization may return a best-found plan (flagged
 *not proven optimal*) within the budget. Full per-instance results vs SGPlan5:
-[`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
+[`benchmarks/ipc5-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
 
 ## Trajectory constraints (`(:constraints ...)`) — enforced since 0.7
 
@@ -86,4 +86,4 @@ The timed operators (`within`, `always-within`, `hold-during`,
 name** — never silently dropped. `FF_CONSTRAINTS_REJECT=1` restores the
 pre-0.7 blanket rejection. Measured results on the IPC-5
 qualitative-preferences track:
-[`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md).
+[`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md).

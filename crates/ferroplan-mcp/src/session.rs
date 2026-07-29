@@ -34,7 +34,7 @@ use bcinr_cmca::{
 };
 use ferroplan::{Options, Plan, Session};
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, ContentBlock, ErrorData as McpError};
+use rmcp::model::{CallToolResult, ErrorData as McpError};
 use rmcp::tool;
 use rmcp::tool_router;
 use schemars::JsonSchema;
@@ -45,6 +45,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
+use crate::result::to_result;
 use crate::Ferroplan;
 
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
@@ -67,6 +68,7 @@ pub(crate) const RESOURCE_TOOLS: &[&str] = &[
     "session_status",
     "session_close",
     "cmca_allocate",
+    "cmca_allocate_recursive",
 ];
 
 pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
@@ -79,6 +81,7 @@ pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
         "session_status" => STATUS_ONTOLOGY,
         "session_close" => CLOSE_ONTOLOGY,
         "cmca_allocate" => CMCA_ONTOLOGY,
+        "cmca_allocate_recursive" => CMCA_RECURSIVE_ONTOLOGY,
         _ => return None,
     })
 }
@@ -220,6 +223,31 @@ struct CmcaInput {
     candidates: Vec<CmcaCandidate>,
 }
 
+#[derive(Debug, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct CmcaDescendStep {
+    /// Candidate id from the PREVIOUS depth's admitted frontier being
+    /// descended into. Must have been an admitted candidate id at the
+    /// previous depth, and must not repeat any id already used to enter an
+    /// earlier depth on this same chain (cyclic-ancestry refusal).
+    selected_parent_node: String,
+    /// The local admitted frontier at this depth -- same shape and same
+    /// exactly-N-nodes law as the root frontier.
+    candidates: Vec<CmcaCandidate>,
+}
+
+#[derive(Debug, Deserialize, serde::Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct CmcaRecursiveInput {
+    /// Depth-one (root) admitted frontier -- identical shape to `CmcaInput`.
+    root: Vec<CmcaCandidate>,
+    /// Zero or more further descents. Depth of the chain is
+    /// `descents.len() + 1`; each descent is keyed to a specific admitted
+    /// node selected out of the immediately preceding depth's frontier.
+    #[serde(default)]
+    descents: Vec<CmcaDescendStep>,
+}
+
 #[tool_router(router = session_router, vis = "pub")]
 impl Ferroplan {
     #[tool(description = "Parse and ground one persistent Ferroplan Session.")]
@@ -301,17 +329,20 @@ impl Ferroplan {
     ) -> Result<CallToolResult, McpError> {
         to_result(tool_cmca_allocate(input))
     }
-}
 
-fn to_result(result: Result<Value, String>) -> Result<CallToolResult, McpError> {
-    Ok(match result {
-        Ok(value) => {
-            let mut r = CallToolResult::success(vec![ContentBlock::text(pretty(&value))]);
-            r.structured_content = Some(value);
-            r
-        }
-        Err(message) => CallToolResult::error(vec![ContentBlock::text(message)]),
-    })
+    #[tool(
+        description = "Recursive multifractal CMCA allocation: run the pinned allocator at a \
+            root frontier, then descend into a selected admitted node with a fresh local \
+            frontier, chaining each depth's receipt to its parent's by digest. Refuses on an \
+            unknown parent-node selection, a repeated (cyclic) ancestry selection, or any \
+            depth's admission failure (no partial chain is ever returned)."
+    )]
+    fn cmca_allocate_recursive(
+        &self,
+        Parameters(input): Parameters<CmcaRecursiveInput>,
+    ) -> Result<CallToolResult, McpError> {
+        to_result(tool_cmca_allocate_recursive(input))
+    }
 }
 
 impl Ferroplan {
@@ -634,7 +665,20 @@ impl Ferroplan {
     }
 }
 
-fn tool_cmca_allocate(input: CmcaInput) -> Result<Value, String> {
+/// One admitted CMCA allocation pass: validate the forest, run the pinned
+/// allocator, and canonicalize a payload. Shared by `cmca_allocate` and by
+/// `cmca_allocate_recursive`'s per-depth descent -- the parent-receipt
+/// binding for a descent is computed at the recursive envelope level (see
+/// `tool_cmca_allocate_recursive`), not inside this payload, so this
+/// function's output is byte-identical whether it's called at depth one or
+/// as a descent step.
+struct AllocationOutcome {
+    payload: Value,
+    payload_digest: String,
+    candidate_ids: BTreeSet<String>,
+}
+
+fn run_one_allocation(input: &CmcaInput) -> Result<AllocationOutcome, String> {
     if input.candidates.len() != N {
         return Err(format!(
             "CMCA requires exactly {N} nodes; received {}",
@@ -684,7 +728,7 @@ fn tool_cmca_allocate(input: CmcaInput) -> Result<Value, String> {
     validate_forest(&parent)?;
 
     let input_value =
-        serde_json::to_value(&input).map_err(|e| format!("failed to serialize input: {e}"))?;
+        serde_json::to_value(input).map_err(|e| format!("failed to serialize input: {e}"))?;
     let input_digest = digest_value(&canonicalize(&input_value))?;
     let proof_digest = u64::from_be_bytes(
         blake3::hash(input_digest.as_bytes()).as_bytes()[..8]
@@ -750,6 +794,91 @@ fn tool_cmca_allocate(input: CmcaInput) -> Result<Value, String> {
         "measure_count": K,
         "lenses": lens_receipt(&LENS_REGISTRY),
         "allocations": rows
+    }));
+    let payload_digest = digest_value(&payload)?;
+    Ok(AllocationOutcome {
+        payload,
+        payload_digest,
+        candidate_ids: ids.into_iter().map(str::to_owned).collect(),
+    })
+}
+
+fn tool_cmca_allocate(input: CmcaInput) -> Result<Value, String> {
+    let outcome = run_one_allocation(&input)?;
+    Ok(json!({
+        "payload_digest": outcome.payload_digest,
+        "payload": outcome.payload
+    }))
+}
+
+/// Gall Checkpoint 9 ("Recursive Multifractal Allocation"): a chain of
+/// admitted CMCA allocations, each depth binding the previous depth's real
+/// receipt by digest. Each depth's envelope is:
+/// `{ depth, selected_parent_node, parent_payload_digest, allocation_payload_digest, allocation_payload }`
+/// with `parent_payload_digest` recomputed server-side from the ACTUAL
+/// previous depth's outcome (never trusted from the caller), so a caller
+/// cannot fabricate a detached depth-2 result -- this is the parent-receipt
+/// mismatch refusal the checkpoint requires, structural rather than an
+/// explicit check. On any failure -- unknown parent node, cyclic ancestry,
+/// or a depth's own admission refusal -- the WHOLE call refuses; no partial
+/// chain is ever returned ("consequence returned upward" honored by never
+/// computing a consequence above a failed depth).
+fn tool_cmca_allocate_recursive(input: CmcaRecursiveInput) -> Result<Value, String> {
+    let root_outcome = run_one_allocation(&CmcaInput {
+        candidates: input.root,
+    })?;
+
+    let mut depths = vec![json!({
+        "depth": 1,
+        "selected_parent_node": Value::Null,
+        "parent_payload_digest": Value::Null,
+        "allocation_payload_digest": root_outcome.payload_digest,
+        "allocation_payload": root_outcome.payload
+    })];
+
+    let mut ancestry: BTreeSet<String> = BTreeSet::new();
+    let mut previous_ids = root_outcome.candidate_ids;
+    let mut previous_digest = root_outcome.payload_digest;
+
+    for (index, step) in input.descents.into_iter().enumerate() {
+        let depth = index + 2;
+        let selected = step.selected_parent_node.trim().to_owned();
+        if !previous_ids.contains(&selected) {
+            return Err(format!(
+                "depth {depth}: selected_parent_node `{selected}` was not an admitted \
+                 candidate id at depth {}",
+                depth - 1
+            ));
+        }
+        if !ancestry.insert(selected.clone()) {
+            return Err(format!(
+                "depth {depth}: cyclic ancestry -- `{selected}` already selected earlier in \
+                 this descent chain"
+            ));
+        }
+
+        let outcome = run_one_allocation(&CmcaInput {
+            candidates: step.candidates,
+        })
+        .map_err(|reason| format!("depth {depth} allocation refused: {reason}"))?;
+
+        depths.push(json!({
+            "depth": depth,
+            "selected_parent_node": selected,
+            "parent_payload_digest": previous_digest,
+            "allocation_payload_digest": outcome.payload_digest,
+            "allocation_payload": outcome.payload
+        }));
+
+        previous_ids = outcome.candidate_ids;
+        previous_digest = outcome.payload_digest;
+    }
+
+    let payload = canonicalize(&json!({
+        "schema": "urn:chatman:cmca-allocation-recursive:v1",
+        "name": "Chatman Multifractal Cascade Allocator (recursive descent)",
+        "depth_count": depths.len(),
+        "depths": depths
     }));
     Ok(json!({
         "payload_digest": digest_value(&payload)?,
@@ -867,8 +996,4 @@ fn digest_bytes(bytes: &[u8]) -> String {
 #[allow(dead_code)]
 fn decode<T: DeserializeOwned>(value: &Value) -> Result<T, String> {
     serde_json::from_value(value.clone()).map_err(|error| error.to_string())
-}
-
-fn pretty(value: &Value) -> String {
-    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }

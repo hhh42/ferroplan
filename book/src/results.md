@@ -4,7 +4,7 @@
 classical STRIPS / numeric / ADL are measured against a native arm64 **Metric-FF**;
 the IPC-5 simple-preferences quality is measured against **SGPlan5** (the IPC-5
 winner), read from the official `IPC5-results.tgz` archive. The oracles are **not
-bundled** (GPL / non-commercial licences); see [COMPARING.md](https://github.com/hhh42/ferroplan/blob/main/benchmarks/COMPARING.md) to reproduce.
+bundled** (GPL / non-commercial licences); see [COMPARING.md](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/COMPARING.md) to reproduce.
 
 > Absolute times are machine- and load-dependent; only *ratios within a single
 > run* are meaningful. Default ferroplan search is enforced hill-climbing (EHC)
@@ -61,10 +61,10 @@ tpp/pathways/storage p05–p08 tails and rovers' numeric metric.
 
 **The full per-instance tables, the ESPC method, and the reproduction commands
 live in the scoreboard:**
-[`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
+[`benchmarks/ipc5-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
 
 ## Reproduce
 
 Vendored micro-suite: `cargo bench` (criterion, ferroplan-internal). Cross-planner
-comparison: [`compare.py`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/compare.py) with the oracles, per
-[COMPARING.md](https://github.com/hhh42/ferroplan/blob/main/benchmarks/COMPARING.md).
+comparison: [`compare.py`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/compare.py) with the oracles, per
+[COMPARING.md](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/COMPARING.md).

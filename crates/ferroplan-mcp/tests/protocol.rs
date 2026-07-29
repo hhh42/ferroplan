@@ -140,6 +140,17 @@ fn solve_tool_returns_a_plan() {
     assert_eq!(resp[0]["result"]["isError"], false);
 }
 
+/// Parse the JSON `structuredContent` a successful tool call returns, panicking
+/// with the raw response if the call was actually an error. (Copied from
+/// `tests/admission_protocol.rs`; integration tests are separate crates.)
+fn structured(resp: &Value) -> Value {
+    assert_eq!(
+        resp["result"]["isError"], false,
+        "expected a successful tool call, got: {resp:?}"
+    );
+    resp["result"]["structuredContent"].clone()
+}
+
 #[test]
 fn validate_tool_checks_a_plan() {
     let resp = drive(&[json!({
@@ -147,7 +158,57 @@ fn validate_tool_checks_a_plan() {
         "params":{"name":"validate","arguments":{"domain":DOM,"problem":PROB,"plan":"step 0: (a)"}}
     })]);
     let text = resp[0]["result"]["content"][0]["text"].as_str().unwrap();
-    assert_eq!(text, "Plan valid");
+    let report: Value = serde_json::from_str(text).expect("validate returns a JSON report");
+    assert_eq!(report["valid"], true);
+    assert_eq!(report["reason"], Value::Null);
+    // The text and the structured object are the same value, not two renderings
+    // that can drift apart.
+    assert_eq!(structured(&resp[0]), report);
+}
+
+/// A plan that is well-formed but does not reach the goal is a normal answer,
+/// not an error — this is the falsifier for that Ok/Err split. `bind_plan_receipt`
+/// consumes the `valid` boolean directly instead of callers hand-fabricating it
+/// from prose.
+#[test]
+fn validate_tool_reports_invalid_plan_without_error() {
+    let resp = drive(&[json!({
+        "jsonrpc":"2.0","id":1,"method":"tools/call",
+        // Both steps parse, but `a` deletes its own precondition `p`, so the
+        // second step is inapplicable.
+        "params":{"name":"validate","arguments":{
+            "domain":DOM,"problem":PROB,"plan":"step 0: (a)\nstep 1: (a)"}}
+    })]);
+    let report = structured(&resp[0]);
+    assert_ne!(
+        resp[0]["result"]["isError"],
+        json!(true),
+        "a semantically invalid plan is not a tool error: {:?}",
+        resp[0]
+    );
+    assert_eq!(report["valid"], false, "got: {report}");
+    assert!(
+        !report["reason"].as_str().expect("reason string").is_empty(),
+        "an invalid plan carries a non-empty reason: {report}"
+    );
+}
+
+/// The other side of the split: PDDL that cannot be parsed is an error result,
+/// and an error result must never carry `structuredContent`.
+#[test]
+fn validate_tool_errors_on_unparseable_pddl() {
+    let resp = drive(&[json!({
+        "jsonrpc":"2.0","id":1,"method":"tools/call",
+        "params":{"name":"validate",
+                  "arguments":{"domain":"(define (domain","problem":PROB,"plan":"step 0: (a)"}}
+    })]);
+    assert_eq!(resp[0]["result"]["isError"], true, "got: {:?}", resp[0]);
+    assert_eq!(
+        resp[0]["result"]["structuredContent"],
+        Value::Null,
+        "an error result must never set structuredContent: {:?}",
+        resp[0]
+    );
 }
 
 // Two independent numeric deliverables, each from its own producer — the interaction

@@ -1,0 +1,32 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-28",
+  "command": "python3 scripts/surfaces.py candidates",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "the ten factor VALUES are a modelling choice with no external validation; only their grounding is claimed",
+    "surfaces.py refusals are pre-flight and must NOT be counted as allocator refusals -- checkpoint 8's four allocator refusals remain untested"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_surfaces.py",
+    "result": "passed",
+    "test": "test_declared_surface_paths_exist_in_the_repository",
+    "why_this_counts": "found four surfaces pointing at nonexistent paths on its first run: crates/ferroplan/src/{temporal,search,heuristic,ground} are .rs files, and they sat on the two highest-allocated surfaces"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/profiles/work-surfaces.json",
+    "result": "candidates_digest a473833974c74522, input_digest f0a8d185",
+    "test": "cmca_allocate over the canonical frontier",
+    "why_this_counts": "accepted live, and allocates differently from the fabricated frontier: correctness 0.1449 top with a 0.112-0.145 spread, versus the invented 0.161 top on a surface that does not exist"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Canonical CMCA frontier grounded in real surfaces"
+}

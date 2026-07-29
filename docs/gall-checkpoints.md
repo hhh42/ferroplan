@@ -64,6 +64,15 @@ Two repositories use the same term for incompatible objects or authority levels.
 
 **Current standing:** `ALIVE`
 
+> **2026-07-29 cycle update (CE-GALL-23).** Ceiling narrowed, standing survives.
+> One of the declared invariants (`validated-plan-requires-candidate`) was
+> **inert** — it carried `requires_any_prior`, a key `validate_vector` never
+> reads — so "invariants reject illegal combinations" was partly vacuous. It is
+> deleted; the lawful count is unchanged at 136, which is what proves it was
+> doing nothing. Recurrence is blocked by
+> `tests/test_phase_space.py::test_every_invariant_key_is_understood`.
+
+
 ---
 
 ## 1. Phase-Space Kernel
@@ -193,6 +202,31 @@ field — for the agents actually probed; still not exhaustive across all
 required proof is still prompt-level only)
 
 2026-07-29 first-pass findings (superseded in part, kept for history):
+
+> **2026-07-29 cycle update (CE-GALL-27).** The first bullet below is now
+> **false**. `agents/*.md` frontmatter is generated from
+> `ontology/authority-graph.ttl`, so all 8 agents declare `tools:` and the
+> source-manufacturer declares `isolation: worktree`. The ODRL
+> `SingleActuatorPolicy` is verified non-vacuous by
+> `tests/test_authority.py::test_single_actuator_policy_is_enforced`: it permits
+> exactly `source-manufacturer`, prohibits 7, and exactly `source-manufacturer`
+> can write. **Standing does not move.** The live test below — whether the
+> *harness* refuses or the *model* declines — has not been re-run against the
+> generated frontmatter, so "mechanical, not prompt-level" is still asserted
+> rather than measured. That single re-run is now the whole gap.
+>
+> **2026-07-29 cycle update (CE-GALL-35).** That "single re-run" happened —
+> see the fourth-pass findings below — but it answered a narrower question
+> than expected. The live re-run targeted the Bash-write gap (a non-editor
+> agent writing a file *through* `Bash` despite lacking `Write`/`Edit`), not
+> the tool-schema-omission question CE-GALL-27 flagged as unmeasured. Both
+> are now covered by separate mechanisms: `tools:` frontmatter (generated,
+> tested by `test_authority.py`) for named-tool omission, and
+> `bash-write-fence.py` (new `PreToolUse` hook, see below and CE-GALL-35) for
+> the Bash-write case specifically. Standing still does not move to `ALIVE`:
+> the phase-gate half of this checkpoint's required proof ("outside
+> `actuation=manufacturing`") remains untouched by every pass to date.
+
 - None of the 8 agent `.md` files under `plugins/chatman-ecosystem/agents/`
   declared a `tools:` frontmatter field. Confirmed by this session's own
   Agent-tool listing, which annotated every one of the 8 chatman-ecosystem
@@ -656,6 +690,16 @@ commit). Every MCP tool actually used this session
 
 ## 8. Top-Level CMCA Allocation
 
+> **2026-07-29 cycle update (CE-GALL-28) — partial retraction.** The prior
+> evidence that the 8×10 happy path was "exercised repeatedly with real
+> receipts" was exercised over a **fabricated** frontier, including a surface
+> that does not exist in the repository. That evidence is withdrawn. It is
+> replaced by the canonical frontier from `profiles/work-surfaces.json`
+> (`candidates_digest a473833974c74522`), accepted live and allocating
+> *differently*. The four refusals below remain untested at the allocator:
+> `surfaces.py`'s refusals are pre-flight and do not discharge them.
+
+
 **Working system**
 
 An admitted repository observation produces exactly:
@@ -857,6 +901,14 @@ Projection fixtures and MCP tests are green. Full ladder remains incomplete. Not
 
 ## 13. Independent PDDL Validation
 
+> **2026-07-29 cycle update (CE-GALL-30) — downgraded.** Standing is now
+> `PARTIAL_ALIVE` with reason `MOCKED`. MCP `validate` returns the prose string
+> `"Plan valid"`, while `bind_plan_receipt` requires a boolean `valid`, so the
+> verdict is constructed by hand — `skills/admit/SKILL.md:15` instructs exactly
+> that. The `validator_result` of every receipt bound during this cycle was
+> hand-fabricated, so "independent" is currently false in the receipt path.
+
+
 **Working system**
 
 A planner-independent validator, such as VAL, checks the exact emitted plan against the exact domain and problem.
@@ -905,6 +957,13 @@ payloads so VAL's output (when present) is what actually gets bound.
 ---
 
 ## 14. Canonical Admission Receipts
+
+> **2026-07-29 cycle update (CE-GALL-31) — sharpened into a refutation.** The
+> claim that chain forks are detected is not "not re-verified", it is
+> **absent**. `verify_chain` does not exist and `previous_receipt` is
+> format-checked only (64 hex, never looked up), so any well-formed hex string
+> chains cleanly and `None` is indistinguishable from a break.
+
 
 **Working system**
 
@@ -1072,6 +1131,13 @@ No attestation object type or executor exists yet. Unchanged from prior audit.
 
 ## 19. Receipt-Chain Replay
 
+> **2026-07-29 cycle update.** Added evidence: a five-link chain
+> (`755a2057 → c1520c61 → d56006af → eb8e4645 → d72f17f0`), the last four links
+> bound over canonical CMCA inputs and `project-world.py`'s live projection.
+> Added refutation: "a forked predecessor refuses" is **false** — see
+> CE-GALL-31. Tamper detection on a single link stands.
+
+
 **Working system**
 
 The complete chain can be replayed from genesis:
@@ -1115,6 +1181,17 @@ partially wired.
 ---
 
 ## 20. Closed Self-Hosting Loop
+
+> **2026-07-29 cycle update — net honest downgrade.** Strengthened: two further
+> closes over canonical inputs and the live world projection, and
+> `session_observe` → `session_think` returned `decision: follow`,
+> `searched: false` — a suffix retained without a search is real evidence of a
+> working persistent mind. **But** this checkpoint's required proof is a
+> traversal "without manual phase fabrication", and both closes fabricated the
+> validator verdict (CE-GALL-30) and were nine manual steps each because
+> `loop.py close` is not built. The earlier claim that prior closes met this bar
+> must be read with the same qualification.
+
 
 **Working system**
 
@@ -1218,7 +1295,518 @@ The decisive rule is:
 
 ---
 
+# Checkpoints 22–33 — the DX architecture cycle
+
+These were added by the 2026-07-29 architecture cycle (branch
+`chatman-dx-cycle`). Every one is `PARTIAL_ALIVE` or lower and every one is
+blocked on the same single hop: **no clean-worktree replay outside the
+originating session has been done, and nothing is pushed.** Under the promotion
+law that bars `ALIVE` regardless of how green the suite is, which is why
+promotion here is one action rather than twelve.
+
+The law is mechanized, not merely written down:
+`plugins/chatman-ecosystem/tests/test_receipts.py` refuses any receipt claiming
+`ALIVE` without `replayed_outside_session`, a non-null `negative_falsifier`, and
+a sealed commit — and `test_promotion_law_actually_refuses` is that check's own
+falsifier.
+
+---
+
+## Control Plane Executable Under Test (CE-GALL-22)
+
+**Working system**
+
+The Python control plane is a tested surface, and a test that would touch the
+live ledger is refused rather than tolerated.
+
+Before this the plugin had no tests and CI never touched `plugins/`: nine
+scripts totalling ~2.5k lines were verified by a prose checklist that
+`py_compile`d three of them.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_FALSIFIER`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-22.json`
+
+**Positive witness:** `tests (whole suite)` (plugins/chatman-ecosystem/tests) — the Python control plane went from zero tests and zero CI coverage to a suite gating every change
+
+**Negative falsifier:** none. Recorded, not hidden — a checkpoint without an executing negative fixture cannot be promoted.
+
+- Non-claim: the autouse isolation fixture is an assertion, not a falsifier: no test deliberately leaks, so it has never fired
+- Non-claim: the CI `plugin` job has never run -- the branch is unpushed
+
+---
+
+## Derived Combination Census (CE-GALL-23)
+
+**Working system**
+
+An invariant that reads a key no evaluator consumes is not an invariant, and
+the lawful-vector count must be *derived* from the invariant set rather than
+asserted beside it.
+
+`validated-plan-requires-candidate` carried `requires_any_prior`, a key
+`validate_vector` never reads. The naive repair — renaming it to `requires_any`
+— would have been wrong: `planning` is single-valued, so requiring
+`planning=candidate` while `planning=validated` is unsatisfiable, and the rule
+would have forbidden every validated vector. The transitions table already
+enforces the intent exactly (`["candidate","validated"]` is the only in-edge),
+so the invariant was redundant as well as inert.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-23.json`
+
+**Positive witness:** `test_lawful_count_is_pinned` (plugins/chatman-ecosystem/tests/test_phase_space.py) — 648 raw / 136 lawful / exactly 1 publishable, all derived rather than asserted beside the invariants
+
+**Negative falsifier:** `test_every_invariant_fires_at_least_once` (plugins/chatman-ecosystem/tests/test_phase_space.py) — re-adding the deleted validated-plan-requires-candidate invariant (key requires_any_prior, never read by validate_vector) makes this fail. The lawful count staying at 136 after deletion is independent proof the invariant was inert
+
+- Non-claim: nothing external validates that the 136 lawful vectors are the *right* 136
+
+---
+
+## Machine-First Output Contract (CE-GALL-24)
+
+**Working system**
+
+A payload's `schema` URN is the model's identity — stamped on construction and
+rejected on mismatch — not a string a caller supplies. JSON is the default
+serialization and does not depend on tty, so a command's contract is the same
+whether a human, a hook, or CI invoked it.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-24.json`
+
+**Positive witness:** `test_emitted_payload_validates_against_its_committed_schema` (plugins/chatman-ecosystem/tests/test_generated.py) — what is emitted satisfies what is published, for every registered model
+
+**Negative falsifier:** `test_check_detects_a_tampered_projection` (plugins/chatman-ecosystem/tests/test_generated.py) — proves generate.py build --check is not a no-op; verified by hand against a tampered schema, which exited 1
+
+- Non-claim: 6 of roughly 30 emitted payloads are registered; the coverage ratio is measured nowhere and is left UNKNOWN
+
+---
+
+## Fail-Closed Hook Guard (CE-GALL-25)
+
+**Working system**
+
+Any exception raised before a hook handler runs becomes a refusal *shaped for
+the event actually being handled* — never a traceback, and never a silent exit
+0 on a deny path.
+
+The shapes differ and getting them wrong turns a refusal into a no-op: `Stop`
+takes a top-level `decision`, `PreToolUse` a nested `permissionDecision`, and
+`PostToolUse` cannot refuse at all. The guard imports only the standard
+library, because it is the last thing that must still work when the rest
+cannot load.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-25.json`
+
+**Positive witness:** `test_guard_uses_only_the_standard_library` (plugins/chatman-ecosystem/tests/test_hookguard.py) — the last line of defence cannot itself fail on the dependency it is guarding against
+
+**Negative falsifier:** `test_import_failure_produces_a_refusal` (plugins/chatman-ecosystem/tests/test_hookguard.py) — a simulated ImportError yields a refusal shaped for the event, never a traceback and never a silent exit 0 on a deny path
+
+- Non-claim: no live Claude Code session has been observed honoring a hookguard refusal; runtime acceptance of the emitted shapes is UNKNOWN and is not fixable by more unit tests
+
+---
+
+## Resolution From Anywhere (CE-GALL-26)
+
+**Working system**
+
+The MCP server resolves its binary and its roots from an arbitrary working
+directory with every steering variable cleared, preferring a binary already
+built over a `cargo run` that rebuilds.
+
+The prior resolver derived the project by walking four parents up from the
+launcher. Under the repository layout that lands on the repo root and works;
+under the *installed cache* layout — the only one a user runs — it lands on
+`cache/<marketplace>`, which has no `crates/`, so the launcher exited 69 while a
+built binary sat in `target/debug`. A depth-counted walk cannot be load-bearing
+across two layouts.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_FALSIFIER`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-26.json`
+
+**Positive witness:** `MCP initialize handshake from /tmp` (plugins/chatman-ecosystem/scripts/run-ferroplan-mcp.sh) — previously exit 69 while a built binary sat in target/debug; the 4-parents-up walk was calibrated for the repo layout and wrong under the install layout
+
+**Negative falsifier:** `test_unresolved_binary_is_never_rendered_as_a_shell_argv` (plugins/chatman-ecosystem/tests/test_roots.py) — an unresolved binary rendered as the empty string would hand a launcher `exec ""`; it now refuses
+
+- Non-claim: the /tmp handshake was run by hand once this session and is NOT a test; no automated regression covers the exact defect that was fixed
+
+---
+
+## Canonical CMCA Frontier Grounded In Real Surfaces (CE-GALL-28)
+
+**Working system**
+
+The 8×10 frontier the allocator receives is derived from real repository
+surfaces, and every declared surface path exists on disk. Arity is not
+sufficiency: a well-formed frontier over fictional surfaces is a well-formed
+lie.
+
+This is deliberately a separate checkpoint from §8 rather than merged into it.
+§8's four allocator refusals (7 candidates, 9 candidates, 9 factors, wrong
+BCINR revision) remain untested; `surfaces.py`'s refusals are *pre-flight* and
+must not be counted as allocator behaviour.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-28.json`
+
+**Positive witness:** `cmca_allocate over the canonical frontier` (plugins/chatman-ecosystem/profiles/work-surfaces.json) — accepted live, and allocates differently from the fabricated frontier: correctness 0.1449 top with a 0.112-0.145 spread, versus the invented 0.161 top on a surface that does not exist
+
+**Negative falsifier:** `test_declared_surface_paths_exist_in_the_repository` (plugins/chatman-ecosystem/tests/test_surfaces.py) — found four surfaces pointing at nonexistent paths on its first run: crates/ferroplan/src/{temporal,search,heuristic,ground} are .rs files, and they sat on the two highest-allocated surfaces
+
+- Non-claim: the ten factor VALUES are a modelling choice with no external validation; only their grounding is claimed
+- Non-claim: surfaces.py refusals are pre-flight and must NOT be counted as allocator refusals -- checkpoint 8's four allocator refusals remain untested
+
+---
+
+## Standing Vocabulary Single Source (CE-GALL-29)
+
+**Working system**
+
+The standing vocabulary has one source — `ontology/chatman-ecosystem.ttl` —
+and every consumer is a projection of it, checked by `generate.py build
+--check`.
+
+Three vocabularies existed: `loop.py` accepted four values, this document
+listed seven, and the canonical set defined in `~/mfw` `AGENTS.md:122-133` has
+six. `BLOCKED`, `MOCKED` and `REFUSED` could be claimed here but never recorded
+in the ledger; `BUILD_BROKEN` could be recorded but not claimed. Until this
+landed, **this checkpoint's own standing could not be written down.**
+
+`MOCKED` and `REFUSED` are now reasons rather than standings. `MOCKED` is why a
+standing is capped — a surface returning a fabricated value partly works, which
+`PARTIAL_ALIVE` records and `MOCKED` would lose. `REFUSED` is a run outcome: a
+lawful refusal is the system working, so as a standing it would conflate
+evidence *for* promotion with brokenness.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-29.json`
+
+**Positive witness:** `test_ledger_cli_accepts_every_standing` (plugins/chatman-ecosystem/tests/test_standing.py) — loop.py went from four values to the canonical six, projected from the ontology
+
+**Negative falsifier:** `test_loop_state_model_refuses_an_invented_standing` (plugins/chatman-ecosystem/tests/test_standing.py) — a seventh vocabulary cannot slip in through the model
+
+- Non-claim: before this cycle, this checkpoint's own standing could not be recorded: loop.py accepted four values and BLOCKED was not among them
+
+---
+
+## Independent Validator Verdict (CE-GALL-30)
+
+**Refuted claim**
+
+MCP `validate` returns the prose string `"Plan valid"`. `bind_plan_receipt`
+requires a `validator_result` carrying a boolean `valid`. The two do not
+compose, so the verdict must be constructed by hand — and
+`skills/admit/SKILL.md:15` instructs exactly that.
+
+**The `validator_result` field of every receipt bound during the 2026-07-29
+cycle was hand-fabricated.** The independence claim of both loop closes is
+therefore false, and this is recorded rather than quietly carried.
+
+**Current standing:** `PARTIAL_ALIVE` (`MOCKED`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-30.json`
+
+**Negative falsifier:** none. Recorded, not hidden — a checkpoint without an executing negative fixture cannot be promoted.
+
+- Non-claim: the validator_result field of EVERY receipt bound this session was hand-fabricated, so the independence claim of both closes is false
+
+**Blocked by:** CE-GALL-31
+
+---
+
+## Receipt Chain Traversal (CE-GALL-31)
+
+**Absent capability**
+
+`verify_chain` does not exist. `previous_receipt` is validated by format only —
+64 hexadecimal characters — and never looked up, so any well-formed hex string
+is an acceptable predecessor and `None` is indistinguishable from a break.
+
+The five-link chain produced this cycle
+(`755a2057 → c1520c61 → d56006af → eb8e4645 → d72f17f0`) is evidence that
+individual links *recompute*. It is zero evidence that the chain is a chain.
+§14's claim that "chain forks are detected" is not untested — it is absent.
+
+**Current standing:** `UNSUPPORTED` (`DEPENDENCY_MISSING`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-31.json`
+
+**Negative falsifier:** none. Recorded, not hidden — a checkpoint without an executing negative fixture cannot be promoted.
+
+- Non-claim: the 5-link chain 755a2057 -> c1520c61 -> d56006af -> eb8e4645 -> d72f17f0 is evidence that links recompute, and zero evidence that the chain is a chain
+
+---
+
+## Ledger Anchoring (CE-GALL-32)
+
+**Open defect**
+
+The ledger key is `sha256(realpath(cwd))[:24]`, so a command run from a
+subdirectory silently creates a second ledger for the same repository. Four
+exist today.
+
+This demonstrated itself during the session that documented it: the `Stop` hook
+blocked on 47 pending events in the `plugins/chatman-ecosystem` ledger while
+the repository ledger read 0 pending. The fix — anchoring to the git toplevel
+via `roots.project_root()` — is built but not wired into `loop.py`/`phase.py`,
+so the fork recurs on the next `cd`.
+
+**Blast radius corrected upward (2026-07-29).** The earlier text implied two
+copies of `project_key`. There are **six**, and
+`grep -rn 'def project_key' plugins/chatman-ecosystem/scripts/` names all of
+them:
+
+- `scripts/effective-phase.py:47`
+- `scripts/phase.py:69`
+- `scripts/grant-actuation.py:56`
+- `scripts/actuation-intent.py:82`
+- `scripts/event-summary.py:50`
+- `scripts/loop.py:53`
+
+`roots.project_root()` is wired into none of the six. This makes any per-copy
+repair a partial fix by construction: the ledgers only reconverge when all six
+agree, so five corrected copies leave the fork intact.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-32.json`
+
+**Negative falsifier:** `live demonstration during this session` (plugins/chatman-ecosystem/scripts/plugin_data.py) — the defect demonstrated itself in the session that documented it -- an unambiguous, reproducible negative
+
+- Non-claim: four ledgers exist for one repository, keyed by whatever cwd a command ran from
+- Non-claim: no test asserts the six copies agree, so the count above is a grep result and not a defended invariant
+
+**Update (2026-07-29):** `roots.project_key`/`project_directory` now anchor at `roots.project_root()` (all six former copies already import from `roots.py` as of `6e9b81a`); verified `project_key('.') == project_key('plugins/chatman-ecosystem')` and added `test_project_key_is_identical_for_cwd_and_its_subdirectory` in `plugins/chatman-ecosystem/tests/test_roots.py` as positive witness. Standing raised to `PARTIAL_ALIVE` — partial because no test yet asserts the six *callers* observe one ledger end-to-end (only the shared `roots.py` primitive is covered).
+
+---
+
+## Admission Frontier TOCTOU (CE-GALL-33)
+
+**Open defect**
+
+`loop.py:372` sets `admitted_event_count = event_count` — a blanket watermark
+that ignores the `observation_frontier` the envelope actually attests to. Any
+mutation landing between binding an envelope and running `admit` is marked
+admitted without ever appearing in a receipt.
+
+Observed in this cycle's acceptance run: the envelope declared
+`event_count: 142`; `admit` wrote `admitted_event_count: 143`.
+
+The system's core claim is that state enters only through admitted
+observations. This is the gap in that claim, and no test covers it.
+
+**Citation corrected (2026-07-29).** This section previously cited
+`loop.py:388`. The file has shifted; `:388` is now the plan-digest format
+check. The current line, verified by
+`grep -n 'admitted_event_count.*event_count' scripts/loop.py`, is **`:372`**.
+
+**Claim ceiling: this is not a one-line fix.** `observation_frontier` has no
+schema anywhere in this repository —
+`grep -rn observation_frontier plugins/chatman-ecosystem/ | grep -v receipts/`
+returns nothing. It is typed as a bare `Value` in the Rust binder, and no
+producer in this repository constructs one. So "read the envelope's declared
+frontier instead of the live count" has nothing to read: a frontier schema and
+a producer must exist first. The falsifier is therefore recorded as absent with
+reason `DEPENDENCY_MISSING` rather than as a prose observation, because no
+executing fixture can be written against a type that does not exist.
+
+**Current standing:** `PARTIAL_ALIVE` (`DEPENDENCY_MISSING`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-33.json`
+
+**Negative falsifier:** none — `DEPENDENCY_MISSING`. The 142/143 discrepancy is
+a real observation, but it is not a Gall-checkpoint negative fixture.
+
+**Blocked by:** an `observation_frontier` schema, and a producer that constructs one
+
+- Non-claim: no test covers this; the defect is recorded, not fixed
+- Non-claim: nothing here shows the frontier-aware admission is designable, only that it is not yet buildable
+
+---
+
+## Canonical Bash Mutation Classifier (CE-GALL-34)
+
+**Defect fixed this cycle** (commit `1a9ab50`)
+
+Two defects in one surface, both closed by consolidating the classifier into
+`scripts/bash_classify.py`.
+
+*Divergence.* Three copies of `MUTATING_BASH` existed — `loop.py`, `phase.py`,
+`event-summary.py` — and disagreed. `phase.py` omitted the publication class, so
+`git push` logged a ledger event but never collapsed the phase vector: the
+ledger and the phase engine held different beliefs about the same command.
+
+*Prefix matching.* No git subcommand alternation carried a trailing boundary, so
+prefixes matched. This produced a real incident during this session:
+`git merge-base --is-ancestor` and `git branch --show-current` are read-only,
+matched `PROTECTED_BASH`, and blocked a legitimate push. `rm\b` was the only
+branch with a correct boundary — evidence the omission was an oversight rather
+than a design choice.
+
+**The nuance that separates the fix from a near-miss.** `\b` alone is
+insufficient. `-` is a non-word character, so `commit\b` still matches
+`commit-graph`, and a `\b`-only patch would have kept misclassifying
+`git commit-graph verify` while looking correct. The fix uses `(?![\w-])`.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-34.json`
+
+**Positive witness:** `test_phase_agrees_with_loop_on_publication_class`
+(plugins/chatman-ecosystem/tests/test_bash_classify.py:91) — pins the divergence
+itself rather than one copy's behaviour.
+
+**Negative falsifier:** `test_protected_boundary`
+(plugins/chatman-ecosystem/tests/test_bash_classify.py:102) — asserts the exact
+read-only commands from the incident are not protected while `git push origin
+main` and `git reset --hard` are. Removing the trailing boundary fails it;
+weakening it to `\b` still fails the `commit-graph` case in the sibling table.
+
+- Non-claim: the fix is not replayed outside this session, so it is capped at `PARTIAL_ALIVE` under the promotion law regardless of the suite being green
+- Non-claim: nothing mechanically forbids a fourth copy of the classifier being reintroduced elsewhere; single-sourcing is a convention here, not an invariant
+
+---
+
+---
+
 # Audit log
+
+## 2026-07-29 — parallel-agent iteration (branch `chatman-dx-cycle`)
+
+Three agents worked in parallel on disjoint file sets. Two feature commits
+landed: `63a8a70` (Rust) and `1a9ab50` (canonical Bash classification). The
+suite went from 251 to 308 tests. This entry is the receipt-and-document pass
+over that work.
+
+**Corrections to existing receipts**, recorded because a stale receipt is worse
+than a missing one — it is evidence pointing at the wrong line:
+
+- CE-GALL-33 cited `loop.py:388` for the admission TOCTOU. The file has shifted
+  and `:388` is now the plan-digest format check; the true line is `:372`. A
+  reader following the old citation would have audited an unrelated check and
+  found nothing wrong;
+- CE-GALL-33 also gained an explicit **claim ceiling**. It was written as though
+  a one-line fix would close it. It cannot: `observation_frontier` has no schema
+  anywhere in this repository, is a bare `Value` in the Rust binder, and has no
+  producer. The falsifier moved from a prose observation to declared-absent with
+  reason `DEPENDENCY_MISSING`, and `blocked_by` now names the two artifacts that
+  must exist first;
+- CE-GALL-32 **understated its blast radius**. The receipt implied two copies of
+  `project_key`; the grep shows six (`effective-phase.py:47`, `phase.py:69`,
+  `grant-actuation.py:56`, `actuation-intent.py:82`, `event-summary.py:50`,
+  `loop.py:53`). This changes the shape of the defect, not just its size: with
+  six copies, any per-copy repair is a partial fix by construction.
+
+CE-GALL-34 opened for the `MUTATING_BASH` prefix/divergence defect, fixed by
+`1a9ab50`, with an executing falsifier — `PARTIAL_ALIVE` / `NO_REPLAY`, because
+the promotion law's boundary is the session and nothing here has been replayed
+outside it.
+
+**The most interesting result of the iteration was that the implementing agents
+corrected the brief they were given.** Both corrections were found by building,
+not by reviewing, and neither was in the plan:
+
+- the empty-plan case was specified as *parseable but trivially satisfied*.
+  Measured, it is **unparseable** — a different failure at a different layer,
+  and the test written to the brief would have asserted the wrong thing;
+- the Bash boundary fix was specified as adding `\b`. That is **insufficient**:
+  `-` is a non-word character, so `commit\b` still matches `commit-graph`. The
+  landed fix uses `(?![\w-])`. A `\b` patch would have passed review, looked
+  correct, and left `git commit-graph verify` misclassified.
+
+Both are the same failure mode caught twice: a plausible specification that a
+run refutes. Recorded here rather than silently absorbed, since the value of the
+parallel structure is precisely that the agent holding the file disagreed with
+the agent holding the plan.
+
+## 2026-07-29 — DX architecture cycle (branch `chatman-dx-cycle`)
+
+Seven commits. 141 tests where there were none, and a separate CI `plugin` job
+so a plugin failure is never masked by a Rust one.
+
+Added checkpoints 22–26, 28 (new working systems) and 29–33 (recorded
+negatives). Every one is `PARTIAL_ALIVE` or lower, all blocked on the same hop:
+no clean-worktree replay outside this session, and nothing pushed. Under the
+promotion law that bars `ALIVE` however green the suite is.
+
+The canonical definition of a Gall checkpoint was recovered from `~/mfw`, where
+it exists as a formal glossary symbol
+(`mfw-math/15-galls-law-evolutionary-construction.omdoc:37`): *"the smallest
+closed, receipted transformation proving one complete category transition with
+explicit inputs, outputs, refusals, and verification."* `~/bcinr` supplied the
+rule that a falsifier must execute and be non-vacuous — "a genuine
+Gall-checkpoint negative fixture, not a comment describing one". `~/wasm4pm`
+supplied the promotion law, now mechanized in `tests/test_receipts.py`.
+
+**Standing changes.** 1 ceiling narrowed (an invariant was inert). 3 blocking
+hop changed — its audit finding "no agent declares `tools:`" is now false. 8
+partially retracted — the prior happy-path evidence used a fabricated frontier
+including a nonexistent surface. 13 **downgraded** to `PARTIAL_ALIVE` +
+`MOCKED`. 14 sharpened from "not re-verified" to **absent**. 19 gained a
+five-link chain and lost the fork-refusal claim. 20 net honest downgrade: two
+more closes, but both fabricated the validator verdict.
+
+**Defects the new tests found while being written**, none of which were known
+when the cycle was planned:
+
+- four surfaces pointed at nonexistent paths — `crates/ferroplan/src/{temporal,
+  search,heuristic,ground}` are `.rs` files, and they sat on the two
+  highest-allocated surfaces;
+- SHACL's first-ever run caught `ce:maxTurns` declaring
+  `rdfs:range xsd:positiveInteger` while every value parsed as `xsd:integer` —
+  the ontology's own declared range unsatisfied by its own data;
+- the human projection of an unresolved binary was the empty string, which
+  would have handed a launcher `exec ""`.
+
+**Two corrections to earlier claims made in this same session**, recorded
+because a corrected claim is worth more than a quiet edit:
+
+- the MCP resolution failure was first blamed on `env.setdefault` preserving an
+  empty variable. Measured: the variables are *unset*, so `setdefault` fires.
+  The real cause was a four-parents-up walk calibrated for the repository
+  layout landing on `cache/<marketplace>` under the install layout;
+- the inert invariant was first going to be "fixed" by renaming
+  `requires_any_prior` to `requires_any`. That would have forbidden every
+  `planning=validated` vector and deleted the state from the reachable space.
+  Deletion was correct.
+
+**The ledger fragmentation defect demonstrated itself during the session that
+documented it** (CE-GALL-32): the `Stop` hook blocked on 47 pending events in
+the `plugins/chatman-ecosystem` ledger while the repository ledger read 0.
+
+**Left undone, named rather than omitted:** MCP `validate` still returns prose
+so the validator verdict is fabricated (CE-GALL-30); `verify_chain` does not
+exist (CE-GALL-31); ledger anchoring is built but unwired (CE-GALL-32); the
+admission TOCTOU is open and untested (CE-GALL-33); `loop.py close` is not
+built, so both closes were nine manual steps; nothing is pushed and `main` has
+none of it.
+
+**Clean-clone replay performed, and it does NOT promote.** At seal `2ee20a5`
+the tree was cloned to a fresh path, checked out at the sealed commit with a
+verified-clean worktree, and run with all four steering variables cleared:
+251 passed, `generate.py build --check` clean. That is real evidence and it
+eliminates two failure modes — a dirty worktree, and environment leaking from
+the authoring shell.
+
+It is deliberately **not** recorded as `replayed_outside_session`. The promotion
+law's boundary is the *session*, not the process, and the reason is the third
+failure mode a clone cannot remove: the agent replaying is the agent that wrote
+the tests and chose which to run. `wasm4pm` made the same call, demoting its own
+receipts from `ALIVE` to `PARTIAL_ALIVE` pending a genuinely independent replay.
+The flag stays `false` until someone else, or a later session, runs it.
+
+**The one action that promotes 22–26, 28, 29 to `ALIVE`:** clone to a fresh
+path, check out the sealed commit, and run `pytest` plus
+`generate.py build --check` outside this session. Then set
+`replayed_outside_session` and `sealed_at_commit` in each receipt.
 
 ## 2026-07-29 — first full pass
 

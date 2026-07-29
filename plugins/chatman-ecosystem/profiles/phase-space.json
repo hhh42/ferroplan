@@ -173,11 +173,6 @@
       "requires": {"allocation": "allocated"}
     },
     {
-      "id": "validated-plan-requires-candidate",
-      "when": {"planning": "validated"},
-      "requires_any_prior": [{"planning": "candidate"}]
-    },
-    {
       "id": "manufacturing-requires-candidate-plan",
       "when": {"actuation": "manufacturing"},
       "requires_any": [{"planning": "candidate"}, {"planning": "validated"}]
@@ -213,6 +208,6 @@
     "capabilities": "set union over every selected dimension state",
     "agents": "set union over every selected dimension state; controller may invoke any lawful subset",
     "skills": "set union over every selected dimension state; full bodies remain lazy until invoked",
-    "authority": "no union may raise a component above its declared claim ceiling"
+    "authority": "claim ceilings are declared per component for human review and are NOT machine-enforced: no ordering over the ceiling values exists, so no code compares against them"
   }
 }

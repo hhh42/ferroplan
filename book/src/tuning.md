@@ -101,6 +101,6 @@ before termination, `4`).
 
 ## Reproducing a specific benchmark
 
-The [IPC-5 scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)
+The [IPC-5 scoreboard](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)
 records the exact env for each domain — e.g. openstacks's domain lead is
 `FF_ESPC=1 FF_ESPC_TIME_MS=90000`.

@@ -16,13 +16,13 @@
   "surface_paths": {
     "correctness": [
       "crates/ferroplan/src/verify.rs",
-      "crates/ferroplan/src/temporal",
+      "crates/ferroplan/src/temporal.rs",
       "crates/ferroplan/tests"
     ],
     "planner-core": [
-      "crates/ferroplan/src/search",
-      "crates/ferroplan/src/heuristic",
-      "crates/ferroplan/src/ground"
+      "crates/ferroplan/src/search.rs",
+      "crates/ferroplan/src/heuristic.rs",
+      "crates/ferroplan/src/ground.rs"
     ],
     "session-runtime": [
       "crates/ferroplan/src/session.rs",

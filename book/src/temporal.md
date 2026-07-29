@@ -93,7 +93,7 @@ forces tasks to serialize, a larger pool lets them overlap. **Consumable**
 resources (materials) are the same idea without the release — produced and
 consumed by a crafting chain (`wood → planks`, `planks + stone → house`).
 
-See [`examples/rpg/`](https://github.com/hhh42/ferroplan/tree/main/examples/rpg)
+See [`examples/rpg/`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/rpg)
 for a full gather → craft → build example; the same problem with `(= (workers) 1)`
 vs `3` plans serially (makespan ~19) vs in parallel (~13). Plans are satisficing,
 not makespan-optimal — a good plan fast, suited to an agent that plans, acts, and
@@ -111,7 +111,7 @@ place; since 0.10 the pass totally ε-orders execution, so same-instant mutexes 
 conditional-effect ones included — are impossible by construction.) Coverage on
 the unsolved remainder is **search-limited**: the recorded walls are guidance
 problems, not semantics. See
-[`benchmarks/ipc67-temporal.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-temporal.md).
+[`benchmarks/ipc67-temporal.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc67-temporal.md).
 
 ## Not yet supported
 
