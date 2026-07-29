@@ -10,11 +10,10 @@ from __future__ import annotations
 
 import json
 
-import pytest
-from jsonschema import Draft202012Validator
-
 import generate
+import pytest
 from conftest import minimal_model
+from jsonschema import Draft202012Validator
 from models import REGISTRY, ChatmanModel
 from roots import plugin_root
 
