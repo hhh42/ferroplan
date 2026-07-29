@@ -185,8 +185,12 @@ Attempt direct edits from every non-manufacturing agent and observe refusal.
 
 Attempt manufacture outside `actuation=manufacturing` and observe refusal.
 
-**Current standing:** `PARTIAL_ALIVE` (mechanical enforcement now confirmed
-for the surface actually tested; not yet exhaustive across all 8 agents)
+**Current standing:** `PARTIAL_ALIVE` (two independent mechanical
+enforcement paths now confirmed live — tool-schema omission and a
+`PreToolUse` Bash-write fence keyed off the harness's own `agent_type`
+field — for the agents actually probed; still not exhaustive across all
+8 agents, and the "outside `actuation=manufacturing`" half of the
+required proof is still prompt-level only)
 
 2026-07-29 first-pass findings (superseded in part, kept for history):
 - None of the 8 agent `.md` files under `plugins/chatman-ecosystem/agents/`
@@ -365,6 +369,125 @@ exists, re-attempt (b) (tie `source-manufacturer`'s `Write`/`Edit` to
 `actuation=manufacturing` rather than prompt only) and chase the
 `ecosystem-controller` MCP-tool anomaly with that same ground-truth method
 once it exists.
+
+2026-07-29 fourth-pass findings (same day, follow-on session — closes the
+Bash-write-fence half of the third pass's named gap, with a genuine
+ground-truth signal instead of self-report):
+
+- Found a real ground-truth field the third pass didn't know about yet:
+  the `PreToolUse` hook payload includes `"agent_type":
+  "chatman-ecosystem:rdf-observer"` (confirmed by dumping the raw JSON
+  stdin a hook actually receives, via a temporary debug hook appended to a
+  scratch copy of `hooks.json` — not self-report, not a debug-log
+  inference, the literal payload Claude Code's harness sends to the hook
+  process for that tool call). This sidesteps the third pass's whole
+  "self-report is unreliable" problem for this specific question (which
+  agent is making this tool call) because it's harness-emitted per-call
+  metadata, not something the model is asked to describe about itself.
+- Wrote `plugins/chatman-ecosystem/scripts/bash-write-fence.py`, a new
+  `PreToolUse` hook (wired into `hooks.json` alongside the existing
+  `loop.py hook` Bash matcher) that: reads `agent_type` from the payload,
+  looks up that agent's own `tools:` frontmatter line, and denies the
+  Bash call if the command looks write-shaped (a broadened pattern that
+  also catches bare `>`/`>>` redirection, which `loop.py`'s existing
+  `MUTATING_BASH` regex does not, since that regex exists for ledger
+  bookkeeping, not enforcement) and the agent's allow-list does not grant
+  `Write`/`Edit`. Agents with no `tools:` frontmatter, or with
+  `Write`/`Edit` already granted (`source-manufacturer`), are left alone.
+- Before writing the real regex, ran it against 20 synthetic commands
+  covering the exact false-positive traps this checkpoint's own prior
+  passes' commands use constantly (`... 2>&1 | head -50`, `2>/dev/null`)
+  — an earlier draft flagged `2>&1` as a write (it isn't; it's a stream
+  duplication) and `2>/dev/null` as a write (it's a no-op idiom for
+  discarding stderr); both were fixed before this was ever pointed at a
+  live agent, specifically to avoid the checkpoint gaining a mechanism
+  that's real but wrong (over-fencing legitimate reads would be its own
+  kind of falsifier).
+- Live re-probe against a genuinely nested `claude --plugin-dir
+  <scratch copy of this branch's plugin> --agent rdf-observer
+  --permission-mode acceptEdits -p "..."` session (not this session's own
+  Agent tool), asking it to run exactly one Bash call
+  (`echo hook-probe-N > <scratch-file>`) and stop:
+  - **Before** this pass's fence existed (same nested-session method,
+    same agent, same kind of command, run earlier this same pass before
+    the fix was written): the file **was** created — reproducing the
+    third-pass audit's theorized gap as an actual file-system fact, not a
+    hypothesis.
+  - **After** wiring `bash-write-fence.py` into `hooks.json` and pointing
+    `--plugin-dir` at the patched copy: the identical style of command
+    from `rdf-observer` produced **no file** (checked directly on disk,
+    not via model self-report). Re-ran the same probe against
+    `config-law-architect` (a second, distinct non-manufacturing agent
+    with its own `tools:` grant) with the same result: no file created.
+  - Positive control: the same probe against `source-manufacturer`
+    (`tools: ..., Write, Edit, NotebookEdit`) **did** create its file —
+    confirming the fence is agent-specific (reading the real per-agent
+    `tools:` grant), not a blanket Bash lockout.
+  - Not cleanly obtained this pass: a positive confirmation that ordinary
+    *read-only* Bash commands (e.g. `git log --oneline -3`) still work
+    for a fenced agent post-patch. Two attempts at this hit an unrelated
+    noise source already flagged by the third pass — the nested `-p`
+    session's own CLI permission layer denies many Bash calls outright
+    when no `--allowedTools` is passed, independent of this hook, and the
+    model then burns its turn budget retrying phrasings instead of
+    reporting a clean result. The four write-vs-no-write comparisons
+    above are unaffected by this (they turn on file existence on disk,
+    not on model-reported text), but the narrower "reads still work"
+    claim is left unconfirmed rather than asserted from noisy data.
+- Also discovered and recorded, in passing, a distinct environment
+  finding relevant to any future pass attempting this kind of live probe
+  in a similarly sandboxed container: overriding `$HOME` to an empty
+  scratch directory (to simulate a "genuinely clean" install, the
+  technique the second and third passes describe using) breaks this
+  container's OAuth-based `claude` authentication entirely — every
+  `claude -p` call under a scratch `$HOME` hung until an external timeout
+  killed it, with no usable error. The working technique in *this*
+  session's container was `--plugin-dir <path>` under the real `$HOME`
+  (auth intact) rather than a marketplace install under a swapped
+  `$HOME`. This is a narrower clean-cache simulation than a full
+  marketplace install (no cache/version staleness is possible by
+  construction), so it does not itself speak to Checkpoint 2 — recorded
+  here only so the next session doesn't re-lose the ~90-175 second
+  per-probe budget this container's plugin hooks (`loop.py`/`phase.py`
+  status reads, plus a `cargo run` cold-start for the `ferroplan` MCP
+  server) actually require; a 60-90s timeout looks identical to a genuine
+  hang but is usually just this container being slower than the prompt
+  budget assumed.
+- Cargo hygiene while on this branch: `cargo fmt --check` was failing on
+  a pre-existing, unrelated diff in
+  `crates/ferroplan-mcp/tests/admission_protocol.rs` (flagged by the
+  third pass, not fixed then). Ran `cargo fmt` (mechanical, no Rust files
+  in this pass's own change set were touched otherwise) — now clean.
+  `cargo clippy -p ferroplan-mcp -p ferroplan --all-targets
+  --all-features -- -D warnings` and `cargo test -p ferroplan-mcp -p
+  ferroplan` both pass after the formatting fix.
+
+Standing changed: Checkpoint 3 stays `PARTIAL_ALIVE` — the first half of
+the "Required proof" (edit refusal) now has two independent mechanisms
+confirmed live: tool-schema omission (`tools:` allow-list, second pass)
+*and* Bash-write fencing keyed off a genuine harness field (this pass),
+tested against 2 of 8 agents plus the positive control. Not upgraded to
+`ALIVE`: 5 of 8 agents' Bash-write fencing is untested live (rests on the
+same code path, not individually re-probed); the checkpoint's second
+required-proof clause ("manufacture outside `actuation=manufacturing`")
+remains entirely prompt-level, unchanged from every prior pass; and
+PR #4's competing `disallowedTools` approach for the same 8 files still
+exists as an open, unreconciled alternative (noted by the third pass,
+still not resolved by this one — this pass's fence is layered on top of
+this branch's `tools:` allow-list, not on PR #4's `disallowedTools`
+deny-list, so reconciling the two PRs would need to carry this fence's
+`agent_type` + frontmatter-lookup approach over either way).
+
+**Next step**: live-probe the remaining 5 non-manufacturing agents'
+Bash-write fencing individually (same method, same fence, just unrun);
+confirm read-only Bash still functions for a fenced agent with a cleaner
+probe method (one that isn't confounded by the CLI's own unrelated
+permission-denial noise in headless `-p` sessions); reconcile PR #4 vs.
+PR #5's competing frontmatter approaches (a call for whoever has
+authority to close/supersede one, not something a single audit pass
+should do unilaterally); and separately, tie `source-manufacturer`'s
+`Write`/`Edit` availability to `actuation=manufacturing` rather than
+prompt-only, which no pass has yet attempted.
 
 ---
 
@@ -1270,3 +1393,103 @@ approaches to the same 8 files; make `source-manufacturer`'s `Write`/
 trustworthy method exists; fix the pre-existing `cargo fmt --check` drift
 in `admission_protocol.rs`; resolve the `ferroplan-bevy`/rustc 1.95
 requirement or document it as a known environment constraint.
+
+## 2026-07-29 — fourth pass (scheduled run; Checkpoint 3 continued, PR #5 branch)
+
+This was a scheduled (unattended) run. Started per this file's own
+instructions: read the whole file plus the Audit log first, then checked
+`git branch -r` — which, as the third pass had already warned, missed the
+same-day branches until an explicit
+`git fetch origin 'refs/heads/gall-checkpoints/*:...'` was run. That
+turned up PR #3, #4, and #5 (none merged, none reflected past PR #2 in
+this file before the third pass added them). Continued PR #5's branch
+(`gall-checkpoints/2026-07-29-agent-tool-grants`, which already carried
+the first three passes' work) rather than opening a fifth branch, per
+this file's "prefer finishing a started thread" guidance, and picked the
+third pass's most concrete named next step: build the Bash-write fence
+the `tools:`/`disallowedTools` frontmatter approaches (both PR #4 and
+PR #5) structurally cannot express.
+
+What was done, in order:
+1. Confirmed the exact gap first: reproduced `rdf-observer` writing a
+   file via Bash despite no `Write`/`Edit` grant, using a genuinely
+   nested `claude --plugin-dir <this branch's plugin> --agent
+   rdf-observer` session (not this session's own Agent tool) — a real
+   file appeared on disk. This took real debugging to get working at
+   all in this container (see the environment note below); it is not
+   assumed from the prior passes' write-ups.
+2. Found the ground-truth field the third pass's "next step" asked for,
+   by dumping a hook's raw stdin: `PreToolUse` payloads include
+   `agent_type` (e.g. `"chatman-ecosystem:rdf-observer"`), a real
+   harness-emitted identifier, not a self-report.
+3. Wrote `plugins/chatman-ecosystem/scripts/bash-write-fence.py` and wired
+   it into `hooks.json`'s existing `PreToolUse`/`Bash` matcher. Verified
+   the write-shaped-command regex against 20 synthetic cases first
+   (catching two real false-positive bugs — `2>&1` and `2>/dev/null`
+   being misread as writes — before ever pointing it at a live agent).
+4. Live-reran the nested-session probe with the fence active:
+   `rdf-observer` and `config-law-architect` (2 of the 7 non-manufacturing
+   agents) no longer create the probe file; `source-manufacturer`
+   (positive control) still does. Full detail, including the exact
+   commands, is recorded inline under Checkpoint 3's "fourth-pass
+   findings" above — not duplicated here.
+5. Fixed the pre-existing `cargo fmt --check` drift in
+   `admission_protocol.rs` (flagged by the third pass, not fixed then) by
+   running `cargo fmt` — purely mechanical, no behavior change. Verified
+   `cargo clippy -p ferroplan-mcp -p ferroplan --all-targets
+   --all-features -- -D warnings` and `cargo test -p ferroplan-mcp -p
+   ferroplan` both pass clean afterward. Did not attempt
+   `cargo check --workspace` (the third pass already root-caused its
+   failure to the unrelated `ferroplan-bevy`/rustc 1.95 requirement,
+   pre-existing and not touched this pass).
+
+Standing: Checkpoint 3 stays `PARTIAL_ALIVE` (see its own standing line
+and fourth-pass section above for the precise reasoning) — a second,
+independent mechanical-enforcement path is now confirmed live for 2 of 8
+agents, not asserted for all 8, and the phase-gate half of the required
+proof remains untouched by any pass so far.
+
+New environment finding, useful to whoever runs the next live-agent probe
+in a similarly sandboxed container: swapping `$HOME` to a scratch
+directory (the "genuinely clean cache" technique the second and third
+passes describe) breaks this container's OAuth auth outright — every
+nested `claude -p` call under a scratch `$HOME` hangs until externally
+killed, with no error text surfaced. `--plugin-dir <path>` under the
+*real* `$HOME` was the technique that actually worked here. Separately,
+this plugin's own hooks (`loop.py`/`phase.py` status reads on
+`SessionStart`, plus a cold `cargo run` for the `ferroplan` MCP server
+the first time it's invoked) make a nested probe genuinely take
+60–175 seconds; several early attempts this pass looked like hangs but
+were just under-timed (a 60–90s timeout is not enough headroom in this
+container). Recorded so the next session doesn't re-lose the same time
+figuring this out.
+
+Artifacts left behind by this pass:
+- `plugins/chatman-ecosystem/scripts/bash-write-fence.py` — new
+  `PreToolUse` hook, real (not a mock), tested live against 2 of 8
+  non-manufacturing agents plus the `source-manufacturer` positive
+  control.
+- `plugins/chatman-ecosystem/hooks/hooks.json` — one new hook entry
+  wiring the fence into the existing `Bash` `PreToolUse` matcher.
+- `crates/ferroplan-mcp/tests/admission_protocol.rs` — `cargo fmt`
+  formatting fix only (no logic change), closing a two-pass-old named
+  next step.
+- This file, updated in place (Checkpoint 3's standing line and a new
+  "fourth-pass findings" section) and this entry.
+
+Not attempted this pass, deliberately out of scope: reconciling PR #4 vs.
+PR #5 (flagged again as an open, unresolved conflict — a call for
+whoever has authority to close/supersede one, not something a single
+audit pass should do unilaterally); live-probing the remaining 5
+non-manufacturing agents' Bash-write fencing individually; tying
+`source-manufacturer`'s `Write`/`Edit` to `actuation=manufacturing`; the
+`ecosystem-controller` MCP-tool anomaly from the third pass (still
+needs the ground-truth method, which now exists via `agent_type`, but
+wasn't pointed at that specific question this pass); Recommended Release
+Sequence items 3 onward (worktree manufacture, VAL integration, etc.) —
+this pass stayed on item 2 (Checkpoint 3) since it had a concrete,
+unfinished, in-scope next step rather than moving on early.
+
+Branch: `gall-checkpoints/2026-07-29-agent-tool-grants` (continues PR #5,
+https://github.com/seanchatmangpt/ferroplan/pull/5). Not pushed as part of
+writing this entry — see the commit that follows it for the pushed state.

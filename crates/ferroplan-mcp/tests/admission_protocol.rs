@@ -218,7 +218,11 @@ fn canonical_digest_accepts_a_stringified_json_value() {
 /// that transit already lost, it never reinterprets a real string field.
 #[test]
 fn canonical_digest_leaves_a_non_json_string_untouched() {
-    let resp = drive(&[tool_call(1, "canonical_digest", json!({"value": "just text"}))]);
+    let resp = drive(&[tool_call(
+        1,
+        "canonical_digest",
+        json!({"value": "just text"}),
+    )]);
     let out = structured(&find_response(&resp, 1));
     assert_eq!(out["canonical"], json!("just text"));
 }
@@ -242,7 +246,8 @@ fn bind_allocation_receipt_accepts_stringified_candidates_and_allocation_result(
     assert_eq!(out["schema"], "urn:chatman:admission-envelope:v1");
     assert_eq!(out["kind"], "allocation");
     assert_eq!(
-        out["payload"]["candidates"], eight_candidates(),
+        out["payload"]["candidates"],
+        eight_candidates(),
         "stringified candidates must be recovered as the real array, not left as text"
     );
     assert_eq!(

@@ -29,6 +29,12 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
             "timeout": 10,
             "statusMessage": "Checking admitted actuation frontier"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/bash-write-fence.py\"",
+            "timeout": 10,
+            "statusMessage": "Fencing Bash writes for non-manufacturing agents"
           }
         ]
       },
