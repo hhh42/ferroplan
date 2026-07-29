@@ -207,3 +207,38 @@ def test_project_key_is_identical_for_cwd_and_its_subdirectory():
     assert root_key == subdir_key
 
     assert roots.project_directory(str(repo_root)) == roots.project_directory(str(subdir))
+
+
+def test_project_key_does_not_collide_with_an_unrelated_env_provided_root(monkeypatch, tmp_path):
+    """Regression: an env-provided root unrelated to the target path must not anchor it.
+
+    The original CE-GALL-32 fix accepted whatever `project_root()` returned
+    without checking that the resolved root actually contains the path being
+    keyed. Since `project_root()` treats `CLAUDE_PROJECT_DIR`/`FERROPLAN_ROOT`
+    as valid candidates regardless of the `start` argument, that meant ANY
+    path -- including one entirely unrelated to the real checkout -- hashed
+    to the SAME key as the checkout whenever those env vars happened to be
+    set to it (which they normally are, during hook execution). This
+    collapsed two unrelated projects' ledgers into one and, in practice,
+    caused a live incident: a throwaway /tmp test directory silently wrote
+    into and truncated the real repository's event ledger.
+
+    `project_key` must reject an anchor that is not the target path itself
+    or a real ancestor of it.
+    """
+    repo_root = roots.project_root()
+    assert repo_root is not None, "this checkout must resolve a project root"
+
+    unrelated = tmp_path / "unrelated-project"
+    unrelated.mkdir()
+
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(repo_root))
+    monkeypatch.delenv("FERROPLAN_ROOT", raising=False)
+
+    repo_key = roots.project_key(str(repo_root))
+    unrelated_key = roots.project_key(str(unrelated))
+
+    assert repo_key != unrelated_key, (
+        "an unrelated directory must not collide with the real checkout's "
+        "ledger key just because CLAUDE_PROJECT_DIR points at the checkout"
+    )

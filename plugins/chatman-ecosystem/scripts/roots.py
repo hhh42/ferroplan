@@ -141,13 +141,25 @@ def project_key(project: str) -> str:
     Realpaths internally, so a caller may pass a bare cwd string, an
     already-resolved path, or `CLAUDE_PROJECT_DIR` -- the digest is the same.
 
-    Anchors at `project_root()` when the realpath resolves to one, so callers
-    from any subdirectory of a checkout hash to the same key as the repo
-    root. Falls back to the raw realpath when no project root resolves (e.g.
+    Anchors at `project_root()` when the realpath resolves to one *and* that
+    root is `project` itself or a real ancestor of it, so callers from any
+    subdirectory of a checkout hash to the same key as the repo root. An
+    env-provided root (`FERROPLAN_ROOT`/`CLAUDE_PROJECT_DIR`) that is
+    unrelated to `project` -- e.g. a stale env var pointing at a different
+    checkout while a throwaway path is being keyed -- is rejected as an
+    anchor rather than causing an unrelated project's key to collide. Falls
+    back to the raw realpath when no related project root resolves (e.g.
     outside any recognized checkout), matching prior behavior exactly.
     """
     real = Path(os.path.realpath(project))
     root = project_root(real)
+    if root is not None:
+        try:
+            resolved_root = root.resolve()
+        except OSError:
+            resolved_root = root
+        if resolved_root != real and resolved_root not in real.parents:
+            root = None
     anchor = root if root is not None else real
     return hashlib.sha256(str(anchor).encode("utf-8")).hexdigest()[:24]
 
