@@ -1,0 +1,100 @@
+name: Chatman Ecosystem
+
+on:
+  pull_request:
+    paths:
+      - ".claude/**"
+      - ".claude-plugin/**"
+      - "plugins/chatman-ecosystem/**"
+      - "docs/architecture/claude-projection.md"
+      - "docs/migration/v26.7.29.md"
+      - "docs/releases/v26.7.29.md"
+      - ".github/workflows/chatman-ecosystem.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".claude/**"
+      - ".claude-plugin/**"
+      - "plugins/chatman-ecosystem/**"
+      - "docs/architecture/claude-projection.md"
+      - "docs/migration/v26.7.29.md"
+      - "docs/releases/v26.7.29.md"
+      - ".github/workflows/chatman-ecosystem.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: chatman-ecosystem-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  projection-law:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Check diff whitespace
+        run: git diff --check
+
+      - name: Parse JSON projection surfaces
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          paths = [
+              Path('.claude/settings.json'),
+              Path('.claude-plugin/marketplace.json'),
+              *Path('plugins/chatman-ecosystem').rglob('*.json'),
+          ]
+          for path in sorted(set(paths)):
+              json.loads(path.read_text(encoding='utf-8'))
+              print(path)
+          PY
+
+      - name: Compile plugin scripts
+        run: python3 -m compileall -q plugins/chatman-ecosystem/scripts
+
+      - name: Run projection law validator
+        run: |
+          python3 plugins/chatman-ecosystem/scripts/validate-claude-projection.py \
+            --plugin-root plugins/chatman-ecosystem
+
+      - name: Run projection fixtures
+        run: |
+          python3 -m unittest discover \
+            -s plugins/chatman-ecosystem/tests \
+            -p 'test_*.py' \
+            -v
+
+      - name: Check shell resolvers
+        run: |
+          find plugins/chatman-ecosystem/scripts -type f -name '*.sh' -print0 \
+            | xargs -0 -r -n1 sh -n
+
+  ferroplan-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Rust format
+        run: cargo fmt --all -- --check
+
+      - name: Check combined MCP server
+        run: cargo check -p ferroplan-mcp --bin ferroplan-mcp
+
+      - name: Test combined MCP server
+        run: cargo test -p ferroplan-mcp
