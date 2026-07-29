@@ -16,8 +16,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import loop  # type: ignore  # local plugin script
-import phase  # type: ignore  # local plugin script
+import loop  # type: ignore  # noqa: E402  # local plugin script
+import phase  # type: ignore  # noqa: E402  # local plugin script
 
 PREDICATES = {
     "epistemic": {

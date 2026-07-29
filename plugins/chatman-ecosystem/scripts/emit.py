@@ -19,7 +19,7 @@ import json
 import os
 import sys
 from collections.abc import Callable
-from enum import Enum
+from enum import StrEnum
 from typing import Any, TextIO
 
 from models import ChatmanError, ChatmanModel
@@ -27,7 +27,7 @@ from models import ChatmanError, ChatmanModel
 Renderer = Callable[[Any], str]
 
 
-class Format(str, Enum):
+class Format(StrEnum):
     JSON = "json"
     HUMAN = "human"
     SCHEMA = "schema"
