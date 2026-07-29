@@ -31,6 +31,38 @@ emitted unsound; the same family as the ε mutex gaps that led the
   VAL-reds green and zero regressions elsewhere; casualties named
   and solo-checked as always.
 
+### Recorded — twenty of twenty-three green; the other three were never this bug
+
+The fix: `epsilon_separate` now carries end-op identities through its
+execution-order sort and repairs SAME-SLOT end groups by invariant
+relation — if A's deletes hit B's invariant-positives (or adds hit its
+negatives), B's end emits first; a bubble pass over groups ≤16, cycles
+left to the existing STN-consistency veto. Zero-slack geometries
+(durations exactly filling the window) admit no strict separation and
+keep the recorded STN-infeasible fallback to raw times. Fixture first:
+`benchmarks/bench/eps-cross-*` pins the compressible-slack shape as a
+unit test directly on the emission pass (the first draft asserted on
+the zero-slack shape and "passed" through the fallback — a false green
+caught by running the real witness).
+
+The measurements, against the fixed binary at the standing 30 s budget:
+
+- **match-cellar-2014: VAL 0/20 → 20/20.** The whole cluster green,
+  plans and coverage byte-stable (20/20 solved both eras — the bug was
+  always emission-only).
+- **tempo-sat 630 (2006/2008/2011): 399/630 → 399/630**, zero wins,
+  zero losses, zero VAL movement instance-by-instance — the fix
+  touches nothing without a same-epoch end pair.
+- **tempo-2014 overall: 65 solves stable, valid 42 → 62.**
+- **map-analyzer: 8/11 → 8/11 — the hypothesis REFUTED.** The 0.17
+  decode guessed its 3 reds were this bug; they are not. Solo-check
+  (i17, verbose VAL): *"Failed duration constraint: Set the duration
+  to 150"* — **state-dependent duration drift**, a different class:
+  the duration expression reads fluents, ε-separation shifts a start
+  across another action's fluent write, and the committed duration no
+  longer equals the expression's value at the emitted start time.
+  Named 0.19 debt (deferred list below).
+
 ## Phase 2 — the village, alive (the tick loop)
 
 `bazaar_live`'s successor over `benchmarks/village/`: N workers in
@@ -43,6 +75,21 @@ plateau's game-shaped witness (gather-spam vs think budgets) gets
 its numbers here — the h-surgery fence's file grows or the fence
 falls, measured.
 
+### Recorded — two workers, one economy, theft survived
+
+`examples/village_live.rs`, the sighted-tier loop (fog rides with the
+live page's next act): one authoritative world `Session`; a think is a
+fresh fork restricted to the worker's own labor with their contract as
+goal; validity is the free suffix replay on a PROBE FORK carrying that
+contract (the world session's own goal belongs to nobody — mara
+thrashed 120 thinks until that landed); dispatch is `apply_start` in
+the parenthesized plan-step form; interval ends fire from `elapse`.
+Theft at tick 17 (planks 3 → 1) breaks bob mid-flight. Measured run
+(`benchmarks/village-live.md`): bob 2 contracts, 3 thinks, 19 steps,
+1 drift rethink, done tick 47; mara 1 contract, 1 think, 13 steps,
+done tick 32; ~1.5 M think evals, 13 s wall for the whole run. The
+gather-spam witness stands in the record; the h-surgery fence holds.
+
 ## Phase 3 — the screens (the severed Phase 5, whole)
 
 - **The village live page**: the wasm demo's next act — map and
@@ -51,6 +98,38 @@ falls, measured.
 - **Plan introspection views**: temporal Gantt with invariant
   spans, classical causal chains, preference satisfaction
   breakdown — the planner made legible for any solved instance.
+
+### Recorded — the screens stand, and their smoke test caught a seven-cycle-old corpse
+
+The engine side is `introspect::explain` (new lib module, 4 unit
+tests): **causal links** replay the plan over the solver's own
+grounding recording each positive precondition's last achiever
+(static init-only facts dropped as noise); **invariant spans** render
+each durative step's `over all` conditions from the ORIGINAL schema
+with arguments substituted — exactly what VAL checks over the
+interval; **preference breakdown** scores goal preferences in the
+final replayed state and soft trajectory preferences via the verify
+oracle. The wasm surface adds `explain` plus the village Session verbs
+(`restrict_contains`, `apply_start`, `elapse`, `set_fluent`/`fluent`,
+`plan_valid_json` — the probe-fork validity shape). The pages:
+**Explain this plan** on the solver demo renders all three views;
+`village-live.html` runs the Phase 2 loop in-browser — map, economy
+sparklines, contracts and visible intentions per worker, theft and
+till-raid disruption buttons.
+
+The find: the smoke test's first run showed EVERY temporal example
+failing in wasm while classical passed. Root cause:
+`NODE_CAP_TARGET_BYTES = 8 << 30` — on wasm32 usize is 32-bit and shl
+silently DROPS the high bits, so the "8 GiB" default node-cap target
+wrapped to ZERO and every default-cap search (all of temporal, the
+classical best-first fallback) died at its first insertion — since the
+cap landed in 0.8, invisibly, because EHC-solvable classical demos
+still passed and the bazaar thinks pass explicit memory budgets.
+Fixed with a width-guarded 2 GiB 32-bit ceiling (64-bit byte-identical);
+forge-order/jobshop wasm probes went unsolved → solved (makespans 65 /
+12.015). `crates/ferroplan-wasm/smoke.js` (Playwright, headless) is now
+part of the cut drill: causal chain, invariant spans, village first
+ticks, page-error sweep — SMOKE PASS on the shipped pages.
 
 ## Phase 4 — the budget-aware ladder (the referee's next idea)
 
@@ -66,6 +145,23 @@ memo bet #2; the 2023 numeric track's 112/400 is its baseline)
 stays the named NEXT swing — taken this cycle only if the ladder
 work lands early and clean.
 
+### Recorded (implementation) — the gate is in; the referee boards ride the cut
+
+`FF_TIME_LIMIT=<secs>` arms a wall clock at `solve` entry (grounding
+counts as spent budget); a bounded rung (LAMA, novelty) is entered
+only while MORE than 40 % of the budget remains — early rung failures
+still buy their wins, late ones stop starving the complete fallback.
+Unset ⇒ all-rungs, byte-identical to 0.17; on wasm the frozen clock
+degrades the gate to always-affordable, correct for Session thinks.
+`benchmarks/ipc67.py` now passes its per-instance `--timeout` to every
+ff spawn; `FF_WALL_DEBUG=1` narrates the verdict (the probe eyes).
+Gate verified on sokoban-2008 i1: unset → `None`/affordable, 300 s →
+0.999 remaining/affordable, 0.05 s → 0.0 remaining/SKIPPED. The
+referee — the 2018/2023 classical boards re-swept under the wired
+runner, with an `FF_NOVELTY=1` probe to show the rung's six real wins
+surviving without the −51 tax — runs with the Phase 5 cut sweeps, as
+scoped.
+
 ## Phase 5 — cut 0.18.0
 
 The standing template: every scoreboard the cycle touched re-swept
@@ -75,6 +171,14 @@ complete, full pre-flight, finish in main; the user publishes.
 
 ## Deferred, on the record (carried forward)
 
+- **State-dependent duration drift** (NEW, Phase 1's refuted-hypothesis
+  find): map-analyzer-2014's 3 VAL-reds — the duration expression
+  reads fluents, ε-separation shifts a start across another action's
+  fluent write, and the committed duration no longer equals the
+  expression at the emitted start time (VAL: "Failed duration
+  constraint"). The emission pass needs to re-evaluate state-dependent
+  durations at emitted times, or veto ε-shifts across writes to
+  duration-read fluents. Witnesses: i17/i18/i20.
 - The h-surgery bet (end-gated interval credit) — unless Phase 2's
   measurements force it sooner.
 - Numeric-heuristic upgrade (subgoaling/AIBR class) — named next

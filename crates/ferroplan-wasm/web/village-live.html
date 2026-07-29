@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ferroplan — the living village (live)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0d11; --bg2:#0e1116; --panel:#12161d; --panel2:#161b23;
+    --edge:#222a34; --edge2:#313b48; --ink:#e8ebf0; --mut:#8b94a3; --faint:#525b69;
+    --acc:#ff6a3a; --cy:#46d3c6; --red:#ff5468; --amber:#ffb454; --green:#5dd39e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{background:var(--bg); color:var(--ink); font:15px/1.5 'Space Grotesk',system-ui,sans-serif;}
+  ::selection{background:rgba(255,106,58,.28);}
+  a{color:var(--cy); text-decoration:none;}
+  .wrap{max-width:1080px; margin:0 auto; padding:28px 20px 60px;}
+  h1{font-size:26px; margin:0 0 4px;} h1 .acc{color:var(--acc);}
+  .sub{color:var(--mut); margin:0 0 22px; max-width:78ch;}
+  .bar{display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px;}
+  button{background:var(--panel2); color:var(--ink); border:1px solid var(--edge2);
+    border-radius:8px; padding:7px 14px; font:inherit; cursor:pointer;}
+  button:hover{border-color:var(--acc);}
+  button:disabled{opacity:.4; cursor:default;}
+  .tick{font-family:'JetBrains Mono',monospace; color:var(--cy); min-width:90px;}
+  #status{color:var(--faint); font-family:'JetBrains Mono',monospace; font-size:12px;}
+  .grid{display:grid; grid-template-columns:minmax(0,1fr) 340px; gap:14px;}
+  .panel{background:var(--panel); border:1px solid var(--edge); border-radius:12px; padding:14px;}
+  .panel h2{margin:0 0 8px; font-size:16px;}
+  svg text{font:11px 'JetBrains Mono',monospace; fill:var(--mut);}
+  .stn{fill:var(--panel2); stroke:var(--edge2);}
+  .road{stroke:var(--edge2); stroke-width:2;}
+  .worker-card{border-bottom:1px solid var(--edge); padding:8px 0;}
+  .worker-card:last-child{border-bottom:none;}
+  .worker-card .nm{font-weight:600;}
+  .worker-card .nm.bob{color:var(--acc);} .worker-card .nm.mara{color:var(--cy);}
+  .chip{display:inline-block; font:11px 'JetBrains Mono',monospace; border:1px solid var(--edge2);
+    border-radius:6px; padding:1px 7px; margin:1px 3px 1px 0; color:var(--mut);}
+  .chip.cur{border-color:var(--amber); color:var(--amber);}
+  .chip.done{border-color:var(--green); color:var(--green);}
+  .state{font:12px 'JetBrains Mono',monospace; color:var(--amber); min-height:16px;}
+  .intent{font:11.5px 'JetBrains Mono',monospace; color:var(--faint); margin:4px 0 0; padding:0; list-style:none;}
+  .intent li.next{color:var(--ink);}
+  .econ{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:14px;}
+  .econ .cell{background:var(--panel); border:1px solid var(--edge); border-radius:10px; padding:8px 10px;}
+  .econ .cell b{font:13px 'JetBrains Mono',monospace;}
+  .econ .cell .v{font:18px 'JetBrains Mono',monospace; color:var(--cy);}
+  .econ svg{display:block; width:100%; height:26px; margin-top:2px;}
+  .econ polyline{fill:none; stroke:var(--cy); stroke-width:1.5; opacity:.8;}
+  .feed{margin-top:14px; max-height:260px; overflow-y:auto;}
+  .ev{font-family:'JetBrains Mono',monospace; font-size:12.5px; padding:3px 0; border-bottom:1px solid var(--edge);
+    display:flex; gap:8px; opacity:0; animation:in .25s forwards;}
+  @keyframes in{to{opacity:1;}}
+  .ev .t{color:var(--faint); min-width:34px;}
+  .k-world{color:var(--mut);} .k-think{color:var(--cy);} .k-drift{color:var(--amber);}
+  .k-done{color:var(--green); font-weight:700;} .k-theft{color:var(--red); font-weight:700;}
+  .k-hire{color:var(--acc);} .k-stuck{color:var(--faint);}
+  .note{background:var(--panel); border:1px solid var(--edge); border-radius:12px;
+    padding:14px 16px; margin-top:16px; color:var(--mut); font-size:13.5px;}
+  .note b{color:var(--ink);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the living <span class="acc">village</span> <span style="color:var(--faint);font-size:15px">— live, in your browser</span></h1>
+  <p class="sub">One authoritative world <code>Session</code>, run tick by tick in
+  WASM — the same loop as <code>examples/village_live.rs</code>. Workers are
+  <b>hired by goal contract</b>: each think is a fresh fork of the world,
+  scoped to that worker's own labor, with the contract as goal. Plans hold
+  while the free suffix replay says so; ends of in-flight durative work fire
+  from <code>elapse</code>. Hit a disruption and watch a plan break mid-flight.
+  <a href="index.html">&larr; solver demo</a> ·
+  <a href="bazaar-live.html">the living bazaar</a></p>
+
+  <div class="bar">
+    <button id="b-play">&#9654; play</button>
+    <button id="b-step">step</button>
+    <button id="b-theft" title="two planks vanish from the communal stock">steal 2 planks</button>
+    <button id="b-till" title="the till is emptied">empty the till</button>
+    <button id="b-reset">reset</button>
+    <span class="tick" id="tick">tick 0</span>
+    <span id="status">loading wasm…</span>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>the map</h2>
+      <svg id="map" viewBox="0 0 560 380" aria-label="village map"></svg>
+    </div>
+    <div class="panel">
+      <h2>craftsmen &amp; contracts</h2>
+      <div id="workers"></div>
+    </div>
+  </div>
+
+  <div class="econ" id="econ"></div>
+
+  <div class="panel feed" id="feed"></div>
+
+  <div class="note"><b>What you're seeing:</b> the abstract village domain —
+  ONE gather rule, ONE make rule, buy/sell/walk/pickup — with the entire
+  economy in the catalog data. bob is hired to craft a stool, then re-hired
+  to grow the till to 16; mara is hired to carve a decoy (branch + a chisel
+  she must forge first). A theft breaks the stock a plan counted on; the
+  next validity probe fails and the worker spends a bounded think, exactly
+  the drift-rethink discipline the scoreboards measure
+  (<code>benchmarks/village-live.md</code>).</div>
+</div>
+<script type="module">
+import init, { WasmSession, version } from './pkg/ferroplan_wasm.js';
+import { VILLAGE_DOMAIN, VILLAGE_PROBLEM } from './village-data.js';
+
+const THINK_EVALS = 600000, THINK_MB = 256, MAX_TICKS = 160;
+const STATIONS = {
+  FOREST: [70, 180], SAWMILL: [180, 60], WORKSHOP: [340, 60],
+  'TOWN-MARKET': [470, 140], SMITHY: [300, 290], CARVERY: [460, 320],
+};
+const ROADS = [
+  ['FOREST', 'SAWMILL'], ['SAWMILL', 'WORKSHOP'], ['WORKSHOP', 'TOWN-MARKET'],
+  ['TOWN-MARKET', 'SMITHY'], ['SMITHY', 'CARVERY'], ['FOREST', 'SMITHY'],
+];
+const ITEMS = ['oak', 'plank', 'stool', 'branch', 'iron', 'chisel', 'decoy'];
+const WORKERS = [
+  { name: 'bob', color: 'var(--acc)', filter: ' BOB',
+    contracts: ['(>= (stock stool) 1)', '(>= (money) 16)'] },
+  { name: 'mara', color: 'var(--cy)', filter: ' MARA',
+    contracts: ['(>= (stock decoy) 1)'] },
+];
+
+let world = null, ws = null, tick = 0, timer = null, hist = null;
+let pendingTheft = false, pendingTill = false;
+
+const $ = id => document.getElementById(id);
+function ev(kind, detail) {
+  const d = document.createElement('div');
+  d.className = 'ev k-' + kind;
+  d.innerHTML = '<span class="t">' + tick + '</span><span>' + detail + '</span>';
+  $('feed').appendChild(d);
+  $('feed').scrollTop = $('feed').scrollHeight;
+}
+
+function makeWorld() {
+  world = new WasmSession(VILLAGE_DOMAIN, VILLAGE_PROBLEM);
+  ws = WORKERS.map(w => ({
+    ...w, contract: 0, plan: null, cursor: 0, clock: 0,
+    thinks: 0, steps: 0, drifts: 0, doneAt: null,
+    pos: null, walkingTo: null, walkFrom: null, walkStart: 0, walkDur: 0,
+    thinking: false, state: 'idle',
+  }));
+  hist = Object.fromEntries([...ITEMS.map(i => [i, []]), ['money', []]]);
+}
+
+function stationOf(w) {
+  for (const s of Object.keys(STATIONS)) {
+    if (world.fact('(at ' + w.name.toUpperCase() + ' ' + s + ')') === true) return s;
+  }
+  return null;
+}
+
+function goalMet(w) {
+  const probe = world.fork();
+  try { probe.set_goal(w.contracts[w.contract]); } catch { return false; }
+  return probe.goal_met();
+}
+
+function planValid(w) {
+  if (!w.plan) return false;
+  const probe = world.fork();
+  try { probe.set_goal(w.contracts[w.contract]); } catch { return false; }
+  return probe.plan_valid_json(JSON.stringify(w.plan), w.cursor);
+}
+
+function think(w) {
+  const mind = world.fork();
+  mind.restrict_contains(w.filter);
+  try { mind.set_goal(w.contracts[w.contract]); } catch { return null; }
+  const sol = JSON.parse(mind.think(THINK_EVALS, THINK_MB));
+  w.thinks++;
+  return (sol.solved && sol.plan) ? sol : null;
+}
+
+function dispatch(w) {
+  if (!w.plan) return;
+  while (w.cursor < w.plan.steps.length) {
+    const st = w.plan.steps[w.cursor];
+    if ((st.time ?? 0) > w.clock + 1e-9) break;
+    const disp = '(' + st.action + (st.args.length ? ' ' + st.args.join(' ') : '') + ')';
+    try { world.apply_start(disp); } catch { break; } // not applicable yet — retry next tick
+    w.steps++; w.cursor++;
+    if (st.action === 'WALK') {
+      w.walkFrom = st.args[1]; w.walkingTo = st.args[2];
+      w.walkStart = tick; w.walkDur = st.duration ?? 2;
+    }
+  }
+}
+
+function workerTurn(w) {
+  if (w.doneAt !== null) return;
+  if (goalMet(w)) {
+    ev('done', w.name + ': contract <b>' + w.contracts[w.contract] + '</b> DONE');
+    if (w.contract + 1 < w.contracts.length) {
+      w.contract++; w.plan = null; w.cursor = 0;
+      ev('hire', w.name + ': RE-HIRED on <b>' + w.contracts[w.contract] + '</b>');
+    } else {
+      w.doneAt = tick; w.state = 'done t=' + tick; return;
+    }
+  }
+  if (!planValid(w)) {
+    if (w.plan) { w.drifts++; ev('drift', w.name + ': plan broken, rethinking'); }
+    w.state = 'thinking…'; renderWorkers();
+    const sol = think(w);
+    w.cursor = 0; w.clock = 0;
+    if (sol) {
+      w.plan = sol.plan;
+      ev('think', w.name + ': planned ' + sol.plan.steps.length + ' steps in ' +
+        sol.statistics.evaluated_states + ' evals');
+      w.state = 'following plan';
+    } else {
+      w.plan = null;
+      ev('stuck', w.name + ': contract unplannable this tick');
+      w.state = 'stuck — will retry';
+    }
+  } else {
+    w.state = 'following plan';
+  }
+  dispatch(w);
+  w.clock += 1;
+}
+
+function stepTick() {
+  if (!world) return;
+  tick++;
+  $('tick').textContent = 'tick ' + tick;
+  const fired = JSON.parse(world.elapse(1.0));
+  for (const f of fired) ev('world', 'world: ' + f.toLowerCase());
+  if (pendingTheft) {
+    pendingTheft = false;
+    const cur = world.fluent('(stock plank)') ?? 0;
+    world.set_fluent('(stock plank)', Math.max(cur - 2, 0));
+    ev('theft', 'THEFT: planks ' + cur + ' &rarr; ' + Math.max(cur - 2, 0));
+  }
+  if (pendingTill) {
+    pendingTill = false;
+    const cur = world.fluent('(money)') ?? 0;
+    world.set_fluent('(money)', 0);
+    ev('theft', 'THEFT: the till (' + cur + ') is emptied');
+  }
+  for (const w of ws) workerTurn(w);
+  for (const i of ITEMS) hist[i].push(world.fluent('(stock ' + i.toUpperCase() + ')') ?? 0);
+  hist.money.push(world.fluent('(money)') ?? 0);
+  render();
+  if (ws.every(w => w.doneAt !== null) || tick >= MAX_TICKS) {
+    stop();
+    for (const w of ws) {
+      ev('done', w.name + ': ' + (w.doneAt !== null ? 'ALL CONTRACTS MET' : 'ran out of ticks') +
+        ' — ' + w.thinks + ' thinks, ' + w.steps + ' steps, ' + w.drifts + ' drift rethinks');
+    }
+    world = null;
+  }
+}
+
+function render() { renderMap(); renderWorkers(); renderEcon(); }
+
+function renderMap() {
+  const svg = $('map');
+  let s = '';
+  for (const [a, b] of ROADS) {
+    const [x1, y1] = STATIONS[a], [x2, y2] = STATIONS[b];
+    s += `<line class="road" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"/>`;
+  }
+  for (const [name, [x, y]] of Object.entries(STATIONS)) {
+    s += `<circle class="stn" cx="${x}" cy="${y}" r="17"/>` +
+      `<text x="${x}" y="${y + 31}" text-anchor="middle">${name.toLowerCase()}</text>`;
+  }
+  if (ws) for (const [k, w] of ws.entries()) {
+    let x, y;
+    const at = world ? stationOf(w) : null;
+    if (at) { [x, y] = STATIONS[at]; w.pos = at; w.walkingTo = null; }
+    else if (w.walkingTo && w.walkFrom) {
+      const p = Math.min((tick - w.walkStart) / Math.max(w.walkDur, 1), 1);
+      const [ax, ay] = STATIONS[w.walkFrom], [bx, by] = STATIONS[w.walkingTo];
+      x = ax + (bx - ax) * p; y = ay + (by - ay) * p;
+    } else if (w.pos) { [x, y] = STATIONS[w.pos]; }
+    else continue;
+    const dx = k * 12 - 6;
+    s += `<circle cx="${x + dx}" cy="${y - 4}" r="6" fill="${w.color}"/>` +
+      `<text x="${x + dx}" y="${y - 14}" text-anchor="middle" fill="${w.color}">${w.name}</text>`;
+  }
+  svg.innerHTML = s;
+}
+
+function renderWorkers() {
+  $('workers').innerHTML = ws.map(w => {
+    const chips = w.contracts.map((c, i) => {
+      const cls = i < w.contract || w.doneAt !== null ? 'done' : i === w.contract ? 'cur' : '';
+      return `<span class="chip ${cls}">${c}</span>`;
+    }).join('');
+    const intent = (w.plan && w.doneAt === null)
+      ? '<ul class="intent">' + w.plan.steps.slice(w.cursor, w.cursor + 4).map((st, j) =>
+          `<li${j === 0 ? ' class="next"' : ''}>t+${(st.time ?? 0).toFixed(1)} ${st.action.toLowerCase()} ${st.args.slice(1).join(' ').toLowerCase()}</li>`
+        ).join('') + (w.plan.steps.length > w.cursor + 4 ? '<li>&hellip;</li>' : '') + '</ul>'
+      : '';
+    return `<div class="worker-card">
+      <span class="nm ${w.name}">${w.name}</span>
+      <span style="font:11px 'JetBrains Mono',monospace;color:var(--faint)"> ${w.thinks} thinks · ${w.steps} steps · ${w.drifts} drifts</span>
+      <div>${chips}</div>
+      <div class="state">${w.state}</div>${intent}</div>`;
+  }).join('');
+}
+
+function renderEcon() {
+  const cells = [...ITEMS.map(i => [i, '(stock ' + i.toUpperCase() + ')']), ['money', '(money)']];
+  $('econ').innerHTML = cells.map(([label, fl]) => {
+    const v = world ? (world.fluent(fl) ?? 0) : (hist[label].at(-1) ?? 0);
+    const h = hist[label].slice(-120);
+    const max = Math.max(...h, 1);
+    const pts = h.map((y, i) => `${(i / Math.max(h.length - 1, 1)) * 100},${24 - (y / max) * 22}`).join(' ');
+    return `<div class="cell"><b>${label}</b> <span class="v">${v}</span>
+      <svg viewBox="0 0 100 26" preserveAspectRatio="none"><polyline points="${pts}"/></svg></div>`;
+  }).join('');
+}
+
+function reset() {
+  stop(); tick = 0; pendingTheft = pendingTill = false;
+  $('feed').innerHTML = ''; $('tick').textContent = 'tick 0';
+  $('b-theft').disabled = $('b-till').disabled = false;
+  makeWorld();
+  render();
+}
+function stop() { if (timer) { clearInterval(timer); timer = null; $('b-play').innerHTML = '&#9654; play'; } }
+
+init().then(() => {
+  $('status').textContent = 'ferroplan ' + version() + ' — grounding…';
+  makeWorld();
+  render();
+  $('status').textContent = 'ferroplan ' + version() + ' — live';
+  $('b-step').onclick = () => { stop(); if (!world) reset(); stepTick(); };
+  $('b-play').onclick = function () {
+    if (timer) { stop(); return; }
+    if (!world) reset();
+    this.innerHTML = '&#10074;&#10074; pause';
+    timer = setInterval(stepTick, 420);
+  };
+  $('b-theft').onclick = () => { pendingTheft = true; $('b-theft').disabled = true; };
+  $('b-till').onclick = () => { pendingTill = true; $('b-till').disabled = true; };
+  $('b-reset').onclick = reset;
+}).catch(e => { $('status').textContent = 'wasm failed to load: ' + e; });
+</script>
+</body>
+</html>

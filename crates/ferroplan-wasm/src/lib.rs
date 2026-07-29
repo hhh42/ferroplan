@@ -69,6 +69,25 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// Plan introspection (0.18 Phase 3): explain a plan for its domain +
+/// problem — causal links (classical), invariant spans (temporal),
+/// preference breakdown (PDDL3). `plan_json` is the `plan` field of a
+/// `Solution` as returned by [`plan`]; the result is an `Explanation`
+/// JSON, or `{"error": "..."}`.
+#[wasm_bindgen]
+pub fn explain(domain: &str, problem: &str, plan_json: &str) -> String {
+    let plan: ferroplan::api::Plan = match serde_json::from_str(plan_json) {
+        Ok(p) => p,
+        Err(e) => return err_json(&format!("plan: {e}")),
+    };
+    match ferroplan::introspect::explain(domain, problem, &plan) {
+        Ok(ex) => {
+            serde_json::to_string(&ex).unwrap_or_else(|e| err_json(&format!("serialize: {e}")))
+        }
+        Err(e) => err_json(&e),
+    }
+}
+
 fn parse_mode(m: Option<&str>) -> Mode {
     match m.map(|s| s.to_ascii_lowercase()).as_deref() {
         Some("ff") => Mode::Ff,
@@ -232,6 +251,46 @@ impl WasmSession {
             Some(v) => JsValue::from_bool(v),
             None => JsValue::NULL,
         }
+    }
+
+    /// Actor scoping by substring — the village's `restrict_ops` shape
+    /// (`" BOB"` keeps only ops whose display mentions the worker).
+    pub fn restrict_contains(&mut self, filter: String) {
+        self.inner.restrict_ops(move |d| d.contains(&filter));
+    }
+
+    /// Dispatch a durative start NOW (`"(ACTION ARGS)"` plan-step form);
+    /// its end fires from a later `elapse`. The village loop's dispatch.
+    pub fn apply_start(&mut self, name: &str) -> Result<(), JsValue> {
+        self.inner.apply_start(name).map_err(js_err)
+    }
+
+    /// Advance world time; returns the fired interval ends as a JSON
+    /// string array (the tick loop's world events).
+    pub fn elapse(&mut self, dt: f64) -> Result<String, JsValue> {
+        let fired = self.inner.elapse(dt).map_err(js_err)?;
+        serde_json::to_string(&fired).map_err(js_err)
+    }
+
+    pub fn set_fluent(&mut self, name: &str, value: f64) -> Result<(), JsValue> {
+        self.inner.set_fluent(name, value).map_err(js_err)
+    }
+
+    /// Current value of a fluent (`null` if unknown to the grounding).
+    pub fn fluent(&self, name: &str) -> JsValue {
+        match self.inner.fluent(name) {
+            Some(v) => JsValue::from_f64(v),
+            None => JsValue::NULL,
+        }
+    }
+
+    /// Validity of an ARBITRARY plan (JSON `Plan`) from `from`, judged
+    /// against THIS session's state and goal — the village's probe shape:
+    /// fork the world, set the worker's contract, ask about their plan.
+    pub fn plan_valid_json(&self, plan_json: &str, from: usize) -> bool {
+        serde_json::from_str::<ferroplan::api::Plan>(plan_json)
+            .map(|p| self.inner.plan_still_valid(&p, from))
+            .unwrap_or(false)
     }
 }
 

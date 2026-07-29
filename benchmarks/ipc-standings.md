@@ -43,7 +43,7 @@ for scoring semantics and the failure-class definitions.
 |---|---|---|---|---|
 | 2014 seq-sat | yes (first entry, 0.17) | 95/280 | coverage + VAL | 40 mem-cap, 145 timeout |
 | 2014 seq-agile | yes (first entry, 0.17) | 94/280 | coverage + VAL | 41 mem-cap, 145 timeout |
-| 2014 tempo-sat | yes (first entry, 0.17) | 42/200 | coverage + VAL | 23 VAL-RED, 7 mem-cap, 128 timeout |
+| 2014 tempo-sat | yes (first entry, 0.17) | 62/200 | coverage + VAL | 3 VAL-RED, 7 mem-cap, 128 timeout |
 | 2014 seq-mco t4 | yes (first entry, 0.17) | 107/280 | wall-clock per competition rule (4-core box) | 173 timeout |
 | 2018 seq-sat | yes (first entry, 0.17) | 30/240 | vs best-known bounds: 0W/1T/13L, mean quality 0.72 (14 scored) | 8 VAL-RED, 60 engine-reject/error, 24 mem-cap, 118 timeout |
 | 2023 classical | yes (first entry, 0.17) | 26/140 | vs best-known bounds: 0W/11T/15L, mean quality 0.88 (26 scored) | 16 mem-cap, 98 timeout |

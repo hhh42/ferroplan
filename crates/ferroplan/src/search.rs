@@ -40,7 +40,14 @@ const WEIGHT_SCALE: f64 = 256.0;
 /// honest. The default is far above every green fixture's retained size
 /// (largest measured: ~5.4 GB total on storage qualpref p08);
 /// `FF_SEARCH_NODE_CAP` overrides the node count directly (`0` disables).
-pub(crate) const NODE_CAP_TARGET_BYTES: usize = 8 << 30;
+///
+/// On 32-bit targets (wasm32) `8 << 30` does not fit a usize — shl silently
+/// DROPS the high bits, so the "8 GiB" target wrapped to a ZERO cap and
+/// every default-cap search (all of temporal, the classical best-first
+/// fallback) died at its first insertion while EHC-solvable instances
+/// sneaked through — the 0.18 screens smoke test caught it. 2 GiB is the
+/// honest 32-bit ceiling (wasm memory tops out at 4 GiB).
+pub(crate) const NODE_CAP_TARGET_BYTES: usize = if usize::BITS < 64 { 2 << 30 } else { 8 << 30 };
 
 /// The per-insertion byte model behind [`NODE_CAP_TARGET_BYTES`]: one stored
 /// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in
@@ -839,7 +846,9 @@ pub fn plan_avoiding(
     // entered only while MORE THAN 40% of it remains: early failures
     // still buy the rungs' wins, late ones stop starving the fallback.
     // No limit set → all-rungs behavior, byte-identical to before.
-    let rungs_affordable = wall_remaining_frac().is_none_or(|f| f > 0.4);
+    // (`map_or`, not `is_none_or`: the latter is stable only since 1.82,
+    // above the crate's 1.74 MSRV.)
+    let rungs_affordable = wall_remaining_frac().map_or(true, |f| f > 0.4);
     // The probe eyes (FF_ORBIT_DEBUG's pattern): narrate the gate's
     // verdict on stderr, never affect the search.
     if std::env::var("FF_WALL_DEBUG").is_ok() {
