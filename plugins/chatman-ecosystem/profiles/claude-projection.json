@@ -1,0 +1,281 @@
+{
+  "schema": "urn:chatman:claude-code-projection:v1",
+  "release": "26.7.29",
+  "repository": "seanchatmangpt/ferroplan",
+  "constitutional_boundary": {
+    "equation": "A = mu(O*)",
+    "invariant": "zero-unreceipted-actuation",
+    "projection_role": "managed-world-adapter",
+    "not_constitutional_center": true
+  },
+  "loader_epoch": {
+    "observed_on": "2026-07-29",
+    "authority": "current-claude-code-loader",
+    "documentation": [
+      "https://code.claude.com/docs/en/plugins-reference",
+      "https://code.claude.com/docs/en/sub-agents",
+      "https://code.claude.com/docs/en/hooks"
+    ],
+    "required_capabilities": [
+      "plugin-default-enabled",
+      "plugin-agent-tools",
+      "plugin-agent-disallowed-tools",
+      "plugin-agent-max-turns",
+      "plugin-agent-effort",
+      "plugin-agent-worktree-isolation",
+      "skill-triggered-monitors",
+      "post-tool-batch-hooks",
+      "plugin-user-config"
+    ]
+  },
+  "plugin": {
+    "id": "chatman-ecosystem@chatman-ecosystem",
+    "name": "chatman-ecosystem",
+    "display_name": "Chatman Phase Engine",
+    "version": "26.7.29",
+    "default_enabled": false,
+    "project_enabled": true,
+    "mcp_servers": [
+      "ferroplan"
+    ],
+    "lsp_servers": [],
+    "standalone_validators": [
+      "claude-code-config-lsp"
+    ]
+  },
+  "authority_graph": {
+    "ecosystem-controller": {
+      "claim_ceiling": "routing-and-phase-supervision",
+      "model": "opus",
+      "effort": "max",
+      "max_turns": 80,
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "Agent(chatman-ecosystem:config-law-architect,chatman-ecosystem:rdf-observer,chatman-ecosystem:cmca-allocator,chatman-ecosystem:ferroplan-planner,chatman-ecosystem:source-manufacturer,chatman-ecosystem:independent-validator,chatman-ecosystem:receipt-auditor)"
+      ],
+      "disallowed_tools": [
+        "Write",
+        "Edit",
+        "NotebookEdit"
+      ]
+    },
+    "config-law-architect": {
+      "claim_ceiling": "configuration-conformance-analysis",
+      "model": "sonnet",
+      "effort": "high",
+      "max_turns": 40,
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "disallowed_tools": [
+        "Write",
+        "Edit",
+        "NotebookEdit"
+      ]
+    },
+    "rdf-observer": {
+      "claim_ceiling": "bounded-semantic-projection",
+      "model": "sonnet",
+      "effort": "high",
+      "max_turns": 40,
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash"
+      ],
+      "disallowed_tools": [
+        "Write",
+        "Edit",
+        "NotebookEdit"
+      ]
+    },
+    "cmca-allocator": {
+      "claim_ceiling": "bounded-allocation",
+      "model": "sonnet",
+      "effort": "high",
+      "max_turns": 30,
+      "tools": [
+        "Read",
+        "mcp__ferroplan__cmca_allocate",
+        "mcp__ferroplan__bind_allocation_receipt",
+        "mcp__ferroplan__verify_receipt"
+      ],
+      "disallowed_tools": [
+        "Write",
+        "Edit",
+        "NotebookEdit",
+        "Bash"
+      ]
+    },
+    "ferroplan-planner": {
+      "claim_ceiling": "candidate-plan",
+      "model": "sonnet",
+      "effort": "high",
+      "max_turns": 50,
+      "tools": [
+        "Read",
+        "mcp__ferroplan__parse",
+        "mcp__ferroplan__solve",
+        "mcp__ferroplan__validate",
+        "mcp__ferroplan__decompose",
+        "mcp__ferroplan__session_open",
+        "mcp__ferroplan__session_observe",
+        "mcp__ferroplan__session_think",
+        "mcp__ferroplan__session_status",
+        "mcp__ferroplan__session_close"
+      ],
+      "disallowed_tools": [
+        "Write",
+        "Edit",
+        "NotebookEdit",
+        "Bash"
+      ]
+    },
+    "source-manufacturer": {
+      "claim_ceiling": "reversible-source-construction",
+      "model": "opus",
+      "effort": "max",
+      "max_turns": 80,
+      "isolation": "worktree",
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Write",
+        "Edit",
+        "NotebookEdit",
+        "Bash"
+      ],
+      "disallowed_tools": []
+    },
+    "independent-validator": {
+      "claim_ceiling": "exercised-validation-evidence",
+      "model": "opus",
+      "effort": "max",
+      "max_turns": 60,
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "mcp__ferroplan__validate",
+        "mcp__ferroplan__verify_receipt"
+      ],
+      "disallowed_tools": [
+        "Write",
+        "Edit",
+        "NotebookEdit"
+      ]
+    },
+    "receipt-auditor": {
+      "claim_ceiling": "receipt-replay-and-maximum-standing",
+      "model": "sonnet",
+      "effort": "high",
+      "max_turns": 40,
+      "tools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Bash",
+        "mcp__ferroplan__canonical_digest",
+        "mcp__ferroplan__verify_receipt"
+      ],
+      "disallowed_tools": [
+        "Write",
+        "Edit",
+        "NotebookEdit"
+      ]
+    }
+  },
+  "hooks": {
+    "observation_events": [
+      "PostToolUse",
+      "PostToolUseFailure",
+      "PostToolBatch",
+      "ConfigChange",
+      "WorktreeCreate",
+      "WorktreeRemove"
+    ],
+    "blocking_events": [
+      "PreToolUse",
+      "Stop"
+    ],
+    "session_start_matchers": [
+      "startup",
+      "resume",
+      "clear",
+      "compact"
+    ],
+    "law": "hooks-manufacture-observation-and-intent-candidates-not-truth"
+  },
+  "monitors": {
+    "default": "off-until-skill-invoke",
+    "entries": {
+      "chatman-receipt-frontier": "on-skill-invoke:self-host",
+      "chatman-phase-frontier": "on-skill-invoke:phase-change"
+    }
+  },
+  "lsp_policy": {
+    "main_plugin_registration": "forbidden",
+    "reason": "claude-code-lsp-dispatch-is-extension-based-and-cannot-bound-common-extensions-to-configuration-paths",
+    "allowed_modes": [
+      "standalone-opt-in-plugin",
+      "explicit-cli-validation",
+      "future-path-scoped-loader-support"
+    ]
+  },
+  "state_law": {
+    "canonical_event_source": "phase-events.jsonl",
+    "observation_frontier": "state.json",
+    "derived_snapshot": "phase-state.json",
+    "pending_projection": {
+      "epistemic": "observed",
+      "allocation": "unallocated",
+      "planning": "unplanned",
+      "actuation": "sealed",
+      "drift": "drifted",
+      "conformance": "unknown"
+    }
+  },
+  "actuation_law": {
+    "intent_schema": "urn:chatman:actuation-intent:v1",
+    "grant_schema": "urn:chatman:derived-execution-grant:v1",
+    "attestation_schema": "urn:chatman:execution-attestation:v1",
+    "compatibility_fence": "protected-command-regex",
+    "constitutional_object": "structured-actuation-intent",
+    "zero_unreceipted_actuation": true
+  },
+  "recursive_allocation": {
+    "branching_factor": 8,
+    "factor_count": 10,
+    "parent_receipt_required": true,
+    "return_consequence_required": true
+  },
+  "standing": [
+    "UNKNOWN",
+    "UNSUPPORTED",
+    "BLOCKED",
+    "BUILD_BROKEN",
+    "PARTIAL_ALIVE",
+    "ALIVE"
+  ],
+  "generation": {
+    "canonical_owners": [
+      "ontology/chatman-ecosystem.ttl",
+      "ontology/chatman-shapes.ttl",
+      "ontology/authority-graph.ttl",
+      "profiles/claude-projection.json",
+      "profiles/artifact-ownership.json"
+    ],
+    "preferred_manufacturer": "ggen",
+    "checkpoint_validator": "scripts/validate-claude-projection.py",
+    "hand_edit_generated_output": "refused"
+  }
+}
