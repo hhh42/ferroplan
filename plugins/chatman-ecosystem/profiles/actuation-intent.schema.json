@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:chatman:actuation-intent-schema:v1",
+  "title": "Chatman Protected Actuation Objects",
+  "$defs": {
+    "digest64": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "phaseVector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "epistemic",
+        "allocation",
+        "planning",
+        "actuation",
+        "drift",
+        "conformance"
+      ],
+      "properties": {
+        "epistemic": {"enum": ["latent", "observed", "admitted"]},
+        "allocation": {"enum": ["unallocated", "allocated"]},
+        "planning": {"enum": ["unplanned", "candidate", "validated"]},
+        "actuation": {"enum": ["sealed", "manufacturing", "receipted", "publishable"]},
+        "drift": {"enum": ["stable", "drifted", "refused"]},
+        "conformance": {"enum": ["unknown", "nonconformant", "conformant"]}
+      }
+    },
+    "actuationIntent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "intent_digest",
+        "project",
+        "session_id",
+        "tool_use_id",
+        "operation",
+        "command_digest",
+        "effective_phase",
+        "required_phase",
+        "pending_event_count",
+        "reversibility",
+        "created_at_unix_ms"
+      ],
+      "properties": {
+        "schema": {"const": "urn:chatman:actuation-intent:v1"},
+        "intent_digest": {"$ref": "#/$defs/digest64"},
+        "project": {"type": "string", "minLength": 1},
+        "session_id": {"type": ["string", "null"]},
+        "tool_use_id": {"type": ["string", "null"]},
+        "operation": {
+          "enum": [
+            "git-push",
+            "git-merge",
+            "git-rebase",
+            "git-reset-hard",
+            "git-clean-force",
+            "pull-request-create",
+            "pull-request-merge",
+            "cargo-publish",
+            "npm-publish",
+            "recursive-forced-delete",
+            "state-changing-http"
+          ]
+        },
+        "command_digest": {"$ref": "#/$defs/digest64"},
+        "target_digest": {"anyOf": [{"$ref": "#/$defs/digest64"}, {"type": "null"}]},
+        "effective_phase": {"$ref": "#/$defs/phaseVector"},
+        "required_phase": {"$ref": "#/$defs/phaseVector"},
+        "pending_event_count": {"type": "integer", "minimum": 0},
+        "predecessor_receipt": {"anyOf": [{"$ref": "#/$defs/digest64"}, {"type": "null"}]},
+        "reversibility": {"enum": ["reversible", "conditionally-reversible", "irreversible"]},
+        "created_at_unix_ms": {"type": "integer", "minimum": 0}
+      }
+    },
+    "derivedExecutionGrant": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "grant_digest",
+        "intent_digest",
+        "receipt",
+        "granted",
+        "scope",
+        "created_at_unix_ms"
+      ],
+      "properties": {
+        "schema": {"const": "urn:chatman:derived-execution-grant:v1"},
+        "grant_digest": {"$ref": "#/$defs/digest64"},
+        "intent_digest": {"$ref": "#/$defs/digest64"},
+        "receipt": {"$ref": "#/$defs/digest64"},
+        "granted": {"const": true},
+        "scope": {"type": "string", "minLength": 1},
+        "expires_at_unix_ms": {"type": ["integer", "null"], "minimum": 0},
+        "created_at_unix_ms": {"type": "integer", "minimum": 0}
+      }
+    },
+    "executionAttestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "attestation_digest",
+        "intent_digest",
+        "grant_digest",
+        "tool_use_id",
+        "observed_result",
+        "created_at_unix_ms"
+      ],
+      "properties": {
+        "schema": {"const": "urn:chatman:execution-attestation:v1"},
+        "attestation_digest": {"$ref": "#/$defs/digest64"},
+        "intent_digest": {"$ref": "#/$defs/digest64"},
+        "grant_digest": {"$ref": "#/$defs/digest64"},
+        "tool_use_id": {"type": ["string", "null"]},
+        "observed_result": {"enum": ["succeeded", "failed", "interrupted", "unknown"]},
+        "result_digest": {"anyOf": [{"$ref": "#/$defs/digest64"}, {"type": "null"}]},
+        "created_at_unix_ms": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "oneOf": [
+    {"$ref": "#/$defs/actuationIntent"},
+    {"$ref": "#/$defs/derivedExecutionGrant"},
+    {"$ref": "#/$defs/executionAttestation"}
+  ]
+}
