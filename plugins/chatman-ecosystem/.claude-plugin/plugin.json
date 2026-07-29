@@ -1,6 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "chatman-ecosystem",
+  "version": "0.17.0",
   "displayName": "Chatman Phase Engine",
   "description": "A phase-changing, proof-carrying Claude Code control plane combining configuration LSP law, RDF admission, CMCA allocation, persistent Ferroplan planning, specialized agents, hooks, monitors, and chained receipts",
   "author": {
