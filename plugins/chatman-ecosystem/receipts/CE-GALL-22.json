@@ -5,7 +5,7 @@
   "cwd": "plugins/chatman-ecosystem",
   "date": "2026-07-29",
   "exit_code": 0,
-  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "git_revision": "4126cc6e387d113b97a32394c295a2125653d254",
   "known_anti_patterns": [
     "the autouse isolation fixture is an assertion, not a falsifier: no test deliberately leaks, so it has never fired",
     "the CI `plugin` job has never run -- the branch is unpushed"
@@ -13,15 +13,15 @@
   "negative_falsifier": null,
   "positive_witness": {
     "file": "plugins/chatman-ecosystem/tests",
-    "result": "141 passed",
+    "result": "319 passed",
     "test": "tests (whole suite)",
     "why_this_counts": "the Python control plane went from zero tests and zero CI coverage to a suite gating every change"
   },
   "reason": "NO_FALSIFIER",
-  "replay_host": null,
-  "replayed_outside_session": false,
+  "replay_host": "independent fresh git clone (separate .git/worktree from the authoring session) at commit 4126cc6e387d113b97a32394c295a2125653d254, all 5 steering vars (CLAUDE_PLUGIN_DATA, CLAUDE_PLUGIN_ROOT, CLAUDE_PROJECT_DIR, FERROPLAN_ROOT, CARGO_TARGET_DIR) unset, ruff/compileall/shell-syntax/generate.py build --check/pytest all green",
+  "replayed_outside_session": true,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",
-  "sealed_at_commit": null,
+  "sealed_at_commit": "4126cc6e387d113b97a32394c295a2125653d254",
   "standing": "PARTIAL_ALIVE",
   "title": "Control plane executable under test"
 }

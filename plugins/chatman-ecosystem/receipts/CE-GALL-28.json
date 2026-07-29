@@ -5,10 +5,12 @@
   "cwd": "plugins/chatman-ecosystem",
   "date": "2026-07-29",
   "exit_code": 0,
-  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "git_revision": "4126cc6e387d113b97a32394c295a2125653d254",
   "known_anti_patterns": [
     "the ten factor VALUES are a modelling choice with no external validation; only their grounding is claimed",
-    "surfaces.py refusals are pre-flight and must NOT be counted as allocator refusals -- checkpoint 8's four allocator refusals remain untested"
+    "surfaces.py refusals are pre-flight and must NOT be counted as allocator refusals -- checkpoint 8's four allocator refusals remain untested",
+    "positive witness allocation numbers (\"correctness 0.1449 top\") do not reproduce against the current canonical candidates; input_digest differs (f0a8d185 vs 9e8f0839...), so the original claim was computed over different input than what profiles/work-surfaces.json emits today, or was mistranscribed",
+    "repeat-call determinism IS confirmed: two independent cmca_allocate calls with byte-identical candidates produced byte-identical output (payload_digest 5e0df1034d0c92221a59bf0f7da38946cfea1a1d8bb6071633539b29f74e9286 both times) -- the allocator itself is not the suspect, the original claim/input is"
   ],
   "negative_falsifier": {
     "file": "plugins/chatman-ecosystem/tests/test_surfaces.py",
@@ -18,15 +20,15 @@
   },
   "positive_witness": {
     "file": "plugins/chatman-ecosystem/profiles/work-surfaces.json",
-    "result": "candidates_digest a473833974c74522, input_digest f0a8d185",
+    "result": "DOES NOT REPRODUCE: original claimed correctness 0.1449 top / input_digest f0a8d185; independent replay at the same canonical candidates (surfaces.py candidates, unchanged since bc28ca7) got correctness share 0.0, evidence 0.260 top, input_digest 9e8f0839fd74fe08... -- a different digest, proving different input or a transcription error, not merely different output",
     "test": "cmca_allocate over the canonical frontier",
-    "why_this_counts": "accepted live, and allocates differently from the fabricated frontier: correctness 0.1449 top with a 0.112-0.145 spread, versus the invented 0.161 top on a surface that does not exist"
+    "why_this_counts": "was claimed to show the allocator accepting the canonical frontier and allocating differently from a fabricated one; the 2026-07-29 independent replay confirms the tool call is accepted live (real allocation, not a refusal) but refutes the specific numbers originally recorded -- see known_anti_patterns"
   },
-  "reason": "NO_REPLAY",
-  "replay_host": null,
-  "replayed_outside_session": false,
+  "reason": "DEFECT_OPEN",
+  "replay_host": "independent fresh git clone (separate .git/worktree from the authoring session) at commit 4126cc6e387d113b97a32394c295a2125653d254, all 5 steering vars (CLAUDE_PLUGIN_DATA, CLAUDE_PLUGIN_ROOT, CLAUDE_PROJECT_DIR, FERROPLAN_ROOT, CARGO_TARGET_DIR) unset, ruff/compileall/shell-syntax/generate.py build --check/pytest all green",
+  "replayed_outside_session": true,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",
-  "sealed_at_commit": null,
+  "sealed_at_commit": "4126cc6e387d113b97a32394c295a2125653d254",
   "standing": "PARTIAL_ALIVE",
   "title": "Canonical CMCA frontier grounded in real surfaces"
 }

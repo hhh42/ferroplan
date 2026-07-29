@@ -102,10 +102,23 @@ def test_promotion_law_actually_refuses():
     assert "no executing negative falsifier" in blockers
 
 
-def test_nothing_from_this_cycle_claims_alive():
-    """Honest state: no clean-worktree replay has been done for any of it."""
-    alive = [p.stem for p in receipt_paths() if load(p).standing is Standing.ALIVE]
-    assert not alive, f"{alive} claim ALIVE without an out-of-session replay"
+def test_alive_receipts_record_who_and_where_they_were_replayed():
+    """A promotion is a claim with a location, not just three true booleans.
+
+    This test used to be `test_nothing_from_this_cycle_claims_alive`, pinning
+    the honest fact that nothing had been replayed yet. CE-GALL-23/24/25/26/28/29
+    since were, in a fresh clone at a sealed commit outside this cycle's
+    authoring session (2026-07-29, see the Audit log). `promotion_blockers()`
+    already checks the three law fields are truthy; this checks the claim is
+    legible, not just schema-shaped -- an ALIVE with no `replay_host` is a
+    checkbox ticked with nobody saying who ticked it or where.
+    """
+    for path in receipt_paths():
+        receipt = load(path)
+        if receipt.standing is not Standing.ALIVE:
+            continue
+        assert not receipt.promotion_blockers(), (receipt.checkpoint, receipt.promotion_blockers())
+        assert receipt.replay_host, f"{receipt.checkpoint} claims ALIVE with no replay_host"
 
 
 @pytest.mark.parametrize("path", receipt_paths(), ids=lambda p: p.stem)
