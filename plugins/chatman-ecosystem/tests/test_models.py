@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 
 import pytest
-
 from conftest import minimal_model
 from emit import Format, serialize
 from models import REGISTRY, ChatmanError, ChatmanModel, LoopState, registry_by_urn

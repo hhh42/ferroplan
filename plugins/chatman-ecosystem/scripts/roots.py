@@ -33,8 +33,9 @@ import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Annotated, NamedTuple, Sequence
+from typing import Annotated, NamedTuple
 
 import typer
 
