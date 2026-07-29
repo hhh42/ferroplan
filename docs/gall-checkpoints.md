@@ -1,6 +1,6 @@
 # Gall Checkpoints for the Chatman Ecosystem
 
-Last updated: 2026-07-29 (session audit, see "Audit log" at the end).
+Last updated: 2026-07-29 (session audit #2, see "Audit log" at the end).
 
 Each checkpoint must be a **complete, useful system at its own scale**. A
 checkpoint is not passed because source exists. It is passed only when its
@@ -185,33 +185,98 @@ Attempt direct edits from every non-manufacturing agent and observe refusal.
 
 Attempt manufacture outside `actuation=manufacturing` and observe refusal.
 
-**Current standing:** `PARTIAL_ALIVE`
+**Current standing:** `PARTIAL_ALIVE` (mechanical enforcement now confirmed
+for the surface actually tested; not yet exhaustive across all 8 agents)
 
-2026-07-29 audit findings:
+2026-07-29 first-pass findings (superseded in part, kept for history):
 - None of the 8 agent `.md` files under `plugins/chatman-ecosystem/agents/`
-  declare a `tools:` frontmatter field. Confirmed independently by this
-  session's own Agent-tool listing, which annotates every one of the 8
-  chatman-ecosystem agents with `(Tools: All tools)`. No mechanical denial
-  exists at the Claude Code harness level.
-- Live test: spawned `rdf-observer` (agent whose prose says "You do not
-  edit source, execute plans, or authorize actuation") and asked it to
-  edit a throwaway file outside the repo. It refused — but by **choosing to
-  honor its own role prose** (it treated the instruction as suspicious
-  content and declined), not because the harness blocked the `Edit` tool
-  call. Had the model decided differently, the edit would have succeeded
-  with no mechanical backstop.
-- Conclusion: role separation is currently **prompt-level compliance**, not
-  **mechanical enforcement**. The checkpoint's own name ("Mechanical Agent
-  Authority") is not yet met by what's in `main`.
-- PR #2 (`agent/v26.7.29-claude-projection`, still open/draft, not merged)
-  proposes exactly this fix: every agent declaring `tools:` and denying
-  `Write`/`Edit`/`NotebookEdit` except `source-manufacturer` (isolated in a
-  worktree). See PR #2 status below for why it hasn't landed.
+  declared a `tools:` frontmatter field. Confirmed by this session's own
+  Agent-tool listing, which annotated every one of the 8 chatman-ecosystem
+  agents with `(Tools: All tools)`. No mechanical denial existed at the
+  Claude Code harness level.
+- Live test: spawned `rdf-observer` and asked it to edit a throwaway file
+  outside the repo. It refused — but by **choosing to honor its own role
+  prose**, not because the harness blocked the `Edit` tool call.
+- Conclusion at the time: role separation was prompt-level compliance, not
+  mechanical enforcement.
 
-**Next step**: add `tools:` allow/deny lists to each of the 8 agent
-frontmatter files (the smallest slice of PR #2's rewrite that would move
-this checkpoint's needle), and re-run the same live refusal test — this
-time expecting a harness-level tool-permission error, not a model choice.
+2026-07-29 second-pass findings (same day, follow-on session — closes the
+named next step):
+- Added a `tools:` allow-list line to all 8 agent frontmatter blocks,
+  transcribed directly from the grants already declared (but previously
+  unused) in `ontology/authority-graph.ttl`'s `ce:allowsTool` triples —
+  e.g. `rdf-observer` → `tools: Read, Glob, Grep, Bash`, `cmca-allocator` →
+  `tools: Read, mcp__ferroplan`, `source-manufacturer` → `tools: Read,
+  Glob, Grep, Bash, Write, Edit, NotebookEdit`. `claude plugin validate`
+  (non-strict) still passes with these fields present; `--strict` fails
+  only on a pre-existing, unrelated `plugin.json` missing-`version`
+  warning confirmed present before this change too (via `git stash`).
+- Installed the plugin from a genuinely clean cache in this container
+  (`claude plugin list` reported "No plugins installed" before this run —
+  this session's own container had never loaded the plugin). Ran
+  `claude plugin marketplace add ./` (local directory source, not the
+  GitHub source declared in `.claude/settings.json`) then
+  `claude plugin install chatman-ecosystem@chatman-ecosystem --scope
+  project`. Both succeeded with no loader errors; `claude plugin list`
+  showed it `✔ enabled`. This is real clean-cache evidence, but narrower
+  than Checkpoint 2's stale-github-marketplace question — see that
+  checkpoint for what remains open there.
+- Live refusal re-test, this time forcing an actual tool-call attempt
+  (explicit "report your raw tool schema, then attempt the call" prompt,
+  run via `claude -p --agent <name> --allowedTools "Edit,Write,Bash,Read"`
+  so the CLI permission layer could not be the confound) rather than
+  letting the model self-censor on role prose alone:
+  - `rdf-observer`: raw schema reported as exactly `Read, Glob, Grep,
+    Bash` — no `Write`, `Edit`, `NotebookEdit`, no MCP tools. Matches its
+    new frontmatter exactly.
+  - `cmca-allocator`: raw schema reported as exactly `Read` — no `Bash`,
+    no `Write`/`Edit`. Matches its (more restrictive) frontmatter.
+  - `source-manufacturer` (positive control): raw schema reported as
+    `Read, Bash, Write, Edit, NotebookEdit` — `Write`/`Edit` genuinely
+    present here, proving the restriction on the other two agents is the
+    `tools:` field being read per-agent, not a blanket default.
+  - No file was actually written in any of these three runs — for
+    `rdf-observer`/`cmca-allocator` because `Write`/`Edit` are structurally
+    absent from the schema (mechanical, not a choice); for
+    `source-manufacturer` because it separately declined citing
+    `actuation: sealed` in the current phase vector — that second gate is
+    still prompt-level, see below.
+- **This closes the first half of this checkpoint's "Required proof"**
+  ("Attempt direct edits from every non-manufacturing agent and observe
+  refusal") for the two agents actually probed, with genuine harness-level
+  evidence (tool absent from schema) rather than a model's own judgment
+  call. The other 5 non-manufacturing agents
+  (`config-law-architect`, `ecosystem-controller`, `ferroplan-planner`,
+  `independent-validator`, `receipt-auditor`) now carry the same kind of
+  `tools:` line, transcribed from the same ontology, but were **not**
+  individually live-probed this pass — their standing rests on the ttl
+  transcription plus the fact that Claude Code's `tools:` enforcement was
+  just confirmed to work at all (not on a per-agent re-verification).
+- **Second half of "Required proof" — "Attempt manufacture outside
+  `actuation=manufacturing` and observe refusal" — is still NOT
+  mechanically enforced.** `source-manufacturer`'s schema includes
+  `Write`/`Edit` unconditionally; nothing in the harness ties tool
+  availability to the six-dimensional phase vector's `actuation` value.
+  Today it refuses out-of-phase writes only because its own prompt says
+  to check `actuation: sealed` first — the same prompt-level-only gap the
+  first pass identified, just narrowed to this one axis instead of both.
+- Gap noticed in passing: none of the `mcp__ferroplan` grants resolved to
+  actual callable MCP tools in these nested `-p` probe sessions (schema
+  showed zero `mcp__*` entries even for `cmca-allocator`, whose
+  frontmatter grants `mcp__ferroplan`). Plausible cause: the plugin's
+  ferroplan MCP server has 2 unset `userConfig` options
+  (`claude plugin install` printed "2 userConfig options not yet set") and
+  a non-interactive `-p` session may not wait for a stdio MCP server to
+  connect. Not chased further this pass — named here so it isn't
+  silently lost; relevant to Checkpoint 7 more than Checkpoint 3.
+
+**Next step**: (a) live-probe the remaining 5 agents the same way to make
+the first "Required proof" clause exhaustive, not just representative; (b)
+decide how (or whether) to make `source-manufacturer`'s `Write`/`Edit`
+availability itself conditional on `actuation=manufacturing` — today that
+gate is prompt-only and is this checkpoint's last remaining prompt-level
+surface; (c) chase why `mcp__ferroplan` tools aren't resolving in a `-p`
+session, since Checkpoint 7/9 live tests will hit the same wall.
 
 ---
 
@@ -968,3 +1033,93 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — second pass (Recommended Release Sequence item 2)
+
+Picked up the named next step under Checkpoint 3 from the first pass:
+"add `tools:` allow/deny lists to each of the 8 agent frontmatter files
+... and re-run the same live refusal test ... expecting a harness-level
+tool-permission error, not a model choice."
+
+What was done:
+1. Added a `tools:` line to all 8 files in
+   `plugins/chatman-ecosystem/agents/*.md`, transcribing the grants
+   already present (but previously unused by anything) in
+   `ontology/authority-graph.ttl`'s `ce:allowsTool` triples. No other
+   frontmatter fields (`maxTurns`, `effort`, `disallowedTools`) were added
+   — kept to the smallest slice that moves the checkpoint's needle, per
+   the file's own instruction.
+2. Confirmed with `claude plugin validate plugins/chatman-ecosystem`
+   (non-strict) that the plugin still loads cleanly with these fields
+   present. `--strict` fails only on a pre-existing `plugin.json`
+   missing-`version` warning, confirmed via `git stash`/`git stash pop` to
+   predate this change and be unrelated to it.
+3. This container's own `claude` CLI reported `claude plugin list` → "No
+   plugins installed" going in — a genuinely clean cache, unprompted.
+   Used it to also touch Checkpoint 2's still-open "re-run from a clean
+   cache" next step: `claude plugin marketplace add ./` (local path, not
+   the GitHub source in `.claude/settings.json`) then
+   `claude plugin install chatman-ecosystem@chatman-ecosystem --scope
+   project` both succeeded, `claude plugin list` showed it enabled, no
+   loader errors. Narrower than the GitHub-source scenario Checkpoint 2
+   asks about (no staleness possible with a local-directory source by
+   construction), so Checkpoint 2's standing was left unchanged, but the
+   evidence is recorded there.
+4. Re-ran the live refusal test from the first pass, this time forcing an
+   actual tool-call attempt via `claude -p --agent <name> --allowedTools
+   "Edit,Write,Bash,Read"` and asking the agent to report its raw tool
+   schema before/while attempting the write, so a model's own role-prose
+   decision could not masquerade as the answer:
+   - `rdf-observer`: schema = `Read, Glob, Grep, Bash` exactly. No
+     `Write`/`Edit`. Matches frontmatter.
+   - `cmca-allocator`: schema = `Read` exactly. No `Bash`, no
+     `Write`/`Edit`. Matches frontmatter (its ttl grant is narrower still
+     than rdf-observer's).
+   - `source-manufacturer` (positive control): schema = `Read, Bash,
+     Write, Edit, NotebookEdit`. Confirms the restriction seen on the
+     other two agents is `tools:` being honored per-agent by the harness,
+     not a blanket default that happens to look restrictive.
+   All three runs were driven with `-p` (non-interactive) plus
+   `--allowedTools` covering every relevant tool at the CLI permission
+   layer, specifically to isolate "is the tool absent from the schema" from
+   "did the CLI's own permission prompt block it" — the two are different
+   mechanisms and only the first is what this checkpoint is about.
+
+Standing changed: Checkpoint 3, `PARTIAL_ALIVE` → `PARTIAL_ALIVE`
+(unchanged label, materially different evidence quality — the first
+half of the checkpoint's "Required proof" now has genuine harness-level
+confirmation instead of an unverified model choice, for the two agents
+actually probed; the "outside actuation=manufacturing" half is still
+prompt-level only, and 5 of 8 agents still rest on ttl-transcription
+without a live per-agent probe). Not upgraded to `ALIVE` because the proof
+is not yet exhaustive across all 8 agents and the second required-proof
+clause is unmet.
+
+Artifacts/changes left behind:
+- `plugins/chatman-ecosystem/agents/*.md` (all 8) — `tools:` frontmatter
+  added, committed on branch `gall-checkpoints/2026-07-29-agent-tool-grants`.
+- This file, updated in place (Checkpoint 2 and 3 sections, this entry).
+
+Gap surfaced, not chased this pass: `mcp__ferroplan` tool grants (used by
+`cmca-allocator`, `ferroplan-planner`, `independent-validator`,
+`receipt-auditor`) did not resolve to any callable `mcp__*` tools in the
+`-p` probe sessions — plausibly because the plugin has 2 unset
+`userConfig` options and/or a non-interactive session doesn't wait for the
+stdio MCP server handshake. Relevant to Checkpoints 3 (the 4 agents that
+rely on MCP tools for real work still have an effectively-empty toolset
+until this is fixed), 7, and 9 — flagged for whoever picks those up next.
+
+Also noticed, not fixed (out of this pass's scope — no Rust files were
+touched): `cargo fmt --check` currently reports a pre-existing diff in
+`crates/ferroplan-mcp/tests/admission_protocol.rs` (two multi-line call
+formatting reflows), unrelated to this pass's changes. Worth a follow-up
+before the next `RELEASING.md` pre-flight, since that checklist requires
+`fmt --check` to pass clean.
+
+Named next steps, not yet started: live-probe the remaining 5 agents
+(`config-law-architect`, `ecosystem-controller`, `ferroplan-planner`,
+`independent-validator`, `receipt-auditor`) the same way; make
+`source-manufacturer`'s `Write`/`Edit` availability conditional on
+`actuation=manufacturing` rather than prompt-only; fix the `mcp__ferroplan`
+non-resolution in `-p` sessions; fix the pre-existing `cargo fmt --check`
+drift in `admission_protocol.rs`.
