@@ -8,12 +8,12 @@ layout, so a built binary on disk was skipped and the error blamed receipts.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-
 import roots
 from models import ChatmanError
 
@@ -207,3 +207,58 @@ def test_project_key_is_identical_for_cwd_and_its_subdirectory():
     assert root_key == subdir_key
 
     assert roots.project_directory(str(repo_root)) == roots.project_directory(str(subdir))
+
+
+# --------------------------------------------------------------------------
+# CE-GALL-35 -- typer/pydantic must not be required on the hook path
+# --------------------------------------------------------------------------
+
+
+def test_hook_path_imports_without_typer_or_pydantic(tmp_path):
+    """`loop.py`/`phase.py` must import with none of the CLI-only packages present.
+
+    `pyproject.toml` declares "runtime (hooks): standard library only", but
+    `roots.py` used to `import typer` unconditionally at module top, and
+    `loop.py`/`phase.py` import `project_key`/`project_directory` from `roots`
+    at their own module top -- before either script dispatches on `sys.argv`
+    to decide it is even handling a hook event. A clean install with neither
+    `typer` nor `pydantic` on the interpreter's path (nothing in this plugin's
+    installation flow installs either) crashed `SessionStart`/`Stop` with a
+    raw traceback instead of loading, which is exactly the failure
+    `hookguard.py`'s docstring says a hook must never have.
+
+    This runs in a real subprocess, with a `sitecustomize.py` on `PYTHONPATH`
+    that makes `typer`/`pydantic` (and their transitive users `emit`/`models`)
+    unimportable, so it cannot pass by accident of whatever happens to be
+    installed in the environment running the suite.
+    """
+    scripts_dir = Path(roots.__file__).resolve().parent
+    blocker_dir = tmp_path / "blocker"
+    blocker_dir.mkdir()
+    (blocker_dir / "sitecustomize.py").write_text(
+        "import builtins\n"
+        "_blocked = {'typer', 'pydantic'}\n"
+        "_real_import = builtins.__import__\n"
+        "def _fake_import(name, *a, **k):\n"
+        "    if name.split('.')[0] in _blocked:\n"
+        "        raise ModuleNotFoundError(f\"No module named '{name}'\")\n"
+        "    return _real_import(name, *a, **k)\n"
+        "builtins.__import__ = _fake_import\n",
+        encoding="utf-8",
+    )
+
+    env = dict(os.environ)
+    env["PYTHONPATH"] = f"{blocker_dir}{os.pathsep}{scripts_dir}"
+
+    for module in ("loop", "phase"):
+        proc = subprocess.run(
+            [sys.executable, "-c", f"import {module}; print('{module} OK')"],
+            capture_output=True,
+            text=True,
+            cwd=str(scripts_dir),
+            env=env,
+        )
+        assert proc.returncode == 0, (
+            f"importing {module} must not require typer/pydantic:\n{proc.stderr}"
+        )
+        assert f"{module} OK" in proc.stdout

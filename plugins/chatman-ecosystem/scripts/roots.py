@@ -33,25 +33,55 @@ import shlex
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Annotated, NamedTuple, Sequence
+from typing import TYPE_CHECKING, Annotated, NamedTuple
 
-import typer
+if TYPE_CHECKING:
+    import typer
+    from models import BinaryResolution, ChatmanError
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from emit import Format, emit, emit_error, renders  # noqa: E402
-from models import (  # noqa: E402
-    BinaryResolution,
-    ChatmanError,
-    ResolutionAttempt,
-    RootCandidate,
-    RootsReport,
-)
 
 try:
     from plugin_data import plugin_data_root as _resolve_plugin_data_root
 except ImportError:
     _resolve_plugin_data_root = None
+
+try:
+    # Optional, exactly like `plugin_data` above: `models` needs pydantic, a
+    # CLI-only dependency the hook path must not require (see `_build_cli`).
+    # When it *is* installed -- the CLI/test environment -- the human
+    # projection for `BinaryResolution` registers itself on import, matching
+    # what callers of `emit.serialize` outside the CLI (e.g. tests) expect
+    # without forcing every hook-path importer of this module to pay for it.
+    from emit import renders as _renders
+    from models import BinaryResolution as _BinaryResolution
+except ImportError:
+    pass
+else:
+
+    @_renders(_BinaryResolution)
+    def _render_resolution(resolution: BinaryResolution) -> str:
+        """The shell-consumable projection: an exec-ready argv, nothing else.
+
+        This is what the launcher scripts eval, which is precisely why it is a
+        *projection* and not the payload -- a shell string cannot carry
+        provenance, and the provenance is what makes a slow `cargo run`
+        distinguishable from a resolved binary.
+
+        An unresolved payload has no argv, and rendering it as the empty
+        string would hand a launcher `exec ""`. That can only be reached by
+        rendering a failure that should have exited 69, so it is an internal
+        error rather than an output.
+        """
+        if not resolution.resolved or not resolution.argv:
+            raise ValueError(
+                "refusing to render an unresolved binary as a shell argv; "
+                "the failure path must emit a ChatmanError and exit 69"
+            )
+        return shlex.join(resolution.argv)
+
 
 #: Identifies a plugin checkout. Present in both the repo and the install cache.
 PLUGIN_MARKER = Path(".claude-plugin") / "plugin.json"
@@ -94,6 +124,12 @@ class ResolutionFailure(RuntimeError):
         super().__init__(f"cannot resolve `{target}`")
 
     def as_error(self) -> ChatmanError:
+        # Deferred: `models.ChatmanError` needs pydantic, a CLI-only dependency
+        # (see the module docstring / `_build_cli`). `as_error` is only reached
+        # from the `resolve` CLI command's failure path, never from the hook
+        # path, so the import happens here rather than at module top.
+        from models import ChatmanError
+
         return ChatmanError(
             code="BINARY_UNRESOLVED",
             message=f"cannot resolve `{self.target}`",
@@ -327,111 +363,120 @@ def resolve_binary(
     )
 
 
-app = typer.Typer(
-    add_completion=False,
-    no_args_is_help=True,
-    help="Resolve the plugin root, the project root, and executable binaries.",
-)
+def _build_cli() -> typer.Typer:
+    """Build the `typer` CLI app. Only called when this module runs as a script.
 
+    `typer` is a CLI-only dependency (see `pyproject.toml`'s runtime dependency
+    policy): hook-path scripts (`loop.py`, `phase.py`, ...) import `project_key`
+    / `project_directory` from this module and must not require it. Deferring
+    the import here, inside the `if __name__ == "__main__":` guard below, keeps
+    it off that path -- a bare `python3 roots.py show` still gets the full CLI,
+    but `from roots import project_key` does not pull in a third-party package.
 
-@renders(BinaryResolution)
-def _render_resolution(resolution: BinaryResolution) -> str:
-    """The shell-consumable projection: an exec-ready argv, nothing else.
+    `emit`/`models` sit behind the identical deferral, for the identical reason
+    (`models` needs pydantic, also CLI-only per the same policy).
 
-    This is what the launcher scripts eval, which is precisely why it is a
-    *projection* and not the payload -- a shell string cannot carry provenance,
-    and the provenance is what makes a slow `cargo run` distinguishable from a
-    resolved binary.
-
-    An unresolved payload has no argv, and rendering it as the empty string
-    would hand a launcher `exec ""`. That can only be reached by rendering a
-    failure that should have exited 69, so it is an internal error rather than
-    an output.
+    `typer` and `Format` are stitched into the module globals (not just this
+    function's locals) because `resolve`/`show` below use `from __future__
+    import annotations`: their `Annotated[..., typer.Option(...)]` hints are
+    strings until Typer calls `typing.get_type_hints`, which resolves names
+    against each function's `__globals__` -- the module dict, not this call
+    frame. `emit`/`emit_error`/`renders` and the `models` types are only used
+    in ordinary (non-annotation) code below, so an ordinary closure over this
+    function's locals is enough for them.
     """
-    if not resolution.resolved or not resolution.argv:
-        raise ValueError(
-            "refusing to render an unresolved binary as a shell argv; "
-            "the failure path must emit a ChatmanError and exit 69"
-        )
-    return shlex.join(resolution.argv)
+    import typer
+    from emit import Format, emit, emit_error
+    from models import BinaryResolution, ResolutionAttempt, RootCandidate, RootsReport
 
+    globals()["typer"] = typer
+    globals()["Format"] = Format
 
-@app.command()
-def resolve(
-    binary: Annotated[str, typer.Option(help="Executable to locate.")],
-    crate: Annotated[str | None, typer.Option(help="Cargo package providing --binary.")] = None,
-    env_root: Annotated[
-        str | None, typer.Option(help="Extra environment variable naming a checkout.")
-    ] = None,
-    marker: Annotated[
-        str | None,
-        typer.Option(help="Relative file a usable checkout must contain."),
-    ] = None,
-    sibling: Annotated[
-        list[str] | None,
-        typer.Option(help="Directory name to try beside the repository. Repeatable."),
-    ] = None,
-    fmt: Annotated[
-        Format, typer.Option("--format", help="Output format.")
-    ] = Format.JSON,
-) -> None:
-    """Locate an executable and report how it was found.
-
-    Exits 69 (EX_UNAVAILABLE) when nothing resolves, matching the launcher
-    contract. Launchers pass `--format human` to get a bare argv to eval.
-    """
-    extra: list[tuple[str, Path]] = []
-    if env_root:
-        value = _env_path(env_root)
-        if value:
-            extra.append((f"env:{env_root}", value))
-
-    try:
-        resolved = resolve_binary(
-            binary,
-            crate=crate,
-            extra_roots=extra,
-            marker=Path(marker) if marker else FERROPLAN_MARKER,
-            siblings=tuple(sibling or ()),
-        )
-    except ResolutionFailure as failure:
-        emit_error(failure.as_error(), fmt, exit_code=69)
-        raise typer.Exit(code=69) from None
-
-    emit(
-        BinaryResolution(
-            binary=binary,
-            resolved=True,
-            argv=resolved.argv,
-            how=resolved.how,
-            project_root=str(resolved.root) if resolved.root else None,
-            attempts=[ResolutionAttempt(candidate=resolved.argv[0], outcome="accepted")],
-            environment=reported_environment(),
-        ),
-        fmt,
+    app = typer.Typer(
+        add_completion=False,
+        no_args_is_help=True,
+        help="Resolve the plugin root, the project root, and executable binaries.",
     )
 
+    @app.command()
+    def resolve(
+        binary: Annotated[str, typer.Option(help="Executable to locate.")],
+        crate: Annotated[
+            str | None, typer.Option(help="Cargo package providing --binary.")
+        ] = None,
+        env_root: Annotated[
+            str | None, typer.Option(help="Extra environment variable naming a checkout.")
+        ] = None,
+        marker: Annotated[
+            str | None,
+            typer.Option(help="Relative file a usable checkout must contain."),
+        ] = None,
+        sibling: Annotated[
+            list[str] | None,
+            typer.Option(help="Directory name to try beside the repository. Repeatable."),
+        ] = None,
+        fmt: Annotated[
+            Format, typer.Option("--format", help="Output format.")
+        ] = Format.JSON,
+    ) -> None:
+        """Locate an executable and report how it was found.
 
-@app.command()
-def show(
-    fmt: Annotated[Format, typer.Option("--format", help="Output format.")] = Format.JSON,
-) -> None:
-    """Report how each root resolves, and by which rule."""
-    root = project_root()
-    emit(
-        RootsReport(
-            plugin_root=str(plugin_root()),
-            project_root=str(root) if root else None,
-            project_candidates=[
-                RootCandidate(provenance=p, path=str(c), usable=_has(c, FERROPLAN_MARKER))
-                for p, c in project_candidates()
-            ],
-            target_dirs=[str(d) for d in cargo_target_dirs(root)] if root else [],
-            environment=reported_environment(),
-        ),
-        fmt,
-    )
+        Exits 69 (EX_UNAVAILABLE) when nothing resolves, matching the launcher
+        contract. Launchers pass `--format human` to get a bare argv to eval.
+        """
+        extra: list[tuple[str, Path]] = []
+        if env_root:
+            value = _env_path(env_root)
+            if value:
+                extra.append((f"env:{env_root}", value))
+
+        try:
+            resolved = resolve_binary(
+                binary,
+                crate=crate,
+                extra_roots=extra,
+                marker=Path(marker) if marker else FERROPLAN_MARKER,
+                siblings=tuple(sibling or ()),
+            )
+        except ResolutionFailure as failure:
+            emit_error(failure.as_error(), fmt, exit_code=69)
+            raise typer.Exit(code=69) from None
+
+        emit(
+            BinaryResolution(
+                binary=binary,
+                resolved=True,
+                argv=resolved.argv,
+                how=resolved.how,
+                project_root=str(resolved.root) if resolved.root else None,
+                attempts=[ResolutionAttempt(candidate=resolved.argv[0], outcome="accepted")],
+                environment=reported_environment(),
+            ),
+            fmt,
+        )
+
+    @app.command()
+    def show(
+        fmt: Annotated[Format, typer.Option("--format", help="Output format.")] = Format.JSON,
+    ) -> None:
+        """Report how each root resolves, and by which rule."""
+        root = project_root()
+        emit(
+            RootsReport(
+                plugin_root=str(plugin_root()),
+                project_root=str(root) if root else None,
+                project_candidates=[
+                    RootCandidate(provenance=p, path=str(c), usable=_has(c, FERROPLAN_MARKER))
+                    for p, c in project_candidates()
+                ],
+                target_dirs=[str(d) for d in cargo_target_dirs(root)] if root else [],
+                environment=reported_environment(),
+            ),
+            fmt,
+        )
+
+    return app
 
 
 if __name__ == "__main__":
-    app()
+    _build_cli()()
