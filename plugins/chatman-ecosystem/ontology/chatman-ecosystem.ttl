@@ -9,25 +9,47 @@
 
 ce:System a rdfs:Class .
 ce:Repository a rdfs:Class .
+ce:ManagedWorld a rdfs:Class .
+ce:Projection a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:ObservationCandidate a rdfs:Class ; rdfs:subClassOf prov:Entity .
 ce:Observation a rdfs:Class ; rdfs:subClassOf prov:Entity .
 ce:Admission a rdfs:Class ; rdfs:subClassOf prov:Activity .
 ce:Allocation a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:RecursiveAllocation a rdfs:Class ; rdfs:subClassOf ce:Allocation .
 ce:CandidatePlan a rdfs:Class ; rdfs:subClassOf prov:Entity .
 ce:ValidatedPlan a rdfs:Class ; rdfs:subClassOf ce:CandidatePlan .
+ce:Manufacture a rdfs:Class ; rdfs:subClassOf prov:Activity .
+ce:ValidationEvidence a rdfs:Class ; rdfs:subClassOf prov:Entity .
 ce:Receipt a rdfs:Class ; rdfs:subClassOf prov:Entity .
 ce:Refusal a rdfs:Class ; rdfs:subClassOf prov:Entity .
-ce:AgentRole a rdfs:Class .
+ce:AgentRole a rdfs:Class ; rdfs:subClassOf prov:Agent .
 ce:Capability a rdfs:Class .
 ce:WorkSurface a rdfs:Class .
+ce:PhaseVector a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:PhaseSnapshot a rdfs:Class ; rdfs:subClassOf ce:PhaseVector .
+ce:EffectivePhaseProjection a rdfs:Class ; rdfs:subClassOf ce:PhaseVector .
+ce:ArtifactOwner a rdfs:Class ; rdfs:subClassOf prov:Agent .
+ce:GeneratedArtifact a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:ActuationIntent a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:DerivedExecutionGrant a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:ExecutionAttestation a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:ClaimCeiling a rdfs:Class .
 
 ce:observes a rdf:Property ; rdfs:domain ce:Observation ; rdfs:range ce:Repository .
+ce:proposesObservation a rdf:Property ; rdfs:domain ce:ObservationCandidate ; rdfs:range ce:Repository .
 ce:admits a rdf:Property ; rdfs:domain ce:Admission ; rdfs:range prov:Entity .
 ce:allocatesTo a rdf:Property ; rdfs:domain ce:Allocation ; rdfs:range ce:WorkSurface .
+ce:parentAllocation a rdf:Property ; rdfs:domain ce:RecursiveAllocation ; rdfs:range ce:Allocation .
+ce:returnConsequence a rdf:Property ; rdfs:domain ce:RecursiveAllocation ; rdfs:range prov:Entity .
 ce:plannedBy a rdf:Property ; rdfs:domain ce:CandidatePlan ; rdfs:range ce:System .
 ce:validatedBy a rdf:Property ; rdfs:domain ce:ValidatedPlan ; rdfs:range ce:AgentRole .
+ce:manufacturedBy a rdf:Property ; rdfs:domain ce:GeneratedArtifact ; rdfs:range ce:System .
+ce:ownedBy a rdf:Property ; rdfs:domain ce:GeneratedArtifact ; rdfs:range ce:ArtifactOwner .
+ce:derivedFrom a rdf:Property ; rdfs:subPropertyOf prov:wasDerivedFrom .
 ce:binds a rdf:Property ; rdfs:domain ce:Receipt ; rdfs:range prov:Entity .
 ce:previousReceipt a rdf:Property ; rdfs:domain ce:Receipt ; rdfs:range ce:Receipt .
 ce:claimCeiling a rdf:Property ; rdfs:range xsd:string .
+ce:hasClaimCeiling a rdf:Property ; rdfs:range ce:ClaimCeiling .
 ce:standing a rdf:Property ; rdfs:range xsd:string .
 ce:authority a rdf:Property ; rdfs:range ce:System .
 ce:oracle a rdf:Property ; rdfs:range ce:System .
@@ -38,6 +60,16 @@ ce:contentDigest a rdf:Property ; rdfs:range xsd:string .
 ce:sequence a rdf:Property ; rdfs:range xsd:nonNegativeInteger .
 ce:pendingEventCount a rdf:Property ; rdfs:range xsd:nonNegativeInteger .
 ce:factorOrder a rdf:Property ; rdfs:range rdf:List .
+ce:canonicalVector a rdf:Property ; rdfs:domain ce:EffectivePhaseProjection ; rdfs:range ce:PhaseSnapshot .
+ce:effectiveVector a rdf:Property ; rdfs:domain ce:EffectivePhaseProjection ; rdfs:range ce:PhaseVector .
+ce:operation a rdf:Property ; rdfs:domain ce:ActuationIntent ; rdfs:range xsd:string .
+ce:commandDigest a rdf:Property ; rdfs:domain ce:ActuationIntent ; rdfs:range xsd:string .
+ce:intentDigest a rdf:Property ; rdfs:range xsd:string .
+ce:grantDigest a rdf:Property ; rdfs:range xsd:string .
+ce:attestationDigest a rdf:Property ; rdfs:range xsd:string .
+ce:grantsIntent a rdf:Property ; rdfs:domain ce:DerivedExecutionGrant ; rdfs:range ce:ActuationIntent .
+ce:attestsGrant a rdf:Property ; rdfs:domain ce:ExecutionAttestation ; rdfs:range ce:DerivedExecutionGrant .
+ce:observedResult a rdf:Property ; rdfs:domain ce:ExecutionAttestation ; rdfs:range xsd:string .
 
 cmca:accessFrequency a rdf:Property ; rdfs:range xsd:decimal .
 cmca:businessValue a rdf:Property ; rdfs:range xsd:decimal .
@@ -52,15 +84,38 @@ cmca:downstreamConsequence a rdf:Property ; rdfs:range xsd:decimal .
 cmca:parentIndex a rdf:Property ; rdfs:range xsd:integer .
 cmca:allocationShare a rdf:Property ; rdfs:range xsd:decimal .
 
+ce:ChatmanEcosystem a ce:System ;
+  dcterms:title "Chatman ecosystem" ;
+  ce:claimCeiling "constitutional-law" ;
+  ce:requiresReceipt true .
+
 ce:ClaudeCode a ce:System ;
-  dcterms:title "Claude Code" ;
-  ce:claimCeiling "proposal-and-supervision" ;
+  dcterms:title "Claude Code managed-world runtime" ;
+  ce:claimCeiling "proposal-routing-and-reversible-manufacture" ;
   ce:mayActuate false ;
   ce:requiresReceipt true .
+
+ce:ClaudeProjection a ce:Projection ;
+  dcterms:title "Lawful Claude Code projection" ;
+  ce:derivedFrom ce:ChatmanEcosystem ;
+  ce:authority ce:ClaudeCode ;
+  ce:standing "PARTIAL_ALIVE" .
 
 ce:Ferroplan a ce:System ;
   dcterms:title "Ferroplan deterministic planner" ;
   ce:claimCeiling "candidate-plan" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:MFW a ce:System ;
+  dcterms:title "Multifractal Workflow planning constitution" ;
+  ce:claimCeiling "planning-law-and-promotion" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:POWLv2 a ce:System ;
+  dcterms:title "POWL v2 planning and workflow law" ;
+  ce:claimCeiling "planning-law" ;
   ce:mayActuate false ;
   ce:requiresReceipt true .
 
@@ -70,18 +125,49 @@ ce:CMCA a ce:System ;
   ce:mayActuate false ;
   ce:requiresReceipt true .
 
+ce:Ggen a ce:System ;
+  dcterms:title "ggen graph manufacturing" ;
+  ce:claimCeiling "graph-to-artifact-projection" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:Graphlaw a ce:System ;
+  dcterms:title "Graphlaw semantic closure" ;
+  ce:claimCeiling "bounded-semantic-derivation" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:StarToml a ce:System ;
+  dcterms:title "star-toml admitted observation carrier" ;
+  ce:claimCeiling "bounded-observation-carrier" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:VAL a ce:System ;
+  dcterms:title "VAL independent PDDL validator" ;
+  ce:claimCeiling "independent-pddl-validation" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
+ce:Mfact a ce:System ;
+  dcterms:title "mfact kernel proof rail" ;
+  ce:claimCeiling "kernel-checked-modeled-claim" ;
+  ce:mayActuate false ;
+  ce:requiresReceipt true .
+
 ce:BRCE a ce:System ;
   dcterms:title "Brokered Receipted Capability Execution" ;
-  ce:claimCeiling "exclusive-actuation-broker" ;
+  ce:claimCeiling "exclusive-protected-actuation-broker" ;
   ce:mayActuate true ;
   ce:requiresReceipt true .
 
-ce:ObserverRole a ce:AgentRole ; dcterms:title "RDF observer" .
-ce:AllocatorRole a ce:AgentRole ; dcterms:title "CMCA allocator" .
-ce:PlannerRole a ce:AgentRole ; dcterms:title "Ferroplan planner" .
-ce:ManufacturerRole a ce:AgentRole ; dcterms:title "Source manufacturer" .
-ce:ValidatorRole a ce:AgentRole ; dcterms:title "Independent validator" .
-ce:AuditorRole a ce:AgentRole ; dcterms:title "Receipt auditor" .
+ce:ObserverRole a ce:AgentRole ; dcterms:title "RDF observer" ; ce:claimCeiling "bounded-semantic-projection" .
+ce:AllocatorRole a ce:AgentRole ; dcterms:title "CMCA allocator" ; ce:claimCeiling "bounded-allocation" .
+ce:PlannerRole a ce:AgentRole ; dcterms:title "Ferroplan planner" ; ce:claimCeiling "candidate-plan" .
+ce:ManufacturerRole a ce:AgentRole ; dcterms:title "Source manufacturer" ; ce:claimCeiling "reversible-source-construction" .
+ce:ValidatorRole a ce:AgentRole ; dcterms:title "Independent validator" ; ce:claimCeiling "exercised-validation-evidence" .
+ce:AuditorRole a ce:AgentRole ; dcterms:title "Receipt auditor" ; ce:claimCeiling "receipt-replay-and-maximum-standing" .
+ce:ControllerRole a ce:AgentRole ; dcterms:title "Ecosystem controller" ; ce:claimCeiling "routing-and-phase-supervision" .
 
 ce:ProtectedActuationPolicy a odrl:Set ;
   odrl:permission [
