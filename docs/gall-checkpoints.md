@@ -1070,6 +1070,16 @@ Concrete artifact left behind by this pass:
 - `plugins/chatman-ecosystem/scripts/manufacture-in-worktree.py` — real,
   live-tested worktree-isolated manufacture script (see Checkpoint 11).
 
+Also: this PR's (`#7`) CI `test` job initially failed on `cargo fmt --all
+--check`, reproducing the exact same pre-existing
+`crates/ferroplan-mcp/tests/admission_protocol.rs` drift PR #6 had already
+found and fixed on its own branch. Since this PR's base was `main` (not
+PR #6's branch), the drift was still present here; pushed the identical
+formatting-only fix as a second commit so this PR's CI isn't blocked on it,
+with `cargo clippy --workspace --exclude ferroplan-bevy --all-targets
+--all-features -- -D warnings` and `cargo test --workspace --exclude
+ferroplan-bevy` reconfirmed green afterward.
+
 Named next step, not yet started: from a session that starts *after*
 `chatman-ecosystem` is already installed, repeat the merge-back step and
 confirm `phase.py status` actually advances/collapses, closing Checkpoint
