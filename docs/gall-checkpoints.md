@@ -1372,6 +1372,20 @@ admission TOCTOU is open and untested (CE-GALL-33); `loop.py close` is not
 built, so both closes were nine manual steps; nothing is pushed and `main` has
 none of it.
 
+**Clean-clone replay performed, and it does NOT promote.** At seal `2ee20a5`
+the tree was cloned to a fresh path, checked out at the sealed commit with a
+verified-clean worktree, and run with all four steering variables cleared:
+251 passed, `generate.py build --check` clean. That is real evidence and it
+eliminates two failure modes — a dirty worktree, and environment leaking from
+the authoring shell.
+
+It is deliberately **not** recorded as `replayed_outside_session`. The promotion
+law's boundary is the *session*, not the process, and the reason is the third
+failure mode a clone cannot remove: the agent replaying is the agent that wrote
+the tests and chose which to run. `wasm4pm` made the same call, demoting its own
+receipts from `ALIVE` to `PARTIAL_ALIVE` pending a genuinely independent replay.
+The flag stays `false` until someone else, or a later session, runs it.
+
 **The one action that promotes 22–26, 28, 29 to `ALIVE`:** clone to a fresh
 path, check out the sealed commit, and run `pytest` plus
 `generate.py build --check` outside this session. Then set
