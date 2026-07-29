@@ -5,11 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from pathlib import Path
 from typing import Any
 
-REQUIRED_NON_MANUFACTURING_AGENTS = {
+NON_MANUFACTURING_AGENTS = {
     "cmca-allocator.md",
     "config-law-architect.md",
     "ecosystem-controller.md",
@@ -18,16 +17,14 @@ REQUIRED_NON_MANUFACTURING_AGENTS = {
     "rdf-observer.md",
     "receipt-auditor.md",
 }
+ALL_SKILLS = {
+    "admit", "allocate", "audit", "compose", "configure", "doctor",
+    "manufacture", "observe", "phase-change", "plan", "publish",
+    "self-host", "validate",
+}
 REQUIRED_HOOK_EVENTS = {
-    "SessionStart",
-    "PreToolUse",
-    "PostToolUse",
-    "PostToolUseFailure",
-    "PostToolBatch",
-    "ConfigChange",
-    "WorktreeCreate",
-    "WorktreeRemove",
-    "Stop",
+    "SessionStart", "PreToolUse", "PostToolUse", "PostToolUseFailure",
+    "PostToolBatch", "ConfigChange", "WorktreeCreate", "WorktreeRemove", "Stop",
 }
 
 
@@ -43,11 +40,10 @@ def load_json(path: Path, errors: list[str]) -> Any:
 
 def frontmatter(path: Path, errors: list[str]) -> dict[str, str]:
     try:
-        text = path.read_text(encoding="utf-8")
+        lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as error:
-        errors.append(f"cannot read agent: {path}: {error}")
+        errors.append(f"cannot read Markdown artifact: {path}: {error}")
         return {}
-    lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         errors.append(f"missing frontmatter: {path}")
         return {}
@@ -55,10 +51,9 @@ def frontmatter(path: Path, errors: list[str]) -> dict[str, str]:
     for line in lines[1:]:
         if line.strip() == "---":
             return result
-        if ":" not in line or line.startswith((" ", "\t")):
-            continue
-        key, value = line.split(":", 1)
-        result[key.strip()] = value.strip()
+        if ":" in line and not line.startswith((" ", "\t")):
+            key, value = line.split(":", 1)
+            result[key.strip()] = value.strip()
     errors.append(f"unterminated frontmatter: {path}")
     return {}
 
@@ -66,6 +61,19 @@ def frontmatter(path: Path, errors: list[str]) -> dict[str, str]:
 def contains_tools(value: str, required: set[str]) -> bool:
     tokens = {token.strip() for token in value.split(",") if token.strip()}
     return required.issubset(tokens)
+
+
+def hook_commands(groups: Any) -> list[str]:
+    commands: list[str] = []
+    if not isinstance(groups, list):
+        return commands
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        for hook in group.get("hooks", []):
+            if isinstance(hook, dict) and isinstance(hook.get("command"), str):
+                commands.append(hook["command"])
+    return commands
 
 
 def validate(plugin_root: Path) -> dict[str, Any]:
@@ -109,16 +117,23 @@ def validate(plugin_root: Path) -> dict[str, Any]:
             missing = sorted(REQUIRED_HOOK_EVENTS - set(hooks))
             if missing:
                 errors.append(f"missing hook events: {', '.join(missing)}")
-            rendered = json.dumps(hooks, sort_keys=True)
-            if 'phase.py\\\" hook' in rendered or 'phase.py\" hook' in rendered:
+            mutation_commands = hook_commands(hooks.get("PostToolUse")) + hook_commands(
+                hooks.get("PostToolUseFailure")
+            )
+            if any("phase.py" in command and " hook" in command for command in mutation_commands):
                 errors.append("mutation hooks must not directly invoke phase.py hook")
-            if "actuation-intent.py" not in rendered:
+            pre_commands = "\n".join(hook_commands(hooks.get("PreToolUse")))
+            lifecycle_commands = "\n".join(
+                hook_commands(hooks.get(event))
+                for event in ("PostToolBatch", "ConfigChange", "WorktreeCreate", "WorktreeRemove")
+            )
+            if "actuation-intent.py" not in pre_commands:
                 errors.append("PreToolUse must manufacture structured actuation intents")
-            if "event-summary.py" not in rendered:
+            if "event-summary.py" not in lifecycle_commands:
                 errors.append("batch/config/worktree events must use event-summary.py")
 
     agents_dir = plugin_root / "agents"
-    for filename in sorted(REQUIRED_NON_MANUFACTURING_AGENTS | {"source-manufacturer.md"}):
+    for filename in sorted(NON_MANUFACTURING_AGENTS | {"source-manufacturer.md"}):
         values = frontmatter(agents_dir / filename, errors)
         if not values:
             continue
@@ -130,13 +145,25 @@ def validate(plugin_root: Path) -> dict[str, Any]:
             denied = values.get("disallowedTools", "")
             if any(tool in denied for tool in ("Write", "Edit", "NotebookEdit")):
                 errors.append("source-manufacturer must retain source-edit tools")
-        else:
-            if not contains_tools(
-                values.get("disallowedTools", ""), {"Write", "Edit", "NotebookEdit"}
-            ):
-                errors.append(f"{filename} must deny Write, Edit, and NotebookEdit")
+        elif not contains_tools(
+            values.get("disallowedTools", ""), {"Write", "Edit", "NotebookEdit"}
+        ):
+            errors.append(f"{filename} must deny Write, Edit, and NotebookEdit")
         if filename == "ecosystem-controller.md" and "Agent(" not in values.get("tools", ""):
             errors.append("ecosystem-controller must bound the agents it can spawn")
+
+    skills_dir = plugin_root / "skills"
+    present_skills = {path.parent.name for path in skills_dir.glob("*/SKILL.md")}
+    missing_skills = sorted(ALL_SKILLS - present_skills)
+    if missing_skills:
+        errors.append(f"missing skills: {', '.join(missing_skills)}")
+    for name in sorted(ALL_SKILLS & present_skills):
+        values = frontmatter(skills_dir / name / "SKILL.md", errors)
+        if values.get("name") != name:
+            errors.append(f"skill frontmatter name mismatch: {name}")
+    publish = frontmatter(skills_dir / "publish" / "SKILL.md", errors)
+    if publish.get("disable-model-invocation") != "true":
+        errors.append("publish must declare disable-model-invocation: true")
 
     ownership = load_json(plugin_root / "profiles" / "artifact-ownership.json", errors)
     if isinstance(ownership, dict):
@@ -150,25 +177,27 @@ def validate(plugin_root: Path) -> dict[str, Any]:
             errors.append("claude projection profile release mismatch")
         lsp_policy = projection.get("lsp_policy")
         if not isinstance(lsp_policy, dict) or lsp_policy.get("main_plugin_registration") != "forbidden":
-            errors.append("claude projection profile must forbid main-plugin LSP registration")
+            errors.append("projection profile must forbid main-plugin LSP registration")
 
     try:
         readme = (plugin_root / "README.md").read_text(encoding="utf-8")
-        if "two independent stdio authorities" in readme:
-            errors.append("README still claims two stdio authorities")
-        if "three Rust MCP servers" in readme:
-            errors.append("README still claims three Rust MCP servers")
+        for stale in ("two independent stdio authorities", "three Rust MCP servers"):
+            if stale in readme:
+                errors.append(f"README contains stale claim: {stale}")
     except OSError as error:
         errors.append(f"cannot read README: {error}")
 
-    required_repository_files = [
+    required_files = [
         repository_root / "docs" / "releases" / "v26.7.29.md",
         repository_root / "docs" / "architecture" / "claude-projection.md",
         repository_root / "docs" / "migration" / "v26.7.29.md",
         plugin_root / "ontology" / "authority-graph.ttl",
         plugin_root / "profiles" / "actuation-intent.schema.json",
+        plugin_root / "scripts" / "effective-phase.py",
+        plugin_root / "scripts" / "actuation-intent.py",
+        plugin_root / "scripts" / "grant-actuation.py",
     ]
-    for path in required_repository_files:
+    for path in required_files:
         if not path.is_file():
             errors.append(f"required projection artifact missing: {path}")
 
@@ -181,8 +210,8 @@ def validate(plugin_root: Path) -> dict[str, Any]:
         "standing": "PARTIAL_ALIVE" if not errors else "BUILD_BROKEN",
         "limitations": [
             "This validator checks source-level projection law.",
-            "It does not replace claude plugin validate or runtime MCP exercise."
-        ]
+            "It does not replace claude plugin validate or runtime MCP exercise.",
+        ],
     }
 
 
