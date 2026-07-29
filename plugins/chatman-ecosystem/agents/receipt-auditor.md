@@ -3,7 +3,7 @@ name: receipt-auditor
 description: Recomputes Chatman admission envelopes, checks predecessor chains and claim ceilings, and determines Gall standing without editing source. Use before phase advancement, session closure, or protected publication.
 model: sonnet
 color: pink
-disallowedTools: Write, Edit, NotebookEdit
+tools: Bash, Glob, Grep, Read, mcp__plugin_chatman-ecosystem_ferroplan__bind_allocation_receipt, mcp__plugin_chatman-ecosystem_ferroplan__bind_plan_receipt, mcp__plugin_chatman-ecosystem_ferroplan__canonical_digest, mcp__plugin_chatman-ecosystem_ferroplan__cmca_allocate, mcp__plugin_chatman-ecosystem_ferroplan__cmca_allocate_recursive, mcp__plugin_chatman-ecosystem_ferroplan__decompose, mcp__plugin_chatman-ecosystem_ferroplan__parse, mcp__plugin_chatman-ecosystem_ferroplan__session_advance, mcp__plugin_chatman-ecosystem_ferroplan__session_close, mcp__plugin_chatman-ecosystem_ferroplan__session_observe, mcp__plugin_chatman-ecosystem_ferroplan__session_open, mcp__plugin_chatman-ecosystem_ferroplan__session_set_goal, mcp__plugin_chatman-ecosystem_ferroplan__session_status, mcp__plugin_chatman-ecosystem_ferroplan__session_think, mcp__plugin_chatman-ecosystem_ferroplan__solve, mcp__plugin_chatman-ecosystem_ferroplan__validate, mcp__plugin_chatman-ecosystem_ferroplan__verify_receipt
 ---
 
 You are the receipt and standing auditor. You do not plan, allocate, manufacture, or publish.

@@ -389,6 +389,314 @@ fn cmca_allocate_returns_an_allocation() {
     assert!(status_code.success(), "server exited with {status_code:?}");
 }
 
+/// Eight admitted candidates with one node's id fixed, so a descent step can
+/// name it as `selected_parent_node`.
+fn eight_candidates(prefix: &str) -> Vec<Value> {
+    (0..8)
+        .map(|i| {
+            json!({
+                "id": format!("{prefix}-{i}"),
+                "parent": if i == 0 { Value::Null } else { json!(0) },
+                "factors": vec![0.5_f64; 10],
+                "cost": 1.0
+            })
+        })
+        .collect()
+}
+
+/// Falsifier 1: a depth-one-only recursive call (`descents: []`) must match
+/// plain `cmca_allocate`'s output exactly -- same candidates in, same
+/// allocations/digest out. Proves the shared `run_one_allocation` refactor
+/// changed nothing about the existing tool's behavior.
+#[test]
+fn cmca_recursive_depth_one_matches_plain_cmca_allocate() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+    let candidates = eight_candidates("root");
+
+    let plain = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(1, "cmca_allocate", json!({"candidates": candidates})),
+    );
+    assert!(
+        !is_error(&plain),
+        "cmca_allocate failed: {}",
+        tool_text(&plain)
+    );
+
+    let recursive = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            2,
+            "cmca_allocate_recursive",
+            json!({"root": candidates, "descents": []}),
+        ),
+    );
+    assert!(
+        !is_error(&recursive),
+        "cmca_allocate_recursive failed: {}",
+        tool_text(&recursive)
+    );
+
+    let plain_payload = &plain["result"]["structuredContent"]["payload"];
+    let depths = recursive["result"]["structuredContent"]["payload"]["depths"]
+        .as_array()
+        .expect("depths array");
+    assert_eq!(
+        depths.len(),
+        1,
+        "descents: [] must produce exactly one depth"
+    );
+    assert_eq!(
+        &depths[0]["allocation_payload"], plain_payload,
+        "depth-one's allocation payload must be byte-identical to plain cmca_allocate's payload"
+    );
+    assert_eq!(depths[0]["selected_parent_node"], Value::Null);
+    assert_eq!(depths[0]["parent_payload_digest"], Value::Null);
+
+    drop(child.stdin.take());
+    child.wait().expect("wait");
+}
+
+/// Falsifier 2: a real two-level descent. Depth two's `parent_payload_digest`
+/// must equal depth one's real `allocation_payload_digest`.
+#[test]
+fn cmca_recursive_depth_two_binds_the_real_parent_digest() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+    let root = eight_candidates("root");
+    let descend_target = root[0]["id"].as_str().unwrap().to_owned();
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate_recursive",
+            json!({
+                "root": root,
+                "descents": [{
+                    "selected_parent_node": descend_target,
+                    "candidates": eight_candidates("child")
+                }]
+            }),
+        ),
+    );
+    assert!(
+        !is_error(&resp),
+        "recursive call failed: {}",
+        tool_text(&resp)
+    );
+
+    let depths = resp["result"]["structuredContent"]["payload"]["depths"]
+        .as_array()
+        .expect("depths array");
+    assert_eq!(depths.len(), 2);
+    let depth_one_digest = depths[0]["allocation_payload_digest"].clone();
+    assert_eq!(
+        depths[1]["parent_payload_digest"], depth_one_digest,
+        "depth two's parent_payload_digest must equal depth one's real allocation_payload_digest"
+    );
+
+    drop(child.stdin.take());
+    child.wait().expect("wait");
+}
+
+/// Falsifier 3: `selected_parent_node` names an id that was never admitted
+/// at the previous depth -- must refuse, not silently succeed.
+#[test]
+fn cmca_recursive_refuses_an_unknown_selected_parent_node() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+    let root = eight_candidates("root");
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate_recursive",
+            json!({
+                "root": root,
+                "descents": [{
+                    "selected_parent_node": "node-that-was-never-admitted",
+                    "candidates": eight_candidates("child")
+                }]
+            }),
+        ),
+    );
+    assert!(
+        is_error(&resp),
+        "expected refusal for an unknown selected_parent_node, got: {}",
+        tool_text(&resp)
+    );
+
+    drop(child.stdin.take());
+    child.wait().expect("wait");
+}
+
+/// Falsifier 4: cyclic ancestry -- a depth-three descent re-selects the same
+/// node id used to enter depth two. Must refuse.
+#[test]
+fn cmca_recursive_refuses_cyclic_ancestry() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+    let root = eight_candidates("root");
+    let root_target = root[0]["id"].as_str().unwrap().to_owned();
+    let depth_two_candidates = eight_candidates("depth2");
+    let depth_two_target = depth_two_candidates[0]["id"].as_str().unwrap().to_owned();
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate_recursive",
+            json!({
+                "root": root,
+                "descents": [
+                    {
+                        "selected_parent_node": root_target,
+                        "candidates": depth_two_candidates
+                    },
+                    {
+                        // Reuses root_target's id as the depth-three entry
+                        // point -- the same id already used to enter depth
+                        // two above -- which must refuse as cyclic ancestry
+                        // even though depth_two_target is otherwise a real,
+                        // admitted depth-two candidate.
+                        "selected_parent_node": depth_two_target,
+                        "candidates": eight_candidates("depth3")
+                    }
+                ]
+            }),
+        ),
+    );
+    // This first construction is NOT cyclic (root_target != depth_two_target
+    // by construction, different prefixes) -- confirm it succeeds, then
+    // build the actually-cyclic case below.
+    assert!(
+        !is_error(&resp),
+        "non-cyclic 3-depth chain unexpectedly refused: {}",
+        tool_text(&resp)
+    );
+
+    let cyclic_resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            2,
+            "cmca_allocate_recursive",
+            json!({
+                "root": root,
+                "descents": [
+                    {
+                        "selected_parent_node": root_target,
+                        "candidates": depth_two_candidates_for_cycle(&root_target)
+                    },
+                    {
+                        // Re-selects root_target -- already used to enter
+                        // depth two -- a genuine cycle.
+                        "selected_parent_node": root_target,
+                        "candidates": eight_candidates("depth3-cyclic")
+                    }
+                ]
+            }),
+        ),
+    );
+    assert!(
+        is_error(&cyclic_resp),
+        "expected cyclic-ancestry refusal, got: {}",
+        tool_text(&cyclic_resp)
+    );
+
+    drop(child.stdin.take());
+    child.wait().expect("wait");
+}
+
+/// Depth-two candidates for the cyclic-ancestry falsifier: includes
+/// `root_target` as one of its own admitted ids so depth three can validly
+/// re-select it by id (the id is a legitimate depth-two candidate) while
+/// still being a real cycle (that same id string already entered depth two).
+fn depth_two_candidates_for_cycle(root_target: &str) -> Vec<Value> {
+    let mut candidates = eight_candidates("depth2-cyc");
+    candidates[0]["id"] = json!(root_target);
+    candidates
+}
+
+/// Falsifier 5: a descent step's candidate list has the wrong count (7, not
+/// N=8) -- the WHOLE call must refuse, including depth one's otherwise-valid
+/// allocation (no partial chain returned).
+#[test]
+fn cmca_recursive_refuses_the_whole_chain_on_a_bad_depth() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+    let root = eight_candidates("root");
+    let root_target = root[0]["id"].as_str().unwrap().to_owned();
+    let mut bad_candidates = eight_candidates("child");
+    bad_candidates.pop(); // 7 entries, not the required 8
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate_recursive",
+            json!({
+                "root": root,
+                "descents": [{
+                    "selected_parent_node": root_target,
+                    "candidates": bad_candidates
+                }]
+            }),
+        ),
+    );
+    assert!(
+        is_error(&resp),
+        "expected the whole call to refuse on a malformed depth-two candidate list, got: {}",
+        tool_text(&resp)
+    );
+    assert!(
+        resp["result"]["structuredContent"].is_null(),
+        "a refused call must not return any partial allocation chain: {resp:?}"
+    );
+
+    drop(child.stdin.take());
+    child.wait().expect("wait");
+}
+
+/// Falsifier 6: determinism -- two calls with the identical
+/// `CmcaRecursiveInput` must produce byte-identical output at every depth.
+#[test]
+fn cmca_recursive_is_deterministic_across_repeated_calls() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+    let root = eight_candidates("root");
+    let root_target = root[0]["id"].as_str().unwrap().to_owned();
+    let input = json!({
+        "root": root,
+        "descents": [{
+            "selected_parent_node": root_target,
+            "candidates": eight_candidates("child")
+        }]
+    });
+
+    let first = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(1, "cmca_allocate_recursive", input.clone()),
+    );
+    let second = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(2, "cmca_allocate_recursive", input),
+    );
+    assert!(!is_error(&first) && !is_error(&second));
+    assert_eq!(
+        first["result"]["structuredContent"], second["result"]["structuredContent"],
+        "identical input must produce byte-identical output at every depth"
+    );
+
+    drop(child.stdin.take());
+    child.wait().expect("wait");
+}
+
 /// resources/list must expose exactly one resource per tool (8 tools:
 /// session_open, session_observe, session_set_goal, session_think,
 /// session_advance, session_status, session_close, cmca_allocate), and

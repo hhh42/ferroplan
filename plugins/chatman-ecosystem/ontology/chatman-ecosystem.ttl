@@ -20,6 +20,57 @@ ce:AgentRole a rdfs:Class .
 ce:Capability a rdfs:Class .
 ce:WorkSurface a rdfs:Class .
 
+# Standing vocabulary -- the single source of truth.
+#
+# Three unreconciled vocabularies existed before this: loop.py accepted four
+# values, docs/gall-checkpoints.md listed seven, and the canonical set (defined
+# in ~/mfw AGENTS.md:122-133) has six. A standing that cannot be recorded in the
+# ledger is not a standing, so BLOCKED, MOCKED and REFUSED were unrecordable
+# while BUILD_BROKEN was unusable in the doc.
+#
+# The canonical six are adopted. MOCKED and REFUSED are NOT standings and appear
+# below as ce:StandingReason instead:
+#   * MOCKED is why a standing is capped, not a standing -- a surface that
+#     executes and returns a fabricated value partly works, which PARTIAL_ALIVE
+#     records and MOCKED would lose. It also has no rank under the ordering law.
+#   * REFUSED is a run outcome. A lawful refusal is the system working; as a
+#     standing it would conflate "the negative fixture fired correctly", which is
+#     evidence FOR promotion, with "this is broken".
+#
+# ce:standingRank exists so the ordering law ("each checkpoint preserves the
+# standing of previous ones") is machine-comparable rather than a reading of
+# prose. Rank is advisory ordering, not a lattice: UNKNOWN and UNSUPPORTED are
+# both "no positive claim" and differ in *why*, not in strength.
+ce:Standing a rdfs:Class .
+ce:StandingReason a rdfs:Class .
+ce:standingRank a rdf:Property ; rdfs:domain ce:Standing ; rdfs:range xsd:integer .
+
+ce:Alive a ce:Standing ; dcterms:title "ALIVE" ; ce:standingRank 5 ;
+  rdfs:comment "The declared consequence works and the required evidence is present." .
+ce:PartialAlive a ce:Standing ; dcterms:title "PARTIAL_ALIVE" ; ce:standingRank 4 ;
+  rdfs:comment "A bounded working checkpoint exists but the larger crown does not." .
+ce:Blocked a ce:Standing ; dcterms:title "BLOCKED" ; ce:standingRank 3 ;
+  rdfs:comment "A named external prerequisite prevents lawful progress." .
+ce:BuildBroken a ce:Standing ; dcterms:title "BUILD_BROKEN" ; ce:standingRank 2 ;
+  rdfs:comment "The relevant build or projection fails." .
+ce:Unknown a ce:Standing ; dcterms:title "UNKNOWN" ; ce:standingRank 1 ;
+  rdfs:comment "Observation is insufficient to classify standing. Not UNSUPPORTED." .
+ce:Unsupported a ce:Standing ; dcterms:title "UNSUPPORTED" ; ce:standingRank 0 ;
+  rdfs:comment "The required capability or semantic coordinate is absent." .
+
+ce:ReasonMocked a ce:StandingReason ; dcterms:title "MOCKED" ;
+  rdfs:comment "A stub or fabricated value stands in for a real check." .
+ce:ReasonRefusedByPolicy a ce:StandingReason ; dcterms:title "REFUSED_BY_POLICY" ;
+  rdfs:comment "A policy fence refused the action; the refusal itself was lawful." .
+ce:ReasonNoReplay a ce:StandingReason ; dcterms:title "NO_REPLAY" ;
+  rdfs:comment "Not replayed outside the originating session, so promotion is barred." .
+ce:ReasonNoFalsifier a ce:StandingReason ; dcterms:title "NO_FALSIFIER" ;
+  rdfs:comment "No executing negative fixture exists; the positive check may be vacuous." .
+ce:ReasonDependencyMissing a ce:StandingReason ; dcterms:title "DEPENDENCY_MISSING" ;
+  rdfs:comment "A named upstream capability does not exist yet." .
+ce:ReasonDefectOpen a ce:StandingReason ; dcterms:title "DEFECT_OPEN" ;
+  rdfs:comment "A known defect is recorded and unfixed." .
+
 ce:observes a rdf:Property ; rdfs:domain ce:Observation ; rdfs:range ce:Repository .
 ce:admits a rdf:Property ; rdfs:domain ce:Admission ; rdfs:range prov:Entity .
 ce:allocatesTo a rdf:Property ; rdfs:domain ce:Allocation ; rdfs:range ce:WorkSurface .

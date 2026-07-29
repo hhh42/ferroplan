@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-33",
+  "command": "sed -n '386,392p' scripts/loop.py",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": null,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "no test covers this; the defect is recorded, not fixed"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/scripts/loop.py:388",
+    "result": "envelope declared event_count 142; admit wrote admitted_event_count 143",
+    "test": "observed in the acceptance run",
+    "why_this_counts": "admit sets admitted = event_count, ignoring the envelope's declared frontier, so anything landing between bind and admit is silently admitted"
+  },
+  "positive_witness": null,
+  "reason": "DEFECT_OPEN",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Admission frontier TOCTOU"
+}

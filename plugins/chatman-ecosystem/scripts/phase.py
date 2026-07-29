@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -231,6 +232,45 @@ def resolve_project(project: str | None) -> tuple[str, Path]:
     return cwd, project_directory(cwd)
 
 
+def combination_census(profile: dict[str, Any]) -> dict[str, Any]:
+    """Classify every point in the raw product space against the invariants.
+
+    Both counts are derived. `raw` is the product of the dimension sizes, not
+    the profile's `raw_combination_count` literal -- that literal is reported
+    separately as `declared_raw` so a drift between the two is visible instead
+    of being silently believed.
+
+    The lawful count is the number that actually describes the system, and it
+    was written down nowhere: an invariant carrying an unread predicate key
+    enforced nothing for as long as nobody could see that the count had not
+    moved.
+    """
+    names = list(profile["dimensions"])
+    state_lists = [list(profile["dimensions"][name]["states"]) for name in names]
+    raw = 0
+    lawful = 0
+    per_state: dict[str, dict[str, int]] = {
+        name: dict.fromkeys(profile["dimensions"][name]["states"], 0) for name in names
+    }
+    for combo in itertools.product(*state_lists):
+        vector = dict(zip(names, combo, strict=True))
+        raw += 1
+        if validate_vector(profile, vector):
+            continue
+        lawful += 1
+        for name, value in vector.items():
+            per_state[name][value] += 1
+    declared = profile.get("raw_combination_count")
+    return {
+        "raw": raw,
+        "lawful": lawful,
+        "ratio": round(lawful / raw, 4) if raw else 0.0,
+        "declared_raw": declared,
+        "declared_raw_matches": declared == raw,
+        "lawful_per_state": per_state,
+    }
+
+
 def status(project: str | None) -> int:
     profile = load_profile()
     cwd, directory = resolve_project(project)
@@ -243,6 +283,7 @@ def status(project: str | None) -> int:
             "violations": violations,
             "active": active_projection(profile, state["vector"]),
             "raw_combination_count": profile["raw_combination_count"],
+            "census": combination_census(profile),
         }
         if not (directory / "phase-state.json").exists():
             atomic_write(directory / "phase-state.json", state)

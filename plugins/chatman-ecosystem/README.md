@@ -28,7 +28,15 @@ The live operating state is a product of six dimensions:
 | Drift | stable, drifted, refused |
 | Configuration | unknown, nonconformant, conformant |
 
-This produces 648 raw combinations. `profiles/phase-space.json` declares the transitions and invariants that admit only lawful combinations. The active agents, skills, and capabilities are the set union associated with the current vector.
+This produces 648 raw combinations, of which **136 (21.0%) are lawful** —
+`profiles/phase-space.json` declares the transitions and invariants that admit
+only those. Both numbers are derived at runtime by `phase.py status` (see the
+`census` field), never read from a literal, so an invariant that stops
+constraining anything shows up as a change in the lawful count. Publication is
+the narrowest state in the space: exactly one lawful vector is `publishable`.
+
+The active agents, skills, and capabilities are the set union associated with
+the current vector.
 
 Repository mutations deliberately collapse affected dimensions back to:
 
@@ -54,7 +62,12 @@ Nothing re-enters an advanced phase without a receipt.
 | Hooks | observation and protected-command refusal |
 | Receipt auditor | replay and maximum lawful standing |
 
-No composition raises a component above its claim ceiling.
+These ceilings are a review discipline, not a mechanical check. The projection
+in `phase.py` computes the set union of capabilities, agents, and skills across
+the selected dimension states; nothing compares the result against the table
+above, because no ordering over these claim values is defined anywhere. Agents
+and skills are instructed to respect the ceilings, and an auditor is expected to
+report violations — but a composition that exceeded one would load and run.
 
 ## Installation
 
