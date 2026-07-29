@@ -301,6 +301,33 @@ impl ClosureCost {
 pub(crate) static RESLM: std::sync::OnceLock<Option<crate::resource::TripBound>> =
     std::sync::OnceLock::new();
 
+/// Wall-budget awareness (0.18 Phase 4): `FF_TIME_LIMIT=<secs>` is the
+/// process's REAL wall budget. Armed on first touch — [`arm_wall_limit`]
+/// is called at `api::solve` entry so the clock starts before grounding,
+/// not at the first search. `None` = no limit set (all-rungs behavior).
+/// On wasm the Clock is frozen at zero, so a limit never expires — the
+/// gate degrades to always-affordable, which is correct for thinks.
+static WALL: std::sync::OnceLock<Option<(crate::clock::Clock, f64)>> = std::sync::OnceLock::new();
+
+/// Start the wall-budget clock (idempotent). Called at solve entry.
+pub fn arm_wall_limit() {
+    WALL.get_or_init(|| {
+        std::env::var("FF_TIME_LIMIT")
+            .ok()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .filter(|s| s.is_finite() && *s > 0.0)
+            .map(|s| (crate::clock::Clock::now(), s))
+    });
+}
+
+/// Fraction of the wall budget remaining, `None` if no limit is set.
+fn wall_remaining_frac() -> Option<f64> {
+    WALL.get_or_init(|| None).as_ref().map(|(start, total)| {
+        let used = start.elapsed_ms() as f64 / 1000.0;
+        ((total - used) / total).max(0.0)
+    })
+}
+
 pub struct SatGuidance {
     pub prefs: Vec<(PrefPhi, i64)>,
     /// Renewable resources whose live occupancy is penalized on the concrete
@@ -803,6 +830,29 @@ pub fn plan_avoiding(
     ehc_first: bool,
     forbidden: &[bool],
 ) -> PlanOutcome {
+    // Budget-aware ladder (0.18 Phase 4, the novelty referee's next idea):
+    // `FF_TIME_LIMIT=<secs>` tells the ladder its REAL wall budget (the
+    // runner passes its per-instance timeout). A bounded rung is a bet
+    // that costs wall time before the complete fallback gets its shot —
+    // the 0.17 referee measured that tax at −51 budget-edge instances for
+    // the novelty rung. With the wall budget known, a bounded rung is
+    // entered only while MORE THAN 40% of it remains: early failures
+    // still buy the rungs' wins, late ones stop starving the fallback.
+    // No limit set → all-rungs behavior, byte-identical to before.
+    let rungs_affordable = wall_remaining_frac().is_none_or(|f| f > 0.4);
+    // The probe eyes (FF_ORBIT_DEBUG's pattern): narrate the gate's
+    // verdict on stderr, never affect the search.
+    if std::env::var("FF_WALL_DEBUG").is_ok() {
+        eprintln!(
+            "wall: remaining {:?}, bounded rungs {}",
+            wall_remaining_frac(),
+            if rungs_affordable {
+                "affordable"
+            } else {
+                "SKIPPED"
+            }
+        );
+    }
     // Probe hatch (A/B eyes for the novelty rung): skip straight to it.
     if std::env::var("FF_NOVELTY_ONLY").is_ok() {
         if let Some((ops, evaluated)) =
@@ -828,7 +878,7 @@ pub fn plan_avoiding(
         // boosting keep a gradient. Bounded, so the complete weighted
         // fallback below still gets its shot; never entered under an
         // explicit --search bfs. `FF_NO_LAMA=1` restores the two-rung ladder.
-        if std::env::var("FF_NO_LAMA").is_err() {
+        if std::env::var("FF_NO_LAMA").is_err() && rungs_affordable {
             const LAMA_CAP: usize = 400_000;
             if let Some((ops, evaluated)) =
                 crate::lama::search(task, threads, LAMA_CAP.min(cfg.max_eval), forbidden)
@@ -850,7 +900,7 @@ pub fn plan_avoiding(
         // referee arithmetic that made gen-skip opt-in in 0.15. The LAMA
         // rung survives the same structure because its win rate carries
         // its tax; novelty's does not, on today's corpora.
-        if std::env::var("FF_NOVELTY").is_ok() {
+        if std::env::var("FF_NOVELTY").is_ok() && rungs_affordable {
             const NOVELTY_CAP: usize = 400_000;
             if let Some((ops, evaluated)) =
                 crate::novelty::search(task, threads, NOVELTY_CAP.min(cfg.max_eval), forbidden)

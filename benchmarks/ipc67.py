@@ -207,6 +207,9 @@ def run_instance(val, n, d, p):
     cmd = [FF, "-o", d, "-f", p, "--json", "--threads", THREADS]
     if MODE:
         cmd += ["--mode", MODE]
+    # Budget-aware ladder (0.18): tell the engine its real wall budget so
+    # bounded rungs stop starving the complete fallback near the edge.
+    env = dict(os.environ, FF_TIME_LIMIT=str(TIMEOUT))
 
     def _limit():
         if MEMGB > 0:
@@ -225,7 +228,7 @@ def run_instance(val, n, d, p):
         for attempt in (0, 1):
             try:
                 r = subprocess.run(cmd, capture_output=True, text=True,
-                                   timeout=TIMEOUT, preexec_fn=_limit)
+                                   timeout=TIMEOUT, preexec_fn=_limit, env=env)
                 break
             except (OSError, subprocess.SubprocessError) as e:
                 if isinstance(e, subprocess.TimeoutExpired) or attempt == 1:

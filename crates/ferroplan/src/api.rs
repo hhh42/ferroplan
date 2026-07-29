@@ -495,6 +495,9 @@ fn unsolved(mode: Mode, stats: Statistics, notes: Vec<String>) -> Solution {
 /// [`crate::features::set_escalate_override`]`(false)` in-process) to restore the
 /// single-pass pre-0.3.0 behavior.
 pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solution, SolveError> {
+    // Wall-budget clock (FF_TIME_LIMIT) starts BEFORE grounding: the
+    // ladder's affordability gate must see grounding time as spent budget.
+    crate::search::arm_wall_limit();
     let domain = parser::parse_domain(domain_src).map_err(SolveError::DomainParse)?;
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
     // Compile `:derived` axioms away (static rules -> init facts) before routing.

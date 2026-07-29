@@ -104,7 +104,10 @@ fn main() -> Result<(), String> {
         if tick == THEFT_TICK {
             let cur = world.fluent("(stock plank)").unwrap_or(0.0);
             world.set_fluent("(stock plank)", (cur - 2.0).max(0.0))?;
-            events.push((tick, format!("THEFT: planks {cur} -> {}", (cur - 2.0).max(0.0))));
+            events.push((
+                tick,
+                format!("THEFT: planks {cur} -> {}", (cur - 2.0).max(0.0)),
+            ));
         }
 
         for w in workers.iter_mut() {
@@ -112,12 +115,18 @@ fn main() -> Result<(), String> {
                 continue;
             }
             if goal_met(&world, w) {
-                events.push((tick, format!("{}: contract `{}` DONE", w.name, w.contracts[w.contract])));
+                events.push((
+                    tick,
+                    format!("{}: contract `{}` DONE", w.name, w.contracts[w.contract]),
+                ));
                 if w.contract + 1 < w.contracts.len() {
                     w.contract += 1;
                     w.plan = None;
                     w.cursor = 0;
-                    events.push((tick, format!("{}: RE-HIRED on `{}`", w.name, w.contracts[w.contract])));
+                    events.push((
+                        tick,
+                        format!("{}: RE-HIRED on `{}`", w.name, w.contracts[w.contract]),
+                    ));
                 } else {
                     w.done_at = Some(tick);
                     continue;
@@ -186,7 +195,9 @@ fn main() -> Result<(), String> {
         println!("- tick {t:>3}: {e}");
     }
     println!("\n## Summary\n");
-    println!("| worker | contracts done | thinks | steps applied | drift rethinks | done at tick |");
+    println!(
+        "| worker | contracts done | thinks | steps applied | drift rethinks | done at tick |"
+    );
     println!("|---|---|---|---|---|---|");
     for w in &workers {
         println!(
