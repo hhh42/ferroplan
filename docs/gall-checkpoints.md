@@ -526,25 +526,72 @@ The manufacturer may change only:
 * Mutation emits a new observation candidate.
 * Advanced standing collapses after manufacture.
 
-**Current standing:** `UNSUPPORTED` (was `UNKNOWN`)
+**Current standing:** `PARTIAL_ALIVE` (was `UNSUPPORTED`)
 
-2026-07-29 audit: no worktree-related script, profile, or ontology file
-exists anywhere under `plugins/chatman-ecosystem/`. This is not "untested" —
-there is no mechanism to test. The closest thing is PR #2's still-unmerged
-"Isolate and bound the source manufacturer agent" commit
-(`7bb5239ce7922e5c790080ed3ec0c0d9ecaa4771`), which does not exist on
-`main`. This session's actual manufacturing step (the `.claude/settings.json`
-model pin) was committed directly to the main working tree, not in an
-isolated worktree — consistent with "not yet implemented," not a defect in
-what was done.
+2026-07-29 audit (second pass, same day): wrote and live-exercised
+`plugins/chatman-ecosystem/scripts/manufacture-in-worktree.py apply`, a real
+standalone implementation (not adopted from PR #2's still-unmerged commit).
+It takes `--diff` (a unified diff), one or more `--allow-path` globs, a
+`--branch`, an optional `--base` (defaults to `HEAD`) and `--test-cmd`, and:
 
-**Next step**: either adopt PR #2's worktree-isolation commit (would need
-its own review given it also changes agent tool grants — see Checkpoint 3),
-or write a standalone `scripts/manufacture-in-worktree.py` that: creates a
-worktree at the current HEAD, records the base commit SHA, applies exactly
-the admitted plan step's diff, runs build+test inside the worktree, and
-either merges back (fast-forward only) or reports failure without touching
-the main tree.
+1. refuses before creating anything if any changed path in the diff doesn't
+   match an `--allow-path` glob;
+2. refuses if `--branch` already exists (never overwrites a ref);
+3. creates a real `git worktree add --detach <tmp-dir> <base>`, checks out a
+   new branch there, `git apply --index`'s the diff, commits, and (if
+   `--test-cmd` is given) runs it with `cwd` inside the worktree;
+4. always removes the worktree in a `finally` block, success or failure,
+   leaving the commit reachable only via the branch ref;
+5. never runs any command against the caller's actual working directory —
+   the diff is applied and tested entirely inside the isolated worktree.
+
+Live-verified, each with real commands and real output (not asserted):
+- **Happy path**: applied a real diff adding `docs/scratch-manufacture-test.md`
+  with a passing `--test-cmd`. Result: `worktree_created: true`,
+  `main_tree_untouched: true`, `status: "ready-to-merge"`, exit 0. `git
+  worktree list` showed only the main tree afterward — cleanup confirmed, not
+  assumed.
+- **Scope refusal**: same diff with `--allow-path 'docs/some-other-file.md'`
+  → refused with `manufacture refused: diff touches paths outside the
+  admitted scope: docs/scratch-manufacture-test.md`, exit 1, before any
+  worktree existed (`git worktree list` unchanged).
+- **Test failure**: same diff, a deliberately failing `--test-cmd` → exit 1,
+  `status: "test-failed"`, worktree still cleaned up deterministically
+  (`git worktree list` clean), commit still inspectable via the branch ref
+  for postmortem.
+- **Duplicate branch**: reusing an existing branch name refused outright,
+  no worktree touched.
+- **Merge-back**: ran `git merge --ff-only manufacture-test-happy` from the
+  main tree as a literal Bash tool call (the same pattern Checkpoint 5 used
+  to trigger a real hook-observed mutation) — fast-forwarded cleanly,
+  `docs/scratch-manufacture-test.md` landed exactly and only where admitted.
+  All test branches/artifacts were then torn down (`git reset --hard`,
+  `git branch -D`) so this doc's own history stays clean of test residue.
+
+**Gap found, not papered over**: the "mutation emits a new observation
+candidate" and "advanced standing collapses after manufacture" required-proof
+lines could **not** be exercised live in this session. `phase.py status`
+before and after the fast-forward merge showed `transition_count: 0`
+unchanged in both cases. Root cause, confirmed by inspection, not guessed:
+this session's own `~/.claude/plugins` cache had **no marketplace and no
+plugin installed at all** (`installed_plugins.json` was `{"plugins": {}}`)
+despite the project's `.claude/settings.json` declaring
+`chatman-ecosystem@chatman-ecosystem` enabled — consistent with Checkpoint
+2's already-documented finding that this kind of environment doesn't
+necessarily run a synced plugin cache. Running `claude plugin marketplace
+add /home/user/ferroplan` and `claude plugin install
+chatman-ecosystem@chatman-ecosystem` mid-session did install the plugin, but
+this session's own hook wiring was fixed at session start and does not
+hot-reload — the merge still produced no ledger event afterward. This is a
+genuine environmental blocker for *this* required-proof pair, not a defect
+in the script above; it needs a fresh session (started after the plugin is
+already installed) to actually exercise.
+
+**Next step**: from a session that starts *after* `chatman-ecosystem` is
+already installed (not mid-session), repeat the merge-back step and confirm
+`phase.py status`'s `transition_count` advances and the vector collapses to
+`observed/unallocated/unplanned/sealed/drifted/unknown`, closing this
+checkpoint's last open required-proof line.
 
 ---
 
@@ -968,3 +1015,63 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — second pass (worktree manufacture)
+
+Before starting, ran `git branch -r` per this file's own instructions and
+found that three other same-day passes had already landed unmerged, still-open
+draft PRs against `main` picking up other named next steps from the first
+pass, none of which touch Checkpoint 11:
+
+- PR #3 (`gall-checkpoints/2026-07-29-clean-install-plugin-version`) —
+  Checkpoint 2: fixed a missing `version` field in `plugin.json`, documented
+  a real clean-cache install + a genuine LSP-loader defect.
+- PR #4 (`gall-checkpoints/2026-07-29-agent-tools-frontmatter`) and PR #5
+  (`gall-checkpoints/2026-07-29-agent-tool-grants`) — both attempt
+  Checkpoint 3 independently (`disallowedTools` deny-list vs. `tools:`
+  allow-list + a `Bash`-write-fence hook) against the same 8 agent files,
+  unreconciled with each other. Not touched by this pass — reconciling them
+  is a maintainer call flagged by both PRs already, not something to do
+  unilaterally on a third pass.
+- PR #6 (`gall-checkpoints/2026-07-29-val-cmake-policy-fix`) — Checkpoint 13:
+  patched `get-val.sh`'s cmake policy flag, live-verified a clean build from
+  scratch, and separately documented (without picking a side on) the PR
+  #4/#5 collision above.
+
+None of PR #3/#4/#5/#6 are merged, so `main` (and this file, on `main`) still
+only reflects the first pass's audit. This entry is written against `main`
+and does not depend on any of those branches.
+
+Picked Checkpoint 11 ("Isolated Source Manufacture") — the next unclaimed
+item in the Recommended Release Sequence (`3. Worktree manufacture`) and a
+named-but-unstarted next step from the first pass. Wrote
+`plugins/chatman-ecosystem/scripts/manufacture-in-worktree.py` from scratch
+and live-exercised four scenarios (happy path, out-of-scope refusal, test
+failure, duplicate-branch refusal) plus a real fast-forward merge-back via
+the harness's own `Bash` tool — full commands and output are inline under
+Checkpoint 11 above, not just asserted here. Found and honestly recorded a
+real environmental blocker: this session's `~/.claude/plugins` cache had no
+marketplace/plugin installed at session start
+(`installed_plugins.json` was `{"plugins": {}}`), so hooks were not wired and
+the merge-back produced no observed phase-collapse event even after
+installing the plugin mid-session (hook registration doesn't hot-reload).
+That leaves two of Checkpoint 11's seven required-proof lines
+("mutation emits a new observation candidate", "advanced standing collapses
+after manufacture") still unexercised — named as the next step, not
+papered over with an `ALIVE` claim.
+
+Upgraded: 11 (`UNSUPPORTED` → `PARTIAL_ALIVE`). No other checkpoint's
+standing touched this pass. Test branches (`manufacture-test-happy`,
+`manufacture-test-fail`) and their worktrees were deleted before finishing;
+nothing from this pass's scratch testing was left in the tree except the new
+script and this doc update.
+
+Concrete artifact left behind by this pass:
+- `plugins/chatman-ecosystem/scripts/manufacture-in-worktree.py` — real,
+  live-tested worktree-isolated manufacture script (see Checkpoint 11).
+
+Named next step, not yet started: from a session that starts *after*
+`chatman-ecosystem` is already installed, repeat the merge-back step and
+confirm `phase.py status` actually advances/collapses, closing Checkpoint
+11's last two required-proof lines. Also still open from the first pass:
+Checkpoint 9's recursive-CMCA schema decision, and reconciling PR #4/#5.
