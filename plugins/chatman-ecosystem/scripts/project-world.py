@@ -209,12 +209,25 @@ def problem(
     # live checks are enabled; falls back to the cached-vector condition
     # (vector["planning"] == "validated") when live checks are skipped, so
     # --skip-live-checks callers keep the old fast-path behavior rather than
-    # silently losing the fact.
-    if (test_result.get("ran") and test_result.get("ok")) or (
-        skip_live_checks and vector["planning"] == "validated"
-    ):
+    # silently losing the fact. Gated on `not drifted`: a drift collapse
+    # (phase.py's PostToolUse handler) invalidates any prior validator
+    # verdict, so the proxy must not outlive it.
+    if (
+        (test_result.get("ran") and test_result.get("ok"))
+        or (skip_live_checks and vector["planning"] == "validated")
+    ) and vector["drift"] != "drifted":
         facts.add("validator-green")
-    if loop_state.get("plan_receipt"):
+    # receipt-bound: `loop_state["plan_receipt"]` records that a receipt was
+    # EVER admitted into this project's ledger and is never reset, so on its
+    # own it cannot tell "a receipt was bound once" from "the current phase
+    # state is receipted". Require the live `phase_state["receipt"]` (which
+    # phase.py nulls on every drift collapse) and `not drifted` as well, so
+    # this fact tracks the CURRENT phase state, not ledger history.
+    if (
+        loop_state.get("plan_receipt")
+        and phase_state.get("receipt") is not None
+        and vector["drift"] != "drifted"
+    ):
         facts.add("receipt-bound")
     if vector["drift"] == "refused" or standing == "BUILD_BROKEN":
         facts.add("blocked")
