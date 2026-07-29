@@ -1,0 +1,26 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-32",
+  "command": "python3 scripts/loop.py status --project <repo> vs <repo>/plugins/chatman-ecosystem",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": null,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "four ledgers exist for one repository, keyed by whatever cwd a command ran from"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/scripts/plugin_data.py",
+    "result": "Stop hook blocked on 47 events in the plugins/chatman-ecosystem ledger while the repo ledger read 0 pending",
+    "test": "live demonstration during this session",
+    "why_this_counts": "the defect demonstrated itself in the session that documented it -- an unambiguous, reproducible negative"
+  },
+  "positive_witness": null,
+  "reason": "DEFECT_OPEN",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "BLOCKED",
+  "title": "Ledger anchoring"
+}

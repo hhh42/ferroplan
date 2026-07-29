@@ -1,0 +1,31 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-29",
+  "command": "python3 -m pytest tests/test_standing.py -q",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "before this cycle, this checkpoint's own standing could not be recorded: loop.py accepted four values and BLOCKED was not among them"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_standing.py",
+    "result": "passed",
+    "test": "test_loop_state_model_refuses_an_invented_standing",
+    "why_this_counts": "a seventh vocabulary cannot slip in through the model"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_standing.py",
+    "result": "passed",
+    "test": "test_ledger_cli_accepts_every_standing",
+    "why_this_counts": "loop.py went from four values to the canonical six, projected from the ontology"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Standing vocabulary single source"
+}

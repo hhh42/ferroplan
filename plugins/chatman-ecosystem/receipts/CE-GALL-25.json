@@ -1,0 +1,31 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-25",
+  "command": "python3 -m pytest tests/test_hookguard.py -q",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "no live Claude Code session has been observed honoring a hookguard refusal; runtime acceptance of the emitted shapes is UNKNOWN and is not fixable by more unit tests"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_hookguard.py",
+    "result": "passed",
+    "test": "test_import_failure_produces_a_refusal",
+    "why_this_counts": "a simulated ImportError yields a refusal shaped for the event, never a traceback and never a silent exit 0 on a deny path"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_hookguard.py",
+    "result": "passed",
+    "test": "test_guard_uses_only_the_standard_library",
+    "why_this_counts": "the last line of defence cannot itself fail on the dependency it is guarding against"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Fail-closed hook guard"
+}

@@ -1,0 +1,88 @@
+{
+  "$defs": {
+    "RootCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "provenance": {
+          "title": "Provenance",
+          "type": "string"
+        },
+        "usable": {
+          "title": "Usable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provenance",
+        "path",
+        "usable"
+      ],
+      "title": "RootCandidate",
+      "type": "object"
+    }
+  },
+  "$id": "urn:chatman:roots-report:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "How each root resolves, and by which rule.",
+  "properties": {
+    "environment": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Environment",
+      "type": "object"
+    },
+    "plugin_root": {
+      "title": "Plugin Root",
+      "type": "string"
+    },
+    "project_candidates": {
+      "items": {
+        "$ref": "#/$defs/RootCandidate"
+      },
+      "title": "Project Candidates",
+      "type": "array"
+    },
+    "project_root": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Project Root"
+    },
+    "schema": {
+      "default": "",
+      "title": "Schema",
+      "type": "string"
+    },
+    "target_dirs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Target Dirs",
+      "type": "array"
+    }
+  },
+  "required": [
+    "plugin_root",
+    "project_root"
+  ],
+  "title": "RootsReport",
+  "type": "object"
+}

@@ -1,15 +1,18 @@
 //! `ferroplan-mcp` — a single Model Context Protocol server exposing the
 //! ferroplan planner, persistent self-hosting sessions, and Chatman
-//! admission receipts to an LLM agent, as 16 MCP tools:
+//! admission receipts to an LLM agent, as 17 MCP tools:
 //!
 //! - Stateless planning: `solve`, `parse`, `validate`, `decompose` — the
 //!   README's bet made operational: the agent *authors and supervises* PDDL
 //!   and the planner runs deterministically.
 //! - Persistent repository minds: `session_open`, `session_observe`,
 //!   `session_set_goal`, `session_think`, `session_advance`,
-//!   `session_status`, `session_close`, `cmca_allocate` — ground once,
-//!   observe admitted drift, replay the remaining plan, and search only
-//!   when the suffix no longer stands.
+//!   `session_status`, `session_close`, `cmca_allocate`,
+//!   `cmca_allocate_recursive` — ground once, observe admitted drift,
+//!   replay the remaining plan, and search only when the suffix no longer
+//!   stands. `cmca_allocate_recursive` chains a sequence of admitted CMCA
+//!   allocations, each depth binding the previous depth's real receipt
+//!   digest.
 //! - Canonical evidence admission: `canonical_digest`, `bind_allocation_receipt`,
 //!   `bind_plan_receipt`, `verify_receipt` — bind the exact outputs of the
 //!   above authorities into replayable BLAKE3 envelopes with explicit
@@ -21,7 +24,7 @@
 //! CPU-bound search via `tokio::task::block_in_place` while holding a
 //! per-session lock; see `session.rs`). Tool schemas are derived from
 //! `schemars::JsonSchema` on each request struct rather than hand-written
-//! JSON Schema literals. `resources/*` exposes one resource per tool (16
+//! JSON Schema literals. `resources/*` exposes one resource per tool (17
 //! total), under a single unified `ferroplan://tools/<name>` URI scheme,
 //! with the tool's semantic description pulled from
 //! `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl` (statically
@@ -268,7 +271,7 @@ impl ServerHandler for Ferroplan {
     }
 }
 
-/// All 16 tool names across the three merged tool groups, in a stable order
+/// All 17 tool names across the three merged tool groups, in a stable order
 /// (stateless planning, then session, then admission).
 fn all_tool_names() -> Vec<&'static str> {
     MAIN_RESOURCE_TOOLS

@@ -1,0 +1,27 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-22",
+  "command": "python3 -m pytest tests -q",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "the autouse isolation fixture is an assertion, not a falsifier: no test deliberately leaks, so it has never fired",
+    "the CI `plugin` job has never run -- the branch is unpushed"
+  ],
+  "negative_falsifier": null,
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests",
+    "result": "141 passed",
+    "test": "tests (whole suite)",
+    "why_this_counts": "the Python control plane went from zero tests and zero CI coverage to a suite gating every change"
+  },
+  "reason": "NO_FALSIFIER",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Control plane executable under test"
+}
