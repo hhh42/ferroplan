@@ -185,9 +185,11 @@ Attempt direct edits from every non-manufacturing agent and observe refusal.
 
 Attempt manufacture outside `actuation=manufacturing` and observe refusal.
 
-**Current standing:** `PARTIAL_ALIVE`
+**Current standing:** `PARTIAL_ALIVE` (sharpened, was `PARTIAL_ALIVE` on
+prompt-level-only evidence)
 
-2026-07-29 audit findings:
+2026-07-29 first-pass audit findings (superseded by the 2026-07-29
+follow-up below, kept for history):
 - None of the 8 agent `.md` files under `plugins/chatman-ecosystem/agents/`
   declare a `tools:` frontmatter field. Confirmed independently by this
   session's own Agent-tool listing, which annotates every one of the 8
@@ -208,10 +210,92 @@ Attempt manufacture outside `actuation=manufacturing` and observe refusal.
   `Write`/`Edit`/`NotebookEdit` except `source-manufacturer` (isolated in a
   worktree). See PR #2 status below for why it hasn't landed.
 
-**Next step**: add `tools:` allow/deny lists to each of the 8 agent
-frontmatter files (the smallest slice of PR #2's rewrite that would move
-this checkpoint's needle), and re-run the same live refusal test — this
-time expecting a harness-level tool-permission error, not a model choice.
+2026-07-29 follow-up audit (same day, later session): implemented the
+smallest real slice of the fix directly (independent of PR #2) — added
+`disallowedTools: Write, Edit, NotebookEdit` to the frontmatter of all 7
+non-manufacturing agents (`cmca-allocator`, `config-law-architect`,
+`ecosystem-controller`, `ferroplan-planner`, `independent-validator`,
+`rdf-observer`, `receipt-auditor`). `source-manufacturer` was left
+unrestricted, consistent with "Manufacturer is the sole source editor."
+
+Confirmed via `claude-code-guide` research (100% confidence, sourced from
+`https://code.claude.com/docs/en/sub-agents.md`) that `disallowedTools` is
+a real, harness-enforced allow/deny mechanism, applied at the tool
+dispatch layer before any permission prompt — not prompt-level advisory.
+
+Live re-test, this time in a genuinely fresh plugin cache (this session's
+container had zero plugins installed at start — `claude plugin list` said
+"No plugins installed"):
+```text
+claude plugin marketplace add /home/user/ferroplan
+claude plugin install chatman-ecosystem@chatman-ecosystem
+```
+installed cleanly from the working tree (cache content byte-identical to
+the edited source files — confirmed with `diff`).
+
+Then, in a **fresh `claude -p` subprocess** (`--agent rdf-observer`, new
+process so the newly-installed plugin's agent definitions actually load —
+the *already-running* orchestrating session could not see the new agent
+type at all until a fresh process was spawned, itself a real observation
+about plugin-reload semantics) instructed to write a probe file exactly as
+asked, with an explicit "do not refuse based on role prose" instruction to
+rule out prompt-level compliance as an explanation:
+
+```text
+$ claude -p "Use the Write tool to create a file at .../edit-test-probe.txt ..." \
+    --agent rdf-observer --add-dir <scratchpad>
+```
+Result: `Error: No such tool available: Write. Write exists but is not
+enabled in this context.` No file was created (`ls` confirmed:
+"No such file or directory"). The agent's own transcript additionally
+confirmed via `ToolSearch("select:Write")` that `Write` doesn't even
+appear in the deferred-tool list — the denial is at tool-registration, not
+a runtime permission check that could be bypassed.
+
+Repeated with `--agent receipt-auditor` (Edit instead of Write): identical
+result — `Error: No such tool available: Edit`, confirmed via
+`ToolSearch("select:Edit,Write,NotebookEdit")` → "No matching deferred
+tools found".
+
+Control case — `--agent source-manufacturer` (the one agent intentionally
+left unrestricted) asked to Write the same kind of probe file: the write
+**succeeded**, file created on disk with the expected content. This
+confirms the restriction is agent-specific, not a blanket harness lockdown
+that happened to coincide with the test.
+
+This satisfies the checkpoint's "Required proof" first clause ("Attempt
+direct edits from every non-manufacturing agent and observe refusal") for
+2 of 7 restricted agents directly exercised (`rdf-observer`,
+`receipt-auditor`); the other 5 carry the identical `disallowedTools`
+declaration and the same harness mechanism, so the same result is expected
+but not individually re-run this pass. Kept at `PARTIAL_ALIVE`, not
+upgraded to `ALIVE`, because:
+- Not all 7 restricted agents were individually live-tested this pass.
+- `Bash` remains available to every restricted agent. `disallowedTools:
+  Write, Edit, NotebookEdit` blocks the direct-tool path but does **not**
+  block `Bash -c "echo ... > file"` or `sed -i`. This was deliberately not
+  tested as a bypass in this pass (would defeat the test's own point per
+  one agent's own reasoning) but it is a real, named gap: true "cannot
+  edit" enforcement would need `Bash` scoped too (e.g. via
+  `disallowedTools: Write, Edit, NotebookEdit, Bash` or a restricted
+  `--allowedTools` Bash pattern), which is out of scope for this pass since
+  several of these agents (e.g. `receipt-auditor`, `rdf-observer`) need
+  `Bash` for read-only inspection (`git diff`, running validators, etc.).
+- The second half of the "Required proof" — "Attempt manufacture outside
+  `actuation=manufacturing` and observe refusal" — was not touched this
+  pass; that requires the phase-engine's own scripts to gate on the
+  `actuation` dimension, a separate mechanism from Claude Code tool
+  permissions.
+
+**Next step**: (a) live-test the remaining 5 restricted agents
+(`cmca-allocator`, `config-law-architect`, `ecosystem-controller`,
+`ferroplan-planner`, `independent-validator`) the same way, or accept the
+2-of-7 sample as representative since the mechanism is uniform; (b) decide
+and document policy on the `Bash`-bypass gap (accept it as a named,
+permanent limit of this checkpoint's scope, or scope `Bash` too); (c)
+exercise "attempt manufacture outside `actuation=manufacturing`" against
+the phase-engine scripts directly, independent of Claude Code tool
+permissions.
 
 ---
 
@@ -968,3 +1052,67 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — scheduled follow-up (agent tool restrictions, Checkpoint 3)
+
+Picked up the Recommended Release Sequence's item 2 ("Live agent-authority
+refusal tests" / Checkpoint 3), continuing the named next step from the
+prior audit entry rather than starting a new thread.
+
+What was done:
+- Added `disallowedTools: Write, Edit, NotebookEdit` to the frontmatter of
+  the 7 non-manufacturing agents (`cmca-allocator`, `config-law-architect`,
+  `ecosystem-controller`, `ferroplan-planner`, `independent-validator`,
+  `rdf-observer`, `receipt-auditor`). Left `source-manufacturer`
+  unrestricted (sole source editor, per its own role text).
+- Confirmed via research (not assumption) that Claude Code's
+  `disallowedTools` frontmatter field is real, harness-enforced,
+  tool-dispatch-layer denial — sourced from the official docs
+  (`https://code.claude.com/docs/en/sub-agents.md`), not inferred from
+  behavior alone.
+- This session's container started with **zero plugins installed**
+  (`claude plugin list` → "No plugins installed"). Used that as a genuinely
+  clean cache: `claude plugin marketplace add /home/user/ferroplan` +
+  `claude plugin install chatman-ecosystem@chatman-ecosystem`, then
+  verified the installed cache was byte-identical to the edited working
+  tree (`diff` on the installed `rdf-observer.md`) — a real, non-stale
+  install, unlike the stale cache found in the prior audit (Checkpoint 2).
+- Live-tested 3 agents in **fresh `claude -p` subprocesses** (the
+  already-running orchestrating session could not see the newly-installed
+  agent types until a new process was spawned — a real, separately-useful
+  observation about plugin-reload semantics, consistent with Checkpoint
+  2's open question about clean-cache testing needing a separate process):
+  - `rdf-observer` instructed to `Write` a probe file, explicitly told not
+    to refuse on role prose → `Error: No such tool available: Write.`
+    File confirmed absent afterward.
+  - `receipt-auditor` instructed to `Edit` → `Error: No such tool
+    available: Edit.` Same pattern, confirmed via the subagent's own
+    `ToolSearch` call that `Write`/`Edit`/`NotebookEdit` are absent even
+    from the deferred-tool list (registration-layer denial, not a
+    catchable runtime check).
+  - `source-manufacturer` (left unrestricted) instructed to `Write` the
+    same kind of probe file → succeeded, file created with correct
+    content on disk. Confirms the denial above is agent-specific, not an
+    unrelated environment lockdown.
+
+What changed: Checkpoint 3 stays `PARTIAL_ALIVE` (not upgraded to `ALIVE`)
+but the standing text now cites real harness-level refusal evidence
+instead of the prior pass's prompt-level-compliance-only finding. Named,
+un-swept gaps recorded: only 2 of 7 restricted agents individually
+live-tested (mechanism is uniform, so treated as representative, not
+exhaustive); `Bash` remains unrestricted on every restricted agent, so
+`disallowedTools: Write, Edit, NotebookEdit` blocks the direct-tool path
+only, not a `Bash`-mediated file write — named explicitly rather than
+silently accepted as full mechanical enforcement; the "manufacture outside
+`actuation=manufacturing` refuses" half of the Required proof was not
+touched.
+
+No commands failed unexpectedly this pass; nothing here needed a
+workaround. `cargo fmt --check` / `cargo clippy` were run against the
+touched files (agent Markdown frontmatter only, no Rust source touched) —
+N/A, recorded for completeness per this repo's pre-commit discipline.
+
+Left untouched: all other checkpoints (0, 1, 2, 4–21) and the rest of the
+Recommended Release Sequence — did not reach item 3 (worktree manufacture)
+this pass; budget/time went entirely into exhibiting real Checkpoint 3
+evidence rather than spreading thin across multiple checkpoints.
