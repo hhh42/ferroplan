@@ -2,6 +2,75 @@
 
 All notable changes to this project are documented here.
 
+## [0.18.0] - 2026-07-29 — The living-village cycle
+
+Correctness debt paid first, then the village made live and visible,
+with the budget-aware ladder as the cycle's engine bet (cycle record
+in `docs/roadmap-0.18.md`).
+
+### The ε-emission order inversion, fixed (0.17's named debt)
+
+- `epsilon_separate` now repairs SAME-SLOT end groups by invariant
+  relation before emission — if one end's deletes hit another's
+  invariant-positives, the protected end emits first; cycles defer to
+  the existing STN-consistency veto, and zero-slack geometries keep
+  the recorded raw-times fallback. Fixture:
+  `benchmarks/bench/eps-cross-*` (minimized match-cellar shape) pinned
+  as a unit test on the emission pass itself.
+- **match-cellar-2014: VAL 0/20 → 20/20** — the whole red cluster
+  green, coverage and plans byte-stable. The 630-instance
+  2006/2008/2011 tempo board: **zero movement instance-by-instance**.
+  2014 tempo-sat standing: valid **42 → 62 of 200**.
+- map-analyzer's 3 reds survived and REFUTED the 0.17 hypothesis —
+  solo-check decoded them as **state-dependent duration drift**
+  (duration expressions read fluents; an ε-shifted start crosses a
+  fluent write; VAL fails the duration constraint). Named 0.19 debt
+  with witnesses.
+
+### The village, alive (tick loop + screens)
+
+- **`examples/village_live.rs`**: the tick-loop economy over
+  `benchmarks/village/` — one authoritative world `Session`, workers
+  HIRED by goal contract (fork + restrict + `set_goal`), validity as
+  the free suffix replay on a probe fork carrying the worker's own
+  contract, dispatch via in-flight durative starts, interval ends
+  firing from `elapse`, and a mid-run theft forcing a drift rethink.
+  Measured: two workers, three contracts, one theft survived —
+  `benchmarks/village-live.md`.
+- **`web/village-live.html`**: the same loop LIVE in the browser —
+  map, economy sparklines, contracts and visible intentions per
+  worker, theft/till disruption buttons — over new `WasmSession`
+  verbs (`apply_start`, `elapse`, `set_fluent`/`fluent`,
+  `restrict_contains`, `plan_valid_json`).
+- **Plan introspection** (`introspect` module + the solver demo's
+  "Explain this plan"): causal links (last-achiever replay over the
+  solver's own grounding), invariant spans (`over all` conditions
+  from the original schema, arguments substituted), preference
+  breakdown (final-state goal prefs + verify-oracle trajectory
+  prefs).
+
+### A seven-cycle-old corpse, found by the new smoke test
+
+- On wasm32, `NODE_CAP_TARGET_BYTES = 8 << 30` silently wrapped to
+  ZERO (32-bit usize; shl drops high bits) — every default-cap wasm
+  solve (all of temporal, the classical best-first fallback) had been
+  dead since 0.8, invisible behind EHC-solvable demos and the
+  explicit budgets of Session thinks. Fixed with a width-guarded
+  2 GiB 32-bit ceiling (64-bit byte-identical); the wasm demo's
+  temporal examples went unsolved → solved.
+  `crates/ferroplan-wasm/smoke.js` (headless-Chromium page smoke) is
+  now part of the cut drill.
+
+### The budget-aware ladder (the novelty referee's next idea)
+
+- `FF_TIME_LIMIT=<secs>` tells the engine its REAL wall budget; a
+  bounded classical rung (LAMA, novelty) is entered only while more
+  than 40% of the budget remains, so late-ladder rungs stop starving
+  the complete fallback near the budget edge — the mechanism behind
+  the novelty referee's −51. Unset ⇒ byte-identical to 0.17.
+  `benchmarks/ipc67.py` passes its per-instance timeout
+  automatically; `FF_WALL_DEBUG=1` narrates the gate's verdict.
+
 ## [0.17.0] - 2026-07-27 — The frontier cycle
 
 The push toward "best PDDL planner in general," measured against the
