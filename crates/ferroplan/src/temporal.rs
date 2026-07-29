@@ -2221,7 +2221,7 @@ fn temporal_search(
             .any(|&(_, op)| !matches!(kind[op], Kind::Til));
         if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) && !ends_pending {
             let plan = reconstruct(task, &nodes, ni, kind, dur_exprs);
-            return Some(epsilon_separate(task, plan, !til_events.is_empty()));
+            return Some(epsilon_separate(task, inv, plan, !til_events.is_empty()));
         }
         if dbg && nodes.len() >= next_dump {
             next_dump += 25_000;
@@ -3006,15 +3006,21 @@ pub(crate) const EPS: f64 = 0.001;
 /// execution order, pin each end at start+duration, force ε between mutex pairs —
 /// and solve the earliest-time schedule by longest paths (Bellman–Ford). On any
 /// inconsistency or for very large plans the original plan is returned unchanged.
-fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -> TimedPlan {
-    // happening: (owning step index, is_start); op ids became unnecessary
-    // when the pairwise interference test gave way to total ε-ordering, but
-    // the display lookups below still gate on mappability (an unmappable
-    // step means we cannot trust the schedule at all).
+fn epsilon_separate(
+    task: &PackedTask,
+    inv: &InvMap,
+    plan: TimedPlan,
+    floor_to_search: bool,
+) -> TimedPlan {
+    // happening: (owning step index, is_start, end-op id for ends). The end
+    // op id came back in 0.18: same-slot END groups must be ordered by the
+    // INVARIANT relation (below), and the display lookups gate on
+    // mappability (an unmappable step means we cannot trust the schedule).
     struct H {
         step: usize,
         is_start: bool,
         time: f64,
+        end_op: Option<usize>,
     }
     let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
     let mut hs: Vec<H> = Vec::new();
@@ -3033,16 +3039,18 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
                     None => format!("{head}-END"),
                 };
                 match (find(&sd), find(&ed)) {
-                    (Some(_so), Some(_eo)) => {
+                    (Some(_so), Some(eo)) => {
                         hs.push(H {
                             step: si,
                             is_start: true,
                             time: step.time,
+                            end_op: None,
                         });
                         hs.push(H {
                             step: si,
                             is_start: false,
                             time: step.time + dur,
+                            end_op: Some(eo),
                         });
                     }
                     _ => {
@@ -3058,6 +3066,7 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
                     step: si,
                     is_start: true,
                     time: step.time,
+                    end_op: None,
                 }),
                 None => return plan,
             },
@@ -3078,6 +3087,62 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
             .unwrap_or(std::cmp::Ordering::Equal)
             .then(hs[a].is_start.cmp(&hs[b].is_start))
     });
+    // Same-slot END groups: the sort above breaks equal-time ties among
+    // ENDS by construction order, which is NOT the engine's tie-scan order
+    // — and the difference is load-bearing exactly when one end's effects
+    // would break another still-pending interval's `over all` invariant.
+    // The 0.18 witness (the 2014 match-cellar family; the eps-cross
+    // fixture): a mend filling its light window to the very end shares its
+    // end epoch with the light's end; the tie-scan fired mend-end FIRST
+    // (the guard's legal order), but step-order emission put light-end
+    // first, and the STN then pushed the mend's whole interval ε past its
+    // window — VAL-red by exactly 0.001. Repair: within each equal-slot
+    // group of ends, order by the invariant relation from the [`InvMap`] —
+    // if end A's unconditional deletes (adds) hit end B's invariant
+    // positives (negatives), B fires before A. Tiny groups; a bubble pass
+    // settles them, and a cycle (impossible for a guard-accepted plan)
+    // leaves the group as-is for the STN consistency check to veto.
+    if !inv.is_empty() {
+        let slot = |x: f64| (x / EPS).round() as i64;
+        let breaks = |a: usize, b: usize| -> bool {
+            let (Some(ao), Some(bo)) = (hs[a].end_op, hs[b].end_op) else {
+                return false;
+            };
+            let Some((pos, neg, _)) = inv.get(&bo) else {
+                return false;
+            };
+            task.del.slice(ao).iter().any(|f| pos.contains(f))
+                || task.add.slice(ao).iter().any(|f| neg.contains(f))
+        };
+        let mut i = 0;
+        while i < order.len() {
+            let mut j = i + 1;
+            while j < order.len()
+                && !hs[order[i]].is_start
+                && !hs[order[j]].is_start
+                && slot(hs[order[i]].time) == slot(hs[order[j]].time)
+            {
+                j += 1;
+            }
+            if !hs[order[i]].is_start && j - i > 1 && j - i <= 16 {
+                let g = &mut order[i..j];
+                for _ in 0..g.len() {
+                    let mut swapped = false;
+                    for k in 0..g.len() - 1 {
+                        // A before B but A breaks B's invariant -> B first.
+                        if breaks(g[k], g[k + 1]) && !breaks(g[k + 1], g[k]) {
+                            g.swap(k, k + 1);
+                            swapped = true;
+                        }
+                    }
+                    if !swapped {
+                        break;
+                    }
+                }
+            }
+            i = j.max(i + 1);
+        }
+    }
 
     // STN edges: t[v] >= t[u] + w. TOTAL ε-ordering: every consecutive pair
     // in execution order is ε apart. Concurrency lives in INTERVAL OVERLAP,
@@ -3166,4 +3231,70 @@ fn epsilon_separate(task: &PackedTask, plan: TimedPlan, floor_to_search: bool) -
         .map(|s| s.time + s.duration.unwrap_or(0.0))
         .fold(0.0f64, f64::max);
     TimedPlan { steps, makespan }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The 0.18 Phase 1 pin: same-slot END pairs must emit in the
+    /// invariant-respecting order. A mend that internally ends on the same
+    /// epoch as its light's end (the 2014 match-cellar shape) must NOT be
+    /// pushed past the window by the ε-stagger — the repair orders the end
+    /// group by the InvMap relation and the STN compresses the mend's wait
+    /// instead. (Zero-slack geometries where durations exactly fill the
+    /// window have NO strict ε-separation; there the pass falls back to
+    /// the raw schedule — the recorded escape, exercised by the eps-cross
+    /// bench fixture, not this test.)
+    #[test]
+    fn same_epoch_end_pair_emits_inside_the_window() {
+        let dom = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../benchmarks/bench/eps-cross-domain.pddl"
+        ))
+        .unwrap();
+        let prb = "(define (problem p) (:domain epscross)
+          (:objects m1 - match f1 - fuse)
+          (:init (handfree) (unused m1))
+          (:goal (mended f1)))";
+        let d = crate::parser::parse_domain(&dom).unwrap();
+        let p = crate::parser::parse_problem(prb).unwrap();
+        // The temporal pipeline grounds the COMPILED snap domain.
+        let c = compile(&d, &p);
+        let task = match crate::ground::ground_stratified(&c.domain, &c.problem, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("ground"),
+        };
+        let (_kinds, _dur, inv) = build_kind(&task, &c);
+        assert!(!inv.is_empty(), "the mend must carry its invariant");
+        // A search-shaped schedule with the mend riding the window end:
+        // light [2,7], mend [4.5,7] — same internal end epoch, compressible
+        // wait between light-start and mend-start.
+        let plan = TimedPlan {
+            steps: vec![
+                TimedStep {
+                    time: 2.0,
+                    action: "LIGHT_MATCH M1".into(),
+                    duration: Some(5.0),
+                },
+                TimedStep {
+                    time: 4.5,
+                    action: "MEND_FUSE F1 M1".into(),
+                    duration: Some(2.5),
+                },
+            ],
+            makespan: 7.0,
+        };
+        let out = epsilon_separate(&task, &inv, plan, false);
+        let light = &out.steps[0];
+        let mend = &out.steps[1];
+        assert!(
+            mend.time + 2.5 < light.time + 5.0,
+            "mend must end strictly inside the light window: mend {}..{} vs light {}..{}",
+            mend.time,
+            mend.time + 2.5,
+            light.time,
+            light.time + 5.0
+        );
+    }
 }
