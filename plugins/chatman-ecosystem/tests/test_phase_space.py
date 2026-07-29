@@ -68,19 +68,6 @@ def test_every_vector_is_either_lawful_or_explains_itself(profile):
 @pytest.mark.parametrize(
     "invariant_id",
     [
-        pytest.param(
-            "validated-plan-requires-candidate",
-            marks=pytest.mark.xfail(
-                strict=True,
-                reason=(
-                    "uses `requires_any_prior`, a key validate_vector never reads, so it "
-                    "never fires. Fixed by deleting the invariant: `planning` is "
-                    "single-valued, so requiring planning=candidate while "
-                    "planning=validated is unsatisfiable, and the transitions table "
-                    "already guarantees the intent."
-                ),
-            ),
-        ),
         "allocation-requires-admission",
         "candidate-plan-requires-allocation",
         "manufacturing-requires-candidate-plan",
@@ -106,10 +93,6 @@ def test_every_invariant_fires_at_least_once(profile, invariant_id):
     assert fired, f"{invariant_id} never fires on any of the {len(all_vectors(profile))} vectors"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="validated-plan-requires-candidate carries the unread key `requires_any_prior`",
-)
 def test_every_invariant_key_is_understood(profile):
     """Structural guard against the next silently-ignored predicate key.
 
@@ -129,6 +112,32 @@ def test_validated_is_only_reachable_from_candidate(profile):
     """
     in_edges = [t for t in profile["dimensions"]["planning"]["transitions"] if t[1] == "validated"]
     assert in_edges == [["candidate", "validated"]]
+
+
+def test_census_agrees_with_independent_enumeration(profile):
+    """`combination_census` must not drift from the tests' own enumeration."""
+    census = phase.combination_census(profile)
+    assert census["raw"] == len(all_vectors(profile))
+    assert census["lawful"] == len(lawful_vectors(profile))
+    assert census["declared_raw_matches"] is True
+
+
+def test_census_lawful_per_state_sums_correctly(profile):
+    """Each dimension's per-state counts must partition the lawful set."""
+    census = phase.combination_census(profile)
+    for dimension, counts in census["lawful_per_state"].items():
+        assert sum(counts.values()) == census["lawful"], dimension
+
+
+def test_exactly_one_lawful_vector_is_publishable(profile):
+    """Publication is the narrowest state in the space, by design.
+
+    `publication-requires-complete-standing` conjoins five conditions, leaving a
+    single lawful publishable vector. Pinned because a weakening of that
+    invariant would otherwise be invisible.
+    """
+    census = phase.combination_census(profile)
+    assert census["lawful_per_state"]["actuation"]["publishable"] == 1
 
 
 def test_transitions_only_name_declared_states(profile):
