@@ -910,12 +910,28 @@ Required crown evidence:
 **Current standing:** `PARTIAL_ALIVE`
 
 PR #2 (`agent/v26.7.29-claude-projection`) is the only draft attempting this
-whole surface at once. As of the 2026-07-29 audit it is still `OPEN`/draft,
-0 reviews, head commit `d88488608f41` (55 commits), with mixed CI: the
-`Chatman Ecosystem` workflow's `projection-law` and `ferroplan-mcp` jobs
-pass, but the plain `CI / test` job is `FAILURE`. Not touched further this
-pass — recommend resolving the CI failure and getting the PR reviewable
-before treating it as the crown vehicle.
+whole surface at once. As of the 2026-07-29 first-pass audit it was still
+`OPEN`/draft, 0 reviews, head commit `d88488608f41` (55 commits), with mixed
+CI: the `Chatman Ecosystem` workflow's `projection-law` and `ferroplan-mcp`
+jobs passed, but the plain `CI / test` job was `FAILURE`.
+
+2026-07-29 second-pass audit: fetched the failing job's actual log
+(`get_job_logs` on the `test` check run) instead of assuming the cause. The
+failure was exclusively `cargo fmt --all --check` rejecting two line-wraps
+in `crates/ferroplan-mcp/tests/admission_protocol.rs` — the identical drift
+PRs #5 and #7 had already independently found and fixed on their own
+branches the same day. Reproduced locally in a scratch worktree of
+`origin/agent/v26.7.29-claude-projection`
+(`cargo fmt --all -- --check` → same two-hunk diff), applied `cargo fmt
+--all`, then verified `cargo fmt --all -- --check` clean, `cargo clippy -p
+ferroplan-mcp --all-targets --all-features -- -D warnings` clean, and
+`cargo test -p ferroplan-mcp --test admission_protocol` → 15/15 passed.
+Committed and pushed straight to `agent/v26.7.29-claude-projection`
+(`af865f8`) rather than via a new branch, since fixing PR #2's own CI
+requires a commit on PR #2's own head. See the dated Audit log entry below
+for the now-green/pending recheck result and the much bigger blocker this
+pass surfaced: an unreconciled same-day backlog of 8 open draft PRs, 3 of
+them directly colliding on Checkpoint 3's files.
 
 ---
 
@@ -968,3 +984,86 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — second pass: PR #2 CI fix, and an unreconciled same-day backlog
+
+Read this whole file, including the first-pass audit entry above, before
+touching anything, per the file's own "How to use this file" instructions.
+
+**Backlog discovered.** `git branch -r` and a GitHub PR listing turned up 8
+open, unreviewed, unmerged draft PRs against `main`, all opened earlier the
+same day by prior runs of this same scheduled routine, **none of which are
+reflected in `main`'s copy of this file** (this file only had the "first
+full pass" entry when this pass started):
+
+| PR | Branch | Checkpoint | What it does |
+|----|--------|-----------|--------------|
+| #2 | `agent/v26.7.29-claude-projection` | 21 (crown) | The 55-commit whole-surface attempt named in the first-pass entry. |
+| #3 | `gall-checkpoints/2026-07-29-clean-install-plugin-version` | 2 | Fixes missing `plugin.json` `version`; documents a real clean-cache install. |
+| #4 | `gall-checkpoints/2026-07-29-agent-tools-frontmatter` | 3 | Adds `disallowedTools: Write, Edit, NotebookEdit` to the 7 non-manufacturing agents. |
+| #5 | `gall-checkpoints/2026-07-29-agent-tool-grants` | 3 | A different, later, 3-commit approach to the *same* 7 files: `tools:` allow-lists, plus a `bash-write-fence.py` `PreToolUse` hook that also fences `Bash`-shaped writes — closing the "Bash is still unrestricted" gap both #4 and #9 name as their own remaining limitation. |
+| #6 | `gall-checkpoints/2026-07-29-val-cmake-policy-fix` | 13 | Patches `get-val.sh` with `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` (this pass's first-pass next step) and fixes an unrelated rustfmt drift in `admission_protocol.rs`. |
+| #7 | `gall-checkpoints/2026-07-29-worktree-manufacture` | 11 | Adds and live-verifies `scripts/manufacture-in-worktree.py`. |
+| #8 | `gall-checkpoints/2026-07-29-recursive-cmca` | 9 | Adds `parent_allocation`/`selected_node` descent binding to `bind_allocation_receipt`, with 4 new passing integration tests. |
+| #9 | `gall-checkpoints/2026-07-29-agent-tool-restrictions` | 3 | A **third**, still later, single-commit `disallowedTools` approach to the *same* 7 files as #4 — functionally near-identical to #4, and (going by its commit timestamp, 15:54Z vs #4's 08:58Z and #5's 12:32Z) appears not to have checked for #4/#5 first, repeating exactly the branch-collision mistake this file's own audit trail already flagged twice. |
+
+Checkpoint 3 therefore has **three** unreconciled, overlapping PRs (#4, #5,
+#9) touching the identical 8 agent files with two different mechanisms. This
+pass did **not** attempt to close, merge, or referee them — picking a
+winner and closing the other two is a maintainer call, not something a
+single automated pass should do unilaterally to another session's open PR.
+For whoever does reconcile: #5 is the strongest candidate to keep, since it
+is a strict superset in capability of #4/#9 (same frontmatter mechanism in
+effect, plus the Bash-fence hook neither #4 nor #9 has) — but this is a
+recommendation, not an action taken.
+
+**Why this pass didn't open a 9th PR.** Every one of the first-pass audit
+entry's five named next steps already had a same-day sibling PR attempting
+it (#4/#5/#9 → Checkpoint 3; #8 → Checkpoint 9; #7 → Checkpoint 11; #6 →
+VAL/Checkpoint 13) — except one: *"resolve PR #2's `CI / test` failure or
+supersede it."* Per this file's own "prefer finishing a started thread"
+instruction, that's the thread this pass picked up.
+
+**PR #2's CI fix.** Fetched the actual failing job log (`get_job_logs` on
+check run id `90480079420`, the `test` job on commit `d88488608f41`) instead
+of assuming the cause. The entire failure was `cargo fmt --all --check`
+rejecting two line-wraps in
+`crates/ferroplan-mcp/tests/admission_protocol.rs` — the identical drift
+PRs #5 and #7 had already independently found and fixed on their own
+branches. Reproduced in a scratch `git worktree` of
+`origin/agent/v26.7.29-claude-projection`:
+
+```text
+$ cargo fmt --all -- --check
+Diff in .../admission_protocol.rs:218: (2 hunks, matches CI's log exactly)
+$ cargo fmt --all
+$ cargo fmt --all -- --check   # clean, no output
+$ cargo clippy -p ferroplan-mcp --all-targets --all-features -- -D warnings
+Finished `dev` profile ... (clean)
+$ cargo test -p ferroplan-mcp --test admission_protocol
+test result: ok. 15 passed; 0 failed; 0 ignored
+```
+
+Committed (`af865f8`, formatting-only diff) and pushed directly to
+`origin/agent/v26.7.29-claude-projection` — not to a new `gall-checkpoints`
+branch, since resolving PR #2's own CI requires a commit on PR #2's own
+head. CI re-triggered on push; at the time this entry was written the
+`projection-law` and `ferroplan-mcp` jobs had already re-passed and the
+`test` job was still `in_progress` (full workspace `cargo build` takes
+longer than the fmt-check step that used to fail in seconds) — not yet
+confirmed green. Given the local reproduction above passed the exact same
+`cargo fmt --all --check` step that was CI's only failure, this is expected
+to go green, but per this file's no-overclaiming discipline the standing
+below states exactly what was and wasn't directly observed.
+
+**What changed:** Checkpoint 21's standing evidence updated (still
+`PARTIAL_ALIVE` — the CI fix removes a review blocker, it doesn't establish
+new crown evidence). No other checkpoint standing changed this pass.
+
+**Next step:** confirm PR #2's `test` job actually finished green (poll
+`get_check_runs` on PR #2); then the bigger remaining blocker is the
+backlog table above — reconcile Checkpoint 3's three PRs (#4/#5/#9),
+and get *all* of #2–#9 reviewed/merged into `main` so this file on `main`
+stops being 8 real audit passes behind reality. Until that reconciliation
+happens, every new session reading only `main`'s copy of this file is at
+risk of repeating already-done work exactly as #9 repeated #4/#5.
