@@ -54,10 +54,10 @@ jobs:
           # than in someone's session.
           python-version: '3.11'
       - name: Install tooling
-        # typer is a runtime dependency of the CLI layer (not of the hook path,
-        # which stays standard-library only so the actuation fence cannot be
-        # taken down by a missing import).
-        run: pip install --quiet pytest ruff typer
+        # typer and pydantic are runtime dependencies of the control plane.
+        # scripts/hookguard.py deliberately imports neither, so a missing
+        # dependency degrades to a refusal rather than taking the fence down.
+        run: pip install --quiet pytest ruff typer pydantic jsonschema rdflib pyshacl
       - name: Lint
         run: ruff check scripts tests
       # Replaces the manual `py_compile` of 3 of 9 scripts in skills/doctor.
@@ -65,5 +65,9 @@ jobs:
         run: python -m compileall -q scripts
       - name: Shell syntax
         run: for f in scripts/*.sh; do sh -n "$f"; done
+      # Every generated projection must match its source. This is what stops a
+      # committed schema from describing a payload the code no longer emits.
+      - name: Generated files are current
+        run: python3 scripts/generate.py build --check
       - name: Test
         run: pytest
