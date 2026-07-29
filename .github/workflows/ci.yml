@@ -54,7 +54,10 @@ jobs:
           # than in someone's session.
           python-version: '3.11'
       - name: Install tooling
-        run: pip install --quiet pytest ruff
+        # typer is a runtime dependency of the CLI layer (not of the hook path,
+        # which stays standard-library only so the actuation fence cannot be
+        # taken down by a missing import).
+        run: pip install --quiet pytest ruff typer
       - name: Lint
         run: ruff check scripts tests
       # Replaces the manual `py_compile` of 3 of 9 scripts in skills/doctor.

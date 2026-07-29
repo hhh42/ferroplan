@@ -1,0 +1,83 @@
+{
+  "$id": "urn:chatman:claude-code-loop-state:v1",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "admitted_event_count": {
+      "default": 0,
+      "title": "Admitted Event Count",
+      "type": "integer"
+    },
+    "event_count": {
+      "default": 0,
+      "title": "Event Count",
+      "type": "integer"
+    },
+    "plan_digest": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Plan Digest"
+    },
+    "plan_receipt": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Plan Receipt"
+    },
+    "project": {
+      "title": "Project",
+      "type": "string"
+    },
+    "schema": {
+      "default": "",
+      "title": "Schema",
+      "type": "string"
+    },
+    "session_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Session Id"
+    },
+    "standing": {
+      "default": "UNKNOWN",
+      "enum": [
+        "ALIVE",
+        "PARTIAL_ALIVE",
+        "BUILD_BROKEN",
+        "UNKNOWN"
+      ],
+      "title": "Standing",
+      "type": "string"
+    },
+    "updated_at_unix_ms": {
+      "default": 0,
+      "title": "Updated At Unix Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "project"
+  ],
+  "title": "LoopState",
+  "type": "object"
+}

@@ -58,6 +58,35 @@ def _isolate(tmp_path, monkeypatch):
     return data_root
 
 
+def minimal_model(model_type):
+    """Construct a model with only its required fields.
+
+    Shared rather than duplicated: both the contract tests and the schema
+    validation tests need one valid instance of every registered model, and two
+    copies would drift the moment a required field is added.
+    """
+    from models import BinaryResolution, ChatmanError, LoopState, MonitorTick, RootsReport
+
+    samples = {
+        ChatmanError: lambda: ChatmanError(code="C", message="m"),
+        # Resolved, because that is the only shape ever emitted: a failed
+        # resolution leaves as a ChatmanError, never as this model.
+        BinaryResolution: lambda: BinaryResolution(
+            binary="b", resolved=True, argv=["/usr/bin/b"], how="PATH"
+        ),
+        RootsReport: lambda: RootsReport(plugin_root="/p", project_root=None),
+        LoopState: lambda: LoopState(project="/x"),
+        MonitorTick: lambda: MonitorTick(
+            stream="phase-frontier", project="/x", observed_at_unix_ms=0
+        ),
+    }
+    if model_type not in samples:
+        raise AssertionError(
+            f"{model_type.__name__} is in REGISTRY but has no sample in conftest.minimal_model"
+        )
+    return samples[model_type]()
+
+
 @pytest.fixture
 def plugin_root() -> Path:
     return PLUGIN_ROOT
