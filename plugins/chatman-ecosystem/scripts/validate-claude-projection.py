@@ -9,12 +9,8 @@ from pathlib import Path
 from typing import Any
 
 NON_MANUFACTURING_AGENTS = {
-    "cmca-allocator.md",
-    "config-law-architect.md",
-    "ecosystem-controller.md",
-    "ferroplan-planner.md",
-    "independent-validator.md",
-    "rdf-observer.md",
+    "cmca-allocator.md", "config-law-architect.md", "ecosystem-controller.md",
+    "ferroplan-planner.md", "independent-validator.md", "rdf-observer.md",
     "receipt-auditor.md",
 }
 ALL_SKILLS = {
@@ -70,7 +66,10 @@ def hook_commands(groups: Any) -> list[str]:
     for group in groups:
         if not isinstance(group, dict):
             continue
-        for hook in group.get("hooks", []):
+        nested = group.get("hooks", [])
+        if not isinstance(nested, list):
+            continue
+        for hook in nested:
             if isinstance(hook, dict) and isinstance(hook.get("command"), str):
                 commands.append(hook["command"])
     return commands
@@ -124,8 +123,9 @@ def validate(plugin_root: Path) -> dict[str, Any]:
                 errors.append("mutation hooks must not directly invoke phase.py hook")
             pre_commands = "\n".join(hook_commands(hooks.get("PreToolUse")))
             lifecycle_commands = "\n".join(
-                hook_commands(hooks.get(event))
+                command
                 for event in ("PostToolBatch", "ConfigChange", "WorktreeCreate", "WorktreeRemove")
+                for command in hook_commands(hooks.get(event))
             )
             if "actuation-intent.py" not in pre_commands:
                 errors.append("PreToolUse must manufacture structured actuation intents")
@@ -145,9 +145,7 @@ def validate(plugin_root: Path) -> dict[str, Any]:
             denied = values.get("disallowedTools", "")
             if any(tool in denied for tool in ("Write", "Edit", "NotebookEdit")):
                 errors.append("source-manufacturer must retain source-edit tools")
-        elif not contains_tools(
-            values.get("disallowedTools", ""), {"Write", "Edit", "NotebookEdit"}
-        ):
+        elif not contains_tools(values.get("disallowedTools", ""), {"Write", "Edit", "NotebookEdit"}):
             errors.append(f"{filename} must deny Write, Edit, and NotebookEdit")
         if filename == "ecosystem-controller.md" and "Agent(" not in values.get("tools", ""):
             errors.append("ecosystem-controller must bound the agents it can spawn")
