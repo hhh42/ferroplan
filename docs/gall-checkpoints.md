@@ -1271,6 +1271,22 @@ the repository ledger read 0 pending. The fix — anchoring to the git toplevel
 via `roots.project_root()` — is built but not wired into `loop.py`/`phase.py`,
 so the fork recurs on the next `cd`.
 
+**Blast radius corrected upward (2026-07-29).** The earlier text implied two
+copies of `project_key`. There are **six**, and
+`grep -rn 'def project_key' plugins/chatman-ecosystem/scripts/` names all of
+them:
+
+- `scripts/effective-phase.py:47`
+- `scripts/phase.py:69`
+- `scripts/grant-actuation.py:56`
+- `scripts/actuation-intent.py:82`
+- `scripts/event-summary.py:50`
+- `scripts/loop.py:53`
+
+`roots.project_root()` is wired into none of the six. This makes any per-copy
+repair a partial fix by construction: the ledgers only reconverge when all six
+agree, so five corrected copies leave the fork intact.
+
 **Current standing:** `BLOCKED` (`DEFECT_OPEN`)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-32.json`
@@ -1278,6 +1294,7 @@ so the fork recurs on the next `cd`.
 **Negative falsifier:** `live demonstration during this session` (plugins/chatman-ecosystem/scripts/plugin_data.py) — the defect demonstrated itself in the session that documented it -- an unambiguous, reproducible negative
 
 - Non-claim: four ledgers exist for one repository, keyed by whatever cwd a command ran from
+- Non-claim: no test asserts the six copies agree, so the count above is a grep result and not a defended invariant
 
 ---
 
@@ -1285,7 +1302,7 @@ so the fork recurs on the next `cd`.
 
 **Open defect**
 
-`loop.py:388` sets `admitted_event_count = event_count` — a blanket watermark
+`loop.py:372` sets `admitted_event_count = event_count` — a blanket watermark
 that ignores the `observation_frontier` the envelope actually attests to. Any
 mutation landing between binding an envelope and running `admit` is marked
 admitted without ever appearing in a receipt.
@@ -1296,19 +1313,129 @@ Observed in this cycle's acceptance run: the envelope declared
 The system's core claim is that state enters only through admitted
 observations. This is the gap in that claim, and no test covers it.
 
-**Current standing:** `PARTIAL_ALIVE` (`DEFECT_OPEN`)
+**Citation corrected (2026-07-29).** This section previously cited
+`loop.py:388`. The file has shifted; `:388` is now the plan-digest format
+check. The current line, verified by
+`grep -n 'admitted_event_count.*event_count' scripts/loop.py`, is **`:372`**.
+
+**Claim ceiling: this is not a one-line fix.** `observation_frontier` has no
+schema anywhere in this repository —
+`grep -rn observation_frontier plugins/chatman-ecosystem/ | grep -v receipts/`
+returns nothing. It is typed as a bare `Value` in the Rust binder, and no
+producer in this repository constructs one. So "read the envelope's declared
+frontier instead of the live count" has nothing to read: a frontier schema and
+a producer must exist first. The falsifier is therefore recorded as absent with
+reason `DEPENDENCY_MISSING` rather than as a prose observation, because no
+executing fixture can be written against a type that does not exist.
+
+**Current standing:** `PARTIAL_ALIVE` (`DEPENDENCY_MISSING`)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-33.json`
 
-**Negative falsifier:** `observed in the acceptance run` (plugins/chatman-ecosystem/scripts/loop.py:388) — admit sets admitted = event_count, ignoring the envelope's declared frontier, so anything landing between bind and admit is silently admitted
+**Negative falsifier:** none — `DEPENDENCY_MISSING`. The 142/143 discrepancy is
+a real observation, but it is not a Gall-checkpoint negative fixture.
+
+**Blocked by:** an `observation_frontier` schema, and a producer that constructs one
 
 - Non-claim: no test covers this; the defect is recorded, not fixed
+- Non-claim: nothing here shows the frontier-aware admission is designable, only that it is not yet buildable
+
+---
+
+## Canonical Bash Mutation Classifier (CE-GALL-34)
+
+**Defect fixed this cycle** (commit `1a9ab50`)
+
+Two defects in one surface, both closed by consolidating the classifier into
+`scripts/bash_classify.py`.
+
+*Divergence.* Three copies of `MUTATING_BASH` existed — `loop.py`, `phase.py`,
+`event-summary.py` — and disagreed. `phase.py` omitted the publication class, so
+`git push` logged a ledger event but never collapsed the phase vector: the
+ledger and the phase engine held different beliefs about the same command.
+
+*Prefix matching.* No git subcommand alternation carried a trailing boundary, so
+prefixes matched. This produced a real incident during this session:
+`git merge-base --is-ancestor` and `git branch --show-current` are read-only,
+matched `PROTECTED_BASH`, and blocked a legitimate push. `rm\b` was the only
+branch with a correct boundary — evidence the omission was an oversight rather
+than a design choice.
+
+**The nuance that separates the fix from a near-miss.** `\b` alone is
+insufficient. `-` is a non-word character, so `commit\b` still matches
+`commit-graph`, and a `\b`-only patch would have kept misclassifying
+`git commit-graph verify` while looking correct. The fix uses `(?![\w-])`.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-34.json`
+
+**Positive witness:** `test_phase_agrees_with_loop_on_publication_class`
+(plugins/chatman-ecosystem/tests/test_bash_classify.py:91) — pins the divergence
+itself rather than one copy's behaviour.
+
+**Negative falsifier:** `test_protected_boundary`
+(plugins/chatman-ecosystem/tests/test_bash_classify.py:102) — asserts the exact
+read-only commands from the incident are not protected while `git push origin
+main` and `git reset --hard` are. Removing the trailing boundary fails it;
+weakening it to `\b` still fails the `commit-graph` case in the sibling table.
+
+- Non-claim: the fix is not replayed outside this session, so it is capped at `PARTIAL_ALIVE` under the promotion law regardless of the suite being green
+- Non-claim: nothing mechanically forbids a fourth copy of the classifier being reintroduced elsewhere; single-sourcing is a convention here, not an invariant
 
 ---
 
 ---
 
 # Audit log
+
+## 2026-07-29 — parallel-agent iteration (branch `chatman-dx-cycle`)
+
+Three agents worked in parallel on disjoint file sets. Two feature commits
+landed: `63a8a70` (Rust) and `1a9ab50` (canonical Bash classification). The
+suite went from 251 to 308 tests. This entry is the receipt-and-document pass
+over that work.
+
+**Corrections to existing receipts**, recorded because a stale receipt is worse
+than a missing one — it is evidence pointing at the wrong line:
+
+- CE-GALL-33 cited `loop.py:388` for the admission TOCTOU. The file has shifted
+  and `:388` is now the plan-digest format check; the true line is `:372`. A
+  reader following the old citation would have audited an unrelated check and
+  found nothing wrong;
+- CE-GALL-33 also gained an explicit **claim ceiling**. It was written as though
+  a one-line fix would close it. It cannot: `observation_frontier` has no schema
+  anywhere in this repository, is a bare `Value` in the Rust binder, and has no
+  producer. The falsifier moved from a prose observation to declared-absent with
+  reason `DEPENDENCY_MISSING`, and `blocked_by` now names the two artifacts that
+  must exist first;
+- CE-GALL-32 **understated its blast radius**. The receipt implied two copies of
+  `project_key`; the grep shows six (`effective-phase.py:47`, `phase.py:69`,
+  `grant-actuation.py:56`, `actuation-intent.py:82`, `event-summary.py:50`,
+  `loop.py:53`). This changes the shape of the defect, not just its size: with
+  six copies, any per-copy repair is a partial fix by construction.
+
+CE-GALL-34 opened for the `MUTATING_BASH` prefix/divergence defect, fixed by
+`1a9ab50`, with an executing falsifier — `PARTIAL_ALIVE` / `NO_REPLAY`, because
+the promotion law's boundary is the session and nothing here has been replayed
+outside it.
+
+**The most interesting result of the iteration was that the implementing agents
+corrected the brief they were given.** Both corrections were found by building,
+not by reviewing, and neither was in the plan:
+
+- the empty-plan case was specified as *parseable but trivially satisfied*.
+  Measured, it is **unparseable** — a different failure at a different layer,
+  and the test written to the brief would have asserted the wrong thing;
+- the Bash boundary fix was specified as adding `\b`. That is **insufficient**:
+  `-` is a non-word character, so `commit\b` still matches `commit-graph`. The
+  landed fix uses `(?![\w-])`. A `\b` patch would have passed review, looked
+  correct, and left `git commit-graph verify` misclassified.
+
+Both are the same failure mode caught twice: a plausible specification that a
+run refutes. Recorded here rather than silently absorbed, since the value of the
+parallel structure is precisely that the agent holding the file disagreed with
+the agent holding the plan.
 
 ## 2026-07-29 — DX architecture cycle (branch `chatman-dx-cycle`)
 

@@ -1,0 +1,35 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-34",
+  "command": "python3 -m pytest tests/test_bash_classify.py -q",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "1a9ab50805450127f6d159f9f659c128710e798e",
+  "known_anti_patterns": [
+    "three disagreeing copies of MUTATING_BASH existed (scripts/loop.py, scripts/phase.py, scripts/event-summary.py); phase.py omitted the publication class, so `git push` logged a ledger event but did not collapse the phase vector",
+    "no git subcommand alternation carried a trailing boundary, so prefixes matched: `git merge-base --is-ancestor` and `git branch --show-current` are read-only but matched PROTECTED_BASH and blocked a legitimate push during this session",
+    "`rm\\b` was the only branch with a correct boundary -- evidence the omission was an oversight rather than a design choice",
+    "`\\b` alone is INSUFFICIENT as the fix: `-` is a non-word character, so `commit\\b` still matches `commit-graph`. The correct boundary is `(?![\\w-])`, and a `\\b`-only patch would have been a near-miss that still misclassified `git commit-graph verify`",
+    "the classifier is now single-source in scripts/bash_classify.py, but nothing mechanically forbids a fourth copy being reintroduced elsewhere"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_bash_classify.py:102",
+    "result": "passed",
+    "test": "test_protected_boundary",
+    "why_this_counts": "asserts the read-only commands that caused the real incident (`git merge-base main HEAD`, `git branch --show-current`, `git push --dry-run`) are NOT protected while `git push origin main` and `git reset --hard` are. Removing the trailing `(?![\\w-])` boundary makes it fail; weakening it to `\\b` still fails the `commit-graph` case in the sibling table"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_bash_classify.py:91",
+    "result": "passed",
+    "test": "test_phase_agrees_with_loop_on_publication_class",
+    "why_this_counts": "pins the divergence itself rather than one copy's behaviour: phase.py must agree with the canonical table on the publication class (`git push`, `gh pr create`, `cargo publish`, `npm publish`), which is exactly what the three-copy fork broke"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Canonical Bash mutation classifier, prefix divergence closed"
+}

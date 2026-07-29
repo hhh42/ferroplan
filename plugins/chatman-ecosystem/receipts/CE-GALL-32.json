@@ -1,13 +1,16 @@
 {
   "blocked_by": [],
   "checkpoint": "CE-GALL-32",
-  "command": "python3 scripts/loop.py status --project <repo> vs <repo>/plugins/chatman-ecosystem",
+  "command": "grep -rn 'def project_key' plugins/chatman-ecosystem/scripts/",
   "cwd": "plugins/chatman-ecosystem",
   "date": "2026-07-29",
-  "exit_code": null,
-  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "exit_code": 0,
+  "git_revision": "1a9ab50805450127f6d159f9f659c128710e798e",
   "known_anti_patterns": [
-    "four ledgers exist for one repository, keyed by whatever cwd a command ran from"
+    "blast radius corrected upward: SIX copies of `project_key` exist, not two. scripts/effective-phase.py:47, scripts/phase.py:69, scripts/grant-actuation.py:56, scripts/actuation-intent.py:82, scripts/event-summary.py:50, scripts/loop.py:53",
+    "each copy keys the ledger by whatever cwd its command ran from, so a `cd` forks the ledger for one repository; four ledger directories exist today",
+    "roots.project_root() is the built fix and is wired into none of the six",
+    "any per-copy repair is a partial fix by construction: the ledgers only reconverge when all six agree, so five corrected copies leave the fork intact"
   ],
   "negative_falsifier": {
     "file": "plugins/chatman-ecosystem/scripts/plugin_data.py",
