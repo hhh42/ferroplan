@@ -928,10 +928,18 @@ ferroplan-mcp --all-targets --all-features -- -D warnings` clean, and
 `cargo test -p ferroplan-mcp --test admission_protocol` → 15/15 passed.
 Committed and pushed straight to `agent/v26.7.29-claude-projection`
 (`af865f8`) rather than via a new branch, since fixing PR #2's own CI
-requires a commit on PR #2's own head. See the dated Audit log entry below
-for the now-green/pending recheck result and the much bigger blocker this
-pass surfaced: an unreconciled same-day backlog of 8 open draft PRs, 3 of
-them directly colliding on Checkpoint 3's files.
+requires a commit on PR #2's own head.
+
+Confirmed via `get_workflow_job` on the re-triggered `test` job (id
+`90646355774`, commit `af865f8`): its `Format`, `Clippy`, and `Test` steps
+each completed with `conclusion: success` — the fmt fix is directly
+confirmed effective, not just inferred from a clean local reproduction.
+The job as a whole was still running at last check (on to a slow,
+unrelated `Heavy IPC regression guards (release)` step; two more steps
+queued after it) — not yet a final green `test` job conclusion, and not
+re-overclaimed as one here. See the dated Audit log entry below for the
+much bigger blocker this pass surfaced: an unreconciled same-day backlog
+of 8 open draft PRs, 3 of them directly colliding on Checkpoint 3's files.
 
 ---
 
@@ -1081,17 +1089,32 @@ just this one.
 `PARTIAL_ALIVE` — the CI fix removes a review blocker, it doesn't establish
 new crown evidence). No other checkpoint standing changed this pass.
 
-**Next step:** confirm PR #2's `test` job actually finished green (it was
-still `in_progress` for several minutes after the push — longer than the
-old fmt-only failure took, consistent with now actually running the full
-build/test instead of failing fast on `fmt`; poll `get_check_runs` on PR #2
-to confirm the final conclusion). Once this PR (#10) merges into `main`,
-every other open sibling PR (#3, #4, #5, #6, #7, #8, #9) should be expected
-to newly pass (or newly fail on a *different*, real reason) the `test`
-job's fmt step — worth a fast recheck across all of them rather than
-assuming. Then the bigger remaining blocker is the backlog table above —
-reconcile Checkpoint 3's three PRs (#4/#5/#9), and get *all* of #2–#9
-reviewed/merged into `main` so this file on `main` stops being 8 real audit
-passes behind reality. Until that reconciliation happens, every new session
-reading only `main`'s copy of this file is at risk of repeating already-done
-work exactly as #9 repeated #4/#5.
+**Confirmed via `get_workflow_job` (not just `get_check_runs`'s coarser
+status)** on both re-triggered jobs — PR #2's `test` job (id `90646355774`,
+commit `af865f8`) and PR #10's own `test` job (id `90647894621`, commit
+`f8f44de`): on both, the `Format`, `Clippy`, and `Test` steps each
+completed with `conclusion: success`, directly confirming the fmt fix
+works, not merely inferring it from a clean local run. Neither job had
+reached a final overall conclusion at last check — both were mid-way
+through a slow, unrelated `Heavy IPC regression guards (release)` step
+(with `Docs` and `Bench compiles` still queued after it), which is
+long-running by design (a release-mode build plus regression guards), not
+stuck or failing. This is real, step-level evidence the fmt drift is fixed;
+the jobs' final pass/fail conclusion (which could still fail on something
+this pass didn't touch, e.g. the heavy IPC guards or bench compile) was
+not yet observed and is not claimed here.
+
+**Next step:** poll `get_check_runs`/`get_workflow_job` on PR #2 and PR #10
+again once enough time has passed for the `Heavy IPC regression guards`,
+`Docs`, and `Bench compiles` steps to finish, and record the actual final
+conclusion (do not assume green from the `Format`/`Clippy`/`Test` steps
+alone). Once PR #10 merges into `main`, every other open sibling PR (#3,
+#4, #5, #6, #7, #8, #9) should be expected to newly pass (or newly fail on
+a *different*, real reason) the `test` job's fmt step — worth a fast
+recheck across all of them rather than assuming. Then the bigger remaining
+blocker is the backlog table above — reconcile Checkpoint 3's three PRs
+(#4/#5/#9), and get *all* of #2–#9 reviewed/merged into `main` so this file
+on `main` stops being 8 real audit passes behind reality. Until that
+reconciliation happens, every new session reading only `main`'s copy of
+this file is at risk of repeating already-done work exactly as #9 repeated
+#4/#5.
