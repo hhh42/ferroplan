@@ -32,6 +32,7 @@ const SESSION_TOOLS: &[(&str, &str)] = &[
     ("STATUS_ONTOLOGY", "session_status"),
     ("CLOSE_ONTOLOGY", "session_close"),
     ("CMCA_ONTOLOGY", "cmca_allocate"),
+    ("CMCA_RECURSIVE_ONTOLOGY", "cmca_allocate_recursive"),
 ];
 
 const ADMISSION_TOOLS: &[(&str, &str)] = &[

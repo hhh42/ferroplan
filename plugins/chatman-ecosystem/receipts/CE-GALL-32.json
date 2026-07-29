@@ -1,0 +1,36 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-32",
+  "command": "grep -rn 'def project_key' plugins/chatman-ecosystem/scripts/",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "1a9ab50805450127f6d159f9f659c128710e798e",
+  "known_anti_patterns": [
+    "blast radius corrected upward: SIX copies of `project_key` exist, not two. scripts/effective-phase.py:47, scripts/phase.py:69, scripts/grant-actuation.py:56, scripts/actuation-intent.py:82, scripts/event-summary.py:50, scripts/loop.py:53",
+    "each copy keys the ledger by whatever cwd its command ran from, so a `cd` forks the ledger for one repository; four ledger directories exist today",
+    "roots.project_root() is the built fix and is wired into none of the six",
+    "any per-copy repair is a partial fix by construction: the ledgers only reconverge when all six agree, so five corrected copies leave the fork intact",
+    "roots.project_root() is now wired into project_key/project_directory directly, so all six callers inherit anchoring without per-caller edits (they already import from roots.py per commit 6e9b81a) -- but no test yet exercises a caller script end-to-end to confirm it observes one ledger, only the roots.py primitive is covered",
+    "the pre-fix forked ledger directory (280f6a60fadbc82431436afd, the old subdirectory-cwd key) is not deleted or migrated by this fix -- it stops growing going forward but its prior contents are not reconciled into the repo-root ledger"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/scripts/plugin_data.py",
+    "result": "Stop hook blocked on 47 events in the plugins/chatman-ecosystem ledger while the repo ledger read 0 pending",
+    "test": "live demonstration during this session",
+    "why_this_counts": "the defect demonstrated itself in the session that documented it -- an unambiguous, reproducible negative"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_roots.py:190",
+    "result": "1 passed in 0.17s",
+    "test": "plugins/chatman-ecosystem/tests/test_roots.py::test_project_key_is_identical_for_cwd_and_its_subdirectory",
+    "why_this_counts": "roots.project_key/project_directory now anchor at roots.project_root() when one resolves, so repo-root and subdirectory cwds hash to the same ledger key; independently verified by calling project_key('.') and project_key('plugins/chatman-ecosystem') and confirming identical digests, then encoded as this regression test."
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Ledger anchoring"
+}

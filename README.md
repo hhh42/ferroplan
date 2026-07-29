@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/hhh42/ferroplan/main/assets/logo.svg" alt="ferroplan" width="360">
+  <img src="https://raw.githubusercontent.com/seanchatmangpt/ferroplan/main/assets/logo.svg" alt="ferroplan" width="360">
 </p>
 
 # ferroplan
 
-[![CI](https://github.com/hhh42/ferroplan/actions/workflows/ci.yml/badge.svg)](https://github.com/hhh42/ferroplan/actions/workflows/ci.yml)
-[![docs](https://img.shields.io/badge/docs-mdbook-blue)](https://hhh42.github.io/ferroplan)
-[![live demo](https://img.shields.io/badge/live_demo-try_in_browser-6c5ce7)](https://hhh42.github.io/ferroplan/demo/index.html)
+[![CI](https://github.com/seanchatmangpt/ferroplan/actions/workflows/ci.yml/badge.svg)](https://github.com/seanchatmangpt/ferroplan/actions/workflows/ci.yml)
+[![docs](https://img.shields.io/badge/docs-mdbook-blue)](https://seanchatmangpt.github.io/ferroplan)
+[![live demo](https://img.shields.io/badge/live_demo-try_in_browser-6c5ce7)](https://seanchatmangpt.github.io/ferroplan/demo/index.html)
 [![license](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 
 A fast, data-parallel **PDDL planner** in Rust — a deterministic planning core for
@@ -28,10 +28,10 @@ that solver.
 - **Inspectability** — you can read a domain and an axiom; you cannot read a model's weights.
 - **Scale** — a village of agents each replanning is tractable for a fast solver, not as a wall of LLM calls.
 
-> **[▶ Try it live in your browser](https://hhh42.github.io/ferroplan/demo/index.html)** —
+> **[▶ Try it live in your browser](https://seanchatmangpt.github.io/ferroplan/demo/index.html)** —
 > pick a built-in example or paste your own PDDL; it plans entirely client-side via
 > WebAssembly, no install. There's also a
-> [browser visualizer + block editor](https://hhh42.github.io/ferroplan/gui/index.html).
+> [browser visualizer + block editor](https://seanchatmangpt.github.io/ferroplan/gui/index.html).
 
 `ferroplan` is a from-scratch reimplementation of the FF family of planners with a
 data-oriented core (bitset states, structure-of-arrays / CSR operator tables),
@@ -54,9 +54,9 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > and 2023 (classical AND numeric) are fetched, entered, and tabled —
 > seven new tracks, 1,820 instances, quality scored against official
 > best-known bounds where they exist
-> ([standings](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md)).
+> ([standings](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc-standings.md)).
 > The research map behind the push is
-> [`docs/landscape-2026.md`](https://github.com/hhh42/ferroplan/blob/main/docs/landscape-2026.md);
+> [`docs/landscape-2026.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/landscape-2026.md);
 > its first engine bet — a BFWS-style **novelty rung** — shipped,
 > met its referee, and lost honestly (+7/−51 at wall-clock budgets:
 > opt-in via `FF_NOVELTY=1`, mechanism and next idea on record). And
@@ -64,7 +64,7 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > RPG simulation builds on (`benchmarks/village/` — one gather/make/
 > buy/sell rule, catalogs as pure data) with hiring as a Session
 > goal contract (`examples/village.rs`). Full record:
-> [`docs/roadmap-0.17.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.17.md).
+> [`docs/roadmap-0.17.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.17.md).
 
 > **What's new in 0.16.0 — the standings cycle.** A measurement
 > release: zero engine changes, and the project's standings made
@@ -76,16 +76,16 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > and tpp outright (the old board was seven cycles stale). Every
 > deterministic satisficing track of IPC-5/6/7 is now swept and
 > tabled in one generated document
-> ([`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md),
+> ([`benchmarks/ipc-standings.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc-standings.md),
 > rendered as the book's new
-> [Standings chapter](https://hhh42.github.io/ferroplan/standings.html)) —
+> [Standings chapter](https://seanchatmangpt.github.io/ferroplan/standings.html)) —
 > including the IPC-7 **sequential multi-core track, entered for the
 > first time** (t2/t4/t8: 193/189/193 of 280 under competition
 > wall-clock rules), first-ever IPC-5
 > propositional/time/metric-time/constraints rows, and every
 > remaining gap priced with its mechanism named. Full record:
-> [`docs/roadmap-0.16.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.16.md);
-> next up: [`docs/roadmap-0.17.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.17.md).
+> [`docs/roadmap-0.16.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.16.md);
+> next up: [`docs/roadmap-0.17.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.17.md).
 
 > **What's new in 0.15.0 — the seen-and-scheduled cycle.** Minds learn
 > to SEE: **`Session::observe`** is the belief surface — sighted facts
@@ -96,7 +96,7 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > on arrival, theft discovered on contact — with a measured winner
 > inversion when information asymmetry reshuffles the market, and
 > "false dormancy" recorded as the next policy layer. The
-> [browser bazaar](https://hhh42.github.io/ferroplan/demo/bazaar-live.html)
+> [browser bazaar](https://seanchatmangpt.github.io/ferroplan/demo/bazaar-live.html)
 > is now LIVE — real WASM `Session` minds (**`WasmSession`**), policy
 > toggles, a steal button, belief-drift badges — which flushed out and
 > fixed a real wasm clock panic in the engine's timing paths. On the
@@ -109,8 +109,8 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > machine-shop's residual wall is named to the decimal — the
 > start-credit plateau, with four measured ordering negatives and the
 > h-surgery fence on file. Full record:
-> [`docs/roadmap-0.15.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.15.md),
-> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
+> [`docs/roadmap-0.15.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.15.md),
+> [`STATUS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.14.0 — the living-bazaar cycle.** The population
 > runs. The tick loop is driven end-to-end (`bazaar_live`): N
@@ -127,7 +127,7 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > fires interval ends itself, retiring the mirror-the-end-effects
 > idiom — all with zero search-engine changes. Plus
 > **`Session::goal_met()`**, the bazaar in the
-> [browser demo](https://hhh42.github.io/ferroplan/demo/bazaar-live.html),
+> [browser demo](https://seanchatmangpt.github.io/ferroplan/demo/bazaar-live.html),
 > and a refreshed classical scoreboard.
 > The research extension closed a real temporal soundness gap —
 > `over all` invariants are now enforced on EVERY happening, not just
@@ -140,8 +140,8 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > `replan_following` learned the temporal path, and the
 > ⌈demand/capacity⌉ landmark rung is recorded as the fourth precise
 > guidance negative (`FF_RESLM` hatch). Full record:
-> [`docs/roadmap-0.14.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.14.md),
-> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
+> [`docs/roadmap-0.14.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.14.md),
+> [`STATUS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.13.0 — the many-minds cycle.** One world, a
 > population of planners. **`Session::set_goal`** retargets a mind —
@@ -156,14 +156,14 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > replay the broken plan's surviving prefix, search only the tail
 > (measured: churn 1 at 3 evals where the unbiased rethink churns 16
 > at 2,899). The game track gains its own scoreboard —
-> [`benchmarks/bazaar-thinks.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/bazaar-thinks.md):
+> [`benchmarks/bazaar-thinks.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/bazaar-thinks.md):
 > solo trade chains are heuristic-transparent (11 hops, sub-ms,
 > every tick), contended chains show honest budget-exhaustion curves.
 > The temporal search gains agenda symmetry reduction (canonical
 > pending-interval order + redundant-copy skip, `FF_NO_TSYMM=1`
 > reverts). Full record:
-> [`docs/roadmap-0.13.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.13.md),
-> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
+> [`docs/roadmap-0.13.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.13.md),
+> [`STATUS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.12.0 — the game cycle.** `Session` learns TEMPORAL
 > domains: ground a durative world once, then every think is a bounded
@@ -183,8 +183,8 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > economy as dense-reachable: ground once (5.5 s), think forever. Plus
 > self-relative quality scoring in the corpus runner and a precise
 > diagnosis for the parc-printer-t plateau. Full record:
-> [`docs/roadmap-0.12.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.12.md),
-> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
+> [`docs/roadmap-0.12.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.12.md),
+> [`STATUS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.11.0 — the guidance cycle and the think API.** The
 > game-embedding surface lands: **`Session::replan_budgeted`** makes a
@@ -202,8 +202,8 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > genuinely different heuristic, not reweightings of what exists.
 > Default-path behavior is unchanged, so the 0.10.0 scoreboards remain
 > current. Full record:
-> [`docs/roadmap-0.11.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.11.md),
-> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
+> [`docs/roadmap-0.11.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.11.md),
+> [`STATUS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.10.0 — the walls fall where they can.** Three
 > grounder truths land: **fact-space compaction** (elevator-08-t p22
@@ -225,8 +225,8 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > caps per-job memory, and every unmoved wall carries a measured
 > diagnosis (storage/TMS/transport/model-train: guidance, not
 > semantics, memory, or grounding). Full record:
-> [`docs/roadmap-0.10.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.10.md),
-> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
+> [`docs/roadmap-0.10.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.10.md),
+> [`STATUS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.9.0 — the IPC6/IPC7 arc opens.** ferroplan learns the
 > IPC-2008/2011 satisficing objectives: **real action costs** (the metric
@@ -244,8 +244,8 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > solved plan externally VAL-validated where available. A **sequential
 > portfolio mode** (`--mode portfolio`) time-slices four complementary
 > configurations under one deterministic eval pool. Full record:
-> [`docs/roadmap-0.9.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.9.md),
-> [`STATUS.md`](https://github.com/hhh42/ferroplan/blob/main/STATUS.md).
+> [`docs/roadmap-0.9.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.9.md),
+> [`STATUS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/STATUS.md).
 
 > **What's new in 0.8.0 — Pay the Costs.** 0.7 enforced trajectory
 > constraints and wrote down the bill; 0.8 pays it. Hard-monitor
@@ -260,11 +260,11 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > once-only achievement structure instead of monitor artifacts, so the
 > storage tail runs on **pure defaults** — qualitative coverage rises
 > from 36/40 to **38/40**, every remaining gap still named on the
-> [scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md). A
+> [scoreboard](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md). A
 > deterministic search memory backstop (byte-model node cap, t1 ≡ t8 by
 > construction) guards the wide-state passes. Every change keeps a
 > restore hatch; constraint-free inputs are byte-identical
-> ([0.8 roadmap](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.8.md)).
+> ([0.8 roadmap](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.8.md)).
 
 > **What's new in 0.7.0 — Trajectories: enforce the constraint, price the
 > preference.** The oldest fence is retired: PDDL3 `(:constraints ...)`
@@ -280,13 +280,13 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > and a metric** (reported == verified exact on all 11 oracle-checked
 > instances), every gap has a named reason, and quadratic `forall`-constraints ground tractably via
 > constraint-side static simplification
-> ([qualitative scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md),
-> [0.7 roadmap](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.7.md)). Timed operators and the temporal
+> ([qualitative scoreboard](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md),
+> [0.7 roadmap](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.7.md)). Timed operators and the temporal
 > path still reject by name; `FF_CONSTRAINTS_REJECT=1` restores the
 > blanket rejection.
 
 > **What's new in 0.6.0 — Selection: solve the choice, then plan to it.**
-> Plan forensics ([the write-up](https://github.com/hhh42/ferroplan/blob/main/docs/forensics-tpp.md)) proved the remaining
+> Plan forensics ([the write-up](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/forensics-tpp.md)) proved the remaining
 > quality gap on preference domains was a *selection* problem, not a search
 > problem — so ferroplan now solves the preference-subset choice **exactly**
 > (`selection.rs`: mutex-variable end states, branch-and-bound, an admissible
@@ -295,10 +295,10 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > defaults vs SGPlan5, the IPC-5 winner: **storage becomes an 8/8 domain
 > sweep** (totals 234 vs 547), **tpp p06 an exact tie**, rovers' totals lead
 > widens to 4862 vs 5632, and the suite tally reaches **19W/16T/13L**
-> ([scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)) — three domains led under
+> ([scoreboard](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)) — three domains led under
 > both quality conventions, deterministic at any thread count, every default
 > change with a restore hatch, every dead end recorded
-> ([0.6 roadmap](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.6.md)).
+> ([0.6 roadmap](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.6.md)).
 
 > **What's new in 0.5.0 — closing on first.** On the vendored IPC-5
 > simple-preferences suite, **pure defaults** (one configuration, no env vars,
@@ -306,20 +306,20 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > under BOTH quality conventions on three of the six domains**: openstacks
 > (wins p04–p08), storage (wins p01–p07), and rovers (wins p04/p06/p07/p08,
 > exact ties p01/p05) — with trucks ahead on the domain total and a suite-wide
-> instance tally of **19W/14T/15L** ([scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)).
+> instance tally of **19W/14T/15L** ([scoreboard](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)).
 > Under the hood: the ESPC penalty loop **graduated to a deterministically
 > budgeted default**, both B&B loops gained **anytime in-sweep tightening + a
 > diversified restart ladder** (which broke the storage/tpp plateaus), and
 > folded numeric metrics **route through the exact-closure optimizer** (the
 > rovers flip). Every default change keeps a restore hatch
-> ([tuning reference](https://hhh42.github.io/ferroplan/tuning.html));
+> ([tuning reference](https://seanchatmangpt.github.io/ferroplan/tuning.html));
 > negative results are recorded, not hidden (two seeding levers measured
-> neutral, shipped opt-in). See the [CHANGELOG](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md) and the executed
-> [0.5 roadmap](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.5.md).
+> neutral, shipped opt-in). See the [CHANGELOG](https://github.com/seanchatmangpt/ferroplan/blob/main/CHANGELOG.md) and the executed
+> [0.5 roadmap](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.5.md).
 
 > **What's new in 0.4.0** — the PDDL3 preference-metric release, measured
 > against the official IPC-5 winner on the vendored simple-preferences suite
-> ([scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)): ferroplan now **leads SGPlan5
+> ([scoreboard](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)): ferroplan now **leads SGPlan5
 > on two of the six domains** — openstacks (opt-in `FF_ESPC=1` partitioned
 > penalty loop: 19/23/17/**16/21/22/66/87** vs 13/16/12/26/36/33/67/123) and
 > storage (plain defaults: **3/5/6/9/46**/145/200/263 vs 5/8/14/17/87/…, up
@@ -331,7 +331,7 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > collapses ~97% at compile), barrier-free full-DNF guidance, and a
 > **budget-escalating B&B** whose deterministic eval budget
 > (`FF_PREF_EVAL_BUDGET`) is a real quality dial. Every change has a restore
-> hatch. See the [CHANGELOG](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md) for the full breakdown, including
+> hatch. See the [CHANGELOG](https://github.com/seanchatmangpt/ferroplan/blob/main/CHANGELOG.md) for the full breakdown, including
 > 0.3.0's temporal solver depth (65 → 73/75 corpus, default goal-relevance
 > pruning, escalation ladder, `Session` API), the animator's transport bar and
 > Gantt view, and the move to **Bevy 0.19**.
@@ -365,11 +365,11 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 
 ## GUI
 
-[`ferroplan-bevy`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan-bevy) is a Bevy app that visualizes a
+[`ferroplan-bevy`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan-bevy) is a Bevy app that visualizes a
 domain+problem as a typed graph, animates the plan, and edits both problems and
 domains in a Blockly-style block editor (`cargo run -p ferroplan-bevy`).
 
-![ferroplan-bevy visualizing a delivery problem as a typed graph](https://raw.githubusercontent.com/hhh42/ferroplan/main/book/src/images/graph.png)
+![ferroplan-bevy visualizing a delivery problem as a typed graph](https://raw.githubusercontent.com/seanchatmangpt/ferroplan/main/book/src/images/graph.png)
 
 ## Install / build
 
@@ -438,7 +438,7 @@ The public, `serde`-serializable surface: **`solve`** (plan a domain+problem),
 **`parse`** (syntax-check + summarize PDDL without solving),
 **`Session`** (ground once, replan many — for a live loop that re-solves the same
 world every tick), and **`plan::validate_plan`** (independently check a plan). See
-[`examples/`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan/examples) for `solve`, `parse`, `json_api`, and
+[`examples/`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan/examples) for `solve`, `parse`, `json_api`, and
 `replan` (`Session` vs. re-solving from scratch, with timings).
 
 ## Configuration
@@ -469,40 +469,40 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 
 | crate | what |
 |---|---|
-| [`ferroplan`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan) | the library: engine + modes + `solve` / `decompose` / `Session` API |
-| [`ferroplan-cli`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
-| [`ferroplan-mcp`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan-mcp) | an MCP server exposing `solve` / `validate` / `decompose` over stdio — so an LLM agent can author PDDL and drive the planner |
-| [`ferroplan-bevy`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan-bevy) | Bevy app: visualize, inspect & animate a domain+problem (`cargo run -p ferroplan-bevy [domain.pddl problem.pddl]`) |
-| [`ferroplan-wasm`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan-wasm) | WebAssembly binding behind the client-side [browser demo](https://hhh42.github.io/ferroplan/demo/index.html) — `solve` a domain+problem entirely in-page |
-| [`ferroplan-py`](https://github.com/hhh42/ferroplan/tree/main/crates/ferroplan-py) | Python binding (`pip`-installable extension module) exposing `solve` for embedding in Python tools |
+| [`ferroplan`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan) | the library: engine + modes + `solve` / `decompose` / `Session` API |
+| [`ferroplan-cli`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan-cli) | the `ff` binary (clap + JSON) |
+| [`ferroplan-mcp`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan-mcp) | an MCP server exposing `solve` / `validate` / `decompose` over stdio — so an LLM agent can author PDDL and drive the planner |
+| [`ferroplan-bevy`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan-bevy) | Bevy app: visualize, inspect & animate a domain+problem (`cargo run -p ferroplan-bevy [domain.pddl problem.pddl]`) |
+| [`ferroplan-wasm`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan-wasm) | WebAssembly binding behind the client-side [browser demo](https://seanchatmangpt.github.io/ferroplan/demo/index.html) — `solve` a domain+problem entirely in-page |
+| [`ferroplan-py`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan-py) | Python binding (`pip`-installable extension module) exposing `solve` for embedding in Python tools |
 
 ## Examples
 
-[`examples/`](https://github.com/hhh42/ferroplan/tree/main/examples) collects worked domains that exercise the full feature set
-— see the [examples index](https://github.com/hhh42/ferroplan/blob/main/examples/README.md) for a feature-by-feature map and a
+[`examples/`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples) collects worked domains that exercise the full feature set
+— see the [examples index](https://github.com/seanchatmangpt/ferroplan/blob/main/examples/README.md) for a feature-by-feature map and a
 suggested reading order. Highlights:
 
-- [`rpg`](https://github.com/hhh42/ferroplan/tree/main/examples/rpg) — the clean intro: durative actions with renewable
+- [`rpg`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/rpg) — the clean intro: durative actions with renewable
   (workers) and consumable resources, gather → craft → build.
-- [`rpg-world`](https://github.com/hhh42/ferroplan/tree/main/examples/rpg-world) — a ~120-action crafting/economy domain
+- [`rpg-world`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/rpg-world) — a ~120-action crafting/economy domain
   (durative actions, numeric resources, renewable capacities, a reachability
-  axiom) with a corpus of validated contracts, a flavor-×-scale [`suite/`](https://github.com/hhh42/ferroplan/tree/main/examples/rpg-world/suite),
-  an adversarial [`hard/`](https://github.com/hhh42/ferroplan/tree/main/examples/rpg-world/hard) batch, and an
-  [industrial-city](https://github.com/hhh42/ferroplan/tree/main/examples/rpg-world/industrial-city) showcase that runs a whole
+  axiom) with a corpus of validated contracts, a flavor-×-scale [`suite/`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/rpg-world/suite),
+  an adversarial [`hard/`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/rpg-world/hard) batch, and an
+  [industrial-city](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/rpg-world/industrial-city) showcase that runs a whole
   metal/stone/wood industry as a pipeline of contracts.
-- [`cabin`](https://github.com/hhh42/ferroplan/tree/main/examples/cabin) — deep numeric build plus a durative "crew" twin
+- [`cabin`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/cabin) — deep numeric build plus a durative "crew" twin
   (makespan vs. crew size, skill-gated scheduling).
-- [`reachability`](https://github.com/hhh42/ferroplan/tree/main/examples/reachability) — the worked **derived-axiom**
+- [`reachability`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/reachability) — the worked **derived-axiom**
   (`:derived`) example: static transitive-closure reachability.
-- [`village`](https://github.com/hhh42/ferroplan/tree/main/examples/village) — a full-ADL stress test (`when`, `forall`+`when`,
+- [`village`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/village) — a full-ADL stress test (`when`, `forall`+`when`,
   `or`, negation) over durative + numeric state.
-- [`villagers`](https://github.com/hhh42/ferroplan/tree/main/examples/villagers) — a data-driven recipe planner with numeric
+- [`villagers`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/villagers) — a data-driven recipe planner with numeric
   **PDDL3 metric** optimization; the "embed in a game" model.
-- [`logistics`](https://github.com/hhh42/ferroplan/tree/main/examples/logistics) — transshipment: per-location goods, trucks
+- [`logistics`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/logistics) — transshipment: per-location goods, trucks
   with capacity, a train line.
-- [`jobshop`](https://github.com/hhh42/ferroplan/tree/main/examples/jobshop) — scheduling with machine-exclusion (scales to 100
+- [`jobshop`](https://github.com/seanchatmangpt/ferroplan/tree/main/examples/jobshop) — scheduling with machine-exclusion (scales to 100
   concurrent jobs).
-- [`BORDERS.md`](https://github.com/hhh42/ferroplan/blob/main/examples/BORDERS.md) — a measured map of where one-shot planning
+- [`BORDERS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/examples/BORDERS.md) — a measured map of where one-shot planning
   solves vs. where a goal must be decomposed into contracts. The **`decompose` API /
   `ff --decompose`** acts on that border: it splits a too-big temporal goal into
   ordered, individually-solved contracts and stitches them into one validated plan
@@ -516,9 +516,9 @@ Competitions — IPC-5 (2006), IPC-6 (2008), IPC-7 (2011)** — every
 deterministic satisficing track, at standard budgets with every plan
 VAL-validated. The one honest table per competition (generated by
 `benchmarks/standings.py`, refreshed each cut):
-[`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md)
+[`benchmarks/ipc-standings.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc-standings.md)
 — also rendered as the book's
-[Standings chapter](https://hhh42.github.io/ferroplan/standings.html).
+[Standings chapter](https://seanchatmangpt.github.io/ferroplan/standings.html).
 Highlights: IPC-5 preference tracks are **reference-scored from the
 vendored official archive** — on the qualitative track ferroplan
 **beats SGPlan5, the competition winner, 24–10 with 4 ties**,
@@ -537,15 +537,15 @@ Metric-FF, EHC default):
 | numeric | 36/40 | 0.22× |
 
 Per-board detail: IPC-5 preferences
-[`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)
-/ [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md);
+[`benchmarks/ipc5-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md)
+/ [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md);
 classical/numeric
-detail: [`benchmarks/results.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/results.md) (and the
-[project site](https://hhh42.github.io/ferroplan)). The comparison oracles are not bundled
+detail: [`benchmarks/results.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/results.md) (and the
+[project site](https://seanchatmangpt.github.io/ferroplan)). The comparison oracles are not bundled
 (GPL / non-commercial licences) — reproduce per
-[`benchmarks/COMPARING.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/COMPARING.md).
+[`benchmarks/COMPARING.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/COMPARING.md).
 
-**Profiling & perf tracking:** [`PROFILING.md`](https://github.com/hhh42/ferroplan/blob/main/PROFILING.md) — a deterministic
+**Profiling & perf tracking:** [`PROFILING.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/PROFILING.md) — a deterministic
 metrics harness (`benchmarks/perf.py run`/`compare` against a committed baseline,
 so improvement/regression is measurable across machines) plus the samply /
 flamegraph / criterion-baseline workflow for finding and tracking hotspots.
@@ -560,11 +560,11 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   **full (48/48)** on the vendored simple-preferences suite and ferroplan
   **leads SGPlan5 under both quality conventions on three of the six domains**
   (openstacks, storage, rovers), with trucks ahead on totals — see the
-  [scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md). The tpp/pathways p05–p08 tails
+  [scoreboard](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md). The tpp/pathways p05–p08 tails
   still trail (best-found, flagged *not proven optimal*, measured
   direction-bound); the design record for the remaining work is in
-  [`docs/espc-preferences-spec.md`](https://github.com/hhh42/ferroplan/blob/main/docs/espc-preferences-spec.md) and
-  [`docs/roadmap-0.5.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.5.md).
+  [`docs/espc-preferences-spec.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/espc-preferences-spec.md) and
+  [`docs/roadmap-0.5.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/roadmap-0.5.md).
 - **PDDL3 trajectory constraints** (`(:constraints ...)`): the six untimed
   modal operators (`always`, `sometime`, `at-most-once`, `sometime-after`,
   `sometime-before`, `at end`) are **enforced on the classical path** — compiled
@@ -576,7 +576,7 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   *qualitative-preferences* suite is vendored and scored against the official
   IPC-5 field: ahead of SGPlan5, the track winner, 24W/4T/10L overall,
   winning three of five domains outright — see
-  [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md)).
+  [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md)).
   The timed operators (`within`, `hold-during`, `hold-after`,
   `always-within`) and the temporal path are still **rejected by name**
   rather than silently dropped (`FF_CONSTRAINTS_REJECT=1` restores the
@@ -585,7 +585,7 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   state-dependent durations and required concurrency are supported, and **every
   solved plan on the full IPC-2008/2011 tempo-sat corpus is VAL-validated**
   (399/630 at 30 s, 399/399 valid — see
-  [`benchmarks/ipc67-temporal.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc67-temporal.md)). Coverage on
+  [`benchmarks/ipc67-temporal.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc67-temporal.md)). Coverage on
   the remainder is search-limited: the recorded walls (machine-shop, storage,
   model-train) are guidance problems, not semantics — and since the 0.14
   extension, `over all` invariants are enforced on every happening, with
@@ -622,5 +622,5 @@ Maria Fox's **VAL**, used here to independently validate the temporal plans.
 
 ## License
 
-Dual-licensed under either of [MIT](https://github.com/hhh42/ferroplan/blob/main/LICENSE-MIT) or [Apache-2.0](https://github.com/hhh42/ferroplan/blob/main/LICENSE-APACHE),
+Dual-licensed under either of [MIT](https://github.com/seanchatmangpt/ferroplan/blob/main/LICENSE-MIT) or [Apache-2.0](https://github.com/seanchatmangpt/ferroplan/blob/main/LICENSE-APACHE),
 at your option.

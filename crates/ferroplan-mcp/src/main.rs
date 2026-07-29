@@ -1,15 +1,18 @@
 //! `ferroplan-mcp` — a single Model Context Protocol server exposing the
 //! ferroplan planner, persistent self-hosting sessions, and Chatman
-//! admission receipts to an LLM agent, as 16 MCP tools:
+//! admission receipts to an LLM agent, as 17 MCP tools:
 //!
 //! - Stateless planning: `solve`, `parse`, `validate`, `decompose` — the
 //!   README's bet made operational: the agent *authors and supervises* PDDL
 //!   and the planner runs deterministically.
 //! - Persistent repository minds: `session_open`, `session_observe`,
 //!   `session_set_goal`, `session_think`, `session_advance`,
-//!   `session_status`, `session_close`, `cmca_allocate` — ground once,
-//!   observe admitted drift, replay the remaining plan, and search only
-//!   when the suffix no longer stands.
+//!   `session_status`, `session_close`, `cmca_allocate`,
+//!   `cmca_allocate_recursive` — ground once, observe admitted drift,
+//!   replay the remaining plan, and search only when the suffix no longer
+//!   stands. `cmca_allocate_recursive` chains a sequence of admitted CMCA
+//!   allocations, each depth binding the previous depth's real receipt
+//!   digest.
 //! - Canonical evidence admission: `canonical_digest`, `bind_allocation_receipt`,
 //!   `bind_plan_receipt`, `verify_receipt` — bind the exact outputs of the
 //!   above authorities into replayable BLAKE3 envelopes with explicit
@@ -21,7 +24,7 @@
 //! CPU-bound search via `tokio::task::block_in_place` while holding a
 //! per-session lock; see `session.rs`). Tool schemas are derived from
 //! `schemars::JsonSchema` on each request struct rather than hand-written
-//! JSON Schema literals. `resources/*` exposes one resource per tool (16
+//! JSON Schema literals. `resources/*` exposes one resource per tool (17
 //! total), under a single unified `ferroplan://tools/<name>` URI scheme,
 //! with the tool's semantic description pulled from
 //! `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl` (statically
@@ -42,18 +45,22 @@
 //! since no tool name collides across the three original servers).
 
 mod admission;
+mod result;
 mod session;
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
-    ErrorData as McpError, ListResourcesResult, ReadResourceRequestParams, ReadResourceResult,
-    Resource, ResourceContents, ServerCapabilities, ServerInfo,
+    CallToolResult, ErrorData as McpError, ListResourcesResult, ReadResourceRequestParams,
+    ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
 };
 use rmcp::service::RequestContext;
 use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceExt};
 use schemars::JsonSchema;
 use serde::Deserialize;
+use serde_json::json;
+
+use crate::result::to_result;
 
 // Static per-tool semantic descriptions for this module's own four
 // (stateless planning) tools, sourced from
@@ -146,10 +153,8 @@ impl Ferroplan {
             actions) — mode is auto-detected. A solved:false result is a normal answer, not an \
             error."
     )]
-    fn solve(&self, Parameters(req): Parameters<SolveRequest>) -> Result<String, String> {
-        let opts = req.options.unwrap_or_default();
-        let sol = ferroplan::solve(&req.domain, &req.problem, &opts).map_err(|e| e.to_string())?;
-        pretty(&sol)
+    fn solve(&self, Parameters(req): Parameters<SolveRequest>) -> Result<CallToolResult, McpError> {
+        to_result(self.do_solve(req))
     }
 
     #[tool(
@@ -159,8 +164,8 @@ impl Ferroplan {
             counts (types/predicates/actions, or objects/init/goal/metric). Use to catch PDDL \
             mistakes before `solve`."
     )]
-    fn parse(&self, Parameters(req): Parameters<ParseRequest>) -> Result<String, String> {
-        pretty(&ferroplan::parse(&req.pddl))
+    fn parse(&self, Parameters(req): Parameters<ParseRequest>) -> Result<CallToolResult, McpError> {
+        to_result(as_value(&ferroplan::parse(&req.pddl)))
     }
 
     #[tool(
@@ -169,11 +174,11 @@ impl Ferroplan {
             whether the plan is executable and goal-reaching, with a reason if not. Use to \
             check a plan you wrote or one solve produced."
     )]
-    fn validate(&self, Parameters(req): Parameters<ValidateRequest>) -> Result<String, String> {
-        match ferroplan::plan::validate_plan(&req.domain, &req.problem, &req.plan)? {
-            ferroplan::plan::Validity::Valid => Ok("Plan valid".to_string()),
-            ferroplan::plan::Validity::Invalid(why) => Ok(format!("Plan invalid: {why}")),
-        }
+    fn validate(
+        &self,
+        Parameters(req): Parameters<ValidateRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        to_result(self.do_validate(req))
     }
 
     #[tool(
@@ -183,11 +188,44 @@ impl Ferroplan {
             offset, plus the stitched plan. A goal that can't be split falls back to a single \
             monolithic contract (reported honestly)."
     )]
-    fn decompose(&self, Parameters(req): Parameters<DecomposeRequest>) -> Result<String, String> {
+    fn decompose(
+        &self,
+        Parameters(req): Parameters<DecomposeRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        to_result(self.do_decompose(req))
+    }
+}
+
+impl Ferroplan {
+    fn do_solve(&self, req: SolveRequest) -> Result<serde_json::Value, String> {
+        let opts = req.options.unwrap_or_default();
+        let sol = ferroplan::solve(&req.domain, &req.problem, &opts).map_err(|e| e.to_string())?;
+        as_value(&sol)
+    }
+
+    /// A plan that does not stand is a normal answer (`valid: false` with a
+    /// reason), NOT an error: only a domain/problem/plan that cannot be parsed
+    /// or grounded — the `?` on `validate_plan` below — is an error result.
+    /// `reason` carries `Validity::Invalid`'s inner string verbatim; the
+    /// former "Plan invalid: " prefix was presentation, not data.
+    fn do_validate(&self, req: ValidateRequest) -> Result<serde_json::Value, String> {
+        let (valid, reason) =
+            match ferroplan::plan::validate_plan(&req.domain, &req.problem, &req.plan)? {
+                ferroplan::plan::Validity::Valid => (true, None),
+                ferroplan::plan::Validity::Invalid(why) => (false, Some(why)),
+            };
+        Ok(json!({
+            "schema": "urn:ferroplan:plan-validation:v1",
+            "valid": valid,
+            "reason": reason,
+        }))
+    }
+
+    fn do_decompose(&self, req: DecomposeRequest) -> Result<serde_json::Value, String> {
         let opts = req.options.unwrap_or_default();
         let dec =
             ferroplan::decompose(&req.domain, &req.problem, &opts).map_err(|e| e.to_string())?;
-        pretty(&dec)
+        as_value(&dec)
     }
 }
 
@@ -268,7 +306,7 @@ impl ServerHandler for Ferroplan {
     }
 }
 
-/// All 16 tool names across the three merged tool groups, in a stable order
+/// All 17 tool names across the three merged tool groups, in a stable order
 /// (stateless planning, then session, then admission).
 fn all_tool_names() -> Vec<&'static str> {
     MAIN_RESOURCE_TOOLS
@@ -279,8 +317,18 @@ fn all_tool_names() -> Vec<&'static str> {
         .collect()
 }
 
+/// Retained generic pretty-printer, distinct from `crate::result::pretty`
+/// (which is infallible and `Value`-specific). Kept as the stateless-planning
+/// group's text-rendering helper.
+#[allow(dead_code)]
 fn pretty<T: serde::Serialize>(v: &T) -> Result<String, String> {
     serde_json::to_string_pretty(v).map_err(|e| e.to_string())
+}
+
+/// Reflect a serializable planner output into the `Result<Value, String>`
+/// tool-body convention `crate::result::to_result` consumes.
+fn as_value<T: serde::Serialize>(v: &T) -> Result<serde_json::Value, String> {
+    serde_json::to_value(v).map_err(|e| e.to_string())
 }
 
 #[tokio::main]

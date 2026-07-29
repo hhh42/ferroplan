@@ -7,7 +7,6 @@ import contextlib
 import hashlib
 import json
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -19,19 +18,15 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bash_classify import is_mutation as bash_is_mutation  # noqa: E402
+
 try:
     from plugin_data import plugin_data_root as resolve_plugin_data_root
 except ImportError:
     resolve_plugin_data_root = None
+from roots import project_directory, project_key  # noqa: E402
 
 SCHEMA = "urn:chatman:claude-code-lifecycle-candidate:v1"
-MUTATING_BASH = re.compile(
-    r"(?:^|[;&|]\s*)(?:git\s+(?:add|commit|merge|rebase|reset|clean|checkout|switch|branch|tag)|"
-    r"cargo\s+(?:fmt|fix|update|install|publish)|npm\s+(?:install|version|publish)|"
-    r"(?:rm|mv|cp|mkdir|touch|chmod|chown)\b|(?:sed\s+-i|perl\s+-pi)|"
-    r"(?:tee\s+|cat\s+[^|;&]*>)|python(?:3)?\s+[^|;&]*(?:write|generate|update|patch))",
-    re.IGNORECASE,
-)
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -51,14 +46,6 @@ def plugin_data_root() -> Path:
     if configured:
         return Path(configured)
     return Path.home() / ".claude" / "plugins" / "data" / "chatman-ecosystem"
-
-
-def project_key(project: str) -> str:
-    return hashlib.sha256(os.path.realpath(project).encode("utf-8")).hexdigest()[:24]
-
-
-def project_directory(project: str) -> Path:
-    return plugin_data_root() / "projects" / project_key(project)
 
 
 @contextlib.contextmanager
@@ -97,7 +84,7 @@ def bounded_tool_call(value: Any) -> dict[str, Any]:
         command = tool_input.get("command")
         if isinstance(command, str):
             surface["command_digest"] = hashlib.sha256(command.encode("utf-8")).hexdigest()
-            mutating = bool(MUTATING_BASH.search(command))
+            mutating = bash_is_mutation(command)
     else:
         path = tool_input.get("file_path") or tool_input.get("notebook_path")
         if isinstance(path, str):

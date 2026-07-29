@@ -46,7 +46,7 @@ constraint — taking openstacks **ahead of SGPlan5 on p04–p08**.
 lead on two of six (openstacks with `FF_ESPC`; storage on defaults), parity on the
 small instances nearly everywhere else — a strong 2nd under the coverage-first
 rule. The full per-instance tables, the ESPC method, and reproduction commands:
-[`benchmarks/ipc5-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
+[`benchmarks/ipc5-scoreboard.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md).
 
 ## Mutex groups & SAS+
 
@@ -77,4 +77,4 @@ where goals share structure but aren't resource-coupled; on resource-coupled
 domains naive decomposition still re-traverses the shared resource — which the
 default-on ESPC penalty loop (`FF_NO_ESPC` opts out) now prices as a global constraint. Method,
 coverage numbers, and findings:
-[`docs/invariants-measurement.md`](https://github.com/hhh42/ferroplan/blob/main/docs/invariants-measurement.md).
+[`docs/invariants-measurement.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/docs/invariants-measurement.md).

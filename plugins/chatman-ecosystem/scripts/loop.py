@@ -27,35 +27,19 @@ except ImportError:  # pragma: no cover - Windows fallback
     fcntl = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# `_standing` is generated and imports only `enum`, so it is safe on the hook
+# path, which must stay standard-library only -- the hooks are this plugin's
+# only mechanical authority.
+from _standing import DEFAULT as STANDING_DEFAULT  # noqa: E402
+from _standing import Standing  # noqa: E402
+from bash_classify import is_mutation as bash_is_mutation  # noqa: E402
+from bash_classify import is_protected as bash_is_protected  # noqa: E402
 from mcp_client import McpClient, McpToolError, tool_structured_result  # noqa: E402
 from plugin_data import plugin_data_root as resolve_plugin_data_root  # noqa: E402
+from roots import project_directory, project_key  # noqa: E402
 
 STATE_SCHEMA = "urn:chatman:claude-code-loop-state:v1"
 EVENT_SCHEMA = "urn:chatman:claude-code-observation:v1"
-
-MUTATING_BASH = re.compile(
-    r"(?:^|[;&|]\s*)"
-    r"(?:git\s+(?:add|commit|push|merge|rebase|reset|clean|checkout|switch|branch|tag)|"
-    r"gh\s+pr\s+(?:create|merge|close|edit)|"
-    r"cargo\s+(?:fmt|fix|update|publish|install)|"
-    r"npm\s+(?:publish|version|install)|"
-    r"(?:rm|mv|cp|mkdir|touch|chmod|chown)\b|"
-    r"(?:sed\s+-i|perl\s+-pi)|"
-    r"(?:tee\s+|cat\s+[^|;&]*>)|"
-    r"python(?:3)?\s+[^|;&]*(?:write|generate|update|patch))",
-    re.IGNORECASE,
-)
-
-PROTECTED_BASH = re.compile(
-    r"(?:^|[;&|]\s*)"
-    r"(?:git\s+(?:push|merge|rebase|reset\s+--hard|clean\s+-[a-z]*f)|"
-    r"gh\s+pr\s+(?:create|merge|close)|"
-    r"cargo\s+publish|npm\s+publish|"
-    r"rm\s+-[^\n;&|]*r[^\n;&|]*f|"
-    r"curl\b[^\n;&|]*(?:-X\s*(?:POST|PUT|PATCH|DELETE)|--request\s*(?:POST|PUT|PATCH|DELETE)))",
-    re.IGNORECASE,
-)
-
 
 def canonical_bytes(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
@@ -67,16 +51,11 @@ def sha256(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
-def project_key(cwd: str) -> str:
-    return hashlib.sha256(os.path.realpath(cwd).encode("utf-8")).hexdigest()[:24]
-
-
 def plugin_data_root() -> Path:
     return resolve_plugin_data_root()
 
 
-def project_dir(cwd: str) -> Path:
-    return plugin_data_root() / "projects" / project_key(cwd)
+project_dir = project_directory
 
 
 def default_state(cwd: str) -> dict[str, Any]:
@@ -161,15 +140,16 @@ def is_mutation(payload: dict[str, Any]) -> bool:
     if tool != "Bash":
         return False
     command = bash_command(payload)
+    # Local self-exemption, deliberately not in the shared module: the ledger's
+    # own read-only subcommands must not be recorded as repository mutations.
     if "loop.py" in command and re.search(r"\b(?:admit|pending|status|monitor)\b", command):
         return False
-    return bool(MUTATING_BASH.search(command))
+    return bash_is_mutation(command)
 
 
 def is_protected(payload: dict[str, Any]) -> bool:
-    return payload.get("tool_name") == "Bash" and bool(
-        PROTECTED_BASH.search(bash_command(payload))
-    )
+    # No self-exemption here, by design.
+    return payload.get("tool_name") == "Bash" and bash_is_protected(bash_command(payload))
 
 
 def bounded_tool_observation(payload: dict[str, Any], sequence: int) -> dict[str, Any]:
@@ -456,8 +436,12 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--plan-digest")
     command.add_argument(
         "--standing",
-        choices=("ALIVE", "PARTIAL_ALIVE", "BUILD_BROKEN", "UNKNOWN"),
-        default="PARTIAL_ALIVE",
+        # Projected from ontology/chatman-ecosystem.ttl via scripts/generate.py.
+        # This list was four values while the checkpoint doc used seven, so
+        # BLOCKED and UNSUPPORTED could be claimed but never recorded. A
+        # standing that cannot be recorded in the ledger is not a standing.
+        choices=tuple(Standing),
+        default=str(STANDING_DEFAULT),
     )
     return root
 

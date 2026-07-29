@@ -2,7 +2,47 @@
 @prefix cmca: <urn:chatman:cmca:> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# A standing must be nameable, ranked, and explained. The datatype here is
+# xsd:integer deliberately: bare integers in Turtle parse as xsd:integer, and
+# declaring xsd:positiveInteger is exactly the mismatch SHACL caught on
+# ce:maxTurns the first time it was run. Rank 0 (UNSUPPORTED) would fail
+# positiveInteger regardless.
+ce:StandingShape a sh:NodeShape ;
+  sh:targetClass ce:Standing ;
+  sh:property [ sh:path dcterms:title ; sh:minCount 1 ; sh:maxCount 1 ;
+                sh:datatype xsd:string ; sh:pattern "^[A-Z][A-Z_]*$" ] ;
+  sh:property [ sh:path ce:standingRank ; sh:minCount 1 ; sh:maxCount 1 ;
+                sh:datatype xsd:integer ; sh:minInclusive 0 ] ;
+  sh:property [ sh:path rdfs:comment ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+ce:StandingReasonShape a sh:NodeShape ;
+  sh:targetClass ce:StandingReason ;
+  sh:property [ sh:path dcterms:title ; sh:minCount 1 ; sh:maxCount 1 ;
+                sh:datatype xsd:string ; sh:pattern "^[A-Z][A-Z_]*$" ] ;
+  sh:property [ sh:path rdfs:comment ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+# Every agent must declare where it lives, what it may claim, and at least one
+# tool. The absence of this shape is why eight agents declared authority in the
+# ontology while their frontmatter granted none of it: nothing checked that the
+# declaration reached a file, so it never did.
+ce:AgentDefinitionShape a sh:NodeShape ;
+  sh:targetClass ce:AgentDefinition ;
+  sh:property [ sh:path ce:frontmatterPath ; sh:minCount 1 ; sh:maxCount 1 ;
+                sh:datatype xsd:string ; sh:pattern "^agents/[a-z0-9-]+\\.md$" ] ;
+  sh:property [ sh:path ce:hasClaimCeiling ; sh:minCount 1 ; sh:maxCount 1 ;
+                sh:class ce:ClaimCeiling ] ;
+  sh:property [ sh:path ce:allowsTool ; sh:minCount 1 ; sh:class ce:Tool ] ;
+  sh:property [ sh:path ce:deniesTool ; sh:class ce:Tool ] ;
+  sh:property [ sh:path ce:isolatedBy ; sh:maxCount 1 ; sh:datatype xsd:string ;
+                sh:in ( "worktree" ) ] ;
+  sh:property [ sh:path ce:maxTurns ; sh:maxCount 1 ;
+                sh:datatype xsd:positiveInteger ] ;
+  sh:property [ sh:path ce:effort ; sh:maxCount 1 ; sh:datatype xsd:string ;
+                sh:in ( "low" "medium" "high" "max" ) ] .
 
 ce:ObservationShape a sh:NodeShape ;
   sh:targetClass ce:Observation ;

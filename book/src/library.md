@@ -30,17 +30,17 @@ if let Some(plan) = sol.plan {
 - **`decompose(domain, problem, &Options)`** → `Result<Decomposition, SolveError>`
   — split a too-big temporal goal into ordered, individually-solved contracts and
   stitch them into one validated plan (falls back to a monolithic solve when a goal
-  can't be split). See [`examples/decompose.rs`](https://github.com/hhh42/ferroplan/blob/main/crates/ferroplan/examples/decompose.rs).
+  can't be split). See [`examples/decompose.rs`](https://github.com/seanchatmangpt/ferroplan/blob/main/crates/ferroplan/examples/decompose.rs).
 - **`Session::new(domain, problem, &Options)`** — ground once, then think many
   times as the world changes each tick: classical *and* temporal domains,
   bounded thinks, free plan-validity replays, retargetable goals, cheap
   population forks, scheduled events, and in-flight intervals. The whole
   game-embedding surface has [its own chapter](./session.md); see also
-  [`examples/game_think.rs`](https://github.com/hhh42/ferroplan/blob/main/crates/ferroplan/examples/game_think.rs)
-  and [`examples/bazaar_live.rs`](https://github.com/hhh42/ferroplan/blob/main/crates/ferroplan/examples/bazaar_live.rs).
+  [`examples/game_think.rs`](https://github.com/seanchatmangpt/ferroplan/blob/main/crates/ferroplan/examples/game_think.rs)
+  and [`examples/bazaar_live.rs`](https://github.com/seanchatmangpt/ferroplan/blob/main/crates/ferroplan/examples/bazaar_live.rs).
 - **`plan::validate_plan(&domain, &problem, &plan)`** — independently replay a plan
   under ferroplan's own apply semantics. See
-  [`examples/validate_plan.rs`](https://github.com/hhh42/ferroplan/blob/main/crates/ferroplan/examples/validate_plan.rs).
+  [`examples/validate_plan.rs`](https://github.com/seanchatmangpt/ferroplan/blob/main/crates/ferroplan/examples/validate_plan.rs).
 
 ## Key types
 
@@ -52,4 +52,4 @@ if let Some(plan) = sol.plan {
   `Unsupported`, via `thiserror`.
 
 Everything serializes to JSON, so `solve` doubles as the core of a planning
-service. See [`examples/json_api.rs`](https://github.com/hhh42/ferroplan/blob/main/crates/ferroplan/examples/json_api.rs).
+service. See [`examples/json_api.rs`](https://github.com/seanchatmangpt/ferroplan/blob/main/crates/ferroplan/examples/json_api.rs).

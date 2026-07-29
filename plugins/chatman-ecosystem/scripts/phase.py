@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hashlib
+import itertools
 import json
 import os
 import re
@@ -28,23 +29,14 @@ except ImportError:  # pragma: no cover
     fcntl = None
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from bash_classify import is_mutation as bash_is_mutation  # noqa: E402
 from mcp_client import McpClient, McpToolError, tool_structured_result  # noqa: E402
 from plugin_data import plugin_data_root as resolve_plugin_data_root  # noqa: E402
+from roots import project_directory, project_key  # noqa: E402
 
 STATE_SCHEMA = "urn:chatman:claude-code-phase-state:v1"
 EVENT_SCHEMA = "urn:chatman:claude-code-phase-event:v1"
 RECEIPT_RE = re.compile(r"^[0-9a-fA-F]{64}$")
-MUTATING_BASH = re.compile(
-    r"(?:^|[;&|]\s*)"
-    r"(?:git\s+(?:add|commit|merge|rebase|reset|clean|checkout|switch|branch|tag)|"
-    r"cargo\s+(?:fmt|fix|update|install)|"
-    r"npm\s+(?:install|version)|"
-    r"(?:rm|mv|cp|mkdir|touch|chmod|chown)\b|"
-    r"(?:sed\s+-i|perl\s+-pi)|"
-    r"(?:tee\s+|cat\s+[^|;&]*>)|"
-    r"python(?:3)?\s+[^|;&]*(?:write|generate|update|patch))",
-    re.IGNORECASE,
-)
 
 
 def plugin_root() -> Path:
@@ -75,16 +67,8 @@ def transport_digest(value: Any) -> str:
     return hashlib.sha256(canonical_bytes(value)).hexdigest()
 
 
-def project_key(cwd: str) -> str:
-    return hashlib.sha256(os.path.realpath(cwd).encode("utf-8")).hexdigest()[:24]
-
-
 def plugin_data_root() -> Path:
     return resolve_plugin_data_root()
-
-
-def project_directory(cwd: str) -> Path:
-    return plugin_data_root() / "projects" / project_key(cwd)
 
 
 @contextlib.contextmanager
@@ -231,6 +215,45 @@ def resolve_project(project: str | None) -> tuple[str, Path]:
     return cwd, project_directory(cwd)
 
 
+def combination_census(profile: dict[str, Any]) -> dict[str, Any]:
+    """Classify every point in the raw product space against the invariants.
+
+    Both counts are derived. `raw` is the product of the dimension sizes, not
+    the profile's `raw_combination_count` literal -- that literal is reported
+    separately as `declared_raw` so a drift between the two is visible instead
+    of being silently believed.
+
+    The lawful count is the number that actually describes the system, and it
+    was written down nowhere: an invariant carrying an unread predicate key
+    enforced nothing for as long as nobody could see that the count had not
+    moved.
+    """
+    names = list(profile["dimensions"])
+    state_lists = [list(profile["dimensions"][name]["states"]) for name in names]
+    raw = 0
+    lawful = 0
+    per_state: dict[str, dict[str, int]] = {
+        name: dict.fromkeys(profile["dimensions"][name]["states"], 0) for name in names
+    }
+    for combo in itertools.product(*state_lists):
+        vector = dict(zip(names, combo, strict=True))
+        raw += 1
+        if validate_vector(profile, vector):
+            continue
+        lawful += 1
+        for name, value in vector.items():
+            per_state[name][value] += 1
+    declared = profile.get("raw_combination_count")
+    return {
+        "raw": raw,
+        "lawful": lawful,
+        "ratio": round(lawful / raw, 4) if raw else 0.0,
+        "declared_raw": declared,
+        "declared_raw_matches": declared == raw,
+        "lawful_per_state": per_state,
+    }
+
+
 def status(project: str | None) -> int:
     profile = load_profile()
     cwd, directory = resolve_project(project)
@@ -243,6 +266,7 @@ def status(project: str | None) -> int:
             "violations": violations,
             "active": active_projection(profile, state["vector"]),
             "raw_combination_count": profile["raw_combination_count"],
+            "census": combination_census(profile),
         }
         if not (directory / "phase-state.json").exists():
             atomic_write(directory / "phase-state.json", state)
@@ -355,8 +379,10 @@ def is_mutation(payload: dict[str, Any]) -> bool:
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
         return False
+    # No self-exemption here, by design: a phase vector collapses on every
+    # observed mutation, including the ledger's own.
     command = tool_input.get("command")
-    return isinstance(command, str) and bool(MUTATING_BASH.search(command))
+    return isinstance(command, str) and bash_is_mutation(command)
 
 
 def invalidate_from_mutation(payload: dict[str, Any]) -> None:

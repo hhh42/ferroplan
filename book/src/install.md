@@ -9,7 +9,7 @@ cargo install ferroplan-cli    # -> the `ff` binary
 or build from source:
 
 ```sh
-git clone https://github.com/hhh42/ferroplan
+git clone https://github.com/seanchatmangpt/ferroplan
 cd ferroplan
 cargo build --release      # -> target/release/ff
 ```
