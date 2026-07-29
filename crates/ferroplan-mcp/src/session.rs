@@ -26,7 +26,9 @@ use bcinr_cmca::{
     },
     fixed::NonNegativeFixed,
     generated::{
-        case_studies::{LensSpec, PackedSemanticState, ETA, F, K, LAMBDA, LENS_REGISTRY, N, Q},
+        consequence_mass::case_studies::{
+            LensSpec, PackedSemanticState, ETA, F, K, LAMBDA, LENS_REGISTRY, N, Q,
+        },
         stability_profile::CERTIFICATE_DIGEST,
     },
 };

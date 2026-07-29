@@ -376,16 +376,18 @@ checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "bcinr-cmca"
-version = "26.7.25"
-source = "git+https://github.com/seanchatmangpt/bcinr?rev=fb9321d27882169acc83aaca0639b319cd3b7900#fb9321d27882169acc83aaca0639b319cd3b7900"
+version = "26.7.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7aa454f03b50b6990c672fd72a4e2bc3ec3af63bed5d4dfae02dee5ca30ba19"
 dependencies = [
  "bcinr-logic",
 ]
 
 [[package]]
 name = "bcinr-logic"
-version = "26.7.25"
-source = "git+https://github.com/seanchatmangpt/bcinr?rev=fb9321d27882169acc83aaca0639b319cd3b7900#fb9321d27882169acc83aaca0639b319cd3b7900"
+version = "26.7.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0be283759631eeff5f9be7313a699ae8efde493ab5b2ba2b5308d86030287b79"
 
 [[package]]
 name = "bevy"
