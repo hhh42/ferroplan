@@ -1304,7 +1304,7 @@ agree, so five corrected copies leave the fork intact.
 
 **Open defect**
 
-`loop.py:372` sets `admitted_event_count = event_count` — a blanket watermark
+`loop.py:368` sets `admitted_event_count = event_count` — a blanket watermark
 that ignores the `observation_frontier` the envelope actually attests to. Any
 mutation landing between binding an envelope and running `admit` is marked
 admitted without ever appearing in a receipt.
@@ -1318,7 +1318,7 @@ observations. This is the gap in that claim, and no test covers it.
 **Citation corrected (2026-07-29).** This section previously cited
 `loop.py:388`. The file has shifted; `:388` is now the plan-digest format
 check. The current line, verified by
-`grep -n 'admitted_event_count.*event_count' scripts/loop.py`, is **`:372`**.
+`grep -n 'admitted_event_count.*event_count' scripts/loop.py`, is **`:368`**.
 
 **Claim ceiling: this is not a one-line fix.** `observation_frontier` has no
 schema anywhere in this repository —
@@ -1402,7 +1402,7 @@ over that work.
 than a missing one — it is evidence pointing at the wrong line:
 
 - CE-GALL-33 cited `loop.py:388` for the admission TOCTOU. The file has shifted
-  and `:388` is now the plan-digest format check; the true line is `:372`. A
+  and `:388` is now the plan-digest format check; the true line is `:368`. A
   reader following the old citation would have audited an unrelated check and
   found nothing wrong;
 - CE-GALL-33 also gained an explicit **claim ceiling**. It was written as though
