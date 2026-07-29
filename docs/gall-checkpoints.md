@@ -1287,7 +1287,7 @@ them:
 repair a partial fix by construction: the ledgers only reconverge when all six
 agree, so five corrected copies leave the fork intact.
 
-**Current standing:** `BLOCKED` (`DEFECT_OPEN`)
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-32.json`
 
@@ -1295,6 +1295,8 @@ agree, so five corrected copies leave the fork intact.
 
 - Non-claim: four ledgers exist for one repository, keyed by whatever cwd a command ran from
 - Non-claim: no test asserts the six copies agree, so the count above is a grep result and not a defended invariant
+
+**Update (2026-07-29):** `roots.project_key`/`project_directory` now anchor at `roots.project_root()` (all six former copies already import from `roots.py` as of `6e9b81a`); verified `project_key('.') == project_key('plugins/chatman-ecosystem')` and added `test_project_key_is_identical_for_cwd_and_its_subdirectory` in `plugins/chatman-ecosystem/tests/test_roots.py` as positive witness. Standing raised to `PARTIAL_ALIVE` — partial because no test yet asserts the six *callers* observe one ledger end-to-end (only the shared `roots.py` primitive is covered).
 
 ---
 

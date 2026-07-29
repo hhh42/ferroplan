@@ -140,8 +140,16 @@ def project_key(project: str) -> str:
 
     Realpaths internally, so a caller may pass a bare cwd string, an
     already-resolved path, or `CLAUDE_PROJECT_DIR` -- the digest is the same.
+
+    Anchors at `project_root()` when the realpath resolves to one, so callers
+    from any subdirectory of a checkout hash to the same key as the repo
+    root. Falls back to the raw realpath when no project root resolves (e.g.
+    outside any recognized checkout), matching prior behavior exactly.
     """
-    return hashlib.sha256(os.path.realpath(project).encode("utf-8")).hexdigest()[:24]
+    real = Path(os.path.realpath(project))
+    root = project_root(real)
+    anchor = root if root is not None else real
+    return hashlib.sha256(str(anchor).encode("utf-8")).hexdigest()[:24]
 
 
 def project_directory(project: str) -> Path:

@@ -180,3 +180,30 @@ def test_cli_show_is_schema_tagged(tmp_path):
     proc = _run_cli("show", cwd=tmp_path)
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout)["schema"] == "urn:chatman:roots-report:v1"
+
+
+# --------------------------------------------------------------------------
+# CE-GALL-32 -- ledger anchoring: a subdirectory must key the same ledger
+# --------------------------------------------------------------------------
+
+
+def test_project_key_is_identical_for_cwd_and_its_subdirectory():
+    """The CE-GALL-32 defect: a `cd` into a subdirectory used to fork the ledger.
+
+    `project_key` (and therefore `project_directory`) must anchor at
+    `project_root()` rather than the raw realpath, so a command run from the
+    repository root and the same command run from a subdirectory of that
+    checkout (e.g. `plugins/chatman-ecosystem`) hash to the same project key
+    and read/write the same ledger directory.
+    """
+    repo_root = roots.project_root()
+    assert repo_root is not None, "this checkout must resolve a project root"
+
+    subdir = repo_root / "plugins" / "chatman-ecosystem"
+    assert subdir.is_dir()
+
+    root_key = roots.project_key(str(repo_root))
+    subdir_key = roots.project_key(str(subdir))
+    assert root_key == subdir_key
+
+    assert roots.project_directory(str(repo_root)) == roots.project_directory(str(subdir))
