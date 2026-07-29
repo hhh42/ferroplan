@@ -123,3 +123,22 @@ def test_read_only_bash_is_not_denied_by_loop_hook(hook_event, run_script, tmp_p
         emitted = json.loads(proc.stdout)
         decision = emitted.get("hookSpecificOutput", {}).get("permissionDecision")
         assert decision != "deny", proc.stdout
+
+
+def test_event_summary_counts_git_push_as_mutating(hook_event, run_script, tmp_path):
+    """Regression test for the third divergent copy: event-summary.py.
+
+    Before this fix, event-summary.py's own MUTATING_BASH pattern (unlike
+    loop.py's) had no `git push` alternative, so a batch containing a `git
+    push` call was summarized with zero mutation candidates.
+    """
+    payload = hook_event(
+        "PostToolBatch",
+        tool_calls=[{"tool_name": "Bash", "tool_input": {"command": "git push origin main"}}],
+        cwd=str(tmp_path),
+    )
+    proc = run_script("event-summary.py", stdin=payload, cwd=tmp_path)
+    assert proc.returncode == 0, proc.stderr
+    emitted = json.loads(proc.stdout)
+    context = emitted["hookSpecificOutput"]["additionalContext"]
+    assert "1 mutation candidate(s)" in context, context
