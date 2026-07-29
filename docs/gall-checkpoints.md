@@ -270,13 +270,101 @@ named next step):
   connect. Not chased further this pass — named here so it isn't
   silently lost; relevant to Checkpoint 7 more than Checkpoint 3.
 
-**Next step**: (a) live-probe the remaining 5 agents the same way to make
-the first "Required proof" clause exhaustive, not just representative; (b)
-decide how (or whether) to make `source-manufacturer`'s `Write`/`Edit`
-availability itself conditional on `actuation=manufacturing` — today that
-gate is prompt-only and is this checkpoint's last remaining prompt-level
-surface; (c) chase why `mcp__ferroplan` tools aren't resolving in a `-p`
-session, since Checkpoint 7/9 live tests will hit the same wall.
+2026-07-29 third-pass findings (same day, follow-on session — attempted
+next-step (a), and found a real problem with the evidence method itself):
+
+- Picked up this checkpoint's named next step (a): live-probed the
+  remaining 5 non-manufacturing agents (`config-law-architect`,
+  `ecosystem-controller`, `ferroplan-planner`, `independent-validator`,
+  `receipt-auditor`) against a freshly reinstalled clean plugin cache
+  (`claude plugin uninstall` → `marketplace remove` → `marketplace add
+  /home/user/ferroplan` → `plugin install`, confirmed via
+  `grep tools: .../agents/*.md` on the resulting cache directory that it
+  matched this branch's exact committed frontmatter) using the same
+  "list your own tool names" `-p --agent` self-report method the prior
+  pass used.
+- **Found the self-report method itself is unreliable — a real,
+  reproducible negative result, not a mock.** Running the *identical*
+  prompt against `ecosystem-controller` three times back-to-back produced
+  three mutually-contradictory tool lists: run 1 = `Read, Bash, Agent,
+  mcp__ferroplan`; run 2 = `WebFetch, WebSearch, TodoWrite, BashOutput,
+  KillShell, SlashCommand, Task, ExitPlanMode, Monitor, SendMessage` plus
+  15 `mcp__ferroplan__*` tools (no `Read`, no `Bash` at all); run 3 = yet
+  another different list (`TodoWrite, BashOutput, KillShell,
+  SlashCommand, ListMcpResources, ReadMcpResource, Monitor, SendMessage,
+  Artifact, ExitPlanMode` plus the same 15 MCP tools). Since `Read` is
+  known to always be granted and didn't even appear in 2 of 3 runs, this
+  is the model producing a plausible-sounding but fabricated answer under
+  this framing, not genuine introspection of its real tool schema. This
+  directly undercuts the confidence of the *previous pass's* headline
+  claim ("harness-level, not model self-report") for `rdf-observer`,
+  `cmca-allocator`, and `source-manufacturer` — their specific
+  no-`Write`/`Edit` results may still be correct, but the **method** used
+  to get them has now been shown untrustworthy in general, so those three
+  results should be read as "consistent with the intended restriction,"
+  not "confirmed."
+- Went looking for a non-self-report signal instead. `--debug-file
+  ... --debug api` reproducibly logs `Tool search disabled: ToolSearchTool
+  is not available (may have been disallowed via disallowedTools)` for
+  every agent checked (`rdf-observer`, `config-law-architect`,
+  `source-manufacturer`, `cmca-allocator` — 4 separate runs, same line
+  every time). This is genuine harness-emitted evidence that the `tools:`
+  allow-list is actively consulted, not prompt convention. **But it does
+  not discriminate between agents or tools**: `ToolSearch` isn't in any
+  of the 8 agents' allow-lists, so the identical line appears regardless
+  of whether a given agent's frontmatter grants `Edit`/`Write` or not —
+  confirmed by the fact that `source-manufacturer` (which explicitly
+  grants `Write`/`Edit`/`NotebookEdit`) produces the exact same line, and
+  neither its debug log nor `rdf-observer`'s contains any mention of
+  `Edit`/`Write`/`NotebookEdit` at all, granted or not. This was a
+  reasoning error in an earlier attempt this same pass (treating
+  `Edit`-absence-from-the-log as agent-specific proof) — corrected here
+  rather than left in the record uncaught.
+- Actually attempted a real Edit call (not self-report) against
+  `config-law-architect` under `--permission-mode acceptEdits` with an
+  explicit imperative instruction. Result: it declined and stated
+  verbatim "not attempted, no success or error text to quote — the call
+  was withheld at the role/phase gate before invocation." This is the
+  same prompt-level-choice pattern the very first pass (2026-07-29,
+  `rdf-observer`) originally flagged as *not* mechanical enforcement —
+  meaning the newly-probed agents still have no demonstrated
+  tool-schema-level refusal, only self-policed refusal, for the direct
+  attempt method.
+- Resolved gap (c) from the prior pass's next steps: repeating the
+  self-report prompt against `independent-validator` three times showed
+  the full `mcp__ferroplan__*` (or `mcp__plugin__chatman-ecosystem__
+  ferroplan__*`, naming varied) tool set present in 2 of 3 runs and
+  completely absent in 1 of 3 — a genuine startup race between the stdio
+  MCP handshake and the session's first turn, not a permanent
+  non-resolution as the prior pass guessed.
+- New anomaly surfaced, explicitly left at `UNKNOWN` given the self-report
+  reliability problem above: `ecosystem-controller`'s frontmatter grants
+  no `mcp__*` entry at all, yet 2 of its 3 self-reported runs listed the
+  full `mcp__ferroplan__*` tool set. If real, this would mean the
+  controller can directly call allocation/planning/receipt-binding MCP
+  tools the authority-graph ontology never grants it — a genuine breach
+  of "Controller routes but cannot [do the work itself]." Given the
+  method's now-demonstrated unreliability, this cannot be asserted; it
+  needs a trustworthy verification method (see next step) before it's
+  treated as confirmed or dismissed.
+
+Standing intentionally NOT changed this pass despite the additional work:
+`PARTIAL_ALIVE` stays `PARTIAL_ALIVE`. The honest outcome of this pass is
+a corrected, more skeptical picture of the evidence quality, not a wider
+confirmed surface — asserting "5 more agents mechanically confirmed"
+would have been the exact overclaiming this file's discipline exists to
+prevent.
+
+**Next step**: build an actual ground-truth check instead of self-report
+or debug-log inference — e.g. a `PreToolUse`/`UserPromptSubmit` hook (or a
+thin MITM on the `--debug` HTTP layer) that captures the literal `tools`
+array Claude Code sends to the Anthropic API for a given `--agent`
+session, so presence/absence of `Edit`/`Write`/`mcp__ferroplan__*` per
+agent can be read directly off the wire instead of inferred. Until that
+exists, re-attempt (b) (tie `source-manufacturer`'s `Write`/`Edit` to
+`actuation=manufacturing` rather than prompt only) and chase the
+`ecosystem-controller` MCP-tool anomaly with that same ground-truth method
+once it exists.
 
 ---
 
@@ -1123,3 +1211,62 @@ Named next steps, not yet started: live-probe the remaining 5 agents
 `actuation=manufacturing` rather than prompt-only; fix the `mcp__ferroplan`
 non-resolution in `-p` sessions; fix the pre-existing `cargo fmt --check`
 drift in `admission_protocol.rs`.
+
+## 2026-07-29 — third pass (Checkpoint 3 continued, this session)
+
+Started by running `git fetch origin 'refs/heads/gall-checkpoints/*:...'`
+before doing anything else, since the task instructions require checking
+for a same-day branch first. This turned up three branches this session's
+own initial (unfetched) `git branch -r` had missed: PR #3 (Checkpoint 2,
+plugin.json version fix), PR #4 (Checkpoint 3, `disallowedTools` approach),
+and PR #5 (Checkpoint 3, `tools:` allow-list approach — the exact same
+idea this session had independently started implementing on a fresh
+branch before discovering PR #5 already existed). Discarded the duplicate
+local work and checked out PR #5's actual branch
+(`gall-checkpoints/2026-07-29-agent-tool-grants`) to continue its named
+next step instead of opening a fourth competing PR. Noting this
+explicitly: PR #4 and PR #5 both still exist, open, and mutually
+conflicting (both rewrite the same 8 frontmatter blocks with different
+mechanisms — `disallowedTools` deny-list vs. `tools:` allow-list) — this
+pass did not attempt to close or merge either, since that wasn't this
+session's call to make unilaterally; flagging it here so the next session
+doesn't lose it.
+
+Did the work described inline under Checkpoint 3's "third-pass findings"
+above: live-probed the 5 previously-unprobed agents, discovered the
+self-report tool-listing method is unreliable (`ecosystem-controller`
+gave 3 contradictory answers to an identical prompt across 3 runs),
+cross-checked with `--debug api` logs and found that signal doesn't
+discriminate per-agent either (correcting a reasoning error made
+mid-pass), directly attempted a real Edit call against
+`config-law-architect` (declined, prompt-level, not a tool-schema error),
+and confirmed the `mcp__ferroplan` resolution gap from the prior pass is
+a startup race condition (2/3 runs had it, 1/3 didn't), not permanent
+absence.
+
+Standing: Checkpoint 3 stays `PARTIAL_ALIVE`, unchanged. This pass
+deliberately did not upgrade anything — its real contribution is negative
+evidence (the two evidence methods relied on so far, self-report and
+debug-log inference, are both shown unreliable for discriminating
+per-agent tool availability), which matters more than a false confirmation
+would have. Recorded as a correction, not silently absorbed.
+
+No Rust files were touched this pass, so `cargo fmt --check`/clippy gates
+were not run. `cargo check --workspace` was attempted once, unrelated to
+this pass's actual change, and failed on a pre-existing, unrelated issue:
+`crates/ferroplan-bevy` (an optional workspace member) requires `bevy
+0.19.0`, which needs `rustc 1.95.0`; this container has `rustc 1.94.1`.
+`cargo check -p ferroplan-mcp -p ferroplan` (the crates this checkpoint
+work actually concerns) succeeds cleanly. Flagging the bevy/rustc mismatch
+here since it would block a full `cargo check --workspace` pre-flight per
+`RELEASING.md`, but it is pre-existing and out of scope for this pass.
+
+Named next steps, not yet started: build a real ground-truth tool-schema
+capture (hook-based or wire-level) instead of trusting self-report or
+debug-log inference; reconcile/choose between PR #4 and PR #5's competing
+approaches to the same 8 files; make `source-manufacturer`'s `Write`/
+`Edit` conditional on `actuation=manufacturing`; investigate the
+`ecosystem-controller` unexplained `mcp__ferroplan__*` exposure once a
+trustworthy method exists; fix the pre-existing `cargo fmt --check` drift
+in `admission_protocol.rs`; resolve the `ferroplan-bevy`/rustc 1.95
+requirement or document it as a known environment constraint.
