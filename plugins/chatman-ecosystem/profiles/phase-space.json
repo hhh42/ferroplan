@@ -1,8 +1,21 @@
 {
-  "schema": "urn:chatman:claude-code-phase-space:v1",
+  "schema": "urn:chatman:claude-code-phase-space:v2",
+  "release": "26.7.29",
   "name": "Chatman combinatorial phase space",
   "design_law": "maximize reversible construction over orthogonal dimensions; admit only combinations satisfying every invariant",
   "raw_combination_count": 648,
+  "effective_projection": {
+    "when": "observation-event-count exceeds admitted-event-count",
+    "vector": {
+      "epistemic": "observed",
+      "allocation": "unallocated",
+      "planning": "unplanned",
+      "actuation": "sealed",
+      "drift": "drifted",
+      "conformance": "unknown"
+    },
+    "law": "pending observation candidates cannot be masked by an advanced canonical snapshot"
+  },
   "dimensions": {
     "epistemic": {
       "initial": "latent",
@@ -38,7 +51,7 @@
           "skills": ["allocate"]
         },
         "allocated": {
-          "capabilities": ["enumerate-work-surfaces", "cmca-allocation", "allocation-receipt"],
+          "capabilities": ["enumerate-work-surfaces", "cmca-allocation", "recursive-cmca-frontier", "allocation-receipt"],
           "agents": ["cmca-allocator", "receipt-auditor"],
           "skills": ["allocate", "admit"]
         }
@@ -58,8 +71,8 @@
         },
         "candidate": {
           "capabilities": ["goal-authoring", "persistent-session", "suffix-replay", "bounded-replan"],
-          "agents": ["ferroplan-planner", "source-manufacturer"],
-          "skills": ["plan", "manufacture"]
+          "agents": ["ferroplan-planner"],
+          "skills": ["plan"]
         },
         "validated": {
           "capabilities": ["goal-authoring", "persistent-session", "suffix-replay", "bounded-replan", "independent-validation"],
@@ -78,22 +91,22 @@
       "initial": "sealed",
       "states": {
         "sealed": {
-          "capabilities": ["proposal-only"],
+          "capabilities": ["proposal-only", "structured-actuation-intent"],
           "agents": ["ecosystem-controller"],
           "skills": ["phase-change"]
         },
         "manufacturing": {
-          "capabilities": ["proposal-only", "reversible-source-actuation"],
+          "capabilities": ["proposal-only", "structured-actuation-intent", "reversible-source-actuation", "worktree-isolation"],
           "agents": ["source-manufacturer", "ecosystem-controller"],
           "skills": ["manufacture", "phase-change"]
         },
         "receipted": {
-          "capabilities": ["proposal-only", "reversible-source-actuation", "receipt-chain"],
+          "capabilities": ["proposal-only", "structured-actuation-intent", "receipt-chain"],
           "agents": ["receipt-auditor", "ecosystem-controller"],
           "skills": ["admit", "audit", "phase-change"]
         },
         "publishable": {
-          "capabilities": ["proposal-only", "reversible-source-actuation", "receipt-chain", "protected-publication"],
+          "capabilities": ["proposal-only", "structured-actuation-intent", "derived-execution-grant", "receipt-chain", "protected-publication"],
           "agents": ["receipt-auditor", "ecosystem-controller"],
           "skills": ["audit", "publish", "phase-change"]
         }
@@ -138,17 +151,17 @@
       "initial": "unknown",
       "states": {
         "unknown": {
-          "capabilities": ["config-discovery"],
+          "capabilities": ["config-discovery", "ownership-discovery"],
           "agents": ["config-law-architect"],
           "skills": ["configure"]
         },
         "nonconformant": {
-          "capabilities": ["config-discovery", "lsp-diagnostics", "declare-refusal"],
-          "agents": ["config-law-architect", "source-manufacturer"],
-          "skills": ["configure", "manufacture"]
+          "capabilities": ["config-discovery", "ownership-discovery", "bounded-lsp-diagnostics", "declare-refusal"],
+          "agents": ["config-law-architect"],
+          "skills": ["configure"]
         },
         "conformant": {
-          "capabilities": ["config-discovery", "lsp-diagnostics", "declare-admission", "config-completion"],
+          "capabilities": ["config-discovery", "ownership-discovery", "bounded-lsp-diagnostics", "declare-admission", "config-completion"],
           "agents": ["config-law-architect", "receipt-auditor"],
           "skills": ["configure", "audit"]
         }
@@ -170,12 +183,12 @@
     {
       "id": "candidate-plan-requires-allocation",
       "when": {"planning": "candidate"},
-      "requires": {"allocation": "allocated"}
+      "requires": {"allocation": "allocated", "epistemic": "admitted"}
     },
     {
-      "id": "validated-plan-requires-candidate",
+      "id": "validated-plan-requires-allocation-and-admission",
       "when": {"planning": "validated"},
-      "requires_any_prior": [{"planning": "candidate"}]
+      "requires": {"allocation": "allocated", "epistemic": "admitted"}
     },
     {
       "id": "manufacturing-requires-candidate-plan",
@@ -211,8 +224,10 @@
   ],
   "composition": {
     "capabilities": "set union over every selected dimension state",
-    "agents": "set union over every selected dimension state; controller may invoke any lawful subset",
+    "agents": "set union over every selected dimension state; controller may invoke only a lawful subset",
     "skills": "set union over every selected dimension state; full bodies remain lazy until invoked",
-    "authority": "no union may raise a component above its declared claim ceiling"
+    "authority": "no union may raise a component above its declared claim ceiling",
+    "single_actuator": "source-manufacturer appears only in actuation=manufacturing",
+    "generated_artifacts": "owner changes precede deterministic projection changes"
   }
 }
