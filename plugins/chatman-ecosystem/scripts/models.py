@@ -236,6 +236,93 @@ class MonitorTick(ChatmanModel):
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
+# --------------------------------------------------------------------------
+# Gall checkpoints
+# --------------------------------------------------------------------------
+
+
+class Witness(BaseModel):
+    """A named, executing piece of evidence.
+
+    `why_this_counts` is required rather than optional: a test name alone does
+    not say what it establishes, and a witness whose relevance cannot be stated
+    in a sentence is usually not a witness.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    test: str = Field(description="Test id or command that produces this evidence.")
+    file: str = Field(description="Where it lives, as path:line.")
+    result: str
+    why_this_counts: str
+
+
+class GallCheckpointReceipt(ChatmanModel):
+    """Evidence for one Gall checkpoint.
+
+    A Gall checkpoint is "the smallest closed, receipted transformation proving
+    one complete category transition with explicit inputs, outputs, refusals,
+    and verification" (mfw, 15-galls-law-evolutionary-construction.omdoc:37).
+
+    Two rules from the sibling repositories are encoded as fields here rather
+    than left to prose:
+
+    * `negative_falsifier` is nullable, and null is a *claim* -- that no
+      executing negative fixture exists yet. bcinr's rule is that a falsifier
+      must be "a genuine Gall-checkpoint negative fixture, not a comment
+      describing one", so a checkpoint with a null falsifier cannot be ALIVE.
+    * `replayed_outside_session` exists because wasm4pm's promotion law
+      requires replay in a separate session from the one that produced the
+      evidence. A checkpoint cannot certify itself.
+    """
+
+    SCHEMA: ClassVar[str] = "urn:chatman:gall-checkpoint-receipt:v1"
+
+    checkpoint: str = Field(description="Stable id, e.g. CE-GALL-23.")
+    title: str
+    git_revision: str = Field(description="The exact revision this evidence was taken at.")
+    date: str
+    standing: Standing
+    reason: StandingReason | None = Field(
+        default=None, description="Why the standing is capped below ALIVE."
+    )
+    blocked_by: list[str] = Field(
+        default_factory=list, description="Checkpoint ids this one waits on."
+    )
+
+    command: str | None = None
+    cwd: str | None = None
+    exit_code: int | None = None
+
+    known_anti_patterns: list[str] = Field(
+        default_factory=list,
+        description="Self-declared non-claims, so the receipt does not overclaim.",
+    )
+    positive_witness: Witness | None = None
+    negative_falsifier: Witness | None = Field(
+        default=None,
+        description="Null means none exists yet -- which bars promotion to ALIVE.",
+    )
+
+    replayed_outside_session: bool = False
+    replay_host: str | None = None
+    sealed_at_commit: str | None = None
+
+    def promotion_blockers(self) -> list[str]:
+        """Why this receipt may not claim ALIVE. Empty means it may.
+
+        The promotion law, as a computation rather than a convention.
+        """
+        blockers: list[str] = []
+        if not self.replayed_outside_session:
+            blockers.append("not replayed outside the originating session")
+        if self.negative_falsifier is None:
+            blockers.append("no executing negative falsifier")
+        if not self.sealed_at_commit:
+            blockers.append("no sealed commit")
+        return blockers
+
+
 #: Registry consumed by the schema exporter and by the conformance tests, so a
 #: new model cannot be added without its schema being generated and checked.
 REGISTRY: tuple[type[ChatmanModel], ...] = (
@@ -244,6 +331,7 @@ REGISTRY: tuple[type[ChatmanModel], ...] = (
     RootsReport,
     LoopState,
     MonitorTick,
+    GallCheckpointReceipt,
 )
 
 

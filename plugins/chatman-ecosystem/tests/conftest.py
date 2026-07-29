@@ -65,7 +65,14 @@ def minimal_model(model_type):
     validation tests need one valid instance of every registered model, and two
     copies would drift the moment a required field is added.
     """
-    from models import BinaryResolution, ChatmanError, LoopState, MonitorTick, RootsReport
+    from models import (
+        BinaryResolution,
+        ChatmanError,
+        GallCheckpointReceipt,
+        LoopState,
+        MonitorTick,
+        RootsReport,
+    )
 
     samples = {
         ChatmanError: lambda: ChatmanError(code="C", message="m"),
@@ -78,6 +85,13 @@ def minimal_model(model_type):
         LoopState: lambda: LoopState(project="/x"),
         MonitorTick: lambda: MonitorTick(
             stream="phase-frontier", project="/x", observed_at_unix_ms=0
+        ),
+        GallCheckpointReceipt: lambda: GallCheckpointReceipt(
+            checkpoint="CE-GALL-00",
+            title="sample",
+            git_revision="0" * 40,
+            date="2026-07-29",
+            standing="PARTIAL_ALIVE",
         ),
     }
     if model_type not in samples:

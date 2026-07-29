@@ -1,0 +1,23 @@
+{
+  "blocked_by": [
+    "CE-GALL-31"
+  ],
+  "checkpoint": "CE-GALL-30",
+  "command": null,
+  "cwd": null,
+  "date": "2026-07-29",
+  "exit_code": null,
+  "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "known_anti_patterns": [
+    "the validator_result field of EVERY receipt bound this session was hand-fabricated, so the independence claim of both closes is false"
+  ],
+  "negative_falsifier": null,
+  "positive_witness": null,
+  "reason": "MOCKED",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Independent validator verdict"
+}
