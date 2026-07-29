@@ -1,0 +1,25 @@
+# Configuration only -- this directory is a Claude Code plugin, not a Python
+# package. There is deliberately no [build-system]: nothing here is installable,
+# and `pythonpath` below is what makes `import phase` work in tests without the
+# sys.path manipulation the scripts do at import time.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+addopts = "-q --strict-markers"
+markers = [
+    "needs_cargo: requires a built ferroplan-mcp binary (deselected by default)",
+]
+
+[tool.ruff]
+line-length = 100
+# 3.11 is the realistic floor for whatever Python a user's Claude Code has.
+# Local development runs 3.14; pinning the floor here is what surfaces any
+# accidental 3.12+ syntax in CI rather than in a user's session.
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # line length is enforced by the formatter, not the linter
+]

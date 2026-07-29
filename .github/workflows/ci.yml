@@ -36,3 +36,31 @@ jobs:
           RUSTDOCFLAGS: -D warnings
       - name: Bench compiles (perf gate)
         run: cargo bench --no-run -p ferroplan
+
+  # The Claude Code plugin's Python control plane. A separate job on purpose:
+  # a plugin failure must not be masked by a Rust failure, and this runs in
+  # ~30s without a toolchain, so it stays useful when the workspace is red.
+  plugin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: plugins/chatman-ecosystem
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # The realistic floor for a user's Claude Code, not the local 3.14.
+          # Pinning low is what surfaces accidental 3.12+ syntax here rather
+          # than in someone's session.
+          python-version: '3.11'
+      - name: Install tooling
+        run: pip install --quiet pytest ruff
+      - name: Lint
+        run: ruff check scripts tests
+      # Replaces the manual `py_compile` of 3 of 9 scripts in skills/doctor.
+      - name: Compile every script
+        run: python -m compileall -q scripts
+      - name: Shell syntax
+        run: for f in scripts/*.sh; do sh -n "$f"; done
+      - name: Test
+        run: pytest
