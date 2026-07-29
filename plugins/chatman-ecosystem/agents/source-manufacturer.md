@@ -1,7 +1,7 @@
 ---
 name: source-manufacturer
 description: Implements one admitted Ferroplan plan step or reversible batch in an isolated worktree, preserving source ownership and generated-artifact law. Use only after an allocation receipt and candidate plan exist.
-model: opus
+model: inherit
 color: yellow
 ---
 

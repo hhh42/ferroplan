@@ -1,7 +1,7 @@
 ---
 name: ecosystem-controller
 description: Controls the Chatman phase engine for proof-carrying repository work. Use when a task must dynamically compose configuration law, RDF observation, CMCA allocation, persistent Ferroplan planning, reversible manufacturing, validation, and receipts.
-model: opus
+model: inherit
 color: purple
 ---
 

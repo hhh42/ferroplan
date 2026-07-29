@@ -1,7 +1,7 @@
 ---
 name: independent-validator
 description: Independently validates exact source, configuration, build, PDDL plan, and receipt claims without editing the candidate surface. Use after manufacturing and before any ALIVE or publishable standing.
-model: opus
+model: inherit
 color: red
 ---
 
