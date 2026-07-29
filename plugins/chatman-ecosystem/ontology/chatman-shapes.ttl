@@ -4,10 +4,13 @@
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
 
+ce:ObservationCandidateShape a sh:NodeShape ;
+  sh:targetClass ce:ObservationCandidate ;
+  sh:property [ sh:path ce:proposesObservation ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:Repository ] ;
+  sh:property [ sh:path ce:contentDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] .
+
 ce:ObservationShape a sh:NodeShape ;
   sh:targetClass ce:Observation ;
-  sh:closed true ;
-  sh:ignoredProperties ( rdf:type ) ;
   sh:property [ sh:path ce:observes ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:Repository ] ;
   sh:property [ sh:path ce:sequence ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:nonNegativeInteger ] ;
   sh:property [ sh:path ce:contentDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] .
@@ -17,10 +20,14 @@ ce:ReceiptShape a sh:NodeShape ;
   sh:property [ sh:path ce:contentDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
   sh:property [ sh:path ce:binds ; sh:minCount 1 ] .
 
+ce:GeneratedArtifactShape a sh:NodeShape ;
+  sh:targetClass ce:GeneratedArtifact ;
+  sh:property [ sh:path ce:ownedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:ArtifactOwner ] ;
+  sh:property [ sh:path ce:manufacturedBy ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:System ] ;
+  sh:property [ sh:path ce:contentDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] .
+
 ce:WorkSurfaceShape a sh:NodeShape ;
   sh:targetClass ce:WorkSurface ;
-  sh:closed true ;
-  sh:ignoredProperties ( rdf:type ) ;
   sh:property [ sh:path cmca:parentIndex ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive -1 ; sh:maxInclusive 7 ] ;
   sh:property [ sh:path cmca:accessFrequency ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
   sh:property [ sh:path cmca:businessValue ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
@@ -32,3 +39,42 @@ ce:WorkSurfaceShape a sh:NodeShape ;
   sh:property [ sh:path cmca:validity ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
   sh:property [ sh:path cmca:verificationCost ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] ;
   sh:property [ sh:path cmca:downstreamConsequence ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:decimal ; sh:minInclusive 0 ] .
+
+ce:RecursiveAllocationShape a sh:NodeShape ;
+  sh:targetClass ce:RecursiveAllocation ;
+  sh:property [ sh:path ce:parentAllocation ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:Allocation ] ;
+  sh:property [ sh:path ce:returnConsequence ; sh:minCount 1 ; sh:maxCount 1 ] .
+
+ce:ActuationIntentShape a sh:NodeShape ;
+  sh:targetClass ce:ActuationIntent ;
+  sh:property [ sh:path ce:intentDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path ce:operation ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+  sh:property [ sh:path ce:commandDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path ce:pendingEventCount ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:nonNegativeInteger ] .
+
+ce:DerivedExecutionGrantShape a sh:NodeShape ;
+  sh:targetClass ce:DerivedExecutionGrant ;
+  sh:property [ sh:path ce:grantDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path ce:grantsIntent ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:ActuationIntent ] ;
+  sh:property [ sh:path ce:binds ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:Receipt ] .
+
+ce:ExecutionAttestationShape a sh:NodeShape ;
+  sh:targetClass ce:ExecutionAttestation ;
+  sh:property [ sh:path ce:attestationDigest ; sh:minCount 1 ; sh:maxCount 1 ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path ce:attestsGrant ; sh:minCount 1 ; sh:maxCount 1 ; sh:class ce:DerivedExecutionGrant ] ;
+  sh:property [ sh:path ce:observedResult ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ( "succeeded" "failed" "interrupted" "unknown" ) ] .
+
+ce:SingleActuatorConstraint a sh:NodeShape ;
+  sh:targetClass ce:AgentRole ;
+  sh:sparql [
+    a sh:SPARQLConstraint ;
+    sh:message "Only the source-manufacturer role may hold reversible source-construction authority." ;
+    sh:select """
+      PREFIX ce: <urn:chatman:ecosystem:>
+      SELECT $this
+      WHERE {
+        $this ce:claimCeiling "reversible-source-construction" .
+        FILTER ($this != ce:ManufacturerRole)
+      }
+    """
+  ] .
