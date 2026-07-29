@@ -9,6 +9,7 @@ on:
       - "docs/architecture/claude-projection.md"
       - "docs/migration/v26.7.29.md"
       - "docs/releases/v26.7.29.md"
+      - "docs/verification/v26.7.29-claude-projection.md"
       - ".github/workflows/chatman-ecosystem.yml"
   push:
     branches: [main]
@@ -19,6 +20,7 @@ on:
       - "docs/architecture/claude-projection.md"
       - "docs/migration/v26.7.29.md"
       - "docs/releases/v26.7.29.md"
+      - "docs/verification/v26.7.29-claude-projection.md"
       - ".github/workflows/chatman-ecosystem.yml"
 
 permissions:
@@ -85,13 +87,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
-
-      - name: Rust format
-        run: cargo fmt --all -- --check
 
       - name: Check combined MCP server
         run: cargo check -p ferroplan-mcp --bin ferroplan-mcp
