@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Manufacture or retain a deterministic repository plan through a persistent Ferroplan Session. Use after CMCA allocation, goal changes, or admitted drift.
+description: Produce or retain a deterministic repository candidate plan through a persistent Ferroplan Session. Use after CMCA allocation, goal changes, or admitted drift.
 context: fork
 agent: chatman-ecosystem:ferroplan-planner
 effort: high
@@ -8,19 +8,23 @@ effort: high
 
 Plan `$ARGUMENTS`.
 
-- Require an allocation receipt and admitted observation frontier.
-- Parse the self-hosting domain and the *live* problem with stateless
-  Ferroplan. The live problem file comes from
-  `scripts/project-world.py --project "$CLAUDE_PROJECT_DIR" --goal <goal> --output <problem.pddl> --metadata <metadata.json>`,
-  not the static example problem. By default `project-world.py` runs real
-  `git status`, `cargo check --workspace`, and `cargo test --workspace`
-  checks to derive dirty/build-green/validator-green facts, which can take
-  a few minutes; pass `--skip-live-checks` for a fast cached-phase-vector-only
-  pass instead.
-- Open or inspect one persistent repository session.
-- Feed admitted facts and fluents through `session_observe`.
-- Retain a valid suffix without search.
-- Otherwise call `session_think` with bounded evaluations and prefix-following enabled.
-- Return the exact candidate plan, digest, session receipt, cursor, evaluated states, and assumptions.
+Require an admitted observation frontier, zero pending observations, and a verified allocation receipt when allocation governs work selection.
 
-Do not edit source or claim independent validation.
+1. Read the effective phase and refuse planning from a stale advanced snapshot.
+2. Generate the live problem with:
+   ```sh
+   python3 "$CLAUDE_PLUGIN_ROOT/scripts/project-world.py" \
+     --project "$CLAUDE_PROJECT_DIR" \
+     --goal <goal> \
+     --output <problem.pddl> \
+     --metadata <metadata.json>
+   ```
+3. Parse the exact domain and live problem with stateless Ferroplan.
+4. Open or inspect one persistent repository Session.
+5. Feed only admitted facts and finite fluents through `session_observe`.
+6. Retain a valid suffix without search.
+7. Otherwise call `session_think` with deterministic evaluation bounds and prefix-following repair.
+8. Treat `solved: false` as bounded refusal.
+9. Return the exact candidate plan, digest, session receipt, cursor, evaluated states, retained suffix, and assumptions.
+
+MFW/POWL v2 is the planning constitution; Ferroplan is the deterministic candidate-plan rail. Do not edit source or claim independent validation, execution consequence, or publication authority.
