@@ -41,13 +41,13 @@ for scoring semantics and the failure-class definitions.
 
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
-| 2014 seq-sat | yes (first entry, 0.17) | 95/280 | coverage + VAL | 40 mem-cap, 145 timeout |
-| 2014 seq-agile | yes (first entry, 0.17) | 94/280 | coverage + VAL | 41 mem-cap, 145 timeout |
+| 2014 seq-sat | yes (first entry, 0.17) | 96/280 | coverage + VAL | 1 engine-reject/error, 42 mem-cap, 141 timeout |
+| 2014 seq-agile | yes (first entry, 0.17) | 95/280 | coverage + VAL | 40 mem-cap, 145 timeout |
 | 2014 tempo-sat | yes (first entry, 0.17) | 62/200 | coverage + VAL | 3 VAL-RED, 7 mem-cap, 128 timeout |
 | 2014 seq-mco t4 | yes (first entry, 0.17) | 107/280 | wall-clock per competition rule (4-core box) | 173 timeout |
 | 2018 seq-sat | yes (first entry, 0.17) | 30/240 | vs best-known bounds: 0W/1T/13L, mean quality 0.72 (14 scored) | 8 VAL-RED, 60 engine-reject/error, 24 mem-cap, 118 timeout |
-| 2023 classical | yes (first entry, 0.17) | 26/140 | vs best-known bounds: 0W/11T/15L, mean quality 0.88 (26 scored) | 16 mem-cap, 98 timeout |
-| 2023 numeric | yes (first entry, 0.17) | 112/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 60 engine-reject/error, 92 mem-cap, 120 timeout |
+| 2023 classical | yes (first entry, 0.17) | 26/140 | vs best-known bounds: 0W/11T/15L, mean quality 0.88 (26 scored) | 15 mem-cap, 99 timeout |
+| 2023 numeric | yes (first entry, 0.17) | 110/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 60 engine-reject/error, 93 mem-cap, 121 timeout |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).
 

@@ -156,11 +156,32 @@ degrades the gate to always-affordable, correct for Session thinks.
 `benchmarks/ipc67.py` now passes its per-instance `--timeout` to every
 ff spawn; `FF_WALL_DEBUG=1` narrates the verdict (the probe eyes).
 Gate verified on sokoban-2008 i1: unset → `None`/affordable, 300 s →
-0.999 remaining/affordable, 0.05 s → 0.0 remaining/SKIPPED. The
-referee — the 2018/2023 classical boards re-swept under the wired
-runner, with an `FF_NOVELTY=1` probe to show the rung's six real wins
-surviving without the −51 tax — runs with the Phase 5 cut sweeps, as
-scoped.
+0.999 remaining/affordable, 0.05 s → 0.0 remaining/SKIPPED.
+
+**The referee's verdict** (all eight gate-touched classical boards
+re-swept under the wired runner at the cut, final binary, standard
+60 s budgets):
+
+- **Base boards (gate armed, no novelty): neutral within noise.** The
+  580-instance seq-sat flagship is variant-for-variant identical at
+  441/580; 2018-sat and 2023-agile are instance-for-instance
+  unchanged; 2014-sat +1 (genome-edit-distances i13), 2014-agile
+  +2/−1, 2023-numeric −2. Every casualty was solo-checked
+  UNCONTENDED: sugar-numeric i2 (29 s), zenotravel-numeric i20
+  (59 s — on the 60 s line), hiking-agile i5 (23 s) all solve
+  identically with and without `FF_TIME_LIMIT=60` — the losses are
+  jobs-3 contention noise at the budget edge, not gate tax, and the
+  scattered +3 wins are the same coin's other face.
+- **The novelty rung under the gate: +4/−0** — 2018-sat-nov 41/240 =
+  +3/−0 over the gated base (organic-synthesis-split i15, termes
+  i12+i16) and +2/−0 over 0.17's ungated novelty board;
+  2023-agile-nov +1/−0 (quantum-layout i10). Against 0.17's ungated
+  verdict of **+7/−51**, the mechanism is confirmed: the tax was the
+  rung starving the complete fallback near the budget edge, and with
+  the wall budget declared the rung keeps its h-dies-outright wins
+  and pays nothing. `FF_NOVELTY` stays opt-in this cycle (the +4
+  arrives only when the runner declares a budget), with
+  default-on-under-FF_TIME_LIMIT the recorded 0.19 candidate.
 
 ## Phase 5 — cut 0.18.0
 
@@ -168,6 +189,26 @@ The standing template: every scoreboard the cycle touched re-swept
 against the final binary (temporal boards from Phase 1, referee
 boards from Phase 4, village/bazaar boards from Phase 2), records
 complete, full pre-flight, finish in main; the user publishes.
+
+### Recorded — cut
+
+Every touched board re-swept against the 0.18.0 binary: the two
+temporal boards (Phase 1's verdict above), all eight gate-touched
+classical boards under the wired runner (Phase 4's referee above —
+including repairing the flagship's empty raw JSONL, which now rides
+beside its md again), the village boards from Phase 2. Standings
+regenerated: 2014 seq-sat 96/280, seq-agile 95/280, tempo-sat 62/200
+(VAL-RED 23 → 3), 2023 numeric 110/400 (the two contention-edge rows,
+solo-verified green). Full pre-flight green on rustc 1.97.1: fmt
+--check, clippy `--all-targets --all-features -D warnings` (one MSRV
+catch: `is_none_or` → `map_or`, stable-since 1.82 vs the 1.74 floor),
+`test --all --release`, the heavy qual-metric tier
+(`--include-ignored`, 4/4 in 209 s), doc `-D warnings`, bench
+`--no-run`, mcp build, `publish -p ferroplan --dry-run`, the
+0.18.0 maturin wheel, the wasm build + browser smoke (SMOKE PASS).
+Two container restarts hit the cut sweeps mid-flight; the
+resume-aware driver (`benchmarks/cut18-sweeps.sh`, per-board done
+markers) lost only the in-flight board each time.
 
 ## Deferred, on the record (carried forward)
 

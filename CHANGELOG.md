@@ -70,6 +70,13 @@ in `docs/roadmap-0.18.md`).
   the novelty referee's −51. Unset ⇒ byte-identical to 0.17.
   `benchmarks/ipc67.py` passes its per-instance timeout
   automatically; `FF_WALL_DEBUG=1` narrates the gate's verdict.
+- **The referee, re-run at the cut** (all eight gate-touched classical
+  boards): base boards neutral within noise (the 580-instance flagship
+  variant-for-variant identical; every casualty solo-verified as
+  contention noise, not gate tax), and **the novelty rung under the
+  gate scores +4/−0** where 0.17's ungated verdict was +7/−51 — the
+  tax is gone when the budget is declared. `FF_NOVELTY` stays opt-in;
+  default-on-under-`FF_TIME_LIMIT` is the recorded 0.19 candidate.
 
 ## [0.17.0] - 2026-07-27 — The frontier cycle
 
