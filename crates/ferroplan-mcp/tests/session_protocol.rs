@@ -510,7 +510,11 @@ fn cmca_allocate_is_deterministic_across_processes() {
     let resp1 = call(
         &mut child1,
         &mut stdout1,
-        &tool_call(1, "cmca_allocate", json!({"candidates": candidates.clone()})),
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates.clone()}),
+        ),
     );
     drop(child1.stdin.take());
     assert!(child1.wait().expect("wait").success());
