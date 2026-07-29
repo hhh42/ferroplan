@@ -1,20 +1,43 @@
 {
-  "schema": "urn:chatman:claude-code-self-host-profile:v1",
+  "schema": "urn:chatman:claude-code-self-host-profile:v2",
+  "release": "26.7.29",
   "repository": "seanchatmangpt/ferroplan",
+  "managed_world": {
+    "runtime": "claude-code",
+    "projection": "profiles/claude-projection.json",
+    "constitutional_center": false,
+    "equation": "A = mu(O*)"
+  },
+  "mcp": {
+    "process_count": 1,
+    "server": "ferroplan",
+    "claim_separation": [
+      "stateless-planning",
+      "persistent-session",
+      "bounded-cmca-allocation",
+      "canonical-admission-envelopes"
+    ],
+    "note": "One rmcp stdio process exposes multiple tool families whose claim ceilings remain distinct."
+  },
   "planner": {
     "authority": "ferroplan",
+    "constitutional_router": "mfw-powl-v2",
     "domain": "world/ferroplan-self-host-domain.pddl",
     "problem": "world/ferroplan-self-host-problem.pddl",
     "claim_ceiling": "candidate-plan",
     "persistent": true,
     "default_max_evaluated": 50000,
-    "default_memory_mb": 256
+    "default_memory_mb": 256,
+    "independent_validator": "VAL-when-wired"
   },
   "allocator": {
     "authority": "bcinr-cmca",
     "name": "Chatman Multifractal Cascade Allocator",
     "revision": "fb9321d27882169acc83aaca0639b319cd3b7900",
     "node_count": 8,
+    "recursive": true,
+    "parent_allocation_receipt_required": true,
+    "return_consequence_required": true,
     "factor_order": [
       "accessFrequency",
       "businessValue",
@@ -32,13 +55,41 @@
   "semantic_admission": {
     "ontology": "ontology/chatman-ecosystem.ttl",
     "shapes": "ontology/chatman-shapes.ttl",
+    "authority_graph": "ontology/authority-graph.ttl",
     "oracle": null,
-    "oracle_note": "No independent semantic oracle is wired. The BCINR MCP server was removed from the ecosystem because `crates/bcinr-mcp` is out of scope in the BCINR workspace. Semantic admission is therefore self-asserted, not independently checked, and the claim ceiling must not be raised on the strength of it.",
+    "oracle_note": "No independent semantic oracle is wired. BCINR-CMCA is the bounded allocator, not a semantic admission authority. Semantic admission above bounded observation remains UNSUPPORTED until the MFW/POWL v2 rail and independent validation are connected.",
     "claim_ceiling": "admitted-observation"
   },
+  "configuration": {
+    "loader_authority": "current-claude-code-loader",
+    "modeled_validator": "claude-code-config-lsp",
+    "modeled_validator_mode": "standalone-opt-in-or-explicit-cli",
+    "main_plugin_lsp_registration": false,
+    "ownership_registry": "profiles/artifact-ownership.json",
+    "source_validator": "scripts/validate-claude-projection.py"
+  },
+  "state": {
+    "canonical_event_source": "phase-events.jsonl",
+    "observation_frontier": "state.json",
+    "derived_snapshot": "phase-state.json",
+    "effective_projection": "scripts/effective-phase.py",
+    "pending_collapse": {
+      "epistemic": "observed",
+      "allocation": "unallocated",
+      "planning": "unplanned",
+      "actuation": "sealed",
+      "drift": "drifted",
+      "conformance": "unknown"
+    }
+  },
   "actuation": {
-    "exclusive_broker": "claude-code-hooks",
+    "exclusive_broker": "brce",
+    "adapter": "claude-code-hooks",
     "zero_unreceipted_actuation": true,
+    "intent_schema": "profiles/actuation-intent.schema.json",
+    "intent_manufacturer": "scripts/actuation-intent.py",
+    "grant_deriver": "scripts/grant-actuation.py",
+    "compatibility_fence": "scripts/loop.py",
     "protected_commands": [
       "git push",
       "git merge",
@@ -51,10 +102,13 @@
       "npm publish",
       "recursive forced deletion",
       "state-changing HTTP requests"
-    ]
+    ],
+    "claim_ceiling": "claude-runtime-protected-actuation-admission"
   },
   "standing": [
     "UNKNOWN",
+    "UNSUPPORTED",
+    "BLOCKED",
     "BUILD_BROKEN",
     "PARTIAL_ALIVE",
     "ALIVE"
@@ -66,7 +120,17 @@
     "manufacturer": "source-manufacturer",
     "validator": "independent-validator",
     "auditor": "receipt-auditor",
-    "controller": "ecosystem-controller"
+    "controller": "ecosystem-controller",
+    "configuration": "config-law-architect"
+  },
+  "single_actuator": {
+    "agent": "source-manufacturer",
+    "isolation": "worktree",
+    "other_agents_deny": [
+      "Write",
+      "Edit",
+      "NotebookEdit"
+    ]
   },
   "receipt_chain": {
     "algorithm": "BLAKE3",
@@ -75,10 +139,15 @@
       "rdf-projection",
       "cmca-input",
       "cmca-output",
+      "parent-allocation-receipt",
       "pddl-domain",
       "pddl-problem",
       "candidate-plan",
       "independent-validation",
+      "configuration-projection",
+      "actuation-intent",
+      "derived-execution-grant",
+      "execution-attestation-when-available",
       "predecessor-receipt"
     ]
   }
