@@ -1,16 +1,21 @@
 ---
 name: audit
-description: Replay Chatman admission envelopes, predecessor continuity, hook frontier, claim ceilings, and phase invariants. Use before stopping, declaring standing, or requesting publication.
+description: Replay Chatman envelopes, predecessor continuity, effective phase, generated ownership, authority ceilings, actuation objects, and phase invariants. Use before stopping, declaring standing, deriving a grant, or requesting publication.
 context: fork
 agent: chatman-ecosystem:receipt-auditor
 effort: high
 ---
 
-Audit `$ARGUMENTS`.
+Audit `$ARGUMENTS` without editing.
 
-- Read the hook ledger, phase vector, allocation envelope, plan envelope, validator result, and predecessor chain.
+- Read the observation ledger, canonical and effective phase, allocation envelope, plan envelope, validator record, configuration record, ownership registry, and predecessor chain.
 - Recompute every canonical digest with `verify_receipt` and `canonical_digest`.
-- Check event counts, chain continuity, authority claim ceilings, and phase invariants.
+- Check event counts, chain continuity, recursive parent receipts, authority ceilings, single-actuator law, and phase invariants.
+- Confirm a pending frontier projects advanced canonical state back to observed, unallocated, unplanned, sealed, drifted, and unknown.
+- Verify every actuation intent digest and any matching grant.
+- Distinguish intent admission, grant derivation, command execution, and downstream consequence.
 - Return the maximum lawful Gall standing and every missing obligation.
 
-Do not edit, plan, allocate, or publish.
+Standing vocabulary: `UNKNOWN`, `UNSUPPORTED`, `BLOCKED`, `BUILD_BROKEN`, `PARTIAL_ALIVE`, `ALIVE`.
+
+Do not edit, plan, allocate, manufacture, derive grants, execute protected actions, or publish.
