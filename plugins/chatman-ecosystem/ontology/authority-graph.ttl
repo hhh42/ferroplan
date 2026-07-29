@@ -1,0 +1,133 @@
+@prefix ce: <urn:chatman:ecosystem:> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix odrl: <http://www.w3.org/ns/odrl/2/> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ce:Tool a rdfs:Class .
+ce:AgentDefinition a rdfs:Class ; rdfs:subClassOf prov:Agent .
+ce:ClaimCeiling a rdfs:Class .
+ce:AuthorityGrant a rdfs:Class ; rdfs:subClassOf prov:Entity .
+ce:AuthorityRefusal a rdfs:Class ; rdfs:subClassOf prov:Entity .
+
+ce:allowsTool a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range ce:Tool .
+ce:deniesTool a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range ce:Tool .
+ce:hasClaimCeiling a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range ce:ClaimCeiling .
+ce:maySpawn a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range ce:AgentDefinition .
+ce:isolatedBy a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range xsd:string .
+ce:maxTurns a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range xsd:positiveInteger .
+ce:effort a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range xsd:string .
+ce:frontmatterPath a rdf:Property ; rdfs:domain ce:AgentDefinition ; rdfs:range xsd:string .
+
+ce:ReadTool a ce:Tool ; dcterms:title "Read" .
+ce:GlobTool a ce:Tool ; dcterms:title "Glob" .
+ce:GrepTool a ce:Tool ; dcterms:title "Grep" .
+ce:BashTool a ce:Tool ; dcterms:title "Bash" .
+ce:WriteTool a ce:Tool ; dcterms:title "Write" .
+ce:EditTool a ce:Tool ; dcterms:title "Edit" .
+ce:NotebookEditTool a ce:Tool ; dcterms:title "NotebookEdit" .
+ce:AgentTool a ce:Tool ; dcterms:title "Agent" .
+ce:FerroplanMcpTools a ce:Tool ; dcterms:title "Ferroplan MCP tools" .
+
+ce:RoutingCeiling a ce:ClaimCeiling ; dcterms:title "routing-and-phase-supervision" .
+ce:ConfigCeiling a ce:ClaimCeiling ; dcterms:title "configuration-conformance-analysis" .
+ce:ObservationCeiling a ce:ClaimCeiling ; dcterms:title "bounded-semantic-projection" .
+ce:AllocationCeiling a ce:ClaimCeiling ; dcterms:title "bounded-allocation" .
+ce:PlanningCeiling a ce:ClaimCeiling ; dcterms:title "candidate-plan" .
+ce:ManufactureCeiling a ce:ClaimCeiling ; dcterms:title "reversible-source-construction" .
+ce:ValidationCeiling a ce:ClaimCeiling ; dcterms:title "exercised-validation-evidence" .
+ce:AuditCeiling a ce:ClaimCeiling ; dcterms:title "receipt-replay-and-maximum-standing" .
+
+ce:EcosystemController a ce:AgentDefinition ;
+  dcterms:title "Chatman ecosystem controller" ;
+  ce:frontmatterPath "agents/ecosystem-controller.md" ;
+  ce:hasClaimCeiling ce:RoutingCeiling ;
+  ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:AgentTool ;
+  ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
+  ce:maxTurns 80 ;
+  ce:effort "max" .
+
+ce:ConfigLawArchitect a ce:AgentDefinition ;
+  dcterms:title "Configuration law architect" ;
+  ce:frontmatterPath "agents/config-law-architect.md" ;
+  ce:hasClaimCeiling ce:ConfigCeiling ;
+  ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool ;
+  ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
+  ce:maxTurns 40 ;
+  ce:effort "high" .
+
+ce:RdfObserver a ce:AgentDefinition ;
+  dcterms:title "RDF observer" ;
+  ce:frontmatterPath "agents/rdf-observer.md" ;
+  ce:hasClaimCeiling ce:ObservationCeiling ;
+  ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool ;
+  ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
+  ce:maxTurns 40 ;
+  ce:effort "high" .
+
+ce:CmcaAllocator a ce:AgentDefinition ;
+  dcterms:title "CMCA allocator" ;
+  ce:frontmatterPath "agents/cmca-allocator.md" ;
+  ce:hasClaimCeiling ce:AllocationCeiling ;
+  ce:allowsTool ce:ReadTool, ce:FerroplanMcpTools ;
+  ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool, ce:BashTool ;
+  ce:maxTurns 30 ;
+  ce:effort "high" .
+
+ce:FerroplanPlanner a ce:AgentDefinition ;
+  dcterms:title "Ferroplan planner" ;
+  ce:frontmatterPath "agents/ferroplan-planner.md" ;
+  ce:hasClaimCeiling ce:PlanningCeiling ;
+  ce:allowsTool ce:ReadTool, ce:FerroplanMcpTools ;
+  ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool, ce:BashTool ;
+  ce:maxTurns 50 ;
+  ce:effort "high" .
+
+ce:SourceManufacturer a ce:AgentDefinition ;
+  dcterms:title "Source manufacturer" ;
+  ce:frontmatterPath "agents/source-manufacturer.md" ;
+  ce:hasClaimCeiling ce:ManufactureCeiling ;
+  ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
+  ce:isolatedBy "worktree" ;
+  ce:maxTurns 80 ;
+  ce:effort "max" .
+
+ce:IndependentValidator a ce:AgentDefinition ;
+  dcterms:title "Independent validator" ;
+  ce:frontmatterPath "agents/independent-validator.md" ;
+  ce:hasClaimCeiling ce:ValidationCeiling ;
+  ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:FerroplanMcpTools ;
+  ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
+  ce:maxTurns 60 ;
+  ce:effort "max" .
+
+ce:ReceiptAuditor a ce:AgentDefinition ;
+  dcterms:title "Receipt auditor" ;
+  ce:frontmatterPath "agents/receipt-auditor.md" ;
+  ce:hasClaimCeiling ce:AuditCeiling ;
+  ce:allowsTool ce:ReadTool, ce:GlobTool, ce:GrepTool, ce:BashTool, ce:FerroplanMcpTools ;
+  ce:deniesTool ce:WriteTool, ce:EditTool, ce:NotebookEditTool ;
+  ce:maxTurns 40 ;
+  ce:effort "high" .
+
+ce:EcosystemController ce:maySpawn
+  ce:ConfigLawArchitect,
+  ce:RdfObserver,
+  ce:CmcaAllocator,
+  ce:FerroplanPlanner,
+  ce:SourceManufacturer,
+  ce:IndependentValidator,
+  ce:ReceiptAuditor .
+
+ce:SingleActuatorPolicy a odrl:Set ;
+  odrl:permission [
+    odrl:assignee ce:SourceManufacturer ;
+    odrl:action odrl:modify
+  ] ;
+  odrl:prohibition [
+    odrl:assignee ce:EcosystemController, ce:ConfigLawArchitect, ce:RdfObserver,
+      ce:CmcaAllocator, ce:FerroplanPlanner, ce:IndependentValidator, ce:ReceiptAuditor ;
+    odrl:action odrl:modify
+  ] .
