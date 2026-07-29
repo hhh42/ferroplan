@@ -6,7 +6,7 @@
 //! envelopes with explicit predecessor commitments.
 
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, ContentBlock, ErrorData as McpError};
+use rmcp::model::{CallToolResult, ErrorData as McpError};
 use rmcp::tool;
 use rmcp::tool_router;
 use schemars::JsonSchema;
@@ -14,6 +14,7 @@ use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 
+use crate::result::to_result;
 use crate::Ferroplan;
 
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
@@ -164,19 +165,6 @@ impl Ferroplan {
     ) -> Result<CallToolResult, McpError> {
         to_result(tool_verify(input))
     }
-}
-
-/// Map the existing `Result<Value, String>` tool-body convention onto rmcp's
-/// `CallToolResult`, preserving the prior `structuredContent` behavior on success.
-fn to_result(result: Result<Value, String>) -> Result<CallToolResult, McpError> {
-    Ok(match result {
-        Ok(value) => {
-            let mut r = CallToolResult::success(vec![ContentBlock::text(pretty(&value))]);
-            r.structured_content = Some(value);
-            r
-        }
-        Err(message) => CallToolResult::error(vec![ContentBlock::text(message)]),
-    })
 }
 
 fn tool_canonical_digest(input: DigestInput) -> Result<Value, String> {
@@ -399,8 +387,4 @@ fn validate_digest(value: Option<&str>, field: &str) -> Result<(), String> {
 #[allow(dead_code)]
 fn decode<T: DeserializeOwned>(value: &Value) -> Result<T, String> {
     serde_json::from_value(value.clone()).map_err(|error| error.to_string())
-}
-
-fn pretty(value: &Value) -> String {
-    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }

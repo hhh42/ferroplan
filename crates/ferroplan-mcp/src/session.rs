@@ -34,7 +34,7 @@ use bcinr_cmca::{
 };
 use ferroplan::{Options, Plan, Session};
 use rmcp::handler::server::wrapper::Parameters;
-use rmcp::model::{CallToolResult, ContentBlock, ErrorData as McpError};
+use rmcp::model::{CallToolResult, ErrorData as McpError};
 use rmcp::tool;
 use rmcp::tool_router;
 use schemars::JsonSchema;
@@ -45,6 +45,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
+use crate::result::to_result;
 use crate::Ferroplan;
 
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
@@ -342,17 +343,6 @@ impl Ferroplan {
     ) -> Result<CallToolResult, McpError> {
         to_result(tool_cmca_allocate_recursive(input))
     }
-}
-
-fn to_result(result: Result<Value, String>) -> Result<CallToolResult, McpError> {
-    Ok(match result {
-        Ok(value) => {
-            let mut r = CallToolResult::success(vec![ContentBlock::text(pretty(&value))]);
-            r.structured_content = Some(value);
-            r
-        }
-        Err(message) => CallToolResult::error(vec![ContentBlock::text(message)]),
-    })
 }
 
 impl Ferroplan {
@@ -1006,8 +996,4 @@ fn digest_bytes(bytes: &[u8]) -> String {
 #[allow(dead_code)]
 fn decode<T: DeserializeOwned>(value: &Value) -> Result<T, String> {
     serde_json::from_value(value.clone()).map_err(|error| error.to_string())
-}
-
-fn pretty(value: &Value) -> String {
-    serde_json::to_string_pretty(value).unwrap_or_else(|_| value.to_string())
 }
