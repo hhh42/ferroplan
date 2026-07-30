@@ -1387,9 +1387,498 @@ weakening it to `\b` still fails the `commit-graph` case in the sibling table.
 
 ---
 
+## Session Lifecycle Bookends (CE-GALL-35)
+
+**Working system.** `session_open`, `session_status`, and `session_close` had
+no dedicated checkpoint coverage before this entry — they were only exercised
+as steps inside `session_protocol.rs`'s longer happy-path chain
+(`session_open` → `session_observe` → `session_set_goal` → `session_think` →
+`session_advance` → `session_status` → `session_close`) and inside a separate
+"never-opened session" refusal test. Nothing pinned the three bookend tools as
+a surface of their own: does `session_open` ground state that `session_status`
+actually reflects, and does `session_close` leave the session in a state where
+reuse fails lawfully rather than silently?
+
+A new test file, `crates/ferroplan-mcp/tests/session_lifecycle_bookends.rs`,
+drives the built `ferroplan-mcp` binary over stdio (same harness pattern as
+`session_protocol.rs`) for exactly that: open a session against a small valid
+STRIPS domain+problem, check `session_status` echoes the grounded
+`session_id`/`domain_digest`/`problem_digest`/`goal_met`/`cursor`, close it,
+then probe reuse of the closed `session_id`.
+
+**Open defect / correction to the original plan.** The test was drafted
+assuming `session_status` exposes a `goal` field and that a second
+`session_close` on an already-closed session refuses with `unknown session`
+like `session_status`/`session_advance`/`session_observe` do. Both assumptions
+were wrong, found by running the test against the live server rather than by
+review:
+
+- `session_status`'s real schema
+  (`urn:chatman:ferroplan-session-status:v1`) has no `goal` field. It reports
+  `cursor`, `epoch`, `goal_met`, `domain_digest`, `problem_digest`,
+  `plan_length`, `remaining_plan_valid`, `receipt_chain_head`;
+- a second `session_close` on an already-closed `session_id` is **not** a
+  tool-level error. It returns `isError: false` with `closed: false` — an
+  idempotent no-op — while `session_status` on that same closed id returns
+  `isError: true` containing `unknown session`. The three tools do not
+  converge on one failure mode for post-close reuse: `session_close`
+  degrades gracefully where `session_status` refuses.
+
+The test's assertions were corrected to match the observed behavior rather
+than the guessed one.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-35.json`
+
+**Positive witness:** `open_status_close_bookends_agree_on_session_state`
+(crates/ferroplan-mcp/tests/session_lifecycle_bookends.rs:97) — opens a
+session, asserts `session_status` reflects the exact digests and goal state
+`session_open` grounded, then closes it and asserts `closed: true`.
+
+**Negative falsifier:** `session_status_after_close_refuses_lawfully`
+(crates/ferroplan-mcp/tests/session_lifecycle_bookends.rs:191) — after
+`session_close`, calls `session_status` on the same session_id and asserts a
+lawful `isError: true` / `unknown session` refusal (not a crash or stale
+success), then calls `session_close` a second time and asserts the real
+idempotent `closed: false` response instead of a fabricated second refusal.
+
+- Non-claim: not replayed outside this session, so it is capped at
+  `PARTIAL_ALIVE` under the promotion law regardless of both tests passing
+- Non-claim: only `session_status` and `session_close` reuse-after-close paths
+  were probed; `session_open` with `replace: false` reusing a closed
+  session_id (a fresh open, since close removes the id from the live map
+  entirely) was not exercised and is not claimed here
+- Non-claim: no concurrency scenario (close racing another call on the same
+  session_id) is covered by these two tests; `session_protocol.rs` has a
+  separate, unrelated concurrency test for a different bug
+
+---
+
+## Goal Retarget and Cursor Advance (CE-GALL-36)
+
+**Working system**
+
+`session_set_goal` and `session_advance` had no existing SKILL.md or
+Gall-checkpoint coverage before this cycle, despite both being wired into
+`full_session_lifecycle` in `session_protocol.rs` as a happy-path step. This
+checkpoint adds dedicated positive and negative witnesses that exercise each
+tool's real behavior rather than its presence in a broader lifecycle test.
+
+`session_set_goal` retargets a live `Session` to a new ground conjunction
+over the already-interned fact space (`crates/ferroplan/src/session.rs:929`)
+— no regrounding, no re-parse of the world. `session_advance` moves the
+session's execution cursor forward over a stored plan
+(`crates/ferroplan-mcp/src/session.rs:596`), refusing any advance that would
+push the cursor past the plan's actual length.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-36.json`
+
+**Positive witness:** `set_goal_retargets_and_advance_moves_cursor_on_a_real_plan`
+(crates/ferroplan-mcp/tests/session_goal_advance.rs:139) — opens a session
+against a three-action sequential domain, plans the original goal `(s)` (a
+real 3-step plan), retargets mid-session to a different ground conjunction
+`(q)`, confirms via `session_status` that the cursor reset and the epoch
+advanced, then confirms via a fresh `session_think` that the retarget
+actually changed what gets planned — the new plan for `(q)` is 1 step, not
+3, a real plan-shape change rather than a status flag flipping. A final
+`session_advance` with `completed_steps=1` over that real plan is confirmed
+via `session_status`.
+
+**Negative falsifier:** `advance_beyond_plan_length_is_refused_and_cursor_is_unchanged`
+(crates/ferroplan-mcp/tests/session_goal_advance.rs:290) — plans a real
+3-step sequence, then calls `session_advance` with `completed_steps` 1000
+past the plan's actual length. The tool genuinely refuses (a tool-level
+`isError` naming the plan-length bound, per `do_session_advance`'s
+`next > plan_length` guard) — this is the TRUE observed behavior, checked by
+running the call rather than assumed. `session_status` confirms the rejected
+call left the cursor at 0, and a following in-range advance still succeeds.
+
+- Non-claim: the fix is not replayed outside this session, so it is capped
+  at `PARTIAL_ALIVE` under the promotion law regardless of both tests being
+  green
+- Non-claim: `session_set_goal`'s own negative path (a malformed or
+  unreachable-atom goal) was not exercised as a second falsifier here — only
+  `session_advance`'s out-of-range `completed_steps` was run negative;
+  `crates/ferroplan/src/session.rs`'s `set_goal_rejects_unknown_and_adl` unit
+  test covers that path at the library layer, but no MCP-tool-level witness
+  for it exists yet under this checkpoint
+
+---
+
+## Structured Validate Verdict (CE-GALL-38)
+
+**Defect fixed this cycle (re-witnessed, not authored by this checkpoint)**
+
+CE-GALL-30 recorded that MCP `validate` returned the prose string `"Plan
+valid"`, incompatible with `bind_plan_receipt`'s boolean `valid` requirement,
+forcing the hand-fabrication instructed at `skills/admit/SKILL.md:15`. This
+checkpoint re-ran that exact claim against the live tool at the current
+commit rather than trusting the old doc.
+
+Two direct calls to `mcp__plugin_chatman-ecosystem_ferroplan__validate`
+against a trivial 1-action STRIPS domain (`(at-a)` -> `(at-b)`):
+
+* Valid plan (`step 1: (move)`) ->
+  `{"reason":null,"schema":"urn:ferroplan:plan-validation:v1","valid":true}`
+* Invalid plan (`step 1: (nonexistent-action)`) ->
+  `{"reason":"plan action \`NONEXISTENT-ACTION \` not a grounded op","schema":"urn:ferroplan:plan-validation:v1","valid":false}`
+
+Both are structured JSON objects with a native boolean `valid` field and a
+`urn:ferroplan:plan-validation:v1` schema tag — not prose. **CE-GALL-30's
+refuted claim does not reproduce at this commit**: the composition gap it
+named (prose in, bool required by `bind_plan_receipt`) is closed for the
+tool's raw output shape. This upgrades the *mechanical* half of CE-GALL-30's
+finding; CE-GALL-30's own section is left untouched as the historical record
+of when and why the gap was first recorded.
+
+**What this checkpoint does not claim.** `skills/admit/SKILL.md:15` still
+reads as a manual instruction ("independent validator result containing
+`valid: true`") rather than "pass `validate`'s own `valid` field through" —
+the callers were not audited or changed by this checkpoint, only the raw
+tool response shape was re-verified. CE-GALL-13/CE-GALL-30's separate,
+still-open concern about genuine engine independence (Ferroplan's `validate`
+validating a Ferroplan-produced plan vs. an external validator like VAL) is
+untouched — a structured verdict removes the prose/bool composition problem,
+it does not by itself restore independence.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-38.json`
+
+**Positive witness:** `test_valid_plan_yields_boolean_true_directly_usable_by_bind_plan_receipt`
+(plugins/chatman-ecosystem/tests/test_validate_verdict.py:64) — pins the raw
+JSON captured from a live `validate` call on a valid plan and asserts the
+`valid` field is a native bool directly usable in `validator_result`, with
+no prose parsing step.
+
+**Negative falsifier:** `test_invalid_plan_yields_boolean_false_with_reason_no_hand_fabrication`
+(plugins/chatman-ecosystem/tests/test_validate_verdict.py:73) — pins the raw
+JSON from a live `validate` call with a plan referencing a non-grounded
+action against the same domain/problem, and asserts the tool reports
+`valid: false` with a `reason`, again without string coercion.
+
+- Non-claim: not replayed outside this session, so capped below `ALIVE` regardless of the suite being green
+- Non-claim: the callers (`skills/admit/SKILL.md`, any script building `validator_result`) were not changed or audited for whether they still hand-fabricate instead of reading the field through — only the tool's own response shape was re-verified
+- Non-claim: this does not touch or resolve CE-GALL-13/CE-GALL-30's separate open question of genuine engine-independent validation (VAL vs. Ferroplan's own `validate`)
+
+---
+
+## True Recursive CMCA Descent (CE-GALL-37)
+
+**Supersedes/extends Checkpoint 9's cross-call-descent gap**
+
+Checkpoint 9's 2026-07-29 audit found that `bind_allocation_receipt`'s only chaining
+field is a flat `previous_receipt`, and concluded that "true cross-call recursive
+descent" was "architecturally absent from the MCP tool schema." That conclusion was
+correct about `bind_allocation_receipt` specifically, but did not account for
+`cmca_allocate_recursive` — a separate MCP tool (`crates/ferroplan-mcp/src/session.rs`,
+`tool_cmca_allocate_recursive`) that already implements exactly the shape Checkpoint 9's
+"Working system" diagram describes: a `root` frontier of eight admitted candidates,
+followed by zero or more `descents`, each naming a `selected_parent_node` id drawn from
+the immediately preceding depth's own admitted frontier and supplying a fresh local
+eight-candidate frontier. Each depth's payload carries `parent_payload_digest`, which is
+asserted (not merely declared) to equal the previous depth's real
+`allocation_payload_digest`.
+
+This checkpoint re-verified that tool directly, both by driving it live via
+`mcp__plugin_chatman-ecosystem_ferroplan__cmca_allocate_recursive` and by running its
+existing and one new Rust integration test.
+
+**Required proof**
+
+* Depth one allocation. Confirmed (existing test
+  `cmca_recursive_depth_one_matches_plain_cmca_allocate`, and live).
+* Depth two allocation with a real bound parent digest. Confirmed (existing test
+  `cmca_recursive_depth_two_binds_the_real_parent_digest`, and live).
+* Depth three allocation, chained through depth two's own digest (not depth one's).
+  Confirmed by a new test added this session,
+  `cmca_recursive_three_depth_chain_binds_digests_all_the_way_down`, and by a live
+  three-depth call in this session.
+* Cyclic ancestry refusal across non-adjacent depths. Confirmed (existing test
+  `cmca_recursive_refuses_cyclic_ancestry`, and live).
+* Unknown-parent-node refusal. Confirmed (existing test
+  `cmca_recursive_refuses_an_unknown_selected_parent_node`, and live).
+* Deterministic replay. Confirmed (existing test
+  `cmca_recursive_is_deterministic_across_repeated_calls`).
+* Malformed-depth refusal collapses the whole chain, no partial result. Confirmed
+  (existing test `cmca_recursive_refuses_the_whole_chain_on_a_bad_depth`).
+
+**What is still open, named rather than omitted.** Checkpoint 9's "parent receipt
+mismatch refusal" and "missing return consequence refusal" items are not modeled by
+`cmca_allocate_recursive`: there is no mechanism for a child depth's result to be
+rejected or re-consumed by its parent depth after the fact, and `bind_allocation_receipt`
+still has only a flat `previous_receipt` field — the gap Checkpoint 9 identified in that
+specific tool is unchanged. What closes here is narrower and precise: `cmca_allocate_recursive`
+is a real, tested, live-confirmed cross-call recursive descent tool, distinct from both
+the in-array `parent`-index tree Checkpoint 9's earlier audit exercised and from the
+receipt-binding surface Checkpoint 9's gap language was really pointed at.
+
+**Live tool calls made this session** (not just tests):
+
+1. Positive: a real three-depth `cmca_allocate_recursive` call (root `root-0..7`, depth
+   two `d2-0..7` selecting `root-0`, depth three `d3-0..7` selecting `d2-0`) succeeded.
+   Depth 2's `parent_payload_digest` (`da48260...`) equalled depth 1's
+   `allocation_payload_digest` exactly; depth 3's `parent_payload_digest`
+   (`a26836f...`) equalled depth 2's exactly.
+2. Negative — cyclic ancestry: reusing root id `r0` as both the entry to depth two and
+   (with `r0` also listed among depth two's own admitted candidates) the entry to depth
+   three produced `depth 3: cyclic ancestry -- \`r0\` already selected earlier in this
+   descent chain`. Note: a first attempt at this falsifier, where `r0` was reused as
+   depth-three's selector *without* `r0` being present among depth two's own candidate
+   ids, produced the sibling **unknown-parent** refusal instead
+   (`was not an admitted candidate id at depth 2`) — a genuine, informative near-miss,
+   not the cyclic-ancestry path, until the id was made a legitimately admitted depth-two
+   candidate.
+3. Negative — unknown parent: a depth-two descent naming `node-never-admitted` as
+   `selected_parent_node` (never present in the root frontier) produced
+   `depth 2: selected_parent_node \`node-never-admitted\` was not an admitted candidate
+   id at depth 1`.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-37.json`
+
+**Positive witness:** `cmca_recursive_three_depth_chain_binds_digests_all_the_way_down`
+(crates/ferroplan-mcp/tests/session_protocol.rs:590) — a new test asserting a genuine
+three-depth cross-call chain binds each depth's `parent_payload_digest` to the real,
+distinct digest of the depth immediately before it.
+
+**Negative falsifier:** `cmca_recursive_refuses_cyclic_ancestry`
+(crates/ferroplan-mcp/tests/session_protocol.rs:540) — asserts a depth-three descent
+re-selecting an id already used to enter depth two is refused, confirmed live with the
+exact error text above.
+
+- Non-claim: not replayed outside this session, so capped below `ALIVE` under the
+  promotion law regardless of the suite being green
+- Non-claim: does not resolve `bind_allocation_receipt`'s flat-chaining gap named in
+  Checkpoint 9 — that remains open and is not touched here
+- Non-claim: "return consequence" / parent-side re-validation of a child depth's result
+  is still unmodeled; `cmca_allocate_recursive` only builds and chains downward
+
+---
+
+## Receipt Chain Fork Detection (CE-GALL-39)
+
+**Open defect** — tests a gap named in Checkpoint CE-GALL-31
+
+CE-GALL-31 recorded that chain-fork detection is absent: `verify_chain` does
+not exist, and `previous_receipt` is format-checked only (64 hex, never
+looked up). This checkpoint constructs the fork for real against the running
+`ferroplan-mcp` server and checks whether anything in this repository catches
+it.
+
+**What was built**
+
+1. A trivial one-action PDDL domain/problem was solved and validated.
+2. `cmca_allocate` / `bind_allocation_receipt` produced a real allocation
+   receipt over eight candidates.
+3. `session_open` + `session_think` on the trivial domain produced a real
+   plan.
+4. `bind_plan_receipt` bound a root envelope **A** (`previous_receipt: null`,
+   receipt `2cc3d1a6...`).
+5. `bind_plan_receipt` was called **twice more**, each time with
+   `previous_receipt` set to A's receipt but a different
+   `observation_frontier` payload, producing two divergent children **B1**
+   (receipt `c50bec8e...`) and **B2** (receipt `c7d4829e...`) that both claim
+   A as their predecessor — a genuine fork, not a synthesized one.
+6. `verify_receipt` was called on B1 and B2 **individually**.
+
+**Observed result**
+
+Both calls returned `valid: true`. Each envelope is fully self-consistent —
+its own payload digest and receipt recompute, and its declared
+`previous_receipt` is a well-formed hex string — and neither call has any way
+to learn a sibling exists. `verify_receipt`'s contract has no field for
+"does another receipt already claim this predecessor." The fork is silently
+accepted by every check this repository's MCP surface exposes.
+
+A corpus scan (mirroring CE-GALL-31's own falsifying command,
+`grep -rn verify_chain crates/ plugins/`, plus a walk of every script under
+`scripts/`) found no chain-walking or branch-detection capability anywhere.
+The only place "fork" is mentioned outside CE-GALL-31/34's own prose is
+`agents/receipt-auditor.md`, which instructs an LLM to "reject ... forked
+heads unless the fork is explicitly admitted" — but that is a markdown
+prompt, not an invocable script or MCP tool, and it was not exercised against
+B1/B2 in this checkpoint.
+
+**Required proof**
+
+* A fork (two receipts declaring the same predecessor) can be constructed
+  against the live tools, not just described.
+* `verify_receipt` (or any other capability in this repository) detects it.
+
+**Current standing:** `UNSUPPORTED` (`DEFECT_OPEN`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-39.json`
+
+**Negative falsifier:**
+`test_verify_receipt_accepts_both_branches_of_the_fork_individually`
+(plugins/chatman-ecosystem/tests/test_fork_detection.py:97) — pins the exact
+live-tool outputs for B1 and B2 above and asserts both verify as `valid:
+true` with no sibling/fork signal in either result. This is the checkpoint's
+falsifier: the fork is real, constructed, and undetected.
+
+**Blocked by:** a `verify_chain`-equivalent tool or script that looks up
+whether a claimed predecessor already has another admitted child
+
+- Non-claim: this does not build fork detection — it demonstrates its
+  absence with an executing, non-mocked fixture
+- Non-claim: `agents/receipt-auditor.md` names fork rejection as an
+  intended behavior for an LLM auditor; this checkpoint does not evaluate
+  whether an LLM following that prompt would catch B1/B2, only that no
+  mechanical tool does
+
+---
+
+## Full 17-Tool Dogfood Chain (CE-GALL-40)
+
+**Capstone over CE-GALL-35..39**
+
+A prior audit found no test anywhere exercised all 17 `ferroplan-mcp` tools
+in one continuous chained flow — only overlapping subsets, spread across
+`session_protocol.rs`, `session_lifecycle_bookends.rs`,
+`session_goal_advance.rs`, and the Python fork/validate fixtures. This
+checkpoint answers "does the ecosystem actually dogfood every
+`ferroplan-mcp` tool" with a receipt, not a guess.
+
+**Working system**
+
+A small two-action STRIPS domain (`at-a -> at-b -> at-c`) drives, in one
+continuous JSON-RPC session over stdio against the built `ferroplan-mcp`
+binary:
+
+```text
+parse (domain) -> parse (problem) -> solve
+-> session_open -> session_observe -> session_set_goal -> session_think
+-> session_advance -> cmca_allocate -> cmca_allocate_recursive
+-> canonical_digest -> bind_allocation_receipt -> validate
+-> bind_plan_receipt -> verify_receipt -> session_status -> session_close
+```
+
+16 of the 17 tools are touched this way — `decompose` was deliberately not
+called and is named as a gap below, not silently skipped.
+`canonical_digest` is called directly on a session_think-derived value, not
+just implicitly inside `bind_*`. `cmca_allocate_recursive` is exercised with
+a real root-plus-one-descent (2 depths), asserting the descent's
+`parent_payload_digest` equals the root's real `allocation_payload_digest`.
+`bind_plan_receipt`'s `previous_receipt` is deliberately left `null` — the
+plan envelope and the allocation envelope are siblings referencing a shared
+session via the `allocation_receipt` field, not predecessor/successor plan
+envelopes; chaining `previous_receipt` to the allocation receipt would
+overclaim a plan-envelope lineage that does not exist yet, since this is the
+only plan envelope bound in this session.
+
+The same trace was first run live via direct
+`mcp__plugin_chatman-ecosystem_ferroplan__*` tool calls in the authoring
+session, then formalized as a re-runnable Rust fixture driving the binary
+over stdio — the more faithful "one continuous flow" transport, matching the
+existing `session_*` test files' harness pattern. That live run surfaced a
+genuine finding, not a guess later encoded as an assertion:
+`bind_allocation_receipt` refuses `cmca_allocate_recursive`'s raw `depths`
+payload (`allocation_result lacks payload.bcinr_revision`,
+`crates/ferroplan-mcp/src/admission.rs:188-190`) because its schema expects
+the flat shape `cmca_allocate` itself returns. The chain works around this
+by binding the recursive result's root-depth payload (which does carry
+`bcinr_revision`) with the depth-2 chain folded in under an explicit
+`recursive_extension` field, so the descent is still recorded in the bound
+receipt rather than silently dropped — but `bind_allocation_receipt` itself
+has no native field for a multi-depth recursive allocation, the same
+architectural gap CE-GALL-9 named for the flat `previous_receipt` field.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-40.json`
+
+**Positive witness:** `full_seventeen_tool_dogfood_chain`
+(crates/ferroplan-mcp/tests/dogfood_chain.rs:136) — one spawned
+`ferroplan-mcp` process, one continuous stdio transport, 16 tools called in
+order, with real assertions on each response's shape (not just
+`isError: false`): `solve`'s 2-step plan, `session_think`'s retargeted
+1-step plan, `cmca_allocate_recursive`'s digest chaining across the descent,
+`verify_receipt`'s `valid: true`, `validate`'s structured
+`urn:ferroplan:plan-validation:v1` shape. Run:
+`cargo test -p ferroplan-mcp --test dogfood_chain -- --nocapture` — 2
+passed, 0 failed.
+
+**Negative falsifier:** `session_status_after_close_refuses_unknown_session`
+(crates/ferroplan-mcp/tests/dogfood_chain.rs:543) — opens a session, closes
+it, then calls `session_status` on the same session_id inside the same live
+process, and asserts a lawful `isError: true` refusal containing
+`unknown session`, not a stale success or a crash. This reproduces
+CE-GALL-35's already-documented close-then-status refusal mechanism,
+re-exercised here as this checkpoint's own executing falsifier rather than
+assumed from that prior checkpoint.
+
+- Non-claim: not replayed outside this session, so capped at
+  `PARTIAL_ALIVE` under the promotion law regardless of the test being green
+- Non-claim: `decompose` was not called — this checkpoint does not cover it,
+  and it is the one tool in the server's surface with zero coverage from
+  this dogfood chain
+- Non-claim: `bind_allocation_receipt` has no native field for a
+  `cmca_allocate_recursive` result; the `recursive_extension` workaround
+  records the descent but is not a schema-level capability
+- Non-claim: the negative falsifier only exercises the
+  session_status-after-close path; a tampered-receipt or
+  `validator_result: false` falsifier was not additionally run — one
+  falsifier was chosen and executed for real rather than several run
+  shallowly
+- Non-claim: `verify_receipt`'s scope is unchanged — as CE-GALL-39 already
+  established, it only checks an envelope's own self-consistency and has no
+  chain-fork or sibling-detection capability; using it here on the plan
+  envelope does not imply otherwise
+- Non-claim: `session_advance` moving the cursor does not itself apply
+  action effects to the session's world state — `goal_met` stayed `false`
+  after advancing past the retargeted 1-step plan; only `session_observe`
+  admits new facts, consistent with CE-GALL-36
+
 ---
 
 # Audit log
+
+## 2026-07-29 — CE-GALL-39, receipt chain fork detection
+
+Tested the gap CE-GALL-31 named: `verify_chain` does not exist, so nothing
+checks whether two different receipts claim the same predecessor. Built the
+fork for real against the live `ferroplan-mcp` server — `solve`/`validate`
+on a trivial one-action domain, `cmca_allocate`/`bind_allocation_receipt`
+over eight candidates, `session_open`/`session_think`, then `bind_plan_receipt`
+three times: root A, then two children B1 and B2 that both declare A as
+`previous_receipt` with different `observation_frontier` payloads. Called
+`verify_receipt` on B1 and B2 independently; both returned `valid: true`.
+Neither result carries any signal that a sibling exists — `verify_receipt`
+recomputes digests and checks the declared predecessor is well-formed hex,
+nothing more. A corpus scan (`grep -rn verify_chain crates/ plugins/`, plus a
+walk of every script under `scripts/`) found no chain-walking or
+branch-detection capability; the only "fork" mention outside CE-GALL-31/34's
+own prose is `agents/receipt-auditor.md`, a markdown prompt for an LLM
+auditor, not an invocable tool. Recorded as `UNSUPPORTED` / `DEFECT_OPEN`
+with an executing negative falsifier
+(`plugins/chatman-ecosystem/tests/test_fork_detection.py`, 4/4 passing) that
+pins the exact live-tool receipts and verification results rather than
+describing the gap in prose. `blocked_by` names the missing `verify_chain`
+tool. Full suite re-run after the addition: 373 passed, zero regressions.
+
+## 2026-07-29 — CE-GALL-38, re-witnessing CE-GALL-30's validate claim
+
+Called the live `mcp__plugin_chatman-ecosystem_ferroplan__validate` tool
+directly (not from old docs) with a trivial 1-action STRIPS domain, once for
+a valid plan and once for an invalid one (nonexistent grounded action).
+Both raw responses were structured JSON
+(`{"reason":..., "schema":"urn:ferroplan:plan-validation:v1", "valid":bool}`),
+not the prose string `"Plan valid"` CE-GALL-30 recorded. Wrote and ran
+`plugins/chatman-ecosystem/tests/test_validate_verdict.py` (4 tests, all
+passed, real pytest run, no mocking of the response shape — the fixtures are
+the literal captured tool output) pinning both the valid and invalid raw
+responses and asserting the `valid` field is a native bool usable directly
+in `bind_plan_receipt`'s `validator_result`. Bound
+`plugins/chatman-ecosystem/receipts/CE-GALL-38.json`,
+`PARTIAL_ALIVE (NO_REPLAY)`. Left CE-GALL-30's own section untouched as
+historical record; CE-GALL-38 upgrades the mechanical (prose-vs-bool)
+finding while explicitly not claiming the callers were audited or that
+engine independence (CE-GALL-13's VAL question) is resolved.
 
 ## 2026-07-29 — parallel-agent iteration (branch `chatman-dx-cycle`)
 
@@ -1544,3 +2033,141 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-29 — Session Lifecycle Bookends (CE-GALL-35)
+
+Opened CE-GALL-35 for `session_open`/`session_status`/`session_close`, the
+three MCP session tools with no prior dedicated checkpoint or test coverage
+(they only appeared as intermediate steps inside `session_protocol.rs`'s
+longer chains). Added
+`crates/ferroplan-mcp/tests/session_lifecycle_bookends.rs` with one positive
+witness (open → status reflects grounded state → close reports `closed:
+true`) and one negative falsifier (status on a closed session refuses with
+`unknown session`; a second close on a closed session is checked against its
+actual observed behavior). Both tests run for real against the built
+`ferroplan-mcp` binary: `cargo test -p ferroplan-mcp --test
+session_lifecycle_bookends` — 2 passed, 0 failed.
+
+The negative test's first draft assumed a double-close would also refuse with
+`unknown session`. Measured against the live server it does not: double-close
+returns `isError: false` / `closed: false`, an idempotent no-op, not a
+refusal. The assertion was rewritten to the real response rather than left
+asserting the wrong thing to look tidy. `session_status`'s schema was
+similarly corrected mid-draft — it has no `goal` field; the real fields are
+`cursor`/`epoch`/`goal_met`/`domain_digest`/`problem_digest`/`plan_length`/
+`remaining_plan_valid`/`receipt_chain_head`.
+
+Standing: `PARTIAL_ALIVE` / `NO_REPLAY`, same cap as every other checkpoint in
+this file — not replayed outside the authoring session. Receipt:
+`plugins/chatman-ecosystem/receipts/CE-GALL-35.json`. No other checkpoint,
+receipt, or test file was touched.
+
+## 2026-07-29 — Goal Retarget and Cursor Advance (CE-GALL-36)
+
+Opened CE-GALL-36 for `session_set_goal` and `session_advance`, neither of
+which had prior dedicated checkpoint coverage — both were only exercised as
+steps inside `session_protocol.rs`'s longer happy-path chain.
+
+Added `crates/ferroplan-mcp/tests/session_goal_advance.rs` with one positive
+witness and one negative falsifier, both run for real against the built
+`ferroplan-mcp` binary over stdio (same harness as `session_protocol.rs`):
+`cargo test -p ferroplan-mcp --test session_goal_advance -- --nocapture` — 2
+passed, 0 failed.
+
+The positive witness plans a real 3-step sequential domain to its original
+goal, retargets mid-session to a different ground conjunction, and confirms
+the retarget by replanning — the new plan is a genuinely different shape (1
+step, not 3), not merely a status flag. `session_advance` then moves the
+cursor over that real plan and `session_status` confirms it.
+
+The negative falsifier called `session_advance` with `completed_steps` far
+past the plan's real length and checked the TRUE observed response rather
+than assuming a refusal. The tool does refuse cleanly — a tool-level
+`isError` naming the plan-length bound (`do_session_advance`'s
+`next > plan_length` guard in `crates/ferroplan-mcp/src/session.rs`) — and a
+follow-up `session_status` confirms the rejected call left the cursor
+untouched. No silent-acceptance surprise was found on this path; the honest
+negative result is a working refusal, not a discovered gap.
+
+Standing: `PARTIAL_ALIVE` / `NO_REPLAY`, same cap as every other checkpoint
+in this file — not replayed outside the authoring session. Receipt:
+`plugins/chatman-ecosystem/receipts/CE-GALL-36.json`. `session_set_goal`'s
+own negative path (malformed/unreachable goal atoms) remains unexercised at
+the MCP-tool layer and is named as a non-claim in the checkpoint section — it
+is covered only by a library-layer unit test
+(`crates/ferroplan/src/session.rs::set_goal_rejects_unknown_and_adl`). No
+other checkpoint, receipt, or test file was touched.
+
+## 2026-07-29 — CE-GALL-37, true recursive CMCA descent
+
+Closed the specific gap CE-GALL-9 named: "true cross-call recursive descent ...
+architecturally absent from the MCP tool schema." That claim held for
+`bind_allocation_receipt`'s flat `previous_receipt` field but overlooked
+`cmca_allocate_recursive`, a separate, already-implemented tool
+(`crates/ferroplan-mcp/src/session.rs`) that chains a `root` frontier through
+zero or more `descents`, each binding `parent_payload_digest` to the real
+previous depth's `allocation_payload_digest`.
+
+Ran the existing six-test `cmca_recursive_*` suite in
+`crates/ferroplan-mcp/tests/session_protocol.rs` (`cargo test -p ferroplan-mcp
+--test session_protocol cmca_recursive`, exit 0, all passed) and added a
+seventh, `cmca_recursive_three_depth_chain_binds_digests_all_the_way_down`,
+to cover a genuine three-depth chain rather than depth two only. Also drove
+`cmca_allocate_recursive` live via the MCP tool three times this session: a
+three-depth positive chain (digests bound correctly at every depth), a
+cyclic-ancestry refusal (confirmed with the exact expected error text after
+one informative near-miss that tripped the sibling unknown-parent path
+instead), and an unknown-parent-node refusal.
+
+Standing: `PARTIAL_ALIVE` / `NO_REPLAY`. Receipt:
+`plugins/chatman-ecosystem/receipts/CE-GALL-37.json`. CE-GALL-9's own section
+was left untouched as historical record; `blocked_by` on the new receipt is
+empty because this checkpoint stands on its own tool, not on CE-GALL-9's
+resolution. What CE-GALL-9 still names as open — `bind_allocation_receipt`'s
+flat chaining field, and "return consequence" propagation back up a chain —
+remains open and unaddressed by this work.
+
+## 2026-07-29 — CE-GALL-40, full 17-tool dogfood chain (capstone)
+
+Closed the gap the CE-GALL-35..39 session's audit found: no test anywhere
+exercised all 17 `ferroplan-mcp` tools in one continuous chained flow. Ran
+16 of the 17 tools live first, via direct
+`mcp__plugin_chatman-ecosystem_ferroplan__*` tool calls in this session, on a
+small two-action STRIPS domain (`at-a -> at-b -> at-c`): `parse` (domain,
+problem) -> `solve` -> `session_open` -> `session_observe` ->
+`session_set_goal` -> `session_think` -> `session_advance` ->
+`cmca_allocate` -> `cmca_allocate_recursive` (root + 1 descent) ->
+`canonical_digest` -> `bind_allocation_receipt` -> `validate` ->
+`bind_plan_receipt` -> `verify_receipt` -> `session_status` ->
+`session_close`, then a negative falsifier: `session_status` on the same
+session_id immediately after `session_close` — confirmed live as a lawful
+`unknown session` refusal, matching CE-GALL-35's already-documented
+mechanism. `decompose` was deliberately not called; named as the one
+uncovered tool rather than fabricated or silently skipped.
+
+That live run found a real defect, not merely confirmed a guess:
+`bind_allocation_receipt` refused `cmca_allocate_recursive`'s raw `depths`
+payload with `allocation_result lacks payload.bcinr_revision`
+(`crates/ferroplan-mcp/src/admission.rs:188-190`) — its schema expects the
+flat shape `cmca_allocate` itself returns, not the recursive tool's own
+output shape. Worked around by binding the recursive result's root-depth
+payload (which does carry `bcinr_revision`) with the depth-2 chain folded in
+under an explicit `recursive_extension` field.
+
+Formalized the whole trace as a re-runnable Rust fixture,
+`crates/ferroplan-mcp/tests/dogfood_chain.rs`, driving the built
+`ferroplan-mcp` binary over stdio in one continuous JSON-RPC session (same
+harness pattern as `session_lifecycle_bookends.rs` /
+`session_protocol.rs`) — the more faithful transport for "one continuous
+flow" than separate agent-session MCP calls. Ran it for real:
+`cargo test -p ferroplan-mcp --test dogfood_chain -- --nocapture` — 2
+passed (the chain, and the falsifier), 0 failed.
+
+Standing: `PARTIAL_ALIVE` / `NO_REPLAY`, same cap as every other checkpoint
+in this file. Receipt: `plugins/chatman-ecosystem/receipts/CE-GALL-40.json`.
+`decompose`'s genuine decomposition behavior remains fully unexercised by
+this checkpoint — that is a named gap, not a claim. `bind_plan_receipt`'s
+`previous_receipt` was deliberately left `null`, documented in the
+checkpoint section as a sibling-not-successor relationship, not an
+oversight. CE-GALL-35 through CE-GALL-39's own sections, receipts, and test
+files were not touched — this entry only adds new material.

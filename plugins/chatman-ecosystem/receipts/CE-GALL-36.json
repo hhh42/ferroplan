@@ -1,0 +1,34 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-36",
+  "command": "cargo test -p ferroplan-mcp --test session_goal_advance -- --nocapture",
+  "cwd": "/Users/sac/ferroplan",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "known_anti_patterns": [
+    "session_set_goal's cursor-reset and epoch-advance are asserted via session_status after the retarget, not just trusted from the tool response's own structuredContent",
+    "the positive witness proves the retarget with a real plan-shape change (3-step plan for the original goal (s) vs. a 1-step plan for the retargeted goal (q)), not just a status flag flipping",
+    "the negative falsifier's assertion text is pinned to do_session_advance's exact refusal wording ('beyond plan length') in crates/ferroplan-mcp/src/session.rs, so a future wording change would fail the test loudly rather than the assertion silently passing on a different error",
+    "this checkpoint does not exercise session_set_goal's own negative path (malformed/unreachable goal atoms) as a second falsifier -- only session_advance's out-of-range completed_steps was run as the negative falsifier; a malformed-goal falsifier remains unwritten here"
+  ],
+  "negative_falsifier": {
+    "file": "crates/ferroplan-mcp/tests/session_goal_advance.rs:290",
+    "result": "passed",
+    "test": "advance_beyond_plan_length_is_refused_and_cursor_is_unchanged",
+    "why_this_counts": "plans a real 3-step sequence, then calls session_advance with completed_steps = plan_len + 1000. The TRUE observed behavior (checked, not assumed) is a tool-level isError response whose text names the plan-length bound, matching do_session_advance's `next > plan_length` guard in crates/ferroplan-mcp/src/session.rs. A subsequent session_status confirms the rejected call left the cursor at 0, and a following in-range advance still succeeds -- proving the refusal is a clean no-op, not a partial mutation"
+  },
+  "positive_witness": {
+    "file": "crates/ferroplan-mcp/tests/session_goal_advance.rs:139",
+    "result": "passed",
+    "test": "set_goal_retargets_and_advance_moves_cursor_on_a_real_plan",
+    "why_this_counts": "drives session_open -> session_think (original goal (s), 3-step plan) -> session_set_goal (retarget to a DIFFERENT ground conjunction (q), no regrounding) -> session_status (confirms cursor reset to 0 and epoch advanced) -> a fresh session_think against the new goal (confirms the retarget actually took: the new plan is 1 step for (q), not 3 steps for (s), a real plan-shape change, not just a flag) -> session_advance with completed_steps=1 over that real plan -> session_status confirms the cursor moved to 1. This is the full session_set_goal/session_advance happy path over a real (tiny) planning problem, no LLM involved"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "session_set_goal and session_advance: retarget and cursor-advance witnesses over a real plan"
+}

@@ -502,6 +502,60 @@ fn cmca_recursive_depth_two_binds_the_real_parent_digest() {
     child.wait().expect("wait");
 }
 
+/// CE-GALL-37 witness: a genuine three-depth chain (root -> depth two ->
+/// depth three), each descent naming a real admitted id from the
+/// immediately preceding depth's own frontier -- not the in-array
+/// `parent` index tree CE-GALL-9 already covered, but true cross-call
+/// recursive descent via `cmca_allocate_recursive`'s `descents` field.
+/// Confirms depth three's `parent_payload_digest` binds to depth two's
+/// real `allocation_payload_digest`, chaining the whole way down.
+#[test]
+fn cmca_recursive_three_depth_chain_binds_digests_all_the_way_down() {
+    let (mut child, mut stdout) = spawn_and_handshake();
+    let root = eight_candidates("root");
+    let root_target = root[0]["id"].as_str().unwrap().to_owned();
+    let depth_two = eight_candidates("d2");
+    let depth_two_target = depth_two[0]["id"].as_str().unwrap().to_owned();
+    let depth_three = eight_candidates("d3");
+
+    let resp = call(
+        &mut child,
+        &mut stdout,
+        &tool_call(
+            1,
+            "cmca_allocate_recursive",
+            json!({
+                "root": root,
+                "descents": [
+                    {"selected_parent_node": root_target, "candidates": depth_two},
+                    {"selected_parent_node": depth_two_target, "candidates": depth_three}
+                ]
+            }),
+        ),
+    );
+    assert!(
+        !is_error(&resp),
+        "three-depth chain unexpectedly refused: {}",
+        tool_text(&resp)
+    );
+
+    let depths = resp["result"]["structuredContent"]["payload"]["depths"]
+        .as_array()
+        .expect("depths array");
+    assert_eq!(depths.len(), 3, "expected exactly three depths");
+    assert_eq!(
+        depths[1]["parent_payload_digest"], depths[0]["allocation_payload_digest"],
+        "depth two must bind depth one's real digest"
+    );
+    assert_eq!(
+        depths[2]["parent_payload_digest"], depths[1]["allocation_payload_digest"],
+        "depth three must bind depth two's real digest, not depth one's"
+    );
+
+    drop(child.stdin.take());
+    child.wait().expect("wait");
+}
+
 /// Falsifier 3: `selected_parent_node` names an id that was never admitted
 /// at the previous depth -- must refuse, not silently succeed.
 #[test]

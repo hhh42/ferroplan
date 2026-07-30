@@ -1,0 +1,33 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-35",
+  "command": "cargo test -p ferroplan-mcp --test session_lifecycle_bookends",
+  "cwd": "/Users/sac/ferroplan",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "known_anti_patterns": [
+    "the bookend tools had zero dedicated checkpoint coverage before this receipt -- session_open/session_status/session_close were only exercised as steps inside session_protocol.rs's longer happy-path chain and its unopened-session refusal test, never as a bookend surface in their own right",
+    "session_status has no `goal` field -- the original test draft asserted on one and failed against the live server; the real schema (urn:chatman:ferroplan-session-status:v1) reports cursor, epoch, goal_met, domain_digest, problem_digest, plan_length, remaining_plan_valid, receipt_chain_head instead",
+    "a second session_close on an already-closed session_id is NOT a tool-level error -- it returns isError:false with `closed: false` (idempotent no-op), not the `unknown session` refusal that session_status/session_advance/session_observe give on the same closed session_id. The three tools do not converge on one failure mode for post-close reuse; session_close degrades gracefully where the others refuse"
+  ],
+  "negative_falsifier": {
+    "file": "crates/ferroplan-mcp/tests/session_lifecycle_bookends.rs:191",
+    "result": "passed",
+    "test": "session_status_after_close_refuses_lawfully",
+    "why_this_counts": "opens a session, closes it, then calls session_status on the same now-closed session_id and asserts a tool-level isError:true containing \"unknown session\" -- not a crash, not a hang, not stale success. It also calls session_close a second time on the same id and asserts the actually-observed idempotent behavior (isError:false, closed:false), which is the opposite of what was first assumed (an `unknown session` refusal); the assertion was corrected to match the live server's real response rather than the guessed one"
+  },
+  "positive_witness": {
+    "file": "crates/ferroplan-mcp/tests/session_lifecycle_bookends.rs:97",
+    "result": "passed",
+    "test": "open_status_close_bookends_agree_on_session_state",
+    "why_this_counts": "opens a session against a small valid STRIPS domain+problem, calls session_status and asserts it echoes the same session_id, reports the domain_digest/problem_digest session_open grounded, goal_met:false and cursor:0 for the fresh unsolved session, then closes it and asserts closed:true -- proving session_open, session_status, and session_close operate on the same underlying session state rather than being independently reachable but disconnected tools"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "Session lifecycle bookends: session_open, session_status, session_close"
+}

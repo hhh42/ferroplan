@@ -1,0 +1,38 @@
+{
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "checkpoint": "CE-GALL-40",
+  "title": "Full 17-tool ferroplan-mcp dogfood chain in one continuous session, capstone over CE-GALL-35..39",
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "date": "2026-07-29",
+  "standing": "PARTIAL_ALIVE",
+  "reason": "NO_REPLAY",
+  "command": "cargo test -p ferroplan-mcp --test dogfood_chain -- --nocapture",
+  "cwd": "/Users/sac/ferroplan",
+  "exit_code": 0,
+  "replayed_outside_session": false,
+  "replay_host": null,
+  "sealed_at_commit": null,
+  "blocked_by": [],
+  "positive_witness": {
+    "test": "full_seventeen_tool_dogfood_chain",
+    "file": "crates/ferroplan-mcp/tests/dogfood_chain.rs:136",
+    "result": "passed (cargo test -p ferroplan-mcp --test dogfood_chain -- --nocapture -> test result: ok. 2 passed; 0 failed)",
+    "why_this_counts": "drives the built ferroplan-mcp binary over stdio in ONE continuous JSON-RPC session (same harness pattern as session_lifecycle_bookends.rs/session_protocol.rs) through 16 of the server's 17 tools in order: parse (domain, then problem), solve, session_open, session_observe, session_set_goal, session_think, session_advance, cmca_allocate, cmca_allocate_recursive (root + 1 descent, asserting depth two's parent_payload_digest equals depth one's real allocation_payload_digest), canonical_digest (called directly over the session_think result), bind_allocation_receipt, validate, bind_plan_receipt, verify_receipt (asserts valid:true), session_status, session_close. Every field name and response shape used was confirmed against the live MCP tools in this authoring session first, not guessed -- including one genuine correction found by running the real tool: bind_allocation_receipt refuses cmca_allocate_recursive's raw `depths` shape (`allocation_result lacks payload.bcinr_revision`, crates/ferroplan-mcp/src/admission.rs:188-190) and requires the flat payload.bcinr_revision shape cmca_allocate itself returns"
+  },
+  "negative_falsifier": {
+    "test": "session_status_after_close_refuses_unknown_session",
+    "file": "crates/ferroplan-mcp/tests/dogfood_chain.rs:543",
+    "result": "passed -- session_status on the closed session_id returned isError: true with text containing \"unknown session\"",
+    "why_this_counts": "opens a session, closes it, then calls session_status on the same session_id inside a fresh live server process over the same continuous stdio transport, and asserts the tool-level refusal is real (isError true, exact 'unknown session' text) rather than a stale success or a crash. This was first confirmed live in this authoring session (call verify_receipt/session_status directly via the mcp__plugin_chatman-ecosystem_ferroplan__* tools) before being encoded as a re-runnable test, and reproduces CE-GALL-35's already-documented session_status-after-close refusal as this checkpoint's own falsifier"
+  },
+  "known_anti_patterns": [
+    "not replayed outside this session, so it is capped at PARTIAL_ALIVE regardless of the test being green, same cap as every other checkpoint in this file",
+    "decompose was NOT called -- named as a gap rather than fabricated or silently skipped. 16 of the server's 17 tools are exercised; decompose's own decomposition behavior (contracts array, stitched plan, monolithic-fallback reporting) is untouched by this checkpoint",
+    "bind_allocation_receipt's schema requires payload.bcinr_revision at the top level (crates/ferroplan-mcp/src/admission.rs:188-190) -- the flat cmca_allocate shape, not cmca_allocate_recursive's `depths` shape. The chain works around this by binding the recursive result's own root-depth payload (which does have bcinr_revision) with the depth-2 chain folded in under an explicit `recursive_extension` key, so the depth-2 digest chain is recorded in the bound receipt rather than silently dropped -- but bind_allocation_receipt itself has no native field for a multi-depth recursive allocation. This is a real gap, not merely untested: it is the same architectural point CE-GALL-9 named for the flat previous_receipt field, now confirmed to also apply to binding a cmca_allocate_recursive result directly",
+    "session_advance moving the cursor does not itself apply the action's effects to the session's world state -- session_status's goal_met stayed false after advancing past the 1-step (at-b) plan; only session_observe admits new facts. Consistent with CE-GALL-36, not a new defect, but worth naming so a reader does not conflate cursor-advance with execution",
+    "validate was called against a hand-written domain/problem/plan string matching the retargeted (at-a)->(at-b) goal, since MCP validate takes domain/problem/plan source text rather than a session_id -- this is an independently-constructed input consistent with session_think's plan, not a literal re-serialization of session-internal state",
+    "the interactive tool-call trace that this Rust fixture formalizes was first run live via the mcp__plugin_chatman-ecosystem_ferroplan__* tools in the authoring agent session before being encoded as a re-runnable Rust test -- both the live trace and the Rust fixture are real, non-mocked calls against the same binary/library, but they are two separate executions, not one; the receipt's positive witness is the re-runnable fixture, not the interactive trace",
+    "the negative falsifier only exercises the session_status-after-close path (the same mechanism CE-GALL-35 already names); a tampered-receipt or validator_result:false falsifier was not additionally attempted -- one falsifier was chosen and executed for real rather than attempting several shallowly",
+    "verify_receipt's own scope is unchanged by this checkpoint: as CE-GALL-39 already established, verify_receipt only checks an envelope's own self-consistency (its declared payload digest and receipt recompute) and has no chain-fork or sibling-detection capability -- this checkpoint's use of verify_receipt on the plan envelope does not claim otherwise"
+  ]
+}

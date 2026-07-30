@@ -1,0 +1,34 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-38",
+  "command": "python3 -m pytest tests/test_validate_verdict.py -q",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "known_anti_patterns": [
+    "skills/admit/SKILL.md:15 still says 'independent validator result containing valid: true' -- the wording predates this checkpoint and reads as a manual instruction rather than 'pass the tool's own valid field through', even though the field is now directly readable",
+    "not replayed outside this session, so it is capped below ALIVE regardless of the tests being green",
+    "the two live tool calls used a hand-authored trivial fixture (2-predicate/1-action STRIPS), not a fixture drawn from a real bound receipt's domain/problem -- CE-GALL-30's own remediation path (wiring VAL's independent output into validator_result, tracked separately as CE-GALL-13/CE-GALL-30's own open items) is untouched by this checkpoint",
+    "this checkpoint only exercises ferroplan's own validate, which CE-GALL-13 already distinguishes from genuine engine-independent validation (VAL); a structured verdict from validate does not by itself restore independence, only removes the prose/bool composition gap"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_validate_verdict.py:73",
+    "result": "passed",
+    "test": "test_invalid_plan_yields_boolean_false_with_reason_no_hand_fabrication",
+    "why_this_counts": "calls the live MCP validate tool (captured verbatim as RAW_INVALID_RESPONSE) with a plan referencing a non-grounded action against the same domain/problem used for the valid case, and asserts the tool itself reports valid: false with a reason -- no string coercion needed, closing the exact gap CE-GALL-30 recorded"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_validate_verdict.py:64",
+    "result": "passed",
+    "test": "test_valid_plan_yields_boolean_true_directly_usable_by_bind_plan_receipt",
+    "why_this_counts": "captures the raw JSON returned by a live call to mcp__plugin_chatman-ecosystem_ferroplan__validate on a trivially valid 1-action plan and asserts payload['valid'] is a native Python bool True, directly assignable into bind_plan_receipt's validator_result with zero prose parsing -- the exact composition CE-GALL-30 said did not exist"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "MCP validate returns a structured JSON verdict; CE-GALL-30's prose-vs-bool gap does not reproduce at this commit"
+}

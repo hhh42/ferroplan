@@ -1,0 +1,29 @@
+{
+  "blocked_by": ["missing verify_chain tool"],
+  "checkpoint": "CE-GALL-39",
+  "command": "python3 -m pytest tests/test_fork_detection.py -v",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "known_anti_patterns": [
+    "verify_receipt returned {\"valid\": true} for BOTH B1 (receipt c50bec8e...) and B2 (receipt c7d4829e...) even though both declare the SAME previous_receipt (A, 2cc3d1a6...) -- a real fork constructed against the live ferroplan-mcp server, not a mock",
+    "verify_receipt's contract is recompute-payload-digest + recompute-receipt + check previous_receipt is present and well-formed hex; it never looks the predecessor up, so it structurally cannot see a sibling claiming the same parent",
+    "the only place 'fork' is mentioned anywhere in this repository outside CE-GALL-31/34's own text is agents/receipt-auditor.md, and that is a markdown prompt instructing an LLM to reject forked heads -- it is prose, not an invocable script or MCP tool, and was not exercised against B1/B2",
+    "grep -rn verify_chain crates/ plugins/ (excluding this checkpoint's own test/receipt) returns nothing, confirming CE-GALL-31's original finding still holds at this revision"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_fork_detection.py:97",
+    "result": "passed",
+    "test": "test_verify_receipt_accepts_both_branches_of_the_fork_individually",
+    "why_this_counts": "pins the exact live-tool outputs for two divergent plan-admission envelopes (B1, B2) that both declare the same previous_receipt as their predecessor (A). verify_receipt was called on each independently and both returned valid: true with no field indicating a sibling exists or that global chain uniqueness was checked. This IS the undetected fork: constructed for real against the running MCP server, not asserted from a comment, and silently accepted by every check this repository exposes"
+  },
+  "positive_witness": null,
+  "reason": "DEFECT_OPEN",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "UNSUPPORTED",
+  "title": "Receipt chain fork detection -- absent capability, demonstrated"
+}

@@ -1,0 +1,34 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-37",
+  "command": "cargo test -p ferroplan-mcp --test session_protocol cmca_recursive -- --nocapture",
+  "cwd": "/Users/sac/ferroplan",
+  "date": "2026-07-29",
+  "exit_code": 0,
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "known_anti_patterns": [
+    "CE-GALL-9's 2026-07-29 finding that 'true cross-call recursive descent is architecturally absent from the MCP tool schema' was correct about bind_allocation_receipt's flat previous_receipt field, but did not account for cmca_allocate_recursive, a separate tool that already exists in crates/ferroplan-mcp/src/session.rs (tool_cmca_allocate_recursive, line 826) with its own chaining shape (root + descents[], parent_payload_digest). The gap named in CE-GALL-9 is real for bind_allocation_receipt; it is closed for cmca_allocate_recursive.",
+    "the unknown-parent-node falsifier and the cyclic-ancestry falsifier share overlapping error text ('was not an admitted candidate id at depth N' vs 'cyclic ancestry -- ... already selected earlier'); a naive id reuse across non-adjacent depths can trip the unknown-parent path instead of the cyclic path if the reused id was never itself admitted as a candidate at the intervening depth -- confirmed live: reusing root id 'r0' directly as depth-three's selected_parent_node without also listing 'r0' among depth-two's own candidates produced the unknown-parent refusal, not a cyclic-ancestry one, until 'r0' was added as one of depth-two's admitted ids",
+    "'consequence returned upward' and 'missing return consequence refusal' from Checkpoint 9's Required Proof list are still not modeled anywhere -- cmca_allocate_recursive returns a flat depths[] array; there is no mechanism for a child depth's result to be rejected or re-consumed by its parent depth after the fact",
+    "the receipt-binding tools (bind_allocation_receipt, bind_plan_receipt) were not touched or exercised in this checkpoint; the chaining verified here is internal to cmca_allocate_recursive's own payload, not the separate BLAKE3 envelope/receipt-chain surface Checkpoint 9 also gestures at"
+  ],
+  "negative_falsifier": {
+    "file": "crates/ferroplan-mcp/tests/session_protocol.rs:540",
+    "result": "passed",
+    "test": "cmca_recursive_refuses_cyclic_ancestry",
+    "why_this_counts": "asserts a depth-three descent that re-selects the same node id already used to enter depth two is refused as cyclic ancestry, not silently accepted. Confirmed live via direct cmca_allocate_recursive MCP calls in this session: reusing 'r0' as depth-three's selected_parent_node after it entered depth two, with 'r0' also present in depth two's own admitted candidate list, produced the exact refusal 'depth 3: cyclic ancestry -- `r0` already selected earlier in this descent chain'. A second live call also confirmed the sibling unknown-parent-node refusal ('depth 2: selected_parent_node `node-never-admitted` was not an admitted candidate id at depth 1'), covered by test cmca_recursive_refuses_an_unknown_selected_parent_node (session_protocol.rs:508)"
+  },
+  "positive_witness": {
+    "file": "crates/ferroplan-mcp/tests/session_protocol.rs:590",
+    "result": "passed",
+    "test": "cmca_recursive_three_depth_chain_binds_digests_all_the_way_down",
+    "why_this_counts": "exercises a genuine three-depth cross-call descent (root -> depth two -> depth three) via cmca_allocate_recursive's descents field, each step naming a real admitted id drawn from the immediately preceding depth's own frontier, and asserts depth three's parent_payload_digest equals depth two's real allocation_payload_digest (not depth one's) -- this is the 'true recursive' claim Checkpoint 9 named as architecturally absent, now closed for this tool. Also confirmed live in this session with a direct cmca_allocate_recursive call (root-0..7 -> d2-0..7 -> d3-0..7): depth 2's parent_payload_digest (da48260...) matched depth 1's allocation_payload_digest exactly, and depth 3's parent_payload_digest (a26836f...) matched depth 2's exactly"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "True recursive CMCA descent via cmca_allocate_recursive closes CE-GALL-9's cross-call gap"
+}

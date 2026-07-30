@@ -270,7 +270,7 @@ def hook() -> int:
         append_event(payload)
         return 0
 
-    if event == "Stop" and pending > 0:
+    if event == "Stop" and pending > 0 and not payload.get("stop_hook_active"):
         print(
             json.dumps(
                 {
