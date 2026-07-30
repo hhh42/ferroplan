@@ -78,10 +78,10 @@ def test_standing_is_from_the_canonical_vocabulary(path):
 def test_promotion_law_is_satisfied_by_anything_claiming_alive(path):
     """ALIVE requires replay outside the session, a falsifier, and a seal.
 
-    CE-GALL-23/24/25/29 now genuinely satisfy this (see
-    test_only_the_replayed_checkpoints_claim_alive for how). Set any other
-    receipt's standing to ALIVE without replaying it and this fails -- which
-    is what makes it a law rather than a formality.
+    Seven receipts now genuinely satisfy this (see
+    test_only_the_replayed_checkpoints_claim_alive for the exact set and
+    how). Set any other receipt's standing to ALIVE without replaying it and
+    this fails -- which is what makes it a law rather than a formality.
     """
     receipt = load(path)
     if receipt.standing is not Standing.ALIVE:
@@ -107,20 +107,35 @@ def test_only_the_replayed_checkpoints_claim_alive():
     """Alive means replayed outside the session that wrote the evidence.
 
     This pinned an empty set until 2026-07-30: no receipt in this cycle had
-    been replayed outside its authoring session. CE-GALL-23/24/25/29 changed
-    that -- a later session (no memory of writing these tests) cloned the
-    repo fresh, checked out the exact commit each receipt cites, cleared every
-    steering env var, and reran the exact witnesses. Every other receipt here
-    is still capped: some have never been independently re-run (`NO_REPLAY`),
-    one has no falsifier at all (`NO_FALSIFIER`), and CE-GALL-28's original
-    claimed evidence turned out not to reproduce even at its own cited commit
-    (see CE-GALL-35). Pinning the exact set, rather than just asserting
-    `promotion_blockers()` is empty for whichever receipts happen to claim
-    ALIVE, is what makes an accidental or premature promotion fail this test
-    instead of silently passing it.
+    been replayed outside its authoring session. A first pass that day
+    (commit c247ab9) promoted CE-GALL-23/24/25/29 -- a later session (no
+    memory of writing these tests) cloned the repo fresh, checked out the
+    exact commit each receipt cites, cleared every steering env var, and
+    reran the exact witnesses. A second pass the same day (this receipt set)
+    did the same for CE-GALL-26 (the `/tmp` MCP handshake, reproduced against
+    an independently rebuilt binary), CE-GALL-34 (the bash-classifier fix),
+    and CE-GALL-35 (`test_cmca_frontier_allocation.py`, itself written to
+    document CE-GALL-28's non-reproducing evidence -- replaying it is what
+    CE-GALL-35's own non-claim named as the next step). The remaining
+    receipts are still capped: some have never been independently re-run
+    (`NO_REPLAY`), one has no falsifier at all (`NO_FALSIFIER`), and
+    CE-GALL-28's *original* claimed evidence still does not reproduce --
+    CE-GALL-35 replaying cleanly does not retroactively fix CE-GALL-28's own
+    receipt, which stays capped on its own terms. Pinning the exact set,
+    rather than just asserting `promotion_blockers()` is empty for whichever
+    receipts happen to claim ALIVE, is what makes an accidental or premature
+    promotion fail this test instead of silently passing it.
     """
     alive = {p.stem for p in receipt_paths() if load(p).standing is Standing.ALIVE}
-    assert alive == {"CE-GALL-23", "CE-GALL-24", "CE-GALL-25", "CE-GALL-29"}
+    assert alive == {
+        "CE-GALL-23",
+        "CE-GALL-24",
+        "CE-GALL-25",
+        "CE-GALL-26",
+        "CE-GALL-29",
+        "CE-GALL-34",
+        "CE-GALL-35",
+    }
     for stem in alive:
         receipt = load(next(p for p in receipt_paths() if p.stem == stem))
         assert not receipt.promotion_blockers(), (stem, receipt.promotion_blockers())
