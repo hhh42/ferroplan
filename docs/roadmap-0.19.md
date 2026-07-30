@@ -146,6 +146,33 @@ village's think benchmarks (the game cares about numeric gradients
 too — stock/money goals are exactly this shape). Measured win or
 recorded negative, per house rule.
 
+### Recorded — +52/−1: the biggest single-phase coverage jump since the modern corpora entered
+
+The gap was PRECISE: the relaxed-plan extraction's repetition
+counting (`numeric_achiever`) handled only bare-fluent-vs-literal
+goals; LINEAR COMBINATIONS — the 2023 numeric track's staple shape —
+fell through with no gradient at all. The swing: `linearize`
+normalizes `lhs op rhs` into `Σ coeff·fluent + konst ≥ 0`
+(fluent×fluent and fluent divisors honestly refuse), then the charge
+is ⌈gap / combo-delta⌉ repetitions of the op whose combined
+constant-delta effects move the combination fastest. Runs ONLY where
+the bare path returned None — every previously-charged shape keeps
+its exact charge and tie-break, classical paths untouched by
+construction. `FF_NO_NUMH=1` restores the hole.
+
+The referee: **2023-numeric 129 → 181 of 400 (+52/−0)** — farmland
++17, fo-farmland +17, counters +8, fo-counters +5, tpp +2, rover +1,
+sugar +1, zenotravel +1; valid 113 → 165. metric-time-2006 55 → 54:
+the one loss (tpp-metric-time i4) is CHARGE-CAUSED — the FF_NO_NUMH
+discriminator solves it in 15 s while the charge misleads the
+temporal metric search (its sibling i3 simultaneously got 7× faster,
+8.05 s → 1.13 s: the gradient reshapes that search in both
+directions). Verdict: default-ON — +52/−1 over 600 instances is the
+inverse of the novelty rung's arithmetic — with tpp-mt i4 the named
+witness on the debts list. sailing proper still walls at 60 s (its
+plateau has more layers than the linear charge); the fresh numeric
+board's mem-cap column (105) is Phase 4's material.
+
 ## Phase 4 — the mem-cap class (93 + 40)
 
 2023-numeric carries **93 mem-caps**, 2014 classical ~40 more — the

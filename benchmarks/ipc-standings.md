@@ -11,7 +11,7 @@ for scoring semantics and the failure-class definitions.
 |---|---|---|---|---|
 | propositional | yes | 354/450 | len vs best-of-field: 52W/48T/164L, mean quality 0.91 (264 scored) | 96 timeout |
 | time | yes | 76/130 | coverage-only (makespan not recorded — runner debt) | 54 timeout |
-| metric-time | yes | 55/200 | coverage-only (makespan not recorded — runner debt) | 16 engine-reject/error, 28 mem-cap, 101 timeout |
+| metric-time | yes | 54/200 | coverage-only (makespan not recorded — runner debt) | 16 engine-reject/error, 28 mem-cap, 102 timeout |
 | constraints | yes | 5/120 | coverage-only (timed modal ops rejected by name) | 100 engine-reject/error, 15 timeout |
 | simple-preferences | yes | see board | reference-scored — [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |
 | qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won outright) | — |
@@ -49,7 +49,7 @@ for scoring semantics and the failure-class definitions.
 | 2014 seq-opt | yes (first entry, 0.19) | 48/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible h^max; every plan certified + VAL) | 208 timeout |
 | 2018 seq-sat | yes (first entry, 0.17) | 35/240 | vs best-known bounds: 0W/0T/18L, mean quality 0.76 (18 scored) | 7 VAL-RED, 9 mem-cap, 189 timeout |
 | 2023 classical | yes (first entry, 0.17) | 26/140 | vs best-known bounds: 0W/11T/15L, mean quality 0.88 (26 scored) | 15 mem-cap, 99 timeout |
-| 2023 numeric | yes (first entry, 0.17) | 113/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 1 engine-reject/error, 23 mem-cap, 247 timeout |
+| 2023 numeric | yes (first entry, 0.17) | 165/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 1 engine-reject/error, 105 mem-cap, 113 timeout |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).
 
