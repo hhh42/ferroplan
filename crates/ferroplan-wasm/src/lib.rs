@@ -94,6 +94,7 @@ fn parse_mode(m: Option<&str>) -> Mode {
         Some("pddl3") => Mode::Pddl3,
         Some("partition") => Mode::Partition,
         Some("temporal") => Mode::Temporal,
+        Some("optimal") => Mode::Optimal,
         _ => Mode::Auto,
     }
 }

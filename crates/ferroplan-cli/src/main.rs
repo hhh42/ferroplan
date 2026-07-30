@@ -165,6 +165,8 @@ enum ModeArg {
     Pddl3,
     Temporal,
     Portfolio,
+    /// Sequential-optimal: A* + admissible h^max, proof-or-nothing (0.19).
+    Optimal,
 }
 
 impl From<ModeArg> for Mode {
@@ -176,6 +178,7 @@ impl From<ModeArg> for Mode {
             ModeArg::Partition => Mode::Partition,
             ModeArg::Pddl3 => Mode::Pddl3,
             ModeArg::Temporal => Mode::Temporal,
+            ModeArg::Optimal => Mode::Optimal,
         }
     }
 }

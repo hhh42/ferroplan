@@ -91,6 +91,7 @@ TRACK_PATTERNS = {
     "seq-sat-2014": r"sequential-satisficing",
     "seq-agile-2014": r"sequential-agile",
     "seq-mco-2014": r"sequential-multi-core",
+    "seq-opt-2014": r"sequential-optimal",
     "tempo-sat-2014": r"temporal-satisficing",
     "sat-2018": r"sequential-satisficing",
     "agile-2023": r"-agile$",
@@ -111,6 +112,9 @@ TRACK_IPCS = {
     "seq-sat-2014": ("ipc-2014",),
     "seq-agile-2014": ("ipc-2014",),
     "seq-mco-2014": ("ipc-2014",),
+    # 0.19: the optimal-track entries (pair with `--mode optimal`; the
+    # engine certifies or stays silent, so coverage = proof rate).
+    "seq-opt-2014": ("ipc-2014",),
     "tempo-sat-2014": ("ipc-2014",),
     "sat-2018": ("ipc-2018",),
     "agile-2023": ("ipc-2023",),

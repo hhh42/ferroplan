@@ -35,6 +35,11 @@ pub enum Mode {
     /// Classical-search only: temporal and preference/metric problems keep
     /// their own machinery (this mode falls back to it, like `auto`).
     Portfolio,
+    /// Sequential-OPTIMAL planning (0.19 Phase 2): A* + admissible h^max,
+    /// proof-or-nothing. Explicit only — `auto` never routes here (the
+    /// default remains satisficing). Classical tasks with constant action
+    /// costs; everything else is rejected with a named note.
+    Optimal,
 }
 
 /// Which search strategy to use within a mode.
@@ -554,6 +559,7 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     match mode {
         Mode::Temporal => solve_temporal(&domain, &problem, threads),
         Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads, constrained),
+        Mode::Optimal => solve_optimal(&domain, &problem, threads),
         _ => solve_classic(
             &domain,
             &problem,
@@ -563,6 +569,91 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
             Vec::new(),
             constrained,
         ),
+    }
+}
+
+/// `Mode::Optimal` (0.19 Phase 2): A* + admissible h^max over the classical
+/// grounding, proof-or-nothing — see [`crate::optimal`]. Problems outside
+/// the certified scope (temporal, preferences, non-constant costs) return
+/// unsolved with a named note, never an uncertified plan.
+fn solve_optimal(
+    domain: &crate::types::Domain,
+    problem: &crate::types::Problem,
+    threads: usize,
+) -> Result<Solution, SolveError> {
+    let stats0 = Statistics {
+        threads,
+        ..Default::default()
+    };
+    if crate::temporal::is_temporal(domain) {
+        return Ok(unsolved(
+            Mode::Optimal,
+            stats0,
+            vec!["optimal mode is classical-only (temporal problem)".into()],
+        ));
+    }
+    if pddl3::has_preferences(problem) {
+        return Ok(unsolved(
+            Mode::Optimal,
+            stats0,
+            vec!["optimal mode is classical-only (PDDL3 preferences)".into()],
+        ));
+    }
+    let task = match do_ground(domain, problem, threads)? {
+        Grounded::Task(t) => t,
+        Grounded::Trivial => return Ok(trivial(Mode::Optimal, threads)),
+        Grounded::Unsolvable(why) => {
+            return Ok(unsolved(
+                Mode::Optimal,
+                stats0,
+                vec![format!("unsolvable at grounding: {why}")],
+            ));
+        }
+    };
+    let cf = crate::costs::metric_fluent(problem).and_then(|d| task.fluent_id(&d));
+    let max_nodes = crate::search::node_cap_for(&task);
+    let o = crate::optimal::solve(&task, cf, max_nodes);
+    let stats = Statistics {
+        grounded_facts: task.fact_names.len(),
+        grounded_actions: task.n_ops,
+        evaluated_states: o.evaluated,
+        threads,
+    };
+    if let Some(why) = o.reject {
+        return Ok(unsolved(Mode::Optimal, stats, vec![why]));
+    }
+    match (o.ops, o.proven) {
+        (Some(ops), true) => {
+            let steps = steps_of(&task, &ops, None);
+            Ok(Solution {
+                solved: true,
+                mode: Mode::Optimal,
+                plan: Some(Plan {
+                    length: steps.len(),
+                    steps,
+                    metric: cf.map(|_| o.cost),
+                    makespan: None,
+                }),
+                statistics: stats,
+                notes: vec![format!(
+                    "PROVEN OPTIMAL: cost {} certified by A* + admissible h^max ({} expansions)",
+                    o.cost, o.expanded
+                )],
+            })
+        }
+        (None, true) => Ok(unsolved(
+            Mode::Optimal,
+            stats,
+            vec!["PROVEN UNSOLVABLE: A* exhausted the reachable space".into()],
+        )),
+        _ => Ok(unsolved(
+            Mode::Optimal,
+            stats,
+            vec![format!(
+                "inconclusive: node cap reached after {} expansions — no certificate, no plan reported",
+                o.expanded
+            )],
+        )),
     }
 }
 
