@@ -1051,7 +1051,14 @@ this cycle (see Audit log) and correctly did **not** touch this receipt —
 replay alone cannot close a missing falsifier. Standing stays `PARTIAL_ALIVE`.
 
 - Non-claim: the autouse isolation fixture is an assertion, not a falsifier: no test deliberately leaks, so it has never fired
-- Non-claim: the branch carrying this work (`gall-checkpoints/2026-07-30-replay-promotion`) is now pushed to origin, but the CI `plugin` job's result on it has not yet been checked from this session
+- **Update (2026-07-30):** the CI `plugin` job ran for the first time ever on
+  this push and failed — 29 pre-existing `ruff` findings in `scripts/`/`tests/`
+  that predate this cycle's own changes (import ordering,
+  `typing.Iterator`/`Callable`/`Sequence` vs `collections.abc` under the
+  py311 floor, two missing `# noqa: E402` annotations, one `str, Enum` vs
+  `StrEnum`). Fixed and pushed (`e1ddafe`); `ruff check scripts tests` is now
+  clean. This is exactly the kind of gap "the branch is unpushed" was masking
+  — recorded rather than left as a stale non-claim.
 
 ---
 
@@ -1701,16 +1708,26 @@ made. No Rust source was touched this pass, so `cargo fmt --check` /
 `cargo clippy` were not re-run against workspace code — only JSON receipts
 and this doc changed.
 
+**CI `plugin` job ran for the first time ever on this push, and it caught a
+real gap.** PR #19 (draft, against `main`) triggered it, and it failed: 29
+pre-existing `ruff` findings across `scripts/`/`tests/`, none introduced by
+this session — the "the CI `plugin` job has never run" caveat carried by
+every DX-cycle receipt was masking exactly this. 26 auto-fixed with `ruff
+check --fix`; the remaining three were two missing `# noqa: E402`
+annotations in `project-world.py` (same sys.path-then-import pattern already
+annotated everywhere else) and one `class Format(str, Enum)` →
+`StrEnum` (matching `_standing.py`'s existing convention). Verified locally
+with the job's exact steps (`ruff check scripts tests`, `pytest`, `python -m
+compileall scripts`, shell syntax check, `generate.py build --check`) before
+pushing the fix (`e1ddafe`).
+
 **Left undone, named rather than omitted:** CE-GALL-22 still has no
 falsifier — the autouse isolation fixture is an assertion, not one, and
 nothing else in the suite deliberately exercises a leak. Checkpoint 8's four
 untested allocator refusals (7/9 candidates, wrong factor count, wrong BCINR
 revision) are still open, named at the end of that checkpoint's own section.
-The CI `plugin` job's result against this branch has not been checked from
-this session — the branch was pushed but its Actions run was not polled
-before this entry was written.
 
 **Branch:** `gall-checkpoints/2026-07-30-replay-promotion`, pushed to origin,
 carrying both this session's changes and the entire previously-unpushed DX
-cycle. A draft PR against `main` follows this entry if `gh`/the GitHub MCP
-tools are reachable; if not, that is recorded rather than silently skipped.
+cycle. Draft PR: https://github.com/seanchatmangpt/ferroplan/pull/19,
+subscribed for CI/review follow-up.
