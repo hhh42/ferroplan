@@ -25,7 +25,8 @@ from __future__ import annotations
 import json
 import sys
 import traceback
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 #: Emitted when the control plane itself cannot start.
 DEGRADED_CODE = "CONTROL_PLANE_UNAVAILABLE"

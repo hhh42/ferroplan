@@ -10,11 +10,10 @@ A declaration nothing checks is a wish. These tests are the check.
 
 from __future__ import annotations
 
+import generate
 import pyshacl
 import pytest
 import rdflib
-
-import generate
 from roots import plugin_root
 
 ODRL = rdflib.Namespace("http://www.w3.org/ns/odrl/2/")
