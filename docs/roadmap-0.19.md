@@ -42,6 +42,44 @@ reject to search, where the rest of the cycle works. Referee: the
 2018-sat and 2023-numeric boards re-swept, reject columns expected
 near zero.
 
+### Recorded — the front door is open; three mechanisms, both boards moved
+
+The three fixes, each fixture-pinned in `tests/parse.rs` before the
+code moved:
+
+1. **Negative number literals** — the lexer emits a negative literal
+   when the digit touches the dash (Metric-FF's behavior); the fixture
+   pins the SIGN (a flip would satisfy its goal at init).
+2. **Implicit `(total-cost) = 0`** — the PDDL 3.1 `:action-costs`
+   convention, Fast Downward-compatible; only the exact zero-arity
+   TOTAL-COST fluent defaults, every other undefined read stays a real
+   error. Causally proven before the fix: agricola i1 with the init
+   line hand-injected grounds and searches.
+3. **Named verdicts** — `Outcome::GoalFalse`/`GoalUndefinedFluent`
+   carry their mechanism and `api::solve` surfaces it in
+   `Solution.notes` ("goal fact (DONE-PROGRAMMING) is unreachable: no
+   surviving grounded action adds it" is what cracked the trio's
+   diagnosis in minutes). Classic-FF text-path messages stay
+   byte-identical for the differential validator.
+
+The referee, both boards re-swept at 60 s:
+
+- **2018-sat: 38 → 42** (+9: flashfill i1/i6/i16, settlers i1–i5/i9;
+  valid 30 → 35). Engine-reject column **60 → 0**.
+- **2023-numeric: 126 → 129** (+4: fo-counters ×3, fo-sailing i1;
+  valid 110 → 113). Reject column **60 → 1** (a single settlersnumeric
+  instance). sailing/fo-sailing now parse and SEARCH — most spend the
+  full budget without solving yet, exactly the "reject moves to
+  search" outcome the phase scoped; they are Phase 3's material now.
+  The failure-class mix redistributed (mem-cap 93 → 23, timeouts up
+  accordingly) — Phase 4's attribution reads the fresh mix.
+- Casualties solo-checked UNCONTENDED: caldera i1 (40 s), caldera i2
+  (37 s), data-network i4 (51 s), nurikabe i8 (53 s) all solve solo —
+  contention noise from concurrent Phase 2 builds during the sweep.
+  organic-synthesis-split i7 and rover-numeric i16 fail even solo at
+  75 s: budget-edge flappers (org-synth i7 has flapped since the 0.18
+  nov boards), on untouched domains — recorded, not fix-caused.
+
 ## Phase 2 — the admissible mode (the new track)
 
 The fence "seq-opt: out of scope by design (satisficing planner)"
