@@ -61,6 +61,10 @@ SWEEPS = {
     "ipc2018-sat.jsonl": ("2018 seq-sat", "modern", 60),
     "ipc2023-agile.jsonl": ("2023 classical", "modern", 60),
     "ipc2023-numeric.jsonl": ("2023 numeric", "modern", 60),
+    # The optimal tracks (0.19 Phase 2: Mode::Optimal, A* + h^max —
+    # coverage IS proof rate; every solved row carries a certificate).
+    "ipc-opt-2008-11.jsonl": ("seq-opt", "optimal", 60),
+    "ipc2014-opt.jsonl": ("2014 seq-opt", "optimal", 60),
 }
 
 # our 2006 variant name -> (archive domain dir, archive track dir prefix)
@@ -263,9 +267,20 @@ def main():
             f"| {label} | yes | {s}/{n} | coverage + VAL "
             f"(no official per-instance archive vendored) | {fails} |"
         )
+    d = split_rows("seq-opt", "ipc-2008")
+    if d is None:
+        lines.append("| seq-opt | not swept | — | — | — |")
+    else:
+        rows, budget = d
+        s_, n, fails = coverage_line(rows, budget)
+        lines.append(
+            f"| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | {s_}/{n} "
+            "| coverage = PROOF RATE (A* + admissible h^max; every plan "
+            f"certified + VAL) | {fails} |"
+        )
     lines += [
-        "| seq-opt / tempo-opt | out of scope by design (satisficing "
-        "planner) | — | — | — |",
+        "| tempo-opt | out of scope by design (satisficing temporal "
+        "path) | — | — | — |",
         "",
     ]
 
@@ -300,11 +315,18 @@ def main():
             "per competition rule (4-core box; t8 oversubscribed) | "
             f"{fails} |"
         )
-    lines += [
-        "| seq-opt | out of scope by design (satisficing planner) | — | "
-        "— | — |",
-        "",
-    ]
+    d = split_rows("seq-opt", "ipc-2011")
+    if d is None:
+        lines.append("| seq-opt | not swept | — | — | — |")
+    else:
+        rows, budget = d
+        s_, n, fails = coverage_line(rows, budget)
+        lines.append(
+            f"| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | {s_}/{n} "
+            "| coverage = PROOF RATE (A* + admissible h^max; every plan "
+            f"certified + VAL) | {fails} |"
+        )
+    lines.append("")
 
     # ---------------- The modern corpora (0.17) ----------------
     corpus = os.path.join(B, ".ipc-corpus")
@@ -362,8 +384,8 @@ def main():
         "2023 classical": ("2023", "-agile"),
     }
     for label in ["2014 seq-sat", "2014 seq-agile", "2014 tempo-sat",
-                  "2014 seq-mco t4", "2018 seq-sat", "2023 classical",
-                  "2023 numeric"]:
+                  "2014 seq-mco t4", "2014 seq-opt", "2018 seq-sat",
+                  "2023 classical", "2023 numeric"]:
         d = data.get(label)
         if d is None:
             lines.append(f"| {label} | sweep in flight / not yet run | — | — | — |")
@@ -377,9 +399,13 @@ def main():
                  "comparison in the audit record")
         elif label == "2014 seq-mco t4":
             q = "wall-clock per competition rule (4-core box)"
+        elif label == "2014 seq-opt":
+            q = ("coverage = PROOF RATE (Mode::Optimal, A* + admissible "
+                 "h^max; every plan certified + VAL)")
         else:
             q = "coverage + VAL"
-        lines.append(f"| {label} | yes (first entry, 0.17) | {s}/{n} | {q} | {fails} |")
+        entered = "yes (first entry, 0.19)" if label == "2014 seq-opt" else "yes (first entry, 0.17)"
+        lines.append(f"| {label} | {entered} | {s}/{n} | {q} | {fails} |")
     lines += [
         "",
         "The 2023 classical corpus is swept on its agile instances at the "

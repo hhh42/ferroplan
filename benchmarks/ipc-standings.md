@@ -24,7 +24,8 @@ for scoring semantics and the failure-class definitions.
 | seq-sat | yes | 268/300 | coverage + VAL (no official per-instance archive vendored) | 6 mem-cap, 26 timeout |
 | tempo-sat | yes | 288/390 | coverage + VAL (no official per-instance archive vendored) | 18 mem-cap, 84 timeout |
 | net-benefit | yes | 217/270 | coverage + VAL (no official per-instance archive vendored) | 12 mem-cap, 41 timeout |
-| seq-opt / tempo-opt | out of scope by design (satisficing planner) | — | — | — |
+| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 114/270 | coverage = PROOF RATE (A* + admissible h^max; every plan certified + VAL) | 156 timeout |
+| tempo-opt | out of scope by design (satisficing temporal path) | — | — | — |
 
 ## IPC-7 (2011)
 
@@ -35,7 +36,7 @@ for scoring semantics and the failure-class definitions.
 | seq-mco t2 | yes (first entry, 0.16) | 193/280 | wall-clock per competition rule (4-core box; t8 oversubscribed) | 87 timeout |
 | seq-mco t4 | yes (first entry, 0.16) | 189/280 | wall-clock per competition rule (4-core box; t8 oversubscribed) | 5 engine-reject/error, 86 timeout |
 | seq-mco t8 | yes (first entry, 0.16) | 193/280 | wall-clock per competition rule (4-core box; t8 oversubscribed) | 1 engine-reject/error, 86 timeout |
-| seq-opt | out of scope by design (satisficing planner) | — | — | — |
+| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 90/280 | coverage = PROOF RATE (A* + admissible h^max; every plan certified + VAL) | 190 timeout |
 
 ## The modern corpora (IPC 2014 / 2018 / 2023 — first entered 0.17)
 
@@ -45,6 +46,7 @@ for scoring semantics and the failure-class definitions.
 | 2014 seq-agile | yes (first entry, 0.17) | 95/280 | coverage + VAL | 40 mem-cap, 145 timeout |
 | 2014 tempo-sat | yes (first entry, 0.17) | 62/200 | coverage + VAL | 3 VAL-RED, 7 mem-cap, 128 timeout |
 | 2014 seq-mco t4 | yes (first entry, 0.17) | 107/280 | wall-clock per competition rule (4-core box) | 173 timeout |
+| 2014 seq-opt | yes (first entry, 0.19) | 48/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible h^max; every plan certified + VAL) | 208 timeout |
 | 2018 seq-sat | yes (first entry, 0.17) | 35/240 | vs best-known bounds: 0W/0T/18L, mean quality 0.76 (18 scored) | 7 VAL-RED, 9 mem-cap, 189 timeout |
 | 2023 classical | yes (first entry, 0.17) | 26/140 | vs best-known bounds: 0W/11T/15L, mean quality 0.88 (26 scored) | 15 mem-cap, 99 timeout |
 | 2023 numeric | yes (first entry, 0.17) | 113/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 1 engine-reject/error, 23 mem-cap, 247 timeout |

@@ -108,6 +108,34 @@ variants in ipc-2014 plus 32 optimal variants across 2008/2011.
   and proof rates. Losing honestly to 15 years of optimal-planner
   engineering is expected and recorded; entering is the point.
 
+### Recorded — the fence is down: 252 certified optima across three tracks
+
+`Mode::Optimal` shipped as scoped: serial deterministic A* over the
+packed task, cost-labeled h^max (numeric preconditions ignored — a
+relaxation, admissible; expansion and goal test exact),
+PROOF-OR-NOTHING (cap ⇒ inconclusive, never an incumbent; exhaustion
+⇒ certified UNSOLVABLE past the delete relaxation). Costs: constants
+AND static-fluent expressions evaluated against init (the IPC
+`(travel-slow ?f1 ?f2)` pattern); state-dependent costs reject with a
+named note. Explicit `--mode optimal` only — auto stays satisficing.
+The fixture ladder (5 tests) pins the certified optimum, a cost trap
+(certified 4 beats the tempting 1-step cost-10 plan), proof-or-
+nothing, certified-unsolvable, and the temporal reject.
+
+The mode's claims validated three independent ways: every certified
+plan is **VAL-green** (val ≡ coverage on all 35 swept variants);
+certified costs match the INDEPENDENT cost-sweep oracle exactly
+(scanalyzer-08 i1 = 18, woodworking-08 i1 = 170); elevators-08 i1's
+certified 42 matches the literature.
+
+First entries, 60 s: **2008 seq-opt 114/270, 2011 seq-opt 90/280,
+2014 seq-opt 48/256** — 252 certified optima. Strong grounds:
+peg-solitaire 26/30 + 16/20, sokoban 19/30 + 16/20, maintenance-2014
+5/5, genome-edit 13/20. The honest h^max walls, named: floor-tile,
+parking, tidybot-2014, barman-2014, child-snack all 0 — exactly the
+LM-cut stretch's motivation, which remains open (taken only if the
+cycle's later phases leave room, else 0.20's first bet).
+
 ## Phase 3 — the numeric heuristic swing (named since 0.17)
 
 The 2023 numeric board after Phase 1 still holds ~121 timeouts — the
