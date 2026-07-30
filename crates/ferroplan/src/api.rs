@@ -364,8 +364,10 @@ enum Grounded {
     Task(Box<PackedTask>),
     /// goal already true — the empty plan solves it
     Trivial,
-    /// goal provably false / references an undefined fluent
-    Unsolvable,
+    /// goal provably false / references an undefined fluent — the payload
+    /// names the mechanism, surfaced as a `Solution.notes` entry (0.19
+    /// Phase 1: a silent unsolvable verdict at grounding is a bug).
+    Unsolvable(String),
 }
 
 fn do_ground(
@@ -376,7 +378,10 @@ fn do_ground(
     match ground(domain, problem, threads) {
         Outcome::Task(t) => Ok(Grounded::Task(Box::new(t))),
         Outcome::GoalTrue => Ok(Grounded::Trivial),
-        Outcome::GoalFalse | Outcome::GoalUndefinedFluent => Ok(Grounded::Unsolvable),
+        Outcome::GoalFalse(why) => Ok(Grounded::Unsolvable(why)),
+        Outcome::GoalUndefinedFluent(fl) => Ok(Grounded::Unsolvable(format!(
+            "goal reads fluent {fl}, which never has a defined value"
+        ))),
         Outcome::EmptyType { kind, pred, ty } => Err(SolveError::EmptyType {
             kind: kind.to_string(),
             pred,
@@ -703,7 +708,8 @@ fn solve_classic(
     let task = match do_ground(domain, problem, threads)? {
         Grounded::Task(t) => t,
         Grounded::Trivial => return Ok(trivial(mode, threads)),
-        Grounded::Unsolvable => {
+        Grounded::Unsolvable(why) => {
+            notes.push(format!("unsolvable at grounding: {why}"));
             return Ok(unsolved(
                 mode,
                 Statistics {
@@ -711,7 +717,7 @@ fn solve_classic(
                     ..Default::default()
                 },
                 notes,
-            ))
+            ));
         }
     };
 
@@ -867,15 +873,15 @@ fn solve_pddl3(
     let task = match do_ground(&c.domain, &c.problem, threads)? {
         Grounded::Task(t) => t,
         Grounded::Trivial => return Ok(trivial(Mode::Pddl3, threads)),
-        Grounded::Unsolvable => {
+        Grounded::Unsolvable(why) => {
             return Ok(unsolved(
                 Mode::Pddl3,
                 Statistics {
                     threads,
                     ..Default::default()
                 },
-                Vec::new(),
-            ))
+                vec![format!("unsolvable at grounding: {why}")],
+            ));
         }
     };
 

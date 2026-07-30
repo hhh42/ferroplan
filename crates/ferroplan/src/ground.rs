@@ -19,8 +19,14 @@ use crate::types::*;
 pub enum Outcome {
     Task(PackedTask),
     GoalTrue,
-    GoalFalse,
-    GoalUndefinedFluent,
+    /// The goal is provably unsatisfiable; the payload NAMES the mechanism
+    /// (0.19 Phase 1: three whole 2018 domains returned `solved: false`
+    /// with zero facts and no explanation — a silent verdict is a bug in
+    /// itself, whatever else is wrong).
+    GoalFalse(String),
+    /// A numeric goal reads a fluent with no defined value; payload is the
+    /// fluent's display.
+    GoalUndefinedFluent(String),
     EmptyType {
         kind: &'static str,
         pred: String,
@@ -1288,6 +1294,22 @@ fn ground_v(
         fv.resize(nfl, 0.0);
         fdef.resize(nfl, false);
     }
+    // PDDL 3.1 `:action-costs` convention (0.19 Phase 1): `(total-cost)`
+    // starts at 0 IMPLICITLY — IPC-2018's agricola/flashfill/settlers omit
+    // `(= (total-cost) 0)` from init, and the undefined fluent killed every
+    // cost-bearing action in the fixpoint below (60 instances returned
+    // "unsolvable" with zero facts). Fast Downward defaults it the same
+    // way. Only the exact zero-arity TOTAL-COST fluent, only when init
+    // leaves it undefined — every other undefined read stays a real error.
+    if let Some(&id) = intern
+        .fluent_id
+        .get(&("TOTAL-COST".to_string(), Vec::new()))
+    {
+        if !fdef[id as usize] {
+            fv[id as usize] = 0.0;
+            fdef[id as usize] = true;
+        }
+    }
     loop {
         let mut changed = false;
         for m in &mids {
@@ -1343,7 +1365,9 @@ fn ground_v(
         dnf_static.then_some(&goal_stx),
     );
     if goal_dnf.is_empty() {
-        return Outcome::GoalFalse;
+        return Outcome::GoalFalse(
+            "the goal simplifies to FALSE against static init (no satisfiable disjunct)".into(),
+        );
     }
     // collect negative atoms from EVERY disjunct (a disjunctive goal is compiled
     // below; each disjunct may carry its own negative literals)
@@ -1555,7 +1579,19 @@ fn ground_v(
         }
         for fl in &reads {
             if !fdef[*fl as usize] && !validate {
-                return Outcome::GoalUndefinedFluent;
+                let disp = intern
+                    .fluent_id
+                    .iter()
+                    .find(|(_, &id)| id == *fl)
+                    .map(|((name, args), _)| {
+                        if args.is_empty() {
+                            format!("({name})")
+                        } else {
+                            format!("({} {})", name, args.join(" "))
+                        }
+                    })
+                    .unwrap_or_else(|| format!("fluent #{fl}"));
+                return Outcome::GoalUndefinedFluent(disp);
             }
         }
         goal_num.push(NumPre { op: *op, lhs, rhs });
@@ -1618,7 +1654,10 @@ fn ground_v(
     if !validate {
         for &f in &remaining_pos {
             if !reached[f as usize] {
-                return Outcome::GoalFalse;
+                return Outcome::GoalFalse(format!(
+                    "goal fact {} is unreachable: no surviving grounded action adds it",
+                    intern.fact_names[f as usize]
+                ));
             }
         }
     }
