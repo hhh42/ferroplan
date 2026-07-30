@@ -1,0 +1,32 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-35",
+  "command": "python3 -m pytest tests/test_cmca_frontier_allocation.py -v -m needs_cargo",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-30",
+  "exit_code": 0,
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "known_anti_patterns": [
+    "this does not fix CE-GALL-28's receipt -- it documents that the receipt's positive witness is refuted and leaves the correction as a named next step",
+    "mcp_client.py existed with zero callers in this suite before this checkpoint; the refutation was only reachable once something actually drove the real binary"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py",
+    "result": "passed",
+    "test": "test_ce_gall_28_receipt_digest_does_not_match_the_real_binary",
+    "why_this_counts": "CE-GALL-28's recorded input_digest (`f0a8d185`, 8 hex characters) cannot be a real capture of a tool that returns a 64-character BLAKE3 digest -- the recorded evidence was never a genuine observation of the binary"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py",
+    "result": "passed",
+    "test": "test_canonical_frontier_allocation_matches_the_real_binary",
+    "why_this_counts": "cmca_allocate over the exact profiles/work-surfaces.json frontier, run against a real ferroplan-mcp binary from a fresh session: input_digest 9e8f0839fd74fe089113679187a2523e95f712329869ed70e763fff907e3d8bf, correctness share 0.0 (not top, not 0.1449), planner-core top at 0.26995849609375 -- reproducible and now pinned by an executing test"
+  },
+  "reason": "DEFECT_OPEN",
+  "replay_host": "isolated clone + venv, ferroplan-mcp rebuilt from scratch, steering env vars cleared, session with no memory of authoring CE-GALL-28",
+  "replayed_outside_session": true,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": "348e07f116a1405c482377335744301b0c10a317",
+  "standing": "PARTIAL_ALIVE",
+  "title": "Canonical CMCA frontier allocation, replayed against the real binary"
+}

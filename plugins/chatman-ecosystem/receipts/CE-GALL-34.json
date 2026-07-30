@@ -25,11 +25,11 @@
     "test": "test_phase_agrees_with_loop_on_publication_class",
     "why_this_counts": "pins the divergence itself rather than one copy's behaviour: phase.py must agree with the canonical table on the publication class (`git push`, `gh pr create`, `cargo publish`, `npm publish`), which is exactly what the three-copy fork broke"
   },
-  "reason": "NO_REPLAY",
-  "replay_host": null,
-  "replayed_outside_session": false,
+  "reason": null,
+  "replay_host": "isolated clone + venv, steering env vars cleared, fresh session with no memory of authoring the tests",
+  "replayed_outside_session": true,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",
-  "sealed_at_commit": null,
-  "standing": "PARTIAL_ALIVE",
+  "sealed_at_commit": "1a9ab50805450127f6d159f9f659c128710e798e",
+  "standing": "ALIVE",
   "title": "Canonical Bash mutation classifier, prefix divergence closed"
 }

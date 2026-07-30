@@ -21,11 +21,11 @@
     "test": "MCP initialize handshake from /tmp",
     "why_this_counts": "previously exit 69 while a built binary sat in target/debug; the 4-parents-up walk was calibrated for the repo layout and wrong under the install layout"
   },
-  "reason": "NO_FALSIFIER",
-  "replay_host": null,
-  "replayed_outside_session": false,
+  "reason": null,
+  "replay_host": "isolated clone + venv, steering env vars cleared, fresh session with no memory of authoring the tests",
+  "replayed_outside_session": true,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",
-  "sealed_at_commit": null,
-  "standing": "PARTIAL_ALIVE",
+  "sealed_at_commit": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "standing": "ALIVE",
   "title": "Resolution from anywhere"
 }

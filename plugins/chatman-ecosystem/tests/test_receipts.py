@@ -103,10 +103,28 @@ def test_promotion_law_actually_refuses():
     assert "no executing negative falsifier" in blockers
 
 
-def test_nothing_from_this_cycle_claims_alive():
-    """Honest state: no clean-worktree replay has been done for any of it."""
-    alive = [p.stem for p in receipt_paths() if load(p).standing is Standing.ALIVE]
-    assert not alive, f"{alive} claim ALIVE without an out-of-session replay"
+#: Checkpoints genuinely replayed outside the session that wrote their tests --
+#: see the 2026-07-30 audit log entry for the exact commands and output. This
+#: set may only grow via a new out-of-session replay, never by loosening the
+#: assertion below to match whatever the receipts currently say.
+GENUINELY_REPLAYED = {
+    "CE-GALL-23",
+    "CE-GALL-24",
+    "CE-GALL-25",
+    "CE-GALL-26",
+    "CE-GALL-29",
+    "CE-GALL-34",
+}
+
+
+def test_only_the_replayed_checkpoints_claim_alive():
+    """Honest state: exactly the checkpoints with a genuine out-of-session replay.
+
+    CE-GALL-22 cannot promote (no falsifier exists to replay). CE-GALL-28's
+    positive witness was replayed and refuted, not confirmed -- see CE-GALL-35.
+    """
+    alive = {p.stem for p in receipt_paths() if load(p).standing is Standing.ALIVE}
+    assert alive == GENUINELY_REPLAYED, (alive - GENUINELY_REPLAYED, GENUINELY_REPLAYED - alive)
 
 
 @pytest.mark.parametrize("path", receipt_paths(), ids=lambda p: p.stem)
