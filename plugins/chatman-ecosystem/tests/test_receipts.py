@@ -26,11 +26,10 @@ import json
 import re
 from pathlib import Path
 
-import pytest
-from jsonschema import Draft202012Validator
-
 import generate
+import pytest
 from _standing import Standing
+from jsonschema import Draft202012Validator
 from models import GallCheckpointReceipt
 from roots import plugin_root
 

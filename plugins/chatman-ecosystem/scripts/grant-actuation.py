@@ -16,11 +16,12 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mcp_client import McpClient, McpToolError, tool_structured_result
+
 try:
     from plugin_data import plugin_data_root as resolve_plugin_data_root
 except ImportError:
     resolve_plugin_data_root = None
-from roots import project_directory, project_key  # noqa: E402
+from roots import project_directory  # noqa: E402
 
 INTENT_SCHEMA = "urn:chatman:actuation-intent:v1"
 GRANT_SCHEMA = "urn:chatman:derived-execution-grant:v1"
