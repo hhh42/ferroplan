@@ -184,6 +184,25 @@ grounder, not the search, and compaction was the fix). Whatever
 mechanism the attribution names gets the 0.9 treatment: a targeted
 structural fix with classical paths bit-identical, never a cap tune.
 
+### Recorded — the opposite of 0.9: search-state-owned, and the cap could not see the limit
+
+The RSS-at-forced-cap attribution (10k-node cap, rusage) on the top
+offenders — markettrader (20 caps), pathwaysmetric (20),
+block-grouping (18), tpp (16) — read **24 MB RSS with 4–276 grounded
+ops** on every one: NOT grounding (0.9's wall), pure search-state
+growth. The mechanism names itself: tiny-state numeric tasks evaluate
+fast, and `NODE_CAP_TARGET_BYTES`'s fixed 8 GiB retained-bytes target
+EXCEEDS the runner's per-job `RLIMIT_AS` (phys/jobs), so the OOM kill
+fires before the internal insertion cap ever does. The fix is
+structural, not a tune: the byte target now clamps to 60% of the
+process's actual `RLIMIT_AS` (read from `/proc/self/limits`, no new
+dependency; the remainder covers task tables, the open list, and
+transient churn outside the per-node model). No limit set ⇒ exactly
+today's caps — dev boxes and every classical baseline byte-identical.
+Mem-cap rows become honest capped/timeout rows instead of OOM
+casualties that could disrupt sibling jobs. Deeper retained-state
+compression (key interning, state deltas) is named 0.20 material.
+
 ## Phase 5 — riders (small, evidence-backed)
 
 - **Novelty default-on under `FF_TIME_LIMIT`** — 0.18's referee

@@ -53,7 +53,40 @@ pub(crate) const NODE_CAP_TARGET_BYTES: usize = if usize::BITS < 64 { 2 << 30 } 
 /// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in
 /// `visited`, plus container overhead.
 pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
-    node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES)
+    node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES.min(rlimit_budget()))
+}
+
+/// The address-space budget the process ACTUALLY has (0.19 Phase 4): the
+/// fixed 8 GiB retained-bytes target silently exceeded the benchmark
+/// runner's per-job `RLIMIT_AS` (phys/jobs) on small-state numeric tasks —
+/// tiny states evaluate fast, the model allowed ~40M insertions, and the
+/// OOM kill fired before the internal cap did (105 mem-cap rows on the
+/// fresh 2023-numeric board, ALL search-state-owned per the
+/// RSS-at-forced-cap attribution: 24 MB and 44–276 ops at a 10k cap).
+/// When an RLIMIT_AS is set, retained state may spend at most 60% of it
+/// (the rest covers the task tables, open list, and transient churn the
+/// per-node model does not count). No limit ⇒ `usize::MAX` (dev boxes
+/// keep today's exact caps — classical baselines are byte-identical).
+/// Read via `/proc/self/limits` (no libc dependency — the crate stays
+/// serde+thiserror only); non-Linux platforms simply keep the fixed
+/// target.
+fn rlimit_budget() -> usize {
+    let Ok(limits) = std::fs::read_to_string("/proc/self/limits") else {
+        return usize::MAX;
+    };
+    for line in limits.lines() {
+        if line.starts_with("Max address space") {
+            // "Max address space  <soft>  <hard>  bytes"
+            let mut it = line.split_whitespace().skip(3);
+            if let Some(soft) = it.next() {
+                if let Ok(bytes) = soft.parse::<u128>() {
+                    return ((bytes * 6 / 10) as u64).try_into().unwrap_or(usize::MAX);
+                }
+                // "unlimited" parses as Err — no clamp
+            }
+        }
+    }
+    usize::MAX
 }
 
 /// [`node_cap_for`] against an explicit byte target (the budgeted-think
