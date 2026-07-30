@@ -8,7 +8,8 @@
   "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
   "known_anti_patterns": [
     "the ten factor VALUES are a modelling choice with no external validation; only their grounding is claimed",
-    "surfaces.py refusals are pre-flight and must NOT be counted as allocator refusals -- checkpoint 8's four allocator refusals remain untested"
+    "surfaces.py refusals are pre-flight and must NOT be counted as allocator refusals -- checkpoint 8's four allocator refusals remain untested",
+    "the originally recorded positive witness here (candidates_digest a473833974c74522, input_digest f0a8d185, \"correctness 0.1449 top with a 0.112-0.145 spread\") does NOT reproduce. A genuine outside-session replay (fresh clone at this exact git_revision, all steering vars cleared) got candidates_digest 0983969d34eb35a19d40621c462befbf5359e41c79694e91f338a91aca01ef0a and input_digest 9e8f0839fd74fe089113679187a2523e95f712329869ed70e763fff907e3d8bf instead, with `correctness` -- the tree root, referenced as another candidate's parent -- receiving share 0.0 rather than 0.1449, exactly as CE-GALL-9 already documented for interior nodes. See CE-GALL-35 for the full refutation and evidence."
   ],
   "negative_falsifier": {
     "file": "plugins/chatman-ecosystem/tests/test_surfaces.py",
@@ -17,10 +18,10 @@
     "why_this_counts": "found four surfaces pointing at nonexistent paths on its first run: crates/ferroplan/src/{temporal,search,heuristic,ground} are .rs files, and they sat on the two highest-allocated surfaces"
   },
   "positive_witness": {
-    "file": "plugins/chatman-ecosystem/profiles/work-surfaces.json",
-    "result": "candidates_digest a473833974c74522, input_digest f0a8d185",
-    "test": "cmca_allocate over the canonical frontier",
-    "why_this_counts": "accepted live, and allocates differently from the fabricated frontier: correctness 0.1449 top with a 0.112-0.145 spread, versus the invented 0.161 top on a surface that does not exist"
+    "file": "plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py",
+    "result": "1 passed in 0.58s",
+    "test": "test_canonical_frontier_allocation_is_pinned_and_deterministic",
+    "why_this_counts": "replaces the unreproducible hand-recorded digests with an executing test against the real ferroplan-mcp binary: two consecutive cmca_allocate calls over the canonical frontier produce identical digests, pinned to the values actually verified this session, with the interior/leaf share split CE-GALL-9 documents"
   },
   "reason": "NO_REPLAY",
   "replay_host": null,

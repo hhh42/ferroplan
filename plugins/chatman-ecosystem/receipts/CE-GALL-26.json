@@ -7,7 +7,8 @@
   "exit_code": 0,
   "git_revision": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
   "known_anti_patterns": [
-    "the /tmp handshake was run by hand once this session and is NOT a test; no automated regression covers the exact defect that was fixed"
+    "the /tmp handshake was run by hand once this session and is NOT a test; no automated regression covers the exact defect that was fixed",
+    "`reason` previously said NO_FALSIFIER despite this receipt already carrying a real, executing negative_falsifier -- test_receipts.py's test_a_missing_falsifier_is_declared_not_hidden only checks the reason field when negative_falsifier is null, so the mislabel was never caught by CI. Corrected to NO_REPLAY, which is what actually caps this receipt: the live /tmp handshake positive witness has not been independently re-run"
   ],
   "negative_falsifier": {
     "file": "plugins/chatman-ecosystem/tests/test_roots.py",
@@ -21,7 +22,7 @@
     "test": "MCP initialize handshake from /tmp",
     "why_this_counts": "previously exit 69 while a built binary sat in target/debug; the 4-parents-up walk was calibrated for the repo layout and wrong under the install layout"
   },
-  "reason": "NO_FALSIFIER",
+  "reason": "NO_REPLAY",
   "replay_host": null,
   "replayed_outside_session": false,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",

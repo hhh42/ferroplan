@@ -1,6 +1,6 @@
 # Gall Checkpoints for the Chatman Ecosystem
 
-Last updated: 2026-07-29 (session audit, see "Audit log" at the end).
+Last updated: 2026-07-30 (session audit, see "Audit log" at the end).
 
 Each checkpoint must be a **complete, useful system at its own scale**. A
 checkpoint is not passed because source exists. It is passed only when its
@@ -1064,7 +1064,16 @@ would have forbidden every validated vector. The transitions table already
 enforces the intent exactly (`["candidate","validated"]` is the only in-edge),
 so the invariant was redundant as well as inert.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+> **2026-07-30 cycle update.** Promoted to `ALIVE`. A distinct session (this
+> one) cloned the repo fresh to a throwaway path, checked out the exact cited
+> commit, cleared every steering env var, and ran `python3 -m pytest tests -q`
+> outside the session that wrote the tests: `141 passed in 1.72s`, exit 0 --
+> matching the originally claimed evidence exactly. Both witnesses
+> (`test_lawful_count_is_pinned`, `test_every_invariant_fires_at_least_once`)
+> are in that run. This is the first checkpoint in this cycle to satisfy the
+> promotion law's replay requirement rather than merely assert it.
+
+**Current standing:** `ALIVE`
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-23.json`
 
@@ -1085,7 +1094,13 @@ rejected on mismatch — not a string a caller supplies. JSON is the default
 serialization and does not depend on tty, so a command's contract is the same
 whether a human, a hook, or CI invoked it.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+> **2026-07-30 cycle update.** Promoted to `ALIVE`. Same outside-session,
+> fresh-clone replay as CE-GALL-23 (see there for the exact protocol): the
+> `python3 -m pytest tests -q` run covers both witnesses here, and
+> `python3 scripts/generate.py build --check` independently reproduced
+> `{"checked": 14, "stale": 0}` at the cited commit.
+
+**Current standing:** `ALIVE`
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-24.json`
 
@@ -1111,7 +1126,11 @@ takes a top-level `decision`, `PreToolUse` a nested `permissionDecision`, and
 library, because it is the last thing that must still work when the rest
 cannot load.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+> **2026-07-30 cycle update.** Promoted to `ALIVE`. Same outside-session,
+> fresh-clone replay as CE-GALL-23: both witnesses here are in the same
+> `141 passed in 1.72s` run.
+
+**Current standing:** `ALIVE`
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-25.json`
 
@@ -1138,7 +1157,18 @@ under the *installed cache* layout — the only one a user runs — it lands on
 built binary sat in `target/debug`. A depth-counted walk cannot be load-bearing
 across two layouts.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_FALSIFIER`)
+> **2026-07-30 cycle update.** Receipt data bug corrected, standing unchanged.
+> The JSON receipt's `reason` field said `NO_FALSIFIER` despite the receipt
+> already carrying a real, executing `negative_falsifier`
+> (`test_unresolved_binary_is_never_rendered_as_a_shell_argv`) --
+> `test_receipts.py`'s falsifier-declared-not-hidden check only inspects
+> `reason` when `negative_falsifier` is null, so the mislabel was never caught
+> by CI. Corrected to `NO_REPLAY`, which is what actually caps this receipt:
+> the live `/tmp` MCP handshake is a positive witness that has never been
+> independently re-run, only the falsifier test has (this session's
+> `141 passed` run covers `test_roots.py`).
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-26.json`
 
@@ -1163,6 +1193,26 @@ This is deliberately a separate checkpoint from §8 rather than merged into it.
 §8's four allocator refusals (7 candidates, 9 candidates, 9 factors, wrong
 BCINR revision) remain untested; `surfaces.py`'s refusals are *pre-flight* and
 must not be counted as allocator behaviour.
+
+> **2026-07-30 cycle update (CE-GALL-35) -- positive witness refuted.** The
+> recorded evidence above (`candidates_digest a473833974c74522`,
+> `input_digest f0a8d185`, "correctness 0.1449 top with a 0.112-0.145 spread")
+> does not reproduce. A genuine outside-session replay -- fresh clone at this
+> exact `git_revision`, all steering vars cleared, real `ferroplan-mcp` binary
+> built and driven live via `mcp_client.py` -- got `candidates_digest
+> 0983969d34eb35a19d40621c462befbf5359e41c79694e91f338a91aca01ef0a` and
+> `input_digest 9e8f0839fd74fe089113679187a2523e95f712329869ed70e763fff907e3d8bf`
+> instead, with `correctness` (the tree root, referenced as another
+> candidate's `parent`) receiving `share: 0.0` rather than `0.1449` -- exactly
+> what CE-GALL-9 already documented about interior nodes in a parented CMCA
+> tree. The tree structure was already present in the cited commit's own
+> profile (introduced by `bc28ca7`, which predates it), so this isn't a
+> moved target: the original numbers simply do not match what the code and
+> data at that commit actually produce. See CE-GALL-35 for the full
+> reproduction and the new regression test
+> (`tests/test_cmca_frontier_allocation.py`) that now pins the true,
+> reproducible values. The negative falsifier below (surface paths existing)
+> is unaffected and still passes.
 
 **Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
 
@@ -1197,7 +1247,11 @@ standing is capped — a surface returning a fabricated value partly works, whic
 lawful refusal is the system working, so as a standing it would conflate
 evidence *for* promotion with brokenness.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+> **2026-07-30 cycle update.** Promoted to `ALIVE`. Same outside-session,
+> fresh-clone replay as CE-GALL-23: both witnesses here are in the same
+> `141 passed in 1.72s` run.
+
+**Current standing:** `ALIVE`
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-29.json`
 
@@ -1387,9 +1441,146 @@ weakening it to `\b` still fails the `commit-graph` case in the sibling table.
 
 ---
 
+## CE-GALL-28's Recorded Positive Witness Does Not Replay (CE-GALL-35)
+
+**Refuted claim**
+
+CE-GALL-28's positive witness recorded `candidates_digest a473833974c74522`,
+`input_digest f0a8d185`, and "correctness 0.1449 top with a 0.112-0.145
+spread" for `cmca_allocate` over the canonical 8-candidate frontier. None of
+that reproduces.
+
+Both `input_digest` (computed purely from the `candidates` array by
+`tool_cmca_allocate`) and `candidates_digest` (computed the same way by
+`bind_allocation`'s `digest_value(&candidates)`) are pure functions of the
+committed frontier -- no session state, no receipt chain, nothing
+non-reproducible should separate two runs at the same commit. A fresh clone
+of the repository at CE-GALL-28's exact cited commit
+(`e2e683d74ed26fcba3bdc671764a81d2862a090c`), with `ferroplan-mcp` built from
+that checkout and driven live over stdio via `mcp_client.py` (which existed,
+fully working, but had zero test-suite callers before this), got:
+
+```text
+candidates_digest: 0983969d34eb35a19d40621c462befbf5359e41c79694e91f338a91aca01ef0a
+input_digest:      9e8f0839fd74fe089113679187a2523e95f712329869ed70e763fff907e3d8bf
+shares: correctness=0.0, planner-core=0.2700, session-runtime=0.0,
+        mcp-protocol=0.0, claude-plugin=0.0, semantic-projection=0.2249,
+        receipt-security=0.2451, evidence=0.2600
+```
+
+`correctness` is the tree root (`parent: null`) and is itself referenced as
+another candidate's `parent`, making it an interior node under CE-GALL-9's
+already-documented rule that interior nodes receive `share: 0.0` and all
+allocation mass cascades to leaves. That tree structure was not added after
+CE-GALL-28's evidence was taken -- `git log` shows it was introduced by
+`bc28ca7`, which is an ancestor of the cited commit, not a descendant. So this
+is not a moved target: the frontier and the allocator code CE-GALL-28 cites
+were already exactly what was just replayed, and they do not produce the
+recorded numbers. The most likely explanation is that the original figures
+were hand-typed from memory or from a different, untracked invocation rather
+than copied from real tool output -- the same failure mode CE-GALL-30 found
+in the validator path.
+
+**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+
+**Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-35.json`
+
+**Positive witness:** `test_canonical_frontier_allocation_is_pinned_and_deterministic` (plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py) — two consecutive live `cmca_allocate` calls over the canonical frontier produce identical digests, pinned to the values verified this session, with CE-GALL-9's interior/leaf share split holding for the real committed frontier
+
+**Negative falsifier:** the same test — a regression in the tree-cascade logic, or an undocumented change to the committed frontier, fails it by asserting interior nodes are exactly `0.0` and leaves are strictly positive
+
+- Non-claim: this receipt's own falsifier and witness were written in the same session that discovered the defect, so `replayed_outside_session` is correctly `false` here; promoting this checkpoint (and salvaging CE-GALL-28's determinism claim with corrected numbers) needs a later, distinct session to re-run `tests/test_cmca_frontier_allocation.py`, exactly like CE-GALL-23/24/25/29 before this session replayed them
+- Non-claim: only determinism and the interior/leaf share split were re-verified here; CE-GALL-28's other recorded non-claims (factor values un-externally-validated, `surfaces.py` refusals being pre-flight only) are untouched by this finding
+
+---
+
 ---
 
 # Audit log
+
+## 2026-07-30 — scheduled session: the genuine outside-session replay
+
+This session is exactly the "someone else, or a later session" the prior
+entry named as the one action that promotes 22–26, 28, 29 to `ALIVE`. It is a
+fresh scheduled run in a fresh container, with no memory of writing any of
+the tests it replayed — a real instance of the independence the promotion
+law requires, not a simulated one.
+
+**What was replayed.** `git clone --no-local` to a throwaway `/tmp` path
+(not this working tree), `git checkout e2e683d74ed26fcba3bdc671764a81d2862a090c`
+(the exact commit CE-GALL-22–26/28/29 all cite), all four steering env vars
+cleared (`CLAUDE_PLUGIN_DATA`/`CLAUDE_PROJECT_DIR`/`FERROPLAN_ROOT`/
+`CARGO_TARGET_DIR`). `python3 -m pytest tests -q` → `141 passed in 1.72s`,
+exit 0 — the exact count CE-GALL-22's receipt already claimed. `python3
+scripts/generate.py build --check` → `{"checked": 14, "stale": 0}`, exit 0 —
+the exact command CE-GALL-24 cites.
+
+**Promoted to `ALIVE`:** CE-GALL-23, 24, 25, 29. Each one's positive witness
+*and* negative falsifier are both pytest tests, both inside the replayed
+`141 passed` run, so both halves of each claim are now genuinely
+independently confirmed. CE-GALL-22 and CE-GALL-26 were **not** promoted
+despite passing the same replay: CE-GALL-22 has no negative falsifier at all
+(`reason: NO_FALSIFIER`, structurally barred regardless of replay), and
+CE-GALL-26's positive witness is a one-off manual MCP handshake from `/tmp`
+that this pass did not re-run (only its falsifier test did).
+
+**Data bug found and fixed:** CE-GALL-26's receipt said `reason:
+NO_FALSIFIER` while carrying a real, executing `negative_falsifier` —
+`test_receipts.py`'s own falsifier-declared-not-hidden check only inspects
+`reason` when `negative_falsifier` is null, so this mislabel was invisible to
+CI. Corrected to `NO_REPLAY`.
+
+**CE-GALL-28's positive witness does not reproduce — opened as CE-GALL-35.**
+Both digests `cmca_allocate` returns (`input_digest`, and `bind_allocation`'s
+`candidates_digest`) are pure functions of the committed candidate array, so
+they should be exactly reproducible with no session state involved. They are
+not: the real `ferroplan-mcp` binary, built from the fresh clone at the exact
+cited commit and driven live over stdio via `mcp_client.py` (which existed,
+fully working, but had zero test-suite callers before this session), returned
+`candidates_digest 0983969d...` and `input_digest 9e8f0839...` — neither
+matching the recorded `a473833974c74522` / `f0a8d185` — with `correctness`
+(the tree root) at `share: 0.0`, not the claimed `0.1449` top. The tree
+structure predates the cited commit (`bc28ca7`, an ancestor of `e2e683d`), so
+this is not a moved target: the original figures simply do not match what the
+cited code and data produce. Likely cause, by analogy to CE-GALL-30: hand-typed
+from memory rather than copied from real tool output.
+
+**New regression coverage added**, both a positive witness and negative
+falsifier for the actual (not claimed) allocator behavior:
+`tests/test_cmca_frontier_allocation.py::test_canonical_frontier_allocation_is_pinned_and_deterministic`.
+This is the first pytest test in the suite to exercise the real
+`ferroplan-mcp` binary rather than the Python control plane alone. It asserts
+determinism (two live calls, identical digests), pins the true digests, and
+asserts CE-GALL-9's interior/leaf share split holds for the real committed
+frontier. `needs_cargo`-marked and `skipif`-guarded so the toolchain-less
+plugin-only CI job stays green.
+
+**Test suite updated to reflect genuine, not vacuous, promotion.**
+`test_receipts.py::test_nothing_from_this_cycle_claims_alive` — written when
+its premise was true — would now fail on real progress rather than catch a
+real defect. Renamed to `test_only_the_replayed_checkpoints_claim_alive` and
+rewritten to pin the exact promoted set (`{CE-GALL-23, CE-GALL-24, CE-GALL-25,
+CE-GALL-29}`) plus a fresh `promotion_blockers()` check on each, so an
+accidental or premature fifth promotion still fails it.
+
+**Verified before committing:** full plugin suite 330 passed (up from 141 at
+the sealed commit — the gap is everything the intervening, already-`main`
+commits 8f9166b..348e07f added); `generate.py build --check` →
+`{"checked": 15, "stale": 0}`; `ruff check` clean on every file this session
+touched (pre-existing repo-wide import-order debt in untouched files is
+unrelated and left alone); `cargo test -p ferroplan -p ferroplan-mcp` green.
+`cargo check --workspace` fails, but on `ferroplan-bevy` needing rustc 1.95.0
+against this environment's 1.94.1 — pre-existing, unrelated to anything
+touched this session, not fixed here.
+
+**Left as the named next step:** the four remaining CE-GALL-28/CE-GALL-35
+falsifier/witness pair (`test_canonical_frontier_allocation_is_pinned_and_deterministic`)
+was written in the *same* session that found the defect, so
+`replayed_outside_session` is correctly `false` on CE-GALL-35 — promoting it
+(and salvaging CE-GALL-28's determinism claim with the corrected numbers)
+needs a later, distinct session to clone fresh, check out this cycle's
+sealed commit, and rerun that one test outside this session, the same way
+this session just did for 23/24/25/29.
 
 ## 2026-07-29 — parallel-agent iteration (branch `chatman-dx-cycle`)
 

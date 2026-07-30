@@ -1,0 +1,33 @@
+{
+  "blocked_by": [],
+  "checkpoint": "CE-GALL-35",
+  "command": "python3 -m pytest tests/test_cmca_frontier_allocation.py -v",
+  "cwd": "plugins/chatman-ecosystem",
+  "date": "2026-07-30",
+  "exit_code": 0,
+  "git_revision": "348e07f116a1405c482377335744301b0c10a317",
+  "known_anti_patterns": [
+    "this receipt's own falsifier and witness were written in the same session that discovered the defect, so replayed_outside_session is correctly false here -- promoting this checkpoint requires a later, distinct session to re-run it, exactly like 23/24/25/29 before this session replayed them",
+    "mcp_client.py existed with a working __main__ smoke test but had zero callers in the test suite before this; test_cmca_frontier_allocation.py is the first pytest test to exercise the real ferroplan-mcp binary rather than the Python control plane alone",
+    "only cmca_allocate's determinism and the interior/leaf share split were re-verified; CE-GALL-28's other non-claims (ten factor values un-externally-validated, surfaces.py refusals being pre-flight only) are untouched by this finding"
+  ],
+  "negative_falsifier": {
+    "file": "plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py",
+    "result": "passed",
+    "test": "test_canonical_frontier_allocation_is_pinned_and_deterministic",
+    "why_this_counts": "asserts interior nodes (correctness, session-runtime, mcp-protocol, claude-plugin) get share 0.0 and leaves get nonzero share, and pins the exact digests recomputed this session; a regression in the tree-cascade logic or an undocumented change to the committed frontier fails this test"
+  },
+  "positive_witness": {
+    "file": "plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py",
+    "result": "1 passed in 0.58s (also independently confirmed by hand at both e2e683d74ed26fcba3bdc671764a81d2862a090c and 348e07f116a1405c482377335744301b0c10a317, same digests both times)",
+    "test": "test_canonical_frontier_allocation_is_pinned_and_deterministic",
+    "why_this_counts": "cmca_allocate over the canonical 8-candidate frontier is genuinely deterministic (two consecutive live calls produce identical input_digest and candidates_digest), and the tree-cascade share split CE-GALL-9 documents (interior nodes 0.0, leaf nodes carry all mass) holds for the real committed frontier, not just a fixture"
+  },
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
+  "schema": "urn:chatman:gall-checkpoint-receipt:v1",
+  "sealed_at_commit": null,
+  "standing": "PARTIAL_ALIVE",
+  "title": "CE-GALL-28's recorded positive witness does not replay"
+}

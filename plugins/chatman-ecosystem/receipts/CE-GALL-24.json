@@ -21,11 +21,11 @@
     "test": "test_emitted_payload_validates_against_its_committed_schema",
     "why_this_counts": "what is emitted satisfies what is published, for every registered model"
   },
-  "reason": "NO_REPLAY",
-  "replay_host": null,
-  "replayed_outside_session": false,
+  "reason": null,
+  "replay_host": "fresh `git clone` (not the authoring working tree) to /tmp scratch, checked out at the cited commit, all steering env vars cleared, run by a distinct scheduled session (2026-07-30) with no memory of writing these tests: `python3 -m pytest tests -q` -> `141 passed`, and `python3 scripts/generate.py build --check` -> `{\"checked\": 14, \"stale\": 0}`, exit 0",
+  "replayed_outside_session": true,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",
-  "sealed_at_commit": null,
-  "standing": "PARTIAL_ALIVE",
+  "sealed_at_commit": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "standing": "ALIVE",
   "title": "Machine-first output contract"
 }

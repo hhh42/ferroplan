@@ -26,11 +26,10 @@ import json
 import re
 from pathlib import Path
 
-import pytest
-from jsonschema import Draft202012Validator
-
 import generate
+import pytest
 from _standing import Standing
+from jsonschema import Draft202012Validator
 from models import GallCheckpointReceipt
 from roots import plugin_root
 
@@ -79,9 +78,10 @@ def test_standing_is_from_the_canonical_vocabulary(path):
 def test_promotion_law_is_satisfied_by_anything_claiming_alive(path):
     """ALIVE requires replay outside the session, a falsifier, and a seal.
 
-    Run today this passes only because nothing claims ALIVE. Set any receipt's
-    standing to ALIVE without replaying it and this fails -- which is what
-    makes it a law rather than a formality.
+    CE-GALL-23/24/25/29 now genuinely satisfy this (see
+    test_only_the_replayed_checkpoints_claim_alive for how). Set any other
+    receipt's standing to ALIVE without replaying it and this fails -- which
+    is what makes it a law rather than a formality.
     """
     receipt = load(path)
     if receipt.standing is not Standing.ALIVE:
@@ -103,10 +103,27 @@ def test_promotion_law_actually_refuses():
     assert "no executing negative falsifier" in blockers
 
 
-def test_nothing_from_this_cycle_claims_alive():
-    """Honest state: no clean-worktree replay has been done for any of it."""
-    alive = [p.stem for p in receipt_paths() if load(p).standing is Standing.ALIVE]
-    assert not alive, f"{alive} claim ALIVE without an out-of-session replay"
+def test_only_the_replayed_checkpoints_claim_alive():
+    """Alive means replayed outside the session that wrote the evidence.
+
+    This pinned an empty set until 2026-07-30: no receipt in this cycle had
+    been replayed outside its authoring session. CE-GALL-23/24/25/29 changed
+    that -- a later session (no memory of writing these tests) cloned the
+    repo fresh, checked out the exact commit each receipt cites, cleared every
+    steering env var, and reran the exact witnesses. Every other receipt here
+    is still capped: some have never been independently re-run (`NO_REPLAY`),
+    one has no falsifier at all (`NO_FALSIFIER`), and CE-GALL-28's original
+    claimed evidence turned out not to reproduce even at its own cited commit
+    (see CE-GALL-35). Pinning the exact set, rather than just asserting
+    `promotion_blockers()` is empty for whichever receipts happen to claim
+    ALIVE, is what makes an accidental or premature promotion fail this test
+    instead of silently passing it.
+    """
+    alive = {p.stem for p in receipt_paths() if load(p).standing is Standing.ALIVE}
+    assert alive == {"CE-GALL-23", "CE-GALL-24", "CE-GALL-25", "CE-GALL-29"}
+    for stem in alive:
+        receipt = load(next(p for p in receipt_paths() if p.stem == stem))
+        assert not receipt.promotion_blockers(), (stem, receipt.promotion_blockers())
 
 
 @pytest.mark.parametrize("path", receipt_paths(), ids=lambda p: p.stem)
