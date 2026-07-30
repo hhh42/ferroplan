@@ -216,6 +216,32 @@ compression (key interning, state deltas) is named 0.20 material.
   duration-read fluents. Witnesses map-analyzer i17/i18/i20; the
   2014 temporal board's last 3 VAL-reds.
 
+### Recorded — rider (a) shipped; rider (b) built its machinery and decoded the debt deeper
+
+**(a) Novelty default under budget**: the rung now runs BY DEFAULT
+exactly when `FF_TIME_LIMIT` is declared and >40% of the budget
+remains (`FF_NO_NOVELTY=1` opts out; `FF_NOVELTY=1` still forces it
+budget-less; no budget ⇒ ladder byte-identical). Probe on the gated
+referee's own win: termes-2018 i12 solves with `FF_TIME_LIMIT=60`
+ALONE, times out with the opt-out, times out with no budget — the
+0.18 +4/−0 evidence is now the shipped default.
+
+**(b) Duration reconciliation**: the emission pipeline now REPLAYS
+the final plan chronologically and clamps every state-dependent
+duration into the domain expression's `[min, max]` at its EMITTED
+start state (fixpoint-iterated, since corrections move ends; any
+replay failure or non-convergence returns the original plan — never
+a half-correction). The tempo-2014 referee: 65/200 byte-stable,
+match-cellar 20/20 valid, zero movement anywhere. The three
+map-analyzer witnesses, however, REFUSED the fix and named a deeper
+mechanism: their ε-shifted starts land where BOTH the duration
+source has moved AND a propositional precondition's provider
+(`(clear junction0-2)`) has not yet fired — the reconciliation
+correctly bails on the inconsistent replay. The full fix is
+ε-separation-level surgery extending 0.18's same-slot END repair to
+START happenings against their providers — named 0.20 debt, one
+decode deeper than 0.18 left it.
+
 ## Phase 6 — cut 0.19.0
 
 The standing template: every touched board re-swept against the

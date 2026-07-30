@@ -703,7 +703,157 @@ fn solve_inner(
             r.is_some()
         );
     }
-    r
+    r.map(|p| reconcile_durations(&task, &c, p))
+}
+
+/// Post-emission duration reconciliation (0.19 Phase 5b — the 0.18
+/// refuted-hypothesis debt, map-analyzer's last three VAL-reds):
+/// ε-separation can move a start across another op's write to a fluent
+/// its DURATION expression reads, so the committed duration disagrees
+/// with the expression at the EMITTED start time and VAL fails the
+/// duration constraint. Replay the emitted plan chronologically (ends
+/// before starts at an epoch, `validate`'s semantics) and CLAMP each
+/// state-dependent duration into the `[min, max]` the domain expression
+/// yields at that emitted state (a fixed `=` collapses to a point — the
+/// re-evaluated value). Corrections move that interval's end, so the
+/// pass iterates to a fixpoint (cap 4 rounds); a replay failure or
+/// non-convergence returns the ORIGINAL plan — those instances stay
+/// honestly red rather than half-corrected. Plans without
+/// state-dependent durations return untouched on the first scan.
+fn reconcile_durations(task: &PackedTask, c: &TemporalCompiled, plan: TimedPlan) -> TimedPlan {
+    let modified = modified_fluents(task);
+    let snap_by_start: HashMap<&str, &SnapInfo> = c
+        .snaps
+        .iter()
+        .map(|s| (s.start_action.as_str(), s))
+        .collect();
+    let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
+
+    let original = plan.clone();
+    let mut plan = plan;
+    for _round in 0..4 {
+        struct H<'a> {
+            time: f64,
+            op: usize,
+            is_start: bool,
+            /// step index + snap + args, for state-dependent starts only
+            fix: Option<(usize, &'a SnapInfo, Vec<&'a str>)>,
+        }
+        let mut hs: Vec<H> = Vec::new();
+        let mut any_state_dep = false;
+        for (si, step) in plan.steps.iter().enumerate() {
+            let mut it = step.action.splitn(2, ' ');
+            let head = it.next().unwrap_or("");
+            let rest = it.next();
+            let with = |suffix: &str| match rest {
+                Some(r) => format!("{head}{suffix} {r}"),
+                None => format!("{head}{suffix}"),
+            };
+            match step.duration {
+                Some(dur) => {
+                    let start_name = format!("{head}-START");
+                    let Some(snap) = snap_by_start.get(start_name.as_str()) else {
+                        return original;
+                    };
+                    let args: Vec<&str> = rest
+                        .map(|r| r.split_whitespace().collect())
+                        .unwrap_or_default();
+                    let bind = duration_bind(snap, &args);
+                    let state_dep = [&snap.duration.min, &snap.duration.max]
+                        .into_iter()
+                        .flatten()
+                        .any(|e| {
+                            ground_duration_nexpr(e, &bind, task).is_some_and(|ne| {
+                                let mut v = Vec::new();
+                                ne.collect_fluents(&mut v);
+                                v.iter().any(|&f| modified[f as usize])
+                            })
+                        });
+                    any_state_dep |= state_dep;
+                    let (Some(sop), Some(eop)) = (find(&with("-START")), find(&with("-END")))
+                    else {
+                        return original;
+                    };
+                    hs.push(H {
+                        time: step.time,
+                        op: sop,
+                        is_start: true,
+                        fix: state_dep.then_some((si, *snap, args)),
+                    });
+                    hs.push(H {
+                        time: step.time + dur,
+                        op: eop,
+                        is_start: false,
+                        fix: None,
+                    });
+                }
+                None => {
+                    let Some(op) = find(&step.action) else {
+                        return original;
+                    };
+                    hs.push(H {
+                        time: step.time,
+                        op,
+                        is_start: true,
+                        fix: None,
+                    });
+                }
+            }
+        }
+        if !any_state_dep {
+            return plan;
+        }
+        let horizon = hs.iter().map(|h| h.time).fold(0.0f64, f64::max);
+        for (t, name) in &c.til_ops {
+            if *t <= horizon + EPS {
+                let Some(op) = find(name) else {
+                    return original;
+                };
+                hs.push(H {
+                    time: *t,
+                    op,
+                    is_start: false,
+                    fix: None,
+                });
+            }
+        }
+        hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+
+        let mut state = task.initial();
+        let mut fixes: Vec<(usize, f64)> = Vec::new();
+        for h in &hs {
+            if let Some((si, snap, args)) = &h.fix {
+                let committed = plan.steps[*si].duration.unwrap_or(0.0);
+                let (lo, hi) = eval_duration_bounds(snap, args, task, &state);
+                let mut want = committed;
+                if let Some(min) = lo {
+                    want = want.max(min);
+                }
+                if let Some(max) = hi {
+                    want = want.min(max);
+                }
+                if (want - committed).abs() > 1e-9 {
+                    fixes.push((*si, want));
+                }
+            }
+            if !task.op_applicable(h.op, &state) {
+                return original;
+            }
+            state = task.apply(h.op, &state);
+        }
+        if fixes.is_empty() {
+            return plan; // fixpoint: every duration agrees with its emitted state
+        }
+        for (si, d) in fixes {
+            plan.steps[si].duration = Some(d);
+        }
+        plan.makespan = plan
+            .steps
+            .iter()
+            .map(|s| s.time + s.duration.unwrap_or(0.0))
+            .fold(0.0f64, f64::max);
+    }
+    original // did not converge in 4 rounds — never emit a half-corrected plan
 }
 
 /// Grounded `over all` invariant facts per END op id: (positive, negative)
