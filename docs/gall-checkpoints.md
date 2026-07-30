@@ -1,6 +1,6 @@
 # Gall Checkpoints for the Chatman Ecosystem
 
-Last updated: 2026-07-29 (session audit, see "Audit log" at the end).
+Last updated: 2026-07-30 (session audit, see "Audit log" at the end).
 
 Each checkpoint must be a **complete, useful system at its own scale**. A
 checkpoint is not passed because source exists. It is passed only when its
@@ -1043,8 +1043,15 @@ scripts totalling ~2.5k lines were verified by a prose checklist that
 
 **Negative falsifier:** none. Recorded, not hidden — a checkpoint without an executing negative fixture cannot be promoted.
 
+**2026-07-30 correction.** The prior audit entry's summary line ("The one
+action that promotes 22–26, 28, 29 to ALIVE") was itself an overclaim for this
+checkpoint. `promotion_blockers()` requires a non-null `negative_falsifier`
+unconditionally; this receipt's is `null`. An out-of-session replay was run
+this cycle (see Audit log) and correctly did **not** touch this receipt —
+replay alone cannot close a missing falsifier. Standing stays `PARTIAL_ALIVE`.
+
 - Non-claim: the autouse isolation fixture is an assertion, not a falsifier: no test deliberately leaks, so it has never fired
-- Non-claim: the CI `plugin` job has never run -- the branch is unpushed
+- Non-claim: the branch carrying this work (`gall-checkpoints/2026-07-30-replay-promotion`) is now pushed to origin, but the CI `plugin` job's result on it has not yet been checked from this session
 
 ---
 
@@ -1064,13 +1071,19 @@ would have forbidden every validated vector. The transitions table already
 enforces the intent exactly (`["candidate","validated"]` is the only in-edge),
 so the invariant was redundant as well as inert.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+**Current standing:** `ALIVE` (2026-07-30 — promoted, see Audit log)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-23.json`
 
 **Positive witness:** `test_lawful_count_is_pinned` (plugins/chatman-ecosystem/tests/test_phase_space.py) — 648 raw / 136 lawful / exactly 1 publishable, all derived rather than asserted beside the invariants
 
 **Negative falsifier:** `test_every_invariant_fires_at_least_once` (plugins/chatman-ecosystem/tests/test_phase_space.py) — re-adding the deleted validated-plan-requires-candidate invariant (key requires_any_prior, never read by validate_vector) makes this fail. The lawful count staying at 136 after deletion is independent proof the invariant was inert
+
+**Replay:** 2026-07-30, a genuinely separate session cloned origin fresh to an
+isolated path, checked out sealed commit `e2e683d74ed26fcba3bdc671764a81d2862a090c`,
+and reran `python3 -m pytest tests/test_phase_space.py -q` in an isolated venv
+with the steering env vars unset — passed. `replayed_outside_session`,
+`replay_host`, and `sealed_at_commit` are now set in the receipt.
 
 - Non-claim: nothing external validates that the 136 lawful vectors are the *right* 136
 
@@ -1085,13 +1098,20 @@ rejected on mismatch — not a string a caller supplies. JSON is the default
 serialization and does not depend on tty, so a command's contract is the same
 whether a human, a hook, or CI invoked it.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+**Current standing:** `ALIVE` (2026-07-30 — promoted, see Audit log)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-24.json`
 
 **Positive witness:** `test_emitted_payload_validates_against_its_committed_schema` (plugins/chatman-ecosystem/tests/test_generated.py) — what is emitted satisfies what is published, for every registered model
 
 **Negative falsifier:** `test_check_detects_a_tampered_projection` (plugins/chatman-ecosystem/tests/test_generated.py) — proves generate.py build --check is not a no-op; verified by hand against a tampered schema, which exited 1
+
+**Replay:** 2026-07-30, a genuinely separate session cloned origin fresh to an
+isolated path, checked out sealed commit `e2e683d74ed26fcba3bdc671764a81d2862a090c`,
+and reran `python3 scripts/generate.py build --check` in an isolated venv with
+the steering env vars unset — `{"checked": 14, "stale": 0}`, exit 0.
+`replayed_outside_session`, `replay_host`, and `sealed_at_commit` are now set
+in the receipt.
 
 - Non-claim: 6 of roughly 30 emitted payloads are registered; the coverage ratio is measured nowhere and is left UNKNOWN
 
@@ -1111,13 +1131,19 @@ takes a top-level `decision`, `PreToolUse` a nested `permissionDecision`, and
 library, because it is the last thing that must still work when the rest
 cannot load.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+**Current standing:** `ALIVE` (2026-07-30 — promoted, see Audit log)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-25.json`
 
 **Positive witness:** `test_guard_uses_only_the_standard_library` (plugins/chatman-ecosystem/tests/test_hookguard.py) — the last line of defence cannot itself fail on the dependency it is guarding against
 
 **Negative falsifier:** `test_import_failure_produces_a_refusal` (plugins/chatman-ecosystem/tests/test_hookguard.py) — a simulated ImportError yields a refusal shaped for the event, never a traceback and never a silent exit 0 on a deny path
+
+**Replay:** 2026-07-30, a genuinely separate session cloned origin fresh to an
+isolated path, checked out sealed commit `e2e683d74ed26fcba3bdc671764a81d2862a090c`,
+and reran `python3 -m pytest tests/test_hookguard.py -q` in an isolated venv
+with the steering env vars unset — passed. `replayed_outside_session`,
+`replay_host`, and `sealed_at_commit` are now set in the receipt.
 
 - Non-claim: no live Claude Code session has been observed honoring a hookguard refusal; runtime acceptance of the emitted shapes is UNKNOWN and is not fixable by more unit tests
 
@@ -1138,7 +1164,7 @@ under the *installed cache* layout — the only one a user runs — it lands on
 built binary sat in `target/debug`. A depth-counted walk cannot be load-bearing
 across two layouts.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_FALSIFIER`)
+**Current standing:** `ALIVE` (2026-07-30 — promoted, see Audit log)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-26.json`
 
@@ -1146,7 +1172,23 @@ across two layouts.
 
 **Negative falsifier:** `test_unresolved_binary_is_never_rendered_as_a_shell_argv` (plugins/chatman-ecosystem/tests/test_roots.py) — an unresolved binary rendered as the empty string would hand a launcher `exec ""`; it now refuses
 
-- Non-claim: the /tmp handshake was run by hand once this session and is NOT a test; no automated regression covers the exact defect that was fixed
+**2026-07-30 correction.** This receipt's `reason` field previously read
+`NO_FALSIFIER`, copied from the standing line above — but the receipt has
+always carried a real `negative_falsifier`
+(`test_unresolved_binary_is_never_rendered_as_a_shell_argv`). The label was
+stale, not the evidence; `promotion_blockers()` was only ever blocked on
+replay and seal for this checkpoint, and both are now satisfied.
+
+**Replay:** 2026-07-30, a genuinely separate session cloned origin fresh to an
+isolated path, checked out sealed commit `e2e683d74ed26fcba3bdc671764a81d2862a090c`
+(no cached `target/` existed anywhere in this environment), built
+`cargo build -p ferroplan-mcp` clean, and replayed the exact `initialize`
+handshake from `/tmp` with the steering env vars unset —
+`serverInfo {"name":"ferroplan","version":"0.17.0"}`, matching the original
+claim. `replayed_outside_session`, `replay_host`, and `sealed_at_commit` are
+now set in the receipt.
+
+- Non-claim: the /tmp handshake is still a hand-run reproduction, not a pytest-collected test; the automated regression coverage remains `test_unresolved_binary_is_never_rendered_as_a_shell_argv` alone
 
 ---
 
@@ -1164,7 +1206,7 @@ This is deliberately a separate checkpoint from §8 rather than merged into it.
 BCINR revision) remain untested; `surfaces.py`'s refusals are *pre-flight* and
 must not be counted as allocator behaviour.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+**Current standing:** `ALIVE` (2026-07-30 — promoted, see Audit log)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-28.json`
 
@@ -1172,8 +1214,15 @@ must not be counted as allocator behaviour.
 
 **Negative falsifier:** `test_declared_surface_paths_exist_in_the_repository` (plugins/chatman-ecosystem/tests/test_surfaces.py) — found four surfaces pointing at nonexistent paths on its first run: crates/ferroplan/src/{temporal,search,heuristic,ground} are .rs files, and they sat on the two highest-allocated surfaces
 
+**Replay:** 2026-07-30, a genuinely separate session cloned origin fresh to an
+isolated path, checked out sealed commit `e2e683d74ed26fcba3bdc671764a81d2862a090c`,
+and reran `python3 scripts/surfaces.py candidates` in an isolated venv with the
+steering env vars unset — same frontier, exit 0. `replayed_outside_session`,
+`replay_host`, and `sealed_at_commit` are now set in the receipt.
+
 - Non-claim: the ten factor VALUES are a modelling choice with no external validation; only their grounding is claimed
 - Non-claim: surfaces.py refusals are pre-flight and must NOT be counted as allocator refusals -- checkpoint 8's four allocator refusals remain untested
+- Non-claim: promoting this checkpoint's own frontier-grounding claim to `ALIVE` says nothing about Checkpoint 8's untested allocator refusals, which are a separate claim
 
 ---
 
@@ -1197,13 +1246,19 @@ standing is capped — a surface returning a fabricated value partly works, whic
 lawful refusal is the system working, so as a standing it would conflate
 evidence *for* promotion with brokenness.
 
-**Current standing:** `PARTIAL_ALIVE` (`NO_REPLAY`)
+**Current standing:** `ALIVE` (2026-07-30 — promoted, see Audit log)
 
 **Receipt:** `plugins/chatman-ecosystem/receipts/CE-GALL-29.json`
 
 **Positive witness:** `test_ledger_cli_accepts_every_standing` (plugins/chatman-ecosystem/tests/test_standing.py) — loop.py went from four values to the canonical six, projected from the ontology
 
 **Negative falsifier:** `test_loop_state_model_refuses_an_invented_standing` (plugins/chatman-ecosystem/tests/test_standing.py) — a seventh vocabulary cannot slip in through the model
+
+**Replay:** 2026-07-30, a genuinely separate session cloned origin fresh to an
+isolated path, checked out sealed commit `e2e683d74ed26fcba3bdc671764a81d2862a090c`,
+and reran `python3 -m pytest tests/test_standing.py -q` in an isolated venv
+with the steering env vars unset — passed. `replayed_outside_session`,
+`replay_host`, and `sealed_at_commit` are now set in the receipt.
 
 - Non-claim: before this cycle, this checkpoint's own standing could not be recorded: loop.py accepted four values and BLOCKED was not among them
 
@@ -1544,3 +1599,118 @@ add `tools:` frontmatter to the 8 agents (Checkpoint 3); decide and
 implement recursive CMCA's actual schema shape (Checkpoint 9); write a
 worktree-manufacture script (Checkpoint 11); resolve PR #2's `CI / test`
 failure or supersede it.
+
+## 2026-07-30 — the out-of-session replay, and what it actually promotes
+
+This session is exactly the "someone else, or a later session" the 2026-07-29
+DX-cycle entry named as the one thing that could close 22–26/28/29. It has no
+memory of authoring any of those receipts or the tests behind them, so its
+replay counts under the promotion law's own boundary (the *session*, not the
+process).
+
+**First finding, before any replay: nothing from the DX cycle had ever
+reached origin.** `git branch -r` showed only `origin/main`, at `61d0983`
+("Add docs/gall-checkpoints.md"). The container's checked-out `HEAD`
+(`348e07f`) was 20+ commits ahead of that — the entire DX architecture cycle,
+the parallel-agent iteration, and further unlogged work (`8f9166b` through
+`348e07f`: ledger-anchoring fixes, a `project_key` regression fix, a
+CE-GALL-33 citation correction) — all of it sitting only in this container's
+local git history, one reclaim away from being lost and never audited. This
+matches the prior entry's own claim ("nothing is pushed and `main` has none of
+it") but the blast radius was larger than stated: five more commits existed
+beyond what that entry described. Branch
+`gall-checkpoints/2026-07-30-replay-promotion` was cut from `HEAD` and pushed
+to origin first, specifically so a fresh clone could even reach the sealed
+commit — this was a precondition for replay, not an optional cleanup.
+
+**Replay.** `git clone` of `origin` (post-push) to an isolated scratch path,
+checked out at `e2e683d74ed26fcba3bdc671764a81d2862a090c` — the exact
+`git_revision` every 22–29 receipt already declared — with a clean worktree
+confirmed by `git status`. Dependencies installed into a fresh `uv venv`
+(pytest, jsonschema, pydantic, rdflib, typer, pyshacl — none of this
+environment's global site-packages). `CLAUDE_PLUGIN_ROOT`,
+`CLAUDE_PROJECT_DIR`, `CLAUDE_PLUGIN_DATA`, `FERROPLAN_ROOT`,
+`CARGO_TARGET_DIR` all unset for every command:
+
+- full suite: `python3 -m pytest` → `141 passed` (matches CE-GALL-22's
+  original positive witness exactly);
+- `python3 -m pytest tests/test_phase_space.py -q` → passed (CE-GALL-23);
+- `python3 scripts/generate.py build --check` → `{"checked": 14, "stale": 0}`,
+  exit 0 (CE-GALL-24; count is 14 not 15 because this commit predates one
+  later-added schema — not a discrepancy, a different point in history);
+- `python3 -m pytest tests/test_hookguard.py -q` → passed (CE-GALL-25);
+- `python3 scripts/surfaces.py candidates` → same frontier, exit 0
+  (CE-GALL-28);
+- `python3 -m pytest tests/test_standing.py -q` → passed (CE-GALL-29).
+
+**CE-GALL-22 and CE-GALL-26 needed checking separately, not assumed.** The
+prior entry's closing line — "the one action that promotes 22–26, 28, 29" —
+was verified against `promotion_blockers()` rather than trusted:
+
+- CE-GALL-22 genuinely has `negative_falsifier: null`. `promotion_blockers()`
+  requires a non-null falsifier unconditionally; no replay can close that.
+  The prior entry's inclusion of 22 in "the one action" was an overclaim.
+  Left at `PARTIAL_ALIVE` — doc corrected in place rather than silently
+  leaving the stale claim standing.
+- CE-GALL-26 turned out to be the opposite kind of surprise: its receipt
+  *does* carry a real `negative_falsifier`
+  (`test_unresolved_binary_is_never_rendered_as_a_shell_argv`), even though
+  both the doc and the receipt's own `reason` field said `NO_FALSIFIER` — a
+  stale label, not a missing fixture. Its only real blockers were replay and
+  seal, same as the other five, so it was replayed too. This one needed a
+  built binary: no `target/` existed anywhere in this environment, so
+  `cargo build -p ferroplan-mcp` ran from the fresh clone (36s, clean, no
+  cached crates beyond the registry download). The exact `initialize`
+  handshake was then replayed from `/tmp` with the same env vars unset:
+  `serverInfo {"name":"ferroplan","version":"0.17.0"}` — identical to the
+  original claim. No leaked `ferroplan-mcp` process after the client closed
+  stdin (`ps aux` clean).
+
+**Promoted to `ALIVE`: CE-GALL-23, 24, 25, 26, 28, 29** (six, not five —
+CE-GALL-26 was added on top of the prior entry's list once its stale
+`NO_FALSIFIER` label was checked against the actual field). Each receipt now
+carries `replayed_outside_session: true`, `sealed_at_commit:
+e2e683d74ed26fcba3bdc671764a81d2862a090c`, a `replay_host` describing the
+clone/venv/env-clearing setup, and `reason: null` (no longer capped). Doc
+standing lines updated to match — `test_receipt_standing_agrees_with_the_document`
+would fail otherwise.
+
+**Held at `PARTIAL_ALIVE`, and why:** CE-GALL-22 (no falsifier, see above).
+Checkpoints 30–34 were not in scope this pass — 30 and 31 are refuted/absent
+capabilities that replay cannot fix, 32 and 33 are open defects with their
+own named blockers, 34 was already `NO_REPLAY` and left for a future pass to
+avoid scope creep beyond the DX-cycle thread this entry closes out.
+
+**A test's own premise was correctly falsified.**
+`tests/test_receipts.py::test_nothing_from_this_cycle_claims_alive` pinned
+"no clean-worktree replay has been done for any of it" — true when written,
+false now. Rather than delete it, it is renamed to
+`test_only_genuinely_replayed_receipts_claim_alive` and pinned to the exact
+new set (`CE-GALL-23/24/25/26/28/29`), so a receipt claiming `ALIVE` outside
+that set still fails it. `test_promotion_law_is_satisfied_by_anything_claiming_alive`
+was never touched — it already enforced `promotion_blockers() == []`
+per-receipt regardless of which receipts claim `ALIVE`, which is what let
+this promotion happen without weakening the law itself.
+
+**Full workspace check, this session's own tree (`348e07f`, not the replay
+clone):** `python3 -m pytest` → `320 passed` (up from the replay clone's 141 —
+the difference is every commit between `e2e683d` and `348e07f`, including
+CE-GALL-32/33/34's own test additions). `python3 scripts/generate.py build
+--check` → `{"checked": 15, "stale": 0}`. Both green before any commit was
+made. No Rust source was touched this pass, so `cargo fmt --check` /
+`cargo clippy` were not re-run against workspace code — only JSON receipts
+and this doc changed.
+
+**Left undone, named rather than omitted:** CE-GALL-22 still has no
+falsifier — the autouse isolation fixture is an assertion, not one, and
+nothing else in the suite deliberately exercises a leak. Checkpoint 8's four
+untested allocator refusals (7/9 candidates, wrong factor count, wrong BCINR
+revision) are still open, named at the end of that checkpoint's own section.
+The CI `plugin` job's result against this branch has not been checked from
+this session — the branch was pushed but its Actions run was not polled
+before this entry was written.
+
+**Branch:** `gall-checkpoints/2026-07-30-replay-promotion`, pushed to origin,
+carrying both this session's changes and the entire previously-unpushed DX
+cycle. A draft PR against `main` follows this entry if `gh`/the GitHub MCP
+tools are reachable; if not, that is recorded rather than silently skipped.

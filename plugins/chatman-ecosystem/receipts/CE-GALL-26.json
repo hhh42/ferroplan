@@ -21,11 +21,11 @@
     "test": "MCP initialize handshake from /tmp",
     "why_this_counts": "previously exit 69 while a built binary sat in target/debug; the 4-parents-up walk was calibrated for the repo layout and wrong under the install layout"
   },
-  "reason": "NO_FALSIFIER",
-  "replay_host": null,
-  "replayed_outside_session": false,
+  "reason": null,
+  "replay_host": "fresh `git clone` of origin (not this checkout) to an isolated scratch path, checked out at the sealed commit with a clean worktree; `cargo build -p ferroplan-mcp` built clean from that clone (no cached target/ anywhere in this environment), then the exact MCP `initialize` handshake was replayed from /tmp with steering env vars unset -- serverInfo {\"name\":\"ferroplan\",\"version\":\"0.17.0\"}, matching the original claim. Run by a scheduled-routine session with no memory of authoring this receipt or its tests -- 2026-07-30",
+  "replayed_outside_session": true,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",
-  "sealed_at_commit": null,
-  "standing": "PARTIAL_ALIVE",
+  "sealed_at_commit": "e2e683d74ed26fcba3bdc671764a81d2862a090c",
+  "standing": "ALIVE",
   "title": "Resolution from anywhere"
 }
