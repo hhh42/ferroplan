@@ -14,10 +14,9 @@ from __future__ import annotations
 import subprocess
 import sys
 
+import generate
 import pytest
 import rdflib
-
-import generate
 from _standing import DEFAULT, RANK, Standing, StandingReason
 from roots import plugin_root
 

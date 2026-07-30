@@ -60,7 +60,7 @@ class McpClient:
         self._line_queue: queue.Queue[Any] = queue.Queue()
         self._reader_thread: threading.Thread | None = None
 
-    def __enter__(self) -> "McpClient":
+    def __enter__(self) -> McpClient:
         try:
             self._start()
         except BaseException:
