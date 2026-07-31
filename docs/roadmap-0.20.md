@@ -162,6 +162,34 @@ that novelty works as the DRIVER with the heuristic as the tiebreak.
   A/B decides; casualties named and solo-checked, hatch
   `FF_NO_NOVFIRST`.
 
+### Recorded — the light rung and the decoded witness
+
+The scoping witness decoded one level deeper than the phase text: the
+h-guided novelty rung IS BFWS-shaped (its key is novelty-dominant),
+and it DOES solve visit-all-2014 — in 35 s, all of it spent on
+per-pop `relaxed_helpful` calls the width-1 structure never needed.
+So the swing became the LIGHT rung (`novelty::search_light`): IW(1) +
+goal count with ZERO heuristic evaluations — single heap, key =
+⟨novel, unachieved goals, insertion order⟩, a pop costs successor
+generation plus a bitset OR. Ladder placement: after EHC, before
+LAMA; the budget-gate family of its sibling (default-on under a
+declared affordable wall, `FF_NOVLIGHT` forces, `FF_NO_NOVLIGHT`
+opts out, `FF_NOVLIGHT_ONLY` probes).
+
+- **Receipts**: visit-all-2014 i1 35 s → <1 s (899 pops — exactly
+  plan length); i11/i12 of the 0/20 board solve in 8–9 s (3135/3248
+  pops, again plan length). openstacks-2014 i1 instant.
+- **The cap priced honestly**: 2 M pops cost 7 s of sokoban wall
+  (16 s vs 9 s ladder tax) — set to 300k, tax ~1 s, all wins kept
+  (they need plan-length pops, two orders below the cap).
+- **Fixture** (`tests/novlight.rs` + `benchmarks/bench/visitgrid-10x10`):
+  the light search walks the grid in <1000 pops while weighted
+  best-first at a 20× larger eval budget caps on the h_FF plateau —
+  the separation pinned in-process.
+- transport/parking/cave-diving-2014 i1 stay unsolved at 60 s —
+  they are not width-1 shapes at this scale; named for the referee,
+  not claimed.
+
 ## Phase 4 — retained-state compression (the ~200 mem-caps)
 
 0.19's attribution stands and inverts 0.9's lesson: the RSS probe at
@@ -181,6 +209,27 @@ organic-synthesis-2018 7, snake 5.
   2014 boards. Byte-identical search order is the constraint —
   compression must not change expansion order, or it's a different
   phase.
+
+### Recorded — hash→index dedup, no second bitset
+
+The smallest lever paid: the visited structures in the best-first
+fallback, the LAMA rung, and both novelty searches each stored a
+StateKey per inserted node — a full clone of the state's bitset plus
+relevant vals, duplicating what the node arena already holds. They
+are now hash → node-index buckets (`state_key_hash` streams exactly
+the old key's content through the in-tree FxHasher;
+`state_key_eq` settles collisions exactly against the arena state).
+Dedup verdicts and expansion order are byte-identical — plans
+verified identical across old/new binaries, full suite green.
+
+- **RSS receipts** at an identical forced 300k-node cap: city-car
+  133.9 → 113.2 MB (−15%), block-grouping-numeric 169.9 → 124.2 MB
+  (−27%).
+- The node-cap byte model follows (words×8 once, not twice), so the
+  same RLIMIT share admits ~1.5–2× the nodes on STRIPS-heavy tasks —
+  the raise is the point; the mem-cap columns at the cut referee it.
+- Deferred, named: per-node fv/fdef sharing (State's type ripples
+  through temporal/session/wasm — a future cycle's surgery).
 
 ## Phase 5 — the debt basket (attribution first)
 
@@ -205,6 +254,44 @@ organic-synthesis-2018 7, snake 5.
   exhausts at all (over-pruning? numeric guard? helpful-action
   starvation?). A completeness bug here would outrank everything
   else in the basket.
+
+### Recorded — four attributions, one pin, one honest negative
+
+- **tpp-numeric's exhaustion, closed**: every probed instance
+  (i12/i14/i19) is a NODE-CAP trip ("capped at 16–18k evals"), not
+  open-list exhaustion — no completeness hole. Phase 1's refill
+  spends their walls; Phase 4's cap raise gives them more room. The
+  basket's scariest question dissolves into the two phases that
+  already landed.
+- **drone-numeric VAL-RED ×16, attributed to VAL**: VAL's parser
+  fails on ANY drone problem with two objects of the location type
+  (bisected to exactly that trigger; one object parses) — before a
+  plan is ever judged. The i1 plan hand-simulates valid. The runner
+  now records `val: None` (validation unavailable) when VAL reports
+  a parse-level failure, which is not the same verdict as a rejected
+  plan; the 16 rows reclassify at the next sweep. data-network-2018
+  carries the same treatment at its re-sweep.
+- **sailing-class, attributed**: 16 grounded ops, unbounded numeric
+  space — EHC dies, the light rung caps at 300k pops, the h-guided
+  rung at 400k evals, the fallback + refill spend the rest of the
+  wall. A genuine numeric-reachability wall (interval/AIBR-class or
+  numeric novelty), NAMED for the next numeric cycle; markettrader
+  and pathwaysmetric ride the same class.
+- **The ε-separation surgery — a pin landed, and the map-analyzer
+  witness decoded a third level down.** The same-slot repair now
+  covers START groups: within one slot, a start whose at-start add
+  provides another start's precondition emits first (bubble by the
+  PROVIDES relation, mirroring the 0.18 END repair;
+  `tests` pin: `same_slot_start_pair_emits_provider_first` over the
+  new `benchmarks/bench/eps-provider-domain.pddl`). But the three
+  VAL-RED rows themselves are NOT this shape: the third decode shows
+  build_road's start ε-chained to slot 1.005+ while the
+  `(not (clear junction0-2))` END effects sit at slots 1.000–1.002 —
+  DIFFERENT slots, so no same-slot reorder can reach it. The search
+  emitted start times past end effects it had not applied at
+  decision time; the repair belongs in the temporal emission layer.
+  Recorded as this cycle's honest negative, carried with the sharper
+  decode to a temporal-focused cycle.
 
 ## Phase 6 — cut 0.20.0 (+ the 2026 corpus rider)
 

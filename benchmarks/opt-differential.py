@@ -75,7 +75,12 @@ def main():
             if r["instance"] > len(insts):
                 continue
             prob = os.path.join(vdir, "instances", insts[r["instance"] - 1])
+            # Per-instance domain files (openstacks/parc-printer style):
+            # domains/domain-N.pddl paired by the instance's own number.
             dom = os.path.join(vdir, "domain.pddl")
+            if not os.path.isfile(dom):
+                num = re.search(r"\d+", insts[r["instance"] - 1]).group()
+                dom = os.path.join(vdir, "domains", f"domain-{num}.pddl")
             old_cost = r.get("metric") if r.get("metric") is not None else r.get("length")
             rec = {"board": board, "variant": r["variant"],
                    "instance": r["instance"], "old": old_cost, "new": None,

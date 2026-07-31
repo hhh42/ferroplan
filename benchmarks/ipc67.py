@@ -199,6 +199,13 @@ def val_check(val, domain, problem, steps, temporal=False):
         val, domain, problem, path]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if "Parser failed" in (r.stdout or "") + (r.stderr or ""):
+            # VAL could not PARSE the domain/problem (independent of the
+            # plan — the 0.20 attribution: drone-numeric fails on any
+            # problem with two objects of the location type, before a
+            # plan is ever judged). Validation is UNAVAILABLE, which is
+            # not the same verdict as a rejected plan: None, not False.
+            return None
         return r.returncode == 0 and "Plan valid" in r.stdout
     except Exception:
         return False

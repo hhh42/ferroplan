@@ -3171,6 +3171,7 @@ fn epsilon_separate(
         is_start: bool,
         time: f64,
         end_op: Option<usize>,
+        start_op: Option<usize>,
     }
     let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
     let mut hs: Vec<H> = Vec::new();
@@ -3189,18 +3190,20 @@ fn epsilon_separate(
                     None => format!("{head}-END"),
                 };
                 match (find(&sd), find(&ed)) {
-                    (Some(_so), Some(eo)) => {
+                    (Some(so), Some(eo)) => {
                         hs.push(H {
                             step: si,
                             is_start: true,
                             time: step.time,
                             end_op: None,
+                            start_op: Some(so),
                         });
                         hs.push(H {
                             step: si,
                             is_start: false,
                             time: step.time + dur,
                             end_op: Some(eo),
+                            start_op: None,
                         });
                     }
                     _ => {
@@ -3212,11 +3215,12 @@ fn epsilon_separate(
                 }
             }
             None => match find(&step.action) {
-                Some(_o) => hs.push(H {
+                Some(o) => hs.push(H {
                     step: si,
                     is_start: true,
                     time: step.time,
                     end_op: None,
+                    start_op: Some(o),
                 }),
                 None => return plan,
             },
@@ -3281,6 +3285,59 @@ fn epsilon_separate(
                     for k in 0..g.len() - 1 {
                         // A before B but A breaks B's invariant -> B first.
                         if breaks(g[k], g[k + 1]) && !breaks(g[k + 1], g[k]) {
+                            g.swap(k, k + 1);
+                            swapped = true;
+                        }
+                    }
+                    if !swapped {
+                        break;
+                    }
+                }
+            }
+            i = j.max(i + 1);
+        }
+    }
+
+    // Same-slot START groups (0.20 Phase 5, the map-analyzer surgery):
+    // the total ε-ordering keeps ends-before-starts at a slot, but among
+    // the STARTS of one slot the sort preserves construction order — and
+    // when start B's at-start ADD provides start A's at-start
+    // precondition (`(clear junction0-2)` in the twice-decoded
+    // map-analyzer i17/i18/i20 shape), emitting A's ε-slot first executes
+    // A before its provider ever fires. Same repair shape as the END
+    // groups above: bubble each slot's start run by the PROVIDES relation
+    // — if A precedes B but B's adds intersect A's positive preconditions
+    // (and not vice versa), B goes first. A mutual or cyclic relation
+    // (never produced by a guard-accepted plan) leaves the group for the
+    // STN consistency check to veto.
+    {
+        let provides = |x: usize, y: usize| -> bool {
+            let (Some(xo), Some(yo)) = (hs[x].start_op, hs[y].start_op) else {
+                return false;
+            };
+            task.add
+                .slice(xo)
+                .iter()
+                .any(|f| task.pre_pos.slice(yo).contains(f))
+        };
+        let slot = |x: f64| (x / EPS).round() as i64;
+        let mut i = 0;
+        while i < order.len() {
+            let mut j = i + 1;
+            while j < order.len()
+                && hs[order[i]].is_start
+                && hs[order[j]].is_start
+                && slot(hs[order[i]].time) == slot(hs[order[j]].time)
+            {
+                j += 1;
+            }
+            if hs[order[i]].is_start && j - i > 1 && j - i <= 16 {
+                let g = &mut order[i..j];
+                for _ in 0..g.len() {
+                    let mut swapped = false;
+                    for k in 0..g.len() - 1 {
+                        // A before B but B provides A's precondition -> B first.
+                        if provides(g[k + 1], g[k]) && !provides(g[k], g[k + 1]) {
                             g.swap(k, k + 1);
                             swapped = true;
                         }
@@ -3396,6 +3453,56 @@ mod tests {
     /// window have NO strict ε-separation; there the pass falls back to
     /// the raw schedule — the recorded escape, exercised by the eps-cross
     /// bench fixture, not this test.)
+    /// The 0.20 Phase 5 pin (the map-analyzer surgery): a same-slot START
+    /// pair where one start's at-start add provides the other's at-start
+    /// precondition must emit provider-first, whatever the construction
+    /// order. Before the repair the dependent kept its earlier ε-slot and
+    /// executed before its provider ever fired — the exact mechanism VAL
+    /// rejected on map-analyzer-2014 i17/i18/i20.
+    #[test]
+    fn same_slot_start_pair_emits_provider_first() {
+        let dom = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../benchmarks/bench/eps-provider-domain.pddl"
+        ))
+        .unwrap();
+        let prb = "(define (problem p) (:domain epsprov)
+          (:init) (:goal (moved)))";
+        let d = crate::parser::parse_domain(&dom).unwrap();
+        let p = crate::parser::parse_problem(prb).unwrap();
+        let c = compile(&d, &p);
+        let task = match crate::ground::ground_stratified(&c.domain, &c.problem, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("ground"),
+        };
+        let (_kinds, _dur, inv) = build_kind(&task, &c);
+        // DEPENDENT constructed first: both starts share slot 0.
+        let plan = TimedPlan {
+            steps: vec![
+                TimedStep {
+                    time: 0.0,
+                    action: "TRAVERSE".into(),
+                    duration: Some(2.0),
+                },
+                TimedStep {
+                    time: 0.0,
+                    action: "CLEARJUNCTION".into(),
+                    duration: Some(3.0),
+                },
+            ],
+            makespan: 3.0,
+        };
+        let out = epsilon_separate(&task, &inv, plan, false);
+        let traverse = &out.steps[0];
+        let clearjunction = &out.steps[1];
+        assert!(
+            clearjunction.time < traverse.time,
+            "provider start must emit strictly first: clearjunction {} vs traverse {}",
+            clearjunction.time,
+            traverse.time
+        );
+    }
+
     #[test]
     fn same_epoch_end_pair_emits_inside_the_window() {
         let dom = std::fs::read_to_string(concat!(
