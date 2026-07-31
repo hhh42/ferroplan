@@ -47,7 +47,24 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.18.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.19.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+
+> **What's new in 0.19.0 — the contest cycle.** The standings push,
+> by direct request: ~120 instances came back from the FRONT DOOR
+> (negative-literal lexing + the implicit `total-cost` convention —
+> reject columns 60 → 0 and 60 → 1), and the numeric heuristic
+> learned linear gradients (**2023 numeric 113 → 165 valid**,
+> farmland/fo-farmland +17 each). The historic fence fell: ferroplan
+> now has an OPTIMAL mode (`--mode optimal`, A* + admissible h^max,
+> proof-or-nothing) and **252 certified optima across three
+> newly-entered seq-opt tracks** (2008/2011/2014), every certificate
+> VAL-green and oracle-cross-checked. The novelty rung runs by
+> default under a declared wall budget (+16/−0 on 2018-sat at the
+> cut; the 580-instance flagship moved for the first time in three
+> cycles, 441 → 452), the node cap now respects the actual RLIMIT,
+> and the 2023 agile board carries an official-budget 300 s ENTRY.
+> Full record:
+> [`docs/roadmap-0.19.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.19.md).
 
 > **What's new in 0.18.0 — the living-village cycle.** The 0.17
 > audit's named correctness debt is PAID: the ε-emission order

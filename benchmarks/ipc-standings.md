@@ -42,14 +42,14 @@ for scoring semantics and the failure-class definitions.
 
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
-| 2014 seq-sat | yes (first entry, 0.17) | 96/280 | coverage + VAL | 1 engine-reject/error, 42 mem-cap, 141 timeout |
-| 2014 seq-agile | yes (first entry, 0.17) | 95/280 | coverage + VAL | 40 mem-cap, 145 timeout |
+| 2014 seq-sat | yes (first entry, 0.17) | 98/280 | coverage + VAL | 8 engine-reject/error, 30 mem-cap, 144 timeout |
+| 2014 seq-agile | yes (first entry, 0.17) | 96/280 | coverage + VAL | 5 engine-reject/error, 31 mem-cap, 148 timeout |
 | 2014 tempo-sat | yes (first entry, 0.17) | 62/200 | coverage + VAL | 3 VAL-RED, 7 mem-cap, 128 timeout |
 | 2014 seq-mco t4 | yes (first entry, 0.17) | 107/280 | wall-clock per competition rule (4-core box) | 173 timeout |
 | 2014 seq-opt | yes (first entry, 0.19) | 48/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible h^max; every plan certified + VAL) | 208 timeout |
-| 2018 seq-sat | yes (first entry, 0.17) | 35/240 | vs best-known bounds: 0W/0T/18L, mean quality 0.76 (18 scored) | 7 VAL-RED, 9 mem-cap, 189 timeout |
-| 2023 classical | yes (first entry, 0.17) | 26/140 | vs best-known bounds: 0W/11T/15L, mean quality 0.88 (26 scored) | 15 mem-cap, 99 timeout |
-| 2023 numeric | yes (first entry, 0.17) | 165/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 1 engine-reject/error, 105 mem-cap, 113 timeout |
+| 2018 seq-sat | yes (first entry, 0.17) | 50/240 | vs best-known bounds: 0W/1T/18L, mean quality 0.77 (19 scored) | 8 VAL-RED, 5 engine-reject/error, 12 mem-cap, 165 timeout |
+| 2023 classical | yes (first entry, 0.17) | 28/140 | vs best-known bounds: 0W/12T/16L, mean quality 0.89 (28 scored) | 14 mem-cap, 98 timeout |
+| 2023 numeric | yes (first entry, 0.17) | 165/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 11 engine-reject/error, 58 mem-cap, 150 timeout |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).
 
