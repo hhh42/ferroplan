@@ -907,6 +907,17 @@ pub fn plan_avoiding(
             };
         }
     }
+    // Probe hatch for the LIGHT novelty rung (0.20 Phase 3).
+    if std::env::var("FF_NOVLIGHT_ONLY").is_ok() {
+        if let Some((ops, evaluated)) = crate::novelty::search_light(task, cfg.max_eval, forbidden)
+        {
+            return PlanOutcome {
+                ops: Some(ops),
+                evaluated,
+                ehc_fell_back: true,
+            };
+        }
+    }
     if ehc_first {
         if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval) {
             return PlanOutcome {
@@ -914,6 +925,34 @@ pub fn plan_avoiding(
                 evaluated,
                 ehc_fell_back: false,
             };
+        }
+        // Novelty-LIGHT rung (0.20 Phase 3): IW(1) + goal count, ZERO h
+        // evaluations — the width-y shape EHC just died on (its BFS
+        // lookahead pays hFF per state) is exactly where structural
+        // novelty alone finishes in milliseconds (the visit-all witness:
+        // 35 s of the h-guided rung's wall was ALL heuristic calls). A
+        // pop here costs successor generation and a bitset OR, so the
+        // rung's tax ahead of LAMA is small by construction. Same
+        // budget-gate family as the h-guided rung below: default-on
+        // under a declared affordable budget, `FF_NOVLIGHT=1` forces,
+        // `FF_NO_NOVLIGHT=1` opts out.
+        let novlight_on = std::env::var("FF_NOVLIGHT").is_ok()
+            || (wall_remaining_frac().is_some() && std::env::var("FF_NO_NOVLIGHT").is_err());
+        if novlight_on && rungs_affordable {
+            // 300k pops: the width-y wins need plan-length pops (the
+            // visit-all-2014 receipts: 899/3135/3248 — two orders below
+            // this), while a hopeless domain's tax stays ~1 s (the
+            // sokoban probe priced 2M pops at 7 s of wall).
+            const NOVLIGHT_CAP: usize = 300_000;
+            if let Some((ops, evaluated)) =
+                crate::novelty::search_light(task, NOVLIGHT_CAP.min(cfg.max_eval), forbidden)
+            {
+                return PlanOutcome {
+                    ops: Some(ops),
+                    evaluated,
+                    ehc_fell_back: true,
+                };
+            }
         }
         // LAMA rung (0.9 Phase 3): EHC gave up, i.e. the relaxed plan has
         // plateaued — exactly where landmark counting + preferred-operator

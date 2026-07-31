@@ -278,3 +278,85 @@ fn reconstruct(nodes: &[Node], mut ni: usize) -> Vec<usize> {
     ops.reverse();
     ops
 }
+
+/// The LIGHT novelty rung (0.20 Phase 3): IW(1)-style novelty-first with
+/// GOAL-COUNT guidance and ZERO heuristic evaluations. The 0.20 scoping
+/// probe found the h-guided rung above solves visit-all-2014 i1 but pays
+/// 35 s of wall — all of it in per-pop `relaxed_helpful` calls the
+/// width-1 structure never needed (BFWS dispatches visit-all in
+/// milliseconds on exactly this recipe). This rung is that recipe: key =
+/// ⟨novel, unachieved-goals, insertion order⟩, single heap, no h, no
+/// preferred ops — a pop costs successor generation and a bitset OR, so
+/// its wall footprint stays small by construction. Bounded like every
+/// rung (eval cap + node cap); no dead-end pruning (nothing computes ∞
+/// here) — the cap is the exit on hopeless tasks.
+///
+/// Determinism: single serial loop, fixed key layout, insertion-order
+/// tie-break — identical plans at any thread count (threads unused).
+pub fn search_light(
+    task: &PackedTask,
+    max_eval: usize,
+    forbidden: &[bool],
+) -> Option<(Vec<usize>, usize)> {
+    let node_cap = crate::search::node_cap_for(task);
+    let init = task.initial();
+    let goal_pos = &task.goal_pos;
+    let goal_num = &task.goal_num;
+    if task.goal_met_with(&init, goal_pos, goal_num) {
+        return Some((Vec::new(), 0));
+    }
+    let words = init.bits.len();
+    let mut nodes = vec![Node {
+        state: init.clone(),
+        father: usize::MAX,
+        op: usize::MAX,
+    }];
+    let mut seen = Seen::new(words);
+    let g0 = unachieved(task, &init, goal_pos);
+    seen.novel_and_mark((g0, 0), &init.bits);
+    let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
+    heap.push(Reverse((0, 0)));
+    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
+    visited.insert(task.state_key(&init));
+    let mut evaluated = 0usize;
+
+    while let Some(Reverse((_, ni))) = heap.pop() {
+        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
+            return Some((reconstruct(&nodes, ni), evaluated));
+        }
+        evaluated += 1;
+        if evaluated > max_eval || nodes.len() > node_cap {
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!(
+                    "[novelty-light] capped: {evaluated} evals (max {max_eval}), {} nodes",
+                    nodes.len()
+                );
+            }
+            return None;
+        }
+        for oi in 0..task.n_ops {
+            if forbidden.get(oi).copied().unwrap_or(false) {
+                continue;
+            }
+            if !task.op_applicable(oi, &nodes[ni].state) {
+                continue;
+            }
+            let ns = task.apply(oi, &nodes[ni].state);
+            let k = task.state_key(&ns);
+            if !visited.insert(k) {
+                continue;
+            }
+            let g = unachieved(task, &ns, goal_pos);
+            let novel = seen.novel_and_mark((g, 0), &ns.bits);
+            let key = if novel { 0 } else { W_NOVEL } + g as i64 * W_GOALS;
+            let idx = nodes.len();
+            nodes.push(Node {
+                state: ns,
+                father: ni,
+                op: oi,
+            });
+            heap.push(Reverse((key, idx)));
+        }
+    }
+    None
+}

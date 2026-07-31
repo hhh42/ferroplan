@@ -14,9 +14,8 @@ already in the output JSONL are skipped on re-run.
 """
 import json
 import os
+import re
 import subprocess
-import sys
-import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FF = os.path.join(ROOT, "target", "release", "ff")
@@ -32,8 +31,14 @@ BOARDS = [  # (jsonl, ipc dirs to search for the variant)
 
 
 def instances(vdir):
+    # NUMERIC sort, exactly like ipc67.py's — the first differential run
+    # sorted lexically (instance-10 before instance-2), misaligned every
+    # board row past i1, and manufactured phantom cost "mismatches" in
+    # both directions on elevator-STRIPS before the misread was caught.
     d = os.path.join(vdir, "instances")
-    return sorted(os.listdir(d)) if os.path.isdir(d) else []
+    if not os.path.isdir(d):
+        return []
+    return sorted(os.listdir(d), key=lambda n: int(re.search(r"\d+", n).group()))
 
 
 def find_variant(ipcs, variant):
