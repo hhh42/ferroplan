@@ -239,17 +239,33 @@ def run_instance(val, n, d, p):
                     raise
                 time.sleep(5)
         el = time.perf_counter() - t
+        # Honest clocks (0.20 Phase 1): elapsed wall is recorded for
+        # UNSOLVED rows too. Before this, a graceful engine exit at the
+        # FF_TIME_LIMIT wall left time=None and the standings classed it
+        # as an engine-reject — maintenance-2014's "8 rejects" were
+        # ordinary timeouts wearing that costume.
+        rec["time"] = round(el, 2)
         if r.returncode != 0 and "allocation" in (r.stderr or ""):
             rec["notes"] = "mem-cap"
         s = json.loads(r.stdout) if r.stdout.strip() else {}
         plan = s.get("plan") or {}
+        if not s and r.returncode != 0 and rec["notes"] is None:
+            # No JSON came back and the exit was nonzero: a real engine
+            # error/reject (parse failure, panic), distinct from a clean
+            # "searched and found nothing" JSON verdict.
+            rec["notes"] = f"engine-exit-{r.returncode}"
         if s.get("solved"):
-            rec.update(solved=True, time=round(el, 2),
+            rec.update(solved=True,
                        metric=plan.get("metric"), length=plan.get("length"),
                        notes=s.get("notes"))
             if val:
                 rec["val"] = val_check(val, d, p, plan.get("steps", []),
                                        temporal=plan.get("makespan") is not None)
+        elif s.get("notes") and rec["notes"] is None:
+            # Unsolved WITH a mechanism (e.g. "unsolvable at grounding:
+            # ..." from the 0.19 named verdicts) — keep it for the
+            # standings' reject-vs-search attribution.
+            rec["notes"] = s.get("notes")
     except subprocess.TimeoutExpired:
         rec["time"] = TIMEOUT
     except (OSError, subprocess.SubprocessError):

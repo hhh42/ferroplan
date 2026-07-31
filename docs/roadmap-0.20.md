@@ -64,6 +64,55 @@ the tpp-numeric i19 witness (must now run to the wall; solving it is
 upside, not the gate). Referee: re-attributed failure classes plus
 any coverage the refill loop buys.
 
+### Recorded — the clocks are honest and the wall gets spent
+
+The bookkeeping first, both ends receipted:
+
+- **Runner** (`ipc67.py`): elapsed wall is recorded for UNSOLVED rows
+  (previously solved-only); a nonzero exit with no JSON verdict is
+  stamped `engine-exit-<rc>`; an unsolved JSON verdict's mechanism
+  notes (the 0.19 named verdicts) are carried into the row. Smoke:
+  tpp-numeric i1–i3 rows byte-equivalent to before; a sailing run at
+  12 s produces `"time": 12` on its unsolved row.
+- **Standings** (`standings.py`): the classifier now reads the
+  elapsed — wall-exit (≥95% of budget) is TIMEOUT even when the
+  engine exited gracefully at an armed `FF_TIME_LIMIT`; named
+  mechanisms (`engine-exit-*`, grounding verdicts, rejects-by-name)
+  stay engine-reject; the residue is a NEW `early-exit` class (gave
+  up with wall left — the refill loop's referee column). Legacy
+  `time=None` rows keep their old class and the regenerated
+  `ipc-standings.md` came out byte-identical — the truth arrives as
+  boards re-sweep.
+- **Engine** (`search.rs plan_avoiding`): the refill loop. A CAPPED
+  fallback (eval cap or node-cap memory model — genuine exhaustion
+  returns immediately, completeness is weight-independent) with >10%
+  of an armed wall remaining re-enters GREEDIER: w_h ×4 and
+  max_eval ×4 per round, memory bound untouched, at most 6 re-entries
+  (escalation saturates; a saturated re-run is deterministic waste).
+  An explicit api `max_evaluated` is a budgeted-think contract and
+  disarms the loop; no declared budget ⇒ single round, byte-identical
+  to 0.19. `FF_NO_REFILL=1` is the discriminator hatch.
+- **The witness, before/after**: tpp-numeric runner-i19 returned
+  unsolved at 35 s of a 60 s wall; with the refill it runs round 2
+  (w_h 20) and exits at 57 s — 95% spent, an honest timeout row. The
+  solo probes for the record: i19 stays unsolved under every alternate
+  bet tried (w_h 20 → capped 18 s, w_h 60 → capped 8 s, novelty-only
+  → 42 s) — WHY a solvable instance's ladder exhausts at all is
+  Phase 5's question, on the record there.
+- **Fixture** (`tests/refill.rs` + `benchmarks/bench/visitgrid-*`):
+  subprocess pin, three scenarios — armed wall + forced 3000-node cap
+  shows exactly 6 narrated refill rounds then an honest unsolved;
+  `FF_NO_REFILL` shows zero; no budget shows zero. The 7×7 visit-all
+  grid fixture needs ~40k insertions under best-first at any weight,
+  so every round caps deterministically. Full suite green (32/32),
+  fmt + clippy `-D warnings` clean.
+
+A scoping probe recorded while calibrating the fixture: weighted
+best-first CANNOT solve even a 10×10 visit-all within 100k evals at
+ANY weight (5/20/60) — h_FF's plateau defeats greed entirely, while
+EHC and the novelty rung both dispatch it instantly. Phase 3's
+novelty-first bet is aimed at exactly that shape.
+
 ## Phase 2 — LM-cut (the 554-instance pot)
 
 The 0.19 stretch that wasn't taken, now the cycle's centerpiece.

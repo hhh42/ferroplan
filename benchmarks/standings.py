@@ -25,8 +25,12 @@ Quality scoring, by track semantics:
     official per-instance archive is vendored for 2008/2011.
 
 Failure classes per unsolved instance (from the JSONL):
-  timeout (time == budget), mem-cap (notes), engine-reject/error
-  (no time recorded — parse/feature rejects land here), else search.
+  timeout (elapsed >= 95% of budget — including graceful engine exits
+  AT an armed FF_TIME_LIMIT wall), mem-cap (notes), engine-reject/error
+  (a named mechanism: parse/feature reject, grounding verdict, nonzero
+  exit, or a legacy pre-0.20 row with no elapsed recorded), else
+  early-exit (search gave up with wall budget left — the class the
+  0.20 refill loop exists to shrink).
 """
 
 import json
@@ -111,9 +115,12 @@ def classify(r, budget):
         # search losses. The audit record investigates per corpus.
         return "VAL-RED"
     notes = r.get("notes") or ""
-    if notes == "mem-cap":
+    # Solution.notes is a list on engine rows; runner-stamped classes are
+    # plain strings. Normalize to one text for the mechanism checks.
+    ntext = notes if isinstance(notes, str) else " ".join(str(x) for x in notes)
+    if ntext == "mem-cap":
         return "mem-cap"
-    if notes == "spawn-fail":
+    if ntext == "spawn-fail":
         # Runner-side fork failure under memory pressure (environmental;
         # see run_instance's retry note in ipc67.py). Pre-0.16-fix sweeps
         # logged these as engine-reject/error — the 0.16 record names the
@@ -121,10 +128,23 @@ def classify(r, budget):
         return "spawn-fail"
     t = r.get("time")
     if t is None:
+        # Pre-0.20 runner rows only: elapsed was not recorded for
+        # unsolved rows, so a graceful engine exit AT the armed wall is
+        # indistinguishable from a true reject here. The 0.20 runner
+        # records elapsed for every row; this legacy class empties as
+        # boards re-sweep (the 0.20 audit showed maintenance-2014's
+        # "rejects" were wall-exit timeouts).
         return "engine-reject/error"
     if t >= budget * 0.95:
         return "timeout"
-    return "search"
+    if ntext.startswith("engine-exit") or "unsolvable" in ntext or "reject" in ntext:
+        # A named mechanism: parse/feature reject, grounding verdict, or
+        # a nonzero exit without a JSON verdict.
+        return "engine-reject/error"
+    # Finished early, no plan, no named mechanism: the search gave up
+    # with wall budget left (capped ladder, exhaustion). The 0.20 refill
+    # loop exists to shrink this class; whatever remains is honest.
+    return "early-exit"
 
 
 def archive_lengths():

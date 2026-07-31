@@ -982,26 +982,73 @@ pub fn plan_avoiding(
             }
         }
     }
-    let (ops, evaluated) = match search_from(
-        task,
-        &task.initial(),
-        &task.goal_pos,
-        &task.goal_num,
-        None,
-        f64::INFINITY,
-        threads,
-        cfg,
-        forbidden,
-        None,
-        None,
-    ) {
-        PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
-        PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
-    };
-    PlanOutcome {
-        ops,
-        evaluated,
-        ehc_fell_back: ehc_first,
+    // The refill loop (0.20 Phase 1: spend the whole wall). A CAPPED
+    // fallback — eval cap or the node cap's memory model, not genuine
+    // exhaustion — used to return unsolved with wall budget still on the
+    // table (the tpp-numeric witness: rungs 27 s, fallback capped at
+    // 7.8 s, 25 s of a 60 s wall handed back unspent). With a wall
+    // budget declared and >10% of it remaining, re-enter GREEDIER
+    // instead: w_h ×4 (deeper for the same node count — the memory
+    // bound is untouched) and max_eval ×4, at most REFILL_MAX_ROUNDS
+    // re-entries (escalation saturates; re-running a saturated config
+    // is deterministic waste). Genuine exhaustion (`capped: false`)
+    // returns immediately — completeness is weight-independent, so a
+    // re-run cannot help. An EXPLICIT eval cap (api max_evaluated ≠
+    // default) is a budgeted-think contract and disarms the loop.
+    // No budget declared → single round, byte-identical to 0.19.
+    // `FF_NO_REFILL=1` is the discriminator hatch.
+    const REFILL_MAX_ROUNDS: usize = 6;
+    let refill_armed = cfg.max_eval == DEFAULT_MAX_EVAL && std::env::var("FF_NO_REFILL").is_err();
+    let mut round_cfg = cfg;
+    let mut round = 0usize;
+    let mut total_evaluated = 0usize;
+    loop {
+        match search_from(
+            task,
+            &task.initial(),
+            &task.goal_pos,
+            &task.goal_num,
+            None,
+            f64::INFINITY,
+            threads,
+            round_cfg,
+            forbidden,
+            None,
+            None,
+        ) {
+            PlanResult::Plan { ops, evaluated, .. } => {
+                return PlanOutcome {
+                    ops: Some(ops),
+                    evaluated: total_evaluated + evaluated,
+                    ehc_fell_back: ehc_first,
+                };
+            }
+            PlanResult::Unsolvable { evaluated, capped } => {
+                total_evaluated += evaluated;
+                let wall_ok = wall_remaining_frac().is_some_and(|f| f > 0.10);
+                if !(capped && refill_armed && wall_ok && round < REFILL_MAX_ROUNDS) {
+                    return PlanOutcome {
+                        ops: None,
+                        evaluated: total_evaluated,
+                        ehc_fell_back: ehc_first,
+                    };
+                }
+                round += 1;
+                round_cfg.w_h = round_cfg
+                    .w_h
+                    .saturating_mul(4)
+                    .min((1e9 * WEIGHT_SCALE) as i64);
+                round_cfg.max_eval = round_cfg.max_eval.saturating_mul(4);
+                if std::env::var("FF_WALL_DEBUG").is_ok() {
+                    eprintln!(
+                        "wall: refill round {} (w_h {}, max_eval {})",
+                        round + 1,
+                        round_cfg.w_h as f64 / WEIGHT_SCALE,
+                        round_cfg.max_eval
+                    );
+                }
+            }
+        }
     }
 }
 
