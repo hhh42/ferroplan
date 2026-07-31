@@ -1,28 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal stdlib-only MCP stdio JSON-RPC client for the Chatman ecosystem plugin.
-
-This does not reimplement the MCP protocol in general -- it implements exactly
-the subset `loop.py` and `phase.py` need to call `ferroplan-mcp` tools
-(`initialize` handshake, `notifications/initialized`, and `tools/call`) without
-adding a new pip dependency (no `mcp` SDK on the path these scripts run on).
-
-Implemented as a context-manager class (`with McpClient() as client: ...`) so
-the subprocess spawned for `run-ferroplan-mcp.sh` is always terminated on exit,
-including on exception -- these scripts are invoked from Claude Code hooks and
-must never leave orphaned `cargo run`/`ferroplan-mcp` processes behind. To that
-end `__enter__` also guarantees cleanup if the handshake itself fails partway
-through (a bad `initialize` response, or the subprocess dying right after
-spawn) -- previously such a failure raised out of `_start()` before `with`
-ever considered the block "entered", so `__exit__`/`close()` never ran and the
-subprocess leaked.
-
-Reads off the subprocess are bounded by `timeout` (constructor default, or a
-per-call override) via a background reader thread feeding a queue -- a plain
-blocking `readline()` has no way to time out, so a hung/misbehaving
-`ferroplan-mcp` process (e.g. stuck mid-build) would otherwise wedge the
-calling hook indefinitely.
-"""
-
+"""Bounded stdlib-only MCP stdio JSON-RPC client."""
 from __future__ import annotations
 
 import json
@@ -31,30 +8,42 @@ import queue
 import subprocess
 import sys
 import threading
+import time
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 
 class McpToolError(RuntimeError):
-    """Raised when an MCP JSON-RPC call errors, times out, or a tool result has isError=true."""
+    """Raised when an MCP call violates transport or result contracts."""
 
 
-# Sentinel placed on the reader-thread queue when the subprocess's stdout closes.
 _EOF = object()
 
 
 class McpClient:
-    """Spawns `run-ferroplan-mcp.sh`, performs the MCP stdio handshake, and
-    exposes `call_tool` for JSON-RPC `tools/call` requests.
+    """Spawn one stdio MCP server and expose its bounded tool surface."""
 
-    Usage:
-        with McpClient() as client:
-            result = client.call_tool("verify_receipt", {"envelope": envelope})
-    """
-
-    def __init__(self, *, launcher: Path | None = None, timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        *,
+        launcher: Path | None = None,
+        timeout: float = 30.0,
+        project_root: Path | None = None,
+        client_name: str = "chatman-ecosystem",
+        environment: Mapping[str, str] | None = None,
+        max_message_bytes: int = 4 * 1024 * 1024,
+        max_tool_pages: int = 1024,
+        shutdown_timeout: float = 1.0,
+    ) -> None:
         self._launcher = launcher or Path(__file__).resolve().parent / "run-ferroplan-mcp.sh"
         self._timeout = timeout
+        self._project_root = project_root.resolve() if project_root else None
+        self._client_name = client_name
+        self._environment = dict(environment or {})
+        self._max_message_bytes = max_message_bytes
+        self._max_tool_pages = max_tool_pages
+        self._shutdown_timeout = shutdown_timeout
         self._next_id = 1
         self._process: subprocess.Popen[str] | None = None
         self._line_queue: queue.Queue[Any] = queue.Queue()
@@ -64,10 +53,6 @@ class McpClient:
         try:
             self._start()
         except BaseException:
-            # _start() can raise partway through spawn/handshake; because that
-            # happens before this method returns, `with` never considers the
-            # block entered and __exit__ is never called. Clean up here so a
-            # failed handshake can't leak the subprocess.
             self.close()
             raise
         return self
@@ -79,9 +64,22 @@ class McpClient:
         if not self._launcher.exists():
             raise McpToolError(f"MCP launcher not found: {self._launcher}")
         env = dict(os.environ)
-        env.setdefault("CLAUDE_PROJECT_DIR", str(self._launcher.resolve().parent.parent.parent.parent))
+        env.update(self._environment)
+        configured_root = env.get("CHATMAN_PROJECT_DIR") or env.get("CLAUDE_PROJECT_DIR")
+        fallback_root = self._launcher.resolve().parent.parent.parent.parent
+        root = self._project_root or (Path(configured_root) if configured_root else fallback_root)
+        env.setdefault("CHATMAN_PROJECT_DIR", str(root))
+        env.setdefault("CLAUDE_PROJECT_DIR", str(root))
+        argv = [str(self._launcher)]
+        if not os.access(self._launcher, os.X_OK):
+            if self._launcher.suffix == ".sh":
+                argv = ["/bin/sh", str(self._launcher)]
+            elif self._launcher.suffix == ".py":
+                argv = [sys.executable, str(self._launcher)]
+            else:
+                raise McpToolError(f"MCP launcher is not executable: {self._launcher}")
         self._process = subprocess.Popen(
-            [str(self._launcher)],
+            argv,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -91,14 +89,13 @@ class McpClient:
         )
         self._reader_thread = threading.Thread(target=self._read_loop, daemon=True)
         self._reader_thread.start()
-        self._send_notification(
+        self._request(
             "initialize",
             {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "clientInfo": {"name": "chatman-ecosystem", "version": "0.1"},
+                "clientInfo": {"name": self._client_name, "version": "0.1"},
             },
-            expect_response=True,
         )
         self._write({"jsonrpc": "2.0", "method": "notifications/initialized"})
 
@@ -113,18 +110,15 @@ class McpClient:
         except (BrokenPipeError, OSError):
             pass
         try:
-            process.wait(timeout=5)
+            process.wait(timeout=self._shutdown_timeout)
         except subprocess.TimeoutExpired:
             process.kill()
-            process.wait(timeout=5)
-        # The reader thread exits on its own once stdout closes (which killing
-        # or a normal process exit both cause); it's a daemon thread either
-        # way, so no explicit join is required for correctness here.
+            process.wait(timeout=self._shutdown_timeout)
+        if self._reader_thread is not None:
+            self._reader_thread.join(timeout=1)
+            self._reader_thread = None
 
     def _read_loop(self) -> None:
-        """Runs on a background thread: pushes every stdout line (and finally
-        an EOF sentinel) onto `self._line_queue`, so reads can be bounded by a
-        timeout even though `readline()` itself has no timeout parameter."""
         process = self._process
         stdout = process.stdout if process else None
         try:
@@ -132,7 +126,6 @@ class McpClient:
                 for line in stdout:
                     self._line_queue.put(line)
         except (BrokenPipeError, OSError, ValueError):
-            # ValueError: reading from a stream after it's been closed by close().
             pass
         finally:
             self._line_queue.put(_EOF)
@@ -152,9 +145,15 @@ class McpClient:
         if process is None:
             raise McpToolError("MCP subprocess is not running")
         effective_timeout = self._timeout if timeout is None else timeout
+        deadline = time.monotonic() + effective_timeout
         while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise McpToolError(
+                    f"MCP subprocess did not respond to id={expected_id} within {effective_timeout}s"
+                )
             try:
-                line = self._line_queue.get(timeout=effective_timeout)
+                line = self._line_queue.get(timeout=remaining)
             except queue.Empty as error:
                 raise McpToolError(
                     f"MCP subprocess did not respond to id={expected_id} within {effective_timeout}s"
@@ -162,7 +161,12 @@ class McpClient:
             if line is _EOF:
                 stderr = process.stderr.read() if process.stderr else ""
                 raise McpToolError(
-                    f"MCP subprocess closed stdout before responding to id={expected_id}: {stderr.strip()}"
+                    f"MCP subprocess closed stdout before responding to id={expected_id}: "
+                    f"{stderr.strip()}"
+                )
+            if len(line.encode("utf-8", errors="replace")) > self._max_message_bytes:
+                raise McpToolError(
+                    f"MCP response exceeded {self._max_message_bytes} bytes for id={expected_id}"
                 )
             line = line.strip()
             if not line:
@@ -171,50 +175,70 @@ class McpClient:
                 message = json.loads(line)
             except json.JSONDecodeError as error:
                 raise McpToolError(f"MCP subprocess emitted non-JSON line: {line!r}") from error
+            if not isinstance(message, dict):
+                raise McpToolError(f"MCP subprocess emitted non-object JSON: {message!r}")
             if message.get("id") == expected_id:
                 return message
-            # Not our response (e.g. a server-initiated notification) -- ignore and keep reading.
 
-    def _send_notification(
-        self, method: str, params: dict[str, Any], *, expect_response: bool
-    ) -> dict[str, Any] | None:
+    def _request(
+        self,
+        method: str,
+        params: dict[str, Any] | None = None,
+        *,
+        timeout: float | None = None,
+    ) -> Any:
         request_id = self._next_id
         self._next_id += 1
-        self._write({"jsonrpc": "2.0", "id": request_id, "method": method, "params": params})
-        if not expect_response:
-            return None
-        response = self._read_response(request_id)
+        request: dict[str, Any] = {"jsonrpc": "2.0", "id": request_id, "method": method}
+        if params is not None:
+            request["params"] = params
+        self._write(request)
+        response = self._read_response(request_id, timeout=timeout)
         if "error" in response:
             raise McpToolError(f"MCP `{method}` failed: {response['error']}")
         return response.get("result")
 
-    def call_tool(self, name: str, arguments: dict[str, Any], *, timeout: float | None = None) -> dict[str, Any]:
-        """Send `tools/call` for `name` with `arguments` and return the tool result.
+    def list_tools(self) -> list[dict[str, Any]]:
+        """Return every advertised tool with pagination cycle and page bounds."""
+        tools: list[dict[str, Any]] = []
+        cursor: str | None = None
+        seen_cursors: set[str] = set()
+        for _page in range(self._max_tool_pages):
+            params = {"cursor": cursor} if cursor else None
+            result = self._request("tools/list", params)
+            if not isinstance(result, dict) or not isinstance(result.get("tools"), list):
+                raise McpToolError(f"MCP `tools/list` returned an unexpected result: {result!r}")
+            for tool in result["tools"]:
+                if not isinstance(tool, dict) or not isinstance(tool.get("name"), str):
+                    raise McpToolError(f"MCP `tools/list` returned an invalid tool: {tool!r}")
+                tools.append(tool)
+            next_cursor = result.get("nextCursor")
+            if not isinstance(next_cursor, str) or not next_cursor:
+                return tools
+            if next_cursor in seen_cursors:
+                raise McpToolError(f"MCP `tools/list` cursor cycle detected: {next_cursor}")
+            seen_cursors.add(next_cursor)
+            cursor = next_cursor
+        raise McpToolError(f"MCP `tools/list` exceeded {self._max_tool_pages} pages")
 
-        Raises McpToolError with the actual error text if the JSON-RPC response
-        is an error, if the tool result declares `isError: true`, or if no
-        response arrives within `timeout` seconds (constructor default if
-        unset here).
-        """
-        request_id = self._next_id
-        self._next_id += 1
-        self._write(
-            {
-                "jsonrpc": "2.0",
-                "id": request_id,
-                "method": "tools/call",
-                "params": {"name": name, "arguments": arguments},
-            }
+    def call_tool(
+        self,
+        name: str,
+        arguments: dict[str, Any],
+        *,
+        timeout: float | None = None,
+    ) -> dict[str, Any]:
+        if not isinstance(arguments, dict):
+            raise McpToolError(f"MCP tool `{name}` arguments must be an object")
+        result = self._request(
+            "tools/call",
+            {"name": name, "arguments": arguments},
+            timeout=timeout,
         )
-        response = self._read_response(request_id, timeout=timeout)
-        if "error" in response:
-            raise McpToolError(f"MCP tool `{name}` call errored: {response['error']}")
-        result = response.get("result")
         if not isinstance(result, dict):
-            raise McpToolError(f"MCP tool `{name}` returned an unexpected response: {response!r}")
+            raise McpToolError(f"MCP tool `{name}` returned an unexpected result: {result!r}")
         if result.get("isError"):
-            text = _extract_text(result)
-            raise McpToolError(f"MCP tool `{name}` reported an error: {text}")
+            raise McpToolError(f"MCP tool `{name}` reported an error: {_extract_text(result)}")
         return result
 
 
@@ -227,7 +251,7 @@ def _extract_text(result: dict[str, Any]) -> str:
 
 
 def tool_structured_result(result: dict[str, Any]) -> Any:
-    """Return `structuredContent` if present, otherwise parse the text content block."""
+    """Return ``structuredContent`` or parse the first text projection as JSON."""
     if "structuredContent" in result and result["structuredContent"] is not None:
         return result["structuredContent"]
     text = _extract_text(result)
@@ -237,8 +261,6 @@ def tool_structured_result(result: dict[str, Any]) -> Any:
         return text
 
 
-if __name__ == "__main__":  # pragma: no cover - manual smoke test entry point
+if __name__ == "__main__":  # pragma: no cover
     with McpClient() as client:
-        digest = client.call_tool("canonical_digest", {"value": {"b": 1, "a": 2}})
-        print(json.dumps(tool_structured_result(digest), indent=2))
-    sys.exit(0)
+        print(json.dumps(client.list_tools(), indent=2))
