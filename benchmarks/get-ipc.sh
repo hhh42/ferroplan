@@ -13,6 +13,14 @@
 #   python3 benchmarks/ipc67.py
 set -e
 cd "$(dirname "$0")"
+
+# Instance-number normalizer: strip the leading non-digit prefix, then strip
+# leading zeros but ALWAYS keep at least one digit. The naive
+# `sed 's/[^0-9]*0*//'` collapses a 0-indexed `p000.pddl` to the empty string
+# (-> `instance-.pddl`), which the runner's `int(re.search(r"\d+", name))`
+# then dies on. IPC-2026's gear-car and both sailing-wind variants are
+# 0-indexed p000..p19, so this is load-bearing, not hypothetical.
+instnum() { basename "$1" .pddl | sed 's/^[^0-9]*//; s/^0*\([0-9]\)/\1/'; }
 if [ ! -d .ipc-corpus ]; then
   git clone --depth 1 --filter=blob:none --sparse \
     https://github.com/potassco/pddl-instances .ipc-corpus
@@ -77,7 +85,7 @@ if [ ! -d .ipc-corpus/ipc-2023n/domains ]; then
     mkdir -p "$dest"/instances
     cp "$d"domain.pddl "$dest"/
     for p in "$d"instances/*.pddl; do
-      n=$(basename "$p" .pddl | sed 's/[^0-9]*0*//')
+      n=$(instnum "$p")
       cp "$p" "$dest"/instances/instance-"$n".pddl
     done
   done
@@ -104,7 +112,7 @@ if [ ! -d .ipc-corpus/ipc-2026n/domains ]; then
     mkdir -p "$dest"/instances
     cp "$dompddl" "$dest"/domain.pddl
     for p in "$d"instances/*.pddl; do
-      n=$(basename "$p" .pddl | sed 's/[^0-9]*0*//')
+      n=$(instnum "$p")
       cp "$p" "$dest"/instances/instance-"$n".pddl
     done
   done
