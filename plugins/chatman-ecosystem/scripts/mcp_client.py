@@ -77,8 +77,16 @@ class McpClient:
         env.setdefault("CHATMAN_PROJECT_DIR", str(root))
         # Compatibility projection for the existing Claude Code plugin.
         env.setdefault("CLAUDE_PROJECT_DIR", str(root))
+        argv = [str(self._launcher)]
+        if not os.access(self._launcher, os.X_OK):
+            if self._launcher.suffix == ".sh":
+                argv = ["/bin/sh", str(self._launcher)]
+            elif self._launcher.suffix == ".py":
+                argv = [sys.executable, str(self._launcher)]
+            else:
+                raise McpToolError(f"MCP launcher is not executable: {self._launcher}")
         self._process = subprocess.Popen(
-            [str(self._launcher)],
+            argv,
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
