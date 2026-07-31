@@ -1,54 +1,70 @@
-# GPT-5.6 Luna execution host
+# OpenAI-hosted Star execution
 
-This is an **alternative host projection**, not a replacement for Ferroplan,
-MuStar, or OntoStar authority.
+This is an alternative execution host for the existing Chatman architecture. It does not replace OStar, Ferroplan, or OntoStar authority.
 
 ```text
-MuStar MotionObligation
-        │
-        ▼
-executor projection: agent:claude-code → agent:openai-luna
-        │                         (original obligation is unchanged)
-        ▼
-GPT-5.6 Luna Responses tool loop
-        │
-        ├── ferroplan MCP  ── deterministic PDDL/session/CMCA planning
-        ├── ontostar MCP   ── semantic validation and admission
-        └── extra MCP      ── optional bounded workspace/source actuation
-        │
-        ▼
-A2A run trace + positive OntoStar witness + digest
+OStar MuStar / SigmaStar
+  └─ provisional build order + POWL + diagram + candidate artifact
+             │
+             ▼
+OpenAI Responses tool loop
+  ├─ Ferroplan MCP ─ deterministic PDDL/session/CMCA planning and replay
+  ├─ OntoStar MCP  ─ CTQ/work-order/workflow admission and receipts
+  └─ workspace MCP ─ optional bounded repository actuation
+             │
+             ▼
+sealed trace: Star proposal + Ferroplan witness + OntoStar witness
 ```
+
+## Preserved Star calculus
+
+The adapter uses the actual OStar contracts:
+
+- `MuStarPlanner`: problem and constraints to build order, POWL model, and sequence diagram.
+- `MuStarExecutor`: the admitted strategy to a provisional candidate artifact.
+- `SigmaStarDecomposeSignature`: a large objective to a bounded list of MuStar tasks.
+
+It deliberately does **not** call `MuStarAgent.forward()` or `SigmaStarAggregator.solve()`. Those methods execute generated artifacts internally. In this host, Star agents are proposers only; source mutation and command execution must occur through an explicitly attached MCP authority.
 
 ## Fences
 
-- The model ID is exactly `gpt-5.6-luna`. The `gpt-5.6` alias is refused.
-- MuStar must select `ImplementAcceptedDelta`; every other obligation stops
-  before an OpenAI request.
-- The authoritative MuStar obligation and its BLAKE3 hash are preserved. The
-  adapter records a separate host-specific executor projection.
+- The model ID is exactly `gpt-5.6-luna`; the unsuffixed alias is refused.
+- Star output must declare `provisional=true`, `authority=proposer`, and `internal_actuation=false`.
 - Ferroplan and OntoStar MCP servers are mandatory.
-- A successful model response is not completion. At least one configured
-  OntoStar admission/validation tool must return a positive result.
-- OntoStar A2A is used for optional discovery/coordination. MCP remains the
-  authoritative tool and admission path.
-- No implicit filesystem or shell authority is introduced. To operate as a
-  coding-agent replacement, attach an explicitly bounded workspace MCP server.
+- A model response alone cannot establish completion.
+- `ALIVE` requires all of:
+  1. a valid OStar Star proposal;
+  2. a positive configured Ferroplan planning or replay witness;
+  3. a positive configured OntoStar admission witness;
+  4. non-empty final OpenAI output.
+- OntoStar A2A is optional discovery and coordination only. MCP remains the admission path.
+- No filesystem or shell authority is implicit. Attach a bounded workspace MCP server for repository mutation.
 
 ## Run
 
 ```bash
 export OPENAI_API_KEY='...'
+export OSTAR_ROOT=/path/to/ostar
 export FERROPLAN_ROOT=/path/to/ferroplan
 export ONTOSTAR_ROOT=/path/to/open-ontologies
-export CHATMANGPT_ROOT=/path/to/chatmangpt
 
 python3 plugins/chatman-ecosystem/scripts/openai_luna.py \
   --project /path/to/target-repository \
-  --mustar-project /path/to/control-workspace \
   --target ferroplan \
-  --receipt .chatmangpt/openai-luna-trace.json \
-  'Implement the MuStar-authorized accepted delta.'
+  --receipt .chatmangpt/openai-star-trace.json \
+  'Implement the requested change through the Star planning and admission chain.'
+```
+
+Use SigmaStar decomposition by changing the profile:
+
+```json
+{
+  "star": {
+    "mode": "sigma-star",
+    "domain": "SYSTEM_DESIGN",
+    "max_tasks": 8
+  }
+}
 ```
 
 Attach a repository MCP server when the task includes source mutation:
@@ -56,20 +72,13 @@ Attach a repository MCP server when the task includes source mutation:
 ```bash
 python3 plugins/chatman-ecosystem/scripts/openai_luna.py \
   --mcp workspace=/absolute/path/to/run-workspace-mcp.sh \
-  'Implement the accepted delta, verify it, then obtain OntoStar admission.'
+  'Plan, implement through bounded tools, verify, and obtain OntoStar admission.'
 ```
 
-The host discovers all MCP schemas with `tools/list`, projects them into
-namespaced OpenAI function tools (`ferroplan__*`, `ontostar__*`,
-`workspace__*`), dispatches calls back to the owning stdio server, and feeds
-structured outputs into the next Responses turn.
+The host discovers MCP schemas with `tools/list`, projects them into namespaced OpenAI function tools (`ferroplan__*`, `ontostar__*`, `workspace__*`), dispatches calls to the owning stdio server, and feeds structured results into the next Responses turn.
 
-## Result standing
+## Standing
 
-- `ALIVE`: this invocation observed an authorized MuStar obligation, completed
-  the Responses/MCP loop, and observed a positive OntoStar witness.
-- `BLOCKED`: a law boundary refused progression (wrong obligation/model,
-  missing server/key, failed tool, exhausted loop, or missing admission).
-- Live OpenAI, local binaries, and repository-specific workspace actuation must
-  still be exercised in the target environment; unit tests use deterministic
-  fake Responses and MCP surfaces.
+- `ALIVE`: this invocation observed the complete bounded chain described above.
+- `BLOCKED`: a required law boundary refused progression or a witness was absent.
+- Live OpenAI, OStar imports, local MCP binaries, and repository-specific workspace actuation remain `UNKNOWN` until exercised in the target environment. Mocked integration tests establish only the adapter’s bounded control law.
