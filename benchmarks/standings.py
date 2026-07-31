@@ -327,7 +327,8 @@ def main():
         s_, n, fails = coverage_line(rows, budget)
         lines.append(
             f"| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | {s_}/{n} "
-            "| coverage = PROOF RATE (A* + admissible h^max; every plan "
+            "| coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint "
+            "first; every plan "
             f"certified + VAL) | {fails} |"
         )
     lines += [
@@ -375,7 +376,8 @@ def main():
         s_, n, fails = coverage_line(rows, budget)
         lines.append(
             f"| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | {s_}/{n} "
-            "| coverage = PROOF RATE (A* + admissible h^max; every plan "
+            "| coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint "
+            "first; every plan "
             f"certified + VAL) | {fails} |"
         )
     lines.append("")
@@ -460,7 +462,7 @@ def main():
             q = "wall-clock per competition rule (4-core box)"
         elif label == "2014 seq-opt":
             q = ("coverage = PROOF RATE (Mode::Optimal, A* + admissible "
-                 "h^max; every plan certified + VAL)")
+                 "LM-cut, h^max sprint first; every plan certified + VAL)")
         else:
             q = "coverage + VAL"
         entered = ("yes (first entry, 0.19)" if label == "2014 seq-opt"
