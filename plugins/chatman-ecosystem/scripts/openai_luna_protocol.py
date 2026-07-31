@@ -119,9 +119,17 @@ class MustarClient:
         env = dict(os.environ)
         env.setdefault("CHATMAN_PROJECT_DIR", str(self.project_root))
         env.setdefault("CLAUDE_PROJECT_DIR", str(self.project_root))
+        argv = [str(self.launcher), target]
+        if not os.access(self.launcher, os.X_OK):
+            if self.launcher.suffix == ".sh":
+                argv = ["/bin/sh", str(self.launcher), target]
+            elif self.launcher.suffix == ".py":
+                argv = [sys.executable, str(self.launcher), target]
+            else:
+                raise RuntimeRefusal("MUSTAR_UNAVAILABLE", f"launcher is not executable: {self.launcher}")
         try:
             run = subprocess.run(
-                [str(self.launcher), target], cwd=self.project_root, env=env,
+                argv, cwd=self.project_root, env=env,
                 capture_output=True, text=True, timeout=self.timeout,
             )
         except (OSError, subprocess.SubprocessError) as error:
