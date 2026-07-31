@@ -42,8 +42,34 @@ from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 B = os.path.join(ROOT, "benchmarks")
-OUT = os.path.join(B, "ipc-standings.md")
+# `--out FILE` so a regeneration can be inspected before it replaces the
+# committed table (a bare run overwrites ipc-standings.md in place, and on a
+# box holding only some of the raws that is a destructive act).
+OUT = (sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv
+       else os.path.join(B, "ipc-standings.md"))
 ARCHIVE = os.path.join(B, "IPC5-results.tgz")
+
+# WHICH BOX PRODUCED A BOARD. The 0.21 Phase 1 re-baseline re-swept the twelve
+# canonical boards on the M5 Air; every other board in this table still carries
+# numbers from the 4-core cloud container. Faster silicon inflates coverage at a
+# fixed budget, so an Air row and a cloud row MUST NOT be read against each
+# other — and a missing raw JSONL means different things for the two: for an
+# Air board it means the sweep has not finished, for a cloud board it means the
+# board was never re-baselined and its record lives in git history. Rendering
+# both as "not swept" would claim we had never measured them at all.
+AIR_REBASELINED = {
+    "2023 classical", "2014 tempo-sat", "2018 seq-sat", "2014 seq-sat",
+    "2014 seq-agile", "2014 seq-opt", "2026 numeric (first board)",
+    "2023 numeric", "2023 agile ENTRY (300s)",
+    # shared-sweep labels, split per competition at render time
+    "seq-opt", "tempo-sat", "seq-sat",
+}
+CLOUD_ERA = "cloud-era board, NOT re-baselined — see git history"
+
+
+def absent(label, pending="sweep in flight / not yet run"):
+    """Row text for a board with no usable raw, honest about which case."""
+    return pending if label in AIR_REBASELINED else CLOUD_ERA
 
 # sweep jsonl -> (label, competition, budget seconds)
 SWEEPS = {
@@ -226,7 +252,7 @@ def main():
     for label, qnote in ip5:
         d = data.get(label)
         if d is None:
-            lines.append(f"| {label} | not swept | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
@@ -285,7 +311,7 @@ def main():
                        ("net-benefit", "net-benefit")]:
         d = split_rows(key, "ipc-2008")
         if d is None:
-            lines.append(f"| {label} | not swept | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
@@ -295,7 +321,7 @@ def main():
         )
     d = split_rows("seq-opt", "ipc-2008")
     if d is None:
-        lines.append("| seq-opt | not swept | — | — | — |")
+        lines.append(f"| seq-opt | {absent('seq-opt')} | — | — | — |")
     else:
         rows, budget = d
         s_, n, fails = coverage_line(rows, budget)
@@ -318,7 +344,7 @@ def main():
     for label, key in [("seq-sat", "seq-sat"), ("tempo-sat", "tempo-sat")]:
         d = split_rows(key, "ipc-2011")
         if d is None:
-            lines.append(f"| {label} | not swept | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
@@ -329,7 +355,7 @@ def main():
         d = data.get(label)
         if d is None:
             lines.append(
-                f"| {label} | sweep in flight / not yet run | — | "
+                f"| {label} | {absent(label)} | — | "
                 "wall-clock per competition rule (4-core box; t8 "
                 "oversubscribed) | — |"
             )
@@ -343,7 +369,7 @@ def main():
         )
     d = split_rows("seq-opt", "ipc-2011")
     if d is None:
-        lines.append("| seq-opt | not swept | — | — | — |")
+        lines.append(f"| seq-opt | {absent('seq-opt')} | — | — | — |")
     else:
         rows, budget = d
         s_, n, fails = coverage_line(rows, budget)
@@ -412,10 +438,13 @@ def main():
     for label in ["2014 seq-sat", "2014 seq-agile", "2014 tempo-sat",
                   "2014 seq-mco t4", "2014 seq-opt", "2018 seq-sat",
                   "2023 classical", "2023 agile ENTRY (300s)",
-                  "2023 numeric"]:
+                  "2023 numeric",
+                  # 0.20 cut prep added this board to SWEEPS but never to the
+                  # render list, so it could never have appeared in the table.
+                  "2026 numeric (first board)"]:
         d = data.get(label)
         if d is None:
-            lines.append(f"| {label} | sweep in flight / not yet run | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
