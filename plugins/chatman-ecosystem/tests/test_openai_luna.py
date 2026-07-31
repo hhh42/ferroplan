@@ -169,7 +169,7 @@ class LunaTests(unittest.TestCase):
                     "inputSchema": {"type": "object"},
                 }
             ],
-            {"onto_validate": {"status": "pass", "valid": true}},
+            {"onto_validate": {"status": "pass", "valid": True}},
         )
         scripted = ScriptedResponses(
             [
