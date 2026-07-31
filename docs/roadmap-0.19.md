@@ -251,6 +251,34 @@ rows stay as baselines). New standings sections for the optimal
 tracks. Records complete, full pre-flight, finish in main; the user
 publishes.
 
+### Recorded — cut
+
+Seven boards against the final 0.19.0 binary, the whole cycle
+compounding under one ladder (novelty-by-default made every
+budget-declared sweep's ladder new):
+
+- **2018-sat 58/240 (+16/−0)** — flashfill +6, org-synth-split +2,
+  termes +2, settlers +2, caldera +2, data-network +1, nurikabe +1;
+  valid 30 → 50 over the cycle.
+- **seq-sat flagship 452/580 (+11)** — its first movement in three
+  cycles.
+- **2023-agile 28/140 (+2)**; **2014-sat 98/280 (+2)**;
+  **2014-agile 96/280 (+1)**; **2023-numeric 181/400 (+2/−2)** —
+  the two losses are sugar-numeric i2 and zenotravel-numeric i20,
+  the twice-solo-documented budget-edge flappers (29 s and 59 s solo
+  against a 60 s line). Cut A/B total: **+32/−2**.
+- **The official-budget entry: 2023 agile 38/140 at 300 s** — the
+  extra budget bought +10 over the 60 s baseline; the standings row
+  is labeled a competition-methodology ENTRY, not a baseline.
+
+Pre-flight: all eleven gates green on latest stable (fmt --check,
+clippy `-D warnings`, full release suite, heavy qual-metric tier,
+doc `-D warnings`, bench --no-run, mcp build, publish dry-run, the
+0.19.0 maturin wheel, wasm build, browser SMOKE PASS). FIVE
+container restarts hit this cycle's sweeps; the resume-aware drivers
+lost only in-flight boards each time. Finish in main; the user
+publishes.
+
 ## Deferred, on the record (carried forward)
 
 - The h-surgery bet (end-gated interval credit) — the village

@@ -61,6 +61,9 @@ SWEEPS = {
     "ipc2018-sat.jsonl": ("2018 seq-sat", "modern", 60),
     "ipc2023-agile.jsonl": ("2023 classical", "modern", 60),
     "ipc2023-numeric.jsonl": ("2023 numeric", "modern", 60),
+    # The official-budget entry (0.19 cut, locked at scoping): ONE sweep
+    # at the competition's 300 s agile budget — an ENTRY, not a baseline.
+    "ipc2023-agile-300s.jsonl": ("2023 agile ENTRY (300s)", "modern", 300),
     # The optimal tracks (0.19 Phase 2: Mode::Optimal, A* + h^max —
     # coverage IS proof rate; every solved row carries a certificate).
     "ipc-opt-2008-11.jsonl": ("seq-opt", "optimal", 60),
@@ -385,7 +388,8 @@ def main():
     }
     for label in ["2014 seq-sat", "2014 seq-agile", "2014 tempo-sat",
                   "2014 seq-mco t4", "2014 seq-opt", "2018 seq-sat",
-                  "2023 classical", "2023 numeric"]:
+                  "2023 classical", "2023 agile ENTRY (300s)",
+                  "2023 numeric"]:
         d = data.get(label)
         if d is None:
             lines.append(f"| {label} | sweep in flight / not yet run | — | — | — |")
@@ -394,6 +398,9 @@ def main():
         s, n, fails = coverage_line(rows, budget)
         if label in MODERN_Q:
             q = bounds_quality(rows, *MODERN_Q[label]) or "coverage-only"
+        elif label == "2023 agile ENTRY (300s)":
+            q = ("OFFICIAL 300 s budget — a competition-methodology ENTRY, "
+                 "not a baseline")
         elif label == "2023 numeric":
             q = ("field CSVs vendored (ipc-2023n/results) — per-domain "
                  "comparison in the audit record")
@@ -404,7 +411,9 @@ def main():
                  "h^max; every plan certified + VAL)")
         else:
             q = "coverage + VAL"
-        entered = "yes (first entry, 0.19)" if label == "2014 seq-opt" else "yes (first entry, 0.17)"
+        entered = ("yes (first entry, 0.19)" if label == "2014 seq-opt"
+                   else "yes (OFFICIAL-BUDGET entry, 0.19)" if label == "2023 agile ENTRY (300s)"
+                   else "yes (first entry, 0.17)")
         lines.append(f"| {label} | {entered} | {s}/{n} | {q} | {fails} |")
     lines += [
         "",

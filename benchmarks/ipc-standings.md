@@ -49,6 +49,7 @@ for scoring semantics and the failure-class definitions.
 | 2014 seq-opt | yes (first entry, 0.19) | 48/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible h^max; every plan certified + VAL) | 208 timeout |
 | 2018 seq-sat | yes (first entry, 0.17) | 50/240 | vs best-known bounds: 0W/1T/18L, mean quality 0.77 (19 scored) | 8 VAL-RED, 5 engine-reject/error, 12 mem-cap, 165 timeout |
 | 2023 classical | yes (first entry, 0.17) | 28/140 | vs best-known bounds: 0W/12T/16L, mean quality 0.89 (28 scored) | 14 mem-cap, 98 timeout |
+| 2023 agile ENTRY (300s) | yes (OFFICIAL-BUDGET entry, 0.19) | 38/140 | OFFICIAL 300 s budget — a competition-methodology ENTRY, not a baseline | 18 mem-cap, 84 timeout |
 | 2023 numeric | yes (first entry, 0.17) | 165/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 16 VAL-RED, 11 engine-reject/error, 58 mem-cap, 150 timeout |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).
