@@ -1,5 +1,5 @@
 {
-  "description": "Observe repository mutations, update the combinatorial phase vector, fence protected actuation, and require the Ferroplan receipt frontier before stopping",
+  "description": "Manufacture bounded observations and protected actuation intents, preserve exact event frontiers, and require receipt closure before stopping or publishing",
   "hooks": {
     "SessionStart": [
       {
@@ -9,13 +9,13 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
             "timeout": 10,
-            "statusMessage": "Loading Chatman ecosystem standing"
+            "statusMessage": "Loading the admitted observation frontier"
           },
           {
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/phase.py\" hook",
             "timeout": 10,
-            "statusMessage": "Projecting the active phase combination"
+            "statusMessage": "Loading the canonical phase snapshot"
           }
         ]
       }
@@ -26,9 +26,21 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/bash-write-fence.py\"",
+            "timeout": 10,
+            "statusMessage": "Enforcing the single-manufacturer Bash boundary"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/actuation-intent.py\"",
+            "timeout": 10,
+            "statusMessage": "Manufacturing the protected actuation intent"
+          },
+          {
+            "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
             "timeout": 10,
-            "statusMessage": "Checking admitted actuation frontier"
+            "statusMessage": "Checking the compatibility receipt frontier"
           }
         ]
       },
@@ -39,7 +51,7 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/generated-guard.py\"",
             "timeout": 10,
-            "statusMessage": "Checking ontology-generated file freshness"
+            "statusMessage": "Checking ontology-generated artifact ownership"
           }
         ]
       }
@@ -52,13 +64,7 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
             "timeout": 10,
-            "statusMessage": "Receipting repository observation"
-          },
-          {
-            "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/phase.py\" hook",
-            "timeout": 10,
-            "statusMessage": "Collapsing affected phase dimensions"
+            "statusMessage": "Recording a repository observation candidate"
           }
         ]
       }
@@ -71,13 +77,55 @@
             "type": "command",
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
             "timeout": 10,
-            "statusMessage": "Receipting failed actuation observation"
-          },
+            "statusMessage": "Recording a failed actuation observation candidate"
+          }
+        ]
+      }
+    ],
+    "PostToolBatch": [
+      {
+        "hooks": [
           {
             "type": "command",
-            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/phase.py\" hook",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/event-summary.py\"",
             "timeout": 10,
-            "statusMessage": "Marking phase drift after failure"
+            "statusMessage": "Summarizing the bounded tool batch"
+          }
+        ]
+      }
+    ],
+    "ConfigChange": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/event-summary.py\"",
+            "timeout": 10,
+            "statusMessage": "Recording Claude configuration drift"
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/event-summary.py\"",
+            "timeout": 10,
+            "statusMessage": "Recording reversible worktree creation"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/event-summary.py\"",
+            "timeout": 10,
+            "statusMessage": "Recording worktree removal"
           }
         ]
       }
