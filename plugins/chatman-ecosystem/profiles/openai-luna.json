@@ -1,0 +1,17 @@
+{
+  "schema": "urn:chatman:openai-luna-profile:v1",
+  "model": "gpt-5.6-luna",
+  "reasoning_effort": "medium",
+  "max_rounds": 16,
+  "required_servers": [
+    "ferroplan",
+    "ontostar"
+  ],
+  "admission_tools": [
+    "onto_admit_ctq",
+    "onto_admit_work_order",
+    "onto_validate",
+    "onto_shacl",
+    "onto_close_workflow"
+  ]
+}
