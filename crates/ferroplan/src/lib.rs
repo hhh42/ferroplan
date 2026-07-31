@@ -7,41 +7,31 @@
 //! grounding / heuristic evaluation.
 //!
 //! PDDL coverage: STRIPS, typing, ADL (conditional/`forall` effects, equality),
-//! numeric fluents, derived axioms, **PDDL3** soft-goal preferences/metric, and
-//! **PDDL2.1 temporal** durative actions (constant / parameter-dependent durations,
-//! duration inequalities, timed initial literals). Plus an SGPlan-style
-//! **partition-and-resolve** mode.
+//! numeric fluents, derived axioms, **PDDL3** soft-goal preferences/metric,
+//! **PDDL2.1 temporal** durative actions, and **PPDDL 1.0 probabilistic planning**
+//! with explicit-MDP policy synthesis, rewards, simulation, and policy validation.
+//! Plus an SGPlan-style **partition-and-resolve** mode.
 //!
 //! ## The public API (all `serde`-serializable)
 //!
-//! - [`solve`] — plan a domain + problem; returns a [`Solution`] (mode auto-detected).
-//! - [`decompose`] — split a temporal goal too big for one-shot search into ordered,
-//!   individually-solved [`Contract`]s, stitched into one validated plan
-//!   ([`Decomposition`]).
-//! - [`parse`] — syntax-check PDDL and summarize its structure ([`ParseReport`])
-//!   *without* grounding or solving — fast feedback for an authoring loop.
-//! - [`Session`] — ground once, **replan many**: hold a mutable world state
-//!   (`set_fact`/`set_fluent`) and re-solve per tick paying only the search
-//!   (~10x per-tick on small contracts) — the embedding API for games/simulations.
-//! - [`plan::validate_plan`] — independently check a plan under ferroplan's semantics.
+//! - [`solve`] — plan a deterministic domain + problem; returns a [`Solution`].
+//! - [`solve_ppddl`] — synthesize a bounded stochastic policy for PPDDL.
+//! - [`simulate_ppddl`] / [`validate_ppddl_policy`] — probabilistic execution receipts.
+//! - [`decompose`] — split and solve a temporal goal as ordered [`Contract`]s.
+//! - [`parse`] / [`parse_ppddl`] — fast syntax and structure feedback.
+//! - [`Session`] — ground once, replan many for mutable deterministic worlds.
+//! - [`plan::validate_plan`] — independently check a deterministic plan.
 //!
 //! ## Quick start
 //! ```no_run
 //! let domain = std::fs::read_to_string("domain.pddl").unwrap();
 //! let problem = std::fs::read_to_string("problem.pddl").unwrap();
 //!
-//! // Catch syntax mistakes before solving.
-//! let report = ferroplan::parse(&domain);
-//! assert!(report.ok, "{:?}", report.error);
-//!
 //! let solution = ferroplan::solve(&domain, &problem, &ferroplan::Options::default()).unwrap();
 //! if let Some(plan) = solution.plan {
 //!     for step in &plan.steps { println!("{}", step.action); }
 //! }
 //! ```
-//!
-//! The lower-level text-rendering entry points (`run_planner`, `run_ff`) produce
-//! classic Metric-FF / IPC output and back the `ff` binary.
 
 // engine (data-oriented core)
 pub mod bitset;
@@ -73,6 +63,7 @@ pub mod partition;
 pub mod pddl3;
 pub mod plan;
 pub mod portfolio;
+pub mod ppddl;
 pub mod report;
 pub mod resolve;
 pub mod selection;
@@ -93,6 +84,13 @@ pub use api::{
     ParseReport, Plan, ProblemSummary, Search, Solution, SolveError, Statistics, Step,
 };
 pub use planner::{run_ff, run_planner};
+pub use ppddl::{
+    parse_ppddl, simulate_ppddl, solve_ppddl, validate_ppddl_policy, InitialStateProbability,
+    PolicyDecision,
+    PolicyOutcome, PolicyValidation, PpddlError, PpddlParseReport, ProbabilisticObjective,
+    ProbabilisticState,
+    ProbabilisticOptions, ProbabilisticSolution, ProbabilisticStatistics, SimulationReport,
+};
 pub use session::Session;
 pub use trace::{trace, StateSnapshot};
 pub use types::ParseError;

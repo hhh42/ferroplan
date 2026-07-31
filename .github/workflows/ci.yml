@@ -37,9 +37,8 @@ jobs:
       - name: Bench compiles (perf gate)
         run: cargo bench --no-run -p ferroplan
 
-  # The Claude Code plugin's Python control plane. A separate job on purpose:
-  # a plugin failure must not be masked by a Rust failure, and this runs in
-  # ~30s without a toolchain, so it stays useful when the workspace is red.
+  # The plugin's complete Python control plane. A separate job on purpose:
+  # a plugin failure must not be masked by a Rust failure.
   plugin:
     runs-on: ubuntu-latest
     defaults:
@@ -49,25 +48,115 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          # The realistic floor for a user's Claude Code, not the local 3.14.
-          # Pinning low is what surfaces accidental 3.12+ syntax here rather
-          # than in someone's session.
           python-version: '3.11'
       - name: Install tooling
-        # typer and pydantic are runtime dependencies of the control plane.
-        # scripts/hookguard.py deliberately imports neither, so a missing
-        # dependency degrades to a refusal rather than taking the fence down.
         run: pip install --quiet pytest ruff typer pydantic jsonschema rdflib pyshacl
       - name: Lint
         run: ruff check scripts tests
-      # Replaces the manual `py_compile` of 3 of 9 scripts in skills/doctor.
       - name: Compile every script
         run: python -m compileall -q scripts
       - name: Shell syntax
         run: for f in scripts/*.sh; do sh -n "$f"; done
-      # Every generated projection must match its source. This is what stops a
-      # committed schema from describing a payload the code no longer emits.
       - name: Generated files are current
         run: python3 scripts/generate.py build --check
       - name: Test
         run: pytest
+
+  # The OpenAI/OStar rail gets an independent compatibility and evidence job.
+  # It uses only local deterministic fakes; no external API credential is needed.
+  openai-luna-verification:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12', '3.13']
+    defaults:
+      run:
+        working-directory: plugins/chatman-ecosystem
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install focused verifier tooling
+        run: pip install --quiet pytest ruff coverage
+      - name: Focused lint
+        run: >-
+          ruff check
+          scripts/mcp_client.py
+          scripts/openai_luna.py
+          scripts/openai_luna_protocol.py
+          scripts/openai_luna_runtime.py
+          scripts/openai_ostar_star.py
+          scripts/verify_openai_luna.py
+          tests/openai_luna_testkit.py
+          tests/test_openai_luna*.py
+          tests/test_openai_ostar_star.py
+      - name: Compile focused runtime
+        run: >-
+          python -m compileall -q
+          scripts/mcp_client.py
+          scripts/openai_luna.py
+          scripts/openai_luna_protocol.py
+          scripts/openai_luna_runtime.py
+          scripts/openai_ostar_star.py
+          scripts/verify_openai_luna.py
+          tests/openai_luna_testkit.py
+          tests/test_openai_luna*.py
+          tests/test_openai_ostar_star.py
+      - name: Shell syntax
+        run: for f in scripts/*.sh; do sh -n "$f"; done
+      - name: Full focused ladder
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: >-
+          python -m pytest -q
+          --junitxml=openai-luna-junit.xml
+          tests/test_openai_luna*.py
+          tests/test_openai_ostar_star.py
+      - name: Branch coverage gate
+        if: matrix.python-version == '3.11'
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
+        run: |
+          coverage run --branch \
+            --source=mcp_client,openai_luna_protocol,openai_luna_runtime,openai_ostar_star,verify_openai_luna \
+            -m pytest -q \
+            tests/test_openai_luna_unit.py \
+            tests/test_openai_luna_contract.py \
+            tests/test_openai_luna_property.py \
+            tests/test_openai_luna_replay.py \
+            tests/test_openai_luna_mutation.py \
+            tests/test_openai_luna_security.py \
+            tests/test_openai_luna_integration.py \
+            tests/test_openai_luna_chaos.py \
+            tests/test_openai_luna_verifier.py \
+            tests/test_openai_ostar_star.py
+          coverage report --fail-under=75
+          coverage xml -o openai-luna-coverage.xml
+      - name: Build sealed verifier report
+        shell: bash
+        run: |
+          checks=(
+            --static-check ruff
+            --static-check compileall
+            --static-check shell-syntax
+          )
+          if [[ "${{ matrix.python-version }}" == "3.11" ]]; then
+            checks+=(--static-check coverage)
+          fi
+          python scripts/verify_openai_luna.py \
+            --junit openai-luna-junit.xml \
+            --output openai-luna-verifier.json \
+            --python-version "${{ matrix.python-version }}" \
+            "${checks[@]}"
+      - name: Upload verification receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openai-luna-verification-py${{ matrix.python-version }}
+          path: |
+            plugins/chatman-ecosystem/openai-luna-junit.xml
+            plugins/chatman-ecosystem/openai-luna-verifier.json
+            plugins/chatman-ecosystem/openai-luna-coverage.xml
+          if-no-files-found: warn
