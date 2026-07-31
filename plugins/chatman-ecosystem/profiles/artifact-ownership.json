@@ -1,0 +1,164 @@
+{
+  "schema": "urn:chatman:artifact-ownership-registry:v1",
+  "release": "26.7.29",
+  "default_policy": "unknown-ownership-is-refused",
+  "preferred_generator": "ggen",
+  "artifacts": [
+    {
+      "path": ".claude-plugin/marketplace.json",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "marketplace-projection",
+      "validators": ["json", "claude-marketplace-schema", "strict-loader"]
+    },
+    {
+      "path": ".claude/settings.json",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "project-activation-projection",
+      "validators": ["json", "claude-settings-schema"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/.claude-plugin/plugin.json",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "plugin-manifest-projection",
+      "validators": ["json", "claude-plugin-schema", "strict-loader"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/.mcp.json",
+      "owner": "plugins/chatman-ecosystem/profiles/self-hosting.json",
+      "class": "mcp-projection",
+      "validators": ["json", "mcp-initialize", "mcp-tools-list", "mcp-resources-list"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/settings.json",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "plugin-settings-projection",
+      "validators": ["json", "supported-plugin-settings-keys"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/hooks/hooks.json",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "hook-projection",
+      "validators": ["json", "hook-event-schema", "hook-runtime-fixtures"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/monitors/monitors.json",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "monitor-projection",
+      "validators": ["json", "monitor-schema", "bounded-activation"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/cmca-allocator.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "tool-ceiling"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/config-law-architect.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "tool-ceiling"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/ecosystem-controller.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "tool-ceiling", "spawn-ceiling"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/ferroplan-planner.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "tool-ceiling"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/independent-validator.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "tool-ceiling", "independence-classification"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/rdf-observer.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "tool-ceiling", "eight-node-output"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/receipt-auditor.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "tool-ceiling", "standing-vocabulary"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/agents/source-manufacturer.md",
+      "owner": "ontology/authority-graph.ttl",
+      "class": "agent-projection",
+      "validators": ["frontmatter", "claim-ceiling", "worktree-isolation", "single-actuator"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/skills/*/SKILL.md",
+      "owner": "ontology/chatman-ecosystem.ttl",
+      "class": "skill-projection",
+      "validators": ["frontmatter", "phase-preconditions", "claim-separation"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/profiles/phase-space.json",
+      "owner": "ontology/chatman-ecosystem.ttl",
+      "class": "phase-law-projection",
+      "validators": ["json", "transition-closure", "invariant-consistency", "raw-combination-count"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/profiles/self-hosting.json",
+      "owner": "ontology/chatman-ecosystem.ttl",
+      "class": "managed-world-profile",
+      "validators": ["json", "authority-references", "revision-pinning"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/profiles/work-surfaces.json",
+      "owner": "ontology/chatman-ecosystem.ttl",
+      "class": "allocation-projection",
+      "validators": ["json", "exact-eight-nodes", "ten-factor-order", "acyclic-parent-relation"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/profiles/config-schema-epoch.json",
+      "owner": "ontology/chatman-shapes.ttl",
+      "class": "schema-epoch-projection",
+      "validators": ["json", "authority-separation", "known-delta-closure"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/world/ferroplan-self-host-domain.pddl",
+      "owner": "ontology/chatman-ecosystem.ttl",
+      "class": "planning-domain-projection",
+      "validators": ["ferroplan-parse", "ferroplan-solve", "external-val-when-required"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/world/ferroplan-self-host-problem.pddl",
+      "owner": "plugins/chatman-ecosystem/scripts/project-world.py",
+      "class": "planning-problem-projection",
+      "validators": ["deterministic-projection", "ferroplan-parse"]
+    },
+    {
+      "path": "plugins/chatman-ecosystem/README.md",
+      "owner": "docs/architecture/claude-projection.md",
+      "class": "operator-documentation-projection",
+      "validators": ["descriptive-consistency", "server-count", "claim-ceiling-consistency"]
+    },
+    {
+      "path": "docs/releases/v26.7.29.md",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "release-documentation-projection",
+      "validators": ["release-version-consistency", "claim-boundary-consistency"]
+    },
+    {
+      "path": "docs/migration/v26.7.29.md",
+      "owner": "plugins/chatman-ecosystem/profiles/claude-projection.json",
+      "class": "migration-documentation-projection",
+      "validators": ["release-version-consistency", "loader-epoch-consistency"]
+    }
+  ],
+  "drift_law": {
+    "owner_changed_projection_unchanged": "ARTIFACT_DRIFT_REFUSED",
+    "projection_changed_owner_unchanged": "HAND_CODED_GENERATED_OUTPUT",
+    "unknown_path_claimed_generated": "UNKNOWN_OWNERSHIP_REFUSED",
+    "validator_unavailable": "UNKNOWN"
+  }
+}
