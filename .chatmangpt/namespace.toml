@@ -1,0 +1,35 @@
+schema_version = "1.0.0"
+namespace_version = "26.7.29"
+
+[namespace]
+origin = "https://chatmangpt.com"
+vocabulary = "https://chatmangpt.com/ns#"
+identifier_base = "https://chatmangpt.com/id/"
+registry_id = "https://chatmangpt.com/id/namespace/26.7.29"
+registry_repository = "seanchatmangpt/chatmangpt"
+registry_pr = 44
+
+[repository]
+id = "https://chatmangpt.com/id/repository/seanchatmangpt/ferroplan"
+full_name = "seanchatmangpt/ferroplan"
+source_url = "https://github.com/seanchatmangpt/ferroplan"
+kind = "system"
+family = "planning"
+admission_basis = "metadata_only"
+standing = "UNKNOWN"
+
+[public_object]
+id = "https://chatmangpt.com/id/system/ferroplan"
+canonical_path = "/systems/ferroplan"
+canonical_url = "https://chatmangpt.com/systems/ferroplan"
+source_repository = "https://chatmangpt.com/id/repository/seanchatmangpt/ferroplan"
+publish = true
+admission = "ADMITTED"
+standing = "UNKNOWN"
+description = "Rust planning system and planner integration surface."
+
+[law]
+repository_is_identity = false
+metadata_implies_standing = false
+unknown_may_claim_alive = false
+receipt_required_for_actuation_claim = true
