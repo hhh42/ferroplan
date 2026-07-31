@@ -10,7 +10,7 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 
-use crate::hash::FxHashSet;
+use crate::hash::{FxHashMap, FxHashSet};
 use crate::heuristic::{relaxed_costed, relaxed_helpful, relaxed_to, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
 use crate::par;
@@ -27,11 +27,11 @@ pub const DEFAULT_MAX_EVAL: usize = 5_000_000;
 const WEIGHT_SCALE: f64 = 256.0;
 
 /// Deterministic retained-memory target for one `search_from` pass (0.8
-/// Phase 3, docs/roadmap-0.8.md): the append-only `nodes` store and the
-/// `visited` keys both grow one entry per inserted successor, each carrying
-/// the full state bitset — on monitor-widened tasks a single unbounded pass
-/// OOMs a 15 GB box while `max_eval` (which counts only POPPED nodes) never
-/// fires. The insertion cap derives from this byte target over a MODEL of
+/// Phase 3, docs/roadmap-0.8.md): the append-only `nodes` store grows one
+/// full state per inserted successor (and until 0.20 Phase 4 the visited
+/// set cloned each state's bitset again) — on monitor-widened tasks a
+/// single unbounded pass OOMs a 15 GB box while `max_eval` (which counts
+/// only POPPED nodes) never fires. The insertion cap derives from this byte target over a MODEL of
 /// per-insertion cost (never RSS, never wall clock — the count is serial and
 /// the model uses only static task dimensions, so the cap is identical on
 /// any machine at any thread count). A capped pass returns its anytime
@@ -50,8 +50,8 @@ const WEIGHT_SCALE: f64 = 256.0;
 pub(crate) const NODE_CAP_TARGET_BYTES: usize = if usize::BITS < 64 { 2 << 30 } else { 8 << 30 };
 
 /// The per-insertion byte model behind [`NODE_CAP_TARGET_BYTES`]: one stored
-/// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in
-/// `visited`, plus container overhead.
+/// `State` (bits + fluent vecs) in `nodes` plus the hash→index dedup entry
+/// (0.20 Phase 4 — the visited set no longer clones the bitset).
 pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
     node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES.min(rlimit_budget()))
 }
@@ -97,7 +97,11 @@ pub(crate) fn node_cap_for_bytes(task: &PackedTask, bytes: usize) -> usize {
             return if n == 0 { usize::MAX } else { n };
         }
     }
-    let per_node = 2 * task.words * 8 + task.fv0.len() * 8 + task.fdef0.len() + 96;
+    // One stored `State` in the arena + the hash->index dedup entry (0.20
+    // Phase 4 dropped the visited set's second bitset copy — the old model
+    // charged `2 * words * 8`). The +128 covers Node bookkeeping, the map
+    // entry, and its singleton index bucket.
+    let per_node = task.words * 8 + task.fv0.len() * 8 + task.fdef0.len() + 128;
     bytes / per_node.max(1)
 }
 
@@ -512,8 +516,15 @@ pub fn search_from(
     // states stay distinct (see PackedTask::state_key_with_cost).
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0))); // init popped first
-    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
-    visited.insert(task.state_key_with_cost(&init, cost_fluent));
+                                // Retained-state compression (0.20 Phase 4): visited is hash -> node
+                                // indices; equality is checked EXACTLY against the arena state, so
+                                // nothing stores a second copy of the bitset (the old StateKey set
+                                // held bits + vals per entry — words*8 bytes of pure duplication on
+                                // every inserted node). Dedup verdicts and expansion order are
+                                // byte-identical: the hash only routes to candidates, the exact
+                                // `state_key_eq` decides.
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, cost_fluent), vec![0]);
 
     let mut evaluated = 0usize;
     let mut best = i32::MAX;
@@ -704,7 +715,7 @@ pub fn search_from(
             .filter_map(|(&ni, h)| h.map(|h| (ni, h)))
             .collect();
         let t_phase = crate::clock::Clock::now();
-        let cand_chunks: Vec<Vec<(usize, usize, State, StateKey, i32)>> =
+        let cand_chunks: Vec<Vec<(usize, usize, State, u64, i32)>> =
             par::par_map(&live, threads, |&(ni, ph)| {
                 let st = &nodes[ni].state;
                 let mut v = Vec::new();
@@ -719,7 +730,7 @@ pub fn search_from(
                                 continue; // cost already >= bound: cannot beat incumbent
                             }
                         }
-                        let k = task.state_key_with_cost(&ns, cost_fluent);
+                        let k = task.state_key_hash(&ns, cost_fluent);
                         v.push((ni, oi, ns, k, ph));
                     }
                 }
@@ -736,7 +747,15 @@ pub fn search_from(
                 if g >= cfg.g_bound || g >= len_bound {
                     continue; // cannot beat the length incumbent (see SearchCfg)
                 }
-                if visited.insert(k) {
+                let bucket = visited.entry(k).or_default();
+                if bucket
+                    .iter()
+                    .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, cost_fluent))
+                {
+                    continue;
+                }
+                bucket.push(nodes.len() as u32);
+                {
                     // metric guidance: forgone-preference + renewable-resource
                     // occupancy penalty on the concrete successor (steers toward
                     // genuinely satisfying states that stay within resource pools).

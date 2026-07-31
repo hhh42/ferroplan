@@ -37,9 +37,9 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
-use crate::hash::{FxHashMap, FxHashSet};
+use crate::hash::FxHashMap;
 use crate::heuristic::{relaxed_helpful, Scratch};
-use crate::packed::{PackedTask, State, StateKey};
+use crate::packed::{PackedTask, State};
 use crate::par;
 
 const PREF_BATCH: usize = 192;
@@ -48,7 +48,7 @@ const NORM_BATCH: usize = 64;
 const W_NOVEL: i64 = 1 << 40;
 const W_GOALS: i64 = 1 << 20;
 
-type Cand = (usize, usize, State, StateKey, i32, bool);
+type Cand = (usize, usize, State, u64, i32, bool);
 
 struct Node {
     state: State,
@@ -154,8 +154,10 @@ pub fn search_subgoal(
     let mut pref_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     let mut norm_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     norm_heap.push(Reverse((0, 0)));
-    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
-    visited.insert(task.state_key(&init));
+    // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
+    // arena state, no second bitset copy per entry (see search_from).
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, None), vec![0]);
     let mut expanded = vec![false; 1];
     let mut evaluated = 0usize;
 
@@ -234,7 +236,7 @@ pub fn search_subgoal(
                     }
                     if task.op_applicable(oi, st) {
                         let ns = task.apply(oi, st);
-                        let k = task.state_key(&ns);
+                        let k = task.state_key_hash(&ns, None);
                         let pref = helpful.contains(&(oi as u32));
                         v.push((ni, oi, ns, k, ph, pref));
                     }
@@ -247,7 +249,15 @@ pub fn search_subgoal(
         // are updated in the same fixed order the candidates arrive).
         for chunk in chunks {
             for (pi, oi, s, k, ph, pref) in chunk {
-                if visited.insert(k) {
+                let bucket = visited.entry(k).or_default();
+                if bucket
+                    .iter()
+                    .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, None))
+                {
+                    continue;
+                }
+                bucket.push(nodes.len() as u32);
+                {
                     let g = unachieved(task, &s, goal_pos);
                     let cell = (g, 0);
                     let novel = seen.novel_and_mark(cell, &s.bits);
@@ -316,8 +326,10 @@ pub fn search_light(
     seen.novel_and_mark((g0, 0), &init.bits);
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
-    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
-    visited.insert(task.state_key(&init));
+    // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
+    // arena state, no second bitset copy per entry (see search_from).
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, None), vec![0]);
     let mut evaluated = 0usize;
 
     while let Some(Reverse((_, ni))) = heap.pop() {
@@ -342,10 +354,15 @@ pub fn search_light(
                 continue;
             }
             let ns = task.apply(oi, &nodes[ni].state);
-            let k = task.state_key(&ns);
-            if !visited.insert(k) {
+            let k = task.state_key_hash(&ns, None);
+            let bucket = visited.entry(k).or_default();
+            if bucket
+                .iter()
+                .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &ns, None))
+            {
                 continue;
             }
+            bucket.push(nodes.len() as u32);
             let g = unachieved(task, &ns, goal_pos);
             let novel = seen.novel_and_mark((g, 0), &ns.bits);
             let key = if novel { 0 } else { W_NOVEL } + g as i64 * W_GOALS;

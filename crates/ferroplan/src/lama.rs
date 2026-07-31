@@ -20,9 +20,9 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
-use crate::hash::FxHashSet;
+use crate::hash::FxHashMap;
 use crate::heuristic::{relaxed_helpful, Scratch};
-use crate::packed::{PackedTask, State, StateKey};
+use crate::packed::{PackedTask, State};
 use crate::par;
 
 /// Popped per round from the preferred heap (boosted) and the normal heap.
@@ -34,7 +34,7 @@ const W_LM: i64 = 4;
 
 /// One expansion candidate: (parent idx, op, successor state, visited key,
 /// parent's FF h, reached via a helpful op).
-type Cand = (usize, usize, State, StateKey, i32, bool);
+type Cand = (usize, usize, State, u64, i32, bool);
 
 struct Node {
     state: State,
@@ -117,8 +117,10 @@ pub fn search_subgoal(
     let mut pref_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     let mut norm_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     norm_heap.push(Reverse((0, 0)));
-    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
-    visited.insert(task.state_key(&init));
+    // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
+    // arena state, no second bitset copy per entry (see search_from).
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, None), vec![0]);
     // A node can sit in BOTH heaps (preferred successors do, so the normal
     // queue's completeness is untouched); expand it only once.
     let mut expanded = vec![false; 1];
@@ -210,7 +212,7 @@ pub fn search_subgoal(
                     }
                     if task.op_applicable(oi, st) {
                         let ns = task.apply(oi, st);
-                        let k = task.state_key(&ns);
+                        let k = task.state_key_hash(&ns, None);
                         let pref = helpful.contains(&(oi as u32));
                         v.push((ni, oi, ns, k, ph, pref));
                     }
@@ -222,7 +224,15 @@ pub fn search_subgoal(
         // SERIAL: dedup + insert (deterministic).
         for chunk in chunks {
             for (pi, oi, s, k, ph, pref) in chunk {
-                if visited.insert(k) {
+                let bucket = visited.entry(k).or_default();
+                if bucket
+                    .iter()
+                    .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, None))
+                {
+                    continue;
+                }
+                bucket.push(nodes.len() as u32);
+                {
                     let mut accepted = nodes[pi].accepted.clone();
                     accept_into(&mut accepted, &lms, &s);
                     // Landmark count is EXACT for the successor (cheap bit

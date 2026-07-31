@@ -339,6 +339,49 @@ impl PackedTask {
         k
     }
 
+    /// Streaming hash of EXACTLY the content [`Self::state_key_with_cost`]
+    /// would clone: bits words, relevant-fluent quantized vals, then the
+    /// cost val when present (0.20 Phase 4, retained-state compression).
+    /// With [`Self::state_key_eq`] it lets a visited structure hold one
+    /// u64 and a node index per state instead of a second copy of the
+    /// bitset — the dedup verdicts are identical (equality stays exact;
+    /// the hash only routes to candidates), so search behavior is
+    /// byte-identical.
+    pub fn state_key_hash(&self, s: &State, cost_fluent: Option<usize>) -> u64 {
+        use std::hash::Hasher;
+        let mut h = crate::hash::FxHasher::default();
+        for &w in &s.bits {
+            h.write_u64(w);
+        }
+        for &i in self.rel_fluents.iter() {
+            h.write_i64(Self::quantized(s, i as usize));
+        }
+        if let Some(cf) = cost_fluent {
+            h.write_i64(Self::quantized(s, cf));
+        }
+        h.finish()
+    }
+
+    /// Exact equality of the [`Self::state_key_with_cost`] content between
+    /// two states — the collision check behind [`Self::state_key_hash`].
+    pub fn state_key_eq(&self, a: &State, b: &State, cost_fluent: Option<usize>) -> bool {
+        a.bits == b.bits
+            && self
+                .rel_fluents
+                .iter()
+                .all(|&i| Self::quantized(a, i as usize) == Self::quantized(b, i as usize))
+            && cost_fluent.map_or(true, |cf| Self::quantized(a, cf) == Self::quantized(b, cf))
+    }
+
+    #[inline]
+    fn quantized(s: &State, i: usize) -> i64 {
+        if s.fdef[i] {
+            (s.fv[i] * 1e6).round() as i64
+        } else {
+            0
+        }
+    }
+
     /// Goal test against an arbitrary (sub)goal — used by the subplanner API.
     pub fn goal_met_with(&self, s: &State, goal_pos: &[u32], goal_num: &[NumPre]) -> bool {
         goal_pos.iter().all(|&f| bitset::test(&s.bits, f as usize))
