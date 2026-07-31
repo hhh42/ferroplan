@@ -16,6 +16,12 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/phase.py\" hook",
             "timeout": 10,
             "statusMessage": "Loading the canonical phase snapshot"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/auto_admit.py\" ensure --project \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 10,
+            "statusMessage": "Starting the bounded low-risk admission watcher"
           }
         ]
       }
@@ -65,6 +71,12 @@
             "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/loop.py\" hook",
             "timeout": 10,
             "statusMessage": "Recording a repository observation candidate"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/scripts/auto_admit.py\" ensure --project \"${CLAUDE_PROJECT_DIR}\"",
+            "timeout": 10,
+            "statusMessage": "Ensuring the bounded admission watcher is running"
           }
         ]
       }

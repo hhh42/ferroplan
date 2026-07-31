@@ -1,0 +1,18 @@
+{
+  "schema": "urn:chatman:auto-admit-policy:v1",
+  "enabled": true,
+  "poll_interval_seconds": 2.0,
+  "idle_exit_seconds": 1800.0,
+  "max_pending_events": 16,
+  "max_total_bytes": 32768,
+  "allow_globs": [
+    "README.md",
+    "CHANGELOG.md",
+    "docs/**/*.md",
+    "book/**/*.md",
+    "plugins/chatman-ecosystem/tests/**/*.py",
+    "crates/**/tests/**/*.rs",
+    "benchmarks/**/*.py",
+    "examples/**/*"
+  ]
+}
