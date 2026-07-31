@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Minimal stdlib-only MCP stdio JSON-RPC client.
-
-The client implements the subset used by the Chatman ecosystem runtime:
-initialize, notifications/initialized, tools/list, and tools/call.  It remains
-stdlib-only because it runs on protected hook/actuation paths where an optional
-Python dependency must never take the fence down.
-"""
-
+"""Bounded stdlib-only MCP stdio JSON-RPC client."""
 from __future__ import annotations
 
 import json
@@ -15,26 +8,21 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 
 class McpToolError(RuntimeError):
-    """Raised when an MCP call errors, times out, or reports ``isError=true``."""
+    """Raised when an MCP call violates transport or result contracts."""
 
 
 _EOF = object()
 
 
 class McpClient:
-    """Spawn one stdio MCP server and expose its tool surface.
-
-    ``project_root`` and ``client_name`` make the client host-neutral.  The
-    legacy ``CLAUDE_PROJECT_DIR`` variable is still populated for existing
-    Claude Code launchers, while ``CHATMAN_PROJECT_DIR`` is the canonical
-    neutral variable for OpenAI/A2A and future hosts.
-    """
+    """Spawn one stdio MCP server and expose its bounded tool surface."""
 
     def __init__(
         self,
@@ -44,12 +32,18 @@ class McpClient:
         project_root: Path | None = None,
         client_name: str = "chatman-ecosystem",
         environment: Mapping[str, str] | None = None,
+        max_message_bytes: int = 4 * 1024 * 1024,
+        max_tool_pages: int = 1024,
+        shutdown_timeout: float = 1.0,
     ) -> None:
         self._launcher = launcher or Path(__file__).resolve().parent / "run-ferroplan-mcp.sh"
         self._timeout = timeout
         self._project_root = project_root.resolve() if project_root else None
         self._client_name = client_name
         self._environment = dict(environment or {})
+        self._max_message_bytes = max_message_bytes
+        self._max_tool_pages = max_tool_pages
+        self._shutdown_timeout = shutdown_timeout
         self._next_id = 1
         self._process: subprocess.Popen[str] | None = None
         self._line_queue: queue.Queue[Any] = queue.Queue()
@@ -75,7 +69,6 @@ class McpClient:
         fallback_root = self._launcher.resolve().parent.parent.parent.parent
         root = self._project_root or (Path(configured_root) if configured_root else fallback_root)
         env.setdefault("CHATMAN_PROJECT_DIR", str(root))
-        # Compatibility projection for the existing Claude Code plugin.
         env.setdefault("CLAUDE_PROJECT_DIR", str(root))
         argv = [str(self._launcher)]
         if not os.access(self._launcher, os.X_OK):
@@ -117,10 +110,13 @@ class McpClient:
         except (BrokenPipeError, OSError):
             pass
         try:
-            process.wait(timeout=5)
+            process.wait(timeout=self._shutdown_timeout)
         except subprocess.TimeoutExpired:
             process.kill()
-            process.wait(timeout=5)
+            process.wait(timeout=self._shutdown_timeout)
+        if self._reader_thread is not None:
+            self._reader_thread.join(timeout=1)
+            self._reader_thread = None
 
     def _read_loop(self) -> None:
         process = self._process
@@ -149,9 +145,15 @@ class McpClient:
         if process is None:
             raise McpToolError("MCP subprocess is not running")
         effective_timeout = self._timeout if timeout is None else timeout
+        deadline = time.monotonic() + effective_timeout
         while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise McpToolError(
+                    f"MCP subprocess did not respond to id={expected_id} within {effective_timeout}s"
+                )
             try:
-                line = self._line_queue.get(timeout=effective_timeout)
+                line = self._line_queue.get(timeout=remaining)
             except queue.Empty as error:
                 raise McpToolError(
                     f"MCP subprocess did not respond to id={expected_id} within {effective_timeout}s"
@@ -162,6 +164,10 @@ class McpClient:
                     f"MCP subprocess closed stdout before responding to id={expected_id}: "
                     f"{stderr.strip()}"
                 )
+            if len(line.encode("utf-8", errors="replace")) > self._max_message_bytes:
+                raise McpToolError(
+                    f"MCP response exceeded {self._max_message_bytes} bytes for id={expected_id}"
+                )
             line = line.strip()
             if not line:
                 continue
@@ -169,6 +175,8 @@ class McpClient:
                 message = json.loads(line)
             except json.JSONDecodeError as error:
                 raise McpToolError(f"MCP subprocess emitted non-JSON line: {line!r}") from error
+            if not isinstance(message, dict):
+                raise McpToolError(f"MCP subprocess emitted non-object JSON: {message!r}")
             if message.get("id") == expected_id:
                 return message
 
@@ -191,10 +199,11 @@ class McpClient:
         return response.get("result")
 
     def list_tools(self) -> list[dict[str, Any]]:
-        """Return every advertised tool, following MCP cursor pagination."""
+        """Return every advertised tool with pagination cycle and page bounds."""
         tools: list[dict[str, Any]] = []
         cursor: str | None = None
-        while True:
+        seen_cursors: set[str] = set()
+        for _page in range(self._max_tool_pages):
             params = {"cursor": cursor} if cursor else None
             result = self._request("tools/list", params)
             if not isinstance(result, dict) or not isinstance(result.get("tools"), list):
@@ -206,7 +215,11 @@ class McpClient:
             next_cursor = result.get("nextCursor")
             if not isinstance(next_cursor, str) or not next_cursor:
                 return tools
+            if next_cursor in seen_cursors:
+                raise McpToolError(f"MCP `tools/list` cursor cycle detected: {next_cursor}")
+            seen_cursors.add(next_cursor)
             cursor = next_cursor
+        raise McpToolError(f"MCP `tools/list` exceeded {self._max_tool_pages} pages")
 
     def call_tool(
         self,
@@ -215,6 +228,8 @@ class McpClient:
         *,
         timeout: float | None = None,
     ) -> dict[str, Any]:
+        if not isinstance(arguments, dict):
+            raise McpToolError(f"MCP tool `{name}` arguments must be an object")
         result = self._request(
             "tools/call",
             {"name": name, "arguments": arguments},
@@ -249,4 +264,3 @@ def tool_structured_result(result: dict[str, Any]) -> Any:
 if __name__ == "__main__":  # pragma: no cover
     with McpClient() as client:
         print(json.dumps(client.list_tools(), indent=2))
-    sys.exit(0)

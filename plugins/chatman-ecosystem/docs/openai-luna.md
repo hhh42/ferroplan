@@ -39,6 +39,9 @@ It deliberately does **not** call `MuStarAgent.forward()` or `SigmaStarAggregato
   4. non-empty final OpenAI output.
 - OntoStar A2A is optional discovery and coordination only. MCP remains the admission path.
 - No filesystem or shell authority is implicit. Attach a bounded workspace MCP server for repository mutation.
+- Tool discovery, call count, result size, MCP message size, response rounds, and Star task count are independently bounded.
+- MCP pagination cycles, duplicate tool identities, reused OpenAI call IDs, oversized results, malformed JSON, and untyped transport faults are refused.
+- Common credential fields are redacted from trace projections while their original values remain represented only by cryptographic digests.
 
 ## Run
 
@@ -77,8 +80,57 @@ python3 plugins/chatman-ecosystem/scripts/openai_luna.py \
 
 The host discovers MCP schemas with `tools/list`, projects them into namespaced OpenAI function tools (`ferroplan__*`, `ontostar__*`, `workspace__*`), dispatches calls to the owning stdio server, and feeds structured results into the next Responses turn.
 
+## Verification ladder
+
+The suite keeps each form of evidence distinct. A lower rung cannot impersonate a higher rung.
+
+| Form | Executable surface |
+|---|---|
+| Legacy regression | Original adapter and MCP pagination witnesses |
+| Unit | Profile, envelope, registry, result projection, refusal, and redaction laws |
+| Contract | Committed profile, OpenAI payload, trace schema, witness, and digest contracts |
+| OStar contract | Real `MuStarPlanner`, `MuStarExecutor`, SigmaStar decomposition, and OpenAI DSPy binding seams |
+| Property/fuzz | Deterministic randomized tool names, canonicalization, digest invariance, and nested verdicts |
+| Replay | Deterministic trace reproduction, resealing, and tamper falsifiers |
+| Mutation sentinels | Removal or inversion of every crown condition must block standing |
+| Integration | Real stdio MCP subprocesses, Star launcher subprocess, and A2A HTTP probe |
+| End-to-end | Black-box CLI through local Responses HTTP, Star, Ferroplan MCP, OntoStar MCP, and atomic receipt |
+| Security | Prompt-injection resistance, unadvertised-tool refusal, and credential redaction |
+| Chaos | MCP crash, malformed output, timeout, OpenAI partition, A2A partition, and round exhaustion |
+| Stress | 2,000-tool discovery, 100 repeated host runs, and 256 parallel trace seals |
+| Benchmark | Bounded registry-discovery and large-trace sealing latency guards |
+| Coverage | Branch-aware coverage over protocol, runtime, MCP, verifier, and OStar seams |
+| Compatibility | The focused ladder runs on Python 3.11, 3.12, and 3.13 |
+
+Run the complete focused ladder and produce receipts:
+
+```bash
+cd plugins/chatman-ecosystem
+python -m pytest -q \
+  --junitxml=openai-luna-junit.xml \
+  tests/test_openai_luna*.py \
+  tests/test_openai_ostar_star.py
+
+python scripts/verify_openai_luna.py \
+  --junit openai-luna-junit.xml \
+  --output openai-luna-verifier.json \
+  --static-check ruff \
+  --static-check compileall \
+  --static-check shell-syntax \
+  --static-check coverage
+```
+
+The verifier report is sealed with the SHA-256 of its unsigned canonical JSON and includes the SHA-256 of the JUnit receipt. GitHub Actions uploads both files for every supported Python version.
+
+## Claim boundaries
+
+The black-box E2E test is complete for the host protocol but uses local deterministic fake servers. It proves subprocess, HTTP, MCP, response-loop, admission, receipt, and shutdown composition without consuming external credentials.
+
+Live OpenAI service behavior, installed OStar dependencies, the production Ferroplan/OntoStar binaries, and repository-specific workspace mutation remain `UNKNOWN` until executed in the target environment. No mocked or local test upgrades those external surfaces to `ALIVE`.
+
 ## Standing
 
 - `ALIVE`: this invocation observed the complete bounded chain described above.
 - `BLOCKED`: a required law boundary refused progression or a witness was absent.
-- Live OpenAI, OStar imports, local MCP binaries, and repository-specific workspace actuation remain `UNKNOWN` until exercised in the target environment. Mocked integration tests establish only the adapter’s bounded control law.
+- `BUILD_BROKEN`: an executable verifier failed.
+- `UNKNOWN`: the surface was not executed in the relevant environment.
