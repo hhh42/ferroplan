@@ -2,7 +2,9 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "chatman-ecosystem",
   "displayName": "Chatman Phase Engine",
-  "description": "A phase-changing, proof-carrying Claude Code control plane combining configuration LSP law, RDF admission, CMCA allocation, persistent Ferroplan planning, specialized agents, hooks, monitors, and chained receipts",
+  "version": "0.17.0",
+  "defaultEnabled": false,
+  "description": "A lawful managed-world Claude Code projection combining generated configuration law, RDF-shaped observation, BCINR-CMCA allocation, persistent Ferroplan candidate planning, isolated manufacture, validation, structured actuation intents, and chained receipts",
   "author": {
     "name": "Sean Chatman",
     "email": "info@chatmangpt.com"
@@ -19,9 +21,11 @@
     "phase-change",
     "combinatorial-maximalism",
     "self-hosting",
-    "receipts"
+    "receipts",
+    "brce",
+    "generated-configuration",
+    "worktree-isolation"
   ],
-  "skills": "./skills/",
   "agents": [
     "./agents/cmca-allocator.md",
     "./agents/config-law-architect.md",
@@ -33,7 +37,6 @@
     "./agents/source-manufacturer.md"
   ],
   "mcpServers": "./.mcp.json",
-  "lspServers": "./.lsp.json",
   "experimental": {
     "monitors": "./monitors/monitors.json"
   },
@@ -41,13 +44,13 @@
     "ferroplan_root": {
       "type": "directory",
       "title": "Ferroplan checkout",
-      "description": "Optional exact Ferroplan checkout used to launch the three Rust MCP servers. Leave empty when their binaries are installed or Claude Code is running in Ferroplan itself.",
+      "description": "Optional exact Ferroplan checkout used to launch the single combined ferroplan MCP server. Leave empty when the binary is installed or Claude Code is running in Ferroplan itself.",
       "required": false
     },
     "config_lsp_root": {
       "type": "directory",
-      "title": "Claude config LSP checkout",
-      "description": "Optional checkout containing claude-code-config-lsp. Leave empty when the binary is installed or the repository is beside Ferroplan.",
+      "title": "Claude config validator checkout",
+      "description": "Optional checkout containing claude-code-config-lsp for explicit bounded validation. The main plugin does not register it as a repository-global LSP.",
       "required": false
     }
   }
