@@ -139,6 +139,33 @@ comparability the re-baseline exists to establish. **If the box is ever
 dedicated, re-run this calibration — K=3–4 becomes the right answer
 and the sweep gets ~2x faster.**
 
+### Found mid-sweep, on the record
+
+The re-baseline is already earning its keep as an audit, not just a
+measuring stick. Two findings, neither of them a coverage number:
+
+- **data-network-2018 is 7/7 VAL-RED, and it is NOT the drone shape.**
+  Every solved instance on that domain (i1–i5, i11, i13; plans 20–130
+  steps) comes back rejected. 0.20 Phase 5 expected these to get "the
+  same treatment" as drone-numeric — attributed to VAL's parser — and
+  this sweep REFUTES that: `val_check` already returns `None` on
+  "Parser failed", so VAL parses this domain and genuinely rejects our
+  plans. Nor is it a VAL timeout: termes validates 506-step plans on the
+  same board. A 100% rejection rate on one domain is systematic, which
+  makes the prior engine-side, and data-network is numeric
+  (`:action-costs` plus transfer fluents). This outranks most of the
+  ledger below — a soundness question is never a search loss. Decode
+  after the sweep: solve one instance solo, dump the plan, and get VAL's
+  own reason. (6 of the board's 7 mem-cap rows are the same domain.)
+- **A latent runner misattribution, named before it bites.**
+  `val_check` ends `except Exception: return False`, which swallows the
+  120 s `TimeoutExpired` — so a VAL that runs out of time books as a
+  REJECTED PLAN. That is the 0.20 Phase 1 shape exactly (graceful
+  wall-exits booked as engine-rejects), on the one column standings.py
+  calls a first-class signal. Confirmed latent on these boards, so it
+  corrupts nothing here and no re-sweep is owed; fixed AFTER the sweep
+  so the instrument stays identical across all twelve.
+
 ## Deferred ledger, carried in for scoping (from migration-m5)
 
 Read after Phase 1 lands, against a fresh standings audit — not
