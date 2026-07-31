@@ -1,6 +1,6 @@
 [package]
 name = "ferroplan"
-description = "A fast, data-parallel PDDL planner in Rust — FF heuristic with ADL, numeric, derived axioms, PDDL3 preferences, PDDL2.1 temporal, and a goal decomposer"
+description = "A fast, data-parallel PDDL and PPDDL planner in Rust — deterministic FF search plus explicit-MDP probabilistic policy synthesis"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -31,4 +31,8 @@ criterion = "0.8"
 
 [[bench]]
 name = "planning"
+harness = false
+
+[[bench]]
+name = "ppddl"
 harness = false
