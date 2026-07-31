@@ -96,6 +96,9 @@ TRACK_PATTERNS = {
     "sat-2018": r"sequential-satisficing",
     "agile-2023": r"-agile$",
     "numeric-2023": r"numeric-satisficing",
+    # 0.20: the IPC-2026 numeric dataset (vendored by get-ipc.sh from the
+    # competition's public repo after the track ran at ICAPS Dublin).
+    "numeric-2026": r"numeric-2026",
 }
 
 # Which competition directories each track lives in.
@@ -119,6 +122,7 @@ TRACK_IPCS = {
     "sat-2018": ("ipc-2018",),
     "agile-2023": ("ipc-2023",),
     "numeric-2023": ("ipc-2023n",),
+    "numeric-2026": ("ipc-2026n",),
 }
 
 

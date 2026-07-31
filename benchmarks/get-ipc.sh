@@ -87,4 +87,27 @@ if [ ! -d .ipc-corpus/ipc-2023n/domains ]; then
   cp "$tmp"-site/sat.csv "$tmp"-site/opt.csv .ipc-corpus/ipc-2023n/results/ 2>/dev/null || true
   rm -rf "$tmp" "$tmp"-site
 fi
+# --- IPC-2026 numeric (github) -> ipc-2026n/domains/<dom>-numeric-2026
+# The track ran at ICAPS Dublin (June 2026); the dataset repo carries
+# 20-instance domains incl. -sat/-opt pairs. Vendored under the dataset's
+# own names; the first board sweeps everything satisficing-style.
+if [ ! -d .ipc-corpus/ipc-2026n/domains ]; then
+  tmp=.ipc-corpus/.tmp-2026n
+  git clone -q --depth 1 https://github.com/ipc2026-numeric/ipc2026-dataset "$tmp"
+  for d in "$tmp"/*/; do
+    name=$(basename "$d")
+    dompddl="$d"domain.pddl
+    # line-exchange-snp ships domain_snp.pddl — take the first domain*.pddl
+    [ -f "$dompddl" ] || dompddl=$(ls "$d"domain*.pddl 2>/dev/null | head -1)
+    [ -n "$dompddl" ] && [ -f "$dompddl" ] || continue
+    dest=.ipc-corpus/ipc-2026n/domains/"$name"-numeric-2026
+    mkdir -p "$dest"/instances
+    cp "$dompddl" "$dest"/domain.pddl
+    for p in "$d"instances/*.pddl; do
+      n=$(basename "$p" .pddl | sed 's/[^0-9]*0*//')
+      cp "$p" "$dest"/instances/instance-"$n".pddl
+    done
+  done
+  rm -rf "$tmp"
+fi
 echo "corpus ready: $(pwd)/.ipc-corpus"

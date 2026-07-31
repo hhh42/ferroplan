@@ -65,6 +65,9 @@ SWEEPS = {
     "ipc2018-sat.jsonl": ("2018 seq-sat", "modern", 60),
     "ipc2023-agile.jsonl": ("2023 classical", "modern", 60),
     "ipc2023-numeric.jsonl": ("2023 numeric", "modern", 60),
+    # 0.20: the IPC-2026 numeric dataset's first board (the track ran at
+    # ICAPS Dublin, June 2026; corpus vendored from the public repo).
+    "ipc2026-numeric.jsonl": ("2026 numeric (first board)", "modern", 60),
     # The official-budget entry (0.19 cut, locked at scoping): ONE sweep
     # at the competition's 300 s agile budget — an ENTRY, not a baseline.
     "ipc2023-agile-300s.jsonl": ("2023 agile ENTRY (300s)", "modern", 300),
