@@ -36,11 +36,11 @@ Use `horizon: Some(h)` for exact finite-horizon backward induction. Use `horizon
 Additional receipts:
 
 - `parse_ppddl` validates and summarizes the normalized stochastic surface.
-- `validate_ppddl_policy` recompiles the MDP and checks action identity, transition probability, successor identity, reward, Bellman optimality, and policy closure.
+- `validate_ppddl_policy` recompiles the MDP and checks action identity, transition probability, successor identity, reward, and policy closure.
 - `simulate_ppddl` executes the synthesized policy with a deterministic seed.
 
 ## Boundedness and exclusions
 
-Explicit construction is bounded by independent limits for normalized outcomes, initial outcomes, states, transitions, finite-horizon value cells, and policy entries. Exceeding a bound is a typed refusal, never an approximation.
+Explicit construction is bounded by independent limits for normalized outcomes, initial outcomes, states, transitions, and policy entries. Exceeding a bound is a typed refusal, never an approximation.
 
 PPDDL 1.0 is discrete-time. The PPDDL API rejects durative actions, timed initial literals, PDDL3 trajectory constraints, and derived predicates. Those deterministic extensions remain available through their existing Ferroplan modes but are not silently mixed into PPDDL semantics.
