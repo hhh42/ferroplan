@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import queue
 import threading
 import time
 from types import SimpleNamespace
