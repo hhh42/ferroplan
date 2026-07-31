@@ -20,15 +20,6 @@ use crate::Ferroplan;
 const BCINR_REVISION: &str = "fb9321d27882169acc83aaca0639b319cd3b7900";
 const RECEIPT_DOMAIN: &[u8] = b"urn:chatman:claude-code-admission:v1\0";
 
-// Static per-tool semantic descriptions sourced from
-// `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl`'s `rdfs:comment`
-// annotations. The ontology flags this module's tool schemas as
-// UNVERIFIED/lower-fidelity relative to session-mcp's, so field shapes here
-// follow the actual Rust source (this file), not the ontology — only the
-// prose semantic summary below is drawn from the ontology. Generated at
-// compile time by `build.rs` — see that file for the extraction logic. These
-// constants are read by `crate::main`'s merged
-// `list_resources`/`read_resource`.
 include!(concat!(env!("OUT_DIR"), "/admission_ontology.rs"));
 
 pub(crate) const RESOURCE_TOOLS: &[&str] = &[
@@ -48,29 +39,10 @@ pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
     })
 }
 
-/// Schema for an unconstrained JSON value.
-///
-/// `schemars` renders `serde_json::Value` as the boolean schema `true`. That is
-/// valid JSON Schema, but MCP clients reject a boolean where an object subschema
-/// is required, which fails the whole `tools/list` response. An empty object
-/// schema accepts exactly the same instances and validates as an object.
 fn any_json(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
     schemars::json_schema!({})
 }
 
-/// Some MCP clients, faced with the unconstrained `any_json` schema above,
-/// serialize the argument as a JSON-encoded *string* instead of passing the
-/// array/object natively — observed reproducibly against `canonical_digest`,
-/// `bind_allocation_receipt`, and `bind_plan_receipt` in the same session
-/// (the returned "canonical" form preserved the caller's original key order
-/// instead of `canonicalize`'s alphabetical sort, proving the value never
-/// reached `Value::Object`/`Value::Array` in the first place).
-///
-/// Defensively re-parse: a string that itself parses as a JSON array or
-/// object is treated as that parsed value. A plain string that is not JSON
-/// (or that parses to a scalar) is left untouched, so a legitimately
-/// string-typed field can never be corrupted by this — it only ever
-/// recovers structure that was already lost in transit, never invents any.
 fn coerce_stringified_json(value: Value) -> Value {
     if let Value::String(text) = &value {
         if let Ok(parsed) = serde_json::from_str::<Value>(text) {
@@ -100,6 +72,11 @@ struct BindAllocationInput {
     observation_frontier: Value,
     #[serde(default)]
     previous_receipt: Option<String>,
+    #[serde(default)]
+    #[schemars(schema_with = "any_json")]
+    parent_allocation: Option<Value>,
+    #[serde(default)]
+    selected_node: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -135,7 +112,8 @@ impl Ferroplan {
 
     #[tool(
         description = "Bind exactly eight CMCA candidates, the allocation result, the \
-            observation frontier, the admitted BCINR revision, and an optional predecessor."
+            observation frontier, the admitted BCINR revision, and an optional predecessor. \
+            Pass parent_allocation and selected_node together to bind a recursive descent."
     )]
     fn bind_allocation_receipt(
         &self,
@@ -199,7 +177,16 @@ fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
     require_array_len(allocations, "allocation_result.payload.allocations", 8)?;
 
     let observation_frontier = canonicalize(&coerce_stringified_json(input.observation_frontier));
-    let payload = canonicalize(&json!({
+    let descent = match (input.parent_allocation, input.selected_node) {
+        (Some(parent_allocation), Some(selected_node)) => Some(bind_descent(
+            coerce_stringified_json(parent_allocation),
+            selected_node,
+        )?),
+        (None, None) => None,
+        _ => return Err("parent_allocation and selected_node must be provided together".to_owned()),
+    };
+
+    let mut payload = json!({
         "schema": "urn:chatman:allocation-admission-payload:v1",
         "bcinr_revision": BCINR_REVISION,
         "candidates_digest": digest_value(&candidates)?,
@@ -208,9 +195,79 @@ fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
         "allocation_result": allocation_result,
         "observation_frontier_digest": digest_value(&observation_frontier)?,
         "observation_frontier": observation_frontier
-    }));
+    });
+    if let Some((parent_receipt, selected_node, parent_candidate)) = descent {
+        let object = payload
+            .as_object_mut()
+            .expect("payload literal is always a JSON object");
+        object.insert(
+            "parent_allocation_receipt".to_owned(),
+            Value::String(parent_receipt),
+        );
+        object.insert("selected_node".to_owned(), Value::String(selected_node));
+        object.insert("selected_node_candidate".to_owned(), parent_candidate);
+    }
+    let payload = canonicalize(&payload);
 
     make_envelope("allocation", payload, input.previous_receipt)
+}
+
+fn bind_descent(
+    parent_allocation: Value,
+    selected_node: String,
+) -> Result<(String, String, Value), String> {
+    let object = parent_allocation
+        .as_object()
+        .ok_or_else(|| "parent_allocation must be an object".to_owned())?;
+    let kind = required_str(object, "kind")?;
+    if kind != "allocation" {
+        return Err(format!(
+            "parent_allocation must be an allocation envelope, found kind `{kind}`"
+        ));
+    }
+    let payload = canonicalize(
+        object
+            .get("payload")
+            .ok_or_else(|| "parent_allocation lacks payload".to_owned())?,
+    );
+    let previous = object.get("previous_receipt").and_then(Value::as_str);
+    validate_digest(previous, "parent_allocation.previous_receipt")?;
+    let declared_payload_digest = required_str(object, "payload_digest")?;
+    let declared_receipt = required_str(object, "receipt")?;
+    validate_digest(
+        Some(declared_payload_digest),
+        "parent_allocation.payload_digest",
+    )?;
+    validate_digest(Some(declared_receipt), "parent_allocation.receipt")?;
+
+    let expected_payload_digest = digest_value(&payload)?;
+    if declared_payload_digest != expected_payload_digest {
+        return Err(
+            "parent_allocation.payload_digest does not match its own payload; refusing an unverifiable parent".to_owned(),
+        );
+    }
+    let expected_receipt = receipt_for(kind, &payload, previous)?;
+    if declared_receipt != expected_receipt {
+        return Err(
+            "parent_allocation.receipt does not match its own payload/predecessor; refusing an unverifiable parent".to_owned(),
+        );
+    }
+
+    let parent_candidates = payload
+        .get("candidates")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "parent_allocation.payload.candidates is missing or not an array".to_owned())?;
+    let candidate = parent_candidates
+        .iter()
+        .find(|candidate| {
+            candidate.get("id").and_then(Value::as_str) == Some(selected_node.as_str())
+        })
+        .cloned()
+        .ok_or_else(|| {
+            format!("selected_node `{selected_node}` is not a candidate in parent_allocation")
+        })?;
+
+    Ok((declared_receipt.to_owned(), selected_node, candidate))
 }
 
 fn tool_bind_plan(input: BindPlanInput) -> Result<Value, String> {
