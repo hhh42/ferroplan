@@ -45,9 +45,13 @@ pub struct OptOutcome {
     pub proven: bool,
     /// The problem shape is outside the mode's certified scope.
     pub reject: Option<String>,
+    /// Which admissible heuristic produced this outcome's certificate
+    /// ("h^max" from the sprint rung or `FF_NO_LMCUT`, else "LM-cut") —
+    /// surfaced in the PROVEN note so the record names its prover.
+    pub heuristic: &'static str,
 }
 
-fn inconclusive(expanded: usize, evaluated: usize) -> OptOutcome {
+fn inconclusive(expanded: usize, evaluated: usize, heuristic: &'static str) -> OptOutcome {
     OptOutcome {
         ops: None,
         cost: 0.0,
@@ -55,6 +59,7 @@ fn inconclusive(expanded: usize, evaluated: usize) -> OptOutcome {
         evaluated,
         proven: false,
         reject: None,
+        heuristic,
     }
 }
 
@@ -535,17 +540,47 @@ impl Ord for K {
     }
 }
 
-/// A* with LM-cut (default) or h^max (`FF_NO_LMCUT=1`, the 0.20
-/// discriminator hatch). `cf` is the metric cost fluent (None = unit
-/// cost). `max_nodes` bounds STORED nodes (the retained-memory model,
-/// like the satisficing searches); hitting it returns inconclusive.
+/// The optimal LADDER (0.20): an h^max SPRINT on a quarter of the node
+/// budget, then LM-cut over the full budget. The differential priced both
+/// heuristics honestly — LM-cut collapses the expansion count where h^max
+/// walls (floor-tile 1.95M -> 58k), but its per-node cost LOSES races
+/// h^max wins easily (barman-opt i1: h^max proves cost 90 in 22 s,
+/// LM-cut does not finish in 100 s). The sprint keeps every cheap h^max
+/// certificate at a bounded cost (≤ a quarter of the memory budget, and
+/// its nodes/sec is ~30x LM-cut's); a PROVEN verdict either way returns
+/// immediately, only an inconclusive cap falls through to LM-cut.
+/// `FF_NO_LMCUT=1` = h^max only (full budget); `FF_NO_HMAX_SPRINT=1`
+/// skips the sprint (LM-cut only) — the two discriminator hatches.
+pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutcome {
+    let use_lmcut = std::env::var("FF_NO_LMCUT").is_err();
+    if !use_lmcut {
+        return astar(task, cf, max_nodes, false);
+    }
+    let sprint = std::env::var("FF_NO_HMAX_SPRINT").is_err();
+    if sprint {
+        let o = astar(task, cf, (max_nodes / 4).max(2), false);
+        if o.proven || o.reject.is_some() {
+            return o;
+        }
+        let mut full = astar(task, cf, max_nodes, true);
+        full.expanded += o.expanded;
+        full.evaluated += o.evaluated;
+        return full;
+    }
+    astar(task, cf, max_nodes, true)
+}
+
+/// One A* pass with the chosen admissible heuristic. `max_nodes` bounds
+/// STORED nodes (the retained-memory model, like the satisficing
+/// searches); hitting it returns inconclusive.
 ///
 /// LM-cut is admissible but NOT consistent, so the A* re-opens closed
 /// states on cheaper routes (the `best_g` map already allows it): with an
 /// admissible h and re-opening, some node on an optimal path always sits
 /// in open with its optimal g, so the first goal POP still carries the
 /// optimality certificate.
-pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutcome {
+fn astar(task: &PackedTask, cf: Option<usize>, max_nodes: usize, use_lmcut: bool) -> OptOutcome {
+    let hname: &'static str = if use_lmcut { "LM-cut" } else { "h^max" };
     let costs = match op_costs(task, cf) {
         Ok(c) => c,
         Err(why) => {
@@ -556,11 +591,11 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
                 evaluated: 0,
                 proven: false,
                 reject: Some(why),
+                heuristic: hname,
             }
         }
     };
     let graph = RelaxGraph::new(task);
-    let use_lmcut = std::env::var("FF_NO_LMCUT").is_err();
     let mut cutspace = CutSpace::new(task.fact_names.len(), task.n_ops, &graph);
     let eval_h = |s: &State, w: &mut CutSpace| {
         if use_lmcut {
@@ -607,6 +642,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
                 evaluated,
                 proven: true,
                 reject: None,
+                heuristic: hname,
             };
         }
         expanded += 1;
@@ -621,7 +657,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
                 continue;
             }
             if nodes.len() >= max_nodes {
-                return inconclusive(expanded, evaluated);
+                return inconclusive(expanded, evaluated, hname);
             }
             let h = eval_h(&succ, &mut cutspace);
             evaluated += 1;
@@ -643,6 +679,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
         evaluated,
         proven: true,
         reject: None,
+        heuristic: hname,
     }
 }
 

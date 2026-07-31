@@ -138,6 +138,47 @@ elevator-08 8/30, transport-08 10/30.
   roughly doubles h^max coverage on exactly these domains; the
   honest record takes whatever the boards say.
 
+### Recorded — the repair, the cut, and the ladder that keeps both honest
+
+The phase found and fixed a 0.19 soundness bug before building its
+centerpiece, then priced the centerpiece honestly:
+
+1. **The conditional-effect admissibility repair.** 0.19's h^max
+   iterated only unconditional adds — a goal reachable only through a
+   `(when ...)` effect was labeled unreachable, an OVERestimate, and
+   A* certified wrong optima (the pinned two-op witness: "PROVEN
+   cost 100" where the optimum is 11). The relaxation now runs over
+   an ACHIEVER list (one entry per op + one per conditional effect:
+   op pre ∪ cond pos-pre ⊢ cond adds — both relaxations, lower
+   bounds survive). Conditional COST effects are state-dependent
+   costs in disguise and reject by name. The differential says the
+   shipped 252 certificates were NOT corrupted in practice — the bug
+   was real, its bite was not.
+2. **LM-cut** (Helmert & Domshlak 2009), over the achiever graph:
+   counter-Dijkstra h^max labels per round, supporter per achiever,
+   zero-cost goal zone backward, before zone forward, cut on the
+   crossing edges, min cost charged and decremented. Admissible but
+   not consistent — the A* re-opens, so the first goal POP keeps the
+   certificate. Receipts: elevators-2011 i1 expansions 47,453 →
+   1,423 (same cost 56); floor-tile-2011 i1 — an h^max wall family —
+   proves cost 49 in ~21 s vs ~43 s at 1.95M expansions.
+3. **The honest price, and the ladder.** The differential caught
+   LM-cut LOSING races h^max wins easily (barman-opt i1: h^max
+   proves cost 90 in 22 s; LM-cut cannot within 100 s — per-node
+   cost). The mode is now a two-rung ladder: an h^max SPRINT on a
+   quarter of the node budget, then LM-cut on the full budget; the
+   PROVEN note names its prover. `FF_NO_LMCUT` (h^max only) and
+   `FF_NO_HMAX_SPRINT` (LM-cut only) are the discriminator hatches.
+4. **The differential referee** (`benchmarks/opt-differential.py`,
+   resume-aware, numeric-sorted instances + per-instance domain
+   pairing — both bugs its own first runs manufactured and then
+   caught): **252/252 certified costs reproduced, 0 mismatches**.
+   Fixtures: three in-module h-value pins (parallel goals h^max 1 vs
+   LM-cut 2; exact cost chain; the cond witness at exactly 11) and
+   two end-to-end pins (cond optimum certified; cond cost effect
+   rejects by name). The wall domains' coverage raise is the cut
+   sweep's to measure.
+
 ## Phase 3 — the classical guidance swing (novelty first)
 
 The witness that names the satisficing mechanism: **visit-all-2014

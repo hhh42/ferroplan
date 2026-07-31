@@ -640,13 +640,7 @@ fn solve_optimal(
                 statistics: stats,
                 notes: vec![format!(
                     "PROVEN OPTIMAL: cost {} certified by A* + admissible {} ({} expansions)",
-                    o.cost,
-                    if std::env::var("FF_NO_LMCUT").is_err() {
-                        "LM-cut"
-                    } else {
-                        "h^max"
-                    },
-                    o.expanded
+                    o.cost, o.heuristic, o.expanded
                 )],
             })
         }
