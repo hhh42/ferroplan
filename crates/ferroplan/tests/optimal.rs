@@ -115,3 +115,57 @@ fn temporal_problems_are_rejected_by_name() {
         sol.notes
     );
 }
+
+/// The 0.20 admissibility repair, end to end: the cheap route to the goal
+/// runs through a CONDITIONAL add (setp 10, then a 1), the unconditional
+/// route costs 100. 0.19's h^max ignored conditional achievers,
+/// overestimated, and CERTIFIED the cost-100 plan; with the achiever
+/// model both heuristics see the truth and the mode certifies 11.
+#[test]
+fn conditional_effect_optimum_is_certified() {
+    let dom = "(define (domain co)
+      (:requirements :conditional-effects :action-costs)
+      (:predicates (p) (g))
+      (:functions (total-cost))
+      (:action setp :parameters () :precondition (and)
+        :effect (and (p) (increase (total-cost) 10)))
+      (:action a :parameters () :precondition (and)
+        :effect (and (when (p) (g)) (increase (total-cost) 1)))
+      (:action direct :parameters () :precondition (and)
+        :effect (and (g) (increase (total-cost) 100))))";
+    let prb = "(define (problem p) (:domain co)
+      (:init (= (total-cost) 0)) (:goal (g))
+      (:metric minimize (total-cost)))";
+    let sol = solve(dom, prb, &opts()).unwrap();
+    assert!(sol.solved);
+    let plan = sol.plan.unwrap();
+    assert_eq!(plan.metric, Some(11.0));
+    let actions: Vec<&str> = plan.steps.iter().map(|s| s.action.as_str()).collect();
+    assert_eq!(actions, ["SETP", "A"]);
+}
+
+/// A conditional effect ON THE COST FLUENT is a state-dependent cost in
+/// disguise — outside the certified scope, rejected by name.
+#[test]
+fn conditional_cost_effect_rejects_by_name() {
+    let dom = "(define (domain cc)
+      (:requirements :conditional-effects :action-costs)
+      (:predicates (p) (g))
+      (:functions (total-cost))
+      (:action delp :parameters () :precondition (p)
+        :effect (not (p)))
+      (:action a :parameters () :precondition (and)
+        :effect (and (g) (when (p) (increase (total-cost) 5)))))";
+    let prb = "(define (problem p) (:domain cc)
+      (:init (p) (= (total-cost) 0)) (:goal (g))
+      (:metric minimize (total-cost)))";
+    let sol = solve(dom, prb, &opts()).unwrap();
+    assert!(!sol.solved);
+    assert!(
+        sol.notes
+            .iter()
+            .any(|n| n.contains("conditional cost effect")),
+        "notes: {:?}",
+        sol.notes
+    );
+}

@@ -35,10 +35,11 @@ pub enum Mode {
     /// Classical-search only: temporal and preference/metric problems keep
     /// their own machinery (this mode falls back to it, like `auto`).
     Portfolio,
-    /// Sequential-OPTIMAL planning (0.19 Phase 2): A* + admissible h^max,
-    /// proof-or-nothing. Explicit only — `auto` never routes here (the
-    /// default remains satisficing). Classical tasks with constant action
-    /// costs; everything else is rejected with a named note.
+    /// Sequential-OPTIMAL planning (0.19 Phase 2, LM-cut 0.20): A* +
+    /// admissible LM-cut (h^max behind `FF_NO_LMCUT=1`), proof-or-nothing.
+    /// Explicit only — `auto` never routes here (the default remains
+    /// satisficing). Classical tasks with constant action costs;
+    /// everything else is rejected with a named note.
     Optimal,
 }
 
@@ -572,10 +573,12 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     }
 }
 
-/// `Mode::Optimal` (0.19 Phase 2): A* + admissible h^max over the classical
-/// grounding, proof-or-nothing — see [`crate::optimal`]. Problems outside
-/// the certified scope (temporal, preferences, non-constant costs) return
-/// unsolved with a named note, never an uncertified plan.
+/// `Mode::Optimal` (0.19 Phase 2, LM-cut 0.20): A* + an admissible
+/// heuristic (LM-cut by default, h^max behind `FF_NO_LMCUT=1`) over the
+/// classical grounding, proof-or-nothing — see [`crate::optimal`].
+/// Problems outside the certified scope (temporal, preferences,
+/// non-constant costs) return unsolved with a named note, never an
+/// uncertified plan.
 fn solve_optimal(
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
@@ -636,8 +639,14 @@ fn solve_optimal(
                 }),
                 statistics: stats,
                 notes: vec![format!(
-                    "PROVEN OPTIMAL: cost {} certified by A* + admissible h^max ({} expansions)",
-                    o.cost, o.expanded
+                    "PROVEN OPTIMAL: cost {} certified by A* + admissible {} ({} expansions)",
+                    o.cost,
+                    if std::env::var("FF_NO_LMCUT").is_err() {
+                        "LM-cut"
+                    } else {
+                        "h^max"
+                    },
+                    o.expanded
                 )],
             })
         }
