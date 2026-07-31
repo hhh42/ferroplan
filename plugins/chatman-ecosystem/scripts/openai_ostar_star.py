@@ -205,4 +205,4 @@ if __name__ == "__main__":
             json.dumps({"code": "OSTAR_STAR_FAILED", "message": str(error)}),
             file=sys.stderr,
         )
-        raise SystemExit(1)
+        raise SystemExit(1) from None
