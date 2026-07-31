@@ -1,111 +1,155 @@
-//! Drive the built `ferroplan-mcp` binary over stdio and check the JSON-RPC / MCP
-//! protocol end to end: initialize, tools/list, a solve call, and the error paths.
+//! Drive the built `ferroplan-mcp` binary over stdio and check the MCP
+//! protocol end to end: handshake, the tool catalogue, the four stateless
+//! planning tools, and the error conventions.
+//!
+//! These pin the behaviour that had to SURVIVE the move onto rmcp — the
+//! stateless four answer exactly as they did before, tool failures stay
+//! `isError` results the agent can read, and an unknown method is still
+//! `-32601`.
 
-use serde_json::{json, Value};
-use std::io::Write;
-use std::process::{Command, Stdio};
+mod common;
 
-/// Send a batch of JSON-RPC messages (one per line), close stdin, and collect every
-/// response line as parsed JSON.
-fn drive(messages: &[Value]) -> Vec<Value> {
-    let bin = env!("CARGO_BIN_EXE_ferroplan-mcp");
-    let mut child = Command::new(bin)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("spawn ferroplan-mcp");
-    {
-        let stdin = child.stdin.as_mut().expect("stdin");
-        for m in messages {
-            writeln!(stdin, "{m}").expect("write message");
-        }
-    } // drop stdin → EOF → server drains and exits
-    let out = child.wait_with_output().expect("wait");
-    assert!(out.status.success(), "server exited with {:?}", out.status);
-    String::from_utf8(out.stdout)
-        .expect("utf8")
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .map(|l| serde_json::from_str(l).expect("each response is one JSON line"))
-        .collect()
-}
-
-const DOM: &str = "(define (domain d) (:requirements :strips) (:predicates (p) (q)) \
-    (:action a :precondition (p) :effect (and (not (p)) (q))))";
-const PROB: &str = "(define (problem pr) (:domain d) (:init (p)) (:goal (q)))";
+use common::{Client, DOM, PROB};
+use serde_json::json;
 
 #[test]
-fn initialize_advertises_server_and_tools() {
-    let resp = drive(&[
-        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}),
-        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
-        json!({"jsonrpc":"2.0","id":2,"method":"tools/list"}),
-    ]);
-    // The notification gets no reply: two requests → two responses.
-    assert_eq!(resp.len(), 2, "notification must not produce a response");
-    assert_eq!(resp[0]["id"], 1);
-    assert_eq!(resp[0]["result"]["serverInfo"]["name"], "ferroplan");
-    // protocolVersion is echoed from the client.
-    assert_eq!(resp[0]["result"]["protocolVersion"], "2025-06-18");
-
-    let names: Vec<&str> = resp[1]["result"]["tools"]
+fn initialize_advertises_server_and_both_tool_families() {
+    let mut c = Client::start();
+    let list = c.request("tools/list", json!({}));
+    let names: Vec<&str> = list["result"]["tools"]
         .as_array()
-        .unwrap()
+        .expect("tools array")
         .iter()
         .map(|t| t["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["solve", "parse", "validate", "decompose"]);
+
+    // The stateless four, unchanged since before rmcp.
+    for want in ["solve", "parse", "validate", "decompose"] {
+        assert!(
+            names.contains(&want),
+            "missing stateless tool {want}: {names:?}"
+        );
+    }
+    // The session surface this server exists to add.
+    for want in [
+        "session_open",
+        "session_close",
+        "session_list",
+        "session_fork",
+        "session_set",
+        "session_observe",
+        "session_elapse",
+        "session_apply_start",
+        "session_replan",
+        "session_state",
+    ] {
+        assert!(
+            names.contains(&want),
+            "missing session tool {want}: {names:?}"
+        );
+    }
+    c.finish();
+}
+
+/// The `schema` cargo feature earns its keep here: `solve`'s `options` must be
+/// a TYPED object with the real knobs, not an opaque blob an agent has to
+/// guess at. This is the end-to-end proof of the uptake that added it.
+#[test]
+fn solve_advertises_a_typed_options_schema() {
+    let mut c = Client::start();
+    let list = c.request("tools/list", json!({}));
+    let solve = list["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|t| t["name"] == "solve")
+        .expect("solve is advertised")
+        .clone();
+    let schema = solve["inputSchema"].to_string();
+    for knob in ["domain", "problem", "options", "mode", "search", "threads"] {
+        assert!(
+            schema.contains(knob),
+            "solve inputSchema should mention `{knob}`: {schema}"
+        );
+    }
+    c.finish();
 }
 
 #[test]
 fn parse_tool_summarizes_a_domain() {
-    let resp = drive(&[json!({
-        "jsonrpc":"2.0","id":1,"method":"tools/call",
-        "params":{"name":"parse","arguments":{"pddl":DOM}}
-    })]);
-    let text = resp[0]["result"]["content"][0]["text"].as_str().unwrap();
-    let report: Value = serde_json::from_str(text).expect("parse returns a JSON report");
+    let mut c = Client::start();
+    let report = c.call_json("parse", json!({"pddl": DOM}));
     assert_eq!(report["ok"], true);
     assert_eq!(report["kind"], "domain");
     assert_eq!(report["name"], "d");
+    c.finish();
 }
 
 #[test]
 fn solve_tool_returns_a_plan() {
-    let resp = drive(&[json!({
-        "jsonrpc":"2.0","id":1,"method":"tools/call",
-        "params":{"name":"solve","arguments":{"domain":DOM,"problem":PROB}}
-    })]);
-    let text = resp[0]["result"]["content"][0]["text"].as_str().unwrap();
-    let sol: Value = serde_json::from_str(text).expect("solve returns a JSON Solution");
+    let mut c = Client::start();
+    let sol = c.call_json("solve", json!({"domain": DOM, "problem": PROB}));
     assert_eq!(sol["solved"], true);
     assert_eq!(sol["plan"]["steps"][0]["action"], "A");
-    assert!(resp[0]["result"].get("isError").is_none());
+    assert_eq!(sol["plan"]["steps"][1]["action"], "B");
+    c.finish();
 }
 
 #[test]
 fn validate_tool_checks_a_plan() {
-    let resp = drive(&[json!({
-        "jsonrpc":"2.0","id":1,"method":"tools/call",
-        "params":{"name":"validate","arguments":{"domain":DOM,"problem":PROB,"plan":"step 0: (a)"}}
-    })]);
-    let text = resp[0]["result"]["content"][0]["text"].as_str().unwrap();
+    let mut c = Client::start();
+    let (text, err) = c.call_text(
+        "validate",
+        json!({"domain": DOM, "problem": PROB, "plan": "step 0: (a)\nstep 1: (b)"}),
+    );
+    assert!(!err, "validate should not be an error result: {text}");
     assert_eq!(text, "Plan valid");
+
+    let (text, err) = c.call_text(
+        "validate",
+        json!({"domain": DOM, "problem": PROB, "plan": "step 0: (b)"}),
+    );
+    assert!(!err, "an invalid PLAN is still a successful tool call");
+    assert!(text.starts_with("Plan invalid"), "got {text}");
+    c.finish();
 }
 
 #[test]
-fn bad_args_are_tool_errors_unknown_method_is_rpc_error() {
-    let resp = drive(&[
-        // missing `domain` → isError tool result (not an RPC error)
-        json!({"jsonrpc":"2.0","id":1,"method":"tools/call",
-               "params":{"name":"solve","arguments":{"problem":PROB}}}),
-        // unknown JSON-RPC method → -32601
-        json!({"jsonrpc":"2.0","id":2,"method":"no/such/method"}),
-    ]);
-    assert_eq!(resp[0]["result"]["isError"], true);
-    assert!(resp[0]["result"]["content"][0]["text"]
-        .as_str()
-        .unwrap()
-        .contains("domain"));
-    assert_eq!(resp[1]["error"]["code"], -32601);
+fn unsolvable_problem_is_a_normal_answer_not_an_error() {
+    let mut c = Client::start();
+    let prob = "(define (problem pr) (:domain d) (:init ) (:goal (r)))";
+    let sol = c.call_json("solve", json!({"domain": DOM, "problem": prob}));
+    assert_eq!(
+        sol["solved"], false,
+        "solved:false is an answer, not a failure"
+    );
+    c.finish();
+}
+
+#[test]
+fn bad_args_are_tool_errors_and_unknown_method_is_an_rpc_error() {
+    let mut c = Client::start();
+    // A missing required argument is a TOOL error the agent can read and fix,
+    // not a protocol error that kills the connection.
+    let (text, err) = c.call_text("solve", json!({"problem": PROB}));
+    assert!(err, "missing `domain` must be an isError result");
+    assert!(
+        text.contains("domain"),
+        "message should name the field: {text}"
+    );
+
+    // Bad PDDL: also a tool error, and the server stays usable afterwards.
+    let (_, err) = c.call_text(
+        "solve",
+        json!({"domain": "(this is not pddl", "problem": PROB}),
+    );
+    assert!(err, "unparseable PDDL must be an isError result");
+
+    // ...still alive.
+    let report = c.call_json("parse", json!({"pddl": DOM}));
+    assert_eq!(report["ok"], true);
+
+    let r = c.request("no/such/method", json!({}));
+    assert_eq!(r["error"]["code"], -32601);
+    c.finish();
 }

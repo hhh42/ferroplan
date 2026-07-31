@@ -4,6 +4,47 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### The MCP server grows a memory (`session_*`, on rmcp)
+
+The library has had a rich `Session` API since the many-minds cycle — fork,
+observe, elapse, timed facts, budgeted rethink — and the MCP server exposed
+none of it. An agent could ask `solve` a question but could not keep a world
+open: every step re-sent the whole domain and paid grounding again. That is now
+fixed, and the server moved onto [`rmcp`](https://crates.io/crates/rmcp), the
+official MCP Rust SDK, to do it.
+
+- **Ten session tools.** `session_open` grounds a world ONCE and returns a
+  handle; then `session_set` (facts / fluents / scheduled timed facts / goal, in
+  one call), `session_observe` (returns only the SURPRISES — sightings that
+  contradicted belief), `session_elapse`, `session_apply_start`,
+  `session_replan` (optionally budgeted), `session_state`, `session_list`,
+  `session_close`. The loop is: open once, then *tell it what changed* →
+  *rethink*.
+- **`session_fork` — the many-minds primitive over the wire.** A fork shares the
+  grounded world and owns its beliefs and goal, so two minds can disagree about
+  whether they are done. `session_state` reports `world_bytes` (shared, paid
+  once) against `mind_bytes` (what one more fork costs) — pinned by a test that
+  moves the fork, checks the parent did not move, and asserts both still report
+  the same world.
+- **On rmcp.** Framing, capability negotiation, tool-schema derivation and the
+  error conventions now come from the SDK; tool input schemas are DERIVED from
+  the Rust parameter types and cannot drift from the code. This is where the
+  `schema` feature below pays off end to end: `solve`'s `options` advertises its
+  real knobs instead of an opaque object, pinned by
+  `protocol.rs::solve_advertises_a_typed_options_schema`.
+- **Behaviour changes worth naming.** The server now enforces the MCP lifecycle
+  — `initialize` must precede `tools/call`, per spec, where the hand-rolled loop
+  was permissive. Requests are served concurrently and the two expensive calls
+  (grounding, search) run off the runtime, so one deep search cannot stall other
+  sessions; ordering dependent calls is the client's job, as in any JSON-RPC
+  service. And **this crate's MSRV is now 1.88** (rmcp's), overridden locally so
+  the LIBRARY keeps the workspace's 1.74 — an MCP server is a tool you run, not
+  a dependency you compile into something old.
+- The stateless four (`solve` / `parse` / `validate` / `decompose`) answer
+  exactly as before, including `solved: false` as a normal answer and tool
+  failures as readable `isError` results. 13 protocol/session tests drive the
+  real binary over stdio.
+
 ### Uptake from downstream (thanks, Sean Chatman)
 
 Two self-contained improvements adopted from
