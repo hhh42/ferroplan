@@ -9,6 +9,6 @@ cd "$(dirname "$0")"
 mkdir -p .val && cd .val
 [ -d VAL ] || git clone --depth 1 https://github.com/KCL-Planning/VAL
 cd VAL && mkdir -p build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release >/dev/null
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 >/dev/null
 make -j"$(nproc 2>/dev/null || echo 4)" Validate
 echo "built: $(pwd)/bin/Validate"
