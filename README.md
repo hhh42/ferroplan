@@ -657,6 +657,15 @@ and enforced hill-climbing are the backbone of this engine; to the IPC organizer
 and domain authors whose benchmarks make progress measurable; and to Derek Long and
 Maria Fox's **VAL**, used here to independently validate the temporal plans.
 
+Thanks also to **Sean Chatman**, whose downstream
+[fork](https://github.com/seanchatmangpt/ferroplan) drives ferroplan as the
+deterministic core of a Claude Code agent control plane, and in doing so put
+real pressure on the MCP and library surfaces. The optional `schema` feature
+(typed JSON Schema for `Options`/`Mode`/`Search` instead of an opaque `Value`)
+and the wasm `set_timed_fact` / `world_bytes` / `mind_bytes` bindings came from
+that work; his stateful-session MCP server is the design we're measuring our own
+against.
+
 ## License
 
 Dual-licensed under either of [MIT](https://github.com/hhh42/ferroplan/blob/main/LICENSE-MIT) or [Apache-2.0](https://github.com/hhh42/ferroplan/blob/main/LICENSE-APACHE),

@@ -233,6 +233,14 @@ impl WasmSession {
         self.inner.set_fact(name, value).map_err(js_err)
     }
 
+    /// Schedule an exogenous flip for `dt` from now (temporal sessions,
+    /// positive finite `dt`; use `set_fact` for "now"). Every later think
+    /// and `valid()` sees it as a scheduled happening — the "market closes
+    /// in five" a plan has to beat or wait through.
+    pub fn set_timed_fact(&mut self, dt: f64, name: &str, value: bool) -> Result<(), JsValue> {
+        self.inner.set_timed_fact(dt, name, value).map_err(js_err)
+    }
+
     /// Observe a JSON batch `[["(has a b)", true], ...]`; returns the
     /// surprises as a JSON string array.
     pub fn observe(&mut self, sight_json: &str) -> Result<String, JsValue> {
@@ -292,6 +300,21 @@ impl WasmSession {
         serde_json::from_str::<ferroplan::api::Plan>(plan_json)
             .map(|p| self.inner.plan_still_valid(&p, from))
             .unwrap_or(false)
+    }
+
+    /// Estimated retained bytes of the SHARED grounded payload (op
+    /// displays, fact/fluent names, packed CSR arrays) — paid once per
+    /// world however many minds `fork` it. Flat array/string bytes only:
+    /// a floor, not a full audit.
+    pub fn world_bytes(&self) -> usize {
+        self.inner.world_bytes()
+    }
+
+    /// Estimated retained bytes of THIS mind's private state (facts,
+    /// fluents, goal, fluent relevance) — what one more `fork` costs.
+    /// Same flat-bytes caveat as `world_bytes`.
+    pub fn mind_bytes(&self) -> usize {
+        self.inner.mind_bytes()
     }
 }
 

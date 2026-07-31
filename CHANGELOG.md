@@ -2,6 +2,26 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+### Uptake from downstream (thanks, Sean Chatman)
+
+Two self-contained improvements adopted from
+[seanchatmangpt/ferroplan](https://github.com/seanchatmangpt/ferroplan), which
+runs this planner as the deterministic core of a Claude Code agent control
+plane and pushed hard on the surfaces below. Credit to Sean for both the
+patches and the pressure-testing.
+
+- **`schema` cargo feature** (off by default) derives
+  `schemars::JsonSchema` on `Options`, `Mode`, and `Search`, so MCP servers
+  and other tooling get a *typed* configuration schema instead of an opaque
+  `Value`. `schemars` is an optional dep: default builds — and
+  `ferroplan-wasm`/`-cli`/`-bevy` — pull nothing new. Defended by
+  `tests/api.rs::schema_feature_types_the_options_surface`.
+- **Three more wasm bindings** on `WasmSession`: `set_timed_fact` (schedule an
+  exogenous flip `dt` from now), plus `world_bytes` / `mind_bytes` for the
+  shared-world vs per-fork memory split the bazaar demo wants.
+
 ## [0.19.0] - 2026-07-31 — The contest cycle
 
 Improve the standings on every entered track and enter the one the

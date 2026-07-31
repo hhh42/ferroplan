@@ -6,6 +6,8 @@
 
 use std::collections::HashSet;
 
+#[cfg(feature = "schema")]
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::ground::{ground, Outcome};
@@ -17,6 +19,7 @@ use crate::search;
 
 /// Which planning strategy to use.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
     /// PDDL3 metric mode if the problem has preferences/metric, else classic FF.
@@ -45,6 +48,7 @@ pub enum Mode {
 
 /// Which search strategy to use within a mode.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 #[serde(rename_all = "kebab-case")]
 pub enum Search {
     /// Let the engine choose: enforced hill-climbing, then weighted best-first if
@@ -74,6 +78,7 @@ fn default_true() -> bool {
 /// is settable from code and round-trips through JSON (`serde`); the CLI derives
 /// the same flags. Unspecified JSON fields fall back to these defaults.
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[cfg_attr(feature = "schema", derive(JsonSchema))]
 pub struct Options {
     /// Planning mode (`auto` routes by problem features).
     #[serde(default)]
