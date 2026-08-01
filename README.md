@@ -63,9 +63,34 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.19.0** — `ferroplan` + `ferroplan-cli` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.20.0** — `ferroplan`, `ferroplan-cli` and `ferroplan-mcp` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
 <!-- WHATSNEW:BEGIN — newest first; trimmed by scripts/release-notes-roll.py -->
+
+
+> **What's new in 0.20.0 — the guidance cycle, cut on new silicon.**
+> The cycle that set out to improve search GUIDANCE, and then moved
+> house mid-cut: **every scoreboard number here was re-measured from
+> scratch** on an M5 MacBook Air, and none may be read against a 0.19
+> number (faster silicon inflates coverage at a fixed budget — that
+> would be hardware, not progress). Guidance shipped: the **novelty-
+> LIGHT rung** (IW(1) + goal count, zero heuristic evaluations) took
+> visit-all-2014 from 35 s to **under 1 s** and the domain to 20/20,
+> and the **refill loop** stops an engine returning unsolved with a
+> tenth of its wall unspent. **LM-cut** landed with an admissibility
+> repair it uncovered on the way — and is recorded honestly as proving
+> only **13 of 306 certificates**: correct, wired right, and not yet
+> worth its per-node cost at 60 s. The **MCP server grew a memory** —
+> ten `session_*` tools on the official `rmcp` SDK, so an agent grounds
+> a world ONCE and then tells it what changed, with `session_fork`
+> giving a second mind its own beliefs over one shared world. The move
+> exposed three harness bugs that would each have ruined a sweep (one
+> would have produced 4,016 garbage rows), and a VAL misattribution
+> hiding 15 instances. Standings: **48% across 12 boards
+> (1,917/4,016), 306 certified optima**, plus a first-ever board on the
+> **IPC-2026 numeric corpus (121/320, zero engine-rejects on 16 unseen
+> domains)**. Full record:
+> [`docs/roadmap-0.20.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.20.md).
 
 > **What's new in 0.19.0 — the contest cycle.** The standings push,
 > by direct request: ~120 instances came back from the FRONT DOOR
@@ -83,26 +108,6 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > and the 2023 agile board carries an official-budget 300 s ENTRY.
 > Full record:
 > [`docs/roadmap-0.19.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.19.md).
-
-> **What's new in 0.18.0 — the living-village cycle.** The 0.17
-> audit's named correctness debt is PAID: the ε-emission order
-> inversion is fixed at the mechanism, and match-cellar-2014 went
-> **VAL 0/20 → 20/20** (2014 tempo-sat valid 42 → 62/200; the
-> refuted map-analyzer hypothesis decoded to a NEW named debt,
-> state-dependent duration drift). The village is ALIVE: a tick-loop
-> economy where workers are hired by Session goal contract, follow
-> plans through a mid-run theft, and rethink on drift —
-> natively (`examples/village_live.rs`,
-> [scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/village-live.md))
-> and IN THE BROWSER (`village-live.html`: map, economy, visible
-> intentions, disruption buttons). Any solved plan is now legible —
-> **Explain this plan** renders causal chains, invariant spans, and
-> the preference breakdown (`introspect` module). The new page smoke
-> test found a seven-cycle-old corpse (the 32-bit node-cap wrap that
-> had silently killed every wasm temporal solve since 0.8 — fixed),
-> and the classical ladder is now **budget-aware**: `FF_TIME_LIMIT`
-> gates bounded rungs when the wall budget runs short. Full record:
-> [`docs/roadmap-0.18.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.18.md).
 
 Earlier releases are summarised in the [changelog](CHANGELOG.md) and its [archive](CHANGELOG-ARCHIVE.md).
 <!-- WHATSNEW:END -->
