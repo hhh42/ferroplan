@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/Users/harold/ferroplan/benchmarks/hatch-differential.py", line 225, in <module>
+    main()
+  File "/Users/harold/ferroplan/benchmarks/hatch-differential.py", line 169, in main
+    recs = instances_from_domain(*spec["domain"])
+  File "/Users/harold/ferroplan/benchmarks/hatch-differential.py", line 100, in instances_from_domain
+    names = [f for f in os.listdir(idir) if re.search(r"\d+", f)]
+FileNotFoundError: [Errno 2] No such file or directory: '/Users/harold/ferroplan/benchmarks/.ipc-corpus/ipc-2014/domains/visitall-sequential-satisficing/instances'

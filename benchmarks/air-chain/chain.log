@@ -1,0 +1,14 @@
+=== chain start 2026-08-01 14:59:39 ===
+==> waiting for the box to go quiet (3 consecutive quiet samples)
+    idle 84%  (1/3)
+    idle 85%  (2/3)
+    idle 87%  (3/3)
+==> box is quiet 15:01:50
+==> differential: lmcut 15:01:50
+
+  shipped solved 0/13  hatched solved 0/13
+  the feature is worth: +0 instances (kept-by-both 0, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-lmcut.json
+==> differential: novlight 15:29:53
+!! differential novlight FAILED — see benchmarks/air-chain/diff-novlight.log
+==> differential: refill 15:29:53

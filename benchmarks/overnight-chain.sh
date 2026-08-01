@@ -53,7 +53,7 @@ for spec in lmcut novlight refill; do
   if [ -f "$marker" ]; then echo "SKIP differential $spec (done)"; continue; fi
   echo "==> differential: $spec $(date '+%H:%M:%S')"
   if python3 benchmarks/hatch-differential.py --spec "$spec" --timeout 60 \
-       --jobs 2 --repeat 3 > "benchmarks/air-chain/diff-$spec.log" 2>&1; then
+       --jobs 1 --repeat 2 > "benchmarks/air-chain/diff-$spec.log" 2>&1; then
     tail -4 "benchmarks/air-chain/diff-$spec.log"
     touch "$marker"
   else

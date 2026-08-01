@@ -1,0 +1,3 @@
+=== refill: does the refill loop buy coverage, or only spend the wall?
+    hatch=FF_NO_REFILL  budget=60s  witnesses=20
+  running as shipped (rep 1/3) (20 instances, jobs=2)...

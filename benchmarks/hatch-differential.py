@@ -31,7 +31,16 @@ def arg(name, default=None):
 
 
 TIMEOUT = int(arg("--timeout", "60"))
-JOBS = int(arg("--jobs", "2"))
+# SERIAL by default, unlike the boards. A differential selects the HARDEST
+# instances (the ones a feature is being credited with), so running them 2-up
+# pairs two memory-hungry searches with each other — contention the board never
+# had, where each hard instance sat among its ordinary neighbours. Measured:
+# elevator-2011 i10 proves in ~22s solo on a quiet box (deterministic, 213,531
+# expansions every run, 1.1x wall spread) and 27s on the board at --jobs 2, but
+# blows past 60s when paired with another hard optimal instance. That artifact
+# reported LM-cut as worth +0. What a differential must hold constant is the
+# A-vs-B conditions, NOT the board's job count; serial gives the cleanest A/B.
+JOBS = int(arg("--jobs", "1"))
 REPEAT = int(arg("--repeat", "1"))
 
 # Each spec: the hatch, the mode, and how to find its witnesses.
@@ -59,7 +68,7 @@ SPECS = {
     "novlight": {
         "hatch": "FF_NO_NOVLIGHT",
         "mode": None,
-        "domain": ("ipc-2014", "visitall-sequential-satisficing"),
+        "domain": ("ipc-2014", "visit-all-sequential-satisficing"),
         "question": "how much of visit-all is the light rung?",
     },
     # Phase 1. tpp-numeric is where the early-exit witness lived.
