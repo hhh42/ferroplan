@@ -144,19 +144,30 @@ and the sweep gets ~2x faster.**
 The re-baseline is already earning its keep as an audit, not just a
 measuring stick. Two findings, neither of them a coverage number:
 
-- **data-network-2018 is 7/7 VAL-RED, and it is NOT the drone shape.**
-  Every solved instance on that domain (i1–i5, i11, i13; plans 20–130
-  steps) comes back rejected. 0.20 Phase 5 expected these to get "the
-  same treatment" as drone-numeric — attributed to VAL's parser — and
-  this sweep REFUTES that: `val_check` already returns `None` on
-  "Parser failed", so VAL parses this domain and genuinely rejects our
-  plans. Nor is it a VAL timeout: termes validates 506-step plans on the
-  same board. A 100% rejection rate on one domain is systematic, which
-  makes the prior engine-side, and data-network is numeric
-  (`:action-costs` plus transfer fluents). This outranks most of the
-  ledger below — a soundness question is never a search loss. Decode
-  after the sweep: solve one instance solo, dump the plan, and get VAL's
-  own reason. (6 of the board's 7 mem-cap rows are the same domain.)
+- **The VAL-RED clusters are VAL-side, and the boards understate us by
+  15 instances.** Two domains came back with EVERY solved plan rejected
+  — data-network-2018 (7/7) and factory-robot-2026 (8/8). An intermediate
+  reading here recorded data-network as engine-side, reasoning that
+  `val_check` already returns `None` on "Parser failed" so VAL must be
+  parsing the domain and genuinely rejecting. That was wrong, and the
+  correction is the finding: **VAL has more than one way to refuse a
+  domain.** Both emit `Problem in domain definition!`, and both do so
+  against an EMPTY plan — plan-independent, so VAL never judged our
+  plans at all. 0.20 Phase 5's expectation that data-network "gets the
+  same treatment as drone-numeric" was right; the 0.20 fix was simply
+  too narrow, catching one VAL message out of several.
+  A sweep of all 216 domains for VAL ingestibility names exactly four:
+  `data-network-2018`, `drone-numeric-2023` (the known one, already
+  returning `None`), `sailing-numeric-2023`, `factory-robot-2026`.
+  The cost is not cosmetic. `standings.py` scores
+  `solved = r["solved"] and val is not False`, so a misattributed row is
+  dropped from COVERAGE: ipc2018-sat is really **60/240**, not 53/240,
+  and ipc2026-numeric **129/320**, not 121/320. That is the third time
+  this cycle the scoreboard has been caught fibbing and the third time
+  not in our favour (0.20 Phase 1 found the other two). Because the
+  refusal is domain-level, every affected row reclassifies soundly from
+  the raw JSONL — no re-sweep is owed. Fix `val_check` to test a LIST of
+  unavailability signatures, and apply the reclassification at promotion.
 - **A latent runner misattribution, named before it bites.**
   `val_check` ends `except Exception: return False`, which swallows the
   120 s `TimeoutExpired` — so a VAL that runs out of time books as a
