@@ -127,7 +127,7 @@ fn project_states(mdp: &ExplicitMdp) -> Vec<ProbabilisticState> {
                 .filter(|(index, name)| {
                     bitset::test(&state.bits, *index)
                         && !name.starts_with("(PPDDL-MARKER-")
-                        && name != "(PPDDL-INIT-PENDING)"
+                        && name.as_str() != "(PPDDL-INIT-PENDING)"
                 })
                 .map(|(_, name)| name.clone())
                 .collect();
