@@ -649,6 +649,9 @@ def main():
         elif label == "2023 agile ENTRY (300s)":
             q = ("OFFICIAL 300 s budget — a competition-methodology ENTRY, "
                  "not a baseline")
+        elif label == "2026 numeric (first board)":
+            q = ("coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all "
+                 "swept satisficing-style on this first board")
         elif label == "2023 numeric":
             q = ("field CSVs vendored (ipc-2023n/results) — per-domain "
                  "comparison in the audit record")
@@ -661,6 +664,11 @@ def main():
             q = "coverage + VAL"
         entered = ("yes (first entry, 0.19)" if label == "2014 seq-opt"
                    else "yes (OFFICIAL-BUDGET entry, 0.19)" if label == "2023 agile ENTRY (300s)"
+                   # The 2026 corpus was a blocked rider at 0.20 scoping (the
+                   # organisers had not published yet) and is swept here for
+                   # the first time — not a 0.17 board.
+                   else "yes (FIRST ENTRY, 0.20 — new corpus)"
+                   if label == "2026 numeric (first board)"
                    else "yes (first entry, 0.17)")
         lines.append(f"| {label} | {entered} | {s}/{n} | {q} | {fails} |")
     lines += [

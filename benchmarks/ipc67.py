@@ -220,6 +220,17 @@ def instances(vdir):
     return out
 
 
+# Every way VAL says "I cannot read this", none of which is a verdict on a
+# plan. Kept in step with benchmarks/val-availability.py, which probes the
+# corpus for domains that hit them.
+VAL_UNAVAILABLE_SIGNATURES = (
+    "Parser failed",
+    "Problem in domain definition!",
+    "Problem in problem definition!",
+    "Syntax error",
+)
+
+
 def val_check(val, domain, problem, steps, temporal=False):
     """VAL a plan. Temporal steps render as `time: (action) [duration]` —
     the format `TimedPlan::to_ipc` emits and VAL parses natively; classical
@@ -244,16 +255,27 @@ def val_check(val, domain, problem, steps, temporal=False):
         val, domain, problem, path]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if "Parser failed" in (r.stdout or "") + (r.stderr or ""):
-            # VAL could not PARSE the domain/problem (independent of the
-            # plan — the 0.20 attribution: drone-numeric fails on any
-            # problem with two objects of the location type, before a
-            # plan is ever judged). Validation is UNAVAILABLE, which is
-            # not the same verdict as a rejected plan: None, not False.
+        blob = (r.stdout or "") + (r.stderr or "")
+        if any(sig in blob for sig in VAL_UNAVAILABLE_SIGNATURES):
+            # VAL could not INGEST the domain/problem, independent of the plan.
+            # Validation is UNAVAILABLE, which is NOT the verdict "plan
+            # rejected": None, not False. 0.20 tested only "Parser failed"
+            # (the drone-numeric attribution) and so booked data-network-2018
+            # and factory-robot-2026 as rejected plans — both actually emit
+            # "Problem in domain definition!", and both do so against an EMPTY
+            # plan. standings.py drops val=false rows from coverage, so its
+            # table read 15 instances light against the boards beside it.
+            # benchmarks/val-availability.py enumerates which domains this
+            # hits; keep that map in step with this list.
             return None
         return r.returncode == 0 and "Plan valid" in r.stdout
+    except subprocess.TimeoutExpired:
+        # VAL ran out of time. Also NOT a rejected plan — same shape as the
+        # 0.20 Phase 1 finding that graceful wall-exits were booked as engine
+        # rejects, on the one column standings.py calls a first-class signal.
+        return None
     except Exception:
-        return False
+        return None
     finally:
         os.unlink(path)
 
