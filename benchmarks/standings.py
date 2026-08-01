@@ -130,8 +130,36 @@ def load_jsonl(path):
     return rows
 
 
+def _load_val_unavailable():
+    """Domains VAL cannot INGEST at all (benchmarks/val-unavailable.json).
+
+    VAL has several ways to refuse a domain — "Parser failed",
+    "Problem in domain definition!" — and it emits them BEFORE judging any
+    plan, so a `val: false` row on such a domain is validation UNAVAILABLE,
+    not a rejected plan. The 0.20 runner learned the first signature only,
+    which is why data-network-2018 and factory-robot-2026 arrived here as
+    false and were dropped from coverage outright: the standings table said
+    46/240 and 113/320 where the boards beside it said 53 and 121. Reading
+    the map keeps the two artifacts telling the same story about one sweep.
+    """
+    p = os.path.join(B, "val-unavailable.json")
+    if not os.path.exists(p):
+        return set()
+    return set(json.load(open(p)).get("unavailable", {}))
+
+
+VAL_UNAVAILABLE = _load_val_unavailable()
+
+
+def val_unavailable(r):
+    return f"{r.get('ipc')}/{r.get('variant')}" in VAL_UNAVAILABLE
+
+
 def solved(r):
-    return bool(r["solved"]) and (r.get("val") is not False)
+    if not r["solved"]:
+        return False
+    # A false from a domain VAL cannot read is a harness gap, not a verdict.
+    return r.get("val") is not False or val_unavailable(r)
 
 
 def classify(r, budget):
