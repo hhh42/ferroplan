@@ -1,0 +1,91 @@
+name: Ecosystem ALIVE Format Closure
+
+on:
+  pull_request:
+    paths:
+      - "crates/ferroplan-mcp/src/admission.rs"
+      - "crates/ferroplan-mcp/tests/checkpoint8_refusals.rs"
+      - "crates/ferroplan-mcp/tests/dogfood_chain.rs"
+      - "crates/ferroplan-mcp/tests/recursive_admission_protocol.rs"
+      - "crates/ferroplan-mcp/tests/session_goal_advance.rs"
+      - "crates/ferroplan/benches/ppddl.rs"
+      - "crates/ferroplan/src/lib.rs"
+      - "crates/ferroplan/src/ppddl.rs"
+      - "crates/ferroplan/tests/daily_agent_methods_ppddl.rs"
+      - ".github/workflows/ecosystem-alive-format-closure.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ecosystem-alive-format-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUSTC_WRAPPER: ""
+
+jobs:
+  repair-and-prove:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact repair branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt
+
+      - name: Format and enforce handwritten allowlist
+        run: |
+          cargo fmt --all
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+              'crates/ferroplan-mcp/src/admission.rs',
+              'crates/ferroplan-mcp/tests/checkpoint8_refusals.rs',
+              'crates/ferroplan-mcp/tests/dogfood_chain.rs',
+              'crates/ferroplan-mcp/tests/recursive_admission_protocol.rs',
+              'crates/ferroplan-mcp/tests/session_goal_advance.rs',
+              'crates/ferroplan/benches/ppddl.rs',
+              'crates/ferroplan/src/lib.rs',
+              'crates/ferroplan/src/ppddl.rs',
+              'crates/ferroplan/tests/daily_agent_methods_ppddl.rs',
+          }
+          changed = set(subprocess.check_output(['git','diff','--name-only'], text=True).splitlines())
+          unexpected = sorted(changed - allowed)
+          if unexpected:
+              raise SystemExit(f'FORMAT_PATH_ESCAPE_REFUSED: {unexpected}')
+          print({'changed': sorted(changed), 'generated_paths_changed': False})
+          PY
+
+      - name: Commit exact formatter consequence
+        run: |
+          git config user.name "ferroplan-alive-controller"
+          git config user.email "ferroplan-alive-controller@users.noreply.github.com"
+          git add \
+            crates/ferroplan-mcp/src/admission.rs \
+            crates/ferroplan-mcp/tests/checkpoint8_refusals.rs \
+            crates/ferroplan-mcp/tests/dogfood_chain.rs \
+            crates/ferroplan-mcp/tests/recursive_admission_protocol.rs \
+            crates/ferroplan-mcp/tests/session_goal_advance.rs \
+            crates/ferroplan/benches/ppddl.rs \
+            crates/ferroplan/src/lib.rs \
+            crates/ferroplan/src/ppddl.rs \
+            crates/ferroplan/tests/daily_agent_methods_ppddl.rs
+          if ! git diff --cached --quiet; then
+            git commit -m "style(ppddl): close rustfmt drift"
+          fi
+
+      - name: Execute repository validation ladder
+        run: |
+          cargo fmt --all -- --check
+          cargo check --workspace --exclude ferroplan-bevy --all-targets --all-features
+          cargo test -p ferroplan-mcp --tests
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+
+      - name: Publish verified repair
+        run: git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"

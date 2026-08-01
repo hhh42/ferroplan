@@ -180,11 +180,7 @@ fn full_seventeen_tool_dogfood_chain() {
     let solve = call(
         &mut child,
         &mut stdout,
-        &tool_call(
-            next_id(),
-            "solve",
-            json!({"domain": DOM, "problem": PROB}),
-        ),
+        &tool_call(next_id(), "solve", json!({"domain": DOM, "problem": PROB})),
     );
     assert!(!is_error(&solve), "solve failed: {}", tool_text(&solve));
     let solve_content = &solve["result"]["structuredContent"];
@@ -205,10 +201,13 @@ fn full_seventeen_tool_dogfood_chain() {
             json!({"session_id": session_id, "domain": DOM, "problem": PROB}),
         ),
     );
-    assert!(!is_error(&open), "session_open failed: {}", tool_text(&open));
+    assert!(
+        !is_error(&open),
+        "session_open failed: {}",
+        tool_text(&open)
+    );
     assert_eq!(
-        open["result"]["structuredContent"]["session_id"],
-        session_id,
+        open["result"]["structuredContent"]["session_id"], session_id,
         "session_open: {open:?}"
     );
 
@@ -251,9 +250,17 @@ fn full_seventeen_tool_dogfood_chain() {
     let think = call(
         &mut child,
         &mut stdout,
-        &tool_call(next_id(), "session_think", json!({"session_id": session_id})),
+        &tool_call(
+            next_id(),
+            "session_think",
+            json!({"session_id": session_id}),
+        ),
     );
-    assert!(!is_error(&think), "session_think failed: {}", tool_text(&think));
+    assert!(
+        !is_error(&think),
+        "session_think failed: {}",
+        tool_text(&think)
+    );
     let think_content = think["result"]["structuredContent"].clone();
     assert_eq!(
         think_content["solution"]["solved"],
@@ -297,7 +304,11 @@ fn full_seventeen_tool_dogfood_chain() {
             json!({"candidates": eight_candidates("w")}),
         ),
     );
-    assert!(!is_error(&cmca), "cmca_allocate failed: {}", tool_text(&cmca));
+    assert!(
+        !is_error(&cmca),
+        "cmca_allocate failed: {}",
+        tool_text(&cmca)
+    );
     let cmca_content = cmca["result"]["structuredContent"].clone();
     let allocations = cmca_content["payload"]["allocations"]
         .as_array()
@@ -501,7 +512,11 @@ fn full_seventeen_tool_dogfood_chain() {
     let status = call(
         &mut child,
         &mut stdout,
-        &tool_call(next_id(), "session_status", json!({"session_id": session_id})),
+        &tool_call(
+            next_id(),
+            "session_status",
+            json!({"session_id": session_id}),
+        ),
     );
     assert!(
         !is_error(&status),
@@ -518,7 +533,11 @@ fn full_seventeen_tool_dogfood_chain() {
     let close = call(
         &mut child,
         &mut stdout,
-        &tool_call(next_id(), "session_close", json!({"session_id": session_id})),
+        &tool_call(
+            next_id(),
+            "session_close",
+            json!({"session_id": session_id}),
+        ),
     );
     assert!(
         !is_error(&close),
@@ -553,7 +572,11 @@ fn session_status_after_close_refuses_unknown_session() {
             json!({"session_id": session_id, "domain": DOM, "problem": PROB}),
         ),
     );
-    assert!(!is_error(&open), "session_open failed: {}", tool_text(&open));
+    assert!(
+        !is_error(&open),
+        "session_open failed: {}",
+        tool_text(&open)
+    );
 
     let close = call(
         &mut child,

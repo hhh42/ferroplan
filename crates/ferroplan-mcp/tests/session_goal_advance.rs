@@ -304,7 +304,11 @@ fn advance_beyond_plan_length_is_refused_and_cursor_is_unchanged() {
             json!({"session_id": session_id, "domain": DOM, "problem": PROB}),
         ),
     );
-    assert!(!is_error(&open), "session_open failed: {}", tool_text(&open));
+    assert!(
+        !is_error(&open),
+        "session_open failed: {}",
+        tool_text(&open)
+    );
 
     let think = call(
         &mut child,
@@ -321,7 +325,10 @@ fn advance_beyond_plan_length_is_refused_and_cursor_is_unchanged() {
         tool_text(&think)
     );
     let plan_len = plan_len_from_think(&think);
-    assert_eq!(plan_len, 3, "original goal (s) requires a 3-step plan: {think:?}");
+    assert_eq!(
+        plan_len, 3,
+        "original goal (s) requires a 3-step plan: {think:?}"
+    );
 
     // completed_steps is far beyond the real plan length (3) -- an
     // out-of-range advance that must be refused, not silently clamped or

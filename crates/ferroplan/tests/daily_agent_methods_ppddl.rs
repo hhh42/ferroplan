@@ -4,8 +4,7 @@ const DOMAIN: &str = include_str!("../../../examples/daily_agent_methods/domain.
 const PROBLEM: &str =
     include_str!("../../../examples/daily_agent_methods/problem-2026-07-31.ppddl");
 const CATALOG: &str = include_str!("../../../examples/daily_agent_methods/method-catalog.json");
-const RECEIPT: &str =
-    include_str!("../../../examples/daily_agent_methods/receipt-2026-07-31.json");
+const RECEIPT: &str = include_str!("../../../examples/daily_agent_methods/receipt-2026-07-31.json");
 
 #[test]
 fn daily_agent_method_corpus_is_admitted_by_the_ppddl_parser() {
@@ -42,14 +41,8 @@ fn daily_agent_receipt_binds_sources_artifacts_and_standing() {
     assert_eq!(receipt["source_work"].as_array().map(Vec::len), Some(6));
     assert_eq!(receipt["corpus_metrics"]["action_schemas"], 34);
     assert_eq!(receipt["corpus_metrics"]["deduplicated_patterns"], 20);
-    assert_eq!(
-        receipt["final_state"]["daily_agent_ppddl_corpus"],
-        "ALIVE"
-    );
-    assert_eq!(
-        receipt["final_state"]["repository_wide_ci"],
-        "BUILD_BROKEN"
-    );
+    assert_eq!(receipt["final_state"]["daily_agent_ppddl_corpus"], "ALIVE");
+    assert_eq!(receipt["final_state"]["repository_wide_ci"], "BUILD_BROKEN");
 }
 
 #[test]

@@ -353,7 +353,6 @@ pub struct PolicyValidation {
     pub errors: Vec<String>,
 }
 
-
 include!("ppddl/syntax.rs");
 include!("ppddl/compile.rs");
 include!("ppddl/model.rs");

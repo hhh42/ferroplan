@@ -183,7 +183,9 @@ fn tool_bind_allocation(input: BindAllocationInput) -> Result<Value, String> {
             selected_node,
         )?),
         (None, None) => None,
-        _ => return Err("parent_allocation and selected_node must be provided together".to_owned()),
+        _ => {
+            return Err("parent_allocation and selected_node must be provided together".to_owned())
+        }
     };
 
     let mut payload = json!({
@@ -256,7 +258,9 @@ fn bind_descent(
     let parent_candidates = payload
         .get("candidates")
         .and_then(Value::as_array)
-        .ok_or_else(|| "parent_allocation.payload.candidates is missing or not an array".to_owned())?;
+        .ok_or_else(|| {
+            "parent_allocation.payload.candidates is missing or not an array".to_owned()
+        })?;
     let candidate = parent_candidates
         .iter()
         .find(|candidate| {
