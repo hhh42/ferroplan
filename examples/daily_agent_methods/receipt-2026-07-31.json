@@ -1,0 +1,113 @@
+{
+  "schema": "daily-agent-ppddl-receipt/v1",
+  "snapshot_date": "2026-07-31",
+  "observation_boundary": {
+    "account": "seanchatmangpt",
+    "source": "connected GitHub pull-request activity",
+    "admission_rule": "Only published PR bodies, exact SHAs, workflow results, and committed corpus files are admitted. Conversation-only claims and unexecuted commands remain UNKNOWN."
+  },
+  "source_work": [
+    {
+      "repository": "seanchatmangpt/ggen",
+      "pull_request": 540,
+      "patterns": ["observer-attempt-separate-from-zero-findings", "external-standing-projector", "read-only-crown", "document-evidence-index", "smallest-owner-repair"],
+      "observed_state": "BUILD_BROKEN"
+    },
+    {
+      "repository": "seanchatmangpt/wasm4pm",
+      "pull_request": 522,
+      "patterns": ["dependency-closed-gall-checkpoints", "pure-plan-kernel", "broker-only-actuation", "transactional-materialization", "sabotage-and-replay"],
+      "observed_state": "UNKNOWN"
+    },
+    {
+      "repository": "seanchatmangpt/mfw",
+      "pull_request": 49,
+      "patterns": ["semantic-rail-separation", "exit-code-is-not-success", "raw-versus-canonical-receipt", "complete-delegated-executable-identity", "policy-closure-verification"],
+      "observed_state": "PARTIAL_ALIVE"
+    },
+    {
+      "repository": "seanchatmangpt/ferroplan",
+      "pull_request": 26,
+      "patterns": ["bounded-auto-admission", "frontier-compare-and-swap", "project-identity-containment", "protected-path-refusal"],
+      "observed_state": "PARTIAL_ALIVE"
+    },
+    {
+      "repository": "seanchatmangpt/ggen-legacy",
+      "pull_request": 1,
+      "patterns": ["offline-verifier-appliance", "customer-hidden-challenge", "independent-cross-check", "three-environment-replay", "sunset-refusal"],
+      "observed_state": "PARTIAL_ALIVE"
+    },
+    {
+      "repository": "seanchatmangpt/open-ontologies",
+      "pull_request": 32,
+      "patterns": ["atomic-authority-transaction", "immutable-head-verification", "read-only-evidence-workflow"],
+      "observed_state": "PARTIAL_ALIVE"
+    }
+  ],
+  "artifacts": [
+    "examples/daily_agent_methods/domain.ppddl",
+    "examples/daily_agent_methods/problem-2026-07-31.ppddl",
+    "examples/daily_agent_methods/method-catalog.json",
+    "examples/daily_agent_methods/receipt-2026-07-31.json",
+    "crates/ferroplan/tests/daily_agent_methods_ppddl.rs",
+    ".github/workflows/daily-agent-methods.yml"
+  ],
+  "corpus_metrics": {
+    "action_schemas": 34,
+    "predicates": 66,
+    "initial_predicate_instances": 303,
+    "goal_predicate_instances": 9,
+    "deduplicated_patterns": 20,
+    "probabilistic_actions": 1,
+    "external_outcome_probability_mass": 1.0
+  },
+  "probability_boundary": "The four 0.25 external outcomes are uninformative fixtures, not empirical rates.",
+  "invariants": [
+    "agent completion does not imply subsystem standing",
+    "UNKNOWN is not admitted success",
+    "generated output is not semantic authority",
+    "planning and verification do not receive actuation authority",
+    "zero unreceipted actuation",
+    "crown promotion requires closure, valid receipts, and replay"
+  ],
+  "validation": [
+    {
+      "command": "rustfmt --edition 2021 --check crates/ferroplan/tests/daily_agent_methods_ppddl.rs",
+      "result": "PASS"
+    },
+    {
+      "command": "python3 -m json.tool examples/daily_agent_methods/method-catalog.json",
+      "result": "PASS"
+    },
+    {
+      "command": "cargo test -p ferroplan --test daily_agent_methods_ppddl",
+      "result": "PASS",
+      "workflow": "Daily Agent Methods run 2",
+      "head": "079687382625971eb38df5101719cfe398e0b7c8"
+    }
+  ],
+  "failures": [
+    {
+      "surface": "repository-wide Rust formatting",
+      "classification": "BUILD_BROKEN",
+      "ownership": "pre-existing files outside the bounded corpus diff"
+    },
+    {
+      "surface": "plugin and OpenAI Luna Ruff gates",
+      "classification": "BUILD_BROKEN",
+      "ownership": "47 pre-existing findings outside the bounded corpus diff"
+    }
+  ],
+  "exclusions": [
+    "no fabricated empirical probabilities",
+    "no merge or release actuation",
+    "no hand editing of generated outputs",
+    "no crown standing transferred from checkpoint evidence",
+    "no claims for repositories or commands lacking execution receipts"
+  ],
+  "final_state": {
+    "daily_agent_ppddl_corpus": "ALIVE",
+    "repository_wide_ci": "BUILD_BROKEN",
+    "external_production": "UNKNOWN"
+  }
+}
