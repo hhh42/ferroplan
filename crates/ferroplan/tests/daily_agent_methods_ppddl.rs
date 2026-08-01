@@ -3,8 +3,7 @@ use ferroplan::parse_ppddl;
 const DOMAIN: &str = include_str!("../../../examples/daily_agent_methods/domain.ppddl");
 const PROBLEM: &str =
     include_str!("../../../examples/daily_agent_methods/problem-2026-07-31.ppddl");
-const CATALOG: &str =
-    include_str!("../../../examples/daily_agent_methods/method-catalog.json");
+const CATALOG: &str = include_str!("../../../examples/daily_agent_methods/method-catalog.json");
 
 #[test]
 fn daily_agent_method_corpus_is_admitted_by_the_ppddl_parser() {
