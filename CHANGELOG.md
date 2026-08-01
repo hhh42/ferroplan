@@ -4,6 +4,105 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-08-01 — The guidance cycle, cut on new silicon
+
+The cycle that set out to improve search GUIDANCE — and then had to move
+house mid-cut. Phases 1–5 landed on the old cloud container; the cut
+itself, and every board in it, was run on an M5 MacBook Air. That
+migration is not a footnote: **every scoreboard number in this release
+was re-measured from scratch on the new machine**, and none of them may
+be read against a 0.19 number. Faster silicon inflates coverage at a
+fixed time budget, so a cloud→Air "improvement" would be hardware, not
+progress. Full record: [`docs/roadmap-0.20.md`](docs/roadmap-0.20.md)
+and [`docs/roadmap-0.21.md`](docs/roadmap-0.21.md).
+
+### Where this leaves the standings
+
+**48% coverage across 12 re-baselined IPC boards** (1,917/4,016), of
+which **306 are certified optima** — on the optimal tracks coverage IS
+proof rate. seq-sat 473/580 (82%), tempo-sat 419/630 (67%), 2023
+numeric 194/400, seq-opt 250/550. At-a-glance:
+[`STANDINGS.md`](STANDINGS.md); per-track detail:
+[`benchmarks/ipc-standings.md`](benchmarks/ipc-standings.md).
+
+Two boards deserve calling out. **482 of 485 temporal plans validate**
+under VAL across the IPC-6/7 boards (419/419 and 473/473 green); the
+only three failures are the map-analyzer rows this cycle already
+recorded as an honest negative. And the **IPC-2026 numeric corpus gets
+its first board — 121/320, with ZERO engine-rejects across 16 domains
+the planner had never seen.**
+
+### Spend the whole wall (Phase 1)
+
+- The runner records elapsed wall for UNSOLVED rows, and the standings
+  classifier now separates a graceful exit AT an armed `FF_TIME_LIMIT`
+  from a true fast reject. The old columns overstated rejects and
+  understated timeouts on every budget-armed board.
+- **The refill loop**: after ladder exhaustion with >10% of a declared
+  wall remaining, the search re-enters GREEDIER (w_h ×4, max_eval ×4,
+  at most 6 rounds). An engine holding a time limit should not return
+  unsolved with double-digit budget unspent. Hatch: `FF_NO_REFILL=1`.
+
+### LM-cut, and an admissibility bug it uncovered (Phase 2)
+
+- **A 0.19 soundness repair first.** h^max iterated only unconditional
+  adds, so a goal reachable only through a `(when ...)` effect was
+  labelled unreachable — an OVERestimate, and A* certified wrong optima
+  (pinned witness: "PROVEN cost 100" where the optimum is 11). The
+  relaxation now runs over an achiever list. The differential says the
+  252 shipped 0.19 certificates were not corrupted in practice: the bug
+  was real, its bite was not.
+- **LM-cut** (Helmert & Domshlak 2009) over the achiever graph, as a
+  two-rung ladder — an h^max sprint on a quarter of the node budget,
+  then LM-cut on the full one. The PROVEN note names its prover.
+  Hatches: `FF_NO_LMCUT`, `FF_NO_HMAX_SPRINT`.
+- **Priced honestly:** LM-cut proves **13 of 306 certificates (4.2%)**.
+  The ladder is wired correctly — it closes instances the sprint cannot
+  — but at a 60 s budget its per-node cost does not pay, which is what
+  the cycle's own barman-opt probe predicted (h^max proves cost 90 in
+  22 s where LM-cut cannot inside 100 s). Recorded as a correct
+  heuristic that does not yet earn its keep at this budget, not as a
+  win.
+
+### The novelty-LIGHT rung (Phase 3)
+
+visit-all-2014 — the canonical width-2 domain, dispatched in
+milliseconds by BFWS-class planners — took 35 s here, and forcing the
+existing novelty rung changed nothing. The decode: that rung IS
+BFWS-shaped, and spent all 35 s on per-pop `relaxed_helpful` calls a
+width-1 structure never needed. So: `novelty::search_light`, IW(1) +
+goal count with ZERO heuristic evaluations. **visit-all-2014 i1 35 s →
+under 1 s**, and the domain now scores 20/20. Cap priced at 300k pops
+(~1 s ladder tax). `FF_NOVLIGHT` / `FF_NO_NOVLIGHT` / `FF_NOVLIGHT_ONLY`.
+The cycle also named what it did NOT expect to move — transport,
+parking, cave-diving — and all three duly stayed at 0/20.
+
+### Retained-state compression (Phase 4)
+
+The visited structures stored a full StateKey per inserted node,
+duplicating what the node arena already held. They are now hash → node
+index buckets, with collisions settled exactly against the arena.
+Dedup verdicts and expansion order byte-identical. RSS at an identical
+forced cap: city-car 133.9 → 113.2 MB (−15%), block-grouping-numeric
+169.9 → 124.2 MB (−27%).
+
+### The debt basket (Phase 5)
+
+- **tpp-numeric's early exhaustion, closed**: every probed instance is
+  a node-cap trip, not open-list exhaustion — no completeness hole.
+- **drone-numeric's 16 VAL-RED rows, attributed to VAL**: its parser
+  fails on any drone problem with two objects of the location type,
+  before a plan is judged. The runner now records `val: null`
+  (validation unavailable), which is not the verdict "plan rejected".
+- **The sailing class, named**: sailing / markettrader / pathwaysmetric
+  share a genuine numeric-reachability wall (interval/AIBR-class), on
+  the record for a numeric cycle. Confirmed on the Air, and again on
+  IPC-2026's sailing-wind-sat (0/20) — instances this cycle never saw.
+- **An honest negative**: the ε-separation START-vs-provider surgery
+  landed a same-slot pin, but the three map-analyzer VAL-RED rows are
+  NOT that shape — the repair belongs in the temporal emission layer.
+  Carried forward with a sharper decode.
+
 ### The MCP server grows a memory (`session_*`, on rmcp)
 
 The library has had a rich `Session` API since the many-minds cycle — fork,
@@ -62,6 +161,70 @@ patches and the pressure-testing.
 - **Three more wasm bindings** on `WasmSession`: `set_timed_fact` (schedule an
   exogenous flip `dt` from now), plus `world_bytes` / `mind_bytes` for the
   shared-world vs per-fork memory split the bazaar demo wants.
+
+### The move to new hardware, and three bugs it exposed
+
+Porting the harness to macOS/ARM was supposed to be paperwork. It found
+three things that would each have ruined a sweep:
+
+- **`RLIMIT_AS` cannot be set on macOS at all.** It reports INFINITY and
+  rejects every `setrlimit` with EINVAL. Raised inside a `preexec_fn`,
+  that surfaced as a spawn failure — and the runner's retry then booked
+  **every instance** as `spawn-fail`. The twelve-board sweep would have
+  burned ~5.6 hours producing 4,016 garbage rows that looked like
+  environmental fork failures. Now probed once, side-effect-free.
+- **The per-job memory cap got a new instrument**: a 0.25 s RSS
+  watchdog, since the address-space cap is unavailable. On this path the
+  mem-cap column measures RESIDENT bytes — a different instrument
+  reading the same column, recorded wherever it is used.
+- **The IPC-2026 corpus lost three instances to its own normalizer**: a
+  0-indexed `p000.pddl` collapsed to an empty instance number, which the
+  runner then died on mid-listing, taking the board with it. Fixed at
+  source; the runner now skips un-numbered files loudly rather than
+  crashing.
+
+Also: `benchmarks/get-val.sh` builds again (CMake 4.x removed the
+pre-3.5 compatibility VAL's CMakeLists declares).
+
+### VAL's other refusal, and 15 instances it was hiding
+
+VAL has more than one way to decline a domain. 0.19 taught the runner
+`"Parser failed"`; `data-network-2018` and `factory-robot-2026` instead
+say `"Problem in domain definition!"` — and say it against an EMPTY
+plan, so VAL never judged our plans at all. Those rows arrived as
+`val: false`, and since the standings drop a rejected plan from
+coverage, **the standings table read 15 instances lighter than the
+boards beside it** (2018-sat 46 vs 53; 2026-numeric 113 vs 121). One
+sweep, two artifacts, disagreeing.
+
+`val_check` now tests a list of unavailability signatures, and a VAL
+*timeout* returns `null` rather than `false` for the same reason.
+[`benchmarks/val-availability.py`](benchmarks/val-availability.py)
+probes every domain and currently names four VAL cannot ingest.
+
+### Release notes you can actually read
+
+The front page had accumulated **sixteen "What's new" blockquotes —
+~308 of 684 lines, 45% of the README** — so a visitor met a year of
+history before learning what the planner is. The changelog had reached
+22 releases and 1,919 lines.
+
+- [`scripts/release-notes-roll.py`](scripts/release-notes-roll.py)
+  keeps `[Unreleased]` plus the newest two releases in both places;
+  older changelog sections move verbatim to
+  [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md). `publish.sh` reads
+  release notes from BOTH files, so archiving never breaks
+  `--release-only <old-version>`.
+- **[`STANDINGS.md`](STANDINGS.md)** is new: every track banded and
+  sorted, proof tracks marked, cloud-era boards held separate and
+  excluded from the headline. Generated by `standings.py`, which
+  patches the README headline in the same run so the shop window cannot
+  drift from the boards.
+- `benchmarks/standings-history.json` banks per-release numbers, each
+  tagged with the BOX it ran on. Improvements are only ever computed
+  between snapshots from the same hardware; where no comparable
+  predecessor exists the table says "baseline" instead of inventing a
+  delta.
 
 ## [0.19.0] - 2026-07-31 — The contest cycle
 
@@ -123,82 +286,6 @@ project always fenced off — by direct request (cycle record in
   refused the fix and decoded the debt one level deeper (ε-shifted
   starts also precede propositional providers) — named 0.20 work.
 
-## [0.18.0] - 2026-07-29 — The living-village cycle
-
-Correctness debt paid first, then the village made live and visible,
-with the budget-aware ladder as the cycle's engine bet (cycle record
-in `docs/roadmap-0.18.md`).
-
-### The ε-emission order inversion, fixed (0.17's named debt)
-
-- `epsilon_separate` now repairs SAME-SLOT end groups by invariant
-  relation before emission — if one end's deletes hit another's
-  invariant-positives, the protected end emits first; cycles defer to
-  the existing STN-consistency veto, and zero-slack geometries keep
-  the recorded raw-times fallback. Fixture:
-  `benchmarks/bench/eps-cross-*` (minimized match-cellar shape) pinned
-  as a unit test on the emission pass itself.
-- **match-cellar-2014: VAL 0/20 → 20/20** — the whole red cluster
-  green, coverage and plans byte-stable. The 630-instance
-  2006/2008/2011 tempo board: **zero movement instance-by-instance**.
-  2014 tempo-sat standing: valid **42 → 62 of 200**.
-- map-analyzer's 3 reds survived and REFUTED the 0.17 hypothesis —
-  solo-check decoded them as **state-dependent duration drift**
-  (duration expressions read fluents; an ε-shifted start crosses a
-  fluent write; VAL fails the duration constraint). Named 0.19 debt
-  with witnesses.
-
-### The village, alive (tick loop + screens)
-
-- **`examples/village_live.rs`**: the tick-loop economy over
-  `benchmarks/village/` — one authoritative world `Session`, workers
-  HIRED by goal contract (fork + restrict + `set_goal`), validity as
-  the free suffix replay on a probe fork carrying the worker's own
-  contract, dispatch via in-flight durative starts, interval ends
-  firing from `elapse`, and a mid-run theft forcing a drift rethink.
-  Measured: two workers, three contracts, one theft survived —
-  `benchmarks/village-live.md`.
-- **`web/village-live.html`**: the same loop LIVE in the browser —
-  map, economy sparklines, contracts and visible intentions per
-  worker, theft/till disruption buttons — over new `WasmSession`
-  verbs (`apply_start`, `elapse`, `set_fluent`/`fluent`,
-  `restrict_contains`, `plan_valid_json`).
-- **Plan introspection** (`introspect` module + the solver demo's
-  "Explain this plan"): causal links (last-achiever replay over the
-  solver's own grounding), invariant spans (`over all` conditions
-  from the original schema, arguments substituted), preference
-  breakdown (final-state goal prefs + verify-oracle trajectory
-  prefs).
-
-### A seven-cycle-old corpse, found by the new smoke test
-
-- On wasm32, `NODE_CAP_TARGET_BYTES = 8 << 30` silently wrapped to
-  ZERO (32-bit usize; shl drops high bits) — every default-cap wasm
-  solve (all of temporal, the classical best-first fallback) had been
-  dead since 0.8, invisible behind EHC-solvable demos and the
-  explicit budgets of Session thinks. Fixed with a width-guarded
-  2 GiB 32-bit ceiling (64-bit byte-identical); the wasm demo's
-  temporal examples went unsolved → solved.
-  `crates/ferroplan-wasm/smoke.js` (headless-Chromium page smoke) is
-  now part of the cut drill.
-
-### The budget-aware ladder (the novelty referee's next idea)
-
-- `FF_TIME_LIMIT=<secs>` tells the engine its REAL wall budget; a
-  bounded classical rung (LAMA, novelty) is entered only while more
-  than 40% of the budget remains, so late-ladder rungs stop starving
-  the complete fallback near the budget edge — the mechanism behind
-  the novelty referee's −51. Unset ⇒ byte-identical to 0.17.
-  `benchmarks/ipc67.py` passes its per-instance timeout
-  automatically; `FF_WALL_DEBUG=1` narrates the gate's verdict.
-- **The referee, re-run at the cut** (all eight gate-touched classical
-  boards): base boards neutral within noise (the 580-instance flagship
-  variant-for-variant identical; every casualty solo-verified as
-  contention noise, not gate tax), and **the novelty rung under the
-  gate scores +4/−0** where 0.17's ungated verdict was +7/−51 — the
-  tax is gone when the budget is declared. `FF_NOVELTY` stays opt-in;
-  default-on-under-`FF_TIME_LIMIT` is the recorded 0.19 candidate.
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (19 earlier releases, 0.1.0–0.17.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (20 earlier releases, 0.1.0–0.18.0).
