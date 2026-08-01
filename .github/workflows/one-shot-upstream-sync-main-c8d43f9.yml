@@ -13,10 +13,6 @@ on:
 permissions:
   contents: write
 
-concurrency:
-  group: one-shot-upstream-sync-main-c8d43f9
-  cancel-in-progress: false
-
 jobs:
   merge-upstream:
     if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/sync-upstream-c8d43f9'
