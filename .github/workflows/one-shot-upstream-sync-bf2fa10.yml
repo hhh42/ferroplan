@@ -6,16 +6,20 @@ on:
       - main
     paths:
       - .github/workflows/one-shot-upstream-sync-bf2fa10.yml
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
 
 jobs:
   merge-upstream:
+    if: github.event_name == 'push' || github.event.pull_request.head.ref == 'agent/sync-upstream-bf2fa10'
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     steps:
-      - name: Checkout exact fork main
+      - name: Checkout current fork main
         uses: actions/checkout@v4
         with:
           ref: main
@@ -30,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           trigger_sha="$(git rev-parse HEAD)"
-          test "$(git rev-parse HEAD^)" = "$BASE_SHA"
+          git merge-base --is-ancestor "$BASE_SHA" "$trigger_sha"
           test -f "$WORKFLOW_PATH"
 
           git config user.name "github-actions[bot]"
