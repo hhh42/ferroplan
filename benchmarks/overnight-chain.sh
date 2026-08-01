@@ -27,7 +27,11 @@ wait_for_quiet() { # want N consecutive quiet samples
   echo "==> waiting for the box to go quiet (${need} consecutive quiet samples)"
   while : ; do
     # `top -l 2` because the first sample is cumulative-since-boot and useless.
-    idle=$(top -l 2 -n 0 -s 2 2>/dev/null | awk -F'[ ,%]+' '/^CPU usage/{i=$(NF-1)} END{print int(i)}')
+    # Find the field LABELLED idle rather than counting from the end: the
+    # line has a trailing space, so $(NF-1) is the literal word "idle" and
+    # int() of it is 0 — a gate that would have waited forever.
+    idle=$(top -l 2 -n 0 -s 2 2>/dev/null | grep '^CPU usage' | tail -1 \
+           | awk -F'[ ,%]+' '{for (i = 1; i <= NF; i++) if ($i == "idle") print int($(i - 1))}')
     [ -z "$idle" ] && idle=0
     if [ "$idle" -ge 70 ]; then
       got=$((got + 1))
