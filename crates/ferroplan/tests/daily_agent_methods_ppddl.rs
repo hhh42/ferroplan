@@ -4,6 +4,8 @@ const DOMAIN: &str = include_str!("../../../examples/daily_agent_methods/domain.
 const PROBLEM: &str =
     include_str!("../../../examples/daily_agent_methods/problem-2026-07-31.ppddl");
 const CATALOG: &str = include_str!("../../../examples/daily_agent_methods/method-catalog.json");
+const RECEIPT: &str =
+    include_str!("../../../examples/daily_agent_methods/receipt-2026-07-31.json");
 
 #[test]
 fn daily_agent_method_corpus_is_admitted_by_the_ppddl_parser() {
@@ -29,6 +31,25 @@ fn daily_agent_method_catalog_remains_bound_to_the_same_snapshot() {
     assert_eq!(catalog["timezone"], "America/Los_Angeles");
     assert_eq!(catalog["standing"], "PARTIAL_ALIVE");
     assert_eq!(catalog["patterns"].as_array().map(Vec::len), Some(20));
+}
+
+#[test]
+fn daily_agent_receipt_binds_sources_artifacts_and_standing() {
+    let receipt: serde_json::Value = serde_json::from_str(RECEIPT).expect("receipt JSON");
+
+    assert_eq!(receipt["schema"], "daily-agent-ppddl-receipt/v1");
+    assert_eq!(receipt["snapshot_date"], "2026-07-31");
+    assert_eq!(receipt["source_work"].as_array().map(Vec::len), Some(6));
+    assert_eq!(receipt["corpus_metrics"]["action_schemas"], 34);
+    assert_eq!(receipt["corpus_metrics"]["deduplicated_patterns"], 20);
+    assert_eq!(
+        receipt["final_state"]["daily_agent_ppddl_corpus"],
+        "ALIVE"
+    );
+    assert_eq!(
+        receipt["final_state"]["repository_wide_ci"],
+        "BUILD_BROKEN"
+    );
 }
 
 #[test]
