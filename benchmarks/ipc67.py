@@ -31,7 +31,11 @@ import json, os, re, resource, shutil, subprocess, sys, tempfile, threading, tim
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FF = os.path.join(ROOT, "target", "release", "ff")
+# $FERROPLAN_FF points the runner at a DIFFERENT `ff` binary — the supported
+# way to sweep an OLD tagged engine with the CURRENT harness, so that a
+# backfilled history varies only the engine. Building the old tree in a
+# worktree and pointing here keeps one instrument across every comparison.
+FF = os.environ.get("FERROPLAN_FF") or os.path.join(ROOT, "target", "release", "ff")
 
 
 def arg(name, default):
@@ -419,8 +423,15 @@ def main():
     reference = load_reference(SCORE_AGAINST) if SCORE_AGAINST else None
     print(f"corpus: {corpus}\nVAL: {val or 'not found (external validation skipped)'}\n"
           f"timeout {TIMEOUT}s, jobs {JOBS}, mode {MODE or 'auto'}", flush=True)
-    subprocess.run(["cargo", "build", "--release", "-q", "-p", "ferroplan-cli"],
-                   cwd=ROOT, check=True)
+    if os.environ.get("FERROPLAN_FF"):
+        # An externally supplied binary must not be silently rebuilt from the
+        # CURRENT tree — that would defeat the entire point of the override.
+        if not os.path.isfile(FF):
+            sys.exit(f"FERROPLAN_FF={FF} does not exist")
+        print(f"using external binary: {FF}")
+    else:
+        subprocess.run(["cargo", "build", "--release", "-q", "-p", "ferroplan-cli"],
+                       cwd=ROOT, check=True)
     summary = []
     raw = open(RAW, "w")
     with ThreadPoolExecutor(max_workers=JOBS) as pool:
