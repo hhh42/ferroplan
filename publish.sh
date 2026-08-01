@@ -66,12 +66,23 @@ create_github_release() {
     echo "    Or create it by hand: https://github.com/seanchatmangpt/ferroplan/releases/new?tag=${tag}"
     return 0
   fi
-  local header notes_file title
-  header="$(grep -m1 "^## \[${ver}\]" CHANGELOG.md || true)"
-  if [[ -z "$header" ]]; then
-    echo "!! no CHANGELOG.md section \"## [${ver}]\" found — add one before releasing." >&2
+  local header notes_file title src
+  # CHANGELOG.md keeps only [Unreleased] + the newest two releases
+  # (scripts/changelog-roll.py); older sections live in CHANGELOG-ARCHIVE.md
+  # verbatim. Look in BOTH, or `--release-only <old-version>` breaks the first
+  # time a version is archived — which is exactly the backfill case this flag
+  # exists for.
+  src=""
+  for f in CHANGELOG.md CHANGELOG-ARCHIVE.md; do
+    [[ -f "$f" ]] || continue
+    if grep -q "^## \[${ver}\]" "$f"; then src="$f"; break; fi
+  done
+  if [[ -z "$src" ]]; then
+    echo "!! no \"## [${ver}]\" section in CHANGELOG.md or CHANGELOG-ARCHIVE.md" >&2
+    echo "   — add one before releasing." >&2
     return 1
   fi
+  header="$(grep -m1 "^## \[${ver}\]" "$src")"
   title="ferroplan ${ver}$(sed -E 's/^## \[[^]]+\] - [0-9-]+//' <<<"$header")"
   notes_file="$(mktemp)"
   trap 'rm -f "$notes_file"' RETURN
@@ -79,7 +90,7 @@ create_github_release() {
     $0 ~ "^## \\[" ver "\\]" {flag=1; next}
     /^## \[/ {flag=0}
     flag {print}
-  ' CHANGELOG.md | sed -e '/./,$!d' >"$notes_file"  # drop leading blank line(s) only
+  ' "$src" | sed -e '/./,$!d' >"$notes_file"  # drop leading blank line(s) only
   if gh release view "$tag" >/dev/null 2>&1; then
     echo "==> Updating the existing GitHub Release for ${tag}"
     gh release edit "$tag" --title "$title" --notes-file "$notes_file"

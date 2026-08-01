@@ -159,15 +159,28 @@ measuring stick. Two findings, neither of them a coverage number:
   A sweep of all 216 domains for VAL ingestibility names exactly four:
   `data-network-2018`, `drone-numeric-2023` (the known one, already
   returning `None`), `sailing-numeric-2023`, `factory-robot-2026`.
-  The cost is not cosmetic. `standings.py` scores
-  `solved = r["solved"] and val is not False`, so a misattributed row is
-  dropped from COVERAGE: ipc2018-sat is really **60/240**, not 53/240,
-  and ipc2026-numeric **129/320**, not 121/320. That is the third time
-  this cycle the scoreboard has been caught fibbing and the third time
-  not in our favour (0.20 Phase 1 found the other two). Because the
-  refusal is domain-level, every affected row reclassifies soundly from
-  the raw JSONL — no re-sweep is owed. Fix `val_check` to test a LIST of
-  unavailability signatures, and apply the reclassification at promotion.
+  The cost is not cosmetic, and it lands in a specific place. The RUNNER
+  counts raw `solved`, so the board headlines are already right:
+  ipc2018-sat 53/240 and ipc2026-numeric 121/320 stand as published.
+  `standings.py` is what drops them — it scores
+  `solved = r["solved"] and val is not False` — so the STANDINGS TABLE
+  would have booked those same boards as **46/240** and **113/320**, 15
+  instances light, while the boards beside it said otherwise. Two
+  artifacts disagreeing about the same sweep is worse than either being
+  wrong alone. Fixing `val_check` makes standings agree with the boards;
+  it does not raise the boards. (An intermediate note here had this
+  backwards, adding the 15 to the headlines instead of recognising the
+  headlines already contained them.)
+  That is the third time this cycle the scoreboard has been caught
+  fibbing and the third time not in our favour — 0.20 Phase 1 found the
+  other two. Because the refusal is domain-level, every affected row
+  reclassifies soundly from the raw JSONL; no re-sweep is owed. Fix
+  `val_check` to test a LIST of unavailability signatures, and apply the
+  reclassification at promotion.
+  The contrast that proves the mechanism is right and only its signature
+  list was short: drone-numeric on the 2023 board solves 16/20 and every
+  one of those rows carries `val: None`, counted and correct — the same
+  treatment, on the one signature 0.20 already knew.
 - **A latent runner misattribution, named before it bites.**
   `val_check` ends `except Exception: return False`, which swallows the
   120 s `TimeoutExpired` — so a VAL that runs out of time books as a

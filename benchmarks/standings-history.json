@@ -1,0 +1,62 @@
+{
+ "_comment": "Per-release standings snapshots. `measured_on` is the BOX: coverage at a fixed time budget depends on hardware, so STANDINGS.md only ever compares snapshots sharing a box. `measured_at` is when the boards were SWEPT, which differs from `released` for backfilled runs of old versions on new hardware. Written by scripts/standings-snapshot.py.",
+ "snapshots": [
+  {
+   "version": "0.20.0",
+   "released": "2026-08-01",
+   "measured_on": "m5-air",
+   "measured_at": "2026-08-01",
+   "note": "M5 Air re-baseline; twelve canonical boards at --jobs 2 --mem-gb 6; box shared with a GitLab CI runner",
+   "tracks": {
+    "seq-sat": {
+     "solved": 473,
+     "total": 580
+    },
+    "tempo-sat": {
+     "solved": 419,
+     "total": 630
+    },
+    "2014 seq-sat": {
+     "solved": 110,
+     "total": 280
+    },
+    "2014 seq-agile": {
+     "solved": 103,
+     "total": 280
+    },
+    "2014 tempo-sat": {
+     "solved": 63,
+     "total": 200
+    },
+    "2018 seq-sat": {
+     "solved": 53,
+     "total": 240
+    },
+    "2023 classical": {
+     "solved": 27,
+     "total": 140
+    },
+    "2023 numeric": {
+     "solved": 194,
+     "total": 400
+    },
+    "2026 numeric (first board)": {
+     "solved": 121,
+     "total": 320
+    },
+    "2023 agile ENTRY (300s)": {
+     "solved": 48,
+     "total": 140
+    },
+    "seq-opt": {
+     "solved": 250,
+     "total": 550
+    },
+    "2014 seq-opt": {
+     "solved": 56,
+     "total": 256
+    }
+   }
+  }
+ ]
+}

@@ -44,6 +44,49 @@ Re-lock the workspace-excluded `crates/ferroplan-py/Cargo.lock` too
 (`cargo update -w --manifest-path crates/ferroplan-py/Cargo.toml`). Commit
 and tag (`vX.Y.Z`).
 
+## Refresh the record (standings, history, release notes)
+
+Three scripted steps, in this order. All are idempotent, so re-running is safe.
+
+```sh
+# 1. Promote the sweep, regenerate the tables. standings.py writes
+#    benchmarks/ipc-standings.md (the reference table), STANDINGS.md (the
+#    at-a-glance view) AND patches the README's headline block — one command,
+#    so the front page can never disagree with the boards behind it.
+bash benchmarks/promote-air.sh     # refuses a partial sweep
+
+# 2. Bank this release's numbers, so the NEXT release can show movement.
+python3 scripts/standings-snapshot.py --version X.Y.Z --measured-at YYYY-MM-DD
+
+# 3. Trim the release notes: CHANGELOG.md keeps [Unreleased] + the newest two
+#    (older move to CHANGELOG-ARCHIVE.md, verbatim); README keeps the newest
+#    two "What's new" blocks.
+python3 scripts/release-notes-roll.py
+```
+
+Why these are gates and not chores:
+
+- **The front page rots fastest.** The README had accumulated SIXTEEN
+  "What's new" blocks — ~308 lines, 45% of the file — so a visitor met a year
+  of history before learning whether the planner is any good. Both the
+  changelog and the README are now trimmed by script, not by discipline.
+- **`measured_at` is not the release date.** Coverage at a fixed time budget
+  is a property of the hardware as much as the engine, so every snapshot
+  records the BOX it ran on and STANDINGS.md only ever compares snapshots
+  sharing one. That is what makes "improvement" an honest word here: a
+  cloud→Air jump would be silicon, not progress, and the table refuses to
+  draw it. Re-measuring an OLD tag on the CURRENT box is the supported way to
+  backfill a comparable history.
+- **`publish.sh` reads release notes from both `CHANGELOG.md` and
+  `CHANGELOG-ARCHIVE.md`**, so archiving never breaks
+  `./publish.sh --release-only <old-version>`.
+
+Add to the pre-flight if you want it enforced:
+
+```sh
+python3 scripts/release-notes-roll.py --check   # non-zero if a roll is due
+```
+
 ## Publish (order matters)
 
 ```sh
