@@ -238,6 +238,7 @@ def coverage_line(rows, budget):
     return s, n, fails or "none"
 
 
+GH_BLOB = "https://github.com/hhh42/ferroplan/blob/main/"
 SUMMARY = os.path.join(ROOT, "STANDINGS.md")
 HISTORY = os.path.join(B, "standings-history.json")
 # Tracks where coverage IS proof rate: a solved row carries an optimality
@@ -250,6 +251,20 @@ def _history():
     if not os.path.exists(HISTORY):
         return []
     return json.load(open(HISTORY)).get("snapshots", [])
+
+
+def _current_version():
+    """Workspace version, so the delta column never compares a release to
+    ITSELF. The snapshot for the release being cut is banked from the same
+    boards this table is generated from, so without this every row reads
+    `= (vs X)` — technically true and completely useless."""
+    try:
+        for line in open(os.path.join(ROOT, "Cargo.toml")):
+            if line.strip().startswith("version"):
+                return line.split("=", 1)[1].strip().strip('"')
+    except OSError:
+        pass
+    return None
 
 
 def _bar(pct, width=20):
@@ -272,7 +287,9 @@ def write_summary(data):
     """
     hist = _history()
     box = os.environ.get("FERROPLAN_BOX", "m5-air")
-    prev = next((s for s in reversed(hist) if s.get("measured_on") == box), None)
+    cur = _current_version()
+    prev = next((s for s in reversed(hist)
+                 if s.get("measured_on") == box and s.get("version") != cur), None)
 
     live, cloud, pending = [], [], []
     for label, d in data.items():
@@ -379,9 +396,15 @@ def _patch_readme(live, tot_s, tot_n, proofs, box):
         "",
         *top,
         "",
-        "Best five shown. **[Full standings → `STANDINGS.md`](STANDINGS.md)** · "
+        # ABSOLUTE urls, always. This block is generated into README.md, which
+        # ships as the crate README (`readme = "../../README.md"`), and
+        # crates.io/docs.rs resolve relative links against the CRATE dir —
+        # so `STANDINGS.md` there resolves to crates/ferroplan/STANDINGS.md
+        # and 404s. Every other link in that README is absolute for the same
+        # reason.
+        f"Best five shown. **[Full standings → `STANDINGS.md`]({GH_BLOB}STANDINGS.md)** · "
         "per-track detail, quality scoring and failure classes in "
-        "[`benchmarks/ipc-standings.md`](benchmarks/ipc-standings.md).",
+        f"[`benchmarks/ipc-standings.md`]({GH_BLOB}benchmarks/ipc-standings.md).",
         "",
     ]
     with open(p, "w") as f:

@@ -57,6 +57,7 @@ def split_sections(text):
     return preamble, out
 
 
+GH_BLOB = "https://github.com/hhh42/ferroplan/blob/main/"
 README = os.path.join(ROOT, "README.md")
 WN_BEGIN = "<!-- WHATSNEW:BEGIN"
 WN_END = "<!-- WHATSNEW:END -->"
@@ -81,12 +82,47 @@ def roll_readme(keep, check):
         print(f"README: would drop {len(starts) - keep} What's-new block(s)")
         return 1
     kept = region[:starts[keep]].rstrip()
+    # Absolute: README ships as the crate README, and crates.io resolves
+    # relative links against crates/ferroplan/ (see standings.py).
     tail = ("\n\nEarlier releases are summarised in the "
-            "[changelog](CHANGELOG.md) and its "
-            "[archive](CHANGELOG-ARCHIVE.md).\n")
+            f"[changelog]({GH_BLOB}CHANGELOG.md) and its "
+            f"[archive]({GH_BLOB}CHANGELOG-ARCHIVE.md).\n")
     with open(README, "w") as f:
         f.write(text[:head_end] + "\n" + kept + tail + text[j:])
     print(f"README: dropped {len(starts) - keep} What's-new block(s), kept {keep}")
+    return 0
+
+
+REL_LINK = re.compile(r"\[[^\]]*\]\((?!https?:|#|mailto:)([^)]+)\)")
+
+
+def check_absolute_links():
+    """README and the newest changelog section must use ABSOLUTE links.
+
+    Both get lifted OUT of the repo, where relative links break in ways that
+    are invisible from GitHub: README ships as the crate README
+    (`readme = "../../README.md"`), and crates.io/docs.rs resolve relatives
+    against crates/ferroplan/ — so `STANDINGS.md` 404s as
+    crates/ferroplan/STANDINGS.md. Changelog sections become GitHub Release
+    bodies, which do not resolve repo-relative links either. Caught in the
+    wild once; a gate is cheaper than another 404.
+    """
+    bad = []
+    if os.path.exists(README):
+        for m in REL_LINK.finditer(open(README).read()):
+            bad.append(("README.md", m.group(1)))
+    text = open(LIVE).read()
+    _, sections = split_sections(text)
+    newest = next((b for h, b in sections
+                   if not h.startswith("## [Unreleased]")), "")
+    for m in REL_LINK.finditer(newest):
+        bad.append(("CHANGELOG.md (newest release)", m.group(1)))
+    if bad:
+        print("RELATIVE LINKS — these break on crates.io / GitHub Releases:")
+        for where, target in bad:
+            print(f"  {where}: {target}")
+        return 1
+    print("links: README + newest changelog section are all absolute")
     return 0
 
 
@@ -98,10 +134,11 @@ def main():
     released = [s for s in sections if not s[0].startswith("## [Unreleased]")]
 
     rc_readme = roll_readme(KEEP, CHECK)
+    rc_links = check_absolute_links()
 
     if len(released) <= KEEP:
         print(f"CHANGELOG: {len(released)} released section(s), keep={KEEP} — nothing to roll")
-        return rc_readme
+        return rc_readme or rc_links
 
     keep, move = released[:KEEP], released[KEEP:]
 
@@ -141,7 +178,7 @@ def main():
     for h, _ in move:
         print(f"  {h}")
     print(f"CHANGELOG.md now keeps Unreleased + {len(keep)}")
-    return rc_readme
+    return rc_readme or rc_links
 
 
 if __name__ == "__main__":

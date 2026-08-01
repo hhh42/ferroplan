@@ -46,7 +46,7 @@ that solver.
 | seq-opt ⚖️ | 250/550 | `███████░░░░░░░░░` 45% |
 | 2014 seq-sat | 110/280 | `██████░░░░░░░░░░` 39% |
 
-Best five shown. **[Full standings → `STANDINGS.md`](STANDINGS.md)** · per-track detail, quality scoring and failure classes in [`benchmarks/ipc-standings.md`](benchmarks/ipc-standings.md).
+Best five shown. **[Full standings → `STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md)** · per-track detail, quality scoring and failure classes in [`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md).
 <!-- STANDINGS:END -->
 
 `ferroplan` is a from-scratch reimplementation of the FF family of planners with a
@@ -109,7 +109,7 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > Full record:
 > [`docs/roadmap-0.19.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.19.md).
 
-Earlier releases are summarised in the [changelog](CHANGELOG.md) and its [archive](CHANGELOG-ARCHIVE.md).
+Earlier releases are summarised in the [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md) and its [archive](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG-ARCHIVE.md).
 <!-- WHATSNEW:END -->
 
 ## Features
