@@ -1,0 +1,405 @@
+{
+  "hardcoding_contract": {
+    "admission_rule": "No pattern enters the corpus without at least one provenance-bound observed example and an explicit exclusion/falsifier boundary.",
+    "daily_input": "Observed agent work and evidence from the current day",
+    "outputs": [
+      "agent-work-methods-domain.ppddl",
+      "agent-work-today-problem.ppddl",
+      "method-catalog.json",
+      "validation-report.json",
+      "receipt.json",
+      "README.md",
+      "fixtures/negative-unbalanced-domain.ppddl",
+      "validation-negative-report.json"
+    ],
+    "promotion_rule": "Structural validation alone yields at most PARTIAL_ALIVE; external parser/planner execution plus replay is required for ALIVE.",
+    "transformation": "Extract stable patterns and encode them as PPDDL predicates, actions, preconditions, effects, costs, and bounded stochastic edges"
+  },
+  "patterns": [
+    {
+      "evidence": [
+        "AGENTS.md lines 497-501",
+        "Pasted text(687).txt lines 254-393"
+      ],
+      "id": "P01",
+      "law": "Resolve repository doctrine, exact source identity, branch topology, tools, and baseline before editing.",
+      "name": "Exact-source orientation",
+      "observed_examples": [
+        "Exact SHA binding in AGENTS.md",
+        "PR stack/base analysis before merges"
+      ],
+      "ppddl_actions": [
+        "orient-repository",
+        "observe-task"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "AGENTS.md lines 445-477",
+        "Pasted text(687).txt lines 43-54"
+      ],
+      "id": "P02",
+      "law": "Keep observed, inferred, admitted, refused, unsupported, and unknown states distinct.",
+      "name": "Observation is not admission",
+      "observed_examples": [
+        "O to O* to A to R doctrine",
+        "Queued Step Two CI classified UNVERIFIED rather than failed"
+      ],
+      "ppddl_actions": [
+        "observe-task",
+        "admit-task-observation"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(687).txt lines 400-460"
+      ],
+      "id": "P03",
+      "law": "Reproduce and repair pre-existing baseline failure before attributing failure to feature work.",
+      "name": "Baseline before feature",
+      "observed_examples": [
+        "qlue-ls and ll-sparql-parser incompatibility fixed before PR verification"
+      ],
+      "ppddl_actions": [
+        "diagnose-baseline-break",
+        "repair-baseline-first"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(687).txt lines 254-358",
+        "Pasted text(687).txt lines 740-752"
+      ],
+      "id": "P04",
+      "law": "Merge stacked work in graph order, retarget dead bases, and preserve declared non-merge branches.",
+      "name": "Dependency-aware PR topology",
+      "observed_examples": [
+        "PR 526 to 529 to main",
+        "PR 525 to 523 to main plus 522",
+        "PR 537 left open by design"
+      ],
+      "ppddl_actions": [
+        "close-task-dependency",
+        "integrate-task"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(688).txt lines 1209-1223",
+        "Pasted text(691).txt lines 19-25"
+      ],
+      "id": "P05",
+      "law": "Dispatch non-overlapping file ownership into isolated worktrees; integrate centrally.",
+      "name": "Orthogonal concurrency",
+      "observed_examples": [
+        "G2-G7 agents across isolated worktrees",
+        "Crown, document index, observers, and subsystem closure agents"
+      ],
+      "ppddl_actions": [
+        "prepare-isolated-worktree",
+        "dispatch-orthogonal-task",
+        "integrate-task"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(689).txt lines 20-49"
+      ],
+      "id": "P06",
+      "law": "An agent returning successfully records task completion only; checkpoint and crown standing require executed verifiers.",
+      "name": "Agent finish is not promotion",
+      "observed_examples": [
+        "G0-G9 standings corrected from complete to PARTIAL_ALIVE"
+      ],
+      "ppddl_actions": [
+        "record-agent-finish",
+        "externally-verify-subsystem",
+        "compute-crown-standing"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "AGENTS.md repair chain lines 1708-1719",
+        "Pasted text(689).txt lines 279-359",
+        "Pasted text(688).txt lines 1343-1369"
+      ],
+      "id": "P07",
+      "law": "Repair authority, schema, projector, implementation, verifier, then evidence; never patch a downstream projection to conceal an upstream defect.",
+      "name": "Smallest lawful root-cause repair",
+      "observed_examples": [
+        "SHACL shape corrected instead of fabricating standing",
+        "Disk exhaustion repaired as infrastructure failure"
+      ],
+      "ppddl_actions": [
+        "diagnose-finding",
+        "repair-smallest-lawful-owner"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(688).txt lines 891-929",
+        "Pasted markdown(269).md lines 965-993"
+      ],
+      "id": "P08",
+      "law": "Represent facts once in semantic authority and deterministically generate synchronized downstream artifacts.",
+      "name": "Observe once, admit once, project many",
+      "observed_examples": [
+        "RDF plus SPARQL plus Tera projection pattern",
+        "Coverage and document evidence indexes"
+      ],
+      "ppddl_actions": [
+        "admit-subsystem-authority",
+        "generate-authority-projection",
+        "bind-document-evidence"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(690).txt lines 745-763",
+        "Pasted text(691).txt lines 83-85 and 142-156"
+      ],
+      "id": "P09",
+      "law": "Verification observes and compares; projection is a separate receipted manufacturing act.",
+      "name": "Read-only crown",
+      "observed_examples": [
+        "Coverage matrix split from crown verifier",
+        "Seven sabotage cases verified no self-repair"
+      ],
+      "ppddl_actions": [
+        "invert-self-certification-loop",
+        "generate-authority-projection",
+        "issue-projection-receipt"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "AGENTS.md lines 465-469",
+        "MFW crown-report.json lines 352-551"
+      ],
+      "id": "P10",
+      "law": "Standing is recomputed from authority, implementation, witnesses, falsifiers, replay, receipts, and exact head by a verifier outside the implementing projection.",
+      "name": "Independent verifier",
+      "observed_examples": [
+        "External subsystem verifier",
+        "MFW crown verifier"
+      ],
+      "ppddl_actions": [
+        "assign-independent-verifier",
+        "externally-verify-subsystem"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(687).txt lines 155-165",
+        "Pasted text(691).txt lines 142-156"
+      ],
+      "id": "P11",
+      "law": "A pass path without a precise refusal path is insufficient.",
+      "name": "Positive witness plus negative falsifier",
+      "observed_examples": [
+        "Crown failure required exit 2 and exact refusal text",
+        "Coverage sabotage portfolio"
+      ],
+      "ppddl_actions": [
+        "execute-positive-witness",
+        "execute-negative-falsifier"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(687).txt lines 47-53 and 108-153"
+      ],
+      "id": "P12",
+      "law": "A gate must be derived from independently observable state, not hardcoded truth or two fields written from the same variable.",
+      "name": "Non-vacuous gates",
+      "observed_examples": [
+        "Replaced constant-true unreceipted-actuation gate",
+        "Pinned external exact-head assertion",
+        "Loaded declared schemas"
+      ],
+      "ppddl_actions": [
+        "diagnose-finding",
+        "repair-smallest-lawful-owner"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "AGENTS.md lines 471-477",
+        "Pasted text(691).txt lines 31-34"
+      ],
+      "id": "P13",
+      "law": "No observation and an executed observer finding zero candidates are different states.",
+      "name": "Attempted-zero distinction",
+      "observed_examples": [
+        "All 20 observer classes attempted; 65 admitted capabilities",
+        "Five classes were initially preserved as not attempted"
+      ],
+      "ppddl_actions": [
+        "attempt-observer-class",
+        "record-zero-findings",
+        "record-admitted-findings"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(691).txt lines 46-59",
+        "Current execution receipt"
+      ],
+      "id": "P14",
+      "law": "Disk, runner, network, and connector failures do not become semantic failure or graph failure; repair or route around them.",
+      "name": "Typed infrastructure failure",
+      "observed_examples": [
+        "Disk at 97 percent recovered to 96 GB free",
+        "Global GitHub commit search timeout did not erase Files evidence"
+      ],
+      "ppddl_actions": [
+        "diagnose-finding",
+        "repair-smallest-lawful-owner",
+        "attempt-external-verification",
+        "reset-retryable-external-edge"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "AGENTS.md lines 1091-1099",
+        "receipt.json line 1"
+      ],
+      "id": "P15",
+      "law": "Planning and reversible local edits may proceed, but publication, merge, release, deletion, deployment, or certification requires a receipt.",
+      "name": "Zero unreceipted actuation",
+      "observed_examples": [
+        "MFW ggen.sync receipt",
+        "AGENTS.md absolute invariant"
+      ],
+      "ppddl_actions": [
+        "issue-task-receipt",
+        "authorize-actuation",
+        "refuse-unreceipted-actuation"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "AGENTS.md lines 1227-1239",
+        "MFW crown-report.json lines 542-548"
+      ],
+      "id": "P16",
+      "law": "Re-execute from a fresh state and compare semantic authority, generated outputs, verifier results, and receipt-linked evidence.",
+      "name": "Clean-room replay",
+      "observed_examples": [
+        "NO_SEMANTIC_CHANGE, NO_GENERATED_DRIFT, REPLAY_MATCH",
+        "MFW replay rail ALIVE"
+      ],
+      "ppddl_actions": [
+        "run-clean-room-replay",
+        "compute-crown-standing"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(689).txt lines 174-181",
+        "Ferroplan PRD/ARD lines 624-647"
+      ],
+      "id": "P17",
+      "law": "External CI, networks, reviewers, services, and humans are modeled as probabilistic outcomes with retry and replanning, never silently promoted to deterministic success.",
+      "name": "Stochastic external edges",
+      "observed_examples": [
+        "Queued CI treated as retryable, not HARD BLOCK",
+        "Ferroplan deterministic PDDL and probabilistic PPDDL dual rails"
+      ],
+      "ppddl_actions": [
+        "attempt-external-verification",
+        "reset-retryable-external-edge"
+      ],
+      "state": "PARTIAL_ALIVE"
+    },
+    {
+      "evidence": [
+        "AGENTS.md lines 762-796",
+        "Pasted text(687).txt lines 532-537",
+        "Pasted text(690).txt lines 765-794"
+      ],
+      "id": "P18",
+      "law": "Preserve function, fence valid behavior, define calculus, exclusions, falsifier, extension, and operational proof before replacing a surface.",
+      "name": "Fence before replacement",
+      "observed_examples": [
+        "PR 537 preserved because its author declared it non-merge",
+        "Document keyword check replaced by evidence records rather than keyword stuffing"
+      ],
+      "ppddl_actions": [
+        "diagnose-finding",
+        "repair-smallest-lawful-owner"
+      ],
+      "state": "ALIVE"
+    },
+    {
+      "evidence": [
+        "Ferroplan PRD/ARD lines 624-647 and 682-716"
+      ],
+      "id": "P19",
+      "law": "Controlled transformations use deterministic plans; stochastic observable consequences use PPDDL policies; hidden state remains outside the admitted boundary.",
+      "name": "Deterministic and probabilistic planning rails",
+      "observed_examples": [
+        "Ferroplan deterministic solve plus PPDDL policy synthesis and persistent PolicySession design"
+      ],
+      "ppddl_actions": [
+        "attempt-external-verification"
+      ],
+      "state": "PARTIAL_ALIVE"
+    },
+    {
+      "evidence": [
+        "Pasted text(688).txt lines 912-920",
+        "Pasted markdown(269).md lines 995-1022"
+      ],
+      "id": "P20",
+      "law": "Compare declared observables through reusable adapter families rather than writing one bespoke comparator per capability.",
+      "name": "Generic observable-contract equivalence",
+      "observed_examples": [
+        "Exit code, stdout, stderr, filesystem delta, generated bytes, diagnostics, receipts, event order, side effects, recovery"
+      ],
+      "ppddl_actions": [
+        "execute-positive-witness",
+        "execute-negative-falsifier",
+        "execute-subsystem-replay"
+      ],
+      "state": "ALIVE"
+    }
+  ],
+  "purpose": "Reusable agent operating methods extracted from admitted daily work and encoded in agent-work-methods-domain.ppddl.",
+  "schema": "daily-agent-method-catalog/v1",
+  "snapshot_date": "2026-07-31",
+  "source_boundaries": {
+    "admitted": [
+      "AGENTS.md doctrine and task law",
+      "ggen PR integration and Step Two work transcripts",
+      "ggen G0-G9 reconstitution transcripts",
+      "MFW/GMRW crown report, verifier report, and receipt",
+      "Ferroplan PPDDL core merged at aaf612edb1368c9b632f775baaa15b4bcf69d66d"
+    ],
+    "excluded": [
+      "GitHub activity not represented in the available Files evidence",
+      "Uncompleted or merely queued CI as proof of success",
+      "Any probability estimate not backed by admitted telemetry",
+      "Repository-level ALIVE claims not supported by an observed crown"
+    ]
+  },
+  "standing": "PARTIAL_ALIVE",
+  "standing_reason": "The corpus passes the deterministic structural linter. Ferroplan PPDDL source is present at base aaf612edb1368c9b632f775baaa15b4bcf69d66d, while exact-head Rust execution and policy synthesis remain admission gates for this change.",
+  "timezone": "America/Los_Angeles"
+}
