@@ -113,7 +113,10 @@ fn recursive_descent_happy_path() {
     )]);
     let child = structured(&find_response(&responses, 1));
     assert_eq!(child["payload"]["selected_node"], "root-3");
-    assert_eq!(child["payload"]["selected_node_candidate"], json!({"id": "root-3"}));
+    assert_eq!(
+        child["payload"]["selected_node_candidate"],
+        json!({"id": "root-3"})
+    );
     assert_eq!(
         child["payload"]["parent_allocation_receipt"],
         parent["receipt"]

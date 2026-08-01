@@ -85,7 +85,11 @@ fn cmca_allocate_rejects_seven_candidates() {
     let response = call(
         &mut child,
         &mut stdout,
-        &tool_call(1, "cmca_allocate", json!({"candidates": candidates_of_shape(7, 10)})),
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates_of_shape(7, 10)}),
+        ),
     );
     assert!(is_error(&response), "{response:?}");
     let text = tool_text(&response);
@@ -98,7 +102,11 @@ fn cmca_allocate_rejects_nine_candidates() {
     let response = call(
         &mut child,
         &mut stdout,
-        &tool_call(1, "cmca_allocate", json!({"candidates": candidates_of_shape(9, 10)})),
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates_of_shape(9, 10)}),
+        ),
     );
     assert!(is_error(&response), "{response:?}");
     let text = tool_text(&response);
@@ -111,7 +119,11 @@ fn cmca_allocate_rejects_wrong_factor_count() {
     let response = call(
         &mut child,
         &mut stdout,
-        &tool_call(1, "cmca_allocate", json!({"candidates": candidates_of_shape(8, 9)})),
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates_of_shape(8, 9)}),
+        ),
     );
     assert!(is_error(&response), "{response:?}");
     assert!(tool_text(&response).contains("10 factors"));
@@ -124,7 +136,11 @@ fn cmca_allocate_is_deterministic_across_processes() {
     let first = call(
         &mut child1,
         &mut stdout1,
-        &tool_call(1, "cmca_allocate", json!({"candidates": candidates.clone()})),
+        &tool_call(
+            1,
+            "cmca_allocate",
+            json!({"candidates": candidates.clone()}),
+        ),
     );
     let (mut child2, mut stdout2) = spawn_and_handshake();
     let second = call(
@@ -134,7 +150,10 @@ fn cmca_allocate_is_deterministic_across_processes() {
     );
     let first_content = &first["result"]["structuredContent"];
     let second_content = &second["result"]["structuredContent"];
-    assert_eq!(first_content["payload_digest"], second_content["payload_digest"]);
+    assert_eq!(
+        first_content["payload_digest"],
+        second_content["payload_digest"]
+    );
     assert_eq!(first_content["payload"], second_content["payload"]);
 }
 
@@ -156,7 +175,7 @@ fn verify_rejects_tampered_allocation_payload() {
     );
     let mut envelope = bound["result"]["structuredContent"].clone();
     envelope["payload"]["allocation_result"]["payload"]["allocations"] =
-        json!([0,0,0,0,0,0,0,0]);
+        json!([0, 0, 0, 0, 0, 0, 0, 0]);
     let verified = call(
         &mut child,
         &mut stdout,

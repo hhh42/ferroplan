@@ -32,9 +32,7 @@ fn bench_ppddl(c: &mut Criterion) {
         ..Default::default()
     };
     c.bench_function("ppddl_explicit_mdp_policy", |b| {
-        b.iter(|| {
-            solve_ppddl(black_box(DOMAIN), black_box(PROBLEM), black_box(&options)).unwrap()
-        })
+        b.iter(|| solve_ppddl(black_box(DOMAIN), black_box(PROBLEM), black_box(&options)).unwrap())
     });
 }
 
