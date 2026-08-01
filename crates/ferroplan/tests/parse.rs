@@ -78,3 +78,56 @@ fn counts_timed_initial_literals() {
     assert_eq!(p.timed_initial_literals, 2);
     assert_eq!(p.init_facts, 1); // (door); the two `(at <t> …)` are TILs, not init facts
 }
+
+/// Negative number literals (0.19 Phase 1): `(= (d p0) -370)` in `:init`
+/// killed sailing-numeric and fo-sailing whole (40/40 rejects on the
+/// 2023 numeric board) — the lexer emitted `Dash` for `-370`. The solve
+/// half pins the SIGN, not just parse success: with `(x) = -3`, one
+/// +1 step is needed to reach `(>= (x) -2)`; a sign flip would make the
+/// goal true at init and the plan empty.
+#[test]
+fn negative_init_literals_parse_and_read_signed() {
+    let dom = "(define (domain negnum)
+      (:requirements :typing :numeric-fluents)
+      (:functions (x))
+      (:action bump :parameters ()
+        :precondition (<= (x) 10) :effect (increase (x) 1)))";
+    let prob = "(define (problem negnum-1) (:domain negnum)
+      (:init (= (x) -3))
+      (:goal (>= (x) -2)))";
+    let r = parse(prob);
+    assert!(r.ok, "negative init literal parses: {:?}", r.error);
+    let sol = ferroplan::solve(dom, prob, &ferroplan::Options::default()).unwrap();
+    assert!(sol.solved);
+    assert_eq!(
+        sol.plan.unwrap().length,
+        1,
+        "init must read -3 (a sign flip would satisfy the goal at init)"
+    );
+}
+
+/// Uninitialized `(total-cost)` (0.19 Phase 1): IPC-2018's agricola,
+/// flashfill, and settlers omit `(= (total-cost) 0)` from init (the
+/// PDDL 3.1 `:action-costs` convention makes 0 implicit — Fast Downward
+/// defaults it). The undefined fluent killed every cost-bearing action
+/// in reachability and the whole domains (60 instances) returned
+/// unsolvable with zero facts. The cost fluent defaults to 0; the metric
+/// still counts (the plan's metric is 1 after one unit-cost step).
+#[test]
+fn uninitialized_total_cost_defaults_to_zero() {
+    let dom = "(define (domain nocost)
+      (:requirements :typing :action-costs)
+      (:predicates (done))
+      (:functions (total-cost) - number)
+      (:action finish :parameters ()
+        :precondition (and) :effect (and (done) (increase (total-cost) 1))))";
+    let prob = "(define (problem nocost-1) (:domain nocost)
+      (:init)
+      (:goal (done))
+      (:metric minimize (total-cost)))";
+    let sol = ferroplan::solve(dom, prob, &ferroplan::Options::default()).unwrap();
+    assert!(sol.solved, "notes: {:?}", sol.notes);
+    let p = sol.plan.unwrap();
+    assert_eq!(p.length, 1);
+    assert_eq!(p.metric, Some(1.0), "cost counts from the implicit 0");
+}

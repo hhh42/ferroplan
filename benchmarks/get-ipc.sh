@@ -13,6 +13,14 @@
 #   python3 benchmarks/ipc67.py
 set -e
 cd "$(dirname "$0")"
+
+# Instance-number normalizer: strip the leading non-digit prefix, then strip
+# leading zeros but ALWAYS keep at least one digit. The naive
+# `sed 's/[^0-9]*0*//'` collapses a 0-indexed `p000.pddl` to the empty string
+# (-> `instance-.pddl`), which the runner's `int(re.search(r"\d+", name))`
+# then dies on. IPC-2026's gear-car and both sailing-wind variants are
+# 0-indexed p000..p19, so this is load-bearing, not hypothetical.
+instnum() { basename "$1" .pddl | sed 's/^[^0-9]*//; s/^0*\([0-9]\)/\1/'; }
 if [ ! -d .ipc-corpus ]; then
   git clone --depth 1 --filter=blob:none --sparse \
     https://github.com/potassco/pddl-instances .ipc-corpus
@@ -77,7 +85,7 @@ if [ ! -d .ipc-corpus/ipc-2023n/domains ]; then
     mkdir -p "$dest"/instances
     cp "$d"domain.pddl "$dest"/
     for p in "$d"instances/*.pddl; do
-      n=$(basename "$p" .pddl | sed 's/[^0-9]*0*//')
+      n=$(instnum "$p")
       cp "$p" "$dest"/instances/instance-"$n".pddl
     done
   done
@@ -86,5 +94,28 @@ if [ ! -d .ipc-corpus/ipc-2023n/domains ]; then
   mkdir -p .ipc-corpus/ipc-2023n/results
   cp "$tmp"-site/sat.csv "$tmp"-site/opt.csv .ipc-corpus/ipc-2023n/results/ 2>/dev/null || true
   rm -rf "$tmp" "$tmp"-site
+fi
+# --- IPC-2026 numeric (github) -> ipc-2026n/domains/<dom>-numeric-2026
+# The track ran at ICAPS Dublin (June 2026); the dataset repo carries
+# 20-instance domains incl. -sat/-opt pairs. Vendored under the dataset's
+# own names; the first board sweeps everything satisficing-style.
+if [ ! -d .ipc-corpus/ipc-2026n/domains ]; then
+  tmp=.ipc-corpus/.tmp-2026n
+  git clone -q --depth 1 https://github.com/ipc2026-numeric/ipc2026-dataset "$tmp"
+  for d in "$tmp"/*/; do
+    name=$(basename "$d")
+    dompddl="$d"domain.pddl
+    # line-exchange-snp ships domain_snp.pddl — take the first domain*.pddl
+    [ -f "$dompddl" ] || dompddl=$(ls "$d"domain*.pddl 2>/dev/null | head -1)
+    [ -n "$dompddl" ] && [ -f "$dompddl" ] || continue
+    dest=.ipc-corpus/ipc-2026n/domains/"$name"-numeric-2026
+    mkdir -p "$dest"/instances
+    cp "$dompddl" "$dest"/domain.pddl
+    for p in "$d"instances/*.pddl; do
+      n=$(instnum "$p")
+      cp "$p" "$dest"/instances/instance-"$n".pddl
+    done
+  done
+  rm -rf "$tmp"
 fi
 echo "corpus ready: $(pwd)/.ipc-corpus"

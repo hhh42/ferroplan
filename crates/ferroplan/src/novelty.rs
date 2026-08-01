@@ -37,9 +37,9 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
-use crate::hash::{FxHashMap, FxHashSet};
+use crate::hash::FxHashMap;
 use crate::heuristic::{relaxed_helpful, Scratch};
-use crate::packed::{PackedTask, State, StateKey};
+use crate::packed::{PackedTask, State};
 use crate::par;
 
 const PREF_BATCH: usize = 192;
@@ -48,7 +48,7 @@ const NORM_BATCH: usize = 64;
 const W_NOVEL: i64 = 1 << 40;
 const W_GOALS: i64 = 1 << 20;
 
-type Cand = (usize, usize, State, StateKey, i32, bool);
+type Cand = (usize, usize, State, u64, i32, bool);
 
 struct Node {
     state: State,
@@ -154,8 +154,10 @@ pub fn search_subgoal(
     let mut pref_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     let mut norm_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     norm_heap.push(Reverse((0, 0)));
-    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
-    visited.insert(task.state_key(&init));
+    // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
+    // arena state, no second bitset copy per entry (see search_from).
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, None), vec![0]);
     let mut expanded = vec![false; 1];
     let mut evaluated = 0usize;
 
@@ -234,7 +236,7 @@ pub fn search_subgoal(
                     }
                     if task.op_applicable(oi, st) {
                         let ns = task.apply(oi, st);
-                        let k = task.state_key(&ns);
+                        let k = task.state_key_hash(&ns, None);
                         let pref = helpful.contains(&(oi as u32));
                         v.push((ni, oi, ns, k, ph, pref));
                     }
@@ -247,7 +249,15 @@ pub fn search_subgoal(
         // are updated in the same fixed order the candidates arrive).
         for chunk in chunks {
             for (pi, oi, s, k, ph, pref) in chunk {
-                if visited.insert(k) {
+                let bucket = visited.entry(k).or_default();
+                if bucket
+                    .iter()
+                    .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, None))
+                {
+                    continue;
+                }
+                bucket.push(nodes.len() as u32);
+                {
                     let g = unachieved(task, &s, goal_pos);
                     let cell = (g, 0);
                     let novel = seen.novel_and_mark(cell, &s.bits);
@@ -277,4 +287,93 @@ fn reconstruct(nodes: &[Node], mut ni: usize) -> Vec<usize> {
     }
     ops.reverse();
     ops
+}
+
+/// The LIGHT novelty rung (0.20 Phase 3): IW(1)-style novelty-first with
+/// GOAL-COUNT guidance and ZERO heuristic evaluations. The 0.20 scoping
+/// probe found the h-guided rung above solves visit-all-2014 i1 but pays
+/// 35 s of wall — all of it in per-pop `relaxed_helpful` calls the
+/// width-1 structure never needed (BFWS dispatches visit-all in
+/// milliseconds on exactly this recipe). This rung is that recipe: key =
+/// ⟨novel, unachieved-goals, insertion order⟩, single heap, no h, no
+/// preferred ops — a pop costs successor generation and a bitset OR, so
+/// its wall footprint stays small by construction. Bounded like every
+/// rung (eval cap + node cap); no dead-end pruning (nothing computes ∞
+/// here) — the cap is the exit on hopeless tasks.
+///
+/// Determinism: single serial loop, fixed key layout, insertion-order
+/// tie-break — identical plans at any thread count (threads unused).
+pub fn search_light(
+    task: &PackedTask,
+    max_eval: usize,
+    forbidden: &[bool],
+) -> Option<(Vec<usize>, usize)> {
+    let node_cap = crate::search::node_cap_for(task);
+    let init = task.initial();
+    let goal_pos = &task.goal_pos;
+    let goal_num = &task.goal_num;
+    if task.goal_met_with(&init, goal_pos, goal_num) {
+        return Some((Vec::new(), 0));
+    }
+    let words = init.bits.len();
+    let mut nodes = vec![Node {
+        state: init.clone(),
+        father: usize::MAX,
+        op: usize::MAX,
+    }];
+    let mut seen = Seen::new(words);
+    let g0 = unachieved(task, &init, goal_pos);
+    seen.novel_and_mark((g0, 0), &init.bits);
+    let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
+    heap.push(Reverse((0, 0)));
+    // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
+    // arena state, no second bitset copy per entry (see search_from).
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, None), vec![0]);
+    let mut evaluated = 0usize;
+
+    while let Some(Reverse((_, ni))) = heap.pop() {
+        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
+            return Some((reconstruct(&nodes, ni), evaluated));
+        }
+        evaluated += 1;
+        if evaluated > max_eval || nodes.len() > node_cap {
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!(
+                    "[novelty-light] capped: {evaluated} evals (max {max_eval}), {} nodes",
+                    nodes.len()
+                );
+            }
+            return None;
+        }
+        for oi in 0..task.n_ops {
+            if forbidden.get(oi).copied().unwrap_or(false) {
+                continue;
+            }
+            if !task.op_applicable(oi, &nodes[ni].state) {
+                continue;
+            }
+            let ns = task.apply(oi, &nodes[ni].state);
+            let k = task.state_key_hash(&ns, None);
+            let bucket = visited.entry(k).or_default();
+            if bucket
+                .iter()
+                .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &ns, None))
+            {
+                continue;
+            }
+            bucket.push(nodes.len() as u32);
+            let g = unachieved(task, &ns, goal_pos);
+            let novel = seen.novel_and_mark((g, 0), &ns.bits);
+            let key = if novel { 0 } else { W_NOVEL } + g as i64 * W_GOALS;
+            let idx = nodes.len();
+            nodes.push(Node {
+                state: ns,
+                father: ni,
+                op: oi,
+            });
+            heap.push(Reverse((key, idx)));
+        }
+    }
+    None
 }

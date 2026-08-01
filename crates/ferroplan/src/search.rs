@@ -10,7 +10,7 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 
-use crate::hash::FxHashSet;
+use crate::hash::{FxHashMap, FxHashSet};
 use crate::heuristic::{relaxed_costed, relaxed_helpful, relaxed_to, Scratch};
 use crate::packed::{PackedTask, State, StateKey};
 use crate::par;
@@ -27,11 +27,11 @@ pub const DEFAULT_MAX_EVAL: usize = 5_000_000;
 const WEIGHT_SCALE: f64 = 256.0;
 
 /// Deterministic retained-memory target for one `search_from` pass (0.8
-/// Phase 3, docs/roadmap-0.8.md): the append-only `nodes` store and the
-/// `visited` keys both grow one entry per inserted successor, each carrying
-/// the full state bitset — on monitor-widened tasks a single unbounded pass
-/// OOMs a 15 GB box while `max_eval` (which counts only POPPED nodes) never
-/// fires. The insertion cap derives from this byte target over a MODEL of
+/// Phase 3, docs/roadmap-0.8.md): the append-only `nodes` store grows one
+/// full state per inserted successor (and until 0.20 Phase 4 the visited
+/// set cloned each state's bitset again) — on monitor-widened tasks a
+/// single unbounded pass OOMs a 15 GB box while `max_eval` (which counts
+/// only POPPED nodes) never fires. The insertion cap derives from this byte target over a MODEL of
 /// per-insertion cost (never RSS, never wall clock — the count is serial and
 /// the model uses only static task dimensions, so the cap is identical on
 /// any machine at any thread count). A capped pass returns its anytime
@@ -40,13 +40,53 @@ const WEIGHT_SCALE: f64 = 256.0;
 /// honest. The default is far above every green fixture's retained size
 /// (largest measured: ~5.4 GB total on storage qualpref p08);
 /// `FF_SEARCH_NODE_CAP` overrides the node count directly (`0` disables).
-pub(crate) const NODE_CAP_TARGET_BYTES: usize = 8 << 30;
+///
+/// On 32-bit targets (wasm32) `8 << 30` does not fit a usize — shl silently
+/// DROPS the high bits, so the "8 GiB" target wrapped to a ZERO cap and
+/// every default-cap search (all of temporal, the classical best-first
+/// fallback) died at its first insertion while EHC-solvable instances
+/// sneaked through — the 0.18 screens smoke test caught it. 2 GiB is the
+/// honest 32-bit ceiling (wasm memory tops out at 4 GiB).
+pub(crate) const NODE_CAP_TARGET_BYTES: usize = if usize::BITS < 64 { 2 << 30 } else { 8 << 30 };
 
 /// The per-insertion byte model behind [`NODE_CAP_TARGET_BYTES`]: one stored
-/// `State` (bits + fluent vecs) in `nodes`, one `StateKey` bitset clone in
-/// `visited`, plus container overhead.
+/// `State` (bits + fluent vecs) in `nodes` plus the hash→index dedup entry
+/// (0.20 Phase 4 — the visited set no longer clones the bitset).
 pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
-    node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES)
+    node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES.min(rlimit_budget()))
+}
+
+/// The address-space budget the process ACTUALLY has (0.19 Phase 4): the
+/// fixed 8 GiB retained-bytes target silently exceeded the benchmark
+/// runner's per-job `RLIMIT_AS` (phys/jobs) on small-state numeric tasks —
+/// tiny states evaluate fast, the model allowed ~40M insertions, and the
+/// OOM kill fired before the internal cap did (105 mem-cap rows on the
+/// fresh 2023-numeric board, ALL search-state-owned per the
+/// RSS-at-forced-cap attribution: 24 MB and 44–276 ops at a 10k cap).
+/// When an RLIMIT_AS is set, retained state may spend at most 60% of it
+/// (the rest covers the task tables, open list, and transient churn the
+/// per-node model does not count). No limit ⇒ `usize::MAX` (dev boxes
+/// keep today's exact caps — classical baselines are byte-identical).
+/// Read via `/proc/self/limits` (no libc dependency — the crate stays
+/// serde+thiserror only); non-Linux platforms simply keep the fixed
+/// target.
+fn rlimit_budget() -> usize {
+    let Ok(limits) = std::fs::read_to_string("/proc/self/limits") else {
+        return usize::MAX;
+    };
+    for line in limits.lines() {
+        if line.starts_with("Max address space") {
+            // "Max address space  <soft>  <hard>  bytes"
+            let mut it = line.split_whitespace().skip(3);
+            if let Some(soft) = it.next() {
+                if let Ok(bytes) = soft.parse::<u128>() {
+                    return ((bytes * 6 / 10) as u64).try_into().unwrap_or(usize::MAX);
+                }
+                // "unlimited" parses as Err — no clamp
+            }
+        }
+    }
+    usize::MAX
 }
 
 /// [`node_cap_for`] against an explicit byte target (the budgeted-think
@@ -57,7 +97,11 @@ pub(crate) fn node_cap_for_bytes(task: &PackedTask, bytes: usize) -> usize {
             return if n == 0 { usize::MAX } else { n };
         }
     }
-    let per_node = 2 * task.words * 8 + task.fv0.len() * 8 + task.fdef0.len() + 96;
+    // One stored `State` in the arena + the hash->index dedup entry (0.20
+    // Phase 4 dropped the visited set's second bitset copy — the old model
+    // charged `2 * words * 8`). The +128 covers Node bookkeeping, the map
+    // entry, and its singleton index bucket.
+    let per_node = task.words * 8 + task.fv0.len() * 8 + task.fdef0.len() + 128;
     bytes / per_node.max(1)
 }
 
@@ -301,6 +345,33 @@ impl ClosureCost {
 pub(crate) static RESLM: std::sync::OnceLock<Option<crate::resource::TripBound>> =
     std::sync::OnceLock::new();
 
+/// Wall-budget awareness (0.18 Phase 4): `FF_TIME_LIMIT=<secs>` is the
+/// process's REAL wall budget. Armed on first touch — [`arm_wall_limit`]
+/// is called at `api::solve` entry so the clock starts before grounding,
+/// not at the first search. `None` = no limit set (all-rungs behavior).
+/// On wasm the Clock is frozen at zero, so a limit never expires — the
+/// gate degrades to always-affordable, which is correct for thinks.
+static WALL: std::sync::OnceLock<Option<(crate::clock::Clock, f64)>> = std::sync::OnceLock::new();
+
+/// Start the wall-budget clock (idempotent). Called at solve entry.
+pub fn arm_wall_limit() {
+    WALL.get_or_init(|| {
+        std::env::var("FF_TIME_LIMIT")
+            .ok()
+            .and_then(|v| v.trim().parse::<f64>().ok())
+            .filter(|s| s.is_finite() && *s > 0.0)
+            .map(|s| (crate::clock::Clock::now(), s))
+    });
+}
+
+/// Fraction of the wall budget remaining, `None` if no limit is set.
+fn wall_remaining_frac() -> Option<f64> {
+    WALL.get_or_init(|| None).as_ref().map(|(start, total)| {
+        let used = start.elapsed_ms() as f64 / 1000.0;
+        ((total - used) / total).max(0.0)
+    })
+}
+
 pub struct SatGuidance {
     pub prefs: Vec<(PrefPhi, i64)>,
     /// Renewable resources whose live occupancy is penalized on the concrete
@@ -445,8 +516,15 @@ pub fn search_from(
     // states stay distinct (see PackedTask::state_key_with_cost).
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0))); // init popped first
-    let mut visited: FxHashSet<StateKey> = FxHashSet::default();
-    visited.insert(task.state_key_with_cost(&init, cost_fluent));
+                                // Retained-state compression (0.20 Phase 4): visited is hash -> node
+                                // indices; equality is checked EXACTLY against the arena state, so
+                                // nothing stores a second copy of the bitset (the old StateKey set
+                                // held bits + vals per entry — words*8 bytes of pure duplication on
+                                // every inserted node). Dedup verdicts and expansion order are
+                                // byte-identical: the hash only routes to candidates, the exact
+                                // `state_key_eq` decides.
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, cost_fluent), vec![0]);
 
     let mut evaluated = 0usize;
     let mut best = i32::MAX;
@@ -637,7 +715,7 @@ pub fn search_from(
             .filter_map(|(&ni, h)| h.map(|h| (ni, h)))
             .collect();
         let t_phase = crate::clock::Clock::now();
-        let cand_chunks: Vec<Vec<(usize, usize, State, StateKey, i32)>> =
+        let cand_chunks: Vec<Vec<(usize, usize, State, u64, i32)>> =
             par::par_map(&live, threads, |&(ni, ph)| {
                 let st = &nodes[ni].state;
                 let mut v = Vec::new();
@@ -652,7 +730,7 @@ pub fn search_from(
                                 continue; // cost already >= bound: cannot beat incumbent
                             }
                         }
-                        let k = task.state_key_with_cost(&ns, cost_fluent);
+                        let k = task.state_key_hash(&ns, cost_fluent);
                         v.push((ni, oi, ns, k, ph));
                     }
                 }
@@ -669,7 +747,15 @@ pub fn search_from(
                 if g >= cfg.g_bound || g >= len_bound {
                     continue; // cannot beat the length incumbent (see SearchCfg)
                 }
-                if visited.insert(k) {
+                let bucket = visited.entry(k).or_default();
+                if bucket
+                    .iter()
+                    .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, cost_fluent))
+                {
+                    continue;
+                }
+                bucket.push(nodes.len() as u32);
+                {
                     // metric guidance: forgone-preference + renewable-resource
                     // occupancy penalty on the concrete successor (steers toward
                     // genuinely satisfying states that stay within resource pools).
@@ -803,10 +889,46 @@ pub fn plan_avoiding(
     ehc_first: bool,
     forbidden: &[bool],
 ) -> PlanOutcome {
+    // Budget-aware ladder (0.18 Phase 4, the novelty referee's next idea):
+    // `FF_TIME_LIMIT=<secs>` tells the ladder its REAL wall budget (the
+    // runner passes its per-instance timeout). A bounded rung is a bet
+    // that costs wall time before the complete fallback gets its shot —
+    // the 0.17 referee measured that tax at −51 budget-edge instances for
+    // the novelty rung. With the wall budget known, a bounded rung is
+    // entered only while MORE THAN 40% of it remains: early failures
+    // still buy the rungs' wins, late ones stop starving the fallback.
+    // No limit set → all-rungs behavior, byte-identical to before.
+    // (`map_or`, not `is_none_or`: the latter is stable only since 1.82,
+    // above the crate's 1.74 MSRV.)
+    let rungs_affordable = wall_remaining_frac().map_or(true, |f| f > 0.4);
+    // The probe eyes (FF_ORBIT_DEBUG's pattern): narrate the gate's
+    // verdict on stderr, never affect the search.
+    if std::env::var("FF_WALL_DEBUG").is_ok() {
+        eprintln!(
+            "wall: remaining {:?}, bounded rungs {}",
+            wall_remaining_frac(),
+            if rungs_affordable {
+                "affordable"
+            } else {
+                "SKIPPED"
+            }
+        );
+    }
     // Probe hatch (A/B eyes for the novelty rung): skip straight to it.
     if std::env::var("FF_NOVELTY_ONLY").is_ok() {
         if let Some((ops, evaluated)) =
             crate::novelty::search(task, threads, cfg.max_eval, forbidden)
+        {
+            return PlanOutcome {
+                ops: Some(ops),
+                evaluated,
+                ehc_fell_back: true,
+            };
+        }
+    }
+    // Probe hatch for the LIGHT novelty rung (0.20 Phase 3).
+    if std::env::var("FF_NOVLIGHT_ONLY").is_ok() {
+        if let Some((ops, evaluated)) = crate::novelty::search_light(task, cfg.max_eval, forbidden)
         {
             return PlanOutcome {
                 ops: Some(ops),
@@ -823,12 +945,40 @@ pub fn plan_avoiding(
                 ehc_fell_back: false,
             };
         }
+        // Novelty-LIGHT rung (0.20 Phase 3): IW(1) + goal count, ZERO h
+        // evaluations — the width-y shape EHC just died on (its BFS
+        // lookahead pays hFF per state) is exactly where structural
+        // novelty alone finishes in milliseconds (the visit-all witness:
+        // 35 s of the h-guided rung's wall was ALL heuristic calls). A
+        // pop here costs successor generation and a bitset OR, so the
+        // rung's tax ahead of LAMA is small by construction. Same
+        // budget-gate family as the h-guided rung below: default-on
+        // under a declared affordable budget, `FF_NOVLIGHT=1` forces,
+        // `FF_NO_NOVLIGHT=1` opts out.
+        let novlight_on = std::env::var("FF_NOVLIGHT").is_ok()
+            || (wall_remaining_frac().is_some() && std::env::var("FF_NO_NOVLIGHT").is_err());
+        if novlight_on && rungs_affordable {
+            // 300k pops: the width-y wins need plan-length pops (the
+            // visit-all-2014 receipts: 899/3135/3248 — two orders below
+            // this), while a hopeless domain's tax stays ~1 s (the
+            // sokoban probe priced 2M pops at 7 s of wall).
+            const NOVLIGHT_CAP: usize = 300_000;
+            if let Some((ops, evaluated)) =
+                crate::novelty::search_light(task, NOVLIGHT_CAP.min(cfg.max_eval), forbidden)
+            {
+                return PlanOutcome {
+                    ops: Some(ops),
+                    evaluated,
+                    ehc_fell_back: true,
+                };
+            }
+        }
         // LAMA rung (0.9 Phase 3): EHC gave up, i.e. the relaxed plan has
         // plateaued — exactly where landmark counting + preferred-operator
         // boosting keep a gradient. Bounded, so the complete weighted
         // fallback below still gets its shot; never entered under an
         // explicit --search bfs. `FF_NO_LAMA=1` restores the two-rung ladder.
-        if std::env::var("FF_NO_LAMA").is_err() {
+        if std::env::var("FF_NO_LAMA").is_err() && rungs_affordable {
             const LAMA_CAP: usize = 400_000;
             if let Some((ops, evaluated)) =
                 crate::lama::search(task, threads, LAMA_CAP.min(cfg.max_eval), forbidden)
@@ -840,17 +990,20 @@ pub fn plan_avoiding(
                 };
             }
         }
-        // Novelty rung (0.17 Phase 3), OPT-IN (`FF_NOVELTY=1`): width-1
-        // novelty-first exploration for where the relaxed gradient is flat
-        // or wrong. The referee A/B flipped it off-by-default: as a third
-        // bounded rung it BURNS WALL TIME ahead of the complete fallback,
-        // and under wall-clock budgets that tax cost 51 instances across
-        // the classical boards against 7 gained (+3 on 2018-sat and +3 on
-        // prop-2006 are real and stay reachable via the flag) — the same
-        // referee arithmetic that made gen-skip opt-in in 0.15. The LAMA
-        // rung survives the same structure because its win rate carries
-        // its tax; novelty's does not, on today's corpora.
-        if std::env::var("FF_NOVELTY").is_ok() {
+        // Novelty rung (0.17 Phase 3): width-1 novelty-first exploration
+        // for where the relaxed gradient is flat or wrong. The 0.17
+        // referee flipped it off-by-default (+7/−51: the rung's wall-time
+        // tax ahead of the complete fallback), but the 0.18 budget gate
+        // REVERSED that arithmetic — with FF_TIME_LIMIT declared the
+        // gated rung measured +4/−0 (termes, organic-synthesis-split,
+        // quantum-layout). So (0.19 Phase 5): the rung is DEFAULT-ON
+        // exactly when a wall budget is declared and affordable —
+        // `FF_NO_NOVELTY=1` opts out, `FF_NOVELTY=1` still forces it
+        // without a budget, and with no FF_TIME_LIMIT set the ladder is
+        // byte-identical to 0.17's.
+        let novelty_on = std::env::var("FF_NOVELTY").is_ok()
+            || (wall_remaining_frac().is_some() && std::env::var("FF_NO_NOVELTY").is_err());
+        if novelty_on && rungs_affordable {
             const NOVELTY_CAP: usize = 400_000;
             if let Some((ops, evaluated)) =
                 crate::novelty::search(task, threads, NOVELTY_CAP.min(cfg.max_eval), forbidden)
@@ -887,26 +1040,73 @@ pub fn plan_avoiding(
             }
         }
     }
-    let (ops, evaluated) = match search_from(
-        task,
-        &task.initial(),
-        &task.goal_pos,
-        &task.goal_num,
-        None,
-        f64::INFINITY,
-        threads,
-        cfg,
-        forbidden,
-        None,
-        None,
-    ) {
-        PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
-        PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
-    };
-    PlanOutcome {
-        ops,
-        evaluated,
-        ehc_fell_back: ehc_first,
+    // The refill loop (0.20 Phase 1: spend the whole wall). A CAPPED
+    // fallback — eval cap or the node cap's memory model, not genuine
+    // exhaustion — used to return unsolved with wall budget still on the
+    // table (the tpp-numeric witness: rungs 27 s, fallback capped at
+    // 7.8 s, 25 s of a 60 s wall handed back unspent). With a wall
+    // budget declared and >10% of it remaining, re-enter GREEDIER
+    // instead: w_h ×4 (deeper for the same node count — the memory
+    // bound is untouched) and max_eval ×4, at most REFILL_MAX_ROUNDS
+    // re-entries (escalation saturates; re-running a saturated config
+    // is deterministic waste). Genuine exhaustion (`capped: false`)
+    // returns immediately — completeness is weight-independent, so a
+    // re-run cannot help. An EXPLICIT eval cap (api max_evaluated ≠
+    // default) is a budgeted-think contract and disarms the loop.
+    // No budget declared → single round, byte-identical to 0.19.
+    // `FF_NO_REFILL=1` is the discriminator hatch.
+    const REFILL_MAX_ROUNDS: usize = 6;
+    let refill_armed = cfg.max_eval == DEFAULT_MAX_EVAL && std::env::var("FF_NO_REFILL").is_err();
+    let mut round_cfg = cfg;
+    let mut round = 0usize;
+    let mut total_evaluated = 0usize;
+    loop {
+        match search_from(
+            task,
+            &task.initial(),
+            &task.goal_pos,
+            &task.goal_num,
+            None,
+            f64::INFINITY,
+            threads,
+            round_cfg,
+            forbidden,
+            None,
+            None,
+        ) {
+            PlanResult::Plan { ops, evaluated, .. } => {
+                return PlanOutcome {
+                    ops: Some(ops),
+                    evaluated: total_evaluated + evaluated,
+                    ehc_fell_back: ehc_first,
+                };
+            }
+            PlanResult::Unsolvable { evaluated, capped } => {
+                total_evaluated += evaluated;
+                let wall_ok = wall_remaining_frac().is_some_and(|f| f > 0.10);
+                if !(capped && refill_armed && wall_ok && round < REFILL_MAX_ROUNDS) {
+                    return PlanOutcome {
+                        ops: None,
+                        evaluated: total_evaluated,
+                        ehc_fell_back: ehc_first,
+                    };
+                }
+                round += 1;
+                round_cfg.w_h = round_cfg
+                    .w_h
+                    .saturating_mul(4)
+                    .min((1e9 * WEIGHT_SCALE) as i64);
+                round_cfg.max_eval = round_cfg.max_eval.saturating_mul(4);
+                if std::env::var("FF_WALL_DEBUG").is_ok() {
+                    eprintln!(
+                        "wall: refill round {} (w_h {}, max_eval {})",
+                        round + 1,
+                        round_cfg.w_h as f64 / WEIGHT_SCALE,
+                        round_cfg.max_eval
+                    );
+                }
+            }
+        }
     }
 }
 

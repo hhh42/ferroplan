@@ -27,7 +27,7 @@ summed cost instead. Do not present summed cost as an IPC quality score.
 per-instance costs (self-relative quality — regression tracking, not an
 official IPC score; label it as such).
 """
-import json, os, re, resource, shutil, subprocess, sys, tempfile, time
+import json, os, re, resource, shutil, subprocess, sys, tempfile, threading, time
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -54,6 +54,37 @@ MODE = arg("--mode", None)  # ff --mode passthrough (None = ff's default, auto)
 # exactly that). Default: physical RAM / jobs, floored at 2 GiB; 0 = off.
 _phys_gb = os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1 << 30)
 MEMGB = float(arg("--mem-gb", str(max(2, int(_phys_gb / max(JOBS, 1))))))
+
+
+def _rlimit_as_enforceable():
+    """Can we actually lower RLIMIT_AS on this kernel?
+
+    macOS reports RLIMIT_AS as INFINITY but rejects EVERY setrlimit on it
+    with EINVAL (surfacing as ValueError). That is far worse than the cap
+    silently not firing: raised inside `preexec_fn`, subprocess re-raises it
+    as SubprocessError, and this runner's spawn-retry then books EVERY
+    instance as `spawn-fail` after a 5 s breather — a full 12-board sweep
+    burns hours to produce nothing but garbage rows. So probe once, honestly:
+    lower the soft limit and put it back. Side-effect-free on both kernels.
+    """
+    if MEMGB <= 0:
+        return False
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        resource.setrlimit(resource.RLIMIT_AS, (int(MEMGB * (1 << 30)), hard))
+        resource.setrlimit(resource.RLIMIT_AS, (soft, hard))
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+RLIMIT_AS_OK = _rlimit_as_enforceable()
+# Where RLIMIT_AS is unavailable, an RSS watchdog enforces the same budget by
+# polling and killing (the rusage watchdog named in docs/migration-m5.md).
+# RSS is what actually drives a box into swap, so on the watchdog path the
+# mem-cap column measures resident bytes, not address space — a different
+# instrument for the same column, and recorded as such wherever it is used.
+MEMWATCH = bool(MEMGB > 0 and not RLIMIT_AS_OK)
 # Self-relative quality: per-instance reference costs from a prior run's raw
 # JSONL (see the scoring note above).
 SCORE_AGAINST = arg("--score-against", None)
@@ -91,10 +122,14 @@ TRACK_PATTERNS = {
     "seq-sat-2014": r"sequential-satisficing",
     "seq-agile-2014": r"sequential-agile",
     "seq-mco-2014": r"sequential-multi-core",
+    "seq-opt-2014": r"sequential-optimal",
     "tempo-sat-2014": r"temporal-satisficing",
     "sat-2018": r"sequential-satisficing",
     "agile-2023": r"-agile$",
     "numeric-2023": r"numeric-satisficing",
+    # 0.20: the IPC-2026 numeric dataset (vendored by get-ipc.sh from the
+    # competition's public repo after the track ran at ICAPS Dublin).
+    "numeric-2026": r"numeric-2026",
 }
 
 # Which competition directories each track lives in.
@@ -111,10 +146,14 @@ TRACK_IPCS = {
     "seq-sat-2014": ("ipc-2014",),
     "seq-agile-2014": ("ipc-2014",),
     "seq-mco-2014": ("ipc-2014",),
+    # 0.19: the optimal-track entries (pair with `--mode optimal`; the
+    # engine certifies or stays silent, so coverage = proof rate).
+    "seq-opt-2014": ("ipc-2014",),
     "tempo-sat-2014": ("ipc-2014",),
     "sat-2018": ("ipc-2018",),
     "agile-2023": ("ipc-2023",),
     "numeric-2023": ("ipc-2023n",),
+    "numeric-2026": ("ipc-2026n",),
 }
 
 
@@ -158,8 +197,18 @@ def instances(vdir):
     idir = os.path.join(vdir, "instances")
     shared = os.path.join(vdir, "domain.pddl")
     out = []
-    names = sorted(os.listdir(idir),
-                   key=lambda n: int(re.search(r"\d+", n).group()))
+    # A name with no digits cannot be addressed by instance number at all, so
+    # it is skipped LOUDLY rather than crashing the sweep (a bad normalization
+    # upstream once took out a whole board mid-run) — and never silently, or a
+    # missing instance reads as a smaller corpus instead of a corpus bug.
+    named, skipped = [], []
+    for f in os.listdir(idir):
+        m = re.search(r"\d+", f)
+        (named if m else skipped).append(f)
+    if skipped:
+        print(f"WARN {vdir}: skipping un-numbered instance file(s): "
+              f"{', '.join(sorted(skipped))}", file=sys.stderr)
+    names = sorted(named, key=lambda n: int(re.search(r"\d+", n).group()))
     for f in names:
         n = int(re.search(r"\d+", f).group())
         d = shared if os.path.isfile(shared) else os.path.join(
@@ -195,6 +244,13 @@ def val_check(val, domain, problem, steps, temporal=False):
         val, domain, problem, path]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if "Parser failed" in (r.stdout or "") + (r.stderr or ""):
+            # VAL could not PARSE the domain/problem (independent of the
+            # plan — the 0.20 attribution: drone-numeric fails on any
+            # problem with two objects of the location type, before a
+            # plan is ever judged). Validation is UNAVAILABLE, which is
+            # not the same verdict as a rejected plan: None, not False.
+            return None
         return r.returncode == 0 and "Plan valid" in r.stdout
     except Exception:
         return False
@@ -202,14 +258,74 @@ def val_check(val, domain, problem, steps, temporal=False):
         os.unlink(path)
 
 
+def _rss_bytes(pid):
+    """Resident bytes for `pid`, or 0 if it has already gone."""
+    try:
+        out = subprocess.run(["ps", "-o", "rss=", "-p", str(pid)],
+                             capture_output=True, text=True, timeout=5).stdout.strip()
+        return int(out) * 1024 if out else 0   # ps reports KiB
+    except (ValueError, OSError, subprocess.SubprocessError):
+        return 0
+
+
+def _run_capped(cmd, timeout, env, preexec):
+    """subprocess.run, plus an RSS watchdog when RLIMIT_AS is unavailable.
+
+    Returns (CompletedProcess, mem_exceeded). The watchdog kills the child the
+    moment it crosses MEMGB so a runaway grounding cannot drag its sibling job
+    (and the box) into swap for the rest of a multi-hour sweep.
+    """
+    if not MEMWATCH:
+        return subprocess.run(cmd, capture_output=True, text=True,
+                              timeout=timeout, preexec_fn=preexec, env=env), False
+    cap = int(MEMGB * (1 << 30))
+    hit = threading.Event()
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            text=True, preexec_fn=preexec, env=env)
+
+    def watch():
+        # 0.25s: unlike RLIMIT_AS, a poll can only catch a balloon it sees, and
+        # grounding transients are the fast ones (the elevator-11 spike above).
+        # Four `ps` calls/sec/job is nothing against a multi-hour sweep; the
+        # residual risk is whatever a job can allocate inside one interval, so
+        # leave real headroom between (jobs x --mem-gb) and physical RAM.
+        while proc.poll() is None:
+            if _rss_bytes(proc.pid) > cap:
+                hit.set()
+                try:
+                    proc.kill()
+                except OSError:
+                    pass
+                return
+            time.sleep(0.25)
+
+    threading.Thread(target=watch, daemon=True).start()
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()
+        raise
+    return (subprocess.CompletedProcess(cmd, proc.returncode, out, err),
+            hit.is_set())
+
+
 def run_instance(val, n, d, p):
     """One ff invocation → per-instance record dict."""
     cmd = [FF, "-o", d, "-f", p, "--json", "--threads", THREADS]
     if MODE:
         cmd += ["--mode", MODE]
+    # Budget-aware ladder (0.18): tell the engine its real wall budget so
+    # bounded rungs stop starving the complete fallback near the edge.
+    env = dict(os.environ, FF_TIME_LIMIT=str(TIMEOUT))
 
-    def _limit():
-        if MEMGB > 0:
+    # Only install a preexec_fn where the cap actually takes: an unusable
+    # setrlimit raises INSIDE the fork hook, and every row becomes spawn-fail.
+    # (preexec_fn is also documented-unsafe with threads, and this runner is a
+    # thread pool — so skipping it on the watchdog path is a bonus, not a loss.)
+    _limit = None
+    if RLIMIT_AS_OK:
+        def _limit():
             cap = int(MEMGB * (1 << 30))
             resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
     rec = {"instance": n, "solved": False, "time": None, "metric": None,
@@ -224,25 +340,44 @@ def run_instance(val, n, d, p):
         # fails again the row is honestly marked spawn-fail, not engine.
         for attempt in (0, 1):
             try:
-                r = subprocess.run(cmd, capture_output=True, text=True,
-                                   timeout=TIMEOUT, preexec_fn=_limit)
+                r, mem_hit = _run_capped(cmd, TIMEOUT, env, _limit)
                 break
             except (OSError, subprocess.SubprocessError) as e:
                 if isinstance(e, subprocess.TimeoutExpired) or attempt == 1:
                     raise
                 time.sleep(5)
         el = time.perf_counter() - t
-        if r.returncode != 0 and "allocation" in (r.stderr or ""):
+        # Honest clocks (0.20 Phase 1): elapsed wall is recorded for
+        # UNSOLVED rows too. Before this, a graceful engine exit at the
+        # FF_TIME_LIMIT wall left time=None and the standings classed it
+        # as an engine-reject — maintenance-2014's "8 rejects" were
+        # ordinary timeouts wearing that costume.
+        rec["time"] = round(el, 2)
+        # Two instruments, one verdict: RLIMIT_AS makes the child fail its own
+        # allocation; the RSS watchdog SIGKILLs it (returncode -9, no stderr).
+        # Both are mem-cap, and the watchdog's verdict must be read before the
+        # generic nonzero-exit branch below or it books as engine-exit--9.
+        if mem_hit or (r.returncode != 0 and "allocation" in (r.stderr or "")):
             rec["notes"] = "mem-cap"
         s = json.loads(r.stdout) if r.stdout.strip() else {}
         plan = s.get("plan") or {}
+        if not s and r.returncode != 0 and rec["notes"] is None:
+            # No JSON came back and the exit was nonzero: a real engine
+            # error/reject (parse failure, panic), distinct from a clean
+            # "searched and found nothing" JSON verdict.
+            rec["notes"] = f"engine-exit-{r.returncode}"
         if s.get("solved"):
-            rec.update(solved=True, time=round(el, 2),
+            rec.update(solved=True,
                        metric=plan.get("metric"), length=plan.get("length"),
                        notes=s.get("notes"))
             if val:
                 rec["val"] = val_check(val, d, p, plan.get("steps", []),
                                        temporal=plan.get("makespan") is not None)
+        elif s.get("notes") and rec["notes"] is None:
+            # Unsolved WITH a mechanism (e.g. "unsolvable at grounding:
+            # ..." from the 0.19 named verdicts) — keep it for the
+            # standings' reject-vs-search attribution.
+            rec["notes"] = s.get("notes")
     except subprocess.TimeoutExpired:
         rec["time"] = TIMEOUT
     except (OSError, subprocess.SubprocessError):

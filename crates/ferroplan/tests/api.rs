@@ -120,3 +120,28 @@ fn parse_error_reports_line() {
         e => panic!("expected DomainParse, got {e:?}"),
     }
 }
+
+/// The optional `schema` feature must produce a *typed* schema for the
+/// configuration surface — an object with the real knobs — not an opaque
+/// `true`/`{}` that tells an MCP client nothing. Guards against a derive
+/// silently dropping off `Options` (see `crates/ferroplan/Cargo.toml`).
+#[cfg(feature = "schema")]
+#[test]
+fn schema_feature_types_the_options_surface() {
+    let schema = serde_json::to_value(schemars::schema_for!(Options)).unwrap();
+    let props = schema["properties"]
+        .as_object()
+        .expect("Options schema should be an object with properties");
+    for knob in ["mode", "search", "threads"] {
+        assert!(
+            props.contains_key(knob),
+            "schema is missing `{knob}`: {schema}"
+        );
+    }
+    // `mode` and `search` are their own derived enums, not bare strings.
+    let mode = serde_json::to_value(schemars::schema_for!(Mode)).unwrap();
+    assert!(
+        mode.to_string().contains("portfolio"),
+        "Mode schema should enumerate its variants: {mode}"
+    );
+}

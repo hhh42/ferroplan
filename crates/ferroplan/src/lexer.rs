@@ -84,8 +84,28 @@ pub fn lex(input: &str) -> Result<(Vec<Tok>, Vec<u32>), crate::types::ParseError
                 i = j;
             }
             b'-' => {
-                push!(Tok::Dash);
-                i += 1;
+                // `-370` / `-.5` is a NEGATIVE NUMBER LITERAL (0.19 Phase 1:
+                // sailing-numeric's `(= (d p0) -370)` rejected the whole
+                // domain). Only when the digit touches the dash — a standalone
+                // `-` (subtraction, type separators) always has whitespace or
+                // a paren after it in real PDDL, and Metric-FF lexes the same
+                // way. `-name` still lexes as Dash + Name.
+                if i + 1 < n && (b[i + 1].is_ascii_digit() || b[i + 1] == b'.') {
+                    let start = i;
+                    let mut j = i + 1;
+                    while j < n && (b[j].is_ascii_digit() || b[j] == b'.') {
+                        j += 1;
+                    }
+                    let s = &input[start..j];
+                    let v: f64 = s.parse().map_err(|_| {
+                        crate::types::ParseError::new(line, format!("bad number literal `{}`", s))
+                    })?;
+                    push!(Tok::Num(v));
+                    i = j;
+                } else {
+                    push!(Tok::Dash);
+                    i += 1;
+                }
             }
             b'+' | b'*' | b'/' => {
                 push!(Tok::Op((c as char).to_string()));

@@ -156,6 +156,7 @@
         <a href="../gui/index.html">Visualizer</a>
         <a href="../gui/index.html#animate">Animator</a>
         <a href="bazaar-live.html">Bazaar</a>
+        <a href="village-live.html">Village</a>
       </nav>
     </div>
     <div style="display:flex; align-items:center; gap:14px;">
@@ -279,7 +280,7 @@
 </div>
 
 <script type="module">
-import init, { plan, version } from './pkg/ferroplan_wasm.js';
+import init, { plan, explain, version } from './pkg/ferroplan_wasm.js';
 import { DOMAINS } from './examples.js';
 
 const $ = (id) => document.getElementById(id);
@@ -476,11 +477,27 @@ function render(res, ms, run) {
     `<div class="rowtop">` +
       `<span class="badge"><svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M6.5 11.5L3 8l1.2-1.2 2.3 2.3L11.8 4 13 5.2z"/></svg> SOLVED</span>` +
       `<span class="status">${status}</span><div style="flex:1;"></div>` +
+      `<a class="btn sm cancel" id="explainBtn">Explain this plan</a>` +
       `<a class="btn sm" id="animate"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M7 5l12 7-12 7z"/></svg> Animate this plan</a>` +
     `</div>` +
     `<div class="tiles">${tiles}</div>` +
-    `<div class="plan"><div class="h"><span class="lbl">Plan</span><span class="meta">${p.length} steps${isTemporal ? ' · ' + Number(p.makespan).toFixed(3) + ' makespan' : ''}</span></div><div class="list ed">${rows}</div></div>`;
+    `<div class="plan"><div class="h"><span class="lbl">Plan</span><span class="meta">${p.length} steps${isTemporal ? ' · ' + Number(p.makespan).toFixed(3) + ' makespan' : ''}</span></div><div class="list ed">${rows}</div></div>` +
+    `<div id="explain"></div>`;
   show('result');
+
+  // Plan introspection (0.18): re-ground + replay on demand, then render
+  // the view the problem class supports — invariant spans (temporal),
+  // causal chains (classical), preference breakdown (PDDL3).
+  $('explainBtn').addEventListener('click', () => {
+    $('explainBtn').textContent = 'Explaining…';
+    setTimeout(() => {
+      let ex;
+      try { ex = JSON.parse(explain($('dom').value, $('prob').value, JSON.stringify(p))); }
+      catch (e) { ex = { error: String(e) }; }
+      renderExplain(ex, p);
+      $('explainBtn').style.display = 'none';
+    }, 15);
+  });
 
   // hand the solved plan to the Animator (same-origin gui/), which reads it on load
   $('animate').addEventListener('click', () => {
@@ -492,6 +509,62 @@ function render(res, ms, run) {
     } catch (e) { /* private mode / quota — the gui can still re-solve */ }
     location.href = '../gui/index.html#animate';
   });
+}
+
+// ---- introspection views (0.18: the planner made legible) ----
+function panel(label, meta, body) {
+  return `<div class="plan" style="margin-top:14px;"><div class="h"><span class="lbl">${label}</span>` +
+    `<span class="meta">${esc(meta)}</span></div><div class="list ed">${body}</div></div>`;
+}
+function renderExplain(ex, p) {
+  const el = $('explain');
+  if (ex.error) { el.innerHTML = panel('Introspection', '', `<div class="step" style="grid-template-columns:1fr;">${esc(ex.error)}</div>`); return; }
+  let out = '';
+  if (ex.invariant_spans && ex.invariant_spans.length) {
+    // The temporal Gantt with invariant spans: each durative step's bar,
+    // annotated with the `over all` conditions it must protect.
+    const ms = Number(p.makespan) || 1;
+    const rows = ex.invariant_spans.map(sp => {
+      const left = (sp.start / ms * 100).toFixed(2) + '%';
+      const w = Math.max(((sp.end - sp.start) / ms) * 100, 1.5).toFixed(2) + '%';
+      return `<div class="step" style="grid-template-columns:46px 1fr 200px;">` +
+        `<span class="i">${String(sp.step).padStart(2, '0')}</span>` +
+        `<span><span class="act">${esc(sp.action)}</span> <span class="d">[${sp.start.toFixed(3)} → ${sp.end.toFixed(3)}]</span><br>` +
+        `<span class="arg">over all: ${sp.conditions.map(esc).join('  ·  ')}</span></span>` +
+        `<div class="bar" title="${sp.conditions.map(esc).join(', ')}"><div class="fill" style="left:${left}; width:${w}; background:var(--cy);"></div></div></div>`;
+    }).join('');
+    out += panel('Invariant spans', ex.invariant_spans.length + ' durative steps hold conditions over their interval', rows);
+  }
+  if (ex.causal_links && ex.causal_links.length) {
+    // The causal chain: per consumer step, who provided each precondition.
+    const byStep = new Map();
+    for (const l of ex.causal_links) {
+      if (!byStep.has(l.consumer)) byStep.set(l.consumer, []);
+      byStep.get(l.consumer).push(l);
+    }
+    const rows = [...byStep.entries()].map(([k, ls]) => {
+      const st = p.steps[k];
+      const from = ls.map(l =>
+        `<span class="arg">${esc(l.fact.toLowerCase())}</span> <span class="d">← ${l.provider == null ? 'initial state' : 'step ' + String(l.provider).padStart(2, '0')}</span>`
+      ).join('<br>');
+      return `<div class="step" style="grid-template-columns:46px 1fr;align-items:start;">` +
+        `<span class="i">${String(k).padStart(2, '0')}</span>` +
+        `<span><span class="act">${esc(st.action)}</span> <span class="arg">${esc((st.args || []).join(' '))}</span><br>${from}</span></div>`;
+    }).join('');
+    out += panel('Causal chain', ex.causal_links.length + ' provider links (last achiever per precondition)', rows);
+  }
+  if (ex.preferences && ex.preferences.length) {
+    const vio = ex.preferences.filter(x => !x.satisfied);
+    const cost = vio.reduce((a, x) => a + x.weight, 0);
+    const rows = ex.preferences.map(x =>
+      `<div class="step" style="grid-template-columns:46px 1fr 120px;">` +
+      `<span class="i" style="color:${x.satisfied ? 'var(--cy)' : 'var(--acc)'};">${x.satisfied ? '✓' : '✗'}</span>` +
+      `<span class="arg">${esc(x.name)}</span><span class="d">weight ${x.weight}</span></div>`
+    ).join('');
+    out += panel('Preference breakdown', vio.length + ' violated · ' + cost + ' metric cost', rows);
+  }
+  if (!out) out = panel('Introspection', '', `<div class="step" style="grid-template-columns:1fr;">nothing to explain for this problem class</div>`);
+  el.innerHTML = out;
 }
 
 showIdle('Pick a domain + problem (or paste your own), then hit Plan.');

@@ -3,7 +3,10 @@ name = "ferroplan-mcp"
 description = "Model Context Protocol servers for ferroplan planning, persistent self-hosting sessions, and Chatman admission receipts"
 version.workspace = true
 edition.workspace = true
-rust-version.workspace = true
+# NOT the workspace 1.74: rmcp 3.x requires 1.88. Overridden here only, so the
+# LIBRARY keeps its wide MSRV — an MCP server is a tool you run, not a
+# dependency you compile into something old.
+rust-version = "1.88"
 license.workspace = true
 repository.workspace = true
 homepage.workspace = true
@@ -19,11 +22,11 @@ name = "ferroplan-mcp"
 path = "src/main.rs"
 
 [dependencies]
-ferroplan = { path = "../ferroplan", version = "0.17.0", features = ["schema"] }
+# `schema` gives Options/Mode/Search a real JsonSchema, so the tool inputs that
+# embed them advertise the actual knobs instead of an opaque object.
+ferroplan = { path = "../ferroplan", version = "0.20.0", features = ["schema"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-blake3 = "1"
-bcinr-cmca = { version = "26.7.28", features = ["std"] }
-rmcp = { version = "2.2.0", features = ["server", "macros", "transport-io", "schemars"] }
-tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "sync", "io-std"] }
-schemars = "1.2.2"
+rmcp = { version = "3.1", features = ["server", "macros", "transport-io"] }
+schemars = "1.2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }

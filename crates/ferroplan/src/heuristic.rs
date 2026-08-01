@@ -770,6 +770,144 @@ fn select(task: &PackedTask, sc: &mut Scratch, oi: usize, reps: i32, count: &mut
     }
 }
 
+/// Fold a linear numeric expression into `Σ coeff·fluent + konst`,
+/// scaled by `scale`. `false` = not linear (fluent×fluent, fluent
+/// divisor) — the caller falls back to no charge, exactly as before.
+fn linearize(e: &NExpr, scale: f64, coeffs: &mut Vec<(u32, f64)>, konst: &mut f64) -> bool {
+    fn const_of(e: &NExpr) -> Option<f64> {
+        match e {
+            NExpr::Num(n) => Some(*n),
+            NExpr::Fluent(_) => None,
+            NExpr::Add(a, b) => Some(const_of(a)? + const_of(b)?),
+            NExpr::Sub(a, b) => Some(const_of(a)? - const_of(b)?),
+            NExpr::Mul(a, b) => Some(const_of(a)? * const_of(b)?),
+            NExpr::Div(a, b) => Some(const_of(a)? / const_of(b)?),
+            NExpr::Neg(a) => Some(-const_of(a)?),
+        }
+    }
+    match e {
+        NExpr::Num(n) => {
+            *konst += scale * n;
+            true
+        }
+        NExpr::Fluent(i) => {
+            coeffs.push((*i, scale));
+            true
+        }
+        NExpr::Add(a, b) => {
+            linearize(a, scale, coeffs, konst) && linearize(b, scale, coeffs, konst)
+        }
+        NExpr::Sub(a, b) => {
+            linearize(a, scale, coeffs, konst) && linearize(b, -scale, coeffs, konst)
+        }
+        NExpr::Mul(a, b) => {
+            if let Some(c) = const_of(a) {
+                linearize(b, scale * c, coeffs, konst)
+            } else if let Some(c) = const_of(b) {
+                linearize(a, scale * c, coeffs, konst)
+            } else {
+                false
+            }
+        }
+        NExpr::Div(a, b) => match const_of(b) {
+            Some(c) if c != 0.0 => linearize(a, scale / c, coeffs, konst),
+            _ => false,
+        },
+        NExpr::Neg(a) => linearize(a, -scale, coeffs, konst),
+    }
+}
+
+/// Repetition charge for a LINEAR numeric goal the bare-fluent path
+/// cannot see (0.19 Phase 3, the landscape memo's bet #2): normalize
+/// `lhs ≥ rhs` to `Σ coeff·fluent + konst ≥ 0`, then find the op whose
+/// combined constant-delta effects raise the combination fastest —
+/// reps = ⌈gap / combo_delta⌉. Runs ONLY where the bare path returned
+/// None, so every previously-charged shape keeps its exact charge (and
+/// tie-break); sailing's `(≥ (+ (* 2 (x)) (y)) (d))` class gains a
+/// gradient where it had a plateau. `FF_NO_NUMH=1` restores the hole.
+fn numeric_achiever_linear(
+    task: &PackedTask,
+    np: &NumPre,
+    fv: &[f64],
+    def: &[bool],
+    op_stamp: &[u32],
+    gen: u32,
+) -> Option<(usize, i32)> {
+    if std::env::var("FF_NO_NUMH").is_ok() {
+        return None;
+    }
+    let need_raise = match np.op {
+        CompOp::Ge | CompOp::Gt => true,
+        CompOp::Le | CompOp::Lt => false,
+        CompOp::Eq => return None,
+    };
+    let mut coeffs: Vec<(u32, f64)> = Vec::new();
+    let mut konst = 0.0;
+    if !linearize(&np.lhs, 1.0, &mut coeffs, &mut konst)
+        || !linearize(&np.rhs, -1.0, &mut coeffs, &mut konst)
+    {
+        return None;
+    }
+    let cur: f64 = konst
+        + coeffs
+            .iter()
+            .map(|&(f, c)| {
+                if def[f as usize] {
+                    c * fv[f as usize]
+                } else {
+                    0.0
+                }
+            })
+            .sum::<f64>();
+    // condition is `combo ≥ 0` (or ≤): gap is how far the wrong side is
+    let gap = if need_raise { -cur } else { cur };
+    if gap <= 0.0 {
+        return None; // already satisfiable-side; the caller's eval said no, stay silent
+    }
+    let mut best: Option<(usize, i32)> = None;
+    let mut seen_ops: Vec<u32> = Vec::new();
+    for &(f, _) in &coeffs {
+        for &oi in task.neff_by_fluent.slice(f as usize) {
+            if op_stamp[oi as usize] != gen || seen_ops.contains(&oi) {
+                continue;
+            }
+            seen_ops.push(oi);
+            let mut combo_delta = 0.0;
+            for ne in task.num_eff.slice(oi as usize) {
+                let Some(&(_, coeff)) = coeffs.iter().find(|&&(f2, _)| f2 == ne.target) else {
+                    continue;
+                };
+                let Some(v) = ne.value.eval(fv, def) else {
+                    continue;
+                };
+                match ne.op {
+                    AssignOp::Increase => combo_delta += coeff * v,
+                    AssignOp::Decrease => combo_delta -= coeff * v,
+                    _ => {
+                        combo_delta = f64::NAN; // non-monotone writer: skip op
+                        break;
+                    }
+                }
+            }
+            let toward = if need_raise {
+                combo_delta
+            } else {
+                -combo_delta
+            };
+            if toward > 1e-9 && combo_delta.is_finite() {
+                let reps = ((gap / toward).ceil() as i32).max(1);
+                if best
+                    .map(|(bo, r)| reps < r || (reps == r && (oi as usize) < bo))
+                    .unwrap_or(true)
+                {
+                    best = Some((oi as usize, reps));
+                }
+            }
+        }
+    }
+    best
+}
+
 fn numeric_achiever(
     task: &PackedTask,
     np: &NumPre,
@@ -780,11 +918,11 @@ fn numeric_achiever(
 ) -> Option<(usize, i32)> {
     let target = match &np.lhs {
         NExpr::Fluent(i) => *i,
-        _ => return None,
+        _ => return numeric_achiever_linear(task, np, fv, def, op_stamp, gen),
     };
     let want = match &np.rhs {
         NExpr::Num(n) => *n,
-        _ => return None,
+        _ => return numeric_achiever_linear(task, np, fv, def, op_stamp, gen),
     };
     let cur = if def[target as usize] {
         fv[target as usize]

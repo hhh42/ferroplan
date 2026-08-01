@@ -25,8 +25,12 @@ Quality scoring, by track semantics:
     official per-instance archive is vendored for 2008/2011.
 
 Failure classes per unsolved instance (from the JSONL):
-  timeout (time == budget), mem-cap (notes), engine-reject/error
-  (no time recorded — parse/feature rejects land here), else search.
+  timeout (elapsed >= 95% of budget — including graceful engine exits
+  AT an armed FF_TIME_LIMIT wall), mem-cap (notes), engine-reject/error
+  (a named mechanism: parse/feature reject, grounding verdict, nonzero
+  exit, or a legacy pre-0.20 row with no elapsed recorded), else
+  early-exit (search gave up with wall budget left — the class the
+  0.20 refill loop exists to shrink).
 """
 
 import json
@@ -38,8 +42,34 @@ from collections import defaultdict
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 B = os.path.join(ROOT, "benchmarks")
-OUT = os.path.join(B, "ipc-standings.md")
+# `--out FILE` so a regeneration can be inspected before it replaces the
+# committed table (a bare run overwrites ipc-standings.md in place, and on a
+# box holding only some of the raws that is a destructive act).
+OUT = (sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv
+       else os.path.join(B, "ipc-standings.md"))
 ARCHIVE = os.path.join(B, "IPC5-results.tgz")
+
+# WHICH BOX PRODUCED A BOARD. The 0.21 Phase 1 re-baseline re-swept the twelve
+# canonical boards on the M5 Air; every other board in this table still carries
+# numbers from the 4-core cloud container. Faster silicon inflates coverage at a
+# fixed budget, so an Air row and a cloud row MUST NOT be read against each
+# other — and a missing raw JSONL means different things for the two: for an
+# Air board it means the sweep has not finished, for a cloud board it means the
+# board was never re-baselined and its record lives in git history. Rendering
+# both as "not swept" would claim we had never measured them at all.
+AIR_REBASELINED = {
+    "2023 classical", "2014 tempo-sat", "2018 seq-sat", "2014 seq-sat",
+    "2014 seq-agile", "2014 seq-opt", "2026 numeric (first board)",
+    "2023 numeric", "2023 agile ENTRY (300s)",
+    # shared-sweep labels, split per competition at render time
+    "seq-opt", "tempo-sat", "seq-sat",
+}
+CLOUD_ERA = "cloud-era board, NOT re-baselined — see git history"
+
+
+def absent(label, pending="sweep in flight / not yet run"):
+    """Row text for a board with no usable raw, honest about which case."""
+    return pending if label in AIR_REBASELINED else CLOUD_ERA
 
 # sweep jsonl -> (label, competition, budget seconds)
 SWEEPS = {
@@ -61,6 +91,16 @@ SWEEPS = {
     "ipc2018-sat.jsonl": ("2018 seq-sat", "modern", 60),
     "ipc2023-agile.jsonl": ("2023 classical", "modern", 60),
     "ipc2023-numeric.jsonl": ("2023 numeric", "modern", 60),
+    # 0.20: the IPC-2026 numeric dataset's first board (the track ran at
+    # ICAPS Dublin, June 2026; corpus vendored from the public repo).
+    "ipc2026-numeric.jsonl": ("2026 numeric (first board)", "modern", 60),
+    # The official-budget entry (0.19 cut, locked at scoping): ONE sweep
+    # at the competition's 300 s agile budget — an ENTRY, not a baseline.
+    "ipc2023-agile-300s.jsonl": ("2023 agile ENTRY (300s)", "modern", 300),
+    # The optimal tracks (0.19 Phase 2: Mode::Optimal, A* + h^max —
+    # coverage IS proof rate; every solved row carries a certificate).
+    "ipc-opt-2008-11.jsonl": ("seq-opt", "optimal", 60),
+    "ipc2014-opt.jsonl": ("2014 seq-opt", "optimal", 60),
 }
 
 # our 2006 variant name -> (archive domain dir, archive track dir prefix)
@@ -104,9 +144,12 @@ def classify(r, budget):
         # search losses. The audit record investigates per corpus.
         return "VAL-RED"
     notes = r.get("notes") or ""
-    if notes == "mem-cap":
+    # Solution.notes is a list on engine rows; runner-stamped classes are
+    # plain strings. Normalize to one text for the mechanism checks.
+    ntext = notes if isinstance(notes, str) else " ".join(str(x) for x in notes)
+    if ntext == "mem-cap":
         return "mem-cap"
-    if notes == "spawn-fail":
+    if ntext == "spawn-fail":
         # Runner-side fork failure under memory pressure (environmental;
         # see run_instance's retry note in ipc67.py). Pre-0.16-fix sweeps
         # logged these as engine-reject/error — the 0.16 record names the
@@ -114,10 +157,23 @@ def classify(r, budget):
         return "spawn-fail"
     t = r.get("time")
     if t is None:
+        # Pre-0.20 runner rows only: elapsed was not recorded for
+        # unsolved rows, so a graceful engine exit AT the armed wall is
+        # indistinguishable from a true reject here. The 0.20 runner
+        # records elapsed for every row; this legacy class empties as
+        # boards re-sweep (the 0.20 audit showed maintenance-2014's
+        # "rejects" were wall-exit timeouts).
         return "engine-reject/error"
     if t >= budget * 0.95:
         return "timeout"
-    return "search"
+    if ntext.startswith("engine-exit") or "unsolvable" in ntext or "reject" in ntext:
+        # A named mechanism: parse/feature reject, grounding verdict, or
+        # a nonzero exit without a JSON verdict.
+        return "engine-reject/error"
+    # Finished early, no plan, no named mechanism: the search gave up
+    # with wall budget left (capped ladder, exhaustion). The 0.20 refill
+    # loop exists to shrink this class; whatever remains is honest.
+    return "early-exit"
 
 
 def archive_lengths():
@@ -196,7 +252,7 @@ def main():
     for label, qnote in ip5:
         d = data.get(label)
         if d is None:
-            lines.append(f"| {label} | not swept | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
@@ -255,7 +311,7 @@ def main():
                        ("net-benefit", "net-benefit")]:
         d = split_rows(key, "ipc-2008")
         if d is None:
-            lines.append(f"| {label} | not swept | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
@@ -263,9 +319,21 @@ def main():
             f"| {label} | yes | {s}/{n} | coverage + VAL "
             f"(no official per-instance archive vendored) | {fails} |"
         )
+    d = split_rows("seq-opt", "ipc-2008")
+    if d is None:
+        lines.append(f"| seq-opt | {absent('seq-opt')} | — | — | — |")
+    else:
+        rows, budget = d
+        s_, n, fails = coverage_line(rows, budget)
+        lines.append(
+            f"| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | {s_}/{n} "
+            "| coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint "
+            "first; every plan "
+            f"certified + VAL) | {fails} |"
+        )
     lines += [
-        "| seq-opt / tempo-opt | out of scope by design (satisficing "
-        "planner) | — | — | — |",
+        "| tempo-opt | out of scope by design (satisficing temporal "
+        "path) | — | — | — |",
         "",
     ]
 
@@ -277,7 +345,7 @@ def main():
     for label, key in [("seq-sat", "seq-sat"), ("tempo-sat", "tempo-sat")]:
         d = split_rows(key, "ipc-2011")
         if d is None:
-            lines.append(f"| {label} | not swept | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
@@ -288,7 +356,7 @@ def main():
         d = data.get(label)
         if d is None:
             lines.append(
-                f"| {label} | sweep in flight / not yet run | — | "
+                f"| {label} | {absent(label)} | — | "
                 "wall-clock per competition rule (4-core box; t8 "
                 "oversubscribed) | — |"
             )
@@ -300,11 +368,19 @@ def main():
             "per competition rule (4-core box; t8 oversubscribed) | "
             f"{fails} |"
         )
-    lines += [
-        "| seq-opt | out of scope by design (satisficing planner) | — | "
-        "— | — |",
-        "",
-    ]
+    d = split_rows("seq-opt", "ipc-2011")
+    if d is None:
+        lines.append(f"| seq-opt | {absent('seq-opt')} | — | — | — |")
+    else:
+        rows, budget = d
+        s_, n, fails = coverage_line(rows, budget)
+        lines.append(
+            f"| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | {s_}/{n} "
+            "| coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint "
+            "first; every plan "
+            f"certified + VAL) | {fails} |"
+        )
+    lines.append("")
 
     # ---------------- The modern corpora (0.17) ----------------
     corpus = os.path.join(B, ".ipc-corpus")
@@ -362,24 +438,37 @@ def main():
         "2023 classical": ("2023", "-agile"),
     }
     for label in ["2014 seq-sat", "2014 seq-agile", "2014 tempo-sat",
-                  "2014 seq-mco t4", "2018 seq-sat", "2023 classical",
-                  "2023 numeric"]:
+                  "2014 seq-mco t4", "2014 seq-opt", "2018 seq-sat",
+                  "2023 classical", "2023 agile ENTRY (300s)",
+                  "2023 numeric",
+                  # 0.20 cut prep added this board to SWEEPS but never to the
+                  # render list, so it could never have appeared in the table.
+                  "2026 numeric (first board)"]:
         d = data.get(label)
         if d is None:
-            lines.append(f"| {label} | sweep in flight / not yet run | — | — | — |")
+            lines.append(f"| {label} | {absent(label)} | — | — | — |")
             continue
         rows, budget = d
         s, n, fails = coverage_line(rows, budget)
         if label in MODERN_Q:
             q = bounds_quality(rows, *MODERN_Q[label]) or "coverage-only"
+        elif label == "2023 agile ENTRY (300s)":
+            q = ("OFFICIAL 300 s budget — a competition-methodology ENTRY, "
+                 "not a baseline")
         elif label == "2023 numeric":
             q = ("field CSVs vendored (ipc-2023n/results) — per-domain "
                  "comparison in the audit record")
         elif label == "2014 seq-mco t4":
             q = "wall-clock per competition rule (4-core box)"
+        elif label == "2014 seq-opt":
+            q = ("coverage = PROOF RATE (Mode::Optimal, A* + admissible "
+                 "LM-cut, h^max sprint first; every plan certified + VAL)")
         else:
             q = "coverage + VAL"
-        lines.append(f"| {label} | yes (first entry, 0.17) | {s}/{n} | {q} | {fails} |")
+        entered = ("yes (first entry, 0.19)" if label == "2014 seq-opt"
+                   else "yes (OFFICIAL-BUDGET entry, 0.19)" if label == "2023 agile ENTRY (300s)"
+                   else "yes (first entry, 0.17)")
+        lines.append(f"| {label} | {entered} | {s}/{n} | {q} | {fails} |")
     lines += [
         "",
         "The 2023 classical corpus is swept on its agile instances at the "

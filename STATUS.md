@@ -3,7 +3,7 @@
 Per `ferroplan-roadmap.md`: updated at the end of every phase. Where this
 file and the code disagree, the code wins and this file gets fixed.
 
-Last update: **0.17 cycle** — since 0.10 the per-cycle records
+Last update: **0.19 cycle** — since 0.10 the per-cycle records
 in `docs/roadmap-0.N.md` carry the live status (measured wins, recorded
 negatives, scoreboards); this file remains the audited baseline of the
 IPC-roadmap era it covers (0.8–0.9). Highlights since: temporal
@@ -19,7 +19,15 @@ over SGPlan5 (0.16), the frontier cycle — the modern corpora
 (IPC 2014/2018/2023 classical + numeric) entered and tabled, the
 landscape memo, the opt-in novelty rung with its honest referee
 verdict, and the abstract village domain with hiring as Session
-goal contracts (0.17).
+goal contracts (0.17), the living-village cycle — the ε-emission
+fix (match-cellar VAL 0/20 → 20/20), the tick-loop village native
+and in-browser, plan introspection views, the wasm 32-bit node-cap
+corpse found and fixed, and the budget-aware classical ladder
+(`FF_TIME_LIMIT`) (0.18), the contest cycle — the reject audit
+(~120 instances freed), Mode::Optimal with 252 certified optima on
+three newly-entered seq-opt tracks, the linear numeric subgoaling
+charge (+52/-1), the RLIMIT-aware node cap, and novelty-by-default
+under budget (0.19).
 Scoreboards: `benchmarks/ipc-standings.md` (the generated
 one-table-per-competition standings) plus the per-track boards it
 links — `benchmarks/ipc67-results.md` (seq-sat),

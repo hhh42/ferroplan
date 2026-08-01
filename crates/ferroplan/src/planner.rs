@@ -126,11 +126,11 @@ pub fn run_planner(
             out.push_str("\n\nff: goal can be simplified to TRUE. The empty plan solves it\n\n");
             return (out, 1);
         }
-        Outcome::GoalFalse => {
+        Outcome::GoalFalse(_) => {
             out.push_str("\n\nff: goal can be simplified to FALSE. No plan will solve it\n\n");
             return (out, 1);
         }
-        Outcome::GoalUndefinedFluent => {
+        Outcome::GoalUndefinedFluent(_) => {
             out.push_str(
                 "\n\nff: goal accesses a fluent that will never have a defined value. Problem unsolvable.\n\n",
             );
@@ -235,11 +235,11 @@ fn plan_pddl3(
             out.push_str("\n\nff: goal can be simplified to TRUE. The empty plan solves it\n\n");
             return 1;
         }
-        Outcome::GoalFalse => {
+        Outcome::GoalFalse(_) => {
             out.push_str("\n\nff: goal can be simplified to FALSE. No plan will solve it\n\n");
             return 1;
         }
-        Outcome::GoalUndefinedFluent => {
+        Outcome::GoalUndefinedFluent(_) => {
             out.push_str(
                 "\n\nff: goal accesses a fluent that will never have a defined value. Problem unsolvable.\n\n",
             );
@@ -320,7 +320,7 @@ fn satisficing_fallback(
             out.push_str("\n\nff: goal can be simplified to TRUE. The empty plan solves it\n\n");
             return 1;
         }
-        Outcome::GoalFalse => {
+        Outcome::GoalFalse(_) => {
             out.push_str("\n\nff: goal can be simplified to FALSE. No plan will solve it\n\n");
             return 1;
         }
@@ -484,11 +484,11 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
             out.push_str("\n\nff: goal can be simplified to TRUE. The empty plan solves it\n\n");
             (out, 1)
         }
-        Outcome::GoalFalse => {
+        Outcome::GoalFalse(_) => {
             out.push_str("\n\nff: goal can be simplified to FALSE. No plan will solve it\n\n");
             (out, 1)
         }
-        Outcome::GoalUndefinedFluent => {
+        Outcome::GoalUndefinedFluent(_) => {
             out.push_str("\n\nff: goal accesses a fluent that will never have a defined value. Problem unsolvable.\n\n");
             (out, 1)
         }
