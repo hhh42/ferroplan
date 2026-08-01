@@ -1,0 +1,43 @@
+name: Daily Agent Methods
+
+on:
+  pull_request:
+    paths:
+      - "examples/daily_agent_methods/**"
+      - "crates/ferroplan/tests/daily_agent_methods_ppddl.rs"
+      - ".github/workflows/daily-agent-methods.yml"
+  push:
+    branches: [main]
+    paths:
+      - "examples/daily_agent_methods/**"
+      - "crates/ferroplan/tests/daily_agent_methods_ppddl.rs"
+      - ".github/workflows/daily-agent-methods.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-agent-methods-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ppddl-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format owned Rust surface
+        run: rustfmt --edition 2021 --check crates/ferroplan/tests/daily_agent_methods_ppddl.rs
+
+      - name: Parse evidence catalog
+        run: python3 -m json.tool examples/daily_agent_methods/method-catalog.json >/dev/null
+
+      - name: Execute PPDDL admission and refusal tests
+        run: cargo test -p ferroplan --test daily_agent_methods_ppddl

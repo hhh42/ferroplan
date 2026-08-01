@@ -1,0 +1,411 @@
+; Daily Agent Work Snapshot Problem
+; This problem records admitted work observed in Files for 2026-07-31.
+; It intentionally preserves partial states: ggen work is not promoted to crown ALIVE here.
+
+(define (problem daily-agent-work-2026-07-31)
+  (:domain daily-agent-methods)
+
+  (:objects
+    ggen ggen-legacy mfw ferroplan - repository
+
+    coordinator merge-agent observer-agent ontology-agent verifier-agent
+    projection-agent document-agent closure-agent planner-agent - agent
+
+    baseline-dependency-repair merge-pr-estate step-two-admission
+    legacy-observation ontology-shacl governance-system-closure
+    engine-graph-projection-closure evidence-products-closure
+    verifier-ladder legacy-equivalence crown-readonly-split
+    document-evidence-index close-unknown-subsystems
+    mfw-gmrw-integration ferroplan-ppddl-design hardcode-daily-methods - task
+
+    branch-baseline branch-merge-estate branch-observer branch-ontology
+    branch-verifier branch-projection branch-doc-index branch-closure
+    branch-methods - branch
+
+    coverage-matrix subsystem-evidence-manifest document-evidence-index-artifact
+    crown-report-artifact mfw-verifier-report-artifact ferroplan-prd-ard-artifact
+    daily-method-domain daily-method-problem daily-method-catalog daily-method-receipt-artifact - artifact
+
+    governance system engine graph projection evidence products verification
+    economics legacy mfw-control-plane ferroplan-planning daily-method-corpus - subsystem
+
+    cli-commands aliases default-verbs config-schemas environment-variables
+    diagnostic-codes receipt-contracts template-surfaces removed-modules
+    public-symbols filesystem-effects exit-contracts just-recipes workflows
+    lsp-surfaces pack-schemas marketplace-formats git-releases migration-commits
+    historical-layouts - observer-class
+
+    external-subsystem-verifier mfw-crown-verifier ppddl-structural-verifier - verifier
+
+    mfw-receipt coverage-projection-receipt daily-method-receipt - receipt
+
+    pr539-ci pr540-ci github-global-commit-search - external-edge)
+
+  (:init
+    (= (total-cost) 0)
+
+    ; Repository orientation observed in today's evidence.
+    (repo-oriented ggen)
+    (doctrine-read ggen)
+    (exact-head-known ggen)
+    (repo-oriented ggen-legacy)
+    (doctrine-read ggen-legacy)
+    (exact-head-known ggen-legacy)
+    (repo-oriented mfw)
+    (doctrine-read mfw)
+    (exact-head-known mfw)
+    (repo-oriented ferroplan)
+    (doctrine-read ferroplan)
+    (exact-head-known ferroplan)
+
+    ; Baseline-first repair and PR estate integration were completed.
+    (baseline-repaired ggen)
+    (work-observed baseline-dependency-repair)
+    (provenance-bound baseline-dependency-repair)
+    (scope-bounded baseline-dependency-repair)
+    (observation-admitted baseline-dependency-repair)
+    (task-integrated baseline-dependency-repair)
+
+    (work-observed merge-pr-estate)
+    (provenance-bound merge-pr-estate)
+    (scope-bounded merge-pr-estate)
+    (observation-admitted merge-pr-estate)
+    (agent-finished merge-pr-estate merge-agent)
+    (task-integrated merge-pr-estate)
+
+    ; Dependency graph used by the G0-G9 work.
+    (depends-on step-two-admission baseline-dependency-repair)
+    (dependency-satisfied step-two-admission)
+    (depends-on legacy-equivalence legacy-observation)
+    (dependency-satisfied legacy-equivalence)
+    (depends-on crown-readonly-split verifier-ladder)
+    (dependency-satisfied crown-readonly-split)
+    (depends-on close-unknown-subsystems verifier-ladder)
+    (dependency-satisfied close-unknown-subsystems)
+    (dependency-satisfied hardcode-daily-methods)
+
+    ; Branch/worktree topology.
+    (branch-for branch-baseline baseline-dependency-repair)
+    (branch-for branch-merge-estate merge-pr-estate)
+    (branch-for branch-observer legacy-observation)
+    (branch-for branch-ontology ontology-shacl)
+    (branch-for branch-verifier verifier-ladder)
+    (branch-for branch-projection crown-readonly-split)
+    (branch-for branch-doc-index document-evidence-index)
+    (branch-for branch-closure close-unknown-subsystems)
+    (branch-for branch-methods hardcode-daily-methods)
+    (isolated-worktree branch-observer)
+    (isolated-worktree branch-ontology)
+    (isolated-worktree branch-verifier)
+    (isolated-worktree branch-projection)
+    (isolated-worktree branch-doc-index)
+    (isolated-worktree branch-closure)
+    (isolated-worktree branch-methods)
+
+    (surfaces-disjoint legacy-observation ontology-shacl)
+    (surfaces-disjoint ontology-shacl verifier-ladder)
+    (surfaces-disjoint verifier-ladder crown-readonly-split)
+    (surfaces-disjoint crown-readonly-split document-evidence-index)
+    (surfaces-disjoint document-evidence-index close-unknown-subsystems)
+    (surfaces-disjoint hardcode-daily-methods close-unknown-subsystems)
+
+    ; Completed G-phase tasks remain task-level facts, not automatic crown promotion.
+    (work-observed legacy-observation)
+    (provenance-bound legacy-observation)
+    (scope-bounded legacy-observation)
+    (observation-admitted legacy-observation)
+    (dispatched legacy-observation observer-agent)
+    (task-dispatched legacy-observation)
+    (agent-finished legacy-observation observer-agent)
+    (task-integrated legacy-observation)
+
+    (work-observed ontology-shacl)
+    (provenance-bound ontology-shacl)
+    (scope-bounded ontology-shacl)
+    (observation-admitted ontology-shacl)
+    (dispatched ontology-shacl ontology-agent)
+    (task-dispatched ontology-shacl)
+    (agent-finished ontology-shacl ontology-agent)
+    (task-integrated ontology-shacl)
+
+    (work-observed verifier-ladder)
+    (provenance-bound verifier-ladder)
+    (scope-bounded verifier-ladder)
+    (observation-admitted verifier-ladder)
+    (dispatched verifier-ladder verifier-agent)
+    (task-dispatched verifier-ladder)
+    (agent-finished verifier-ladder verifier-agent)
+    (task-integrated verifier-ladder)
+
+    (work-observed crown-readonly-split)
+    (provenance-bound crown-readonly-split)
+    (scope-bounded crown-readonly-split)
+    (observation-admitted crown-readonly-split)
+    (dispatched crown-readonly-split projection-agent)
+    (task-dispatched crown-readonly-split)
+    (agent-finished crown-readonly-split projection-agent)
+    (task-integrated crown-readonly-split)
+
+    (work-observed document-evidence-index)
+    (provenance-bound document-evidence-index)
+    (scope-bounded document-evidence-index)
+    (observation-admitted document-evidence-index)
+    (dispatched document-evidence-index document-agent)
+    (task-dispatched document-evidence-index)
+    (agent-finished document-evidence-index document-agent)
+    (task-integrated document-evidence-index)
+
+    (work-observed close-unknown-subsystems)
+    (provenance-bound close-unknown-subsystems)
+    (scope-bounded close-unknown-subsystems)
+    (observation-admitted close-unknown-subsystems)
+    (dispatched close-unknown-subsystems closure-agent)
+    (task-dispatched close-unknown-subsystems)
+    (agent-finished close-unknown-subsystems closure-agent)
+    (task-integrated close-unknown-subsystems)
+
+    ; All 20 observer classes were attempted; findings vs zero remain typed.
+    (observer-attempted cli-commands)
+    (observer-attempted aliases)
+    (observer-attempted default-verbs)
+    (observer-attempted config-schemas)
+    (observer-attempted environment-variables)
+    (observer-attempted diagnostic-codes)
+    (observer-attempted receipt-contracts)
+    (observer-attempted template-surfaces)
+    (observer-attempted removed-modules)
+    (observer-attempted public-symbols)
+    (observer-attempted filesystem-effects)
+    (observer-attempted exit-contracts)
+    (observer-attempted just-recipes)
+    (observer-attempted workflows)
+    (observer-attempted lsp-surfaces)
+    (observer-attempted pack-schemas)
+    (observer-attempted marketplace-formats)
+    (observer-attempted git-releases)
+    (observer-attempted migration-commits)
+    (observer-attempted historical-layouts)
+
+    ; ggen subsystem authority/evidence exists, but this problem does not claim crown ALIVE.
+    (authority-admitted governance)
+    (implementation-present governance)
+    (verifier-assigned governance external-subsystem-verifier)
+    (positive-witness-passed governance)
+    (negative-falsifier-passed governance)
+    (replay-matched governance)
+    (legacy-disposition-closed governance)
+
+    (authority-admitted system)
+    (implementation-present system)
+    (verifier-assigned system external-subsystem-verifier)
+    (positive-witness-passed system)
+    (negative-falsifier-passed system)
+    (replay-matched system)
+    (legacy-disposition-closed system)
+
+    (authority-admitted engine)
+    (implementation-present engine)
+    (verifier-assigned engine external-subsystem-verifier)
+    (positive-witness-passed engine)
+    (negative-falsifier-passed engine)
+    (replay-matched engine)
+    (legacy-disposition-closed engine)
+
+    (authority-admitted graph)
+    (implementation-present graph)
+    (verifier-assigned graph external-subsystem-verifier)
+    (positive-witness-passed graph)
+    (negative-falsifier-passed graph)
+    (replay-matched graph)
+    (legacy-disposition-closed graph)
+
+    (authority-admitted projection)
+    (implementation-present projection)
+    (verifier-assigned projection external-subsystem-verifier)
+    (positive-witness-passed projection)
+    (negative-falsifier-passed projection)
+    (replay-matched projection)
+    (legacy-disposition-closed projection)
+
+    (authority-admitted evidence)
+    (implementation-present evidence)
+    (verifier-assigned evidence external-subsystem-verifier)
+    (positive-witness-passed evidence)
+    (negative-falsifier-passed evidence)
+    (replay-matched evidence)
+    (legacy-disposition-closed evidence)
+
+    (authority-admitted products)
+    (implementation-present products)
+    (verifier-assigned products external-subsystem-verifier)
+    (positive-witness-passed products)
+    (negative-falsifier-passed products)
+    (replay-matched products)
+    (legacy-disposition-closed products)
+
+    (authority-admitted verification)
+    (implementation-present verification)
+    (verifier-assigned verification external-subsystem-verifier)
+    (positive-witness-passed verification)
+    (negative-falsifier-passed verification)
+    (replay-matched verification)
+    (legacy-disposition-closed verification)
+
+    (authority-admitted economics)
+    (implementation-present economics)
+    (verifier-assigned economics external-subsystem-verifier)
+    (positive-witness-passed economics)
+    (negative-falsifier-passed economics)
+    (replay-matched economics)
+    (legacy-disposition-closed economics)
+
+    (authority-admitted legacy)
+    (implementation-present legacy)
+    (verifier-assigned legacy external-subsystem-verifier)
+    (positive-witness-passed legacy)
+    (negative-falsifier-passed legacy)
+    (replay-matched legacy)
+    (legacy-disposition-closed legacy)
+
+    ; Read-only crown and receipted projections are observed methods.
+    (crown-read-only ggen)
+    (projects projection coverage-matrix)
+    (projection-generated coverage-matrix)
+    (projection-canonical coverage-matrix)
+    (generated-output coverage-matrix)
+    (evidence-indexed coverage-matrix)
+    (digest-bound coverage-matrix)
+    (source-head-bound coverage-matrix)
+    (receipt-issued coverage-projection-receipt)
+    (projection-receipted coverage-matrix coverage-projection-receipt)
+
+    (projects evidence subsystem-evidence-manifest)
+    (projection-generated subsystem-evidence-manifest)
+    (projection-canonical subsystem-evidence-manifest)
+    (generated-output subsystem-evidence-manifest)
+    (evidence-indexed subsystem-evidence-manifest)
+    (digest-bound subsystem-evidence-manifest)
+    (source-head-bound subsystem-evidence-manifest)
+
+    (projects evidence document-evidence-index-artifact)
+    (projection-generated document-evidence-index-artifact)
+    (projection-canonical document-evidence-index-artifact)
+    (generated-output document-evidence-index-artifact)
+    (evidence-indexed document-evidence-index-artifact)
+    (digest-bound document-evidence-index-artifact)
+    (source-head-bound document-evidence-index-artifact)
+
+    ; MFW/GMRW has observed executable crown and replay receipts.
+    (work-observed mfw-gmrw-integration)
+    (provenance-bound mfw-gmrw-integration)
+    (scope-bounded mfw-gmrw-integration)
+    (observation-admitted mfw-gmrw-integration)
+    (task-integrated mfw-gmrw-integration)
+    (authority-admitted mfw-control-plane)
+    (implementation-present mfw-control-plane)
+    (verifier-assigned mfw-control-plane mfw-crown-verifier)
+    (positive-witness-passed mfw-control-plane)
+    (negative-falsifier-passed mfw-control-plane)
+    (replay-matched mfw-control-plane)
+    (legacy-disposition-closed mfw-control-plane)
+    (externally-verified mfw-control-plane)
+    (subsystem-alive mfw-control-plane)
+    (receipt-issued mfw-receipt)
+    (task-receipted mfw-gmrw-integration mfw-receipt)
+    (all-receipts-valid mfw)
+    (capability-inventory-complete mfw)
+    (dispositions-closed mfw)
+    (verifier-coverage-complete mfw)
+    (equivalence-coverage-complete mfw)
+    (no-unknowns mfw)
+    (all-equivalence-closed mfw)
+    (clean-room mfw)
+    (repository-replayed mfw)
+    (crown-read-only mfw)
+    (crown-alive mfw)
+
+    ; Ferroplan PPDDL source is present on the exact base; execution remains independently gated.
+    (work-observed ferroplan-ppddl-design)
+    (provenance-bound ferroplan-ppddl-design)
+    (scope-bounded ferroplan-ppddl-design)
+    (observation-admitted ferroplan-ppddl-design)
+    (authority-admitted ferroplan-planning)
+    (implementation-present ferroplan-planning)
+    (unknown-standing ferroplan-planning)
+    (projects ferroplan-planning ferroplan-prd-ard-artifact)
+    (projection-generated ferroplan-prd-ard-artifact)
+    (projection-canonical ferroplan-prd-ard-artifact)
+    (generated-output ferroplan-prd-ard-artifact)
+
+    ; This request's current planning state.
+    (work-observed hardcode-daily-methods)
+    (provenance-bound hardcode-daily-methods)
+    (scope-bounded hardcode-daily-methods)
+    (observation-admitted hardcode-daily-methods)
+    (dispatched hardcode-daily-methods planner-agent)
+    (task-dispatched hardcode-daily-methods)
+    (agent-finished hardcode-daily-methods planner-agent)
+    (task-integrated hardcode-daily-methods)
+
+    (authority-admitted daily-method-corpus)
+    (implementation-present daily-method-corpus)
+    (verifier-assigned daily-method-corpus ppddl-structural-verifier)
+    (positive-witness-passed daily-method-corpus)
+    (negative-falsifier-passed daily-method-corpus)
+    (replay-matched daily-method-corpus)
+    (legacy-disposition-closed daily-method-corpus)
+    (unknown-standing daily-method-corpus)
+
+    (projects daily-method-corpus daily-method-domain)
+    (projects daily-method-corpus daily-method-problem)
+    (projects daily-method-corpus daily-method-catalog)
+    (projects daily-method-corpus daily-method-receipt-artifact)
+
+    (projection-generated daily-method-domain)
+    (projection-canonical daily-method-domain)
+    (generated-output daily-method-domain)
+    (evidence-indexed daily-method-domain)
+    (digest-bound daily-method-domain)
+    (source-head-bound daily-method-domain)
+
+    (projection-generated daily-method-problem)
+    (projection-canonical daily-method-problem)
+    (generated-output daily-method-problem)
+    (evidence-indexed daily-method-problem)
+    (digest-bound daily-method-problem)
+    (source-head-bound daily-method-problem)
+
+    (projection-generated daily-method-catalog)
+    (projection-canonical daily-method-catalog)
+    (generated-output daily-method-catalog)
+    (evidence-indexed daily-method-catalog)
+    (digest-bound daily-method-catalog)
+    (source-head-bound daily-method-catalog)
+
+    (projection-generated daily-method-receipt-artifact)
+    (projection-canonical daily-method-receipt-artifact)
+    (generated-output daily-method-receipt-artifact)
+    (evidence-indexed daily-method-receipt-artifact)
+    (digest-bound daily-method-receipt-artifact)
+    (source-head-bound daily-method-receipt-artifact)
+
+    ; Known external edges are not collapsed into success or failure.
+    (external-ready pr539-ci)
+    (external-ready pr540-ci)
+    (external-unavailable github-global-commit-search)
+    (retryable github-global-commit-search))
+
+  (:goal
+    (and
+      (task-integrated hardcode-daily-methods)
+      (task-receipted hardcode-daily-methods daily-method-receipt)
+      (projection-receipted daily-method-domain daily-method-receipt)
+      (projection-receipted daily-method-problem daily-method-receipt)
+      (projection-receipted daily-method-catalog daily-method-receipt)
+      (projection-receipted daily-method-receipt-artifact daily-method-receipt)
+      (evidence-indexed daily-method-domain)
+      (digest-bound daily-method-domain)
+      (source-head-bound daily-method-domain)))
+
+  (:metric minimize (total-cost))
+)

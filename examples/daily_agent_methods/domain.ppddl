@@ -1,0 +1,492 @@
+; Daily Agent Methods PPDDL Domain
+; Snapshot: 2026-07-31 America/Los_Angeles
+; Purpose: encode reusable agent operating patterns observed during the day.
+; Probability note: external-edge probabilities are uninformative planning priors,
+; not empirical rates. Replace them with admitted telemetry before production use.
+
+(define (domain daily-agent-methods)
+  (:requirements
+    :strips
+    :typing
+    :negative-preconditions
+    :conditional-effects
+    :fluents
+    :probabilistic-effects)
+
+  (:types
+    repository agent task branch artifact subsystem observer-class verifier receipt external-edge)
+
+  (:predicates
+    (repo-oriented ?r - repository)
+    (doctrine-read ?r - repository)
+    (exact-head-known ?r - repository)
+
+    (work-observed ?t - task)
+    (provenance-bound ?t - task)
+    (scope-bounded ?t - task)
+    (observation-admitted ?t - task)
+
+    (depends-on ?t - task ?dependency - task)
+    (dependency-satisfied ?t - task)
+
+    (branch-for ?b - branch ?t - task)
+    (isolated-worktree ?b - branch)
+    (surfaces-disjoint ?t - task ?other - task)
+    (dispatched ?t - task ?a - agent)
+    (task-dispatched ?t - task)
+    (agent-finished ?t - task ?a - agent)
+    (task-integrated ?t - task)
+
+    (baseline-broken ?r - repository)
+    (root-cause-known ?r - repository)
+    (baseline-repaired ?r - repository)
+
+    (finding-open ?t - task)
+    (finding-diagnosed ?t - task)
+    (smallest-owner-repaired ?t - task)
+
+    (observer-attempted ?o - observer-class)
+    (observer-zero-findings ?o - observer-class)
+    (observer-admitted-findings ?o - observer-class)
+
+    (authority-admitted ?s - subsystem)
+    (implementation-present ?s - subsystem)
+    (verifier-assigned ?s - subsystem ?v - verifier)
+    (positive-witness-passed ?s - subsystem)
+    (negative-falsifier-passed ?s - subsystem)
+    (replay-matched ?s - subsystem)
+    (legacy-disposition-closed ?s - subsystem)
+    (externally-verified ?s - subsystem)
+    (unknown-standing ?s - subsystem)
+    (subsystem-alive ?s - subsystem)
+
+    (projects ?s - subsystem ?a - artifact)
+    (projection-generated ?a - artifact)
+    (projection-canonical ?a - artifact)
+    (projection-receipted ?a - artifact ?r - receipt)
+    (generated-output ?a - artifact)
+    (hand-edited ?a - artifact)
+
+    (evidence-indexed ?a - artifact)
+    (digest-bound ?a - artifact)
+    (source-head-bound ?a - artifact)
+
+    (crown-read-only ?r - repository)
+    (self-certification-loop ?r - repository)
+
+    (receipt-issued ?r - receipt)
+    (task-receipted ?t - task ?r - receipt)
+    (all-receipts-valid ?r - repository)
+    (actuation-authorized ?t - task)
+    (refused ?t - task)
+
+    (capability-inventory-complete ?r - repository)
+    (dispositions-closed ?r - repository)
+    (verifier-coverage-complete ?r - repository)
+    (equivalence-coverage-complete ?r - repository)
+    (no-unknowns ?r - repository)
+    (all-equivalence-closed ?r - repository)
+    (clean-room ?r - repository)
+    (repository-replayed ?r - repository)
+    (crown-alive ?r - repository)
+
+    (external-ready ?e - external-edge)
+    (external-passed ?e - external-edge)
+    (external-queued ?e - external-edge)
+    (external-failed ?e - external-edge)
+    (external-unavailable ?e - external-edge)
+    (retryable ?e - external-edge))
+
+  (:functions
+    (total-cost))
+
+  (:action orient-repository
+    :parameters (?r - repository)
+    :precondition (and (not (repo-oriented ?r)))
+    :effect (and
+      (repo-oriented ?r)
+      (doctrine-read ?r)
+      (exact-head-known ?r)
+      (increase (total-cost) 1)))
+
+  (:action observe-task
+    :parameters (?t - task ?r - repository)
+    :precondition (and
+      (repo-oriented ?r)
+      (doctrine-read ?r)
+      (exact-head-known ?r)
+      (not (work-observed ?t)))
+    :effect (and
+      (work-observed ?t)
+      (provenance-bound ?t)
+      (scope-bounded ?t)
+      (increase (total-cost) 1)))
+
+  (:action admit-task-observation
+    :parameters (?t - task)
+    :precondition (and
+      (work-observed ?t)
+      (provenance-bound ?t)
+      (scope-bounded ?t)
+      (not (observation-admitted ?t)))
+    :effect (and
+      (observation-admitted ?t)
+      (increase (total-cost) 1)))
+
+  (:action close-task-dependency
+    :parameters (?t - task ?dependency - task)
+    :precondition (and
+      (depends-on ?t ?dependency)
+      (task-integrated ?dependency)
+      (not (dependency-satisfied ?t)))
+    :effect (and
+      (dependency-satisfied ?t)
+      (increase (total-cost) 1)))
+
+  (:action prepare-isolated-worktree
+    :parameters (?t - task ?b - branch)
+    :precondition (and
+      (observation-admitted ?t)
+      (branch-for ?b ?t)
+      (not (isolated-worktree ?b)))
+    :effect (and
+      (isolated-worktree ?b)
+      (increase (total-cost) 1)))
+
+  (:action dispatch-orthogonal-task
+    :parameters (?t - task ?other - task ?a - agent ?b - branch)
+    :precondition (and
+      (observation-admitted ?t)
+      (dependency-satisfied ?t)
+      (branch-for ?b ?t)
+      (isolated-worktree ?b)
+      (surfaces-disjoint ?t ?other)
+      (not (task-dispatched ?t)))
+    :effect (and
+      (dispatched ?t ?a)
+      (task-dispatched ?t)
+      (increase (total-cost) 1)))
+
+  (:action record-agent-finish
+    :parameters (?t - task ?a - agent)
+    :precondition (and
+      (dispatched ?t ?a)
+      (not (agent-finished ?t ?a)))
+    :effect (and
+      (agent-finished ?t ?a)
+      ; Deliberately does not promote subsystem standing.
+      (increase (total-cost) 1)))
+
+  (:action diagnose-baseline-break
+    :parameters (?r - repository)
+    :precondition (and
+      (baseline-broken ?r)
+      (not (root-cause-known ?r)))
+    :effect (and
+      (root-cause-known ?r)
+      (increase (total-cost) 1)))
+
+  (:action repair-baseline-first
+    :parameters (?r - repository)
+    :precondition (and
+      (baseline-broken ?r)
+      (root-cause-known ?r)
+      (not (baseline-repaired ?r)))
+    :effect (and
+      (baseline-repaired ?r)
+      (not (baseline-broken ?r))
+      (increase (total-cost) 2)))
+
+  (:action integrate-task
+    :parameters (?t - task ?a - agent ?r - repository)
+    :precondition (and
+      (agent-finished ?t ?a)
+      (baseline-repaired ?r)
+      (observation-admitted ?t)
+      (not (task-integrated ?t)))
+    :effect (and
+      (task-integrated ?t)
+      (increase (total-cost) 2)))
+
+  (:action attempt-observer-class
+    :parameters (?o - observer-class)
+    :precondition (and
+      (not (observer-attempted ?o)))
+    :effect (and
+      (observer-attempted ?o)
+      (increase (total-cost) 1)))
+
+  (:action record-zero-findings
+    :parameters (?o - observer-class)
+    :precondition (and
+      (observer-attempted ?o)
+      (not (observer-zero-findings ?o))
+      (not (observer-admitted-findings ?o)))
+    :effect (and
+      (observer-zero-findings ?o)
+      (increase (total-cost) 1)))
+
+  (:action record-admitted-findings
+    :parameters (?o - observer-class)
+    :precondition (and
+      (observer-attempted ?o)
+      (not (observer-zero-findings ?o))
+      (not (observer-admitted-findings ?o)))
+    :effect (and
+      (observer-admitted-findings ?o)
+      (increase (total-cost) 1)))
+
+  (:action diagnose-finding
+    :parameters (?t - task)
+    :precondition (and
+      (finding-open ?t)
+      (not (finding-diagnosed ?t)))
+    :effect (and
+      (finding-diagnosed ?t)
+      (increase (total-cost) 1)))
+
+  (:action repair-smallest-lawful-owner
+    :parameters (?t - task)
+    :precondition (and
+      (finding-open ?t)
+      (finding-diagnosed ?t)
+      (not (smallest-owner-repaired ?t)))
+    :effect (and
+      (smallest-owner-repaired ?t)
+      (not (finding-open ?t))
+      (increase (total-cost) 2)))
+
+  (:action admit-subsystem-authority
+    :parameters (?s - subsystem)
+    :precondition (and
+      (not (authority-admitted ?s)))
+    :effect (and
+      (authority-admitted ?s)
+      (increase (total-cost) 1)))
+
+  (:action bind-subsystem-implementation
+    :parameters (?s - subsystem)
+    :precondition (and
+      (authority-admitted ?s)
+      (not (implementation-present ?s)))
+    :effect (and
+      (implementation-present ?s)
+      (increase (total-cost) 1)))
+
+  (:action assign-independent-verifier
+    :parameters (?s - subsystem ?v - verifier)
+    :precondition (and
+      (authority-admitted ?s)
+      (implementation-present ?s)
+      (not (verifier-assigned ?s ?v)))
+    :effect (and
+      (verifier-assigned ?s ?v)
+      (increase (total-cost) 1)))
+
+  (:action execute-positive-witness
+    :parameters (?s - subsystem ?v - verifier)
+    :precondition (and
+      (verifier-assigned ?s ?v)
+      (not (positive-witness-passed ?s)))
+    :effect (and
+      (positive-witness-passed ?s)
+      (increase (total-cost) 2)))
+
+  (:action execute-negative-falsifier
+    :parameters (?s - subsystem ?v - verifier)
+    :precondition (and
+      (verifier-assigned ?s ?v)
+      (positive-witness-passed ?s)
+      (not (negative-falsifier-passed ?s)))
+    :effect (and
+      (negative-falsifier-passed ?s)
+      (increase (total-cost) 2)))
+
+  (:action execute-subsystem-replay
+    :parameters (?s - subsystem ?v - verifier)
+    :precondition (and
+      (verifier-assigned ?s ?v)
+      (positive-witness-passed ?s)
+      (negative-falsifier-passed ?s)
+      (not (replay-matched ?s)))
+    :effect (and
+      (replay-matched ?s)
+      (increase (total-cost) 2)))
+
+  (:action externally-verify-subsystem
+    :parameters (?s - subsystem ?v - verifier)
+    :precondition (and
+      (authority-admitted ?s)
+      (implementation-present ?s)
+      (verifier-assigned ?s ?v)
+      (positive-witness-passed ?s)
+      (negative-falsifier-passed ?s)
+      (replay-matched ?s)
+      (legacy-disposition-closed ?s)
+      (unknown-standing ?s)
+      (not (externally-verified ?s)))
+    :effect (and
+      (externally-verified ?s)
+      (subsystem-alive ?s)
+      (not (unknown-standing ?s))
+      (increase (total-cost) 3)))
+
+  (:action generate-authority-projection
+    :parameters (?s - subsystem ?a - artifact)
+    :precondition (and
+      (subsystem-alive ?s)
+      (projects ?s ?a)
+      (not (projection-generated ?a)))
+    :effect (and
+      (projection-generated ?a)
+      (projection-canonical ?a)
+      (generated-output ?a)
+      (increase (total-cost) 2)))
+
+  (:action bind-document-evidence
+    :parameters (?a - artifact)
+    :precondition (and
+      (projection-generated ?a)
+      (not (evidence-indexed ?a)))
+    :effect (and
+      (evidence-indexed ?a)
+      (digest-bound ?a)
+      (source-head-bound ?a)
+      (increase (total-cost) 1)))
+
+  (:action issue-projection-receipt
+    :parameters (?a - artifact ?r - receipt)
+    :precondition (and
+      (projection-generated ?a)
+      (projection-canonical ?a)
+      (evidence-indexed ?a)
+      (digest-bound ?a)
+      (source-head-bound ?a)
+      (not (projection-receipted ?a ?r)))
+    :effect (and
+      (receipt-issued ?r)
+      (projection-receipted ?a ?r)
+      (increase (total-cost) 1)))
+
+  (:action invert-self-certification-loop
+    :parameters (?r - repository)
+    :precondition (and
+      (self-certification-loop ?r)
+      (not (crown-read-only ?r)))
+    :effect (and
+      (crown-read-only ?r)
+      (not (self-certification-loop ?r))
+      (increase (total-cost) 3)))
+
+  (:action issue-task-receipt
+    :parameters (?t - task ?r - receipt)
+    :precondition (and
+      (task-integrated ?t)
+      (not (task-receipted ?t ?r)))
+    :effect (and
+      (receipt-issued ?r)
+      (task-receipted ?t ?r)
+      (increase (total-cost) 1)))
+
+  (:action authorize-actuation
+    :parameters (?t - task ?r - receipt)
+    :precondition (and
+      (task-receipted ?t ?r)
+      (receipt-issued ?r)
+      (not (actuation-authorized ?t)))
+    :effect (and
+      (actuation-authorized ?t)
+      (increase (total-cost) 1)))
+
+  (:action refuse-unreceipted-actuation
+    :parameters (?t - task)
+    :precondition (and
+      (task-integrated ?t)
+      (not (actuation-authorized ?t))
+      (not (refused ?t)))
+    :effect (and
+      (refused ?t)
+      (increase (total-cost) 1)))
+
+  (:action attempt-external-verification
+    :parameters (?e - external-edge)
+    :precondition (and
+      (external-ready ?e)
+      (not (external-passed ?e))
+      (not (external-queued ?e))
+      (not (external-failed ?e))
+      (not (external-unavailable ?e)))
+    :effect (probabilistic
+      0.25 (and
+        (not (external-ready ?e))
+        (external-passed ?e)
+        (increase (total-cost) 1))
+      0.25 (and
+        (not (external-ready ?e))
+        (external-queued ?e)
+        (retryable ?e)
+        (increase (total-cost) 1))
+      0.25 (and
+        (not (external-ready ?e))
+        (external-failed ?e)
+        (retryable ?e)
+        (increase (total-cost) 2))
+      0.25 (and
+        (not (external-ready ?e))
+        (external-unavailable ?e)
+        (retryable ?e)
+        (increase (total-cost) 2))))
+
+  (:action reset-retryable-external-edge
+    :parameters (?e - external-edge)
+    :precondition (and
+      (retryable ?e)
+      (not (external-ready ?e)))
+    :effect (and
+      (external-ready ?e)
+      (not (external-queued ?e))
+      (not (external-failed ?e))
+      (not (external-unavailable ?e))
+      (not (retryable ?e))
+      (increase (total-cost) 1)))
+
+  (:action establish-repository-closure
+    :parameters (?r - repository)
+    :precondition (and
+      (capability-inventory-complete ?r)
+      (dispositions-closed ?r)
+      (verifier-coverage-complete ?r)
+      (equivalence-coverage-complete ?r)
+      (all-receipts-valid ?r)
+      (not (no-unknowns ?r)))
+    :effect (and
+      (no-unknowns ?r)
+      (all-equivalence-closed ?r)
+      (increase (total-cost) 3)))
+
+  (:action run-clean-room-replay
+    :parameters (?r - repository)
+    :precondition (and
+      (no-unknowns ?r)
+      (all-equivalence-closed ?r)
+      (all-receipts-valid ?r)
+      (not (repository-replayed ?r)))
+    :effect (and
+      (clean-room ?r)
+      (repository-replayed ?r)
+      (increase (total-cost) 4)))
+
+  (:action compute-crown-standing
+    :parameters (?r - repository)
+    :precondition (and
+      (crown-read-only ?r)
+      (no-unknowns ?r)
+      (all-equivalence-closed ?r)
+      (all-receipts-valid ?r)
+      (clean-room ?r)
+      (repository-replayed ?r)
+      (not (crown-alive ?r)))
+    :effect (and
+      (crown-alive ?r)
+      (increase (total-cost) 5)))
+)
