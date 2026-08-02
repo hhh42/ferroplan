@@ -27,12 +27,10 @@ path = "src/main.rs"
 ferroplan = { path = "../ferroplan", version = "0.20.0", features = ["schema"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Runtime receipt binding and session-chain identities use real BLAKE3.
+blake3 = "1"
+# The persistent session router exposes the pinned CMCA allocation boundary.
+bcinr-cmca = { version = "26.7.28", features = ["std"] }
 rmcp = { version = "3.1", features = ["server", "macros", "transport-io"] }
 schemars = "1.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
-
-[dev-dependencies]
-# admission_protocol.rs independently recomputes receipt identities. Keep the
-# hashing dependency test-scoped: the MCP runtime receives signed/digested
-# values through its public admission surface and does not hash them itself.
-blake3 = "1"
