@@ -58,7 +58,11 @@ fn pack(work_items: Vec<ObservedWorkItem>) -> ObservationPack {
 }
 
 fn assert_blake3_hex(value: &str) {
-    assert_eq!(value.len(), 64, "BLAKE3 identity must contain 64 hex characters");
+    assert_eq!(
+        value.len(),
+        64,
+        "BLAKE3 identity must contain 64 hex characters"
+    );
     assert!(
         value
             .bytes()
