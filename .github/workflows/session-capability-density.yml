@@ -3,6 +3,7 @@ name: Session Capability Density Projector
 on:
   pull_request:
     paths:
+      - "Cargo.lock"
       - "tools/apply-session-capability-density.py"
       - "crates/ferroplan/Cargo.toml"
       - "crates/ferroplan/src/session.rs"
@@ -45,7 +46,9 @@ jobs:
             python3 tools/apply-session-capability-density.py
           fi
           sed -i 's/blake3 = { workspace = true }/blake3 = "1"/' crates/ferroplan/Cargo.toml
-          sed -i '/let mut hasher = blake3::Hasher::new();/a\        hasher.update(DOMAIN);' crates/ferroplan/src/session.rs
+          if ! grep -q 'hasher.update(DOMAIN)' crates/ferroplan/src/session.rs; then
+            sed -i '/let mut hasher = blake3::Hasher::new();/a\        hasher.update(DOMAIN);' crates/ferroplan/src/session.rs
+          fi
           sed -i 's/use ferroplan::{Plan, Session};/use ferroplan::Plan;/' crates/ferroplan-mcp/src/session_control.rs
           cargo fmt --all
 
@@ -61,8 +64,8 @@ jobs:
         run: |
           git config user.name "ferroplan-capability-controller"
           git config user.email "ferroplan-capability-controller@users.noreply.github.com"
-          git restore .github/workflows/ferroplan-harvester.yml
           git add \
+            Cargo.lock \
             crates/ferroplan/Cargo.toml \
             crates/ferroplan/src/session.rs \
             crates/ferroplan-mcp/src/main.rs \
@@ -72,7 +75,7 @@ jobs:
             crates/ferroplan-mcp/tests/protocol.rs \
             crates/ferroplan-mcp/tests/session_control.rs
           if ! git diff --cached --quiet; then
-            git commit -m "feat(mcp): restore high-density session authority"
+            git commit -m "chore(mcp): bind dense session authority lock projection"
             git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"
           fi
 
