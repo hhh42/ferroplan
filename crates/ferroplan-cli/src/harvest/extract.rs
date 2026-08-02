@@ -103,8 +103,14 @@ fn extract_work_operators(admitted: &AdmittedWork, candidates: &mut Vec<Planning
         admitted,
         "manufacture-prerequisite-before-crown",
         GallCheckpoint::G6Verify,
-        &["crown-prerequisite-declared", "prerequisite-artifact-absent"],
-        &["prerequisite-artifact-manufactured", "crown-observer-enabled"],
+        &[
+            "crown-prerequisite-declared",
+            "prerequisite-artifact-absent",
+        ],
+        &[
+            "prerequisite-artifact-manufactured",
+            "crown-observer-enabled",
+        ],
         &["crown-refuses-missing-prerequisite"],
         &["crown-self-manufactures-evidence"],
     );
@@ -127,7 +133,10 @@ fn extract_work_operators(admitted: &AdmittedWork, candidates: &mut Vec<Planning
         admitted,
         "replace-hardcoded-count-with-authoritative-query",
         GallCheckpoint::G3Admit,
-        &["stale-count-observed", "authoritative-enumeration-available"],
+        &[
+            "stale-count-observed",
+            "authoritative-enumeration-available",
+        ],
         &["count-derived-from-authority"],
         &["prose-count-drifts"],
         &["new-magic-count"],
@@ -239,7 +248,10 @@ fn operator_candidate(
         signature: String::new(),
         checkpoint,
         actuation_class: ActuationClass::Construct,
-        preconditions: preconditions.iter().map(|value| (*value).to_owned()).collect(),
+        preconditions: preconditions
+            .iter()
+            .map(|value| (*value).to_owned())
+            .collect(),
         effects: effects.iter().map(|value| (*value).to_owned()).collect(),
         invariants: vec![
             "zero-unreceipted-actuation".to_owned(),

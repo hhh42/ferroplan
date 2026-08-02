@@ -22,8 +22,7 @@ pub fn compile_pack(pack: &ObservationPack, output_dir: &Path) -> Result<Harvest
     let source_pack_digest = super::digest_bytes(&source_bytes);
     let admission = admit(pack);
     let (operators, raw_operator_count) = extract_operators_with_count(&admission);
-    fs::create_dir_all(output_dir)
-        .with_context(|| format!("creating {}", output_dir.display()))?;
+    fs::create_dir_all(output_dir).with_context(|| format!("creating {}", output_dir.display()))?;
 
     let observation_path = output_dir.join("observation-pack.json");
     let admission_path = output_dir.join("admission-report.json");
@@ -145,7 +144,10 @@ pub fn compile_pack(pack: &ObservationPack, output_dir: &Path) -> Result<Harvest
             .map(|work| work.identity.clone())
             .collect(),
         excluded_work: admission.excluded.clone(),
-        operators_added: operators.iter().map(|operator| operator.id.clone()).collect(),
+        operators_added: operators
+            .iter()
+            .map(|operator| operator.id.clone())
+            .collect(),
         operators_deduplicated: raw_operator_count.saturating_sub(operators.len()),
         probabilistic_operators: operators
             .iter()
@@ -449,8 +451,16 @@ fn render_operator_action(operator: &PlanningOperator) -> String {
     let mut preconditions = vec![
         format!("(evidence-admitted {})", operator.id),
         format!("(execution-observed {})", operator.id),
-        format!("({} {})", checkpoint_predicate(operator.checkpoint), operator.id),
-        format!("({} {})", actuation_predicate(operator.actuation_class), operator.id),
+        format!(
+            "({} {})",
+            checkpoint_predicate(operator.checkpoint),
+            operator.id
+        ),
+        format!(
+            "({} {})",
+            actuation_predicate(operator.actuation_class),
+            operator.id
+        ),
         format!("(not (method-integrated {}))", operator.id),
         format!("(not (method-failed {}))", operator.id),
         format!("(not (method-refused {}))", operator.id),
@@ -522,8 +532,16 @@ fn operator_initial_facts(operator: &PlanningOperator) -> Vec<String> {
     let mut facts = vec![
         format!("(evidence-admitted {})", operator.id),
         format!("(execution-observed {})", operator.id),
-        format!("({} {})", checkpoint_predicate(operator.checkpoint), operator.id),
-        format!("({} {})", actuation_predicate(operator.actuation_class), operator.id),
+        format!(
+            "({} {})",
+            checkpoint_predicate(operator.checkpoint),
+            operator.id
+        ),
+        format!(
+            "({} {})",
+            actuation_predicate(operator.actuation_class),
+            operator.id
+        ),
     ];
     if operator.receipt_hook {
         facts.push(format!("(receipt-hook-required {})", operator.id));

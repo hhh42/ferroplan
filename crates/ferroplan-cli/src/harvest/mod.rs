@@ -51,8 +51,8 @@ fn validate_utc(value: &str) -> Result<()> {
 
 pub fn load_observation_pack(path: &Path) -> Result<ObservationPack> {
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    let pack: ObservationPack = serde_json::from_slice(&bytes)
-        .with_context(|| format!("decoding {}", path.display()))?;
+    let pack: ObservationPack =
+        serde_json::from_slice(&bytes).with_context(|| format!("decoding {}", path.display()))?;
     validate_pack(&pack)?;
     Ok(pack)
 }
@@ -77,8 +77,7 @@ pub fn admit(pack: &ObservationPack) -> AdmissionReport {
             excluded.push(ExcludedWork {
                 identity,
                 code: RefusalCode::MissingExactSourceIdentity,
-                detail: "work item does not carry a 40-character hexadecimal commit SHA"
-                    .to_owned(),
+                detail: "work item does not carry a 40-character hexadecimal commit SHA".to_owned(),
             });
             continue;
         }
@@ -88,8 +87,7 @@ pub fn admit(pack: &ObservationPack) -> AdmissionReport {
             excluded.push(ExcludedWork {
                 identity,
                 code: RefusalCode::OutsideObservationWindow,
-                detail: "commit timestamp is outside the admitted observation window"
-                    .to_owned(),
+                detail: "commit timestamp is outside the admitted observation window".to_owned(),
             });
             continue;
         }
@@ -330,8 +328,8 @@ pub fn save_observation_pack(path: &Path, pack: &ObservationPack) -> Result<()> 
 
 pub fn load_receipt(path: &Path) -> Result<HarvestReceipt> {
     let bytes = fs::read(path).with_context(|| format!("reading {}", path.display()))?;
-    let receipt: HarvestReceipt = serde_json::from_slice(&bytes)
-        .with_context(|| format!("decoding {}", path.display()))?;
+    let receipt: HarvestReceipt =
+        serde_json::from_slice(&bytes).with_context(|| format!("decoding {}", path.display()))?;
     if receipt.schema != RECEIPT_SCHEMA {
         return Err(anyhow!(
             "unsupported receipt schema {}; expected {RECEIPT_SCHEMA}",

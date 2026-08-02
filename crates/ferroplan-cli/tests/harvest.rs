@@ -127,10 +127,7 @@ fn compile_and_external_replay_cross_real_filesystem_and_ppddl_boundaries() {
         },
     ];
     let input = pack(vec![work]);
-    let root = std::env::temp_dir().join(format!(
-        "ferroplan-harvest-test-{}",
-        std::process::id()
-    ));
+    let root = std::env::temp_dir().join(format!("ferroplan-harvest-test-{}", std::process::id()));
     let first = root.join("first");
     let second = root.join("second");
     let _ = fs::remove_dir_all(&root);

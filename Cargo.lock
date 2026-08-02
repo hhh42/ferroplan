@@ -2432,6 +2432,7 @@ name = "ferroplan-cli"
 version = "0.20.0"
 dependencies = [
  "anyhow",
+ "blake3",
  "clap",
  "ferroplan",
  "serde",
@@ -2442,8 +2443,6 @@ dependencies = [
 name = "ferroplan-mcp"
 version = "0.20.0"
 dependencies = [
- "bcinr-cmca",
- "blake3",
  "ferroplan",
  "rmcp",
  "schemars",
