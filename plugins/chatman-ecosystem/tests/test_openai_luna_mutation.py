@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import pytest
-
-from openai_luna_testkit import FakeStar, ScriptedResponses, final_response, function_call, profile, standard_surfaces, star_envelope
 from openai_luna_protocol import OpenAIResponsesClient, RuntimeRefusal
 from openai_luna_runtime import LunaHost
+from openai_luna_testkit import (
+    FakeStar,
+    ScriptedResponses,
+    final_response,
+    function_call,
+    profile,
+    standard_surfaces,
+    star_envelope,
+)
 
 
 def run(script, *, star=None, surfaces=None):

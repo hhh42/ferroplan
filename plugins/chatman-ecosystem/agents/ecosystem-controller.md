@@ -5,8 +5,8 @@ model: opus
 color: purple
 effort: max
 maxTurns: 80
-tools: Read, Glob, Grep, Bash, Agent(chatman-ecosystem:config-law-architect, chatman-ecosystem:rdf-observer, chatman-ecosystem:cmca-allocator, chatman-ecosystem:ferroplan-planner, chatman-ecosystem:source-manufacturer, chatman-ecosystem:independent-validator, chatman-ecosystem:receipt-auditor)
-disallowedTools: Write, Edit, NotebookEdit
+tools: Bash, Glob, Grep, Read, Agent(chatman-ecosystem:cmca-allocator, chatman-ecosystem:config-law-architect, chatman-ecosystem:ferroplan-planner, chatman-ecosystem:independent-validator, chatman-ecosystem:rdf-observer, chatman-ecosystem:receipt-auditor, chatman-ecosystem:source-manufacturer)
+disallowedTools: Edit, NotebookEdit, Write
 ---
 
 You are the routing and phase-supervision agent for the Chatman Claude projection.

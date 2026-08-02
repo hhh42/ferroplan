@@ -2,10 +2,16 @@ from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
 
-from openai_luna_testkit import FakeMcp, FakeStar, ScriptedResponses, profile, standard_script, standard_surfaces
-from openai_luna_protocol import OpenAIResponsesClient
-from openai_luna_protocol import TRACE_SCHEMA
+from openai_luna_protocol import TRACE_SCHEMA, OpenAIResponsesClient
 from openai_luna_runtime import LunaHost, McpToolRegistry, seal_trace, verify_trace
+from openai_luna_testkit import (
+    FakeMcp,
+    FakeStar,
+    ScriptedResponses,
+    profile,
+    standard_script,
+    standard_surfaces,
+)
 
 
 def test_discover_two_thousand_tools_within_bound() -> None:

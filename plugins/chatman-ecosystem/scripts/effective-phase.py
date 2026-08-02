@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
@@ -16,7 +15,7 @@ try:
     from plugin_data import plugin_data_root as resolve_plugin_data_root
 except ImportError:
     resolve_plugin_data_root = None
-from roots import project_directory, project_key  # noqa: E402
+from roots import project_directory  # noqa: E402
 
 STATE_SCHEMA = "urn:chatman:claude-code-effective-phase:v1"
 COLLAPSED_VECTOR = {

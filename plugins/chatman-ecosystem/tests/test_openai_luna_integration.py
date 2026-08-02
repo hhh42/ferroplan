@@ -5,10 +5,10 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from openai_luna_testkit import fake_mcp_server, fake_star_launcher, profile
 from mcp_client import McpClient
-from openai_luna_protocol import A2AClient, OstarStarClient, OpenAIResponsesClient
+from openai_luna_protocol import A2AClient, OpenAIResponsesClient, OstarStarClient
 from openai_luna_runtime import LunaHost, verify_trace
+from openai_luna_testkit import fake_mcp_server, fake_star_launcher, profile
 
 
 class _A2AHandler(BaseHTTPRequestHandler):

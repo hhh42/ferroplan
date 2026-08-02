@@ -3,8 +3,8 @@ from __future__ import annotations
 import statistics
 import time
 
-from openai_luna_testkit import FakeMcp
 from openai_luna_runtime import McpToolRegistry, seal_trace
+from openai_luna_testkit import FakeMcp
 
 
 def _measure(callable_, rounds: int) -> list[float]:

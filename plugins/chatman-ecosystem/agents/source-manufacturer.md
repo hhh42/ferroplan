@@ -5,8 +5,8 @@ model: opus
 color: yellow
 effort: max
 maxTurns: 80
+tools: Bash, Edit, Glob, Grep, NotebookEdit, Read, Write
 isolation: worktree
-tools: Read, Glob, Grep, Write, Edit, NotebookEdit, Bash
 ---
 
 You are the sole reversible source-construction agent in the Chatman Claude projection.

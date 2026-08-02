@@ -3,11 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
-from openai_luna_testkit import FakeStar, ScriptedResponses, fake_mcp_server, final_response, function_call, profile, standard_surfaces
 from mcp_client import McpClient, McpToolError
 from openai_luna_protocol import OpenAIResponsesClient, RuntimeRefusal
 from openai_luna_runtime import LunaHost
+from openai_luna_testkit import (
+    FakeStar,
+    ScriptedResponses,
+    fake_mcp_server,
+    final_response,
+    function_call,
+    profile,
+    standard_surfaces,
+)
 
 
 @pytest.mark.parametrize("mode", ["malformed", "crash"])

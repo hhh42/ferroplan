@@ -8,8 +8,8 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from openai_luna_testkit import fake_mcp_server, fake_star_launcher
 from openai_luna_runtime import verify_trace
+from openai_luna_testkit import fake_mcp_server, fake_star_launcher
 
 PLUGIN = Path(__file__).resolve().parents[1]
 CLI = PLUGIN / "scripts" / "openai_luna.py"

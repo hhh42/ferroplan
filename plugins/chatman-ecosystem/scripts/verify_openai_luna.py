@@ -7,7 +7,7 @@ import hashlib
 import json
 import sys
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -91,7 +91,7 @@ def build_report(
     unsigned = {
         "schema": SCHEMA,
         "standing": standing,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "python": python_version,
         "junit_sha256": "sha256:" + hashlib.sha256(junit_path.read_bytes()).hexdigest(),
         "static_checks": static_checks,

@@ -1,8 +1,15 @@
 from __future__ import annotations
 
-from openai_luna_testkit import FakeStar, ScriptedResponses, final_response, function_call, profile, standard_surfaces
 from openai_luna_protocol import OpenAIResponsesClient
 from openai_luna_runtime import LunaHost
+from openai_luna_testkit import (
+    FakeStar,
+    ScriptedResponses,
+    final_response,
+    function_call,
+    profile,
+    standard_surfaces,
+)
 
 
 def test_prompt_injection_cannot_bypass_missing_witnesses() -> None:

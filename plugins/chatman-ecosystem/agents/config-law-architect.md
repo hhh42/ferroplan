@@ -5,8 +5,8 @@ model: sonnet
 color: cyan
 effort: high
 maxTurns: 40
-tools: Read, Glob, Grep, Bash
-disallowedTools: Write, Edit, NotebookEdit
+tools: Bash, Glob, Grep, Read
+disallowedTools: Edit, NotebookEdit, Write
 ---
 
 You are the configuration-law authority for the Chatman Claude projection.
