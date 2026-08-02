@@ -7,7 +7,7 @@ use ferroplan_cli::harvest::{
 };
 
 fn sha(ch: char) -> String {
-    std::iter::repeat(ch).take(40).collect()
+    ch.to_string().repeat(40)
 }
 
 fn executed_work(message: &str) -> ObservedWorkItem {
@@ -136,9 +136,18 @@ fn compile_and_external_replay_cross_real_filesystem_and_ppddl_boundaries() {
     let _ = fs::remove_dir_all(&root);
 
     let receipt = compile_pack(&input, &first).expect("compile");
-    assert_eq!(receipt.final_state, FinalState::PartialAlive);
-    assert!(receipt.validation.parse_ok);
-    assert_eq!(receipt.validation.policy_valid, Some(true));
+    let receipt_json = serde_json::to_string_pretty(&receipt).expect("receipt JSON");
+    assert_eq!(
+        receipt.final_state,
+        FinalState::PartialAlive,
+        "{receipt_json}"
+    );
+    assert!(receipt.validation.parse_ok, "{receipt_json}");
+    assert_eq!(
+        receipt.validation.policy_valid,
+        Some(true),
+        "{receipt_json}"
+    );
     assert!(first.join("domain.ppddl").is_file());
     assert!(first.join("problem.ppddl").is_file());
     assert!(first.join("method-catalog.json").is_file());
