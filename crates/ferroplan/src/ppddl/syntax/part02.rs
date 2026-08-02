@@ -1,7 +1,7 @@
 fn probability(value: &Sexp) -> Result<f64, PpddlError> {
     let number = numeric_constant(value)
         .map_err(|error| PpddlError::InvalidProbability(error.to_string()))?;
-    if number < 0.0 || number > 1.0 + PROB_EPS {
+    if !(0.0..=1.0 + PROB_EPS).contains(&number) {
         return Err(PpddlError::InvalidProbability(format!(
             "probability {number} is outside [0, 1]"
         )));
