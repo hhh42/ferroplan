@@ -52,7 +52,8 @@ use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
     CallToolResult, ErrorData as McpError, ListResourcesResult, ReadResourceRequestParams,
-    ReadResourceResult, Resource, ResourceContents, ServerCapabilities, ServerInfo,
+    ReadResourceResponse, ReadResourceResult, Resource, ResourceContents, ServerCapabilities,
+    ServerInfo,
 };
 use rmcp::service::RequestContext;
 use rmcp::{tool, tool_handler, tool_router, RoleServer, ServerHandler, ServiceExt};
@@ -274,18 +275,14 @@ impl ServerHandler for Ferroplan {
                 .with_mime_type("application/json")
             })
             .collect();
-        Ok(ListResourcesResult {
-            resources,
-            next_cursor: None,
-            meta: None,
-        })
+        Ok(ListResourcesResult::with_all_items(resources))
     }
 
     async fn read_resource(
         &self,
         request: ReadResourceRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<ReadResourceResult, McpError> {
+    ) -> Result<ReadResourceResponse, McpError> {
         let name = request
             .uri
             .strip_prefix("ferroplan://tools/")
@@ -302,7 +299,8 @@ impl ServerHandler for Ferroplan {
         Ok(ReadResourceResult::new(vec![ResourceContents::text(
             serde_json::to_string_pretty(&body).unwrap_or_default(),
             request.uri,
-        )]))
+        )])
+        .into())
     }
 }
 
