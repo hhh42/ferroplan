@@ -30,3 +30,9 @@ serde_json = { workspace = true }
 rmcp = { version = "3.1", features = ["server", "macros", "transport-io"] }
 schemars = "1.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
+
+[dev-dependencies]
+# admission_protocol.rs independently recomputes receipt identities. Keep the
+# hashing dependency test-scoped: the MCP runtime receives signed/digested
+# values through its public admission surface and does not hash them itself.
+blake3 = "1"
