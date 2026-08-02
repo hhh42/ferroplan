@@ -62,8 +62,7 @@ const FALLBACK: &str = "(ontology extraction fallback: no rdfs:comment could be 
 fn main() {
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is set by cargo");
     let domain_relative = "../../plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl";
-    let experience_relative =
-        "../../plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl";
+    let experience_relative = "../../plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl";
     let domain_path = Path::new(&manifest_dir).join(domain_relative);
     let experience_path = Path::new(&manifest_dir).join(experience_relative);
 

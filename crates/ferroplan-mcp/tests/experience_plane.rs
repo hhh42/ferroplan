@@ -11,6 +11,23 @@ fn manifest_composition_and_lattice_make_the_authority_surface_computable() {
     let manifest = client.call_json("dx_manifest", json!({"include_examples": true}));
     assert_eq!(manifest["advertised_tool_count"], 42);
     assert_eq!(manifest["modeled_tool_count"], 42);
+
+    let resource = client.request(
+        "resources/read",
+        json!({"uri": "ferroplan://tools/dx_manifest"}),
+    );
+    let resource_text = resource["result"]["contents"][0]["text"]
+        .as_str()
+        .expect("experience resource text");
+    let resource_body: Value =
+        serde_json::from_str(resource_text).expect("experience resource JSON");
+    assert_eq!(
+        resource_body["source"],
+        "plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl"
+    );
+    assert!(resource_body["rdfs_comment"]
+        .as_str()
+        .is_some_and(|comment| comment.contains("self-describing")));
     assert!(manifest["categories"]
         .as_array()
         .unwrap()

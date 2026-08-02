@@ -277,8 +277,8 @@ impl ServerHandler for Ferroplan {
                     format!("{name} (semantic summary)"),
                 )
                 .with_description(format!(
-                    "Ontology-sourced semantics for the `{name}` tool, from \
-                     ferroplan-domain.ttl."
+                    "Ontology-sourced semantics for the `{name}` tool, from its owning \
+                     Ferroplan Turtle graph."
                 ))
                 .with_mime_type("application/json")
             })
@@ -301,9 +301,11 @@ impl ServerHandler for Ferroplan {
             .or_else(|| experience::ontology_comment(name))
             .or_else(|| admission::ontology_comment(name))
             .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
+        let ontology_source = experience::ontology_source(name)
+            .unwrap_or("plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl");
         let body = serde_json::json!({
             "tool": name,
-            "source": "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
+            "source": ontology_source,
             "rdfs_comment": ontology_comment,
         });
         Ok(ReadResourceResult::new(vec![ResourceContents::text(
@@ -314,7 +316,7 @@ impl ServerHandler for Ferroplan {
     }
 }
 
-/// All 42 tool names across the three merged tool groups, in a stable order
+/// All 42 tool names across the five merged tool groups, in a stable order
 /// (stateless planning, session, persistent control, operator experience, then admission).
 pub(crate) fn all_tool_names() -> Vec<&'static str> {
     MAIN_RESOURCE_TOOLS

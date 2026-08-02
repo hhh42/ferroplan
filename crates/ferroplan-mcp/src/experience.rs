@@ -47,21 +47,30 @@ pub(crate) const RESOURCE_TOOLS: &[&str] = &[
     "vision_lattice",
 ];
 
+include!(concat!(env!("OUT_DIR"), "/experience_ontology.rs"));
+
+pub(crate) const ONTOLOGY_SOURCE: &str =
+    "plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl";
+
 pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
     Some(match name {
-        "dx_manifest" => "Return the complete self-describing Ferroplan capability manifest, including authority categories, contracts, effects, reversibility, receipt behavior, and composition examples.",
-        "dx_compose" => "Search the bounded capability graph for a minimal deterministic tool sequence from admitted starting atoms to requested outcome atoms.",
-        "doctor_scan" => "Diagnose global or per-session health, assign typed findings, calculate standing, and emit executable remediation hints without mutating state.",
-        "doctor_explain" => "Classify a tool or protocol failure into a typed cause with bounded confidence, corrective actions, and refusal-preserving recovery guidance.",
-        "wizard_bootstrap" => "Atomically manufacture a ready persistent planning mind from domain, problem, goal, authority scope, and bounded search settings.",
-        "wizard_recipe" => "Compile a high-level operator intent into an ordered, inspectable Ferroplan tool recipe with preflight, rollback, and receipt checkpoints.",
-        "qol_snapshot" => "Read session state, selected facts and fluents, plan standing, diagnostics, memory, lineage, and recent history in one round trip.",
-        "qol_batch" => "Apply a bounded heterogeneous session transaction on a staged fork and commit exactly once, or refuse without partial mutation.",
-        "telco_envelope" => "Manufacture a deterministic transport-neutral BLAKE3 integrity envelope with correlation, causation, idempotency, predecessor, and expiry fields; it performs no network operation.",
-        "telco_verify" => "Verify a transport envelope's schema, payload identity, envelope identity, routing expectations, predecessor, and expiry without treating integrity as authentication.",
-        "vision_lattice" => "Enumerate a bounded combinatorial capability lattice, minimal reachability depths, dependency edges, blocked frontiers, and theoretical composition capacity.",
+        "dx_manifest" => DX_MANIFEST_ONTOLOGY,
+        "dx_compose" => DX_COMPOSE_ONTOLOGY,
+        "doctor_scan" => DOCTOR_SCAN_ONTOLOGY,
+        "doctor_explain" => DOCTOR_EXPLAIN_ONTOLOGY,
+        "wizard_bootstrap" => WIZARD_BOOTSTRAP_ONTOLOGY,
+        "wizard_recipe" => WIZARD_RECIPE_ONTOLOGY,
+        "qol_snapshot" => QOL_SNAPSHOT_ONTOLOGY,
+        "qol_batch" => QOL_BATCH_ONTOLOGY,
+        "telco_envelope" => TELCO_ENVELOPE_ONTOLOGY,
+        "telco_verify" => TELCO_VERIFY_ONTOLOGY,
+        "vision_lattice" => VISION_LATTICE_ONTOLOGY,
         _ => return None,
     })
+}
+
+pub(crate) fn ontology_source(name: &str) -> Option<&'static str> {
+    RESOURCE_TOOLS.contains(&name).then_some(ONTOLOGY_SOURCE)
 }
 
 #[derive(Clone, Copy)]
