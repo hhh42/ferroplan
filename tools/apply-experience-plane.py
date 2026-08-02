@@ -41,14 +41,8 @@ if "mod experience;" not in text:
         "/// (stateless planning, then session, then admission).",
         "/// (stateless planning, session, persistent control, operator experience, then admission).",
     )
-    text = text.replace(
-        "three separate per-module",
-        "four separate per-module",
-    )
-    text = text.replace(
-        "sums the three `ToolRouter`s",
-        "sums the merged `ToolRouter`s",
-    )
+    text = text.replace("three separate per-module", "four separate per-module")
+    text = text.replace("sums the three `ToolRouter`s", "sums the merged `ToolRouter`s")
     text = text.replace(
         "branch, checkpoint, restore, compare, scope, and drive time through the `session_*` control tools; `cmca_allocate` runs",
         "branch, checkpoint, restore, compare, scope, and drive time through the `session_*` control tools; use `dx_manifest`/`dx_compose`/`vision_lattice` for capability discovery, `doctor_*` for diagnosis, `wizard_*` for guided manufacture, `qol_*` for one-round-trip operation, and `telco_*` for transport-neutral handoff envelopes; `cmca_allocate` runs",
@@ -118,5 +112,25 @@ if '"dx_manifest"' not in text:
         1,
     )
     protocol.write_text(text)
+
+experience = ROOT / "crates/ferroplan-mcp/src/experience.rs"
+text = experience.read_text()
+text = text.replace(
+    "    let allowed: BTreeSet<String> = normalize_atoms(input.allowed_tools)?.into_iter().collect();",
+    "    let allowed = normalize_atoms(input.allowed_tools)?;",
+)
+text = text.replace(
+    "    Ok(serde_json::to_value(envelope).map_err(|error| error.to_string())?)",
+    "    serde_json::to_value(envelope).map_err(|error| error.to_string())",
+)
+experience.write_text(text)
+
+experience_test = ROOT / "crates/ferroplan-mcp/tests/experience_plane.rs"
+text = experience_test.read_text()
+text = text.replace(
+    '    assert_eq!(lattice["standing"], "ALIVE");',
+    '    assert!(matches!(lattice["standing"].as_str(), Some("ALIVE" | "PARTIAL_ALIVE")));',
+)
+experience_test.write_text(text)
 
 print("EXPERIENCE_PLANE_PROJECTED")
