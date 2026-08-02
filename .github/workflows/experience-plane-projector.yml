@@ -24,7 +24,7 @@ env:
 
 jobs:
   project-and-prove:
-    runs-on: ubuntu-22.04
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - name: Checkout exact branch head
