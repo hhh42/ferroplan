@@ -1,0 +1,412 @@
+{
+ "spec": "refill",
+ "hatch": "FF_NO_REFILL",
+ "timeout": 60,
+ "jobs": 1,
+ "shipped": [
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 1,
+   "cost": null,
+   "solved": true,
+   "time": 0.0,
+   "got_cost": 2012,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 2,
+   "cost": null,
+   "solved": true,
+   "time": 0.1,
+   "got_cost": 3950,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 3,
+   "cost": null,
+   "solved": true,
+   "time": 1.8,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 4,
+   "cost": null,
+   "solved": true,
+   "time": 1.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 5,
+   "cost": null,
+   "solved": true,
+   "time": 13.2,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 6,
+   "cost": null,
+   "solved": true,
+   "time": 11.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 7,
+   "cost": null,
+   "solved": true,
+   "time": 12.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 8,
+   "cost": null,
+   "solved": true,
+   "time": 21.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 9,
+   "cost": null,
+   "solved": false,
+   "time": 57.5,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 10,
+   "cost": null,
+   "solved": true,
+   "time": 23.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 11,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 12,
+   "cost": null,
+   "solved": false,
+   "time": 56.4,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 13,
+   "cost": null,
+   "solved": false,
+   "time": 54.4,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 14,
+   "cost": null,
+   "solved": false,
+   "time": 56.2,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 15,
+   "cost": null,
+   "solved": false,
+   "time": 57.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 16,
+   "cost": null,
+   "solved": false,
+   "time": 57.4,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 17,
+   "cost": null,
+   "solved": false,
+   "time": 44.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 18,
+   "cost": null,
+   "solved": false,
+   "time": 51.6,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 19,
+   "cost": null,
+   "solved": false,
+   "time": 45.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 20,
+   "cost": null,
+   "solved": false,
+   "time": 49.0,
+   "got_cost": null,
+   "prover": null
+  }
+ ],
+ "hatched": [
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 1,
+   "cost": null,
+   "solved": true,
+   "time": 0.0,
+   "got_cost": 2012,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 2,
+   "cost": null,
+   "solved": true,
+   "time": 0.1,
+   "got_cost": 3950,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 3,
+   "cost": null,
+   "solved": true,
+   "time": 1.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 4,
+   "cost": null,
+   "solved": true,
+   "time": 1.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 5,
+   "cost": null,
+   "solved": true,
+   "time": 13.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 6,
+   "cost": null,
+   "solved": true,
+   "time": 11.2,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 7,
+   "cost": null,
+   "solved": true,
+   "time": 11.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 8,
+   "cost": null,
+   "solved": true,
+   "time": 21.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 9,
+   "cost": null,
+   "solved": false,
+   "time": 26.5,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 10,
+   "cost": null,
+   "solved": true,
+   "time": 23.2,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 11,
+   "cost": null,
+   "solved": false,
+   "time": 24.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 12,
+   "cost": null,
+   "solved": false,
+   "time": 23.4,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 13,
+   "cost": null,
+   "solved": false,
+   "time": 24.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 14,
+   "cost": null,
+   "solved": false,
+   "time": 24.2,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 15,
+   "cost": null,
+   "solved": false,
+   "time": 20.1,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 16,
+   "cost": null,
+   "solved": false,
+   "time": 19.5,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 17,
+   "cost": null,
+   "solved": false,
+   "time": 17.1,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 18,
+   "cost": null,
+   "solved": false,
+   "time": 24.1,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 19,
+   "cost": null,
+   "solved": false,
+   "time": 18.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2023n",
+   "variant": "tpp-numeric-satisficing",
+   "instance": 20,
+   "cost": null,
+   "solved": false,
+   "time": 23.9,
+   "got_cost": null,
+   "prover": null
+  }
+ ],
+ "feature_worth": 0,
+ "hatch_only": 0
+}

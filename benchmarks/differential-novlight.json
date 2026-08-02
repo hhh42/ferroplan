@@ -1,0 +1,412 @@
+{
+ "spec": "novlight",
+ "hatch": "FF_NO_NOVLIGHT",
+ "timeout": 60,
+ "jobs": 1,
+ "shipped": [
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 1,
+   "cost": null,
+   "solved": true,
+   "time": 0.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 2,
+   "cost": null,
+   "solved": true,
+   "time": 0.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 3,
+   "cost": null,
+   "solved": true,
+   "time": 1.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 4,
+   "cost": null,
+   "solved": true,
+   "time": 1.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 5,
+   "cost": null,
+   "solved": true,
+   "time": 3.5,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 6,
+   "cost": null,
+   "solved": true,
+   "time": 3.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 7,
+   "cost": null,
+   "solved": true,
+   "time": 4.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 8,
+   "cost": null,
+   "solved": true,
+   "time": 4.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 9,
+   "cost": null,
+   "solved": true,
+   "time": 4.6,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 10,
+   "cost": null,
+   "solved": true,
+   "time": 5.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 11,
+   "cost": null,
+   "solved": true,
+   "time": 5.0,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 12,
+   "cost": null,
+   "solved": true,
+   "time": 5.6,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 13,
+   "cost": null,
+   "solved": true,
+   "time": 5.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 14,
+   "cost": null,
+   "solved": true,
+   "time": 6.1,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 15,
+   "cost": null,
+   "solved": true,
+   "time": 6.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 16,
+   "cost": null,
+   "solved": true,
+   "time": 6.4,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 17,
+   "cost": null,
+   "solved": true,
+   "time": 6.9,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 18,
+   "cost": null,
+   "solved": true,
+   "time": 7.2,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 19,
+   "cost": null,
+   "solved": true,
+   "time": 7.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 20,
+   "cost": null,
+   "solved": true,
+   "time": 7.9,
+   "got_cost": null,
+   "prover": null
+  }
+ ],
+ "hatched": [
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 1,
+   "cost": null,
+   "solved": true,
+   "time": 47.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 2,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 3,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 4,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 5,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 6,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 7,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 8,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 9,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 10,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 11,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 12,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 13,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 14,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 15,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 16,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 17,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 18,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 19,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2014",
+   "variant": "visit-all-sequential-satisficing",
+   "instance": 20,
+   "cost": null,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  }
+ ],
+ "feature_worth": 19,
+ "hatch_only": 0
+}

@@ -12,3 +12,32 @@
 ==> differential: novlight 15:29:53
 !! differential novlight FAILED — see benchmarks/air-chain/diff-novlight.log
 ==> differential: refill 15:29:53
+=== chain start 2026-08-01 15:44:05 ===
+==> waiting for the box to go quiet (3 consecutive quiet samples)
+    idle 87%  (1/3)
+    idle 93%  (2/3)
+    idle 95%  (3/3)
+==> box is quiet 15:46:12
+==> differential: lmcut 15:46:12
+
+  shipped solved 13/13  hatched solved 4/13
+  the feature is worth: +9 instances (kept-by-both 4, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-lmcut.json
+==> differential: novlight 16:09:49
+
+  shipped solved 20/20  hatched solved 1/20
+  the feature is worth: +19 instances (kept-by-both 1, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-novlight.json
+==> differential: refill 16:32:44
+
+  shipped solved 9/20  hatched solved 9/20
+  the feature is worth: +0 instances (kept-by-both 9, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-refill.json
+==> backfill v0.19.0 2026-08-01 17:01:07
+==> worktree ../ferroplan-backfill-0.19.0 at v0.19.0
+Preparing worktree (detached HEAD 14fbe8d)
+HEAD is now at 14fbe8d Cut 0.19.0: seven boards +32/-2, the 300s official entry, all gates green
+==> building v0.19.0 (this is the OLD engine)
+==> engine: /Users/harold/ferroplan-backfill-0.19.0/target/release/ff
+ff 0.19.0
+RUN  ipc2023-agile (agile-2023 60s ) 17:01:35

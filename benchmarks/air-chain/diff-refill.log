@@ -1,3 +1,33 @@
 === refill: does the refill loop buy coverage, or only spend the wall?
     hatch=FF_NO_REFILL  budget=60s  witnesses=20
-  running as shipped (rep 1/3) (20 instances, jobs=2)...
+  running as shipped (rep 1/2) (20 instances, jobs=1)...
+  running as shipped (rep 2/2) (20 instances, jobs=1)...
+  running FF_NO_REFILL=1 (20 instances, jobs=1)...
+
+  shipped arm across 2 repeats: [9, 9] solved (union 9)
+
+  instance                                                      shipped          hatched
+  ipc-2023n/tpp-numeric-satisficing i1                 2012 (-) 0.0s [2/2]    2012 (-) 0.0s
+  ipc-2023n/tpp-numeric-satisficing i2                 3950 (-) 0.1s [2/2]    3950 (-) 0.1s
+  ipc-2023n/tpp-numeric-satisficing i3                 None (-) 1.8s [2/2]    None (-) 1.7s
+  ipc-2023n/tpp-numeric-satisficing i4                 None (-) 1.9s [2/2]    None (-) 1.9s
+  ipc-2023n/tpp-numeric-satisficing i5                 None (-) 13.2s [2/2]   None (-) 13.3s
+  ipc-2023n/tpp-numeric-satisficing i6                 None (-) 11.3s [2/2]   None (-) 11.2s
+  ipc-2023n/tpp-numeric-satisficing i7                 None (-) 12.0s [2/2]   None (-) 11.9s
+  ipc-2023n/tpp-numeric-satisficing i8                 None (-) 21.7s [2/2]   None (-) 21.9s
+  ipc-2023n/tpp-numeric-satisficing i9                 unsolved 57.5s [0/2]   unsolved 26.5s
+  ipc-2023n/tpp-numeric-satisficing i10                None (-) 23.0s [2/2]   None (-) 23.2s
+  ipc-2023n/tpp-numeric-satisficing i11                unsolved 60s [0/2]   unsolved 24.7s
+  ipc-2023n/tpp-numeric-satisficing i12                unsolved 56.4s [0/2]   unsolved 23.4s
+  ipc-2023n/tpp-numeric-satisficing i13                unsolved 54.4s [0/2]   unsolved 24.0s
+  ipc-2023n/tpp-numeric-satisficing i14                unsolved 56.2s [0/2]   unsolved 24.2s
+  ipc-2023n/tpp-numeric-satisficing i15                unsolved 57.7s [0/2]   unsolved 20.1s
+  ipc-2023n/tpp-numeric-satisficing i16                unsolved 57.4s [0/2]   unsolved 19.5s
+  ipc-2023n/tpp-numeric-satisficing i17                unsolved 44.3s [0/2]   unsolved 17.1s
+  ipc-2023n/tpp-numeric-satisficing i18                unsolved 51.6s [0/2]   unsolved 24.1s
+  ipc-2023n/tpp-numeric-satisficing i19                unsolved 45.3s [0/2]   unsolved 18.3s
+  ipc-2023n/tpp-numeric-satisficing i20                unsolved 49.0s [0/2]   unsolved 23.9s
+
+  shipped solved 9/20  hatched solved 9/20
+  the feature is worth: +0 instances (kept-by-both 9, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-refill.json

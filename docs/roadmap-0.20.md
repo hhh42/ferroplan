@@ -350,6 +350,76 @@ it, and sweep a first board — brand-new corpus rows in the modern
 section, the direct continuation of "enter tracks we're not doing."
 Not public by cut time ⇒ recorded as a watch item, not blocking.
 
+### Recorded — the cut, on a different machine than the cycle
+
+The cut did not happen on the cloud box. The container died with the
+sweeps unrun, the project moved to an M5 MacBook Air, and 0.20.0 was
+cut there — so the twelve boards in this release are the mandatory
+re-baseline of `docs/migration-m5.md` and the cut sweep, one pass.
+Nothing here may be read against a 0.19 number. The Air port itself,
+and the three harness bugs it exposed, are recorded in
+`docs/roadmap-0.21.md` Phase 0.
+
+**The boards.** 48% coverage across 12 boards (1,917/4,016), 306
+certified optima. seq-sat 473/580, tempo-sat 419/630, 2023 numeric
+194/400, seq-opt 250/550, 2014 seq-sat 110/280, 2026 numeric 121/320,
+2014 seq-agile 103/280, 2023 agile ENTRY(300s) 48/140, 2014 tempo-sat
+63/200, 2018 seq-sat 53/240, 2014 seq-opt 56/256, 2023 classical
+27/140. 482 of 485 temporal plans VAL-green; the 2026 corpus grounds
+with zero engine-rejects across 16 unseen domains.
+
+**The phases, priced Air-vs-Air.** Coverage deltas against 0.19 are
+forbidden, so each phase was measured against its own hatch on this
+box, serially, both arms identical but for one environment variable
+(`benchmarks/hatch-differential.py`):
+
+| phase | hatch | shipped | hatched | worth |
+|---|---|---|---|---|
+| 3 novelty-light | `FF_NO_NOVLIGHT` | 20/20 | 1/20 | **+19** |
+| 2 LM-cut | `FF_NO_LMCUT` | 13/13 | 4/13 | **+9**, zero cost |
+| 1 refill | `FF_NO_REFILL` | 9/20 | 9/20 | +0 coverage |
+
+- **Phase 3 is the cycle's win.** Without the light rung visit-all-2014
+  solves ONE instance; with it, twenty. The largest measured effect in
+  0.20, and it came from a search that does strictly LESS work — the
+  decode showed the old rung burning its budget on `relaxed_helpful`
+  calls a width-1 structure never needed.
+- **Phase 2 is smaller and fairer than the prover labels suggest.** 13
+  certificates carry the LM-cut label, but four of them fall to the
+  h^max sprint anyway inside the same budget, so LM-cut's UNIQUE
+  contribution is **9 of 306 (2.9%)**. Crucially `hatch-only 0`: there
+  is no instance the ladder loses by running LM-cut, so the two-rung
+  design costs nothing. Against the phase's 554-instance ambition this
+  is a small pot — but it is real, free, and correctly wired, which is
+  a different verdict from "does not pay".
+- **Phase 1 bought no coverage, and never claimed any.** Its promise
+  was that an engine holding a declared wall stops giving up early, and
+  that is measured: unsolved rows spend **89% of the budget shipped
+  (53.6s of 60s) against 37% hatched (22.3s)**. All eleven unsolved
+  tpp-numeric instances quit at 17–27s without the refill loop. The
+  phase text called solving them "upside, not the gate"; the upside did
+  not arrive, the gate held.
+
+**What the differential itself cost to trust.** Two bugs had to be
+found before any of the above was believable, both of which produced
+confident wrong answers first. The tool used `timeout=TIMEOUT+10` where
+the runner uses `TIMEOUT`, silently granting 70s where the boards grant
+60 — and `FF_TIME_LIMIT` is soft, so instances "proved" past a wall
+that would have killed them. And it ran at `--jobs 2` like the boards,
+which is wrong for a differential: it selects the HARDEST instances, so
+every concurrent pair became two memory-hungry optimal searches,
+contention the boards never had (each hard instance there sat among
+ordinary neighbours). That artifact reported LM-cut as worth +0 —
+twice, convincingly. Ground truth came from repeating one instance on a
+quiet box: 21.5–23.9s across six runs, spread 1.1x, **byte-identical
+expansions (213,531) every time**. The engine is deterministic; the
+measurements were not. Differentials now run serial, behind an
+idle gate (`benchmarks/overnight-chain.sh`).
+
+**The rider, landed.** The IPC-2026 numeric corpus was a watch item at
+scoping — the organisers had not published. They have; it is vendored,
+swept, and on the board as a first entry.
+
 ## Deferred, on the record (carried forward)
 
 - The h-surgery bet (end-gated interval credit) — the village

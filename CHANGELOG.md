@@ -56,13 +56,14 @@ the planner had never seen.**
   two-rung ladder — an h^max sprint on a quarter of the node budget,
   then LM-cut on the full one. The PROVEN note names its prover.
   Hatches: `FF_NO_LMCUT`, `FF_NO_HMAX_SPRINT`.
-- **Priced honestly:** LM-cut proves **13 of 306 certificates (4.2%)**.
-  The ladder is wired correctly — it closes instances the sprint cannot
-  — but at a 60 s budget its per-node cost does not pay, which is what
-  the cycle's own barman-opt probe predicted (h^max proves cost 90 in
-  22 s where LM-cut cannot inside 100 s). Recorded as a correct
-  heuristic that does not yet earn its keep at this budget, not as a
-  win.
+- **Priced honestly, by differential.** 13 certificates carry the LM-cut
+  prover label, but re-running exactly those instances with
+  `FF_NO_LMCUT=1` on the same box shows four fall to the h^max sprint
+  anyway — so LM-cut's UNIQUE contribution is **9 of 306 certificates
+  (2.9%)**. No instance is lost by running it (`hatch-only 0`), so the
+  two-rung ladder costs nothing. Against the phase's 554-instance
+  ambition that is a small pot; it is also real, free and correctly
+  wired, which is a different verdict from "does not pay".
 
 ### The novelty-LIGHT rung (Phase 3)
 
