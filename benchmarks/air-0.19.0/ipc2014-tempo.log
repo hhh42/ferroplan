@@ -1,0 +1,19 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 30s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-backfill-0.19.0/target/release/ff
+ipc-2014/driver-log-temporal-satisficing: 1/20 solved, cost 62, 3.8s solve-time, val 1/1
+ipc-2014/floor-tile-temporal-satisficing: 1/20 solved, cost 48, 3.6s solve-time, val 1/1
+    VAL FAIL: map-analyzer-temporal-satisficing/instance-17
+    VAL FAIL: map-analyzer-temporal-satisficing/instance-18
+    VAL FAIL: map-analyzer-temporal-satisficing/instance-20
+ipc-2014/map-analyzer-temporal-satisficing: 13/20 solved, cost 513, 87.0s solve-time, val 10/13
+ipc-2014/match-cellar-temporal-satisficing: 20/20 solved, cost 1060, 2.3s solve-time, val 20/20
+ipc-2014/parking-temporal-satisficing: 20/20 solved, cost 379, 13.8s solve-time, val 20/20
+ipc-2014/road-traffic-accident-management-temporal-satisficing: 3/20 solved, cost 1455, 36.9s solve-time, val 3/3
+ipc-2014/satellite-temporal-satisficing: 8/20 solved, cost 483, 10.9s solve-time, val 8/8
+ipc-2014/storage-temporal-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2014/temporal-machine-shop-temporal-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2014/turn-and-open-temporal-satisficing: 2/20 solved, cost 192, 36.6s solve-time, val 2/2
+
+wrote benchmarks/air-0.19.0/ipc2014-tempo.md (raw: benchmarks/air-0.19.0/ipc2014-tempo.jsonl) — total coverage 68/200

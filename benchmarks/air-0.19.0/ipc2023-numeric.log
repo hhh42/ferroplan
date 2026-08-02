@@ -1,0 +1,26 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-backfill-0.19.0/target/release/ff
+ipc-2023n/block-grouping-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/counters-numeric-satisficing: 11/20 solved, cost 1312, 10.0s solve-time, val 11/11
+ipc-2023n/delivery-numeric-satisficing: 18/20 solved, cost 5232, 94.5s solve-time, val 18/18
+ipc-2023n/drone-numeric-satisficing: 16/20 solved, cost 1617, 8.1s solve-time, val 0/0
+ipc-2023n/expedition-numeric-satisficing: 3/20 solved, cost 296, 4.4s solve-time, val 3/3
+ipc-2023n/ext-plant-watering-numeric-satisficing: 10/20 solved, cost 6650, 26.1s solve-time, val 10/10
+ipc-2023n/farmland-numeric-satisficing: 20/20 solved, cost 5601, 0.2s solve-time, val 20/20
+ipc-2023n/fo-counters-numeric-satisficing: 9/20 solved, cost 198, 2.9s solve-time, val 9/9
+ipc-2023n/fo-farmland-numeric-satisficing: 20/20 solved, cost 5311, 0.1s solve-time, val 20/20
+ipc-2023n/fo-sailing-numeric-satisficing: 1/20 solved, cost 63, 13.6s solve-time, val 1/1
+ipc-2023n/hydropower-numeric-satisficing: 13/20 solved, cost 690, 74.0s solve-time, val 13/13
+ipc-2023n/markettrader-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/mprime-numeric-satisficing: 19/20 solved, cost 200, 3.9s solve-time, val 19/19
+ipc-2023n/pathwaysmetric-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/rover-numeric-satisficing: 14/20 solved, cost 31, 49.0s solve-time, val 14/14
+ipc-2023n/sailing-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/settlersnumeric-numeric-satisficing: 2/20 solved, cost 74, 6.6s solve-time, val 2/2
+ipc-2023n/sugar-numeric-satisficing: 9/20 solved, cost 258, 218.3s solve-time, val 9/9
+ipc-2023n/tpp-numeric-satisficing: 8/20 solved, cost 309367, 123.5s solve-time, val 8/8
+ipc-2023n/zenotravel-numeric-satisficing: 20/20 solved, cost 42117, 31.2s solve-time, val 20/20
+
+wrote benchmarks/air-0.19.0/ipc2023-numeric.md (raw: benchmarks/air-0.19.0/ipc2023-numeric.jsonl) — total coverage 193/400

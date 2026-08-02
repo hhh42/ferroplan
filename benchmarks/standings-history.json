@@ -57,6 +57,63 @@
      "total": 256
     }
    }
+  },
+  {
+   "version": "0.19.0",
+   "released": "2026-07-31",
+   "measured_on": "m5-air",
+   "measured_at": "2026-08-02",
+   "note": "BACKFILL: v0.19.0 engine re-measured on m5-air with the current harness (only the engine varies)",
+   "tracks": {
+    "seq-sat": {
+     "solved": 472,
+     "total": 580
+    },
+    "tempo-sat": {
+     "solved": 419,
+     "total": 630
+    },
+    "2014 seq-sat": {
+     "solved": 115,
+     "total": 280
+    },
+    "2014 seq-agile": {
+     "solved": 114,
+     "total": 280
+    },
+    "2014 tempo-sat": {
+     "solved": 65,
+     "total": 200
+    },
+    "2018 seq-sat": {
+     "solved": 63,
+     "total": 240
+    },
+    "2023 classical": {
+     "solved": 30,
+     "total": 140
+    },
+    "2023 numeric": {
+     "solved": 193,
+     "total": 400
+    },
+    "2026 numeric (first board)": {
+     "solved": 124,
+     "total": 320
+    },
+    "2023 agile ENTRY (300s)": {
+     "solved": 49,
+     "total": 140
+    },
+    "seq-opt": {
+     "solved": 235,
+     "total": 550
+    },
+    "2014 seq-opt": {
+     "solved": 64,
+     "total": 256
+    }
+   }
   }
  ]
 }

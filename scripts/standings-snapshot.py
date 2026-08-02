@@ -42,8 +42,21 @@ def main():
     released = arg("--released", measured_at)
     note = arg("--note", "")
 
+    # --from-dir reads a sweep that was never promoted — a BACKFILL of an old
+    # tag, which must be banked without disturbing the live boards.
+    src = arg("--from-dir")
     tracks = {}
     for fname, (label, comp, budget) in S.SWEEPS.items():
+        if src:
+            board = "ipc67-results" if fname == "ipc67-default.jsonl" else fname[:-6]
+            p = os.path.join(src, f"{board}.jsonl")
+            if not os.path.exists(p):
+                continue
+            rows = S.load_jsonl(p)
+            s_, n_, _ = S.coverage_line(rows, budget)
+            if n_:
+                tracks[label] = {"solved": s_, "total": n_}
+            continue
         p = os.path.join(S.B, fname)
         md = os.path.join(S.B, {"ipc67-default.jsonl": "ipc67-results.md",
                                 "ipc67-temporal.jsonl": "ipc67-temporal.md"}

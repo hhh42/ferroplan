@@ -1,0 +1,280 @@
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 1, "solved": true, "time": 3.33, "metric": null, "length": 162, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 2, "solved": true, "time": 2.57, "metric": null, "length": 153, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 3, "solved": true, "time": 3.0, "metric": null, "length": 159, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 4, "solved": true, "time": 1.78, "metric": null, "length": 140, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 5, "solved": true, "time": 2.18, "metric": null, "length": 150, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 6, "solved": true, "time": 2.97, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 7, "solved": true, "time": 3.29, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 8, "solved": true, "time": 2.83, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 9, "solved": true, "time": 1.93, "metric": null, "length": 137, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 10, "solved": true, "time": 2.62, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 11, "solved": true, "time": 3.02, "metric": null, "length": 153, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 12, "solved": true, "time": 3.04, "metric": null, "length": 170, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 13, "solved": true, "time": 3.67, "metric": null, "length": 165, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 14, "solved": true, "time": 2.04, "metric": null, "length": 148, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 15, "solved": true, "time": 2.13, "metric": null, "length": 152, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 16, "solved": true, "time": 3.16, "metric": null, "length": 156, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 17, "solved": true, "time": 2.02, "metric": null, "length": 141, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 18, "solved": true, "time": 2.63, "metric": null, "length": 154, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 19, "solved": true, "time": 2.86, "metric": null, "length": 156, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-satisficing", "instance": 20, "solved": true, "time": 2.65, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 6, "solved": true, "time": 31.01, "metric": 104.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 7, "solved": true, "time": 30.88, "metric": 105.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 8, "solved": false, "time": 29.13, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 9, "solved": true, "time": 31.13, "metric": 100.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 18, "solved": false, "time": 43.79, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 19, "solved": false, "time": 52.74, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-satisficing", "instance": 20, "solved": false, "time": 38.89, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 1, "solved": true, "time": 1.01, "metric": null, "length": 47, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 2, "solved": true, "time": 1.4, "metric": null, "length": 47, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 3, "solved": true, "time": 1.71, "metric": null, "length": 52, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 4, "solved": true, "time": 2.11, "metric": null, "length": 57, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 5, "solved": true, "time": 3.79, "metric": null, "length": 62, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 6, "solved": true, "time": 15.9, "metric": null, "length": 62, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 7, "solved": true, "time": 12.12, "metric": null, "length": 67, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 9, "solved": true, "time": 11.71, "metric": null, "length": 72, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 11, "solved": true, "time": 14.8, "metric": null, "length": 77, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-satisficing", "instance": 20, "solved": false, "time": 12.24, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 1, "solved": true, "time": 4.5, "metric": 564.0, "length": 45, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 3, "solved": true, "time": 58.7, "metric": 385.0, "length": 60, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 5, "solved": true, "time": 15.27, "metric": 414.0, "length": 63, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-satisficing", "instance": 20, "solved": false, "time": 54.63, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 1, "solved": true, "time": 2.42, "metric": 86.0, "length": 36, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 2, "solved": false, "time": 38.68, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 3, "solved": false, "time": 45.42, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 4, "solved": false, "time": 40.04, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 5, "solved": false, "time": 48.57, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 7, "solved": false, "time": 40.58, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 8, "solved": false, "time": 49.14, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 11, "solved": false, "time": 41.47, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 12, "solved": false, "time": 54.36, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 14, "solved": false, "time": 37.69, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 15, "solved": false, "time": 48.62, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 16, "solved": false, "time": 51.8, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 18, "solved": true, "time": 0.23, "metric": 92.0, "length": 36, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 19, "solved": false, "time": 56.35, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 1, "solved": true, "time": 3.52, "metric": 27.0, "length": 81, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 2, "solved": true, "time": 3.91, "metric": 28.0, "length": 90, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 3, "solved": true, "time": 3.05, "metric": 26.0, "length": 73, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 4, "solved": true, "time": 3.1, "metric": 27.0, "length": 74, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 5, "solved": true, "time": 7.01, "metric": 21.0, "length": 71, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 6, "solved": true, "time": 3.49, "metric": 34.0, "length": 107, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 7, "solved": true, "time": 16.76, "metric": 26.0, "length": 116, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 8, "solved": true, "time": 15.11, "metric": 33.0, "length": 115, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 9, "solved": true, "time": 3.58, "metric": 37.0, "length": 125, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 10, "solved": true, "time": 3.39, "metric": 31.0, "length": 96, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 11, "solved": true, "time": 10.64, "metric": 27.0, "length": 85, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 12, "solved": true, "time": 3.85, "metric": 33.0, "length": 98, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 13, "solved": true, "time": 36.95, "metric": 61.0, "length": 228, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 14, "solved": true, "time": 28.11, "metric": 40.0, "length": 139, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 15, "solved": true, "time": 37.69, "metric": 30.0, "length": 130, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 16, "solved": true, "time": 6.19, "metric": 49.0, "length": 149, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 17, "solved": true, "time": 41.5, "metric": 52.0, "length": 222, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 18, "solved": true, "time": 43.63, "metric": 40.0, "length": 158, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 19, "solved": true, "time": 41.66, "metric": 41.0, "length": 169, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-satisficing", "instance": 20, "solved": true, "time": 8.01, "metric": 22.0, "length": 82, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 1, "solved": true, "time": 0.16, "metric": null, "length": 52, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 2, "solved": true, "time": 0.34, "metric": null, "length": 63, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 3, "solved": true, "time": 0.63, "metric": null, "length": 75, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 4, "solved": true, "time": 1.97, "metric": null, "length": 54, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 5, "solved": true, "time": 3.1, "metric": null, "length": 62, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 6, "solved": true, "time": 1.34, "metric": null, "length": 40, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 7, "solved": true, "time": 2.56, "metric": null, "length": 51, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 8, "solved": true, "time": 4.02, "metric": null, "length": 67, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 9, "solved": true, "time": 0.15, "metric": null, "length": 32, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 10, "solved": true, "time": 4.31, "metric": null, "length": 47, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 11, "solved": true, "time": 3.41, "metric": null, "length": 51, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 12, "solved": true, "time": 6.0, "metric": null, "length": 65, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 13, "solved": true, "time": 4.15, "metric": null, "length": 39, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 14, "solved": true, "time": 6.24, "metric": null, "length": 64, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 15, "solved": true, "time": 12.54, "metric": null, "length": 75, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 17, "solved": true, "time": 3.1, "metric": null, "length": 36, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 18, "solved": true, "time": 16.66, "metric": null, "length": 65, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 19, "solved": true, "time": 11.81, "metric": null, "length": 66, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-satisficing", "instance": 20, "solved": true, "time": 24.08, "metric": null, "length": 100, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 1, "solved": true, "time": 0.44, "metric": null, "length": 40, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 2, "solved": true, "time": 0.42, "metric": null, "length": 38, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 3, "solved": true, "time": 0.5, "metric": null, "length": 42, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 4, "solved": true, "time": 2.02, "metric": null, "length": 70, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 5, "solved": true, "time": 2.02, "metric": null, "length": 68, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 6, "solved": true, "time": 0.04, "metric": null, "length": 75, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 7, "solved": true, "time": 0.04, "metric": null, "length": 77, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 8, "solved": true, "time": 0.04, "metric": null, "length": 73, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 9, "solved": true, "time": 23.84, "metric": null, "length": 93, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 12, "solved": true, "time": 0.19, "metric": null, "length": 162, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 13, "solved": false, "time": 24.47, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 14, "solved": true, "time": 0.23, "metric": null, "length": 162, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 19, "solved": true, "time": 0.26, "metric": null, "length": 160, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-satisficing", "instance": 20, "solved": true, "time": 0.26, "metric": null, "length": 163, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 1, "solved": true, "time": 30.28, "metric": 105.0, "length": 615, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 2, "solved": true, "time": 35.05, "metric": 156.0, "length": 666, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 3, "solved": true, "time": 43.7, "metric": 116.0, "length": 686, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 4, "solved": true, "time": 45.36, "metric": 132.0, "length": 702, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 5, "solved": true, "time": 50.8, "metric": 178.0, "length": 748, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 2, "solved": true, "time": 57.97, "metric": 67.0, "length": 67, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 1, "solved": true, "time": 22.49, "metric": 46.0, "length": 24, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "anytime cost sweep improved plan cost 57 -> 46"]}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 16, "solved": false, "time": 53.04, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 1, "solved": true, "time": 0.56, "metric": null, "length": 34, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 2, "solved": true, "time": 0.59, "metric": null, "length": 30, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 3, "solved": true, "time": 0.66, "metric": null, "length": 37, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 4, "solved": true, "time": 0.67, "metric": null, "length": 34, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 5, "solved": true, "time": 0.69, "metric": null, "length": 35, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 6, "solved": true, "time": 16.2, "metric": null, "length": 94, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 7, "solved": true, "time": 17.17, "metric": null, "length": 93, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 8, "solved": true, "time": 16.25, "metric": null, "length": 89, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 10, "solved": true, "time": 20.4, "metric": null, "length": 123, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 11, "solved": true, "time": 21.04, "metric": null, "length": 123, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 12, "solved": true, "time": 20.67, "metric": null, "length": 133, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 13, "solved": true, "time": 29.65, "metric": null, "length": 121, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 15, "solved": true, "time": 20.95, "metric": null, "length": 124, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 16, "solved": true, "time": 20.55, "metric": null, "length": 130, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 17, "solved": true, "time": 19.52, "metric": null, "length": 121, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 18, "solved": true, "time": 19.6, "metric": null, "length": 132, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 19, "solved": true, "time": 21.73, "metric": null, "length": 140, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-satisficing", "instance": 20, "solved": true, "time": 20.29, "metric": null, "length": 136, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 1, "solved": true, "time": 55.43, "metric": null, "length": 1450, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}

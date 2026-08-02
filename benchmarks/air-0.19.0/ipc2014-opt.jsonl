@@ -1,0 +1,256 @@
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "barman-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 6, "solved": true, "time": 12.32, "metric": 94.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 94 certified by A* + admissible h^max (1036942 expansions)"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 7, "solved": true, "time": 12.28, "metric": 95.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 95 certified by A* + admissible h^max (1036942 expansions)"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 8, "solved": true, "time": 24.26, "metric": 131.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 131 certified by A* + admissible h^max (2073870 expansions)"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 9, "solved": true, "time": 12.32, "metric": 90.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 90 certified by A* + admissible h^max (1036942 expansions)"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 18, "solved": true, "time": 50.73, "metric": 131.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 131 certified by A* + admissible h^max (2516090 expansions)"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-optimal", "instance": 20, "solved": true, "time": 22.1, "metric": 98.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 98 certified by A* + admissible h^max (1258060 expansions)"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 1, "solved": true, "time": 0.04, "metric": 46.0, "length": 12, "val": true, "notes": ["PROVEN OPTIMAL: cost 46 certified by A* + admissible h^max (371 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 2, "solved": true, "time": 0.16, "metric": 64.0, "length": 10, "val": true, "notes": ["PROVEN OPTIMAL: cost 64 certified by A* + admissible h^max (2726 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 3, "solved": true, "time": 0.26, "metric": 50.0, "length": 18, "val": true, "notes": ["PROVEN OPTIMAL: cost 50 certified by A* + admissible h^max (2398 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 4, "solved": true, "time": 0.2, "metric": 48.0, "length": 16, "val": true, "notes": ["PROVEN OPTIMAL: cost 48 certified by A* + admissible h^max (1828 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 5, "solved": true, "time": 0.25, "metric": 50.0, "length": 18, "val": true, "notes": ["PROVEN OPTIMAL: cost 50 certified by A* + admissible h^max (2398 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 6, "solved": true, "time": 1.31, "metric": 52.0, "length": 22, "val": true, "notes": ["PROVEN OPTIMAL: cost 52 certified by A* + admissible h^max (10935 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 7, "solved": true, "time": 1.34, "metric": 52.0, "length": 22, "val": true, "notes": ["PROVEN OPTIMAL: cost 52 certified by A* + admissible h^max (10935 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 8, "solved": true, "time": 59.98, "metric": 76.0, "length": 29, "val": true, "notes": ["PROVEN OPTIMAL: cost 76 certified by A* + admissible h^max (546469 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 9, "solved": true, "time": 47.72, "metric": 58.0, "length": 32, "val": true, "notes": ["PROVEN OPTIMAL: cost 58 certified by A* + admissible h^max (291638 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 10, "solved": true, "time": 47.65, "metric": 58.0, "length": 32, "val": true, "notes": ["PROVEN OPTIMAL: cost 58 certified by A* + admissible h^max (291638 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 11, "solved": true, "time": 1.77, "metric": 68.0, "length": 15, "val": true, "notes": ["PROVEN OPTIMAL: cost 68 certified by A* + admissible h^max (9264 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 12, "solved": true, "time": 11.91, "metric": 78.0, "length": 17, "val": true, "notes": ["PROVEN OPTIMAL: cost 78 certified by A* + admissible h^max (55247 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 13, "solved": true, "time": 57.35, "metric": 82.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 82 certified by A* + admissible h^max (202068 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 15, "solved": true, "time": 37.9, "metric": 70.0, "length": 17, "val": true, "notes": ["PROVEN OPTIMAL: cost 70 certified by A* + admissible h^max (38976 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 17, "solved": true, "time": 1.44, "metric": 48.0, "length": 14, "val": true, "notes": ["PROVEN OPTIMAL: cost 48 certified by A* + admissible h^max (975 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 18, "solved": true, "time": 33.28, "metric": 70.0, "length": 17, "val": true, "notes": ["PROVEN OPTIMAL: cost 70 certified by A* + admissible h^max (36394 expansions)"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 1, "solved": true, "time": 22.29, "metric": 56.0, "length": 36, "val": true, "notes": ["PROVEN OPTIMAL: cost 56 certified by A* + admissible h^max (2079067 expansions)"]}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 14, "solved": true, "time": 22.46, "metric": 56.0, "length": 36, "val": true, "notes": ["PROVEN OPTIMAL: cost 56 certified by A* + admissible h^max (2120572 expansions)"]}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 1, "solved": true, "time": 0.0, "metric": 1.0, "length": 1, "val": true, "notes": ["PROVEN OPTIMAL: cost 1 certified by A* + admissible h^max (1 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 2, "solved": true, "time": 1.49, "metric": 4.0, "length": 17, "val": true, "notes": ["PROVEN OPTIMAL: cost 4 certified by A* + admissible h^max (94600 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 3, "solved": true, "time": 0.0, "metric": 1.0, "length": 1, "val": true, "notes": ["PROVEN OPTIMAL: cost 1 certified by A* + admissible h^max (1 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 4, "solved": true, "time": 6.48, "metric": 4.0, "length": 13, "val": true, "notes": ["PROVEN OPTIMAL: cost 4 certified by A* + admissible h^max (305810 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 5, "solved": true, "time": 0.0, "metric": 1.0, "length": 1, "val": true, "notes": ["PROVEN OPTIMAL: cost 1 certified by A* + admissible h^max (1 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 6, "solved": true, "time": 0.05, "metric": 3.0, "length": 16, "val": true, "notes": ["PROVEN OPTIMAL: cost 3 certified by A* + admissible h^max (3992 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 7, "solved": true, "time": 0.0, "metric": 2.0, "length": 6, "val": true, "notes": ["PROVEN OPTIMAL: cost 2 certified by A* + admissible h^max (94 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 9, "solved": true, "time": 1.51, "metric": 4.0, "length": 17, "val": true, "notes": ["PROVEN OPTIMAL: cost 4 certified by A* + admissible h^max (94610 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 10, "solved": true, "time": 0.05, "metric": 3.0, "length": 7, "val": true, "notes": ["PROVEN OPTIMAL: cost 3 certified by A* + admissible h^max (3885 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 11, "solved": true, "time": 56.62, "metric": 5.0, "length": 21, "val": true, "notes": ["PROVEN OPTIMAL: cost 5 certified by A* + admissible h^max (2612735 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 12, "solved": true, "time": 0.01, "metric": 2.0, "length": 6, "val": true, "notes": ["PROVEN OPTIMAL: cost 2 certified by A* + admissible h^max (94 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 13, "solved": true, "time": 55.74, "metric": 5.0, "length": 23, "val": true, "notes": ["PROVEN OPTIMAL: cost 5 certified by A* + admissible h^max (2620005 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 15, "solved": true, "time": 6.5, "metric": 4.0, "length": 13, "val": true, "notes": ["PROVEN OPTIMAL: cost 4 certified by A* + admissible h^max (305853 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 16, "solved": true, "time": 1.52, "metric": 4.0, "length": 13, "val": true, "notes": ["PROVEN OPTIMAL: cost 4 certified by A* + admissible h^max (97595 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 17, "solved": true, "time": 6.46, "metric": 4.0, "length": 13, "val": true, "notes": ["PROVEN OPTIMAL: cost 4 certified by A* + admissible h^max (305860 expansions)"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 1, "solved": true, "time": 0.01, "metric": null, "length": 11, "val": true, "notes": ["PROVEN OPTIMAL: cost 11 certified by A* + admissible h^max (385 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 2, "solved": true, "time": 0.01, "metric": null, "length": 17, "val": true, "notes": ["PROVEN OPTIMAL: cost 17 certified by A* + admissible h^max (2667 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 3, "solved": true, "time": 0.06, "metric": null, "length": 25, "val": true, "notes": ["PROVEN OPTIMAL: cost 25 certified by A* + admissible h^max (10469 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 4, "solved": true, "time": 0.83, "metric": null, "length": 38, "val": true, "notes": ["PROVEN OPTIMAL: cost 38 certified by A* + admissible h^max (73521 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 5, "solved": true, "time": 2.38, "metric": null, "length": 45, "val": true, "notes": ["PROVEN OPTIMAL: cost 45 certified by A* + admissible h^max (155243 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 6, "solved": true, "time": 0.48, "metric": null, "length": 10, "val": true, "notes": ["PROVEN OPTIMAL: cost 10 certified by A* + admissible h^max (22412 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 7, "solved": true, "time": 22.87, "metric": null, "length": 16, "val": true, "notes": ["PROVEN OPTIMAL: cost 16 certified by A* + admissible h^max (726922 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 16, "solved": true, "time": 5.11, "metric": null, "length": 10, "val": true, "notes": ["PROVEN OPTIMAL: cost 10 certified by A* + admissible h^max (140329 expansions)"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-optimal", "instance": 1, "solved": true, "time": 0.0, "metric": null, "length": 4, "val": true, "notes": ["PROVEN OPTIMAL: cost 4 certified by A* + admissible h^max (579 expansions)"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-optimal", "instance": 2, "solved": true, "time": 0.02, "metric": null, "length": 7, "val": true, "notes": ["PROVEN OPTIMAL: cost 7 certified by A* + admissible h^max (6273 expansions)"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-optimal", "instance": 3, "solved": true, "time": 0.02, "metric": null, "length": 6, "val": true, "notes": ["PROVEN OPTIMAL: cost 6 certified by A* + admissible h^max (6392 expansions)"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-optimal", "instance": 4, "solved": true, "time": 9.26, "metric": null, "length": 11, "val": true, "notes": ["PROVEN OPTIMAL: cost 11 certified by A* + admissible h^max (1908954 expansions)"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-optimal", "instance": 5, "solved": true, "time": 2.64, "metric": null, "length": 9, "val": true, "notes": ["PROVEN OPTIMAL: cost 9 certified by A* + admissible h^max (510094 expansions)"]}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 3, "solved": true, "time": 3.95, "metric": 6.0, "length": 66, "val": true, "notes": ["PROVEN OPTIMAL: cost 6 certified by A* + admissible h^max (160867 expansions)"]}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 4, "solved": true, "time": 0.46, "metric": 10.0, "length": 6, "val": true, "notes": ["PROVEN OPTIMAL: cost 10 certified by A* + admissible h^max (70 expansions)"]}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 8, "solved": true, "time": 0.95, "metric": 11.0, "length": 9, "val": true, "notes": ["PROVEN OPTIMAL: cost 11 certified by A* + admissible h^max (4576 expansions)"]}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 15, "solved": true, "time": 6.25, "metric": 19.0, "length": 11, "val": true, "notes": ["PROVEN OPTIMAL: cost 19 certified by A* + admissible h^max (15156 expansions)"]}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 4, "solved": true, "time": 45.36, "metric": null, "length": 24, "val": true, "notes": ["PROVEN OPTIMAL: cost 24 certified by A* + admissible h^max (46107 expansions)"]}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 14, "solved": true, "time": 33.29, "metric": null, "length": 25, "val": true, "notes": ["PROVEN OPTIMAL: cost 25 certified by A* + admissible h^max (48518 expansions)"]}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tidybot-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 1, "solved": true, "time": 0.09, "metric": 148.0, "length": 13, "val": true, "notes": ["PROVEN OPTIMAL: cost 148 certified by A* + admissible h^max (5767 expansions)"]}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 2, "solved": true, "time": 3.86, "metric": 191.0, "length": 18, "val": true, "notes": ["PROVEN OPTIMAL: cost 191 certified by A* + admissible h^max (123319 expansions)"]}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 7, "solved": true, "time": 12.9, "metric": 967.0, "length": 25, "val": true, "notes": ["PROVEN OPTIMAL: cost 967 certified by A* + admissible h^max (773867 expansions)"]}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 13, "solved": true, "time": 0.71, "metric": 594.0, "length": 20, "val": true, "notes": ["PROVEN OPTIMAL: cost 594 certified by A* + admissible h^max (16193 expansions)"]}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 1, "solved": true, "time": 8.67, "metric": null, "length": 24, "val": true, "notes": ["PROVEN OPTIMAL: cost 24 certified by A* + admissible h^max (2803099 expansions)"]}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 15, "solved": true, "time": 2.94, "metric": null, "length": 21, "val": true, "notes": ["PROVEN OPTIMAL: cost 21 certified by A* + admissible h^max (960964 expansions)"]}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-optimal", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}

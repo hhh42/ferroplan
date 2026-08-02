@@ -219,6 +219,96 @@ the raw evidence the twelve JSONLs plus `benchmarks/air/`.
   first Air-vs-Air movement column this project has ever had.
 - 0.20.0 was cut and tagged from this record, front page and all.
 
+## Phase 2 — the backfill, and what it found (recorded)
+
+The re-baseline broke the trend line by design, leaving "improvement"
+unsayable. The repair, proposed by the user: re-measure an OLD tagged
+engine on THIS box. `benchmarks/backfill-air.sh` builds a tag in a git
+worktree and sweeps it with the CURRENT harness via `$FERROPLAN_FF`, so
+only the engine varies — checking out the old `benchmarks/` too would
+vary the instrument, and this cycle's `val_check` fix is exactly why
+that matters.
+
+v0.19.0, twelve boards, ~20 h, same `--jobs 2 --mem-gb 6`:
+
+| board | v0.19 | v0.20 | Δ |
+|---|---|---|---|
+| ipc-opt-2008-11 ⚖️ | 235/550 | 250/550 | **+15** |
+| ipc67-results | 472/580 | 473/580 | +1 |
+| 2023 numeric | 193/400 | 194/400 | +1 |
+| ipc67-temporal | 419/630 | 419/630 | **0** |
+| 2023 agile ENTRY (300s) | 49/140 | 48/140 | −1 |
+| 2014 tempo-sat | 68/200 | 66/200 | −2 |
+| 2023 classical | 30/140 | 27/140 | −3 |
+| 2026 numeric | 124/320 | 121/320 | −3 |
+| 2014 seq-sat | 115/280 | 110/280 | −5 |
+| 2014 seq-opt ⚖️ | 64/256 | 56/256 | −8 |
+| 2018 seq-sat | 63/240 | 53/240 | −10 |
+| 2014 seq-agile | 114/280 | 103/280 | −11 |
+| **total** | **1946** | **1920** | **−26** |
+
+**0.20 is a net coverage regression against 0.19.** Two independent
+causes, one shared mistake: a two-rung ladder that starves the rung
+that was already working.
+
+### (A) The satisficing ladder — novelty-light taxes every search
+
+Per-domain, the same domains win and lose on two independent boards:
+
+    2014 seq-agile   visit-all 1->20 (+19), maintenance +4
+                     hiking -10, child-snack -8, openstacks -8,
+                     thoughtful -3, cave-diving -3, city-car -1, parking -1
+                     gains +23, losses -34, net -11
+
+The rung sits after EHC and BEFORE LAMA, default-on under a declared
+budget, so it spends wall ahead of the rung that would have solved.
+Phase 3 priced its tax at "~1 s" from a single sokoban probe; domains
+going to ZERO (child-snack 8→0) say that probe was not representative.
+The differential confirms the win is real (`FF_NO_NOVLIGHT`: visit-all
+20/20 → 1/20, worth +19) — it is simply bought at roughly 1.5× its
+value elsewhere.
+
+### (B) The optimal ladder — an unconditional quarter-budget sprint
+
+    ipc-opt-2008-11   v0.19 h^max x235      v0.20 h^max x237 + LM-cut x13   +15
+    ipc2014-opt       v0.19 h^max x64       v0.20 h^max x56  + LM-cut x0     -8
+
+The prover counts are the whole story. Where LM-cut can fire
+(elevator, woodworking, tidybot — landmark-rich), 0.20 gets MORE h^max
+certificates AND 13 LM-cut ones: the trade is strongly positive. Where
+it never fires (2014's city-car, genome-edit-distances), the sprint's
+quarter budget simply starves h^max and nothing compensates. The split
+is not wrong, it is UNCONDITIONAL. Net across both optimal boards: **+7**.
+
+### Where the tax bites, and where it cannot
+
+Coverage loss scales with how many instances sit NEAR THE WALL, not
+with board size:
+
+- ipc67-temporal, 630 instances, **exactly 0** — temporal runs its own
+  machinery, the classical ladder never fires. The cleanest control in
+  the set.
+- ipc67-results, 580 instances at 82% coverage, **+1** — almost
+  everything solves far inside the wall, so a few seconds of tax cannot
+  flip it.
+- 2014-agile, 280 instances at 37%, **−11** — a dense population at the
+  budget edge, and the tax converts directly into losses.
+- The 300 s entry board regresses −1 where its 60 s sibling regressed
+  −3: at five times the budget the tax is a fifth of the proportion.
+  Predicted before that board ran, and confirmed.
+
+### The methodological finding: a hatch only tests what it gates
+
+Three hatch differentials all reported 0.20 favourably (`+19`, `+9 at
+zero cost`, `+0 but spends the wall`). Every one of them is an internal
+0.20-vs-0.20 comparison. `FF_NO_LMCUT` keeps the sprint's budget split;
+`FF_NO_HMAX_SPRINT` gives LM-cut-only; NEITHER reproduces 0.19. An
+architectural change to how BUDGET IS ALLOCATED is invisible to a hatch
+that only removes a component. **Any future phase that reallocates
+budget needs an old-binary referee, not a hatch.** The backfill caught
+what three differentials could not, and it exists because the user
+proposed it.
+
 ## Deferred ledger, carried in for scoping (from migration-m5)
 
 Read after Phase 1 lands, against a fresh standings audit — not
