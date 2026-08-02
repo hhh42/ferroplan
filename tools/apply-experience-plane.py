@@ -80,7 +80,15 @@ if "dx_manifest" not in text:
         "    // canonical evidence admission\n",
         1,
     )
-    merged.write_text(text)
+text = text.replace(
+    "fn resources_list_exposes_exactly_31_under_the_unified_scheme()",
+    "fn resources_list_exposes_exactly_42_under_the_unified_scheme()",
+)
+text = text.replace(
+    'assert_eq!(tools.len(), 31, "expected all 42 tools");',
+    'assert_eq!(tools.len(), 42, "expected all 42 tools");',
+)
+merged.write_text(text)
 
 protocol = ROOT / "crates/ferroplan-mcp/tests/protocol.rs"
 text = protocol.read_text()
