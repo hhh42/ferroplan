@@ -87,7 +87,10 @@ fn session_id_is_caller_owned_and_replace_is_explicit() {
         json!({"session_id": sid, "domain": DOM, "problem": PROB}),
     );
     assert!(error, "duplicate open must be refused");
-    assert!(text.contains("already exists"), "unexpected refusal: {text}");
+    assert!(
+        text.contains("already exists"),
+        "unexpected refusal: {text}"
+    );
 
     let replacement = c.call_json(
         "session_open",
@@ -100,7 +103,10 @@ fn session_id_is_caller_owned_and_replace_is_explicit() {
     );
     assert_eq!(replacement["session_id"], sid);
     assert!(
-        !replacement["receipt"].as_str().unwrap_or_default().is_empty(),
+        !replacement["receipt"]
+            .as_str()
+            .unwrap_or_default()
+            .is_empty(),
         "replacement must emit a receipt"
     );
     c.finish();
@@ -111,10 +117,7 @@ fn observe_reports_only_contradictions_and_updates_the_receipt_head() {
     let mut c = Client::start();
     let sid = "surprise-boundary";
     let opened = open(&mut c, sid);
-    let open_receipt = opened["receipt"]
-        .as_str()
-        .expect("open receipt")
-        .to_owned();
+    let open_receipt = opened["receipt"].as_str().expect("open receipt").to_owned();
 
     let quiet = c.call_json(
         "session_observe",
@@ -203,7 +206,10 @@ fn status_close_and_unknown_handle_refusals_preserve_the_server() {
     let closed = c.call_json("session_close", json!({"session_id": sid}));
     assert_eq!(closed["closed"], true);
     let closed_again = c.call_json("session_close", json!({"session_id": sid}));
-    assert_eq!(closed_again["closed"], false, "close is observable and idempotent");
+    assert_eq!(
+        closed_again["closed"], false,
+        "close is observable and idempotent"
+    );
 
     let (after_text, after_error) = c.call_text("session_status", json!({"session_id": sid}));
     assert!(after_error);
@@ -235,6 +241,9 @@ fn cursor_advance_refuses_unobserved_execution_beyond_the_plan() {
     assert!(text.contains("beyond plan length"));
 
     let status = c.call_json("session_status", json!({"session_id": sid}));
-    assert_eq!(status["cursor"], 0, "refused advance must not mutate cursor");
+    assert_eq!(
+        status["cursor"], 0,
+        "refused advance must not mutate cursor"
+    );
     c.finish();
 }
