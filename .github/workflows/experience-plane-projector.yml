@@ -4,11 +4,13 @@ on:
   pull_request:
     paths:
       - "tools/apply-experience-plane.py"
+      - "crates/ferroplan-mcp/build.rs"
       - "crates/ferroplan-mcp/src/experience.rs"
       - "crates/ferroplan-mcp/src/main.rs"
       - "crates/ferroplan-mcp/tests/experience_plane.rs"
       - "crates/ferroplan-mcp/tests/merged_server.rs"
       - "crates/ferroplan-mcp/tests/protocol.rs"
+      - "plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl"
       - ".github/workflows/experience-plane-projector.yml"
   workflow_dispatch:
 
@@ -38,9 +40,7 @@ jobs:
 
       - name: Project merged authority
         run: |
-          if ! grep -q '^mod experience;' crates/ferroplan-mcp/src/main.rs; then
-            python3 tools/apply-experience-plane.py
-          fi
+          python3 tools/apply-experience-plane.py
           cargo fmt --all
 
       - name: Compile and execute experience falsifiers
@@ -56,13 +56,15 @@ jobs:
           git config user.name "ferroplan-vision-controller"
           git config user.email "ferroplan-vision-controller@users.noreply.github.com"
           git add \
+            crates/ferroplan-mcp/build.rs \
             crates/ferroplan-mcp/src/main.rs \
             crates/ferroplan-mcp/src/experience.rs \
             crates/ferroplan-mcp/tests/experience_plane.rs \
             crates/ferroplan-mcp/tests/merged_server.rs \
-            crates/ferroplan-mcp/tests/protocol.rs
+            crates/ferroplan-mcp/tests/protocol.rs \
+            plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl
           if ! git diff --cached --quiet; then
-            git commit -m "feat(mcp): activate 42-tool operator experience plane"
+            git commit -m "feat(mcp): seal RDF-owned Vision 2030 experience plane"
             git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"
           fi
 
