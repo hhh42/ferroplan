@@ -12,7 +12,6 @@ on:
       - "crates/ferroplan-mcp/tests/session_control.rs"
       - "crates/ferroplan-mcp/tests/merged_server.rs"
       - "crates/ferroplan-mcp/tests/protocol.rs"
-      - ".github/workflows/ferroplan-harvester.yml"
       - ".github/workflows/session-capability-density.yml"
   workflow_dispatch:
 
@@ -62,6 +61,7 @@ jobs:
         run: |
           git config user.name "ferroplan-capability-controller"
           git config user.email "ferroplan-capability-controller@users.noreply.github.com"
+          git restore .github/workflows/ferroplan-harvester.yml
           git add \
             crates/ferroplan/Cargo.toml \
             crates/ferroplan/src/session.rs \
@@ -70,8 +70,7 @@ jobs:
             crates/ferroplan-mcp/src/session_control.rs \
             crates/ferroplan-mcp/tests/merged_server.rs \
             crates/ferroplan-mcp/tests/protocol.rs \
-            crates/ferroplan-mcp/tests/session_control.rs \
-            .github/workflows/ferroplan-harvester.yml
+            crates/ferroplan-mcp/tests/session_control.rs
           if ! git diff --cached --quiet; then
             git commit -m "feat(mcp): restore high-density session authority"
             git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"
