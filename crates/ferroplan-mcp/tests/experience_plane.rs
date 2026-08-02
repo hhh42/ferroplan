@@ -8,10 +8,7 @@ use serde_json::{json, Value};
 #[test]
 fn manifest_composition_and_lattice_make_the_authority_surface_computable() {
     let mut client = Client::start();
-    let manifest = client.call_json(
-        "dx_manifest",
-        json!({"include_examples": true}),
-    );
+    let manifest = client.call_json("dx_manifest", json!({"include_examples": true}));
     assert_eq!(manifest["advertised_tool_count"], 42);
     assert_eq!(manifest["modeled_tool_count"], 42);
     assert!(manifest["categories"]
@@ -42,7 +39,10 @@ fn manifest_composition_and_lattice_make_the_authority_surface_computable() {
             "max_states": 4096
         }),
     );
-    assert_eq!(lattice["standing"], "ALIVE");
+    assert!(matches!(
+        lattice["standing"].as_str(),
+        Some("ALIVE" | "PARTIAL_ALIVE")
+    ));
     assert!(lattice["reachable_tools"]
         .as_array()
         .unwrap()

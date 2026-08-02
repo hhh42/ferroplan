@@ -1,6 +1,6 @@
 //! `ferroplan-mcp` — a single Model Context Protocol server exposing the
 //! ferroplan planner, persistent self-hosting sessions, and Chatman
-//! admission receipts to an LLM agent, as 31 MCP tools:
+//! admission receipts to an LLM agent, as 42 MCP tools:
 //!
 //! - Stateless planning: `solve`, `parse`, `validate`, `decompose` — the
 //!   README's bet made operational: the agent *authors and supervises* PDDL
@@ -24,13 +24,13 @@
 //! CPU-bound search via `tokio::task::block_in_place` while holding a
 //! per-session lock; see `session.rs`). Tool schemas are derived from
 //! `schemars::JsonSchema` on each request struct rather than hand-written
-//! JSON Schema literals. `resources/*` exposes one resource per tool (31
+//! JSON Schema literals. `resources/*` exposes one resource per tool (42
 //! total), under a single unified `ferroplan://tools/<name>` URI scheme,
 //! with the tool's semantic description pulled from
 //! `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl` (statically
 //! extracted at build time into per-module `*_ONTOLOGY` constants, embedded
 //! via `include_str!` — see `build.rs` for why static extraction was chosen
-//! over a live SPARQL engine; it still generates three separate per-module
+//! over a live SPARQL engine; it still generates four separate per-module
 //! files, one per tool group, which this binary's `session`/`admission`
 //! modules `include!` directly).
 //!
@@ -40,11 +40,12 @@
 //! group lives in its own module with its own `#[tool_router(router =
 //! <name>, vis = "pub")]` `impl Ferroplan` block (`main_router` here,
 //! `session::session_router`, `admission::admission_router`), and the
-//! merged constructor sums the three `ToolRouter`s (`ToolRouter` implements
+//! merged constructor sums the merged `ToolRouter`s (`ToolRouter` implements
 //! `Add`/`AddAssign` as a plain map-union merge by tool name — safe here
 //! since no tool name collides across the three original servers).
 
 mod admission;
+mod experience;
 mod result;
 mod session;
 mod session_control;
@@ -144,6 +145,7 @@ impl Ferroplan {
             tool_router: Self::tool_router()
                 + Self::session_router()
                 + Self::session_control_router()
+                + Self::experience_router()
                 + Self::admission_router(),
             session_state: session::SessionState::default(),
             session_control_state: session_control::ControlState::default(),
@@ -254,7 +256,7 @@ impl ServerHandler for Ferroplan {
              big for one-shot search) and read the structured result. `validate` independently \
              checks a plan. Open a persistent repository mind with `session_open` and drive it \
              via `session_observe`/`session_set_goal`/`session_think`/`session_advance`/\
-             `session_status`/`session_close`; branch, checkpoint, restore, compare, scope, and drive time through the `session_*` control tools; `cmca_allocate` runs the pinned Chatman \
+             `session_status`/`session_close`; branch, checkpoint, restore, compare, scope, and drive time through the `session_*` control tools; use `dx_manifest`/`dx_compose`/`vision_lattice` for capability discovery, `doctor_*` for diagnosis, `wizard_*` for guided manufacture, `qol_*` for one-round-trip operation, and `telco_*` for transport-neutral handoff envelopes; `cmca_allocate` runs the pinned Chatman \
              Multifractal Cascade Allocator. Bind evidence from any of the above into \
              replayable BLAKE3 envelopes with `canonical_digest`/`bind_allocation_receipt`/\
              `bind_plan_receipt`/`verify_receipt`. Read `ferroplan://tools/<name>` resources \
@@ -296,6 +298,7 @@ impl ServerHandler for Ferroplan {
         let ontology_comment = main_ontology_comment(name)
             .or_else(|| session::ontology_comment(name))
             .or_else(|| session_control::ontology_comment(name))
+            .or_else(|| experience::ontology_comment(name))
             .or_else(|| admission::ontology_comment(name))
             .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
         let body = serde_json::json!({
@@ -311,13 +314,14 @@ impl ServerHandler for Ferroplan {
     }
 }
 
-/// All 31 tool names across the three merged tool groups, in a stable order
-/// (stateless planning, then session, then admission).
-fn all_tool_names() -> Vec<&'static str> {
+/// All 42 tool names across the three merged tool groups, in a stable order
+/// (stateless planning, session, persistent control, operator experience, then admission).
+pub(crate) fn all_tool_names() -> Vec<&'static str> {
     MAIN_RESOURCE_TOOLS
         .iter()
         .chain(session::RESOURCE_TOOLS)
         .chain(session_control::RESOURCE_TOOLS)
+        .chain(experience::RESOURCE_TOOLS)
         .chain(admission::RESOURCE_TOOLS)
         .copied()
         .collect()

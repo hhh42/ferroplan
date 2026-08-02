@@ -78,48 +78,473 @@ struct CapabilitySpec {
 }
 
 const CAPABILITIES: &[CapabilitySpec] = &[
-    CapabilitySpec { tool: "solve", category: "planning", requires: &["domain_source", "problem_source"], provides: &["solution", "plan"], mutates: false, reversible: true, receipt: false, latency: "search", summary: "Solve a grounded planning problem." },
-    CapabilitySpec { tool: "parse", category: "planning", requires: &["pddl_source"], provides: &["pddl_ast", "syntax_report"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Parse and summarize PDDL." },
-    CapabilitySpec { tool: "validate", category: "planning", requires: &["domain_source", "problem_source", "plan"], provides: &["valid_plan"], mutates: false, reversible: true, receipt: false, latency: "bounded", summary: "Validate a plan independently." },
-    CapabilitySpec { tool: "decompose", category: "planning", requires: &["domain_source", "problem_source"], provides: &["decomposition", "plan"], mutates: false, reversible: true, receipt: false, latency: "search", summary: "Decompose and solve a temporal goal." },
-    CapabilitySpec { tool: "session_open", category: "session", requires: &["domain_source", "problem_source"], provides: &["session_id", "grounded_session"], mutates: true, reversible: true, receipt: true, latency: "grounding", summary: "Create a persistent grounded mind." },
-    CapabilitySpec { tool: "session_observe", category: "session", requires: &["grounded_session", "observation"], provides: &["session_state", "surprise_report"], mutates: true, reversible: false, receipt: true, latency: "instant", summary: "Admit visible state changes." },
-    CapabilitySpec { tool: "session_set_goal", category: "session", requires: &["grounded_session", "goal_expression"], provides: &["goal_bound"], mutates: true, reversible: true, receipt: true, latency: "instant", summary: "Retarget a grounded mind." },
-    CapabilitySpec { tool: "session_think", category: "session", requires: &["grounded_session", "goal_bound"], provides: &["plan"], mutates: true, reversible: true, receipt: true, latency: "search", summary: "Retain a valid suffix or replan." },
-    CapabilitySpec { tool: "session_advance", category: "session", requires: &["grounded_session", "plan", "completed_steps"], provides: &["plan_cursor"], mutates: true, reversible: false, receipt: true, latency: "instant", summary: "Advance the admitted plan cursor." },
-    CapabilitySpec { tool: "session_status", category: "session", requires: &["grounded_session"], provides: &["session_state"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Inspect one persistent mind." },
-    CapabilitySpec { tool: "session_close", category: "session", requires: &["grounded_session"], provides: &["closed_session"], mutates: true, reversible: false, receipt: false, latency: "instant", summary: "Drop one persistent mind." },
-    CapabilitySpec { tool: "session_list", category: "control", requires: &[], provides: &["session_catalog"], mutates: false, reversible: true, receipt: false, latency: "bounded", summary: "Discover live sessions deterministically." },
-    CapabilitySpec { tool: "session_state", category: "control", requires: &["grounded_session"], provides: &["session_state", "state_fingerprint"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Read selected semantic state." },
-    CapabilitySpec { tool: "session_set", category: "control", requires: &["grounded_session"], provides: &["session_state"], mutates: true, reversible: true, receipt: true, latency: "instant", summary: "Atomically set facts, fluents, and goal." },
-    CapabilitySpec { tool: "session_fork", category: "control", requires: &["grounded_session"], provides: &["forked_session", "grounded_session"], mutates: true, reversible: true, receipt: true, latency: "instant", summary: "Fork an independent mind." },
-    CapabilitySpec { tool: "session_replan", category: "control", requires: &["grounded_session", "goal_bound"], provides: &["plan"], mutates: true, reversible: true, receipt: true, latency: "search", summary: "Force bounded replanning." },
-    CapabilitySpec { tool: "session_checkpoint", category: "control", requires: &["grounded_session"], provides: &["checkpoint"], mutates: true, reversible: true, receipt: true, latency: "instant", summary: "Capture an immutable checkpoint." },
-    CapabilitySpec { tool: "session_restore", category: "control", requires: &["checkpoint"], provides: &["grounded_session", "restored_session"], mutates: true, reversible: true, receipt: true, latency: "instant", summary: "Restore a checkpoint explicitly." },
-    CapabilitySpec { tool: "session_verify_checkpoint", category: "control", requires: &["checkpoint", "grounded_session"], provides: &["checkpoint_verified"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Verify live state against a checkpoint." },
-    CapabilitySpec { tool: "session_history", category: "control", requires: &["grounded_session"], provides: &["event_history"], mutates: false, reversible: true, receipt: false, latency: "bounded", summary: "Read canonical session history." },
-    CapabilitySpec { tool: "session_compare", category: "control", requires: &["grounded_session", "forked_session"], provides: &["comparison"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Compare two live minds." },
-    CapabilitySpec { tool: "session_restrict_ops", category: "control", requires: &["grounded_session"], provides: &["operator_scope"], mutates: true, reversible: true, receipt: true, latency: "instant", summary: "Install planner-level operator authority." },
-    CapabilitySpec { tool: "session_schedule_fact", category: "control", requires: &["grounded_session", "temporal_fact"], provides: &["temporal_schedule"], mutates: true, reversible: true, receipt: true, latency: "instant", summary: "Schedule an exogenous fact." },
-    CapabilitySpec { tool: "session_apply_start", category: "control", requires: &["grounded_session", "durative_action"], provides: &["in_flight_action"], mutates: true, reversible: false, receipt: true, latency: "instant", summary: "Apply a durative action start." },
-    CapabilitySpec { tool: "session_elapse", category: "control", requires: &["grounded_session"], provides: &["elapsed_state"], mutates: true, reversible: false, receipt: true, latency: "bounded", summary: "Advance temporal state." },
-    CapabilitySpec { tool: "cmca_allocate", category: "allocation", requires: &["cmca_frontier"], provides: &["allocation"], mutates: false, reversible: true, receipt: true, latency: "bounded", summary: "Allocate one admitted frontier." },
-    CapabilitySpec { tool: "cmca_allocate_recursive", category: "allocation", requires: &["cmca_frontier"], provides: &["recursive_allocation"], mutates: false, reversible: true, receipt: true, latency: "bounded", summary: "Allocate a recursive admitted cascade." },
-    CapabilitySpec { tool: "canonical_digest", category: "admission", requires: &["canonical_value"], provides: &["digest"], mutates: false, reversible: true, receipt: true, latency: "instant", summary: "Create canonical BLAKE3 identity." },
-    CapabilitySpec { tool: "bind_allocation_receipt", category: "admission", requires: &["allocation", "digest"], provides: &["allocation_receipt"], mutates: false, reversible: true, receipt: true, latency: "instant", summary: "Bind allocation evidence." },
-    CapabilitySpec { tool: "bind_plan_receipt", category: "admission", requires: &["plan", "digest"], provides: &["plan_receipt"], mutates: false, reversible: true, receipt: true, latency: "instant", summary: "Bind planning evidence." },
-    CapabilitySpec { tool: "verify_receipt", category: "admission", requires: &["plan_receipt"], provides: &["verified_receipt"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Verify a canonical receipt envelope." },
-    CapabilitySpec { tool: "dx_manifest", category: "dx", requires: &[], provides: &["capability_manifest"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Describe the entire authority surface." },
-    CapabilitySpec { tool: "dx_compose", category: "dx", requires: &["desired_outcome"], provides: &["tool_composition"], mutates: false, reversible: true, receipt: false, latency: "bounded", summary: "Find a minimal tool composition." },
-    CapabilitySpec { tool: "doctor_scan", category: "doctor", requires: &[], provides: &["diagnosis"], mutates: false, reversible: true, receipt: false, latency: "bounded", summary: "Diagnose server or session health." },
-    CapabilitySpec { tool: "doctor_explain", category: "doctor", requires: &["failure_message"], provides: &["diagnosis", "recovery_recipe"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Explain and remediate a failure." },
-    CapabilitySpec { tool: "wizard_bootstrap", category: "wizard", requires: &["domain_source", "problem_source"], provides: &["grounded_session", "goal_bound", "plan", "bootstrapped_session"], mutates: true, reversible: true, receipt: true, latency: "search", summary: "Manufacture a ready planning mind." },
-    CapabilitySpec { tool: "wizard_recipe", category: "wizard", requires: &["operator_intent"], provides: &["tool_recipe"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Compile intent into an inspectable recipe." },
-    CapabilitySpec { tool: "qol_snapshot", category: "qol", requires: &["grounded_session"], provides: &["session_snapshot", "diagnosis"], mutates: false, reversible: true, receipt: false, latency: "bounded", summary: "Collapse many reads into one snapshot." },
-    CapabilitySpec { tool: "qol_batch", category: "qol", requires: &["grounded_session", "batch_operations"], provides: &["session_state", "atomic_batch"], mutates: true, reversible: true, receipt: true, latency: "bounded", summary: "Commit a heterogeneous transaction once." },
-    CapabilitySpec { tool: "telco_envelope", category: "telco", requires: &["message_payload"], provides: &["transport_envelope"], mutates: false, reversible: true, receipt: true, latency: "instant", summary: "Manufacture a transport-neutral envelope." },
-    CapabilitySpec { tool: "telco_verify", category: "telco", requires: &["transport_envelope"], provides: &["verified_envelope"], mutates: false, reversible: true, receipt: false, latency: "instant", summary: "Verify envelope integrity and expiry." },
-    CapabilitySpec { tool: "vision_lattice", category: "vision", requires: &[], provides: &["capability_lattice", "blue_ocean_frontier"], mutates: false, reversible: true, receipt: false, latency: "bounded", summary: "Enumerate bounded combinatorial reachability." },
+    CapabilitySpec {
+        tool: "solve",
+        category: "planning",
+        requires: &["domain_source", "problem_source"],
+        provides: &["solution", "plan"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "search",
+        summary: "Solve a grounded planning problem.",
+    },
+    CapabilitySpec {
+        tool: "parse",
+        category: "planning",
+        requires: &["pddl_source"],
+        provides: &["pddl_ast", "syntax_report"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Parse and summarize PDDL.",
+    },
+    CapabilitySpec {
+        tool: "validate",
+        category: "planning",
+        requires: &["domain_source", "problem_source", "plan"],
+        provides: &["valid_plan"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "bounded",
+        summary: "Validate a plan independently.",
+    },
+    CapabilitySpec {
+        tool: "decompose",
+        category: "planning",
+        requires: &["domain_source", "problem_source"],
+        provides: &["decomposition", "plan"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "search",
+        summary: "Decompose and solve a temporal goal.",
+    },
+    CapabilitySpec {
+        tool: "session_open",
+        category: "session",
+        requires: &["domain_source", "problem_source"],
+        provides: &["session_id", "grounded_session"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "grounding",
+        summary: "Create a persistent grounded mind.",
+    },
+    CapabilitySpec {
+        tool: "session_observe",
+        category: "session",
+        requires: &["grounded_session", "observation"],
+        provides: &["session_state", "surprise_report"],
+        mutates: true,
+        reversible: false,
+        receipt: true,
+        latency: "instant",
+        summary: "Admit visible state changes.",
+    },
+    CapabilitySpec {
+        tool: "session_set_goal",
+        category: "session",
+        requires: &["grounded_session", "goal_expression"],
+        provides: &["goal_bound"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Retarget a grounded mind.",
+    },
+    CapabilitySpec {
+        tool: "session_think",
+        category: "session",
+        requires: &["grounded_session", "goal_bound"],
+        provides: &["plan"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "search",
+        summary: "Retain a valid suffix or replan.",
+    },
+    CapabilitySpec {
+        tool: "session_advance",
+        category: "session",
+        requires: &["grounded_session", "plan", "completed_steps"],
+        provides: &["plan_cursor"],
+        mutates: true,
+        reversible: false,
+        receipt: true,
+        latency: "instant",
+        summary: "Advance the admitted plan cursor.",
+    },
+    CapabilitySpec {
+        tool: "session_status",
+        category: "session",
+        requires: &["grounded_session"],
+        provides: &["session_state"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Inspect one persistent mind.",
+    },
+    CapabilitySpec {
+        tool: "session_close",
+        category: "session",
+        requires: &["grounded_session"],
+        provides: &["closed_session"],
+        mutates: true,
+        reversible: false,
+        receipt: false,
+        latency: "instant",
+        summary: "Drop one persistent mind.",
+    },
+    CapabilitySpec {
+        tool: "session_list",
+        category: "control",
+        requires: &[],
+        provides: &["session_catalog"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "bounded",
+        summary: "Discover live sessions deterministically.",
+    },
+    CapabilitySpec {
+        tool: "session_state",
+        category: "control",
+        requires: &["grounded_session"],
+        provides: &["session_state", "state_fingerprint"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Read selected semantic state.",
+    },
+    CapabilitySpec {
+        tool: "session_set",
+        category: "control",
+        requires: &["grounded_session"],
+        provides: &["session_state"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Atomically set facts, fluents, and goal.",
+    },
+    CapabilitySpec {
+        tool: "session_fork",
+        category: "control",
+        requires: &["grounded_session"],
+        provides: &["forked_session", "grounded_session"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Fork an independent mind.",
+    },
+    CapabilitySpec {
+        tool: "session_replan",
+        category: "control",
+        requires: &["grounded_session", "goal_bound"],
+        provides: &["plan"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "search",
+        summary: "Force bounded replanning.",
+    },
+    CapabilitySpec {
+        tool: "session_checkpoint",
+        category: "control",
+        requires: &["grounded_session"],
+        provides: &["checkpoint"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Capture an immutable checkpoint.",
+    },
+    CapabilitySpec {
+        tool: "session_restore",
+        category: "control",
+        requires: &["checkpoint"],
+        provides: &["grounded_session", "restored_session"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Restore a checkpoint explicitly.",
+    },
+    CapabilitySpec {
+        tool: "session_verify_checkpoint",
+        category: "control",
+        requires: &["checkpoint", "grounded_session"],
+        provides: &["checkpoint_verified"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Verify live state against a checkpoint.",
+    },
+    CapabilitySpec {
+        tool: "session_history",
+        category: "control",
+        requires: &["grounded_session"],
+        provides: &["event_history"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "bounded",
+        summary: "Read canonical session history.",
+    },
+    CapabilitySpec {
+        tool: "session_compare",
+        category: "control",
+        requires: &["grounded_session", "forked_session"],
+        provides: &["comparison"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Compare two live minds.",
+    },
+    CapabilitySpec {
+        tool: "session_restrict_ops",
+        category: "control",
+        requires: &["grounded_session"],
+        provides: &["operator_scope"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Install planner-level operator authority.",
+    },
+    CapabilitySpec {
+        tool: "session_schedule_fact",
+        category: "control",
+        requires: &["grounded_session", "temporal_fact"],
+        provides: &["temporal_schedule"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Schedule an exogenous fact.",
+    },
+    CapabilitySpec {
+        tool: "session_apply_start",
+        category: "control",
+        requires: &["grounded_session", "durative_action"],
+        provides: &["in_flight_action"],
+        mutates: true,
+        reversible: false,
+        receipt: true,
+        latency: "instant",
+        summary: "Apply a durative action start.",
+    },
+    CapabilitySpec {
+        tool: "session_elapse",
+        category: "control",
+        requires: &["grounded_session"],
+        provides: &["elapsed_state"],
+        mutates: true,
+        reversible: false,
+        receipt: true,
+        latency: "bounded",
+        summary: "Advance temporal state.",
+    },
+    CapabilitySpec {
+        tool: "cmca_allocate",
+        category: "allocation",
+        requires: &["cmca_frontier"],
+        provides: &["allocation"],
+        mutates: false,
+        reversible: true,
+        receipt: true,
+        latency: "bounded",
+        summary: "Allocate one admitted frontier.",
+    },
+    CapabilitySpec {
+        tool: "cmca_allocate_recursive",
+        category: "allocation",
+        requires: &["cmca_frontier"],
+        provides: &["recursive_allocation"],
+        mutates: false,
+        reversible: true,
+        receipt: true,
+        latency: "bounded",
+        summary: "Allocate a recursive admitted cascade.",
+    },
+    CapabilitySpec {
+        tool: "canonical_digest",
+        category: "admission",
+        requires: &["canonical_value"],
+        provides: &["digest"],
+        mutates: false,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Create canonical BLAKE3 identity.",
+    },
+    CapabilitySpec {
+        tool: "bind_allocation_receipt",
+        category: "admission",
+        requires: &["allocation", "digest"],
+        provides: &["allocation_receipt"],
+        mutates: false,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Bind allocation evidence.",
+    },
+    CapabilitySpec {
+        tool: "bind_plan_receipt",
+        category: "admission",
+        requires: &["plan", "digest"],
+        provides: &["plan_receipt"],
+        mutates: false,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Bind planning evidence.",
+    },
+    CapabilitySpec {
+        tool: "verify_receipt",
+        category: "admission",
+        requires: &["plan_receipt"],
+        provides: &["verified_receipt"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Verify a canonical receipt envelope.",
+    },
+    CapabilitySpec {
+        tool: "dx_manifest",
+        category: "dx",
+        requires: &[],
+        provides: &["capability_manifest"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Describe the entire authority surface.",
+    },
+    CapabilitySpec {
+        tool: "dx_compose",
+        category: "dx",
+        requires: &["desired_outcome"],
+        provides: &["tool_composition"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "bounded",
+        summary: "Find a minimal tool composition.",
+    },
+    CapabilitySpec {
+        tool: "doctor_scan",
+        category: "doctor",
+        requires: &[],
+        provides: &["diagnosis"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "bounded",
+        summary: "Diagnose server or session health.",
+    },
+    CapabilitySpec {
+        tool: "doctor_explain",
+        category: "doctor",
+        requires: &["failure_message"],
+        provides: &["diagnosis", "recovery_recipe"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Explain and remediate a failure.",
+    },
+    CapabilitySpec {
+        tool: "wizard_bootstrap",
+        category: "wizard",
+        requires: &["domain_source", "problem_source"],
+        provides: &[
+            "grounded_session",
+            "goal_bound",
+            "plan",
+            "bootstrapped_session",
+        ],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "search",
+        summary: "Manufacture a ready planning mind.",
+    },
+    CapabilitySpec {
+        tool: "wizard_recipe",
+        category: "wizard",
+        requires: &["operator_intent"],
+        provides: &["tool_recipe"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Compile intent into an inspectable recipe.",
+    },
+    CapabilitySpec {
+        tool: "qol_snapshot",
+        category: "qol",
+        requires: &["grounded_session"],
+        provides: &["session_snapshot", "diagnosis"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "bounded",
+        summary: "Collapse many reads into one snapshot.",
+    },
+    CapabilitySpec {
+        tool: "qol_batch",
+        category: "qol",
+        requires: &["grounded_session", "batch_operations"],
+        provides: &["session_state", "atomic_batch"],
+        mutates: true,
+        reversible: true,
+        receipt: true,
+        latency: "bounded",
+        summary: "Commit a heterogeneous transaction once.",
+    },
+    CapabilitySpec {
+        tool: "telco_envelope",
+        category: "telco",
+        requires: &["message_payload"],
+        provides: &["transport_envelope"],
+        mutates: false,
+        reversible: true,
+        receipt: true,
+        latency: "instant",
+        summary: "Manufacture a transport-neutral envelope.",
+    },
+    CapabilitySpec {
+        tool: "telco_verify",
+        category: "telco",
+        requires: &["transport_envelope"],
+        provides: &["verified_envelope"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "instant",
+        summary: "Verify envelope integrity and expiry.",
+    },
+    CapabilitySpec {
+        tool: "vision_lattice",
+        category: "vision",
+        requires: &[],
+        provides: &["capability_lattice", "blue_ocean_frontier"],
+        mutates: false,
+        reversible: true,
+        receipt: false,
+        latency: "bounded",
+        summary: "Enumerate bounded combinatorial reachability.",
+    },
 ];
 
 fn default_true() -> bool {
@@ -248,18 +673,34 @@ struct SnapshotInput {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 enum BatchOperation {
-    SetFact { fact: String, value: bool },
-    SetFluent { fluent: String, value: f64 },
-    SetGoal { goal: String },
+    SetFact {
+        fact: String,
+        value: bool,
+    },
+    SetFluent {
+        fluent: String,
+        value: f64,
+    },
+    SetGoal {
+        goal: String,
+    },
     RestrictOps {
         #[serde(default)]
         allowed_prefixes: Vec<String>,
         #[serde(default)]
         denied_prefixes: Vec<String>,
     },
-    ScheduleFact { delay: f64, fact: String, value: bool },
-    ApplyStart { action: String },
-    Elapse { delta: f64 },
+    ScheduleFact {
+        delay: f64,
+        fact: String,
+        value: bool,
+    },
+    ApplyStart {
+        action: String,
+    },
+    Elapse {
+        delta: f64,
+    },
     Replan {
         #[serde(default = "default_budget")]
         max_evaluated: usize,
@@ -332,7 +773,9 @@ struct TelcoVerifyInput {
 
 #[tool_router(router = experience_router, vis = "pub")]
 impl Ferroplan {
-    #[tool(description = "Return the self-describing capability manifest and composition contracts.")]
+    #[tool(
+        description = "Return the self-describing capability manifest and composition contracts."
+    )]
     fn dx_manifest(
         &self,
         Parameters(input): Parameters<ManifestInput>,
@@ -348,7 +791,9 @@ impl Ferroplan {
         to_result(do_compose(input))
     }
 
-    #[tool(description = "Diagnose global or per-session health and return typed remediation hints.")]
+    #[tool(
+        description = "Diagnose global or per-session health and return typed remediation hints."
+    )]
     async fn doctor_scan(
         &self,
         Parameters(input): Parameters<DoctorScanInput>,
@@ -372,7 +817,9 @@ impl Ferroplan {
         to_result(self.do_wizard_bootstrap(input).await)
     }
 
-    #[tool(description = "Compile a high-level operator intent into an inspectable Ferroplan recipe.")]
+    #[tool(
+        description = "Compile a high-level operator intent into an inspectable Ferroplan recipe."
+    )]
     fn wizard_recipe(
         &self,
         Parameters(input): Parameters<WizardRecipeInput>,
@@ -380,7 +827,9 @@ impl Ferroplan {
         to_result(do_wizard_recipe(input))
     }
 
-    #[tool(description = "Collapse session state, plan, diagnostics, memory, and history into one read.")]
+    #[tool(
+        description = "Collapse session state, plan, diagnostics, memory, and history into one read."
+    )]
     async fn qol_snapshot(
         &self,
         Parameters(input): Parameters<SnapshotInput>,
@@ -388,7 +837,9 @@ impl Ferroplan {
         to_result(self.do_qol_snapshot(input).await)
     }
 
-    #[tool(description = "Apply a bounded heterogeneous session transaction atomically on a staged fork.")]
+    #[tool(
+        description = "Apply a bounded heterogeneous session transaction atomically on a staged fork."
+    )]
     async fn qol_batch(
         &self,
         Parameters(input): Parameters<BatchInput>,
@@ -396,7 +847,9 @@ impl Ferroplan {
         to_result(self.do_qol_batch(input).await)
     }
 
-    #[tool(description = "Manufacture a deterministic transport-neutral integrity envelope; no network operation occurs.")]
+    #[tool(
+        description = "Manufacture a deterministic transport-neutral integrity envelope; no network operation occurs."
+    )]
     fn telco_envelope(
         &self,
         Parameters(input): Parameters<TelcoEnvelopeInput>,
@@ -404,7 +857,9 @@ impl Ferroplan {
         to_result(do_telco_envelope(input))
     }
 
-    #[tool(description = "Verify transport-envelope integrity, routing expectations, predecessor, and expiry.")]
+    #[tool(
+        description = "Verify transport-envelope integrity, routing expectations, predecessor, and expiry."
+    )]
     fn telco_verify(
         &self,
         Parameters(input): Parameters<TelcoVerifyInput>,
@@ -412,7 +867,9 @@ impl Ferroplan {
         to_result(do_telco_verify(input))
     }
 
-    #[tool(description = "Enumerate a bounded combinatorial capability lattice and blocked frontier.")]
+    #[tool(
+        description = "Enumerate a bounded combinatorial capability lattice and blocked frontier."
+    )]
     fn vision_lattice(
         &self,
         Parameters(input): Parameters<VisionInput>,
@@ -425,7 +882,11 @@ fn do_manifest(input: ManifestInput) -> Result<Value, String> {
     let category = input.category.map(|value| normalize_atom(&value));
     let tools: Vec<Value> = CAPABILITIES
         .iter()
-        .filter(|spec| category.as_deref().is_none_or(|wanted| spec.category == wanted))
+        .filter(|spec| {
+            category
+                .as_deref()
+                .is_none_or(|wanted| spec.category == wanted)
+        })
         .map(capability_json)
         .collect();
     if tools.is_empty() && category.is_some() {
@@ -490,7 +951,7 @@ fn do_compose(input: ComposeInput) -> Result<Value, String> {
     }
     let have = normalize_atoms(input.have)?;
     let want = normalize_atoms(input.want)?;
-    let allowed: BTreeSet<String> = normalize_atoms(input.allowed_tools)?.into_iter().collect();
+    let allowed = normalize_atoms(input.allowed_tools)?;
     let filter = |spec: &&CapabilitySpec| allowed.is_empty() || allowed.contains(spec.tool);
 
     let mut queue = VecDeque::from([(have.clone(), Vec::<String>::new())]);
@@ -689,10 +1150,7 @@ impl Ferroplan {
             "report": report,
             "receipt": receipt
         });
-        sessions.insert(
-            input.session_id,
-            Arc::new(AsyncMutex::new(managed)),
-        );
+        sessions.insert(input.session_id, Arc::new(AsyncMutex::new(managed)));
         Ok(response)
     }
 
@@ -754,18 +1212,25 @@ impl Ferroplan {
 
     async fn do_qol_batch(&self, input: BatchInput) -> Result<Value, String> {
         if input.operations.is_empty() || input.operations.len() > MAX_BATCH_OPS {
-            return Err(format!("operations must contain 1..={MAX_BATCH_OPS} entries"));
+            return Err(format!(
+                "operations must contain 1..={MAX_BATCH_OPS} entries"
+            ));
         }
         let replan_positions: Vec<usize> = input
             .operations
             .iter()
             .enumerate()
-            .filter_map(|(index, operation)| matches!(operation, BatchOperation::Replan { .. }).then_some(index))
+            .filter_map(|(index, operation)| {
+                matches!(operation, BatchOperation::Replan { .. }).then_some(index)
+            })
             .collect();
         if replan_positions.len() > 1 {
             return Err("qol_batch admits at most one replan operation".into());
         }
-        if replan_positions.first().is_some_and(|index| *index + 1 != input.operations.len()) {
+        if replan_positions
+            .first()
+            .is_some_and(|index| *index + 1 != input.operations.len())
+        {
             return Err("replan must be the final qol_batch operation".into());
         }
 
@@ -803,7 +1268,10 @@ impl Ferroplan {
                     staged_cursor = 0;
                     json!({"op": "set_goal", "goal": goal})
                 }
-                BatchOperation::RestrictOps { allowed_prefixes, denied_prefixes } => {
+                BatchOperation::RestrictOps {
+                    allowed_prefixes,
+                    denied_prefixes,
+                } => {
                     allowed = normalize_prefixes(allowed_prefixes.clone())?;
                     denied = normalize_prefixes(denied_prefixes.clone())?;
                     staged.restrict_ops(|display| operator_admitted(display, &allowed, &denied));
@@ -827,7 +1295,10 @@ impl Ferroplan {
                     staged_cursor = 0;
                     json!({"op": "elapse", "delta": delta, "broken_intervals": broken_intervals})
                 }
-                BatchOperation::Replan { max_evaluated, memory_mb } => {
+                BatchOperation::Replan {
+                    max_evaluated,
+                    memory_mb,
+                } => {
                     validate_budget(*max_evaluated, *memory_mb)?;
                     let solution = tokio::task::block_in_place(|| {
                         staged.replan_budgeted(*max_evaluated, *memory_mb)
@@ -880,28 +1351,82 @@ fn do_doctor_explain(input: DoctorExplainInput) -> Result<Value, String> {
         return Err("message must not be empty".into());
     }
     let lower = message.to_ascii_lowercase();
-    let (code, confidence, cause, tools): (&str, f64, &str, Value) = if lower.contains("unknown session") {
-        ("SESSION_NOT_FOUND", 0.99, "The requested persistent session id is not live in this server process.", json!(["session_list", "wizard_bootstrap", "session_open"]))
+    let (code, confidence, cause, tools): (&str, f64, &str, Value) = if lower
+        .contains("unknown session")
+    {
+        (
+            "SESSION_NOT_FOUND",
+            0.99,
+            "The requested persistent session id is not live in this server process.",
+            json!(["session_list", "wizard_bootstrap", "session_open"]),
+        )
     } else if lower.contains("stale session epoch") || lower.contains("expected_epoch") {
-        ("STALE_EPOCH", 0.99, "The caller attempted optimistic mutation against an older observed epoch.", json!(["qol_snapshot", "session_state", "qol_batch"]))
+        (
+            "STALE_EPOCH",
+            0.99,
+            "The caller attempted optimistic mutation against an older observed epoch.",
+            json!(["qol_snapshot", "session_state", "qol_batch"]),
+        )
     } else if lower.contains("already exists") {
-        ("IDENTITY_COLLISION", 0.98, "The requested session or checkpoint identity is already owned.", json!(["session_list", "session_fork", "wizard_bootstrap"]))
-    } else if lower.contains("max_evaluated") || lower.contains("memory_mb") || lower.contains("budget") {
+        (
+            "IDENTITY_COLLISION",
+            0.98,
+            "The requested session or checkpoint identity is already owned.",
+            json!(["session_list", "session_fork", "wizard_bootstrap"]),
+        )
+    } else if lower.contains("max_evaluated")
+        || lower.contains("memory_mb")
+        || lower.contains("budget")
+    {
         ("BOUNDARY_REFUSED", 0.96, "A mechanical search or memory ceiling refused the request before unbounded work began.", json!(["doctor_scan", "session_replan", "wizard_bootstrap"]))
     } else if lower.contains("finite") || lower.contains("nan") || lower.contains("infinite") {
-        ("NON_FINITE_INPUT", 0.97, "A numeric or temporal input violated the finite-value boundary.", json!(["doctor_explain", "qol_batch"]))
-    } else if lower.contains("checkpoint") && (lower.contains("unknown") || lower.contains("not found")) {
-        ("CHECKPOINT_NOT_FOUND", 0.96, "The checkpoint id is not live in the current server process.", json!(["session_checkpoint", "session_restore"]))
-    } else if lower.contains("plan") && (lower.contains("invalid") || lower.contains("no plan") || lower.contains("unsolved")) {
+        (
+            "NON_FINITE_INPUT",
+            0.97,
+            "A numeric or temporal input violated the finite-value boundary.",
+            json!(["doctor_explain", "qol_batch"]),
+        )
+    } else if lower.contains("checkpoint")
+        && (lower.contains("unknown") || lower.contains("not found"))
+    {
+        (
+            "CHECKPOINT_NOT_FOUND",
+            0.96,
+            "The checkpoint id is not live in the current server process.",
+            json!(["session_checkpoint", "session_restore"]),
+        )
+    } else if lower.contains("plan")
+        && (lower.contains("invalid") || lower.contains("no plan") || lower.contains("unsolved"))
+    {
         ("REPLAN_REQUIRED", 0.90, "The current plan is absent, exhausted, invalid, or no solution was found within the admitted boundary.", json!(["doctor_scan", "session_replan", "dx_compose"]))
     } else if lower.contains("fact") && (lower.contains("unknown") || lower.contains("ground")) {
-        ("FACT_NOT_GROUNDED", 0.91, "The requested fact is not part of the admitted grounded problem state.", json!(["parse", "qol_snapshot", "wizard_bootstrap"]))
+        (
+            "FACT_NOT_GROUNDED",
+            0.91,
+            "The requested fact is not part of the admitted grounded problem state.",
+            json!(["parse", "qol_snapshot", "wizard_bootstrap"]),
+        )
     } else if lower.contains("expired") || lower.contains("ttl") {
-        ("ENVELOPE_EXPIRED", 0.95, "The transport envelope was observed outside its admitted lifetime.", json!(["telco_envelope", "telco_verify"]))
+        (
+            "ENVELOPE_EXPIRED",
+            0.95,
+            "The transport envelope was observed outside its admitted lifetime.",
+            json!(["telco_envelope", "telco_verify"]),
+        )
     } else if lower.contains("digest") || lower.contains("tamper") || lower.contains("integrity") {
-        ("INTEGRITY_MISMATCH", 0.88, "Canonical content no longer matches the bound digest.", json!(["canonical_digest", "verify_receipt", "telco_verify"]))
+        (
+            "INTEGRITY_MISMATCH",
+            0.88,
+            "Canonical content no longer matches the bound digest.",
+            json!(["canonical_digest", "verify_receipt", "telco_verify"]),
+        )
     } else {
-        ("UNKNOWN_DIAGNOSIS", 0.25, "No high-confidence deterministic diagnostic rule matched the supplied message.", json!(["doctor_scan", "dx_manifest"]))
+        (
+            "UNKNOWN_DIAGNOSIS",
+            0.25,
+            "No high-confidence deterministic diagnostic rule matched the supplied message.",
+            json!(["doctor_scan", "dx_manifest"]),
+        )
     };
 
     Ok(json!({
@@ -1031,7 +1556,7 @@ fn do_telco_envelope(input: TelcoEnvelopeInput) -> Result<Value, String> {
         authentication: "UNSUPPORTED".into(),
     };
     envelope.envelope_digest = digest_value(&telco_basis(&envelope)?)?;
-    Ok(serde_json::to_value(envelope).map_err(|error| error.to_string())?)
+    serde_json::to_value(envelope).map_err(|error| error.to_string())
 }
 
 fn do_telco_verify(input: TelcoVerifyInput) -> Result<Value, String> {
@@ -1040,7 +1565,8 @@ fn do_telco_verify(input: TelcoVerifyInput) -> Result<Value, String> {
     if envelope.schema != "urn:chatman:ferroplan-telco-envelope:v1" || envelope.version != 1 {
         failures.push("SCHEMA_MISMATCH".to_owned());
     }
-    let payload_value = serde_json::to_value(&envelope.payload).map_err(|error| error.to_string())?;
+    let payload_value =
+        serde_json::to_value(&envelope.payload).map_err(|error| error.to_string())?;
     let observed_payload_digest = digest_value(&payload_value)?;
     if observed_payload_digest != envelope.payload_digest {
         failures.push("PAYLOAD_DIGEST_MISMATCH".to_owned());
@@ -1086,13 +1612,19 @@ fn do_vision_lattice(input: VisionInput) -> Result<Value, String> {
         return Err(format!("max_depth must be within 1..={MAX_LATTICE_DEPTH}"));
     }
     if input.max_states == 0 || input.max_states > MAX_LATTICE_STATES {
-        return Err(format!("max_states must be within 1..={MAX_LATTICE_STATES}"));
+        return Err(format!(
+            "max_states must be within 1..={MAX_LATTICE_STATES}"
+        ));
     }
     let seeds = normalize_atoms(input.seeds)?;
     let category = input.category.map(|value| normalize_atom(&value));
     let specs: Vec<&CapabilitySpec> = CAPABILITIES
         .iter()
-        .filter(|spec| category.as_deref().is_none_or(|wanted| spec.category == wanted))
+        .filter(|spec| {
+            category
+                .as_deref()
+                .is_none_or(|wanted| spec.category == wanted)
+        })
         .collect();
     if specs.is_empty() {
         return Err("category selected no capabilities".into());
@@ -1102,7 +1634,8 @@ fn do_vision_lattice(input: VisionInput) -> Result<Value, String> {
     let mut seen = BTreeSet::from([state_key(&seeds)]);
     let mut reachable_atoms = seeds.clone();
     let mut reachable_tools = BTreeSet::new();
-    let mut minimal_depth: BTreeMap<String, usize> = seeds.iter().cloned().map(|atom| (atom, 0)).collect();
+    let mut minimal_depth: BTreeMap<String, usize> =
+        seeds.iter().cloned().map(|atom| (atom, 0)).collect();
     let mut max_depth_reached = 0usize;
 
     while let Some((state, depth)) = queue.pop_front() {
@@ -1154,7 +1687,8 @@ fn do_vision_lattice(input: VisionInput) -> Result<Value, String> {
                     .copied()
                     .filter(|effect| right.requires.contains(effect))
                     .collect();
-                (!shared.is_empty()).then(|| json!({"from": left.tool, "to": right.tool, "atoms": shared}))
+                (!shared.is_empty())
+                    .then(|| json!({"from": left.tool, "to": right.tool, "atoms": shared}))
             })
         })
         .collect();
@@ -1210,7 +1744,13 @@ fn normalize_atom(value: &str) -> String {
         .trim()
         .to_ascii_lowercase()
         .chars()
-        .map(|character| if character.is_ascii_alphanumeric() || matches!(character, '_' | ':' | '.') { character } else { '_' })
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || matches!(character, '_' | ':' | '.') {
+                character
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .trim_matches('_')
         .to_owned()
@@ -1221,7 +1761,9 @@ fn normalize_atoms(values: Vec<String>) -> Result<BTreeSet<String>, String> {
     for value in values {
         let normalized = normalize_atom(&value);
         if normalized.is_empty() {
-            return Err(format!("capability atom is empty after normalization: `{value}`"));
+            return Err(format!(
+                "capability atom is empty after normalization: `{value}`"
+            ));
         }
         out.insert(normalized);
     }
@@ -1351,7 +1893,9 @@ fn validate_history_tail(value: usize) -> Result<(), String> {
 
 fn validate_budget(max_evaluated: usize, memory_mb: Option<usize>) -> Result<(), String> {
     if max_evaluated == 0 || max_evaluated > MAX_SEARCH_BUDGET {
-        return Err(format!("max_evaluated must be within 1..={MAX_SEARCH_BUDGET}"));
+        return Err(format!(
+            "max_evaluated must be within 1..={MAX_SEARCH_BUDGET}"
+        ));
     }
     if memory_mb.is_some_and(|value| value > MAX_MEMORY_MB) {
         return Err(format!("memory_mb must be at most {MAX_MEMORY_MB}"));
@@ -1379,9 +1923,9 @@ fn normalize_prefixes(values: Vec<String>) -> Result<Vec<String>, String> {
             .trim_matches(|character| character == '(' || character == ')')
             .to_ascii_uppercase();
         if normalized.is_empty()
-            || !normalized
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b' ' | b':'))
+            || !normalized.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b' ' | b':')
+            })
         {
             return Err(format!("operator prefix is not canonical: `{value}`"));
         }
@@ -1407,10 +1951,9 @@ fn validate_telco_name(field: &str, value: &str) -> Result<(), String> {
     if value.is_empty() || value.len() > 256 {
         return Err(format!("{field} must contain 1..=256 characters"));
     }
-    if !value
-        .bytes()
-        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':' | b'/' | b'@'))
-    {
+    if !value.bytes().all(|byte| {
+        byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b':' | b'/' | b'@')
+    }) {
         return Err(format!("{field} contains a non-canonical character"));
     }
     Ok(())
