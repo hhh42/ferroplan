@@ -1,0 +1,91 @@
+name: Ferroplan Evidence Harvester
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.lock"
+      - "crates/ferroplan-cli/Cargo.toml"
+      - "crates/ferroplan-cli/src/lib.rs"
+      - "crates/ferroplan-cli/src/bin/ferroplan-harvest.rs"
+      - "crates/ferroplan-cli/src/harvest/**"
+      - "crates/ferroplan-cli/tests/harvest.rs"
+      - ".github/workflows/ferroplan-harvester.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ferroplan-harvester-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUSTC_WRAPPER: ""
+
+jobs:
+  harvest-boundary:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
+          fetch-depth: 0
+
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+
+      - name: Manufacture formatter and lockfile projections
+        run: |
+          cargo fmt --package ferroplan-cli
+          cargo check -p ferroplan-cli --bin ferroplan-harvest --tests
+          python3 - <<'PY'
+          import subprocess
+          allowed = {
+              'Cargo.lock',
+              'crates/ferroplan-cli/src/lib.rs',
+              'crates/ferroplan-cli/src/bin/ferroplan-harvest.rs',
+              'crates/ferroplan-cli/src/harvest/gh.rs',
+              'crates/ferroplan-cli/src/harvest/mod.rs',
+              'crates/ferroplan-cli/src/harvest/model.rs',
+              'crates/ferroplan-cli/tests/harvest.rs',
+          }
+          changed = set(subprocess.check_output(
+              ['git', 'diff', '--name-only'], text=True
+          ).splitlines())
+          unexpected = sorted(changed - allowed)
+          if unexpected:
+              raise SystemExit(f'PROJECTION_PATH_ESCAPE_REFUSED: {unexpected}')
+          print({'projected_paths': sorted(changed)})
+          PY
+
+      - name: Execute admission, PPDDL, receipt, and replay tests
+        run: cargo test -p ferroplan-cli --test harvest
+
+      - name: Lint harvester surfaces
+        run: cargo clippy -p ferroplan-cli --bin ferroplan-harvest --tests -- -D warnings
+
+      - name: Preserve static daily-method corpus admission
+        run: cargo test -p ferroplan --test daily_agent_methods_ppddl
+
+      - name: Commit verified projections
+        run: |
+          git config user.name "ferroplan-harvester-controller"
+          git config user.email "ferroplan-harvester-controller@users.noreply.github.com"
+          git add Cargo.lock \
+            crates/ferroplan-cli/src/lib.rs \
+            crates/ferroplan-cli/src/bin/ferroplan-harvest.rs \
+            crates/ferroplan-cli/src/harvest/gh.rs \
+            crates/ferroplan-cli/src/harvest/mod.rs \
+            crates/ferroplan-cli/src/harvest/model.rs \
+            crates/ferroplan-cli/tests/harvest.rs
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(harvest): commit verified formatter and lock projections"
+            git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"
+          fi
+
+      - name: Verify clean exact projection
+        run: |
+          cargo fmt --package ferroplan-cli -- --check
+          test -z "$(git status --porcelain=v1 --untracked-files=all)"
