@@ -7,27 +7,16 @@ on:
       - "crates/ferroplan/src/ppddl/solver/part02.rs"
       - "crates/ferroplan/src/ppddl/syntax/part02.rs"
       - "crates/ferroplan/src/ppddl/model/part03.rs"
-      - "crates/ferroplan-cli/Cargo.toml"
-      - "crates/ferroplan-cli/src/lib.rs"
-      - "crates/ferroplan-cli/src/bin/ferroplan-harvest.rs"
-      - "crates/ferroplan-cli/src/harvest/**"
-      - "crates/ferroplan-cli/tests/harvest.rs"
-      - "crates/ferroplan-mcp/Cargo.toml"
-      - "crates/ferroplan-mcp/build.rs"
-      - "crates/ferroplan-mcp/src/main.rs"
-      - "crates/ferroplan-mcp/src/admission.rs"
-      - "crates/ferroplan-mcp/src/session.rs"
-      - "crates/ferroplan-mcp/src/result.rs"
-      - "crates/ferroplan-mcp/tests/admission_protocol.rs"
-      - "crates/ferroplan-mcp/tests/merged_server.rs"
-      - "crates/ferroplan-mcp/tests/protocol.rs"
-      - "crates/ferroplan-mcp/tests/session.rs"
-      - "crates/ferroplan-mcp/tests/session_protocol.rs"
+      - "crates/ferroplan-cli/**"
+      - "crates/ferroplan-mcp/**"
+      - "plugins/chatman-ecosystem/scripts/**"
+      - "plugins/chatman-ecosystem/tests/**"
       - ".github/workflows/ferroplan-harvester.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: ferroplan-harvester-${{ github.event.pull_request.number || github.ref }}
@@ -39,7 +28,7 @@ env:
 jobs:
   harvest-boundary:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
       - name: Checkout exact head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -50,14 +39,28 @@ jobs:
       - name: Install stable Rust
         run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
 
-      - name: Manufacture formatter and lockfile projections
+      - name: Install Python verifier toolchain
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.11"
+
+      - name: Install Python verifier dependencies
+        run: pip install --quiet pytest ruff coverage typer pydantic jsonschema rdflib pyshacl
+
+      - name: Manufacture Rust and Python projections
         run: |
           cargo fmt --package ferroplan --package ferroplan-cli --package ferroplan-mcp
           cargo check -p ferroplan-cli --bin ferroplan-harvest --tests
           cargo check -p ferroplan-mcp --bins --tests
+          (
+            cd plugins/chatman-ecosystem
+            ruff check scripts tests --fix
+            ruff check scripts tests
+          )
           python3 - <<'PY'
           import subprocess
-          allowed = {
+
+          allowed_exact = {
               'Cargo.lock',
               'crates/ferroplan/src/ppddl/solver/part02.rs',
               'crates/ferroplan/src/ppddl/syntax/part02.rs',
@@ -81,10 +84,18 @@ jobs:
               'crates/ferroplan-mcp/tests/session.rs',
               'crates/ferroplan-mcp/tests/session_protocol.rs',
           }
+          allowed_prefixes = (
+              'plugins/chatman-ecosystem/scripts/',
+              'plugins/chatman-ecosystem/tests/',
+          )
           changed = set(subprocess.check_output(
               ['git', 'diff', '--name-only'], text=True
           ).splitlines())
-          unexpected = sorted(changed - allowed)
+          unexpected = sorted(
+              path for path in changed
+              if path not in allowed_exact
+              and not path.startswith(allowed_prefixes)
+          )
           if unexpected:
               raise SystemExit(f'PROJECTION_PATH_ESCAPE_REFUSED: {unexpected}')
           print({'projected_paths': sorted(changed)})
@@ -106,8 +117,89 @@ jobs:
           cargo clippy -p ferroplan-cli --bin ferroplan-harvest --tests --no-deps -- -D warnings
           cargo clippy -p ferroplan-mcp --all-targets --no-deps -- -D warnings
 
+      - name: Execute complete Python plugin control plane
+        working-directory: plugins/chatman-ecosystem
+        run: |
+          python -m compileall -q scripts
+          for f in scripts/*.sh; do sh -n "$f"; done
+          python scripts/generate.py build --check
+          pytest
+
+      - name: Execute focused OpenAI Luna verification and coverage
+        working-directory: plugins/chatman-ecosystem
+        env:
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        run: |
+          python -m pytest -q \
+            --junitxml=openai-luna-junit.xml \
+            tests/test_openai_luna*.py \
+            tests/test_openai_ostar_star.py
+          coverage run --branch \
+            --source=mcp_client,openai_luna_protocol,openai_luna_runtime,openai_ostar_star,verify_openai_luna \
+            -m pytest -q \
+            tests/test_openai_luna_unit.py \
+            tests/test_openai_luna_contract.py \
+            tests/test_openai_luna_property.py \
+            tests/test_openai_luna_replay.py \
+            tests/test_openai_luna_mutation.py \
+            tests/test_openai_luna_security.py \
+            tests/test_openai_luna_integration.py \
+            tests/test_openai_luna_chaos.py \
+            tests/test_openai_luna_verifier.py \
+            tests/test_openai_ostar_star.py
+          coverage report --fail-under=75
+          coverage xml -o openai-luna-coverage.xml
+          python scripts/verify_openai_luna.py \
+            --junit openai-luna-junit.xml \
+            --output openai-luna-verifier.json \
+            --python-version "3.11" \
+            --static-check ruff \
+            --static-check compileall \
+            --static-check shell-syntax \
+            --static-check coverage
+
       - name: Preserve static daily-method corpus admission
         run: cargo test -p ferroplan --test daily_agent_methods_ppddl
+
+      - name: Execute closed-window live GitHub harvest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          rm -rf target/live-harvest
+          cargo run -p ferroplan-cli --bin ferroplan-harvest -- run \
+            --repo seanchatmangpt/ferroplan \
+            --since 2026-07-31T07:00:00Z \
+            --until 2026-08-01T07:00:00Z \
+            --timezone America/Los_Angeles \
+            --max-pages 10 \
+            --output-dir target/live-harvest
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(Path('target/live-harvest/receipt.json').read_text())
+          if receipt['final_state'] not in {'PARTIAL_ALIVE', 'ALIVE'}:
+              raise SystemExit(f"LIVE_HARVEST_NOT_ADMITTED: {receipt['final_state']}")
+          if not receipt['admitted_work']:
+              raise SystemExit('LIVE_HARVEST_EMPTY_ADMISSION')
+          print({
+              'final_state': receipt['final_state'],
+              'admitted_work': len(receipt['admitted_work']),
+              'operators_added': len(receipt['operators_added']),
+              'receipt_digest': receipt['receipt_digest'],
+          })
+          PY
+
+      - name: Upload live-harvest and Luna receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferroplan-complete-receipts
+          path: |
+            target/live-harvest
+            plugins/chatman-ecosystem/openai-luna-junit.xml
+            plugins/chatman-ecosystem/openai-luna-verifier.json
+            plugins/chatman-ecosystem/openai-luna-coverage.xml
+          if-no-files-found: error
 
       - name: Commit verified projections
         run: |
@@ -119,28 +211,23 @@ jobs:
             crates/ferroplan/src/ppddl/model/part03.rs \
             crates/ferroplan-cli/src/lib.rs \
             crates/ferroplan-cli/src/bin/ferroplan-harvest.rs \
-            crates/ferroplan-cli/src/harvest/compile.rs \
-            crates/ferroplan-cli/src/harvest/extract.rs \
-            crates/ferroplan-cli/src/harvest/gh.rs \
-            crates/ferroplan-cli/src/harvest/mod.rs \
-            crates/ferroplan-cli/src/harvest/model.rs \
+            crates/ferroplan-cli/src/harvest \
             crates/ferroplan-cli/tests/harvest.rs \
             crates/ferroplan-mcp/build.rs \
-            crates/ferroplan-mcp/src/main.rs \
-            crates/ferroplan-mcp/src/admission.rs \
-            crates/ferroplan-mcp/src/session.rs \
-            crates/ferroplan-mcp/src/result.rs \
-            crates/ferroplan-mcp/tests/admission_protocol.rs \
-            crates/ferroplan-mcp/tests/merged_server.rs \
-            crates/ferroplan-mcp/tests/protocol.rs \
-            crates/ferroplan-mcp/tests/session.rs \
-            crates/ferroplan-mcp/tests/session_protocol.rs
+            crates/ferroplan-mcp/src \
+            crates/ferroplan-mcp/tests \
+            plugins/chatman-ecosystem/scripts \
+            plugins/chatman-ecosystem/tests
           if ! git diff --cached --quiet; then
-            git commit -m "chore(harvest): commit verified formatter and lock projections"
+            git commit -m "chore: commit verified Rust and Python projections"
             git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"
           fi
 
       - name: Verify clean exact projection
         run: |
           cargo fmt --package ferroplan --package ferroplan-cli --package ferroplan-mcp -- --check
+          (
+            cd plugins/chatman-ecosystem
+            ruff check scripts tests
+          )
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
