@@ -189,7 +189,7 @@ jobs:
           PY
 
       - name: Upload complete receipts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ferroplan-complete-receipts
           path: |
@@ -223,13 +223,21 @@ jobs:
 
       - name: Verify clean exact projection
         run: |
-          rm -f plugins/chatman-ecosystem/openai-luna-junit.xml \
+          rm -rf target/live-harvest \
+            plugins/chatman-ecosystem/.pytest_cache
+          rm -f plugins/chatman-ecosystem/.coverage \
+            plugins/chatman-ecosystem/openai-luna-junit.xml \
             plugins/chatman-ecosystem/openai-luna-verifier.json \
             plugins/chatman-ecosystem/openai-luna-coverage.xml
+          find plugins/chatman-ecosystem -type d -name __pycache__ -prune -exec rm -rf {} +
           cargo fmt --package ferroplan --package ferroplan-cli --package ferroplan-mcp -- --check
           (
             cd plugins/chatman-ecosystem
             python scripts/generate.py build --check
             ruff check scripts tests
           )
-          test -z "$(git status --porcelain=v1 --untracked-files=all)"
+          dirty="$(git status --porcelain=v1 --untracked-files=all)"
+          if [ -n "$dirty" ]; then
+            printf 'CLEAN_TREE_REFUSED\n%s\n' "$dirty"
+            exit 1
+          fi
