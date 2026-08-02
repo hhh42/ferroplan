@@ -79,7 +79,7 @@ fn session_id_is_caller_owned_and_replace_is_explicit() {
     let mut c = Client::start();
     let sid = "caller-owned-id";
     let first = open(&mut c, sid);
-    let first_receipt = first["receipt"]["digest"].as_str().unwrap_or_default();
+    let first_receipt = first["receipt"].as_str().unwrap_or_default();
     assert!(!first_receipt.is_empty());
 
     let (text, error) = c.call_text(
@@ -99,20 +99,19 @@ fn session_id_is_caller_owned_and_replace_is_explicit() {
         }),
     );
     assert_eq!(replacement["session_id"], sid);
-    assert_ne!(
-        replacement["receipt"]["digest"].as_str().unwrap_or_default(),
-        "",
+    assert!(
+        !replacement["receipt"].as_str().unwrap_or_default().is_empty(),
         "replacement must emit a receipt"
     );
     c.finish();
 }
 
 #[test]
-fn observe_reports_only_contradictions_and_chains_receipts() {
+fn observe_reports_only_contradictions_and_updates_the_receipt_head() {
     let mut c = Client::start();
     let sid = "surprise-boundary";
     let opened = open(&mut c, sid);
-    let open_digest = opened["receipt"]["digest"]
+    let open_receipt = opened["receipt"]
         .as_str()
         .expect("open receipt")
         .to_owned();
@@ -127,7 +126,11 @@ fn observe_reports_only_contradictions_and_chains_receipts() {
     );
     assert!(quiet["fact_surprises"].as_array().unwrap().is_empty());
     assert_eq!(quiet["epoch"], 0);
-    assert_eq!(quiet["receipt"]["previous_digest"], open_digest);
+    let quiet_receipt = quiet["receipt"]
+        .as_str()
+        .expect("quiet observation receipt")
+        .to_owned();
+    assert_ne!(quiet_receipt, open_receipt);
 
     let news = c.call_json(
         "session_observe",
@@ -139,10 +142,14 @@ fn observe_reports_only_contradictions_and_chains_receipts() {
     );
     assert_eq!(news["fact_surprises"].as_array().unwrap().len(), 1);
     assert_eq!(news["epoch"], 1);
-    assert_eq!(
-        news["receipt"]["previous_digest"],
-        quiet["receipt"]["digest"]
-    );
+    let news_receipt = news["receipt"]
+        .as_str()
+        .expect("surprise receipt")
+        .to_owned();
+    assert_ne!(news_receipt, quiet_receipt);
+
+    let status = c.call_json("session_status", json!({"session_id": sid}));
+    assert_eq!(status["receipt_chain_head"], news_receipt);
     c.finish();
 }
 
