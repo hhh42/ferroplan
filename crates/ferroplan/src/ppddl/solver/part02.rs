@@ -118,7 +118,7 @@ fn project_states(mdp: &ExplicitMdp) -> Vec<ProbabilisticState> {
         .iter()
         .enumerate()
         .map(|(id, state)| {
-            let facts = mdp
+            let mut facts = mdp
                 .model
                 .task
                 .fact_names
@@ -130,7 +130,12 @@ fn project_states(mdp: &ExplicitMdp) -> Vec<ProbabilisticState> {
                         && name.as_str() != "(PPDDL-INIT-PENDING)"
                 })
                 .map(|(_, name)| name.clone())
-                .collect();
+                .collect::<Vec<_>>();
+            // Grounding may intern semantically identical facts in a different
+            // order across independent parallel compilations. The public state
+            // projection is a set-valued receipt surface, so canonicalize it
+            // before policy validation compares two exact executions.
+            facts.sort();
             let fluents = mdp
                 .model
                 .task
