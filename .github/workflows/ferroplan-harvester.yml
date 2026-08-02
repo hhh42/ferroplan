@@ -9,8 +9,7 @@ on:
       - "crates/ferroplan/src/ppddl/model/part03.rs"
       - "crates/ferroplan-cli/**"
       - "crates/ferroplan-mcp/**"
-      - "plugins/chatman-ecosystem/scripts/**"
-      - "plugins/chatman-ecosystem/tests/**"
+      - "plugins/chatman-ecosystem/**"
       - ".github/workflows/ferroplan-harvester.yml"
   workflow_dispatch:
 
@@ -20,7 +19,7 @@ permissions:
 
 concurrency:
   group: ferroplan-harvester-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   RUSTC_WRAPPER: ""
