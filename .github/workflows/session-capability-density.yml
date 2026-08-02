@@ -1,13 +1,18 @@
 name: Session Capability Density Projector
 
 on:
-  push:
-    branches:
-      - agent/ferroplan-evidence-harvester
+  pull_request:
     paths:
       - "tools/apply-session-capability-density.py"
+      - "crates/ferroplan/Cargo.toml"
+      - "crates/ferroplan/src/session.rs"
+      - "crates/ferroplan-mcp/src/session.rs"
       - "crates/ferroplan-mcp/src/session_control.rs"
+      - "crates/ferroplan-mcp/src/main.rs"
       - "crates/ferroplan-mcp/tests/session_control.rs"
+      - "crates/ferroplan-mcp/tests/merged_server.rs"
+      - "crates/ferroplan-mcp/tests/protocol.rs"
+      - ".github/workflows/ferroplan-harvester.yml"
       - ".github/workflows/session-capability-density.yml"
   workflow_dispatch:
 
@@ -15,8 +20,8 @@ permissions:
   contents: write
 
 concurrency:
-  group: session-capability-density-${{ github.ref }}
-  cancel-in-progress: false
+  group: session-capability-density-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   RUSTC_WRAPPER: ""
@@ -29,7 +34,7 @@ jobs:
       - name: Checkout exact branch head
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: agent/ferroplan-evidence-harvester
+          ref: ${{ github.event.pull_request.head.ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Install stable Rust
@@ -66,7 +71,7 @@ jobs:
             .github/workflows/ferroplan-harvester.yml
           if ! git diff --cached --quiet; then
             git commit -m "feat(mcp): restore high-density session authority"
-            git push origin HEAD:agent/ferroplan-evidence-harvester
+            git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"
           fi
 
       - name: Verify no unowned product drift
