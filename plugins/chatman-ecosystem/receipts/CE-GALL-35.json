@@ -7,27 +7,27 @@
   "exit_code": 0,
   "git_revision": "8cc80967088e61f9c70e8931e2dcf672db8cdead",
   "known_anti_patterns": [
-    "this receipt's falsifier and witness were originally written in the same session that discovered the defect; 2026-07-30 is the later, distinct session that replayed test_cmca_frontier_allocation.py from a fresh clone and independently rebuilt binary, which is what promotes this receipt",
+    "the committed corpus does not preserve an independently retrievable out-of-session replay receipt for this checkpoint",
     "mcp_client.py existed with a working __main__ smoke test but had zero callers in the test suite before c247ab9; test_cmca_frontier_allocation.py is the first pytest test to exercise the real ferroplan-mcp binary rather than the Python control plane alone",
-    "only cmca_allocate's determinism and the interior/leaf share split were re-verified; CE-GALL-28 itself is NOT promoted by this -- its own recorded positive witness still does not reproduce, and CE-GALL-28 stays PARTIAL_ALIVE/NO_REPLAY"
+    "only cmca_allocate determinism and the interior/leaf share split were exercised; CE-GALL-28 itself is not promoted by this checkpoint"
   ],
   "negative_falsifier": {
     "file": "plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py",
     "result": "passed",
     "test": "test_canonical_frontier_allocation_is_pinned_and_deterministic",
-    "why_this_counts": "asserts interior nodes get share 0.0 and leaves get nonzero share, and pins the exact digests recomputed outside the originating session"
+    "why_this_counts": "asserts interior nodes get share 0.0 and leaves get nonzero share, and pins the exact digests"
   },
   "positive_witness": {
     "file": "plugins/chatman-ecosystem/tests/test_cmca_frontier_allocation.py",
     "result": "1 passed in 0.58s",
     "test": "test_canonical_frontier_allocation_is_pinned_and_deterministic",
-    "why_this_counts": "two consecutive live calls produce identical digests and the real committed frontier preserves the deterministic tree-cascade allocation"
+    "why_this_counts": "two consecutive live calls produce identical digests and the committed frontier preserves deterministic tree-cascade allocation"
   },
-  "reason": null,
-  "replay_host": "fresh git clone + fresh venv + independent cargo build -p ferroplan-mcp, outside the originating session, 2026-07-30",
-  "replayed_outside_session": true,
+  "reason": "NO_REPLAY",
+  "replay_host": null,
+  "replayed_outside_session": false,
   "schema": "urn:chatman:gall-checkpoint-receipt:v1",
   "sealed_at_commit": "8cc80967088e61f9c70e8931e2dcf672db8cdead",
-  "standing": "ALIVE",
+  "standing": "PARTIAL_ALIVE",
   "title": "CE-GALL-28's recorded positive witness does not replay"
 }
