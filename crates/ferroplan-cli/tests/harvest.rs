@@ -1,5 +1,6 @@
 use std::fs;
 
+use ferroplan::{solve_ppddl, ProbabilisticOptions};
 use ferroplan_cli::harvest::{
     admit, compile_pack, extract_operators, replay_pack, AdmissionLevel, ArtifactEvidence,
     EvidenceRef, ExecutionEvidence, ExecutionResult, FinalState, ObservationPack,
@@ -148,6 +149,22 @@ fn compile_and_external_replay_cross_real_filesystem_and_ppddl_boundaries() {
     assert!(first.join("domain.ppddl").is_file());
     assert!(first.join("problem.ppddl").is_file());
     assert!(first.join("method-catalog.json").is_file());
+
+    let domain = fs::read_to_string(first.join("domain.ppddl")).expect("domain");
+    let problem = fs::read_to_string(first.join("problem.ppddl")).expect("problem");
+    let policy = solve_ppddl(
+        &domain,
+        &problem,
+        &ProbabilisticOptions {
+            horizon: Some(7),
+            ..Default::default()
+        },
+    )
+    .expect("policy");
+    assert!(policy
+        .states
+        .iter()
+        .all(|state| state.facts.windows(2).all(|pair| pair[0] <= pair[1])));
 
     let replay = replay_pack(&input, &receipt, &second).expect("replay");
     assert_eq!(replay.replay, ReplayState::ReplayMatch);
