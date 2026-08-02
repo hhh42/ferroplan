@@ -2443,6 +2443,7 @@ dependencies = [
 name = "ferroplan-mcp"
 version = "0.20.0"
 dependencies = [
+ "blake3",
  "ferroplan",
  "rmcp",
  "schemars",
