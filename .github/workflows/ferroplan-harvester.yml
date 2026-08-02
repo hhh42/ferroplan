@@ -46,6 +46,8 @@ jobs:
               'Cargo.lock',
               'crates/ferroplan-cli/src/lib.rs',
               'crates/ferroplan-cli/src/bin/ferroplan-harvest.rs',
+              'crates/ferroplan-cli/src/harvest/compile.rs',
+              'crates/ferroplan-cli/src/harvest/extract.rs',
               'crates/ferroplan-cli/src/harvest/gh.rs',
               'crates/ferroplan-cli/src/harvest/mod.rs',
               'crates/ferroplan-cli/src/harvest/model.rs',
@@ -76,6 +78,8 @@ jobs:
           git add Cargo.lock \
             crates/ferroplan-cli/src/lib.rs \
             crates/ferroplan-cli/src/bin/ferroplan-harvest.rs \
+            crates/ferroplan-cli/src/harvest/compile.rs \
+            crates/ferroplan-cli/src/harvest/extract.rs \
             crates/ferroplan-cli/src/harvest/gh.rs \
             crates/ferroplan-cli/src/harvest/mod.rs \
             crates/ferroplan-cli/src/harvest/model.rs \
