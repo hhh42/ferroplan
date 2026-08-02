@@ -37,14 +37,27 @@ def digest(value: Any) -> str:
     return "sha256:" + hashlib.sha256(canonical_json(value).encode()).hexdigest()
 
 
+def _classname_contains_module(classname: str, module: str) -> bool:
+    """Match both pytest functions and unittest-style nested class names.
+
+    Pytest emits `test_openai_luna_unit` for module-level functions but emits
+    `test_openai_luna.StarRuntimeTests` for unittest classes. JUnit class
+    nesting is not a different verification category, so classify by any
+    exact dotted component rather than by the final component alone.
+    """
+    return module in classname.split(".")
+
+
 def category_results(junit_path: Path) -> list[dict[str, Any]]:
-    counts = {name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0} for name, _ in CATEGORIES}
+    counts = {
+        name: {"tests": 0, "failures": 0, "errors": 0, "skipped": 0}
+        for name, _ in CATEGORIES
+    }
     root = ET.parse(junit_path).getroot()
     for case in root.iter("testcase"):
         classname = case.attrib.get("classname", "")
-        observed_module = classname.rsplit(".", 1)[-1]
         for name, module in CATEGORIES:
-            if observed_module != module:
+            if not _classname_contains_module(classname, module):
                 continue
             bucket = counts[name]
             bucket["tests"] += 1
@@ -55,16 +68,26 @@ def category_results(junit_path: Path) -> list[dict[str, Any]]:
     return [
         {
             "name": name,
-            "state": "ALIVE" if values["tests"] and not values["failures"] and not values["errors"] else "BUILD_BROKEN",
+            "state": (
+                "ALIVE"
+                if values["tests"] and not values["failures"] and not values["errors"]
+                else "BUILD_BROKEN"
+            ),
             **values,
         }
         for name, values in counts.items()
     ]
 
 
-def build_report(junit_path: Path, static_checks: list[str], python_version: str) -> dict[str, Any]:
+def build_report(
+    junit_path: Path, static_checks: list[str], python_version: str
+) -> dict[str, Any]:
     categories = category_results(junit_path)
-    standing = "ALIVE" if all(item["state"] == "ALIVE" for item in categories) else "BUILD_BROKEN"
+    standing = (
+        "ALIVE"
+        if all(item["state"] == "ALIVE" for item in categories)
+        else "BUILD_BROKEN"
+    )
     unsigned = {
         "schema": SCHEMA,
         "standing": standing,
