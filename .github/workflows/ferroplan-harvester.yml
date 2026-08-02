@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "Cargo.lock"
+      - "crates/ferroplan/src/ppddl/solver/part02.rs"
       - "crates/ferroplan-cli/Cargo.toml"
       - "crates/ferroplan-cli/src/lib.rs"
       - "crates/ferroplan-cli/src/bin/ferroplan-harvest.rs"
@@ -38,12 +39,13 @@ jobs:
 
       - name: Manufacture formatter and lockfile projections
         run: |
-          cargo fmt --package ferroplan-cli
+          cargo fmt --package ferroplan --package ferroplan-cli
           cargo check -p ferroplan-cli --bin ferroplan-harvest --tests
           python3 - <<'PY'
           import subprocess
           allowed = {
               'Cargo.lock',
+              'crates/ferroplan/src/ppddl/solver/part02.rs',
               'crates/ferroplan-cli/src/lib.rs',
               'crates/ferroplan-cli/src/bin/ferroplan-harvest.rs',
               'crates/ferroplan-cli/src/harvest/compile.rs',
@@ -76,6 +78,7 @@ jobs:
           git config user.name "ferroplan-harvester-controller"
           git config user.email "ferroplan-harvester-controller@users.noreply.github.com"
           git add Cargo.lock \
+            crates/ferroplan/src/ppddl/solver/part02.rs \
             crates/ferroplan-cli/src/lib.rs \
             crates/ferroplan-cli/src/bin/ferroplan-harvest.rs \
             crates/ferroplan-cli/src/harvest/compile.rs \
@@ -91,5 +94,5 @@ jobs:
 
       - name: Verify clean exact projection
         run: |
-          cargo fmt --package ferroplan-cli -- --check
+          cargo fmt --package ferroplan --package ferroplan-cli -- --check
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
