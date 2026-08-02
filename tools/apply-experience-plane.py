@@ -14,131 +14,118 @@ def replace(path: str, old: str, new: str, count: int = 1) -> None:
     target.write_text(text.replace(old, new, count))
 
 
-main = ROOT / "crates/ferroplan-mcp/src/main.rs"
-text = main.read_text()
-if "mod experience;" not in text:
-    text = text.replace("mod admission;\n", "mod admission;\nmod experience;\n", 1)
-    text = text.replace(
-        "                + Self::session_control_router()\n                + Self::admission_router(),",
-        "                + Self::session_control_router()\n                + Self::experience_router()\n                + Self::admission_router(),",
-        1,
-    )
-    text = text.replace(
-        "            .or_else(|| session_control::ontology_comment(name))\n            .or_else(|| admission::ontology_comment(name))",
-        "            .or_else(|| session_control::ontology_comment(name))\n            .or_else(|| experience::ontology_comment(name))\n            .or_else(|| admission::ontology_comment(name))",
-        1,
-    )
-    text = text.replace(
-        "        .chain(session_control::RESOURCE_TOOLS)\n        .chain(admission::RESOURCE_TOOLS)",
-        "        .chain(session_control::RESOURCE_TOOLS)\n        .chain(experience::RESOURCE_TOOLS)\n        .chain(admission::RESOURCE_TOOLS)",
-        1,
-    )
-    text = text.replace("fn all_tool_names()", "pub(crate) fn all_tool_names()", 1)
-    text = text.replace("as 31 MCP tools", "as 42 MCP tools")
-    text = text.replace("resource per tool (31", "resource per tool (42")
-    text = text.replace("All 31 tool names", "All 42 tool names")
-    text = text.replace(
-        "/// (stateless planning, then session, then admission).",
-        "/// (stateless planning, session, persistent control, operator experience, then admission).",
-    )
-    text = text.replace("three separate per-module", "four separate per-module")
-    text = text.replace("sums the three `ToolRouter`s", "sums the merged `ToolRouter`s")
-    text = text.replace(
-        "branch, checkpoint, restore, compare, scope, and drive time through the `session_*` control tools; `cmca_allocate` runs",
-        "branch, checkpoint, restore, compare, scope, and drive time through the `session_*` control tools; use `dx_manifest`/`dx_compose`/`vision_lattice` for capability discovery, `doctor_*` for diagnosis, `wizard_*` for guided manufacture, `qol_*` for one-round-trip operation, and `telco_*` for transport-neutral handoff envelopes; `cmca_allocate` runs",
-        1,
-    )
-    main.write_text(text)
-
-merged = ROOT / "crates/ferroplan-mcp/tests/merged_server.rs"
-text = merged.read_text()
-if "dx_manifest" not in text:
-    text = text.replace("31-tool", "42-tool")
-    text = text.replace("31-resource", "42-resource")
-    text = text.replace("ALL_31_TOOLS", "ALL_42_TOOLS")
-    text = text.replace("all_31_tools", "all_42_tools")
-    text = text.replace("31 tools", "42 tools")
-    text = text.replace("31 resources", "42 resources")
-    text = text.replace("exactly 31", "exactly 42")
-    text = text.replace("all 31", "all 42")
-    text = text.replace("expected 31", "expected 42")
-    text = text.replace("        31,", "        42,")
-    text = text.replace(
-        "    // canonical evidence admission\n",
-        "    // Vision 2030 operator experience\n"
-        "    \"dx_manifest\",\n"
-        "    \"dx_compose\",\n"
-        "    \"doctor_scan\",\n"
-        "    \"doctor_explain\",\n"
-        "    \"wizard_bootstrap\",\n"
-        "    \"wizard_recipe\",\n"
-        "    \"qol_snapshot\",\n"
-        "    \"qol_batch\",\n"
-        "    \"telco_envelope\",\n"
-        "    \"telco_verify\",\n"
-        "    \"vision_lattice\",\n"
-        "    // canonical evidence admission\n",
-        1,
-    )
-text = text.replace(
-    "fn resources_list_exposes_exactly_31_under_the_unified_scheme()",
-    "fn resources_list_exposes_exactly_42_under_the_unified_scheme()",
-)
-text = text.replace(
-    'assert_eq!(tools.len(), 31, "expected all 42 tools");',
-    'assert_eq!(tools.len(), 42, "expected all 42 tools");',
-)
-merged.write_text(text)
-
-protocol = ROOT / "crates/ferroplan-mcp/tests/protocol.rs"
-text = protocol.read_text()
-if '"dx_manifest"' not in text:
-    text = text.replace(
-        '        "decompose",\n',
-        '        "decompose",\n'
-        '        "doctor_explain",\n'
-        '        "doctor_scan",\n'
-        '        "dx_compose",\n'
-        '        "dx_manifest",\n',
-        1,
-    )
-    text = text.replace(
-        '        "parse",\n',
-        '        "parse",\n'
-        '        "qol_batch",\n'
-        '        "qol_snapshot",\n',
-        1,
-    )
-    text = text.replace(
-        '        "solve",\n',
-        '        "solve",\n'
-        '        "telco_envelope",\n'
-        '        "telco_verify",\n'
-        '        "vision_lattice",\n'
-        '        "wizard_bootstrap",\n'
-        '        "wizard_recipe",\n',
-        1,
-    )
-    protocol.write_text(text)
-
 experience = ROOT / "crates/ferroplan-mcp/src/experience.rs"
 text = experience.read_text()
-text = text.replace(
-    "    let allowed: BTreeSet<String> = normalize_atoms(input.allowed_tools)?.into_iter().collect();",
-    "    let allowed = normalize_atoms(input.allowed_tools)?;",
-)
-text = text.replace(
-    "    Ok(serde_json::to_value(envelope).map_err(|error| error.to_string())?)",
-    "    serde_json::to_value(envelope).map_err(|error| error.to_string())",
-)
+old_ontology = '''pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "dx_manifest" => "Return the complete self-describing Ferroplan capability manifest, including authority categories, contracts, effects, reversibility, receipt behavior, and composition examples.",
+        "dx_compose" => "Search the bounded capability graph for a minimal deterministic tool sequence from admitted starting atoms to requested outcome atoms.",
+        "doctor_scan" => "Diagnose global or per-session health, assign typed findings, calculate standing, and emit executable remediation hints without mutating state.",
+        "doctor_explain" => "Classify a tool or protocol failure into a typed cause with bounded confidence, corrective actions, and refusal-preserving recovery guidance.",
+        "wizard_bootstrap" => "Atomically manufacture a ready persistent planning mind from domain, problem, goal, authority scope, and bounded search settings.",
+        "wizard_recipe" => "Compile a high-level operator intent into an ordered, inspectable Ferroplan tool recipe with preflight, rollback, and receipt checkpoints.",
+        "qol_snapshot" => "Read session state, selected facts and fluents, plan standing, diagnostics, memory, lineage, and recent history in one round trip.",
+        "qol_batch" => "Apply a bounded heterogeneous session transaction on a staged fork and commit exactly once, or refuse without partial mutation.",
+        "telco_envelope" => "Manufacture a deterministic transport-neutral BLAKE3 integrity envelope with correlation, causation, idempotency, predecessor, and expiry fields; it performs no network operation.",
+        "telco_verify" => "Verify a transport envelope's schema, payload identity, envelope identity, routing expectations, predecessor, and expiry without treating integrity as authentication.",
+        "vision_lattice" => "Enumerate a bounded combinatorial capability lattice, minimal reachability depths, dependency edges, blocked frontiers, and theoretical composition capacity.",
+        _ => return None,
+    })
+}
+'''
+new_ontology = '''include!(concat!(env!("OUT_DIR"), "/experience_ontology.rs"));
+
+pub(crate) const ONTOLOGY_SOURCE: &str =
+    "plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl";
+
+pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "dx_manifest" => DX_MANIFEST_ONTOLOGY,
+        "dx_compose" => DX_COMPOSE_ONTOLOGY,
+        "doctor_scan" => DOCTOR_SCAN_ONTOLOGY,
+        "doctor_explain" => DOCTOR_EXPLAIN_ONTOLOGY,
+        "wizard_bootstrap" => WIZARD_BOOTSTRAP_ONTOLOGY,
+        "wizard_recipe" => WIZARD_RECIPE_ONTOLOGY,
+        "qol_snapshot" => QOL_SNAPSHOT_ONTOLOGY,
+        "qol_batch" => QOL_BATCH_ONTOLOGY,
+        "telco_envelope" => TELCO_ENVELOPE_ONTOLOGY,
+        "telco_verify" => TELCO_VERIFY_ONTOLOGY,
+        "vision_lattice" => VISION_LATTICE_ONTOLOGY,
+        _ => return None,
+    })
+}
+
+pub(crate) fn ontology_source(name: &str) -> Option<&'static str> {
+    RESOURCE_TOOLS.contains(&name).then_some(ONTOLOGY_SOURCE)
+}
+'''
+if old_ontology in text:
+    text = text.replace(old_ontology, new_ontology, 1)
+elif "experience_ontology.rs" not in text:
+    raise SystemExit("EXPERIENCE_ONTOLOGY_PROJECTION_REFUSED")
 experience.write_text(text)
+
+main = ROOT / "crates/ferroplan-mcp/src/main.rs"
+text = main.read_text()
+text = text.replace(
+    '''                .with_description(format!(
+                    "Ontology-sourced semantics for the `{name}` tool, from \\
+                     ferroplan-domain.ttl."
+                ))''',
+    '''                .with_description(format!(
+                    "Ontology-sourced semantics for the `{name}` tool, from its owning \\
+                     Ferroplan Turtle graph."
+                ))''',
+)
+old_body = '''        let body = serde_json::json!({
+            "tool": name,
+            "source": "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
+            "rdfs_comment": ontology_comment,
+        });'''
+new_body = '''        let ontology_source = experience::ontology_source(name).unwrap_or(
+            "plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl",
+        );
+        let body = serde_json::json!({
+            "tool": name,
+            "source": ontology_source,
+            "rdfs_comment": ontology_comment,
+        });'''
+if old_body in text:
+    text = text.replace(old_body, new_body, 1)
+elif "let ontology_source = experience::ontology_source(name)" not in text:
+    raise SystemExit("MAIN_ONTOLOGY_PROVENANCE_PROJECTION_REFUSED")
+text = text.replace(
+    "/// All 42 tool names across the three merged tool groups, in a stable order",
+    "/// All 42 tool names across the five merged tool groups, in a stable order",
+)
+main.write_text(text)
 
 experience_test = ROOT / "crates/ferroplan-mcp/tests/experience_plane.rs"
 text = experience_test.read_text()
-text = text.replace(
-    '    assert_eq!(lattice["standing"], "ALIVE");',
-    '    assert!(matches!(lattice["standing"].as_str(), Some("ALIVE" | "PARTIAL_ALIVE")));',
-)
+anchor = '''    assert_eq!(manifest["advertised_tool_count"], 42);
+    assert_eq!(manifest["modeled_tool_count"], 42);
+'''
+insert = '''    assert_eq!(manifest["advertised_tool_count"], 42);
+    assert_eq!(manifest["modeled_tool_count"], 42);
+
+    let resource = client.request(
+        "resources/read",
+        json!({"uri": "ferroplan://tools/dx_manifest"}),
+    );
+    let resource_text = resource["result"]["contents"][0]["text"]
+        .as_str()
+        .expect("experience resource text");
+    let resource_body: Value = serde_json::from_str(resource_text).expect("experience resource JSON");
+    assert_eq!(
+        resource_body["source"],
+        "plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl"
+    );
+    assert!(resource_body["rdfs_comment"]
+        .as_str()
+        .is_some_and(|comment| comment.contains("self-describing")));
+'''
+if anchor in text and "ferroplan-experience.ttl" not in text:
+    text = text.replace(anchor, insert, 1)
 experience_test.write_text(text)
 
-print("EXPERIENCE_PLANE_PROJECTED")
+print("EXPERIENCE_RDF_PROJECTION_COMPLETE")
