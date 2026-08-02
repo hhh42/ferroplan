@@ -61,6 +61,25 @@ jobs:
             python scripts/generate.py build --check
           )
           python3 - <<'PY'
+          from pathlib import Path
+          from rdflib import Graph
+          from pyshacl import validate
+
+          source = Path('plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl')
+          graph = Graph().parse(source, format='turtle')
+          conforms, report_graph, report_text = validate(
+              data_graph=graph,
+              shacl_graph=graph,
+              inference='rdfs',
+              abort_on_first=False,
+              allow_infos=False,
+              allow_warnings=False,
+          )
+          if not conforms:
+              raise SystemExit(f'EXPERIENCE_SHACL_REFUSED\n{report_text}')
+          print({'experience_triples': len(graph), 'shacl_conforms': True})
+          PY
+          python3 - <<'PY'
           import subprocess
 
           allowed_exact = {
@@ -79,13 +98,18 @@ jobs:
               'crates/ferroplan-mcp/build.rs',
               'crates/ferroplan-mcp/src/main.rs',
               'crates/ferroplan-mcp/src/admission.rs',
+              'crates/ferroplan-mcp/src/experience.rs',
               'crates/ferroplan-mcp/src/session.rs',
+              'crates/ferroplan-mcp/src/session_control.rs',
               'crates/ferroplan-mcp/src/result.rs',
               'crates/ferroplan-mcp/tests/admission_protocol.rs',
+              'crates/ferroplan-mcp/tests/experience_plane.rs',
               'crates/ferroplan-mcp/tests/merged_server.rs',
               'crates/ferroplan-mcp/tests/protocol.rs',
               'crates/ferroplan-mcp/tests/session.rs',
+              'crates/ferroplan-mcp/tests/session_control.rs',
               'crates/ferroplan-mcp/tests/session_protocol.rs',
+              'plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl',
           }
           allowed_prefixes = (
               'plugins/chatman-ecosystem/agents/',
@@ -110,9 +134,11 @@ jobs:
           cargo test -p ferroplan-cli --test harvest
           cargo test -p ferroplan-mcp --test admission_protocol
           cargo test -p ferroplan-mcp --test session_protocol
+          cargo test -p ferroplan-mcp --test session
+          cargo test -p ferroplan-mcp --test session_control
+          cargo test -p ferroplan-mcp --test experience_plane
           cargo test -p ferroplan-mcp --test merged_server
           cargo test -p ferroplan-mcp --test protocol
-          cargo test -p ferroplan-mcp --test session
           cargo clippy -p ferroplan-cli --bin ferroplan-harvest --tests --no-deps -- -D warnings
           cargo clippy -p ferroplan-mcp --all-targets --no-deps -- -D warnings
           cargo test -p ferroplan --test daily_agent_methods_ppddl
@@ -213,11 +239,12 @@ jobs:
             crates/ferroplan-mcp/src \
             crates/ferroplan-mcp/tests \
             plugins/chatman-ecosystem/agents \
+            plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl \
             plugins/chatman-ecosystem/schemas \
             plugins/chatman-ecosystem/scripts \
             plugins/chatman-ecosystem/tests
           if ! git diff --cached --quiet; then
-            git commit -m "chore: commit verified Rust and Python projections"
+            git commit -m "chore: commit verified Rust, RDF, and Python projections"
             git push origin "HEAD:${{ github.event.pull_request.head.ref || github.ref_name }}"
           fi
 
