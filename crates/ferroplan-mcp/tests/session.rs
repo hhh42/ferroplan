@@ -31,6 +31,16 @@ fn reported_plan_length(think: &Value) -> usize {
         .unwrap_or(0)
 }
 
+fn assert_blake3_hex(value: &str) {
+    assert_eq!(value.len(), 64, "BLAKE3 receipt must be 32 bytes in hex");
+    assert!(
+        value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')),
+        "BLAKE3 receipt must be canonical lowercase hex: {value}"
+    );
+}
+
 #[test]
 fn open_observe_then_think_replans_from_the_admitted_state() {
     let mut c = Client::start();
@@ -80,7 +90,7 @@ fn session_id_is_caller_owned_and_replace_is_explicit() {
     let sid = "caller-owned-id";
     let first = open(&mut c, sid);
     let first_receipt = first["receipt"].as_str().unwrap_or_default();
-    assert!(!first_receipt.is_empty());
+    assert_blake3_hex(first_receipt);
 
     let (text, error) = c.call_text(
         "session_open",
@@ -102,12 +112,10 @@ fn session_id_is_caller_owned_and_replace_is_explicit() {
         }),
     );
     assert_eq!(replacement["session_id"], sid);
-    assert!(
-        !replacement["receipt"]
+    assert_blake3_hex(
+        replacement["receipt"]
             .as_str()
-            .unwrap_or_default()
-            .is_empty(),
-        "replacement must emit a receipt"
+            .expect("replacement receipt"),
     );
     c.finish();
 }
@@ -118,6 +126,7 @@ fn observe_reports_only_contradictions_and_updates_the_receipt_head() {
     let sid = "surprise-boundary";
     let opened = open(&mut c, sid);
     let open_receipt = opened["receipt"].as_str().expect("open receipt").to_owned();
+    assert_blake3_hex(&open_receipt);
 
     let quiet = c.call_json(
         "session_observe",
@@ -133,6 +142,7 @@ fn observe_reports_only_contradictions_and_updates_the_receipt_head() {
         .as_str()
         .expect("quiet observation receipt")
         .to_owned();
+    assert_blake3_hex(&quiet_receipt);
     assert_ne!(quiet_receipt, open_receipt);
 
     let news = c.call_json(
@@ -149,6 +159,7 @@ fn observe_reports_only_contradictions_and_updates_the_receipt_head() {
         .as_str()
         .expect("surprise receipt")
         .to_owned();
+    assert_blake3_hex(&news_receipt);
     assert_ne!(news_receipt, quiet_receipt);
 
     let status = c.call_json("session_status", json!({"session_id": sid}));
