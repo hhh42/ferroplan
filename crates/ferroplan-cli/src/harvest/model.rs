@@ -12,7 +12,7 @@ pub struct ObservationWindow {
     pub timezone: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct ObservationPack {
     pub schema: String,
     pub run_id: String,
