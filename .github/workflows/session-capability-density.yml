@@ -46,6 +46,8 @@ jobs:
             python3 tools/apply-session-capability-density.py
           fi
           sed -i 's/blake3 = { workspace = true }/blake3 = "1"/' crates/ferroplan/Cargo.toml
+          sed -i '/let mut hasher = blake3::Hasher::new();/a\        hasher.update(DOMAIN);' crates/ferroplan/src/session.rs
+          sed -i 's/use ferroplan::{Plan, Session};/use ferroplan::Plan;/' crates/ferroplan-mcp/src/session_control.rs
           cargo fmt --all
 
       - name: Compile and execute the restored fence
