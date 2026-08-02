@@ -21,6 +21,7 @@ on:
       - "crates/ferroplan-mcp/tests/admission_protocol.rs"
       - "crates/ferroplan-mcp/tests/merged_server.rs"
       - "crates/ferroplan-mcp/tests/protocol.rs"
+      - "crates/ferroplan-mcp/tests/session.rs"
       - "crates/ferroplan-mcp/tests/session_protocol.rs"
       - ".github/workflows/ferroplan-harvester.yml"
   workflow_dispatch:
@@ -77,6 +78,7 @@ jobs:
               'crates/ferroplan-mcp/tests/admission_protocol.rs',
               'crates/ferroplan-mcp/tests/merged_server.rs',
               'crates/ferroplan-mcp/tests/protocol.rs',
+              'crates/ferroplan-mcp/tests/session.rs',
               'crates/ferroplan-mcp/tests/session_protocol.rs',
           }
           changed = set(subprocess.check_output(
@@ -97,6 +99,7 @@ jobs:
           cargo test -p ferroplan-mcp --test session_protocol
           cargo test -p ferroplan-mcp --test merged_server
           cargo test -p ferroplan-mcp --test protocol
+          cargo test -p ferroplan-mcp --test session
 
       - name: Lint changed Rust surfaces
         run: |
@@ -130,6 +133,7 @@ jobs:
             crates/ferroplan-mcp/tests/admission_protocol.rs \
             crates/ferroplan-mcp/tests/merged_server.rs \
             crates/ferroplan-mcp/tests/protocol.rs \
+            crates/ferroplan-mcp/tests/session.rs \
             crates/ferroplan-mcp/tests/session_protocol.rs
           if ! git diff --cached --quiet; then
             git commit -m "chore(harvest): commit verified formatter and lock projections"
