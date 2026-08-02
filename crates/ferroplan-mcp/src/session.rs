@@ -86,14 +86,19 @@ pub(crate) fn ontology_comment(name: &str) -> Option<&'static str> {
     })
 }
 
-struct ManagedSession {
-    session: Session,
-    last_plan: Option<Plan>,
-    cursor: usize,
-    epoch: u64,
-    domain_digest: String,
-    problem_digest: String,
-    receipt_head: Option<String>,
+pub(crate) struct ManagedSession {
+    pub(crate) session: Session,
+    pub(crate) last_plan: Option<Plan>,
+    pub(crate) cursor: usize,
+    pub(crate) epoch: u64,
+    pub(crate) domain_digest: String,
+    pub(crate) problem_digest: String,
+    pub(crate) receipt_head: Option<String>,
+    pub(crate) event_log: Vec<Value>,
+    pub(crate) parent_session_id: Option<String>,
+    pub(crate) generation: u64,
+    pub(crate) allowed_ops: Vec<String>,
+    pub(crate) denied_ops: Vec<String>,
 }
 
 /// Session map: outer lock briefly guards lookup of a session's own
@@ -102,13 +107,13 @@ struct ManagedSession {
 /// session without blocking calls against other sessions.
 #[derive(Clone, Default)]
 pub(crate) struct SessionState {
-    sessions: Arc<AsyncMutex<BTreeMap<String, Arc<AsyncMutex<ManagedSession>>>>>,
+    pub(crate) sessions: Arc<AsyncMutex<BTreeMap<String, Arc<AsyncMutex<ManagedSession>>>>>,
 }
 
 impl SessionState {
     /// Look up a session's own lock, briefly holding the outer map lock to
     /// clone the `Arc`, then release it immediately.
-    async fn get(&self, id: &str) -> Result<Arc<AsyncMutex<ManagedSession>>, String> {
+    pub(crate) async fn get(&self, id: &str) -> Result<Arc<AsyncMutex<ManagedSession>>, String> {
         let sessions = self.sessions.lock().await;
         sessions
             .get(id)
@@ -373,6 +378,11 @@ impl Ferroplan {
             domain_digest,
             problem_digest,
             receipt_head: None,
+            event_log: Vec::new(),
+            parent_session_id: None,
+            generation: 0,
+            allowed_ops: Vec::new(),
+            denied_ops: Vec::new(),
         };
         let event = json!({
             "schema": "urn:chatman:ferroplan-session-event:v1",
@@ -886,15 +896,16 @@ fn tool_cmca_allocate_recursive(input: CmcaRecursiveInput) -> Result<Value, Stri
     }))
 }
 
-fn current_plan_valid(managed: &ManagedSession) -> Option<bool> {
+pub(crate) fn current_plan_valid(managed: &ManagedSession) -> Option<bool> {
     managed
         .last_plan
         .as_ref()
         .map(|plan| managed.session.plan_still_valid(plan, managed.cursor))
 }
 
-fn chain_receipt(managed: &mut ManagedSession, event: &Value) -> Result<String, String> {
-    let event_digest = digest_value(&canonicalize(event))?;
+pub(crate) fn chain_receipt(managed: &mut ManagedSession, event: &Value) -> Result<String, String> {
+    let canonical_event = canonicalize(event);
+    let event_digest = digest_value(&canonical_event)?;
     let mut hasher = blake3::Hasher::new();
     hasher.update(SESSION_RECEIPT_DOMAIN);
     update_framed(
@@ -904,6 +915,11 @@ fn chain_receipt(managed: &mut ManagedSession, event: &Value) -> Result<String, 
     update_framed(&mut hasher, event_digest.as_bytes());
     let receipt = hasher.finalize().to_hex().to_string();
     managed.receipt_head = Some(receipt.clone());
+    managed.event_log.push(canonical_event);
+    if managed.event_log.len() > 4096 {
+        let overflow = managed.event_log.len() - 4096;
+        managed.event_log.drain(..overflow);
+    }
     Ok(receipt)
 }
 
@@ -957,7 +973,7 @@ fn lens_receipt(lenses: &[LensSpec; Q]) -> Vec<Value> {
         .collect()
 }
 
-fn validate_session_id(id: &str) -> Result<(), String> {
+pub(crate) fn validate_session_id(id: &str) -> Result<(), String> {
     if id.is_empty()
         || !id
             .bytes()
@@ -984,7 +1000,7 @@ fn canonicalize(value: &Value) -> Value {
     }
 }
 
-fn digest_value(value: &Value) -> Result<String, String> {
+pub(crate) fn digest_value(value: &Value) -> Result<String, String> {
     let bytes = serde_json::to_vec(&canonicalize(value)).map_err(|error| error.to_string())?;
     Ok(digest_bytes(&bytes))
 }

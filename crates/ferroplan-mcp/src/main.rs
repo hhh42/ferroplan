@@ -1,6 +1,6 @@
 //! `ferroplan-mcp` — a single Model Context Protocol server exposing the
 //! ferroplan planner, persistent self-hosting sessions, and Chatman
-//! admission receipts to an LLM agent, as 17 MCP tools:
+//! admission receipts to an LLM agent, as 31 MCP tools:
 //!
 //! - Stateless planning: `solve`, `parse`, `validate`, `decompose` — the
 //!   README's bet made operational: the agent *authors and supervises* PDDL
@@ -24,7 +24,7 @@
 //! CPU-bound search via `tokio::task::block_in_place` while holding a
 //! per-session lock; see `session.rs`). Tool schemas are derived from
 //! `schemars::JsonSchema` on each request struct rather than hand-written
-//! JSON Schema literals. `resources/*` exposes one resource per tool (17
+//! JSON Schema literals. `resources/*` exposes one resource per tool (31
 //! total), under a single unified `ferroplan://tools/<name>` URI scheme,
 //! with the tool's semantic description pulled from
 //! `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl` (statically
@@ -47,6 +47,7 @@
 mod admission;
 mod result;
 mod session;
+mod session_control;
 
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
@@ -134,13 +135,18 @@ struct DecomposeRequest {
 struct Ferroplan {
     tool_router: ToolRouter<Self>,
     session_state: session::SessionState,
+    session_control_state: session_control::ControlState,
 }
 
 impl Ferroplan {
     fn new() -> Self {
         Self {
-            tool_router: Self::tool_router() + Self::session_router() + Self::admission_router(),
+            tool_router: Self::tool_router()
+                + Self::session_router()
+                + Self::session_control_router()
+                + Self::admission_router(),
             session_state: session::SessionState::default(),
+            session_control_state: session_control::ControlState::default(),
         }
     }
 }
@@ -248,7 +254,7 @@ impl ServerHandler for Ferroplan {
              big for one-shot search) and read the structured result. `validate` independently \
              checks a plan. Open a persistent repository mind with `session_open` and drive it \
              via `session_observe`/`session_set_goal`/`session_think`/`session_advance`/\
-             `session_status`/`session_close`; `cmca_allocate` runs the pinned Chatman \
+             `session_status`/`session_close`; branch, checkpoint, restore, compare, scope, and drive time through the `session_*` control tools; `cmca_allocate` runs the pinned Chatman \
              Multifractal Cascade Allocator. Bind evidence from any of the above into \
              replayable BLAKE3 envelopes with `canonical_digest`/`bind_allocation_receipt`/\
              `bind_plan_receipt`/`verify_receipt`. Read `ferroplan://tools/<name>` resources \
@@ -289,6 +295,7 @@ impl ServerHandler for Ferroplan {
             .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
         let ontology_comment = main_ontology_comment(name)
             .or_else(|| session::ontology_comment(name))
+            .or_else(|| session_control::ontology_comment(name))
             .or_else(|| admission::ontology_comment(name))
             .ok_or_else(|| McpError::resource_not_found(request.uri.clone(), None))?;
         let body = serde_json::json!({
@@ -304,12 +311,13 @@ impl ServerHandler for Ferroplan {
     }
 }
 
-/// All 17 tool names across the three merged tool groups, in a stable order
+/// All 31 tool names across the three merged tool groups, in a stable order
 /// (stateless planning, then session, then admission).
 fn all_tool_names() -> Vec<&'static str> {
     MAIN_RESOURCE_TOOLS
         .iter()
         .chain(session::RESOURCE_TOOLS)
+        .chain(session_control::RESOURCE_TOOLS)
         .chain(admission::RESOURCE_TOOLS)
         .copied()
         .collect()

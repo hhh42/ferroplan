@@ -73,7 +73,10 @@ fn list_state_atomic_set_fork_compare_checkpoint_restore_and_history_form_one_co
     );
     assert_eq!(forked["forked_from"], parent);
     assert_eq!(forked["session_id"], child);
-    assert_eq!(forked["shared_world_bytes"], listed["sessions"][0]["world_bytes"]);
+    assert_eq!(
+        forked["shared_world_bytes"],
+        listed["sessions"][0]["world_bytes"]
+    );
 
     let equivalent = c.call_json(
         "session_compare",

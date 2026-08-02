@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use ferroplan::{Plan, Session};
+use ferroplan::Plan;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ErrorData as McpError};
 use rmcp::{tool, tool_router};
@@ -257,7 +257,9 @@ impl Ferroplan {
         to_result(self.do_session_list(input).await)
     }
 
-    #[tool(description = "Read selected facts/fluents and the semantic fingerprint of a live session.")]
+    #[tool(
+        description = "Read selected facts/fluents and the semantic fingerprint of a live session."
+    )]
     async fn session_state(
         &self,
         Parameters(input): Parameters<StateInput>,
@@ -265,7 +267,9 @@ impl Ferroplan {
         to_result(self.do_session_state(input).await)
     }
 
-    #[tool(description = "Atomically apply fact, fluent, and goal changes with optimistic concurrency.")]
+    #[tool(
+        description = "Atomically apply fact, fluent, and goal changes with optimistic concurrency."
+    )]
     async fn session_set(
         &self,
         Parameters(input): Parameters<SetInput>,
@@ -931,7 +935,10 @@ fn require_epoch(managed: &ManagedSession, expected: Option<u64>) -> Result<(), 
 fn normalize_prefixes(values: Vec<String>) -> Result<Vec<String>, String> {
     let mut out = Vec::new();
     for value in values {
-        let value = value.trim().trim_matches(|c| c == '(' || c == ')').to_ascii_uppercase();
+        let value = value
+            .trim()
+            .trim_matches(|c| c == '(' || c == ')')
+            .to_ascii_uppercase();
         if value.is_empty()
             || !value
                 .bytes()
@@ -994,7 +1001,10 @@ fn checkpoint_view(checkpoint: &StoredCheckpoint) -> Result<Value, String> {
     let mut view = managed_view(&checkpoint.snapshot)?;
     if let Value::Object(object) = &mut view {
         object.insert("checkpoint_digest".into(), json!(checkpoint.digest));
-        object.insert("source_session_id".into(), json!(checkpoint.source_session_id));
+        object.insert(
+            "source_session_id".into(),
+            json!(checkpoint.source_session_id),
+        );
         object.insert("source_epoch".into(), json!(checkpoint.source_epoch));
     }
     Ok(view)
