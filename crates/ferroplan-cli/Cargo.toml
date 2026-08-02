@@ -16,9 +16,14 @@ readme = "../../README.md"
 name = "ff"
 path = "src/main.rs"
 
+[[bin]]
+name = "ferroplan-harvest"
+path = "src/bin/ferroplan-harvest.rs"
+
 [dependencies]
 ferroplan = { path = "../ferroplan", version = "0.20.0" }
 clap = { version = "4", features = ["derive"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 anyhow = "1"
+blake3 = "1"
