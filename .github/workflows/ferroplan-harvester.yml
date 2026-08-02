@@ -5,11 +5,14 @@ on:
     paths:
       - "Cargo.lock"
       - "crates/ferroplan/src/ppddl/solver/part02.rs"
+      - "crates/ferroplan/src/ppddl/syntax/part02.rs"
+      - "crates/ferroplan/src/ppddl/model/part03.rs"
       - "crates/ferroplan-cli/Cargo.toml"
       - "crates/ferroplan-cli/src/lib.rs"
       - "crates/ferroplan-cli/src/bin/ferroplan-harvest.rs"
       - "crates/ferroplan-cli/src/harvest/**"
       - "crates/ferroplan-cli/tests/harvest.rs"
+      - "crates/ferroplan-mcp/Cargo.toml"
       - ".github/workflows/ferroplan-harvester.yml"
   workflow_dispatch:
 
@@ -46,6 +49,8 @@ jobs:
           allowed = {
               'Cargo.lock',
               'crates/ferroplan/src/ppddl/solver/part02.rs',
+              'crates/ferroplan/src/ppddl/syntax/part02.rs',
+              'crates/ferroplan/src/ppddl/model/part03.rs',
               'crates/ferroplan-cli/src/lib.rs',
               'crates/ferroplan-cli/src/bin/ferroplan-harvest.rs',
               'crates/ferroplan-cli/src/harvest/compile.rs',
@@ -79,6 +84,8 @@ jobs:
           git config user.email "ferroplan-harvester-controller@users.noreply.github.com"
           git add Cargo.lock \
             crates/ferroplan/src/ppddl/solver/part02.rs \
+            crates/ferroplan/src/ppddl/syntax/part02.rs \
+            crates/ferroplan/src/ppddl/model/part03.rs \
             crates/ferroplan-cli/src/lib.rs \
             crates/ferroplan-cli/src/bin/ferroplan-harvest.rs \
             crates/ferroplan-cli/src/harvest/compile.rs \
