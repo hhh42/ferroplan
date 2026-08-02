@@ -96,7 +96,6 @@ def test_controller_agent_grant_is_bounded_by_may_spawn():
 
 
 def test_single_actuator_policy_is_enforced(authority):
-    root = plugin_root()
     CE = generate.CE
     write_tools = {"Write", "Edit", "NotebookEdit"}
 
