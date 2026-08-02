@@ -47,7 +47,7 @@ jobs:
       - name: Install Python verifier dependencies
         run: pip install --quiet pytest ruff coverage typer pydantic jsonschema rdflib pyshacl
 
-      - name: Manufacture Rust and Python projections
+      - name: Manufacture bounded projections
         run: |
           cargo fmt --package ferroplan --package ferroplan-cli --package ferroplan-mcp
           cargo check -p ferroplan-cli --bin ferroplan-harvest --tests
@@ -55,7 +55,10 @@ jobs:
           (
             cd plugins/chatman-ecosystem
             ruff check scripts tests --fix
+            python scripts/generate.py build
+            ruff check scripts tests --fix
             ruff check scripts tests
+            python scripts/generate.py build --check
           )
           python3 - <<'PY'
           import subprocess
@@ -85,6 +88,8 @@ jobs:
               'crates/ferroplan-mcp/tests/session_protocol.rs',
           }
           allowed_prefixes = (
+              'plugins/chatman-ecosystem/agents/',
+              'plugins/chatman-ecosystem/schemas/',
               'plugins/chatman-ecosystem/scripts/',
               'plugins/chatman-ecosystem/tests/',
           )
@@ -93,35 +98,31 @@ jobs:
           ).splitlines())
           unexpected = sorted(
               path for path in changed
-              if path not in allowed_exact
-              and not path.startswith(allowed_prefixes)
+              if path not in allowed_exact and not path.startswith(allowed_prefixes)
           )
           if unexpected:
               raise SystemExit(f'PROJECTION_PATH_ESCAPE_REFUSED: {unexpected}')
           print({'projected_paths': sorted(changed)})
           PY
 
-      - name: Execute admission, PPDDL, receipt, and replay tests
-        run: cargo test -p ferroplan-cli --test harvest
-
-      - name: Execute merged MCP authority protocols
+      - name: Execute Rust admission and authority boundaries
         run: |
+          cargo test -p ferroplan-cli --test harvest
           cargo test -p ferroplan-mcp --test admission_protocol
           cargo test -p ferroplan-mcp --test session_protocol
           cargo test -p ferroplan-mcp --test merged_server
           cargo test -p ferroplan-mcp --test protocol
           cargo test -p ferroplan-mcp --test session
-
-      - name: Lint changed Rust surfaces
-        run: |
           cargo clippy -p ferroplan-cli --bin ferroplan-harvest --tests --no-deps -- -D warnings
           cargo clippy -p ferroplan-mcp --all-targets --no-deps -- -D warnings
+          cargo test -p ferroplan --test daily_agent_methods_ppddl
 
       - name: Execute complete Python plugin control plane
         working-directory: plugins/chatman-ecosystem
         run: |
           python -m compileall -q scripts
           for f in scripts/*.sh; do sh -n "$f"; done
+          python scripts/validate-claude-projection.py --plugin-root .
           python scripts/generate.py build --check
           pytest
 
@@ -158,9 +159,6 @@ jobs:
             --static-check shell-syntax \
             --static-check coverage
 
-      - name: Preserve static daily-method corpus admission
-        run: cargo test -p ferroplan --test daily_agent_methods_ppddl
-
       - name: Execute closed-window live GitHub harvest
         env:
           GH_TOKEN: ${{ github.token }}
@@ -190,7 +188,7 @@ jobs:
           })
           PY
 
-      - name: Upload live-harvest and Luna receipts
+      - name: Upload complete receipts
         uses: actions/upload-artifact@v4
         with:
           name: ferroplan-complete-receipts
@@ -209,13 +207,13 @@ jobs:
             crates/ferroplan/src/ppddl/solver/part02.rs \
             crates/ferroplan/src/ppddl/syntax/part02.rs \
             crates/ferroplan/src/ppddl/model/part03.rs \
-            crates/ferroplan-cli/src/lib.rs \
-            crates/ferroplan-cli/src/bin/ferroplan-harvest.rs \
-            crates/ferroplan-cli/src/harvest \
+            crates/ferroplan-cli/src \
             crates/ferroplan-cli/tests/harvest.rs \
             crates/ferroplan-mcp/build.rs \
             crates/ferroplan-mcp/src \
             crates/ferroplan-mcp/tests \
+            plugins/chatman-ecosystem/agents \
+            plugins/chatman-ecosystem/schemas \
             plugins/chatman-ecosystem/scripts \
             plugins/chatman-ecosystem/tests
           if ! git diff --cached --quiet; then
@@ -225,9 +223,13 @@ jobs:
 
       - name: Verify clean exact projection
         run: |
+          rm -f plugins/chatman-ecosystem/openai-luna-junit.xml \
+            plugins/chatman-ecosystem/openai-luna-verifier.json \
+            plugins/chatman-ecosystem/openai-luna-coverage.xml
           cargo fmt --package ferroplan --package ferroplan-cli --package ferroplan-mcp -- --check
           (
             cd plugins/chatman-ecosystem
+            python scripts/generate.py build --check
             ruff check scripts tests
           )
           test -z "$(git status --porcelain=v1 --untracked-files=all)"
