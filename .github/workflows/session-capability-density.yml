@@ -45,6 +45,7 @@ jobs:
           if ! grep -q 'pub fn state_fingerprint' crates/ferroplan/src/session.rs; then
             python3 tools/apply-session-capability-density.py
           fi
+          sed -i 's/blake3 = { workspace = true }/blake3 = "1"/' crates/ferroplan/Cargo.toml
           cargo fmt --all
 
       - name: Compile and execute the restored fence
