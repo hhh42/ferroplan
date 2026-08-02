@@ -27,7 +27,7 @@ env:
 
 jobs:
   harvest-boundary:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 75
     steps:
       - name: Checkout exact head
