@@ -68,7 +68,7 @@ jobs:
         run: cargo test -p ferroplan-cli --test harvest
 
       - name: Lint harvester surfaces
-        run: cargo clippy -p ferroplan-cli --bin ferroplan-harvest --tests -- -D warnings
+        run: cargo clippy -p ferroplan-cli --bin ferroplan-harvest --tests --no-deps -- -D warnings
 
       - name: Preserve static daily-method corpus admission
         run: cargo test -p ferroplan --test daily_agent_methods_ppddl
