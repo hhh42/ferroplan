@@ -4,7 +4,8 @@ use ferroplan::{solve_ppddl, ProbabilisticOptions};
 use ferroplan_cli::harvest::{
     admit, compile_pack, extract_operators, replay_pack, AdmissionLevel, ArtifactEvidence,
     EvidenceRef, ExecutionEvidence, ExecutionResult, FinalState, ObservationPack,
-    ObservationWindow, ObservedOutcome, ObservedWorkItem, ReplayState, OBSERVATION_SCHEMA,
+    ObservationWindow, ObservedOutcome, ObservedWorkItem, RefusalCode, ReplayState,
+    OBSERVATION_SCHEMA,
 };
 
 fn sha(ch: char) -> String {
@@ -54,6 +55,16 @@ fn pack(work_items: Vec<ObservedWorkItem>) -> ObservationPack {
         work_items,
         transport_failures: Vec::new(),
     }
+}
+
+fn assert_blake3_hex(value: &str) {
+    assert_eq!(value.len(), 64, "BLAKE3 identity must contain 64 hex characters");
+    assert!(
+        value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')),
+        "BLAKE3 identity must be canonical lowercase hex: {value}"
+    );
 }
 
 #[test]
@@ -173,5 +184,107 @@ fn compile_and_external_replay_cross_real_filesystem_and_ppddl_boundaries() {
         fs::read(first.join("domain.ppddl")).unwrap(),
         fs::read(second.join("domain.ppddl")).unwrap()
     );
+    let _ = fs::remove_dir_all(&root);
+}
+
+/// Chicago/classicist TDD validation of the bounded replacement claim.
+///
+/// No interaction mocks are used. Real domain objects, real files, the real
+/// PPDDL parser/solver/validator, receipt generation, semantic deduplication,
+/// and clean replay must leave the observable system in the claimed state.
+#[test]
+fn chicago_tdd_replaces_the_bounded_human_continuity_function() {
+    let first = executed_work("fix: cache verifier by receipt digest");
+    let mut second = executed_work("perf: cache subsystem by source digest");
+    second.sha = sha('c');
+    second.parent_sha = Some(sha('d'));
+    second.source_url = format!("https://github.com/commit/{}", second.sha);
+    second.executions[0].source_sha = second.sha.clone();
+    second.executions[0].command = "workflow:harvest#2".to_owned();
+    second.executions[0].evidence_url = "https://github.com/run/2".to_owned();
+    second.artifacts[0].source_sha = second.sha.clone();
+    second.artifacts[0].evidence_url = "https://github.com/artifact/2".to_owned();
+
+    let input = pack(vec![first, second]);
+    let root = std::env::temp_dir().join(format!(
+        "ferroplan-chicago-replacement-{}",
+        std::process::id()
+    ));
+    let manufactured = root.join("manufactured");
+    let replayed = root.join("replayed");
+    let _ = fs::remove_dir_all(&root);
+
+    let receipt = compile_pack(&input, &manufactured).expect("manufacture bounded workflow");
+
+    // Human status collection and evidence assembly are replaced by state.
+    assert_eq!(receipt.admitted_work.len(), 2);
+    assert!(receipt.excluded_work.is_empty());
+    assert!(receipt.transport_failures.is_empty());
+    assert!(receipt.failures.is_empty());
+
+    // Human tribal memory and manual procedure authoring are replaced by one
+    // reusable semantic operator derived from two differently named events.
+    assert_eq!(receipt.operators_added.len(), 1);
+    assert_eq!(receipt.operators_deduplicated, 1);
+
+    // Manual PPDDL authoring, test coordination, and audit-packet assembly are
+    // replaced by the observable manufactured artifacts and verifier state.
+    assert_eq!(receipt.final_state, FinalState::PartialAlive);
+    assert!(receipt.validation.parse_ok);
+    assert_eq!(receipt.validation.solved, Some(true));
+    assert_eq!(receipt.validation.policy_valid, Some(true));
+    assert_blake3_hex(&receipt.receipt_digest);
+    assert!(manufactured.join("observation-pack.json").is_file());
+    assert!(manufactured.join("admission-report.json").is_file());
+    assert!(manufactured.join("method-catalog.json").is_file());
+    assert!(manufactured.join("domain.ppddl").is_file());
+    assert!(manufactured.join("problem.ppddl").is_file());
+
+    // A fresh execution reproduces the same state without a human remembering
+    // the command sequence or interpreting the implementation.
+    let replay = replay_pack(&input, &receipt, &replayed).expect("clean replay");
+    assert_eq!(replay.replay, ReplayState::ReplayMatch);
+    assert_eq!(replay.final_state, FinalState::Alive);
+    assert_eq!(receipt.source_pack_digest, replay.source_pack_digest);
+    assert_eq!(receipt.catalog_digest, replay.catalog_digest);
+    assert_eq!(receipt.outputs, replay.outputs);
+
+    let _ = fs::remove_dir_all(&root);
+}
+
+/// Counter-test for the part of the thesis that must remain human-owned.
+///
+/// The system may replace repetitive continuity work, but it may not invent
+/// execution, authority, probability, or standing merely to complete a run.
+#[test]
+fn chicago_tdd_preserves_the_human_authority_boundary() {
+    let mut unexecuted = executed_work("feat: declare an unverified capability");
+    unexecuted.executions.clear();
+    unexecuted.artifacts.clear();
+    let input = pack(vec![unexecuted]);
+    let root = std::env::temp_dir().join(format!(
+        "ferroplan-chicago-authority-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&root);
+
+    let receipt = compile_pack(&input, &root).expect("bounded refusal receipt");
+
+    assert_eq!(receipt.final_state, FinalState::Unknown);
+    assert!(receipt.admitted_work.is_empty());
+    assert!(receipt.operators_added.is_empty());
+    assert_eq!(receipt.excluded_work.len(), 1);
+    assert_eq!(
+        receipt.excluded_work[0].code,
+        RefusalCode::ExecutionNotObserved
+    );
+    assert!(receipt
+        .failures
+        .iter()
+        .any(|failure| failure == "NO_ADMITTED_EXECUTED_WORK"));
+    assert!(!root.join("domain.ppddl").exists());
+    assert!(!root.join("problem.ppddl").exists());
+    assert_blake3_hex(&receipt.receipt_digest);
+
     let _ = fs::remove_dir_all(&root);
 }
