@@ -34,18 +34,52 @@ case "$V" in
      exit 1 ;;
 esac
 
+# --- measurement hygiene (0.21: learned the hard way) ------------------------
+# A dev thread compiling on this box starves a sweep: four parallel `cargo test
+# --all --release` jobs took elevator-2011 i10 from 22s to 122s. A board measured
+# under that is not a slow board, it is a WRONG board, and the v0.18 backfill lost
+# one to exactly this. So: never START a board under load, and never MARK DONE a
+# board that was contaminated while it ran — leave it for the resume pass.
+idle_pct() {
+  top -l 2 -n 0 -s 1 2>/dev/null | grep '^CPU usage' | tail -1 \
+    | awk -F'[ ,%]+' '{for (i = 1; i <= NF; i++) if ($i == "idle") print int($(i - 1))}'
+}
+QUIET="${QUIET:-70}"     # percent idle that counts as quiet
+wait_quiet() {
+  local got=0 idle
+  while [ "$got" -lt 2 ]; do
+    idle=$(idle_pct); [ -z "$idle" ] && idle=0
+    if [ "$idle" -ge "$QUIET" ]; then got=$((got + 1)); else
+      [ "$got" -gt 0 ] && echo "    (load returned: ${idle}% idle — waiting)"
+      got=0; sleep 60
+    fi
+  done
+}
+
 run_board() { # name track timeout extra-args...
   local name="$1" track="$2" tmo="$3"; shift 3
   if [ -f "benchmarks/air21/$name.done" ]; then
     echo "SKIP $name (done)"
     return
   fi
+  wait_quiet
   echo "RUN  $name ($track ${tmo}s $*) $(date '+%H:%M:%S')"
+  # Watch the box for the duration and record the WORST idle seen.
+  local worst=100 tmp="benchmarks/air21/$name.load"
+  ( while : ; do i=$(idle_pct); [ -n "$i" ] && echo "$i"; sleep 30; done ) >"$tmp" 2>/dev/null &
+  local watcher=$!
   python3 benchmarks/ipc67.py --track "$track" --timeout "$tmo" \
     --jobs "$JOBS" --mem-gb "$MEMGB" "$@" \
     --out "benchmarks/air21/$name.md" >"benchmarks/air21/$name.log" 2>&1
-  echo "DONE $name: $(tail -1 "benchmarks/air21/$name.md") $(date '+%H:%M:%S')"
-  touch "benchmarks/air21/$name.done"
+  kill "$watcher" 2>/dev/null
+  worst=$(sort -n "$tmp" 2>/dev/null | head -1); [ -z "$worst" ] && worst=100
+  echo "DONE $name: $(tail -1 "benchmarks/air21/$name.md") $(date '+%H:%M:%S') [worst idle ${worst}%]"
+  if [ "$worst" -lt 40 ]; then
+    echo "!! $name ran under LOAD (idle dipped to ${worst}%) — NOT marking done;"
+    echo "   re-run this driver on a quiet box to redo it."
+  else
+    touch "benchmarks/air21/$name.done"
+  fi
 }
 
 # Cheapest first (a driver that dies early banks something); the NEW board
