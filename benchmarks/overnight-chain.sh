@@ -9,8 +9,9 @@
 # conditions reported 0/13 where the boards recorded 13/13, with a
 # byte-identical binary. So: measure when quiet, or do not measure.
 #
-#   bash benchmarks/overnight-chain.sh            # gate, then differentials, then backfill
-#   NO_WAIT=1 bash benchmarks/overnight-chain.sh  # skip the gate (box already quiet)
+#   bash benchmarks/overnight-chain.sh                 # gate, differentials, v0.19.0
+#   bash benchmarks/overnight-chain.sh v0.18.0 v0.17.0  # gate, then those tags in order
+#   NO_WAIT=1 bash benchmarks/overnight-chain.sh ...    # skip the gate (box already quiet)
 #
 # Resume-aware throughout: every stage skips its own completed work, so
 # re-running after an interruption costs nothing.
@@ -61,16 +62,19 @@ for spec in lmcut novlight refill; do
   fi
 done
 
-# --- stage 2: the v0.19 backfill (the long pole, ~20h) ---
-if [ -f benchmarks/air-chain/backfill-0.19.0.done ]; then
-  echo "SKIP backfill v0.19.0 (done)"
-else
-  echo "==> backfill v0.19.0 $(date '+%F %H:%M:%S')"
-  if bash benchmarks/backfill-air.sh v0.19.0; then
-    touch benchmarks/air-chain/backfill-0.19.0.done
-  else
-    echo "!! backfill FAILED (resume by re-running this script)"
+# --- stage 2: the backfills (the long pole, ~17-20h each) ---
+TAGS=("$@"); [ ${#TAGS[@]} -eq 0 ] && TAGS=(v0.19.0)
+for tag in "${TAGS[@]}"; do
+  ver="${tag#v}"
+  if [ -f "benchmarks/air-chain/backfill-$ver.done" ]; then
+    echo "SKIP backfill $tag (done)"; continue
   fi
-fi
+  echo "==> backfill $tag $(date '+%F %H:%M:%S')"
+  if bash benchmarks/backfill-air.sh "$tag"; then
+    touch "benchmarks/air-chain/backfill-$ver.done"
+  else
+    echo "!! backfill $tag FAILED (resume by re-running this script)"
+  fi
+done
 
 echo "=== chain done $(date '+%F %H:%M:%S') ==="

@@ -51,9 +51,28 @@ echo "==> engine: $BIN"
 mkdir -p "$OUT"
 export FERROPLAN_FF="$BIN"
 
+# Mode::Optimal arrived in 0.19 (Phase 2). Older engines have no optimal.rs at
+# all, so the two proof-rate boards are not "0 coverage" for them — the feature
+# does not exist, and recording a zero would be a lie the standings would then
+# average. Probe once and skip those boards by name if unsupported.
+HAS_OPT=1
+if ! "$BIN" --help 2>&1 | grep -qi 'optimal'; then
+  if ! git -C "$WT" ls-files --error-unmatch crates/ferroplan/src/optimal.rs >/dev/null 2>&1; then
+    HAS_OPT=0
+  fi
+fi
+if [ "$HAS_OPT" = "0" ]; then
+  echo "==> $TAG predates Mode::Optimal — skipping the two proof-rate boards"
+  echo "    (feature absent, NOT zero coverage)"
+  : > "$OUT/OPTIMAL-UNSUPPORTED"
+fi
+
 run_board() { # name track timeout extra-args...
   local name="$1" track="$2" tmo="$3"; shift 3
   if [ -f "$OUT/$name.done" ]; then echo "SKIP $name (done)"; return; fi
+  case " $* " in *" optimal "*)
+    if [ "$HAS_OPT" = "0" ]; then echo "SKIP $name (Mode::Optimal absent in $TAG)"; return; fi ;;
+  esac
   echo "RUN  $name ($track ${tmo}s $*) $(date '+%H:%M:%S')"
   python3 benchmarks/ipc67.py --track "$track" --timeout "$tmo" \
     --jobs "$JOBS" --mem-gb "$MEMGB" "$@" \
