@@ -1,0 +1,84 @@
+{
+  "schema": "daily-agent-ppddl-receipt/v2",
+  "snapshot_date": "2026-08-02",
+  "repository": "seanchatmangpt/ferroplan",
+  "base_head": "6316c4aa663e46335e5548d140d2402684607d7c",
+  "observed_sources": [
+    {
+      "repo": "seanchatmangpt/ferroplan",
+      "pr": 34,
+      "head": "6316c4aa663e46335e5548d140d2402684607d7c",
+      "admitted": ["closed-window evidence harvest", "atomic staged mutation with zero partial state", "receipt/replay binding", "explicit no-network and integrity-not-authentication boundaries"],
+      "evidence": "PR body reports exact-head harvester run 30744561840 SUCCESS, experience 5/5, session and protocol suites passed, RDF/SHACL conformance"
+    },
+    {
+      "repo": "seanchatmangpt/mmdio",
+      "pr": 6,
+      "head": "55231ace151ba85d41aa07b0adc4a413481c85b0",
+      "admitted": ["claim ceiling for executable subset", "unsupported catalog entries remain explicit"],
+      "evidence": "13 focused tests passed; 39 registered types, 11 executable; 12 SPARQL gates with zero violations"
+    },
+    {
+      "repo": "seanchatmangpt/unrdf",
+      "pr": 99,
+      "head": "f4c4acb87571df7fb00a43013b65ce3be87e2088",
+      "admitted": ["positive laws plus real-runtime witness", "typed unsupported equivalence boundary", "replayed receipt digests"],
+      "evidence": "exact-head workflows report 38/38 and 40/40 JS tests, 8/8 AtomVM laws, 30/30 patterns"
+    },
+    {
+      "repo": "seanchatmangpt/chatman-nano-stack",
+      "pr": 30,
+      "head": null,
+      "admitted": ["hermetic local crown with mutation refusal", "two-run byte-identical replay"],
+      "evidence": "PR body reports 40/40 capabilities, 40 linked receipts, deterministic report replay, tamper refusal"
+    },
+    {
+      "repo": "seanchatmangpt/ggen",
+      "pr": 561,
+      "head": "d9b119cae5512eabdf836759208d542ec2c1d1a4",
+      "admitted": ["strict intent admission before action", "evidence-indexed release claim ceiling", "Pareto-bounded composition"],
+      "evidence": "PR body reports 52 assertions, zero failures, two mutants killed, 8,640 lawful profiles; aggregate remains PARTIAL_ALIVE"
+    }
+  ],
+  "admission": {
+    "rule": "Exact subject plus observed bounded completion evidence; PR existence or queued CI alone is not admission.",
+    "methods": ["closed-window harvest", "claim-ceiling admission", "atomic staged mutation", "unsupported-boundary preservation", "receipt/replay binding"],
+    "deduplication": "Existing July operators were retained; this supplemental snapshot contains only five non-equivalent method families."
+  },
+  "changes": {
+    "generated_outputs": false,
+    "hand_edited_generated_outputs": false,
+    "files": [
+      "examples/daily_agent_methods/snapshots/2026-08-02/domain.ppddl",
+      "examples/daily_agent_methods/snapshots/2026-08-02/problem.ppddl",
+      "examples/daily_agent_methods/snapshots/2026-08-02/validation.json",
+      "examples/daily_agent_methods/snapshots/2026-08-02/receipt.json"
+    ]
+  },
+  "validation": {
+    "commands": [{
+      "command": "embedded Python PPDDL structural/semantic verifier",
+      "exit": 0,
+      "checks": ["balanced S-expressions", "domain/problem identity", "problem predicates declared", "10 unique action schemas", "probabilistic requirement/effect closure", "required invariant predicates"]
+    }],
+    "external_parser": "UNSUPPORTED: no PPDDL/PDDL parser package installed and repository tree/toolchain unavailable through local transport"
+  },
+  "failures": [
+    {"transport": "git clone https://github.com/seanchatmangpt/ferroplan.git", "classification": "BLOCKED", "detail": "DNS resolution unavailable in local container"},
+    {"transport": "GitHub code search", "classification": "PARTIAL_ALIVE", "detail": "intermittent 502/timeout; connector PR/file APIs remained available"}
+  ],
+  "exclusions": [
+    "PRs with only requested validation and no observed completion evidence",
+    "closed/superseded contaminated branches",
+    "queued CI represented as success",
+    "empirical interpretation of PPDDL probabilities",
+    "repository-wide ALIVE beyond each exact admitted subject"
+  ],
+  "files_sha256": {
+    "problem.ppddl": "2214d8202e97c302f9ff5804ce2c805f89e89ce5f9872cdce7c3ea4c73eeca56",
+    "domain.ppddl": "a2cda2956d7c79dd65ff3ce60e146617ed38a8f9354386e74ee05bb9bf02a3b8",
+    "validation.json": "fafaf678a3977c0e98382a0f4bca3f85e011f15caa5b41c1f3b5afe788ef652d"
+  },
+  "final_state": "PARTIAL_ALIVE",
+  "standing_reason": "Authored PPDDL domain/problem pass the locally executable narrow structural and semantic verifier. A production PPDDL parser/planner execution was unavailable, so aggregate corpus promotion remains bounded."
+}
