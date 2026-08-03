@@ -75,10 +75,56 @@ pub fn render(task: &PackedTask, result: &PlanResult, threads: usize) -> (String
             out.push_str(&timing(task, *evaluated, *max_g, threads));
             (out, 0)
         }
-        PlanResult::Unsolvable { evaluated, .. } => {
-            out.push_str("\n\nbest first search space empty! problem proven unsolvable.\n\n");
+        PlanResult::Unsolvable { evaluated, capped } => {
+            // "proven unsolvable" only on genuine open-list exhaustion; a
+            // capped search says so (0.21 Phase 3 honesty rider). Exit code
+            // stays 0 either way — the Metric-FF clean-run convention.
+            if *capped {
+                out.push_str(
+                    "\n\nsearch cap reached! no plan found within budget (search space NOT exhausted).\n\n",
+                );
+            } else {
+                out.push_str("\n\nbest first search space empty! problem proven unsolvable.\n\n");
+            }
             out.push_str(&timing(task, *evaluated, 0, threads));
             (out, 0)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! The capped/proven wording split (0.21 Phase 3 honesty rider): a
+    //! budget-limited failure must never read as a completeness proof.
+
+    use super::*;
+    use crate::search::PlanResult;
+
+    fn tiny_task() -> PackedTask {
+        let d = crate::parser::parse_domain(
+            "(define (domain t) (:predicates (p) (q))
+               (:action a :precondition (p) :effect (q)))",
+        )
+        .unwrap();
+        let p = crate::parser::parse_problem(
+            "(define (problem t1) (:domain t) (:init (p)) (:goal (q)))",
+        )
+        .unwrap();
+        crate::ground::ground_task(&d, &p, 1).unwrap()
+    }
+
+    #[test]
+    fn capped_never_claims_a_proof() {
+        let task = tiny_task();
+        let unsolved = |capped| PlanResult::Unsolvable {
+            evaluated: 7,
+            capped,
+        };
+        let (capped_out, code) = render(&task, &unsolved(true), 1);
+        assert_eq!(code, 0, "a capped run is still a clean exit");
+        assert!(capped_out.contains("search cap reached"));
+        assert!(!capped_out.contains("proven unsolvable"));
+        let (proven_out, _) = render(&task, &unsolved(false), 1);
+        assert!(proven_out.contains("proven unsolvable"));
     }
 }

@@ -1912,6 +1912,9 @@ fn ground_v(
         fdef0: fdef,
         goal_pos,
         goal_num,
+        // The temporal entries (stratified snap path, fixpoint session)
+        // keep the numeric-precondition charge OFF — see the field docs.
+        charge_pre_num: !stratified,
         fact_names: fact_names_packed.into(),
         fluent_names: fluent_names.into(),
         n_easy,

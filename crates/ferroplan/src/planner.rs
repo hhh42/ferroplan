@@ -162,10 +162,22 @@ pub fn run_planner(
             }
             (out, 0)
         }
-        Solved::Unsolvable => {
-            out.push_str("\n\nbest first search space empty! problem proven unsolvable.\n\n");
+        Solved::Unsolvable { capped } => {
+            out.push_str(unsolvable_line(capped));
             (out, 0)
         }
+    }
+}
+
+/// The unsolved wording, kept HONEST (0.21 Phase 3): "proven unsolvable"
+/// fires only on genuine open-list exhaustion; a capped search (eval
+/// budget, node-cap byte model) says so instead. Same exit code — a clean
+/// run either way, and the boards classify by elapsed time, not this line.
+fn unsolvable_line(capped: bool) -> &'static str {
+    if capped {
+        "\n\nsearch cap reached! no plan found within budget (search space NOT exhausted).\n\n"
+    } else {
+        "\n\nbest first search space empty! problem proven unsolvable.\n\n"
     }
 }
 
@@ -367,8 +379,8 @@ fn satisficing_fallback(
             }
             0
         }
-        Solved::Unsolvable => {
-            out.push_str("\n\nbest first search space empty! problem proven unsolvable.\n\n");
+        Solved::Unsolvable { capped } => {
+            out.push_str(unsolvable_line(capped));
             0
         }
     }
@@ -519,7 +531,7 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
                 }
                 None => crate::search::PlanResult::Unsolvable {
                     evaluated: o.evaluated,
-                    capped: false,
+                    capped: o.capped,
                 },
             };
             let (body, code) = crate::output::render(&task, &result, threads);

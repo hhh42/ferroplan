@@ -869,6 +869,11 @@ pub struct PlanOutcome {
     pub ops: Option<Vec<usize>>,
     pub evaluated: usize,
     pub ehc_fell_back: bool,
+    /// Unsolved because a CAP fired (eval budget, node-cap byte model) —
+    /// NOT a genuine open-list exhaustion. The text path's "proven
+    /// unsolvable" wording must never fire on this (0.21 Phase 3 honesty
+    /// rider); false on every solved outcome.
+    pub capped: bool,
 }
 
 /// Plan the whole task. With `ehc_first`, run enforced hill-climbing (fast on
@@ -923,6 +928,7 @@ pub fn plan_avoiding(
                 ops: Some(ops),
                 evaluated,
                 ehc_fell_back: true,
+                capped: false,
             };
         }
     }
@@ -934,6 +940,7 @@ pub fn plan_avoiding(
                 ops: Some(ops),
                 evaluated,
                 ehc_fell_back: true,
+                capped: false,
             };
         }
     }
@@ -943,6 +950,7 @@ pub fn plan_avoiding(
                 ops: Some(ops),
                 evaluated,
                 ehc_fell_back: false,
+                capped: false,
             };
         }
         // Novelty-LIGHT rung (0.20 Phase 3): IW(1) + goal count, ZERO h
@@ -970,6 +978,7 @@ pub fn plan_avoiding(
                     ops: Some(ops),
                     evaluated,
                     ehc_fell_back: true,
+                    capped: false,
                 };
             }
         }
@@ -987,6 +996,7 @@ pub fn plan_avoiding(
                     ops: Some(ops),
                     evaluated,
                     ehc_fell_back: true,
+                    capped: false,
                 };
             }
         }
@@ -1012,6 +1022,7 @@ pub fn plan_avoiding(
                     ops: Some(ops),
                     evaluated,
                     ehc_fell_back: true,
+                    capped: false,
                 };
             }
         }
@@ -1079,6 +1090,7 @@ pub fn plan_avoiding(
                     ops: Some(ops),
                     evaluated: total_evaluated + evaluated,
                     ehc_fell_back: ehc_first,
+                    capped: false,
                 };
             }
             PlanResult::Unsolvable { evaluated, capped } => {
@@ -1089,6 +1101,7 @@ pub fn plan_avoiding(
                         ops: None,
                         evaluated: total_evaluated,
                         ehc_fell_back: ehc_first,
+                        capped,
                     };
                 }
                 round += 1;

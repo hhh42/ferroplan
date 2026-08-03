@@ -129,6 +129,15 @@ pub struct PackedTask {
     pub goal_pos: Vec<u32>,
     pub goal_num: Vec<NumPre>,
 
+    /// Arm the numeric-precondition charge (0.21 Phase 3) in relaxed-plan
+    /// extraction. True on the classical/numeric grounding entries; FALSE
+    /// on the temporal snap/session entries (stratified/fixpoint), whose
+    /// compiled tasks always carry `pre_num` — the charge re-routed the
+    /// village workshop economy (27-step carve plan → 47-step chisel-sale
+    /// plan), and the temporal boards are other phases' referee surface,
+    /// so they keep 0.20's h byte-identical until measured on their own.
+    pub charge_pre_num: bool,
+
     pub fact_names: Arc<[String]>,
     /// fluent id -> display string `(NAME ARGS)` (for metric/cost-fluent lookup).
     pub fluent_names: Arc<[String]>,
@@ -373,8 +382,10 @@ impl PackedTask {
             && cost_fluent.map_or(true, |cf| Self::quantized(a, cf) == Self::quantized(b, cf))
     }
 
+    // pub(crate): the FF_NUMNOV novelty envelope quantizes fluents with
+    // exactly the state-key contract (one 1e-6 quantizer everywhere).
     #[inline]
-    fn quantized(s: &State, i: usize) -> i64 {
+    pub(crate) fn quantized(s: &State, i: usize) -> i64 {
         if s.fdef[i] {
             (s.fv[i] * 1e6).round() as i64
         } else {
