@@ -649,7 +649,7 @@ fn solve_inner(
     tier: DemandMode,
 ) -> Option<TimedPlan> {
     let c = compile(domain, problem);
-    let task = match ground_stratified(&c.domain, &c.problem, threads) {
+    let mut task = match ground_stratified(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
             return Some(TimedPlan {
@@ -661,6 +661,7 @@ fn solve_inner(
     };
 
     let (kind, dur_exprs, inv) = build_kind(&task, &c);
+    task.pair_end = endgate_pairs(&kind);
     // Resolve each TIL's synthetic applier to its grounded op id (0-arg ⇒ op display
     // is the action name). A TIL whose op didn't ground is silently dropped.
     let by_display: HashMap<&str, usize> = task
@@ -876,6 +877,22 @@ fn reconcile_durations(task: &PackedTask, c: &TemporalCompiled, plan: TimedPlan)
 /// a fuel decrease that stays above its floor sails through.
 pub(crate) type InvMap =
     crate::hash::FxHashMap<usize, (Vec<u32>, Vec<u32>, Vec<(NumPre, Vec<u32>)>)>;
+
+/// The h-surgery probe (0.21 Phase 8, opt-in `FF_H_ENDGATE=1`): derive the
+/// start→end pair table `relaxed_extract`'s end-gate discount reads from
+/// `build_kind`'s classification (`u32::MAX` = not a start). `None` when the
+/// flag is unset, so the flag-off heuristic is provably byte-identical —
+/// the discount pass keys on the table's presence, never on the env.
+pub(crate) fn endgate_pairs(kind: &[Kind]) -> Option<Vec<u32>> {
+    std::env::var("FF_H_ENDGATE").is_ok().then(|| {
+        kind.iter()
+            .map(|k| match k {
+                Kind::Start { end_op, .. } => *end_op as u32,
+                _ => u32::MAX,
+            })
+            .collect()
+    })
+}
 
 /// Classify every grounded op as a durative Start (with resolved duration + paired
 /// end op), End, Classical, or Skip (unresolvable). Shared by `solve` and the

@@ -2201,6 +2201,9 @@ fn ground_v(
         // The temporal entries (stratified snap path, fixpoint session)
         // keep the numeric-precondition charge OFF — see the field docs.
         charge_pre_num: !stratified,
+        // The end-gate pair table is a TEMPORAL think-time overlay
+        // (temporal.rs `endgate_pairs`, 0.21 Phase 8) — never grounded in.
+        pair_end: None,
         fact_names: fact_names_packed.into(),
         fluent_names: fluent_names.into(),
         static_fluents: static_fluents.into(),

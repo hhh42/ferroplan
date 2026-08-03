@@ -513,6 +513,26 @@ fn relaxed_extract(
         }
     }
 
+    // The h-surgery end gate (0.21 Phase 8 probe, opt-in FF_H_ENDGATE=1):
+    // h^FF pays for a snap-START the moment it fires while the interval
+    // delivers nothing until its END lands — the start-credit plateau (TMS's
+    // 110 floor, docs/roadmap-0.15.md). When the temporal think armed the
+    // pair table, a selected START whose paired END is ALSO selected this
+    // generation prices as ONE unit, paid while the END is owed. Discount
+    // only — selection is untouched, so helpful sets cannot move (emptying
+    // start selection replayed the 0.11 FF_LAX_HELPFUL negative). A START
+    // selected only for its at-start effects keeps its full charge; a
+    // reps>1 pair discounts at most 1 (recorded simplification). Composes
+    // additively with the pre_num charge above; the temporal groundings
+    // clear `charge_pre_num`, so the two passes never co-fire today.
+    if let Some(pairs) = &task.pair_end {
+        for (oi, &end) in pairs.iter().enumerate() {
+            if end != u32::MAX && sc.selected[oi] == sc.gen && sc.selected[end as usize] == sc.gen {
+                count -= 1;
+            }
+        }
+    }
+
     Some(count)
 }
 

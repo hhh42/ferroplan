@@ -138,6 +138,13 @@ pub struct PackedTask {
     /// so they keep 0.20's h byte-identical until measured on their own.
     pub charge_pre_num: bool,
 
+    /// The h-surgery probe (0.21 Phase 8, opt-in `FF_H_ENDGATE=1`): op id ->
+    /// paired END op id for snap-START ops, `u32::MAX` otherwise. Populated
+    /// ONLY by the temporal think paths (from `Kind::Start { end_op }`, after
+    /// `build_kind`) and only under the flag; `None` everywhere else, so the
+    /// classical heuristic provably never enters the end-gate discount.
+    pub pair_end: Option<Vec<u32>>,
+
     pub fact_names: Arc<[String]>,
     /// fluent id -> display string `(NAME ARGS)` (for metric/cost-fluent lookup).
     pub fluent_names: Arc<[String]>,

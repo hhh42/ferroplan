@@ -539,6 +539,15 @@ impl Session {
             };
         }
         let (kind, dur_exprs, inv) = crate::temporal::build_kind(&self.task, c);
+        // The h-surgery probe (0.21 Phase 8): under FF_H_ENDGATE=1 the think
+        // runs on a clone armed with the pair table; the world's task stays
+        // untouched and the flag-off path pays nothing (`pair_end` None).
+        let armed = crate::temporal::endgate_pairs(&kind).map(|p| {
+            let mut t = self.task.clone();
+            t.pair_end = Some(p);
+            t
+        });
+        let task = armed.as_ref().unwrap_or(&self.task);
         let total = budget_evals.or(self.max_evaluated).unwrap_or(usize::MAX);
         let mut remaining = total;
         let node_bytes = memory_mb
@@ -561,13 +570,13 @@ impl Session {
                 .then(a.1.cmp(&b.1))
         });
         let tp = crate::temporal::solve_from_seeded(
-            &self.task,
+            task,
             &kind,
             &dur_exprs,
             &inv,
             &start,
-            &self.task.goal_pos,
-            &self.task.goal_num,
+            &task.goal_pos,
+            &task.goal_num,
             &self.forbidden,
             &til_events,
             self.threads,
@@ -1502,19 +1511,27 @@ impl Session {
         });
 
         let (kind, dur_exprs, inv) = crate::temporal::build_kind(&self.task, &c);
+        // The h-surgery probe rides the tail think too (same arming as
+        // `think`): clone-on-flag, world task untouched.
+        let armed = crate::temporal::endgate_pairs(&kind).map(|p| {
+            let mut t = self.task.clone();
+            t.pair_end = Some(p);
+            t
+        });
+        let task = armed.as_ref().unwrap_or(&self.task);
         let total = max_evaluated;
         let mut remaining = total;
         let node_bytes = memory_mb
             .map(|mb| mb.saturating_mul(1 << 20))
             .unwrap_or(crate::search::NODE_CAP_TARGET_BYTES);
         let tp = crate::temporal::solve_from_seeded(
-            &self.task,
+            task,
             &kind,
             &dur_exprs,
             &inv,
             &state,
-            &self.task.goal_pos,
-            &self.task.goal_num,
+            &task.goal_pos,
+            &task.goal_num,
             &self.forbidden,
             &carried,
             self.threads,
