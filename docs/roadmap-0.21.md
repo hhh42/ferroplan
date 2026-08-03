@@ -205,7 +205,7 @@ the raw evidence the twelve JSONLs plus `benchmarks/air/`.
 - **LM-cut proves 13 of 306 certificates (4.2%)**, all in the
   elevator/woodworking families; the ladder is wired correctly but at
   60 s its per-node cost does not pay. WHY it never gets the chance is
-  now decoded — see Phase 3 below.
+  now decoded — see Phase 4 below.
 - The two mid-sweep findings landed AFTER the last board finished, so
   all twelve shared one instrument: `val_check` tests the signature
   LIST and a VAL timeout returns `None`; `val-availability.py` probed
@@ -365,11 +365,11 @@ Four numbers order the cycle, largest honest pot first:
   block (storage 0/40, temporal-machine-shop 0/40, model-train 0/30).
 
 And the gate that is not a pot: **3 VAL-RED rows + 1 grounding
-verdict.** The map-analyzer three are Phase 6's soundness repair; the
+verdict.** The map-analyzer three are Phase 7's soundness repair; the
 one engine-reject on twelve boards — settlersnumeric i7, declared
 "unsolvable at grounding" in 0.01 s on an official IPC instance —
 gets hand-verified before any numeric work builds on that grounder
-(Phase 2 opens with it).
+(Phase 3 opens with it).
 
 **The honest inversion this cycle makes:** the biggest pot is not the
 centerpiece. The classical mass's named lever is the full
@@ -380,7 +380,7 @@ rather than half-taken. The numeric pot is smaller but is the one
 0.20 explicitly named for this cycle, and its core mechanism is now
 decoded to a single line of extraction code with a field ceiling
 attached. Numeric is the centerpiece; classical gets the one slice
-that is cheap and witnessed (Phase 4).
+that is cheap and witnessed (Phase 5).
 
 ### Field refresh (for the record)
 
@@ -395,19 +395,19 @@ the width-for-numeric theory landing as an IPC win. **Count
 Downward** swept the simple-numeric awards with numeric PDB and CEGAR
 abstraction heuristics on Numeric-FD — numeric LM-cut is no longer
 the frontier there. **LNP-optimal is nearly an open field**: the
-winner scored 83/260 coverage against blind A*'s 74 — a fact Phase 3
+winner scored 83/260 coverage against blind A*'s 74 — a fact Phase 4
 gets to exploit. And **a second Rust numeric planner now exists**:
 PlanForge (a Numeric-FD port, SNP-only, self-described experimental,
 no crates.io release) — its headline fix, tolerance-canonicalizing
 numeric values before duplicate detection, is the bug class our
 fluent-bearing StateKey has quantized against since 0.19
-(packed.rs 1e-6); Phase 7 carries the cheap audit that we do it
+(packed.rs 1e-6); Phase 8 carries the cheap audit that we do it
 everywhere. No temporal track exists anywhere on the calendar, VAL
 remains the field's validator, and the 2026 scoring formulas plus
 per-planner per-domain results are public — which makes direct
 comparability a cut-phase rider rather than a wish.
 
-## Phase 2 — the numeric-precondition charge (the sailing class)
+## Phase 3 — the numeric-precondition charge (the sailing class)
 
 The centerpiece, and the mechanism is one line short of already
 existing. The interval relaxation the ledger asked for is ALREADY IN
@@ -432,7 +432,7 @@ fo-sailing) is a pure extraction hole — the ENHSP family scores 20/20
 on the same heuristic idea, fully winnable; **sailing-wind** (2026,
 20 sat + 12 opt-set rows) confirmed the wall on instances 0.20 never
 saw; **pathwaysmetric** (20) is the same hole chained through a
-reaction DAG plus 9 mem-caps that belong to Phase 5; **markettrader**
+reaction DAG plus 9 mem-caps that belong to Phase 6; **markettrader**
 (20) is a CYCLIC resource flow — LP-RPG's own paper domain, field
 best 2/20 — re-attributed OUT of the winnable pot with a negative-
 control fixture, not quietly dropped.
@@ -484,7 +484,7 @@ control fixture, not quietly dropped.
   pathwaysmetric +2–6, markettrader +0–2 ceiling recorded up front —
   net +25–40 across the two boards, or the negative is recorded.
 
-## Phase 3 — spend the whole wall, Mode::Optimal (+ the third ⚖️ board)
+## Phase 4 — spend the whole wall, Mode::Optimal (+ the third ⚖️ board)
 
 0.20 Phase 1's principle — an engine holding a time limit never
 leaves budget unspent — was never extended to the optimal mode, and
@@ -512,21 +512,42 @@ scored 0/40. The sprint cannot simply go: the differential's barman
 class (h^max proves in 22 s what LM-cut cannot inside 100 s) is why
 it exists. The fix is a sprint TIME-box.
 
+Phase 2's backfill then priced the other half of the mistake, from
+the side no hatch could see: the split is not wrong, it is
+UNCONDITIONAL. Where LM-cut can fire, the trade is strongly positive
+(2008/11: h^max ×235 → h^max ×237 + LM-cut ×13, +15); where it never
+fires, the quarter-budget sprint just starves h^max and nothing
+compensates (2014: h^max ×64 → ×56 + LM-cut ×0, −8). So the phase
+carries TWO levers, separately hatched: the time-box, and a gate that
+decides whether LM-cut deserves the remainder at all.
+
 - **Fixture first:** a scanalyzer-shaped task — h^max needs far more
   stored nodes than the sprint quota, LM-cut proves in <100
   expansions — asserting the DEFAULT ladder certifies under a small
   `FF_TIME_LIMIT`. RED on today's node-split.
-- **The lever:** thread a deadline through `optimal::solve`/`astar`,
-  clock check every ~1k expansions; sprint slice = min(node cap/4,
-  `FF_OPT_SPRINT_FRAC` of remaining wall, default ~0.4 — a 25% slice
-  would kill the 22 s barman class); LM-cut gets the remainder. No
-  armed `FF_TIME_LIMIT` ⇒ bit-identical to today, so dev boxes and
-  every existing test are out of blast range by construction. The
-  existing hatches stay the discriminators.
+- **Lever 1 — the time-box:** thread a deadline through
+  `optimal::solve`/`astar`, clock check every ~1k expansions; sprint
+  slice = min(node cap/4, `FF_OPT_SPRINT_FRAC` of remaining wall,
+  default ~0.4 — a 25% slice would kill the 22 s barman class);
+  rung 2 gets the remainder. No armed `FF_TIME_LIMIT` ⇒ bit-identical
+  to today, so dev boxes and every existing test are out of blast
+  range by construction. The existing hatches stay the discriminators.
+- **Lever 2 — the rung-2 gate (the backfill's demand):** LM-cut gets
+  the remainder only where it is INFORMATIVE — one LM-cut evaluation
+  at the root against h^max's root value (a one-node cost, ~30× one
+  h^max eval). Strictly greater ⇒ landmark structure exists and
+  LM-cut earns the wall (the scanalyzer/elevator class); equal ⇒
+  h^max CONTINUES with the full node budget and the remaining wall
+  instead (the city-car/genome class the sprint was starving — the
+  −8). Hatch: `FF_OPT_NO_ROOTGATE` restores unconditional LM-cut.
 - **Referee gates, in order:** `opt-differential.py` — all 306
   certified costs must re-certify — then both opt boards. If the
   differential bleeds h^max certificates, raise the fraction; if it
-  still bleeds, record the negative and keep the node split.
+  still bleeds, record the negative and keep the node split. And per
+  Phase 2's methodological finding, hatches cannot price a budget
+  reallocation: the cut's referee for this phase is the v0.19
+  BACKFILL COLUMN — 2014-opt must recover toward 64 while 2008/11
+  holds its +15.
 - **Rider, only on green:** memoize h beside g for re-opened states
   (LM-cut is admissible-not-consistent; the A* re-opens) — measure,
   drop if noise.
@@ -553,36 +574,50 @@ it exists. The fix is a sprint TIME-box.
   new board opening at ~14–20/60. Denominator note: the new board
   moves the twelve-board total from 4,016 to 4,076 instances.
 
-## Phase 4 — the ladder tax (wall-aware EHC)
+## Phase 5 — the ladder tax (rung budgets denominated in wall)
 
-The one classical slice this cycle takes, because it is cheap and the
-witness is already a receipt discrepancy on the record: 0.20 Phase 3
-recorded "openstacks-2014 i1 instant" via novelty-light, but the Air
-board's i1 solve is EHC-DIRECT at 54 s — EHC's op-count-scaled eval
-budget (search.rs:1134-1143) spends 30–55 s of a 60 s wall before the
-rung that dispatches the shape ever runs. On the 2018 board's weak
-domains, EVERY solved row carries "EHC found no improving state" —
-there the rung contributes nothing and its cost is pure ladder tax.
-The named pot is openstacks + hiking on the 2014 boards (59
-timeouts), with tax relief board-wide as spillover.
+This was scoped as "the one classical slice this cycle takes";
+Phase 2's backfill promoted it to the regression repair. The −26 is
+mostly THIS phase's territory: novelty-light sits after EHC and
+before LAMA, default-on under a declared budget, with an
+UNCONDITIONAL 300k-pop cap that 0.20 priced at "~1 s" from one
+sokoban probe — and on big tasks those pops cost tens of seconds
+spent ahead of the rung that would have solved. The backfill's
+per-domain receipt (2014-agile): gains +23 (visit-all 1→20,
+maintenance +4) against losses −34 (hiking −10, child-snack −8 to
+ZERO, openstacks −8, thoughtful/cave-diving/city-car/parking). The
+win is real — `FF_NO_NOVLIGHT` costs visit-all 19 — it is bought at
+~1.5× its value. EHC is the same mistake one rung earlier: its
+op-count-scaled eval budget (search.rs:1134-1143) spends 30–55 s of
+a 60 s wall on exactly the boards where every solved row says "EHC
+found no improving state". Every rung's budget gets denominated in
+the currency the board charges: WALL.
 
 - **Fixture:** pin the openstacks shape — under an armed budget, the
-  ladder reaches novelty-light with real wall remaining (today EHC
-  consumes it; novelty-light dispatches the fixture instantly when
-  reached).
-- **The lever:** under an armed budget, cap EHC at a SHARE OF
-  REMAINING WALL rather than op-scaled evals; no declared budget ⇒
-  byte-identical (the 0.20 Phase 1 pattern exactly). Hatch:
+  ladder reaches novelty-light (and LAMA) with real wall remaining;
+  today EHC + the 300k-pop rung consume it.
+- **Lever 1 — novelty-light's slice:** under an armed budget, the
+  light rung's pop cap becomes min(300k, what fits in a small share
+  of REMAINING wall — its wins need plan-length pops, two orders
+  below the cap, so the slice keeps every receipted win). No declared
+  budget ⇒ byte-identical. The `FF_NOVLIGHT` family stays; the slice
+  gets its own knob.
+- **Lever 2 — EHC's slice:** same currency: cap EHC at a share of
+  remaining wall rather than op-scaled evals. Hatch:
   `FF_NO_EHC_WALLCAP`.
 - **The honest risk, stated before the referee:** openstacks' three
   current solves ARE EHC-direct at 34–54 s — cut EHC too hard and
   the phase loses the very rows it chases. Casualties get named and
   solo-checked; the fixture holds the floor.
-- **Referee:** the 2014-sat/agile witnesses solo, then the cut A/B.
-  Band: +0–15; a negative is recorded as gladly as a win — this is
-  the cycle's cheapest experiment either way.
+- **Referee — and per Phase 2, NOT a hatch:** a budget reallocation
+  is invisible to hatch differentials, so this phase is refereed by
+  the v0.19 backfill column at the cut: the −34 loss side (hiking,
+  child-snack, openstacks, thoughtful, cave-diving) must shrink
+  toward zero while visit-all 20/20 and maintenance hold. Band:
+  recover +15–30 of the −26; a negative is recorded as gladly as a
+  win.
 
-## Phase 5 — the static-fluent fold (+ the Darwin byte budget)
+## Phase 6 — the static-fluent fold (+ the Darwin byte budget)
 
 The mem-cap column, re-attributed on the new instrument: 74 rows,
 and **54 of them sit in domains whose per-node payload is dominated
@@ -639,7 +674,7 @@ id remaps plus one two-source lookup in temporal duration eval.
   idea proper stays deferred; after fold+compact its only remaining
   constituency is all-dynamic domains.
 
-## Phase 6 — the temporal emission repair (the 0.20 negative, closed)
+## Phase 7 — the temporal emission repair (the 0.20 negative, closed)
 
 The third decode said "the repair belongs in the temporal emission
 layer"; this cycle's fourth decode found the exact inversion.
@@ -683,7 +718,7 @@ deleting ends turns i17 green.
   same-epoch concurrency, and the 0.20 honest negative closes with a
   fixture instead of a sharper apology.
 
-## Phase 7 — the probe basket (attribution first)
+## Phase 8 — the probe basket (attribution first)
 
 - **The h-surgery probe, pre-registered.** The bet carried since
   0.15 finally gets its half-day trial: `FF_H_ENDGATE` — a start→end
@@ -735,11 +770,15 @@ deleting ends turns i17 green.
   probe; only "<30 s to ground i01/i11" buys a 0.22 phase. Rider:
   check whether the same hatch flips onlycraft i19/i20, whose two
   mem-caps are 46-second grounding transients.
-- **The noise docket (solo, quiet box):** parking-2011 6/20 — the
-  one cross-box DROP faster silicon cannot explain (was 11/20), four
-  of six solves in the 52–54 s band; child-snack-2014 1/20 (was 5);
-  flashfill i10 (solves <15 s idle, timeout on the board). Classified
-  noise or real, on the record, before any of them shapes a phase.
+- **The noise docket (solo, quiet box):** Phase 2's backfill already
+  closed most of it — child-snack-2014, hiking, openstacks and
+  thoughtful reattribute from "noise-suspect" to the novelty-light
+  tax, which is Phase 5's territory, not noise. Still open:
+  parking-2011 6/20 — the one cross-box DROP the tax only partly
+  explains (was 11/20; backfill delta −1 on agile), four of six
+  solves in the 52–54 s band; and flashfill i10 (solves <15 s idle,
+  timeout on the board). Classified noise or real, on the record,
+  before either shapes a phase.
 - **The refill/classifier seam, closed:** all 10 remaining
   early-exits sit between the refill floor (10% of wall) and the
   classifier's timeout line (5%). Reconcile the two lines (classifier
@@ -750,23 +789,26 @@ deleting ends turns i17 green.
   winnable numeric pot (cyclic resource flow, field best 2/20);
   agricola out of the grounding watch (above); block-grouping out of
   the memory pot (0.20 Phase 4 did its job — the constraint is time
-  now, and probe rider c in Phase 2 owns the domain's real hope).
+  now, and probe rider c in Phase 3 owns the domain's real hope).
 - **The PlanForge audit rider:** tolerance canonicalization before
   dedup is the bug class our quantized StateKey already guards; one
   sweep over heuristic-side caches for un-quantized f64 keys, result
   noted, done.
 
-## Phase 8 — cut 0.21.0 (the first movement column)
+## Phase 9 — cut 0.21.0 (recover the −26, then beat it)
 
 The standing template: every board re-swept against the final binary
 — all twelve plus the new `ipc2026-opt` — records complete per phase,
 full pre-flight (all eleven gates, latest stable), finish in main,
 the user publishes. What is new at THIS cut:
 
-- **The "vs previous" column populates for the first time.** Two
-  snapshots on one box: 0.21.0's boards against the banked 0.20.0
-  Air baseline — the comparison Phase 1 existed to make possible.
-  Movement, at last, that means something.
+- **The movement question is now double-ended.** Phase 2's backfill
+  made the trend line real (v0.19 1,946 → v0.20 1,920, −26), so the
+  cut answers two questions, not one: did 0.21 beat 0.20, and did it
+  RECOVER THE −26 against the v0.19 column — the ladder-tax and
+  optimal-gate phases are refereed against the backfill, not against
+  hatches (Phase 2's methodological rule). The v0.18 backfill running
+  as this is scoped extends the same trend line backward.
 - **The comparability rider:** compute the 2026 track's own published
   formulas (agile 1−log(T)/log(300), satisficing C*/C, optimal
   coverage) over our numeric boards and put Panino / ENHSP-2024 /
@@ -788,14 +830,14 @@ the user publishes. What is new at THIS cut:
   says numeric PDBs/CEGAR now beat numeric LM-cut on simple-numeric,
   and LNP-optimal is nearly open (83/260). Own cycle, own
   differential gate.
-- **Incremental LM-cut** — defer until a post-Phase-3 board shows
+- **Incremental LM-cut** — defer until a post-Phase-4 board shows
   LM-cut running-and-near-missing as the dominant timeout mechanism;
   today's binding constraint is that it never runs.
 - **Symmetry/orbit pruning** — child-snack 20 + the barman fifty's
   zero-traction core: probes prove NOTHING in 65 s under either rung;
   factorial object symmetry needs new machinery, not tuning. Named so
   it stops diluting referees.
-- **Organic-synthesis join planning** — gated on the Phase 7 probe.
+- **Organic-synthesis join planning** — gated on the Phase 8 probe.
 - **The temporal block** — storage/TMS/model-train (110 instances at
   zero) plus the budget question: the solve-time tail says a 60 s
   tier converts only ~15–30 of 331 timeouts, so mechanism work comes
