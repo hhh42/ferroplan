@@ -72,11 +72,19 @@ run_board() { # name track timeout extra-args...
     --jobs "$JOBS" --mem-gb "$MEMGB" "$@" \
     --out "benchmarks/air21/$name.md" >"benchmarks/air21/$name.log" 2>&1
   kill "$watcher" 2>/dev/null
+  # MEDIAN, not minimum. A browser repainting spikes one 30s sample and would
+  # discard an hour of good work; what actually corrupts a board is SUSTAINED
+  # load (last night: four parallel rustc, idle near zero for the whole run).
+  # The bar is also deliberately not "pristine": the 0.19 and 0.20 reference
+  # boards were measured with the CI runner and desktop noise present, so
+  # demanding a silent box here would hand 0.21 an environmental advantage its
+  # comparison boards never had. Comparable, not clean.
   worst=$(sort -n "$tmp" 2>/dev/null | head -1); [ -z "$worst" ] && worst=100
-  echo "DONE $name: $(tail -1 "benchmarks/air21/$name.md") $(date '+%H:%M:%S') [worst idle ${worst}%]"
-  if [ "$worst" -lt 40 ]; then
-    echo "!! $name ran under LOAD (idle dipped to ${worst}%) — NOT marking done;"
-    echo "   re-run this driver on a quiet box to redo it."
+  med=$(sort -n "$tmp" 2>/dev/null | awk '{a[NR]=$1} END{if(NR)print a[int(NR/2)+1]; else print 100}')
+  echo "DONE $name: $(tail -1 "benchmarks/air21/$name.md") $(date '+%H:%M:%S') [idle med ${med}% min ${worst}%]"
+  if [ "$med" -lt "${SUSTAINED:-45}" ]; then
+    echo "!! $name ran under SUSTAINED LOAD (median idle ${med}%) — NOT marking done;"
+    echo "   re-run this driver when the box is free to redo it."
   else
     touch "benchmarks/air21/$name.done"
   fi
