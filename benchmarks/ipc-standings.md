@@ -50,8 +50,9 @@ for scoring semantics and the failure-class definitions.
 | 2018 seq-sat | yes (first entry, 0.17) | 53/240 | vs best-known bounds: 0W/2T/21L, mean quality 0.79 (23 scored) | 7 mem-cap, 180 timeout |
 | 2023 classical | yes (first entry, 0.17) | 27/140 | vs best-known bounds: 0W/8T/19L, mean quality 0.79 (27 scored) | 113 timeout |
 | 2023 agile ENTRY (300s) | yes (OFFICIAL-BUDGET entry, 0.19) | 48/140 | OFFICIAL 300 s budget — a competition-methodology ENTRY, not a baseline | 4 mem-cap, 88 timeout |
-| 2023 numeric | yes (first entry, 0.17) | 194/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 2 early-exit, 1 engine-reject/error, 29 mem-cap, 174 timeout |
-| 2026 numeric (first board) | yes (FIRST ENTRY, 0.20 — new corpus) | 121/320 | coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all swept satisficing-style on this first board | 8 early-exit, 2 mem-cap, 189 timeout |
+| 2023 numeric | yes (first entry, 0.17) | 194/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 1 engine-reject/error, 29 mem-cap, 176 timeout |
+| 2026 numeric (first board) | yes (FIRST ENTRY, 0.20 — new corpus) | 121/320 | coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all swept satisficing-style on this first board | 2 mem-cap, 197 timeout |
+| 2026 numeric-opt | sweep in flight / not yet run | — | — | — |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).
 

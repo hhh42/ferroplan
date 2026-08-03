@@ -134,6 +134,11 @@ TRACK_PATTERNS = {
     # 0.20: the IPC-2026 numeric dataset (vendored by get-ipc.sh from the
     # competition's public repo after the track ran at ICAPS Dublin).
     "numeric-2026": r"numeric-2026",
+    # 0.21 Phase 4: the corpus's three -sat/-opt pairs swept as a PROOF
+    # board (pair with `--mode optimal`; coverage = proof rate). The
+    # -opt instance sets also appear satisficing-style on numeric-2026 —
+    # same files, different question.
+    "opt-2026": r"-opt-numeric-2026",
 }
 
 # Which competition directories each track lives in.
@@ -158,6 +163,7 @@ TRACK_IPCS = {
     "agile-2023": ("ipc-2023",),
     "numeric-2023": ("ipc-2023n",),
     "numeric-2026": ("ipc-2026n",),
+    "opt-2026": ("ipc-2026n",),
 }
 
 
@@ -212,11 +218,22 @@ def instances(vdir):
     if skipped:
         print(f"WARN {vdir}: skipping un-numbered instance file(s): "
               f"{', '.join(sorted(skipped))}", file=sys.stderr)
-    names = sorted(named, key=lambda n: int(re.search(r"\d+", n).group()))
+    # Multipart names (petri-net's instance-10-1.pddl, line-exchange's
+    # instance-3_10_50_10.pddl) must keep EVERY digit group in the row's
+    # instance label: first-group-only collapsed 20 distinct problems onto
+    # 3-5 labels (ipc2026-numeric held 320 rows under 288 keys), which
+    # silently breaks the per-instance diff and --score-against joins.
+    # Single-number names stay ints so every existing board's identity is
+    # unchanged; the domain-<n> pairing convention keys on the FIRST group
+    # either way.
+    def groups(f):
+        return re.findall(r"\d+", f)
+    names = sorted(named, key=lambda f: tuple(int(g) for g in groups(f)))
     for f in names:
-        n = int(re.search(r"\d+", f).group())
+        gs = groups(f)
+        n = int(gs[0]) if len(gs) == 1 else "_".join(gs)
         d = shared if os.path.isfile(shared) else os.path.join(
-            vdir, "domains", f"domain-{n}.pddl")
+            vdir, "domains", f"domain-{gs[0]}.pddl")
         if os.path.isfile(d):
             out.append((n, d, os.path.join(idir, f)))
     if MAXI:

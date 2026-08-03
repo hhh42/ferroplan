@@ -25,12 +25,15 @@ Quality scoring, by track semantics:
     official per-instance archive is vendored for 2008/2011.
 
 Failure classes per unsolved instance (from the JSONL):
-  timeout (elapsed >= 95% of budget — including graceful engine exits
-  AT an armed FF_TIME_LIMIT wall), mem-cap (notes), engine-reject/error
-  (a named mechanism: parse/feature reject, grounding verdict, nonzero
-  exit, or a legacy pre-0.20 row with no elapsed recorded), else
-  early-exit (search gave up with wall budget left — the class the
-  0.20 refill loop exists to shrink).
+  timeout (elapsed >= 90% of budget — including graceful engine exits
+  AT an armed FF_TIME_LIMIT wall; 90 because the refill loop's re-entry
+  floor is 10% of wall, so nothing between 90% and the wall can be a
+  give-up), mem-cap (notes), engine-reject/error (a named mechanism:
+  parse/feature reject, grounding verdict, nonzero exit, or a legacy
+  pre-0.20 row with no elapsed recorded), else early-exit (search gave
+  up with wall budget left — the class the 0.20 refill loop emptied;
+  0.21 closed the residual [90%, 95%) boundary sliver by moving the
+  line here to the refill floor).
 """
 
 import json
@@ -60,7 +63,7 @@ ARCHIVE = os.path.join(B, "IPC5-results.tgz")
 AIR_REBASELINED = {
     "2023 classical", "2014 tempo-sat", "2018 seq-sat", "2014 seq-sat",
     "2014 seq-agile", "2014 seq-opt", "2026 numeric (first board)",
-    "2023 numeric", "2023 agile ENTRY (300s)",
+    "2023 numeric", "2023 agile ENTRY (300s)", "2026 numeric-opt",
     # shared-sweep labels, split per competition at render time
     "seq-opt", "tempo-sat", "seq-sat",
 }
@@ -101,6 +104,12 @@ SWEEPS = {
     # coverage IS proof rate; every solved row carries a certificate).
     "ipc-opt-2008-11.jsonl": ("seq-opt", "optimal", 60),
     "ipc2014-opt.jsonl": ("2014 seq-opt", "optimal", 60),
+    # 0.21 Phase 4: the IPC-2026 corpus's three -sat/-opt pairs under
+    # Mode::Optimal — the third proof board. Certificates are LENGTH
+    # optima: the vendored corpus ships no active :metric anywhere
+    # (sailing-wind's is commented out; rainbowttles declares
+    # :action-costs with zero total-cost effects).
+    "ipc2026-opt.jsonl": ("2026 numeric-opt", "modern", 60),
 }
 
 # our 2006 variant name -> (archive domain dir, archive track dir prefix)
@@ -192,7 +201,12 @@ def classify(r, budget):
         # boards re-sweep (the 0.20 audit showed maintenance-2014's
         # "rejects" were wall-exit timeouts).
         return "engine-reject/error"
-    if t >= budget * 0.95:
+    if t >= budget * 0.90:
+        # 90, not 95: the refill loop refuses a new round below 10% of an
+        # armed wall (search.rs), so a graceful exit in [90%, 100%] is a
+        # spent wall by construction. At 95 the ten rows in [90%, 95%)
+        # booked as early-exit were a DEFINITIONAL gap between the two
+        # lines, not give-ups — the 0.21 decode's boundary-sliver finding.
         return "timeout"
     if ntext.startswith("engine-exit") or "unsolvable" in ntext or "reject" in ntext:
         # A named mechanism: parse/feature reject, grounding verdict, or
@@ -244,7 +258,7 @@ HISTORY = os.path.join(B, "standings-history.json")
 # Tracks where coverage IS proof rate: a solved row carries an optimality
 # certificate, so 45% there is a categorically different claim from 45% on a
 # satisficing board and must not be read as "worse".
-PROOF_TRACKS = {"seq-opt", "2014 seq-opt"}
+PROOF_TRACKS = {"seq-opt", "2014 seq-opt", "2026 numeric-opt"}
 
 
 def _history():
@@ -660,7 +674,8 @@ def main():
                   "2023 numeric",
                   # 0.20 cut prep added this board to SWEEPS but never to the
                   # render list, so it could never have appeared in the table.
-                  "2026 numeric (first board)"]:
+                  "2026 numeric (first board)",
+                  "2026 numeric-opt"]:
         d = data.get(label)
         if d is None:
             lines.append(f"| {label} | {absent(label)} | — | — | — |")
@@ -675,6 +690,10 @@ def main():
         elif label == "2026 numeric (first board)":
             q = ("coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all "
                  "swept satisficing-style on this first board")
+        elif label == "2026 numeric-opt":
+            q = ("coverage = PROOF RATE (Mode::Optimal over the three -opt "
+                 "pairs; LENGTH optima — the vendored corpus carries no "
+                 "active :metric; every certificate VAL-checked)")
         elif label == "2023 numeric":
             q = ("field CSVs vendored (ipc-2023n/results) — per-domain "
                  "comparison in the audit record")
@@ -692,6 +711,8 @@ def main():
                    # the first time — not a 0.17 board.
                    else "yes (FIRST ENTRY, 0.20 — new corpus)"
                    if label == "2026 numeric (first board)"
+                   else "yes (FIRST ENTRY, 0.21 — the -opt pairs, ⚖️)"
+                   if label == "2026 numeric-opt"
                    else "yes (first entry, 0.17)")
         lines.append(f"| {label} | {entered} | {s}/{n} | {q} | {fails} |")
     lines += [

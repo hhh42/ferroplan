@@ -37,3 +37,7 @@ benchmarks/p3-19/
 benchmarks/cut19/
 benchmarks/cut20/
 benchmarks/air/
+benchmarks/air21/
+# 0.21: the third proof board's raw joins the other two optimal JSONLs as
+# tracked evidence — opt-differential.py replays its certificates too.
+!benchmarks/ipc2026-opt.jsonl
