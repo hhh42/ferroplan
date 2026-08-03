@@ -1,0 +1,33 @@
+(define (problem admit-agent-methods-2026-08-02)
+  (:domain admitted-agent-methods-2026-08-02)
+  (:objects
+    ferroplan-pr34 mmdio-pr6 unrdf-pr99 nano-pr30 ggen-pr561 - work
+    closed-window claim-ceiling atomic-batch unsupported-fence receipt-replay - method
+    closed-window-artifact claim-ceiling-artifact atomic-batch-artifact unsupported-fence-artifact receipt-replay-artifact - artifact
+    structural-verifier - verifier
+    daily-receipt - receipt
+    exact-head-ci - external-edge)
+  (:init
+    (= (total-cost) 0)
+    (exact-subject ferroplan-pr34) (observed ferroplan-pr34) (bounded-claim ferroplan-pr34) (completed-boundary ferroplan-pr34)
+    (exact-subject mmdio-pr6) (observed mmdio-pr6) (bounded-claim mmdio-pr6) (completed-boundary mmdio-pr6)
+    (exact-subject unrdf-pr99) (observed unrdf-pr99) (bounded-claim unrdf-pr99) (completed-boundary unrdf-pr99)
+    (exact-subject nano-pr30) (observed nano-pr30) (bounded-claim nano-pr30) (completed-boundary nano-pr30)
+    (exact-subject ggen-pr561) (observed ggen-pr561) (bounded-claim ggen-pr561) (completed-boundary ggen-pr561)
+    (authority-source closed-window-artifact) (authority-source claim-ceiling-artifact)
+    (authority-source atomic-batch-artifact) (authority-source unsupported-fence-artifact)
+    (authority-source receipt-replay-artifact)
+    (atomic-staging atomic-batch)
+    (unsupported-boundary unsupported-fence)
+    (unsupported-boundary closed-window)
+    (unsupported-boundary claim-ceiling)
+    (unsupported-boundary receipt-replay)
+    (external-ready exact-head-ci))
+  (:goal (and
+    (method-admitted closed-window)
+    (method-admitted claim-ceiling)
+    (method-admitted atomic-batch)
+    (method-admitted unsupported-fence)
+    (method-admitted receipt-replay)))
+  (:metric minimize (total-cost))
+)
