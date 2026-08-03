@@ -144,6 +144,54 @@ fn conditional_effect_optimum_is_certified() {
     assert_eq!(actions, ["SETP", "A"]);
 }
 
+/// Numeric-optimal soundness (0.21 Phase 4, the ipc2026-opt entry's pin):
+/// the EXACT numeric goal test. [bigpump fire] costs 5 but ends at
+/// charge 5 < 6 — an engine that relaxes the numeric goal conjunct in
+/// the goal test (not just in h, where relaxing is admissible) certifies
+/// 5. The true optimum is 6.
+#[test]
+fn numeric_goal_optimum_is_certified_exactly() {
+    let dom = include_str!("../../../benchmarks/bench/numopt-domain.pddl");
+    let prb = include_str!("../../../benchmarks/bench/numopt-p01.pddl");
+    let sol = solve(dom, prb, &opts()).unwrap();
+    assert!(sol.solved, "notes: {:?}", sol.notes);
+    let plan = sol.plan.unwrap();
+    assert_eq!(plan.metric, Some(6.0), "bigpump + pump + fire");
+    assert_eq!(plan.length, 3);
+    assert!(sol.notes.iter().any(|n| n.contains("PROVEN OPTIMAL")));
+}
+
+/// Pure numeric goal, no metric: the certificate is a LENGTH optimum
+/// (what the ipc2026-opt board reports). States along the pump chain
+/// differ ONLY in the charge fluent — a StateKey that dropped fluents
+/// would merge them into init and "prove" the task unsolvable.
+#[test]
+fn numeric_goal_without_metric_certifies_length_optimum() {
+    let dom = include_str!("../../../benchmarks/bench/numopt-domain.pddl");
+    let prb = include_str!("../../../benchmarks/bench/numopt-p02.pddl");
+    let sol = solve(dom, prb, &opts()).unwrap();
+    assert!(sol.solved, "notes: {:?}", sol.notes);
+    let plan = sol.plan.unwrap();
+    assert_eq!(plan.length, 2, "bigpump + pump reaches charge 6");
+    assert_eq!(plan.metric, None, "no metric fluent: length optimum only");
+    assert!(sol.notes.iter().any(|n| n.contains("PROVEN OPTIMAL")));
+}
+
+/// Numeric preconditions on the optimal path: fire alone costs 1, but
+/// its charge >= 4 precondition forces 4 charge-units first. An engine
+/// relaxing numeric preconditions in EXPANSION certifies 1; the true
+/// optimum is 5.
+#[test]
+fn numeric_precondition_holds_in_exact_expansion() {
+    let dom = include_str!("../../../benchmarks/bench/numopt-domain.pddl");
+    let prb = include_str!("../../../benchmarks/bench/numopt-p03.pddl");
+    let sol = solve(dom, prb, &opts()).unwrap();
+    assert!(sol.solved, "notes: {:?}", sol.notes);
+    let plan = sol.plan.unwrap();
+    assert_eq!(plan.metric, Some(5.0), "bigpump then fire");
+    assert!(sol.notes.iter().any(|n| n.contains("PROVEN OPTIMAL")));
+}
+
 /// A conditional effect ON THE COST FLUENT is a state-dependent cost in
 /// disguise — outside the certified scope, rejected by name.
 #[test]

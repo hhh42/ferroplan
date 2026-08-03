@@ -372,6 +372,16 @@ fn wall_remaining_frac() -> Option<f64> {
     })
 }
 
+/// Seconds of the wall budget remaining, `None` if no limit is set. The
+/// optimal ladder (0.21 Phase 4) denominates its sprint slice in wall
+/// seconds — the currency the boards charge — where the satisficing
+/// gates above read the fraction.
+pub(crate) fn wall_remaining_secs() -> Option<f64> {
+    WALL.get_or_init(|| None)
+        .as_ref()
+        .map(|(start, total)| (total - start.elapsed_ms() as f64 / 1000.0).max(0.0))
+}
+
 pub struct SatGuidance {
     pub prefs: Vec<(PrefPhi, i64)>,
     /// Renewable resources whose live occupancy is penalized on the concrete

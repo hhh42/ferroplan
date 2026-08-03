@@ -540,46 +540,131 @@ impl Ord for K {
     }
 }
 
-/// The optimal LADDER (0.20): an h^max SPRINT on a quarter of the node
-/// budget, then LM-cut over the full budget. The differential priced both
+/// The optimal LADDER (0.20; wall-denominated 0.21 Phase 4): an h^max
+/// SPRINT, then LM-cut over the full budget. The differential priced both
 /// heuristics honestly — LM-cut collapses the expansion count where h^max
 /// walls (floor-tile 1.95M -> 58k), but its per-node cost LOSES races
 /// h^max wins easily (barman-opt i1: h^max proves cost 90 in 22 s,
 /// LM-cut does not finish in 100 s). The sprint keeps every cheap h^max
-/// certificate at a bounded cost (≤ a quarter of the memory budget, and
-/// its nodes/sec is ~30x LM-cut's); a PROVEN verdict either way returns
+/// certificate at a bounded cost; a PROVEN verdict either way returns
 /// immediately, only an inconclusive cap falls through to LM-cut.
+///
+/// With no armed `FF_TIME_LIMIT` the split is the 0.20 node-split
+/// (sprint = a quarter of the node budget), bit-identical — dev boxes
+/// and every existing test are out of blast range by construction.
+/// Under an armed wall the ladder is denominated in the currency the
+/// boards charge, WALL SECONDS, because on medium tasks h^max cannot
+/// fill a quarter of the 8 GiB node model inside the wall — the sprint
+/// never returned, and LM-cut got zero wall on exactly the domains it
+/// dominates (293 of 306 v0.20 certificates were h^max's):
+/// - ROOT GATE first: one LM-cut evaluation against h^max's root value
+///   (a one-node cost, ~30x one h^max eval). Equal ⇒ no landmark
+///   structure (the city-car/genome class the quarter-budget sprint was
+///   starving, the backfill's −8) — h^max keeps the FULL node budget
+///   and the whole remaining wall, no sprint split at all.
+/// - Strictly greater ⇒ LM-cut earns the remainder (the
+///   scanalyzer/elevator class): the sprint is TIME-boxed at
+///   `FF_OPT_SPRINT_FRAC` (default 0.4 — a 25% slice would kill the
+///   22 s barman class) of the remaining wall on top of its node quota,
+///   then LM-cut runs with the rest and the full node budget.
+///
 /// `FF_NO_LMCUT=1` = h^max only (full budget); `FF_NO_HMAX_SPRINT=1`
-/// skips the sprint (LM-cut only) — the two discriminator hatches.
+/// = LM-cut only (the gate never resurrects the sprint) — the two
+/// discriminator hatches keep their pure-rung meanings on every path.
+/// `FF_OPT_NO_ROOTGATE=1` restores the unconditional sprint-then-LM-cut
+/// ladder under a wall.
 pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutcome {
-    let use_lmcut = std::env::var("FF_NO_LMCUT").is_err();
-    if !use_lmcut {
-        return astar(task, cf, max_nodes, false);
+    let wall = crate::search::wall_remaining_secs();
+    if std::env::var("FF_NO_LMCUT").is_ok() {
+        return astar(task, cf, max_nodes, false, wall);
     }
-    let sprint = std::env::var("FF_NO_HMAX_SPRINT").is_err();
-    if sprint {
-        let o = astar(task, cf, (max_nodes / 4).max(2), false);
+    if std::env::var("FF_NO_HMAX_SPRINT").is_ok() {
+        return astar(task, cf, max_nodes, true, wall);
+    }
+    let Some(remaining) = wall else {
+        let o = astar(task, cf, (max_nodes / 4).max(2), false, None);
         if o.proven || o.reject.is_some() {
             return o;
         }
-        let mut full = astar(task, cf, max_nodes, true);
+        let mut full = astar(task, cf, max_nodes, true, None);
         full.expanded += o.expanded;
         full.evaluated += o.evaluated;
         return full;
+    };
+    if std::env::var("FF_OPT_NO_ROOTGATE").is_err() {
+        // An op_costs Err falls through: the sprint below surfaces the
+        // identical reject.
+        if let Ok(costs) = op_costs(task, cf) {
+            let graph = RelaxGraph::new(task);
+            let mut w = CutSpace::new(task.fact_names.len(), task.n_ops, &graph);
+            let s = task.initial();
+            let hm = hmax(task, &s, &graph, &costs, &mut w);
+            let lc = lmcut(task, &s, &graph, &costs, &mut w);
+            let informative = lc > hm;
+            // The probe eyes (FF_WALL_DEBUG's pattern): narrate the
+            // verdict on stderr, never affect the search.
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: opt root gate h^max {hm} vs LM-cut {lc} -> {}",
+                    if informative {
+                        "LM-cut earns the remainder"
+                    } else {
+                        "h^max holds the wall"
+                    }
+                );
+            }
+            if !informative {
+                return astar(task, cf, max_nodes, false, Some(remaining));
+            }
+        }
     }
-    astar(task, cf, max_nodes, true)
+    let frac = std::env::var("FF_OPT_SPRINT_FRAC")
+        .ok()
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f > 0.0 && *f <= 1.0)
+        .unwrap_or(0.4);
+    let o = astar(
+        task,
+        cf,
+        (max_nodes / 4).max(2),
+        false,
+        Some(frac * remaining),
+    );
+    if o.proven || o.reject.is_some() {
+        return o;
+    }
+    let mut full = astar(
+        task,
+        cf,
+        max_nodes,
+        true,
+        crate::search::wall_remaining_secs(),
+    );
+    full.expanded += o.expanded;
+    full.evaluated += o.evaluated;
+    full
 }
 
 /// One A* pass with the chosen admissible heuristic. `max_nodes` bounds
 /// STORED nodes (the retained-memory model, like the satisficing
-/// searches); hitting it returns inconclusive.
+/// searches); hitting it returns inconclusive. `deadline` (0.21 Phase 4)
+/// is wall seconds from entry: checked every 1024 expansions — one
+/// Instant read per boundary — and a trip returns the same inconclusive
+/// shape as a node-cap hit, so the ladder proceeds identically. `None`
+/// never trips (the no-wall path stays bit-identical).
 ///
 /// LM-cut is admissible but NOT consistent, so the A* re-opens closed
 /// states on cheaper routes (the `best_g` map already allows it): with an
 /// admissible h and re-opening, some node on an optimal path always sits
 /// in open with its optimal g, so the first goal POP still carries the
 /// optimality certificate.
-fn astar(task: &PackedTask, cf: Option<usize>, max_nodes: usize, use_lmcut: bool) -> OptOutcome {
+fn astar(
+    task: &PackedTask,
+    cf: Option<usize>,
+    max_nodes: usize,
+    use_lmcut: bool,
+    deadline: Option<f64>,
+) -> OptOutcome {
     let hname: &'static str = if use_lmcut { "LM-cut" } else { "h^max" };
     let costs = match op_costs(task, cf) {
         Ok(c) => c,
@@ -595,6 +680,10 @@ fn astar(task: &PackedTask, cf: Option<usize>, max_nodes: usize, use_lmcut: bool
             }
         }
     };
+    let clock = crate::clock::Clock::now();
+    if deadline.is_some_and(|d| d <= 0.0) {
+        return inconclusive(0, 0, hname);
+    }
     let graph = RelaxGraph::new(task);
     let mut cutspace = CutSpace::new(task.fact_names.len(), task.n_ops, &graph);
     let eval_h = |s: &State, w: &mut CutSpace| {
@@ -608,10 +697,14 @@ fn astar(task: &PackedTask, cf: Option<usize>, max_nodes: usize, use_lmcut: bool
     let init = task.initial();
     // nodes: (state, parent index, op from parent)
     let mut nodes: Vec<(State, usize, usize)> = vec![(init, usize::MAX, usize::MAX)];
-    let mut best_g: FxHashMap<StateKey, f64> = FxHashMap::default();
-    best_g.insert(task.state_key(&nodes[0].0), 0.0);
+    // Per stored state: best g AND its h (0.21 Phase 4 rider). h is a
+    // pure function of the state, so a cheaper route to a known state —
+    // an open-list decrease or a genuine re-open (LM-cut is admissible-
+    // not-consistent) — reuses the memo instead of re-paying eval_h.
+    let mut best_g: FxHashMap<StateKey, (f64, f64)> = FxHashMap::default();
     let mut open: BinaryHeap<Reverse<K>> = BinaryHeap::new();
     let h0 = eval_h(&nodes[0].0, &mut cutspace);
+    best_g.insert(task.state_key(&nodes[0].0), (0.0, h0));
     let mut evaluated = 1usize;
     if h0.is_finite() {
         open.push(Reverse(K(h0, h0, 0)));
@@ -623,7 +716,7 @@ fn astar(task: &PackedTask, cf: Option<usize>, max_nodes: usize, use_lmcut: bool
         let g = g_of[ni];
         let key = task.state_key(&nodes[ni].0);
         // stale entry: a cheaper route to this state was expanded already
-        if best_g.get(&key).copied().unwrap_or(f64::INFINITY) < g {
+        if best_g.get(&key).map_or(f64::INFINITY, |&(bg, _)| bg) < g {
             continue;
         }
         if task.goal_met(&nodes[ni].0) {
@@ -646,6 +739,13 @@ fn astar(task: &PackedTask, cf: Option<usize>, max_nodes: usize, use_lmcut: bool
             };
         }
         expanded += 1;
+        if expanded % 1024 == 0 {
+            if let Some(d) = deadline {
+                if clock.elapsed_secs() >= d {
+                    return inconclusive(expanded, evaluated, hname);
+                }
+            }
+        }
         for (oi, &op_cost) in costs.iter().enumerate() {
             if !task.op_applicable(oi, &nodes[ni].0) {
                 continue;
@@ -653,18 +753,24 @@ fn astar(task: &PackedTask, cf: Option<usize>, max_nodes: usize, use_lmcut: bool
             let succ = task.apply(oi, &nodes[ni].0);
             let sg = g + op_cost;
             let skey = task.state_key(&succ);
-            if best_g.get(&skey).copied().unwrap_or(f64::INFINITY) <= sg {
+            let prev = best_g.get(&skey).copied();
+            if prev.is_some_and(|(bg, _)| bg <= sg) {
                 continue;
             }
             if nodes.len() >= max_nodes {
                 return inconclusive(expanded, evaluated, hname);
             }
-            let h = eval_h(&succ, &mut cutspace);
-            evaluated += 1;
+            let h = match prev {
+                Some((_, ph)) => ph,
+                None => {
+                    evaluated += 1;
+                    eval_h(&succ, &mut cutspace)
+                }
+            };
             if h.is_infinite() {
                 continue; // relaxed-unreachable goal: safe prune
             }
-            best_g.insert(skey, sg);
+            best_g.insert(skey, (sg, h));
             nodes.push((succ, ni, oi));
             g_of.push(sg);
             open.push(Reverse(K(sg + h, h, nodes.len() - 1)));
