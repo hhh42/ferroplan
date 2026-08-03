@@ -3270,113 +3270,168 @@ fn epsilon_separate(
             .unwrap_or(std::cmp::Ordering::Equal)
             .then(hs[a].is_start.cmp(&hs[b].is_start))
     });
-    // Same-slot END groups: the sort above breaks equal-time ties among
-    // ENDS by construction order, which is NOT the engine's tie-scan order
-    // — and the difference is load-bearing exactly when one end's effects
-    // would break another still-pending interval's `over all` invariant.
-    // The 0.18 witness (the 2014 match-cellar family; the eps-cross
-    // fixture): a mend filling its light window to the very end shares its
-    // end epoch with the light's end; the tie-scan fired mend-end FIRST
-    // (the guard's legal order), but step-order emission put light-end
-    // first, and the STN then pushed the mend's whole interval ε past its
-    // window — VAL-red by exactly 0.001. Repair: within each equal-slot
-    // group of ends, order by the invariant relation from the [`InvMap`] —
-    // if end A's unconditional deletes (adds) hit end B's invariant
-    // positives (negatives), B fires before A. Tiny groups; a bubble pass
-    // settles them, and a cycle (impossible for a guard-accepted plan)
-    // leaves the group as-is for the STN consistency check to veto.
-    if !inv.is_empty() {
-        let slot = |x: f64| (x / EPS).round() as i64;
-        let breaks = |a: usize, b: usize| -> bool {
-            let (Some(ao), Some(bo)) = (hs[a].end_op, hs[b].end_op) else {
-                return false;
-            };
-            let Some((pos, neg, _)) = inv.get(&bo) else {
-                return false;
-            };
-            task.del.slice(ao).iter().any(|f| pos.contains(f))
-                || task.add.slice(ao).iter().any(|f| neg.contains(f))
-        };
-        let mut i = 0;
-        while i < order.len() {
-            let mut j = i + 1;
-            while j < order.len()
-                && !hs[order[i]].is_start
-                && !hs[order[j]].is_start
-                && slot(hs[order[i]].time) == slot(hs[order[j]].time)
-            {
-                j += 1;
-            }
-            if !hs[order[i]].is_start && j - i > 1 && j - i <= 16 {
-                let g = &mut order[i..j];
-                for _ in 0..g.len() {
-                    let mut swapped = false;
-                    for k in 0..g.len() - 1 {
-                        // A before B but A breaks B's invariant -> B first.
-                        if breaks(g[k], g[k + 1]) && !breaks(g[k + 1], g[k]) {
-                            g.swap(k, k + 1);
-                            swapped = true;
-                        }
-                    }
-                    if !swapped {
-                        break;
-                    }
-                }
-            }
-            i = j.max(i + 1);
-        }
-    }
-
-    // Same-slot START groups (0.20 Phase 5, the map-analyzer surgery):
-    // the total ε-ordering keeps ends-before-starts at a slot, but among
-    // the STARTS of one slot the sort preserves construction order — and
-    // when start B's at-start ADD provides start A's at-start
-    // precondition (`(clear junction0-2)` in the twice-decoded
-    // map-analyzer i17/i18/i20 shape), emitting A's ε-slot first executes
-    // A before its provider ever fires. Same repair shape as the END
-    // groups above: bubble each slot's start run by the PROVIDES relation
-    // — if A precedes B but B's adds intersect A's positive preconditions
-    // (and not vice versa), B goes first. A mutual or cyclic relation
-    // (never produced by a guard-accepted plan) leaves the group for the
-    // STN consistency check to veto.
+    // Same-slot groups: the sort above breaks equal-time ties ends-first
+    // then by construction order, which is NOT the engine's tie-scan order
+    // — and the difference is load-bearing in three witnessed shapes. Ends
+    // among ends (0.18, the 2014 match-cellar family; the eps-cross
+    // fixture): an end whose unconditional deletes (adds) hit another
+    // still-pending interval's invariant positives (negatives) must fire
+    // AFTER that interval's end, or the STN pushes the victim ε past its
+    // window. Starts among starts (0.20, the map-analyzer surgery; the
+    // eps-provider fixture): a start whose at-start add provides another
+    // start's precondition must fire FIRST. And ACROSS kinds (0.21, the
+    // map-analyzer i17/i18/i20 residue; the eps-threat fixture): a start
+    // whose precondition an end's effects delete was certified BEFORE that
+    // end by the search, but ends-first emission inverts it — the
+    // reader-start must precede the deleter-end, an order no within-kind
+    // bubble can reach. One per-slot topological order (Kahn) carries all
+    // three, plus three conservative cross-kind guards: an end whose adds
+    // provide a start's precondition keeps today's ε-chaining; an end
+    // whose still-open `over all` invariant a start's effects would break
+    // keeps that start behind the end; and an end whose effects would
+    // break a crossing start's OWN invariant keeps it ahead of that start
+    // (the witness fix must not trade one VAL-red for another). Relation-
+    // free END pairs are chained in today's order — ends are rigid, pinned
+    // at start+duration by starts already ε-chained in earlier slots, so
+    // any other end order hands the STN an infeasible chain and the veto
+    // ships the raw zero-spread plan. Same-step start/end pairs
+    // (zero-duration actions) carry no edge — the STN duration equality
+    // orders them. The ready-queue tie-break replays today's order (ends
+    // first, then construction order), so a group with no edges emits
+    // byte-identically to the plain sort; a cycle (mutual relations no
+    // guard-accepted plan produces) or an oversized group keeps today's
+    // order for the STN consistency check to veto.
     {
-        let provides = |x: usize, y: usize| -> bool {
-            let (Some(xo), Some(yo)) = (hs[x].start_op, hs[y].start_op) else {
+        // step index -> its END op id (None for classical steps): the
+        // cross-kind guards below need the START side's own interval
+        // invariant, which the InvMap keys by end op.
+        let step_end: Vec<Option<usize>> = {
+            let mut v = vec![None; plan.steps.len()];
+            for h in &hs {
+                if !h.is_start {
+                    v[h.step] = h.end_op;
+                }
+            }
+            v
+        };
+        // Does `eff_op`'s unconditional effect set break the open invariant
+        // keyed by `inv_end`? (dels hit its positives, adds its negatives)
+        let breaks_inv = |inv_end: usize, eff_op: usize| -> bool {
+            inv.get(&inv_end).is_some_and(|(pos, neg, _)| {
+                task.del.slice(eff_op).iter().any(|f| pos.contains(f))
+                    || task.add.slice(eff_op).iter().any(|f| neg.contains(f))
+            })
+        };
+        let must_precede = |a: usize, b: usize| -> bool {
+            if hs[a].step == hs[b].step {
                 return false;
-            };
-            task.add
-                .slice(xo)
-                .iter()
-                .any(|f| task.pre_pos.slice(yo).contains(f))
+            }
+            let (ha, hb) = (&hs[a], &hs[b]);
+            match (ha.end_op, ha.start_op, hb.end_op, hb.start_op) {
+                // end -> start: ε-chaining (the end's adds provide the
+                // start's precondition), the `over all` guard (the start's
+                // effects would break the end's open invariant), or the
+                // reader-side guard (the end's effects would break the
+                // START's own invariant — a start pulled across such an end
+                // would trap it inside its interval).
+                (Some(ae), _, None, Some(bs)) => {
+                    task.add
+                        .slice(ae)
+                        .iter()
+                        .any(|f| task.pre_pos.slice(bs).contains(f))
+                        || breaks_inv(ae, bs)
+                        || step_end[hb.step].is_some_and(|bse| breaks_inv(bse, ae))
+                }
+                // start -> end: the end's dels hit the start's precondition
+                // — the reader-start precedes the deleter-end. VETOED when
+                // the end's effects also break the reader's own invariant:
+                // that pair is unfixable by ordering (before: the end lands
+                // inside the reader's interval; after: the precondition is
+                // already deleted), so it keeps today's order for the
+                // validator to referee instead of dragging the whole group
+                // into a cycle fallback.
+                (None, Some(sa), Some(be), _) => {
+                    task.del
+                        .slice(be)
+                        .iter()
+                        .any(|f| task.pre_pos.slice(sa).contains(f))
+                        && !step_end[ha.step].is_some_and(|ase| breaks_inv(ase, be))
+                }
+                // end -> end: b's effects break a's invariant -> a first (0.18).
+                (Some(ae), _, Some(be), _) => breaks_inv(ae, be),
+                // start -> start: a's adds provide b's precondition -> a first (0.20).
+                (None, Some(sa), None, Some(sb)) => task
+                    .add
+                    .slice(sa)
+                    .iter()
+                    .any(|f| task.pre_pos.slice(sb).contains(f)),
+                _ => false,
+            }
         };
         let slot = |x: f64| (x / EPS).round() as i64;
         let mut i = 0;
         while i < order.len() {
             let mut j = i + 1;
-            while j < order.len()
-                && hs[order[i]].is_start
-                && hs[order[j]].is_start
-                && slot(hs[order[i]].time) == slot(hs[order[j]].time)
-            {
+            while j < order.len() && slot(hs[order[j]].time) == slot(hs[order[i]].time) {
                 j += 1;
             }
-            if hs[order[i]].is_start && j - i > 1 && j - i <= 16 {
-                let g = &mut order[i..j];
-                for _ in 0..g.len() {
-                    let mut swapped = false;
-                    for k in 0..g.len() - 1 {
-                        // A before B but B provides A's precondition -> B first.
-                        if provides(g[k + 1], g[k]) && !provides(g[k], g[k + 1]) {
-                            g.swap(k, k + 1);
-                            swapped = true;
+            // Cap 64: the group spans BOTH kinds, so it must cover any pair
+            // of ≤16-happening runs the bubbles this pass replaced handled.
+            if j - i > 1 && j - i <= 64 {
+                let g: Vec<usize> = order[i..j].to_vec();
+                let m = g.len();
+                let mut edge = [0u64; 64];
+                let mut indeg = [0u8; 64];
+                for x in 0..m {
+                    for y in 0..m {
+                        if x != y && must_precede(g[x], g[y]) {
+                            edge[x] |= 1u64 << y;
+                            indeg[y] += 1;
                         }
                     }
-                    if !swapped {
-                        break;
+                }
+                // Rigidity defaults (the i17 STN veto, decoded): a slot's
+                // ENDS are pinned at start+duration with their starts
+                // already ε-chained in earlier slots, so today's end order
+                // is the only one the STN can schedule when durations
+                // match — yet the ready queue, left alone, emits an
+                // unrelated end ahead of a reader-blocked EARLIER end, and
+                // the consistency check then vetoes the WHOLE plan back to
+                // raw zero-spread times (map-analyzer i17/i18/i20). Chain
+                // every relation-free end pair in today's order: a blocked
+                // end now holds its followers, and the reader crosses the
+                // entire end run instead of splitting it.
+                for x in 0..m {
+                    for y in (x + 1)..m {
+                        if hs[g[x]].end_op.is_some()
+                            && hs[g[y]].end_op.is_some()
+                            && edge[x] & (1u64 << y) == 0
+                            && edge[y] & (1u64 << x) == 0
+                        {
+                            edge[x] |= 1u64 << y;
+                            indeg[y] += 1;
+                        }
                     }
                 }
+                let mut out: Vec<usize> = Vec::with_capacity(m);
+                let mut used = [false; 64];
+                while out.len() < m {
+                    let Some(x) = (0..m).find(|&x| !used[x] && indeg[x] == 0) else {
+                        break; // cycle: leave the whole group in today's order
+                    };
+                    used[x] = true;
+                    out.push(g[x]);
+                    for (y, d) in indeg.iter_mut().enumerate().take(m) {
+                        if edge[x] & (1u64 << y) != 0 {
+                            *d -= 1;
+                        }
+                    }
+                }
+                if out.len() == m {
+                    order[i..j].copy_from_slice(&out);
+                }
             }
-            i = j.max(i + 1);
+            i = j;
         }
     }
 
@@ -3530,6 +3585,132 @@ mod tests {
             clearjunction.time,
             traverse.time
         );
+    }
+
+    /// The 0.21 Phase 7 pin (the 0.20 negative, closed): a same-slot
+    /// reader-START vs deleter-END pair — the map-analyzer i17/i18/i20
+    /// residue neither standing repair can reach (0.18 reorders ends among
+    /// ends, 0.20 starts among starts). The search certified the reader's
+    /// precondition true at decision time by firing its start BEFORE the
+    /// deleting end; the ends-before-starts tie-break inverts that, and the
+    /// emitted plan executes the reader against a fact already deleted. The
+    /// pass must emit the reader's start strictly before the deleting end,
+    /// and the result must replay clean under the internal validator.
+    #[test]
+    fn same_slot_reader_start_emits_before_deleting_end() {
+        let dom = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../benchmarks/bench/eps-threat-domain.pddl"
+        ))
+        .unwrap();
+        let prb = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../benchmarks/bench/eps-threat-p01.pddl"
+        ))
+        .unwrap();
+        let d = crate::parser::parse_domain(&dom).unwrap();
+        let p = crate::parser::parse_problem(&prb).unwrap();
+        let c = compile(&d, &p);
+        let task = match crate::ground::ground_stratified(&c.domain, &c.problem, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("ground"),
+        };
+        let (_kinds, _dur, inv) = build_kind(&task, &c);
+        // The search-shaped schedule: BUILD's start shares raw slot 1.0
+        // with OCCUPY's deleting end.
+        let plan = TimedPlan {
+            steps: vec![
+                TimedStep {
+                    time: 0.0,
+                    action: "OCCUPY J1".into(),
+                    duration: Some(1.0),
+                },
+                TimedStep {
+                    time: 1.0,
+                    action: "BUILD J1".into(),
+                    duration: Some(2.0),
+                },
+            ],
+            makespan: 3.0,
+        };
+        let out = epsilon_separate(&task, &inv, plan, false);
+        let occupy = &out.steps[0];
+        let build = &out.steps[1];
+        assert!(
+            build.time < occupy.time + 1.0,
+            "reader start must emit strictly before the deleting end: build {} vs occupy end {}",
+            build.time,
+            occupy.time + 1.0
+        );
+        if let Err(e) = validate(&d, &p, &out) {
+            panic!("emitted plan must replay clean: {e}");
+        }
+    }
+
+    /// The i17 geometry proper: the reader must cross a RUN of rigid ends,
+    /// not one. A second occupier's unrelated end shares the slot, and every
+    /// end is pinned at start+duration with the starts already ε-chained one
+    /// slot earlier — so the only schedulable end order is today's. A repair
+    /// that lets an unrelated end jump ahead of the reader-blocked EARLIER
+    /// end hands the STN an infeasible chain, and the consistency veto ships
+    /// the raw zero-spread plan (the exact `[eps] STN inconsistency` line
+    /// map-analyzer i17/i18/i20 printed). The pass must pull the reader
+    /// ahead of the WHOLE end run and keep the run in its rigid order.
+    #[test]
+    fn same_slot_reader_start_crosses_rigid_end_run() {
+        let dom = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../benchmarks/bench/eps-threat-domain.pddl"
+        ))
+        .unwrap();
+        let prb = std::fs::read_to_string(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../benchmarks/bench/eps-threat-p02.pddl"
+        ))
+        .unwrap();
+        let d = crate::parser::parse_domain(&dom).unwrap();
+        let p = crate::parser::parse_problem(&prb).unwrap();
+        let c = compile(&d, &p);
+        let task = match crate::ground::ground_stratified(&c.domain, &c.problem, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("ground"),
+        };
+        let (_kinds, _dur, inv) = build_kind(&task, &c);
+        // The search-shaped schedule: both occupiers' deleting ends and
+        // BUILD's reading start all share raw slot 1.0; the reader's fact
+        // is deleted by the FIRST-constructed (rigid-earliest) end.
+        let plan = TimedPlan {
+            steps: vec![
+                TimedStep {
+                    time: 0.0,
+                    action: "OCCUPY J1".into(),
+                    duration: Some(1.0),
+                },
+                TimedStep {
+                    time: 0.0,
+                    action: "OCCUPY J2".into(),
+                    duration: Some(1.0),
+                },
+                TimedStep {
+                    time: 1.0,
+                    action: "BUILD J1".into(),
+                    duration: Some(2.0),
+                },
+            ],
+            makespan: 3.0,
+        };
+        let out = epsilon_separate(&task, &inv, plan, false);
+        let occupy1 = &out.steps[0];
+        let build = &out.steps[2];
+        assert!(
+            build.time < occupy1.time + 1.0,
+            "reader start must emit strictly before the deleting end: build {} vs occupy-j1 end {}",
+            build.time,
+            occupy1.time + 1.0
+        );
+        if let Err(e) = validate(&d, &p, &out) {
+            panic!("emitted plan must replay clean: {e}");
+        }
     }
 
     #[test]
