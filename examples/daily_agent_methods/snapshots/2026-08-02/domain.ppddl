@@ -1,0 +1,102 @@
+; Admitted Daily Agent Methods — 2026-08-02 America/Los_Angeles
+; Probabilities below are planning priors, not empirical rates.
+(define (domain admitted-agent-methods-2026-08-02)
+  (:requirements :strips :typing :negative-preconditions :conditional-effects :fluents :probabilistic-effects)
+  (:types repository work method artifact verifier receipt external-edge)
+  (:predicates
+    (exact-subject ?w - work)
+    (observed ?w - work)
+    (bounded-claim ?w - work)
+    (completed-boundary ?w - work)
+    (excluded ?w - work)
+    (harvested ?w - work)
+    (pattern-derived ?m - method ?w - work)
+    (equivalent ?a - method ?b - method)
+    (deduplicated ?m - method)
+    (authority-source ?a - artifact)
+    (generated-output ?a - artifact)
+    (projection-of ?a - artifact ?m - method)
+    (syntax-valid ?a - artifact)
+    (semantics-valid ?a - artifact)
+    (negative-control-passed ?m - method)
+    (atomic-staging ?m - method)
+    (zero-partial-state ?m - method)
+    (unsupported-boundary ?m - method)
+    (receipt-issued ?r - receipt)
+    (receipt-binds ?r - receipt ?a - artifact)
+    (replay-match ?r - receipt)
+    (method-admitted ?m - method)
+    (external-ready ?e - external-edge)
+    (external-passed ?e - external-edge)
+    (external-queued ?e - external-edge)
+    (external-failed ?e - external-edge)
+    (retryable ?e - external-edge))
+  (:functions (total-cost))
+
+  (:action harvest-closed-window-work
+    :parameters (?w - work)
+    :precondition (and (exact-subject ?w) (observed ?w) (bounded-claim ?w)
+                       (completed-boundary ?w) (not (excluded ?w)) (not (harvested ?w)))
+    :effect (and (harvested ?w) (increase (total-cost) 1)))
+
+  (:action derive-reusable-pattern
+    :parameters (?m - method ?w - work)
+    :precondition (and (harvested ?w) (not (pattern-derived ?m ?w)))
+    :effect (and (pattern-derived ?m ?w) (increase (total-cost) 1)))
+
+  (:action deduplicate-method
+    :parameters (?m - method)
+    :precondition (and (not (deduplicated ?m)))
+    :effect (and (deduplicated ?m) (increase (total-cost) 1)))
+
+  (:action manufacture-method-projection
+    :parameters (?m - method ?a - artifact)
+    :precondition (and (deduplicated ?m) (authority-source ?a)
+                       (not (generated-output ?a)))
+    :effect (and (generated-output ?a) (projection-of ?a ?m)
+                 (increase (total-cost) 2)))
+
+  (:action validate-method-projection
+    :parameters (?m - method ?a - artifact ?v - verifier)
+    :precondition (and (projection-of ?a ?m) (generated-output ?a)
+                       (not (syntax-valid ?a)) (not (semantics-valid ?a)))
+    :effect (and (syntax-valid ?a) (semantics-valid ?a)
+                 (increase (total-cost) 2)))
+
+  (:action prove-atomic-staged-mutation
+    :parameters (?m - method)
+    :precondition (and (deduplicated ?m) (atomic-staging ?m)
+                       (not (zero-partial-state ?m)))
+    :effect (and (zero-partial-state ?m) (negative-control-passed ?m)
+                 (increase (total-cost) 2)))
+
+  (:action preserve-unsupported-boundary
+    :parameters (?m - method)
+    :precondition (and (deduplicated ?m) (unsupported-boundary ?m)
+                       (not (negative-control-passed ?m)))
+    :effect (and (negative-control-passed ?m) (increase (total-cost) 1)))
+
+  (:action issue-and-replay-receipt
+    :parameters (?m - method ?a - artifact ?r - receipt)
+    :precondition (and (projection-of ?a ?m) (syntax-valid ?a) (semantics-valid ?a)
+                       (negative-control-passed ?m) (not (receipt-issued ?r)))
+    :effect (and (receipt-issued ?r) (receipt-binds ?r ?a) (replay-match ?r)
+                 (increase (total-cost) 2)))
+
+  (:action admit-reusable-method
+    :parameters (?m - method ?a - artifact ?r - receipt)
+    :precondition (and (deduplicated ?m) (projection-of ?a ?m)
+                       (syntax-valid ?a) (semantics-valid ?a)
+                       (negative-control-passed ?m) (receipt-binds ?r ?a)
+                       (replay-match ?r) (not (method-admitted ?m)))
+    :effect (and (method-admitted ?m) (increase (total-cost) 1)))
+
+  (:action attempt-external-check
+    :parameters (?e - external-edge)
+    :precondition (and (external-ready ?e) (not (external-passed ?e))
+                       (not (external-queued ?e)) (not (external-failed ?e)))
+    :effect (probabilistic
+      0.50 (and (external-passed ?e) (not (external-ready ?e)) (increase (total-cost) 1))
+      0.25 (and (external-queued ?e) (retryable ?e) (not (external-ready ?e)) (increase (total-cost) 1))
+      0.25 (and (external-failed ?e) (retryable ?e) (not (external-ready ?e)) (increase (total-cost) 2))))
+)
