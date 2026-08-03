@@ -141,6 +141,13 @@ pub struct PackedTask {
     pub fact_names: Arc<[String]>,
     /// fluent id -> display string `(NAME ARGS)` (for metric/cost-fluent lookup).
     pub fluent_names: Arc<[String]>,
+    /// DEFINED-STATIC fluents the 0.21 fluent compaction dropped from
+    /// `fv0`/`fdef0` (display -> init value), retained task-side for
+    /// NAME-resolved readers: temporal duration grounding/eval reads
+    /// statics from here when [`Self::fluent_id`] misses. Empty when the
+    /// compaction is off (`FF_NO_FLUENT_COMPACT=1`) or on the session/
+    /// validator grounding entries, which keep full tables.
+    pub static_fluents: Arc<[(String, f64)]>,
 
     // timing-footer stats
     pub n_easy: usize,
@@ -281,6 +288,18 @@ impl PackedTask {
     /// Look up a fluent id by display string, e.g. `(TOTAL-COST)`.
     pub fn fluent_id(&self, disp: &str) -> Option<usize> {
         self.fluent_names.iter().position(|s| s == disp)
+    }
+
+    /// Value of a DEFINED-STATIC fluent the 0.21 compaction dropped from
+    /// `fv0` — the name-resolved fallback behind [`Self::fluent_id`].
+    /// `None` = not a dropped static (either live in `fv0`, or undefined —
+    /// undefined statics never enter this table, so a miss on both sources
+    /// reads exactly like an undefined fluent).
+    pub fn static_fluent(&self, disp: &str) -> Option<f64> {
+        self.static_fluents
+            .iter()
+            .find(|(n, _)| n == disp)
+            .map(|&(_, v)| v)
     }
 
     /// Look up a fact id by display string, e.g. `(AT A0 P1)`.

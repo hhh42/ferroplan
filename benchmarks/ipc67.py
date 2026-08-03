@@ -361,6 +361,12 @@ def run_instance(val, n, d, p):
     # Budget-aware ladder (0.18): tell the engine its real wall budget so
     # bounded rungs stop starving the complete fallback near the edge.
     env = dict(os.environ, FF_TIME_LIMIT=str(TIMEOUT))
+    if MEMGB > 0:
+        # The engine cannot learn the budget from RLIMIT_AS on Darwin
+        # (0.21 Phase 6 lever 0): tell it outright, so the retained-state
+        # cap trips INTERNALLY (capped:true, refill spends the wall)
+        # instead of the RSS watchdog killing the job with wall unspent.
+        env["FF_MEM_BUDGET_GB"] = str(MEMGB)
 
     # Only install a preexec_fn where the cap actually takes: an unusable
     # setrlimit raises INSIDE the fork hook, and every row becomes spawn-fail.

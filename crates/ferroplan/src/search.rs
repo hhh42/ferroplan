@@ -53,7 +53,16 @@ pub(crate) const NODE_CAP_TARGET_BYTES: usize = if usize::BITS < 64 { 2 << 30 } 
 /// `State` (bits + fluent vecs) in `nodes` plus the hash→index dedup entry
 /// (0.20 Phase 4 — the visited set no longer clones the bitset).
 pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
-    node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES.min(rlimit_budget()))
+    node_cap_for_bytes(task, retained_bytes_budget())
+}
+
+/// The retained-state byte budget every node-cap model shares: the fixed
+/// target clamped by whatever budget the environment declares (RLIMIT_AS
+/// where it exists, `FF_MEM_BUDGET_GB` where it cannot — the temporal cap
+/// consumed the raw constant until 0.21 Phase 6, which is why temporal
+/// jobs died to the external watchdog instead of capping internally).
+pub(crate) fn retained_bytes_budget() -> usize {
+    NODE_CAP_TARGET_BYTES.min(rlimit_budget())
 }
 
 /// The address-space budget the process ACTUALLY has (0.19 Phase 4): the
@@ -70,7 +79,22 @@ pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
 /// Read via `/proc/self/limits` (no libc dependency — the crate stays
 /// serde+thiserror only); non-Linux platforms simply keep the fixed
 /// target.
+///
+/// `FF_MEM_BUDGET_GB` (0.21 Phase 6 lever 0) is read FIRST: on Darwin
+/// `setrlimit(RLIMIT_AS)` cannot be enforced and there is no
+/// `/proc/self/limits`, so the runner's RSS watchdog kills EXTERNALLY
+/// with wall unspent (woodworking dies at 2.9–11.4 s of a 60 s budget
+/// and the refill loop never runs). The runner passes its `--mem-gb`
+/// budget here (fractional GiB) so the engine trips INTERNALLY on any
+/// kernel — a capped return the refill loop can spend the remaining
+/// wall on. The same 60% retained share applies as on the RLIMIT path;
+/// env absent ⇒ today's behavior exactly.
 fn rlimit_budget() -> usize {
+    if let Ok(v) = std::env::var("FF_MEM_BUDGET_GB") {
+        if let Some(bytes) = mem_budget_bytes(&v) {
+            return bytes;
+        }
+    }
     let Ok(limits) = std::fs::read_to_string("/proc/self/limits") else {
         return usize::MAX;
     };
@@ -87,6 +111,19 @@ fn rlimit_budget() -> usize {
         }
     }
     usize::MAX
+}
+
+/// `FF_MEM_BUDGET_GB` parsed to retained-state bytes: fractional GiB
+/// (so the runner can pass e.g. `1.8`), times the 60% retained share
+/// [`rlimit_budget`] applies to an RLIMIT_AS. Non-positive, non-finite,
+/// or unparsable values yield `None` (no override).
+fn mem_budget_bytes(raw: &str) -> Option<usize> {
+    let gb: f64 = raw.trim().parse().ok()?;
+    if !gb.is_finite() || gb <= 0.0 {
+        return None;
+    }
+    let bytes = (gb * (1u64 << 30) as f64) as u128;
+    Some(((bytes * 6 / 10) as u64).try_into().unwrap_or(usize::MAX))
 }
 
 /// [`node_cap_for`] against an explicit byte target (the budgeted-think
@@ -1430,5 +1467,31 @@ pub fn solve_subgoal_guided(
     ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
         PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mem_budget_bytes;
+
+    #[test]
+    fn mem_budget_parses_fractional_gib_at_the_60_percent_share() {
+        // 1 GiB -> 60% of 2^30; 0.5 GiB -> half that (fractional accepted).
+        assert_eq!(mem_budget_bytes("1"), Some((1u64 << 30) as usize * 6 / 10));
+        assert_eq!(
+            mem_budget_bytes("0.5"),
+            Some(((1u64 << 29) as u128 * 6 / 10) as usize)
+        );
+        assert_eq!(mem_budget_bytes(" 2 "), mem_budget_bytes("2"));
+    }
+
+    #[test]
+    fn mem_budget_rejects_garbage_zero_and_negatives() {
+        assert_eq!(mem_budget_bytes("not-a-number"), None);
+        assert_eq!(mem_budget_bytes(""), None);
+        assert_eq!(mem_budget_bytes("0"), None);
+        assert_eq!(mem_budget_bytes("-1"), None);
+        assert_eq!(mem_budget_bytes("inf"), None);
+        assert_eq!(mem_budget_bytes("NaN"), None);
     }
 }

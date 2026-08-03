@@ -548,8 +548,15 @@ fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &Sta
                 }
             }
             disp.push(')');
-            let id = task.fluent_id(&disp)?;
-            init.fdef[id].then(|| init.fv[id])
+            // Two-source lookup (0.21 Phase 6): dynamic (and retained)
+            // fluents live in the state; DEFINED statics the fluent
+            // compaction dropped resolve from the task-side name table.
+            // A miss on both sources reads as undefined, exactly like a
+            // full-table undefined fluent.
+            match task.fluent_id(&disp) {
+                Some(id) => init.fdef[id].then(|| init.fv[id]),
+                None => task.static_fluent(&disp),
+            }
         }
         Expr::Add(a, b) => Some(eval_expr(a, bind, task, init)? + eval_expr(b, bind, task, init)?),
         Expr::Sub(a, b) => Some(eval_expr(a, bind, task, init)? - eval_expr(b, bind, task, init)?),
@@ -692,7 +699,7 @@ fn solve_inner(
         threads,
         tier,
         &mut budget,
-        crate::search::NODE_CAP_TARGET_BYTES,
+        crate::search::retained_bytes_budget(),
         false,
         orbit.as_ref(),
     );
@@ -1087,7 +1094,12 @@ fn ground_duration_nexpr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask
                 }
             }
             disp.push(')');
-            NExpr::Fluent(task.fluent_id(&disp)? as u32)
+            // Two-source (0.21 Phase 6): a compacted-away DEFINED static
+            // grounds straight to its value — same f64 the full table held.
+            match task.fluent_id(&disp) {
+                Some(id) => NExpr::Fluent(id as u32),
+                None => NExpr::Num(task.static_fluent(&disp)?),
+            }
         }
         Expr::Add(a, b) => NExpr::Add(
             Box::new(ground_duration_nexpr(a, bind, task)?),

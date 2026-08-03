@@ -1921,6 +1921,68 @@ mod tests {
     }
 
     #[test]
+    fn set_fluent_on_op_untouched_fluent_flows_into_durations() {
+        // The 0.21 Phase 6 contract fixture (docs/roadmap-0.21.md): the
+        // static-fluent fold + compaction apply on the solve()/planner
+        // grounding entries ONLY — a session keeps FULL fluent tables, so
+        // `set_fluent` on a fluent no op writes stays LIVE and flows into a
+        // parameter-dependent duration at the next think. If the session
+        // entry ever folded, (build-time w1) would be frozen at grounding
+        // (or unknown to set_fluent entirely).
+        const DDOM: &str = "
+        (define (domain shop)
+          (:requirements :strips :typing :durative-actions :numeric-fluents)
+          (:types worker)
+          (:predicates (idle ?w - worker) (built ?w - worker))
+          (:functions (build-time ?w - worker))
+          (:durative-action build
+            :parameters (?w - worker)
+            :duration (= ?duration (build-time ?w))
+            :condition (at start (idle ?w))
+            :effect (and (at start (not (idle ?w))) (at end (built ?w)))))";
+        const DPRB: &str = "
+        (define (problem job) (:domain shop)
+          (:objects w1 - worker)
+          (:init (idle w1) (= (build-time w1) 5))
+          (:goal (built w1)))";
+        let mut s = Session::new(DDOM, DPRB, &Options::default()).expect("session");
+        let before = s.replan_budgeted(50_000, Some(128));
+        assert!(before.solved);
+        assert_eq!(before.plan.unwrap().steps[0].duration, Some(5.0));
+
+        s.set_fluent("(build-time w1)", 9.0)
+            .expect("an op-untouched fluent stays settable");
+        let after = s.replan_budgeted(50_000, Some(128));
+        assert!(after.solved);
+        assert_eq!(
+            after.plan.unwrap().steps[0].duration,
+            Some(9.0),
+            "set_fluent must flow into the rebuilt duration table"
+        );
+    }
+
+    #[test]
+    fn set_fluent_on_op_untouched_fluent_flips_numeric_precondition() {
+        // The classical half of the same contract: the session's
+        // ground_task entry keeps full tables too — a numeric gate on a
+        // fluent no op writes flips from unsolvable to solvable.
+        const GDOM: &str = "
+        (define (domain gate) (:requirements :strips :numeric-fluents)
+          (:predicates (done))
+          (:functions (permit))
+          (:action act :precondition (>= (permit) 1) :effect (done)))";
+        const GPRB: &str = "
+        (define (problem g) (:domain gate)
+          (:init (= (permit) 0))
+          (:goal (done)))";
+        let mut s = Session::new(GDOM, GPRB, &Options::default()).expect("session");
+        assert!(!s.replan().solved, "gate closed: permit 0");
+        s.set_fluent("(permit)", 1.0)
+            .expect("an op-untouched fluent stays settable");
+        assert!(s.replan().solved, "set_fluent must open the numeric gate");
+    }
+
+    #[test]
     fn set_goal_retargets_without_regrounding() {
         // One world, changing desires: the same session serves a numeric
         // goal, then a positional one, then an empty one — no regrounding,
