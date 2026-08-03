@@ -36,6 +36,26 @@ now does and the solo receipts it did it with. Full record:
   tells the engine its byte budget on kernels without a workable
   RLIMIT_AS (macOS), so the retained-state cap trips internally and
   the refill loop spends the wall the RSS watchdog used to eat.
+- **The ladder tax** (Phase 5): under an armed budget, EHC and
+  novelty-light get wall-denominated slices (`FF_EHC_WALL_FRAC` 0.25,
+  `FF_NOVLIGHT_WALL_FRAC` 0.10) instead of op-scaled/fixed-pop
+  budgets — the repair for the −26 the v0.19 backfill exposed.
+  hiking-2014 i6: 55.5 s (half a second inside the kill line) →
+  20.3 s, same plan; openstacks i1 keeps its EHC-direct solve. No
+  armed budget ⇒ byte-identical. Hatch `FF_NO_EHC_WALLCAP`; rung
+  narration under `FF_WALL_DEBUG`.
+- **Temporal emission is sound on the witness** (Phase 7): the two
+  same-slot bubble repairs become one per-slot topological order
+  with cross-kind guard edges — map-analyzer's three VAL-RED rows
+  (the only temporal VAL failures on the twelve boards, 0.20's
+  honest negative) go GREEN: solo referee 13/13 VAL-valid.
+- **The h-surgery bet dies its pre-registered death** (Phase 8): the
+  end-gated interval credit probe landed, priced a snap pair as one
+  unit (pinned), and BOTH reads failed — the village stool contract
+  still dies at 200k evals, and TMS's best_h floor re-levels
+  110→174 without breaking. Fifth negative on this wall; the ledger
+  line dies with a sharper localization; the probe stays dormant
+  behind `FF_H_ENDGATE`.
 - **Harness**: the IPC-2026 -opt pairs get a proof-track board
   (`ipc2026-opt`, cut21-sweeps.sh + promote-air21.sh); multipart
   instance names keep their full identity in the JSONLs; the

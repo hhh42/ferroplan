@@ -697,6 +697,31 @@ the currency the board charges: WALL.
   recover +15–30 of the −26; a negative is recorded as gladly as a
   win.
 
+### Recorded — both slices in, both solves kept (backfill column at the cut)
+
+- **Both levers landed** (`FF_EHC_WALL_FRAC` 0.25,
+  `FF_NOVLIGHT_WALL_FRAC` 0.10, hatch `FF_NO_EHC_WALLCAP`); no armed
+  budget ⇒ byte-identical everywhere. EHC's deadline is checked per
+  lookahead EVALUATION inside bfs_improve — on the openstacks shape
+  ONE bfs_improve call burns the whole wall, so an outer-loop check
+  provably never fires. Rung-solve narration under `FF_WALL_DEBUG`
+  names which rung solved, for every future receipt.
+- **The fixture battery** (tests/ladder_wall.rs, five scenarios) went
+  RED exactly as scoped — EHC-direct 11.7 s straight past a 5 s armed
+  wall, no hand-down — and the hatched leg keeps that RED shape on
+  the record permanently.
+- **The honest risk did not materialize:** openstacks-2014-agile i1
+  solo still solves EHC-DIRECT (5.6 s here; the ~54 s figure was the
+  sweep box under contention), identical plan, slice never trips. And
+  the slice EARNS on the backfill's own −10 domain: hiking i6 with
+  the light slice trips at 49,152 pops / 5.9 s and LAMA solves at
+  20.3 s total, vs 55.5 s — half a second inside the kill line — with
+  the slice disabled. Same final plan both ways; the slice bought
+  ~35 s of wall.
+- Defaults stand at 0.25/0.10 with no aggression-halving needed. The
+  v0.19 backfill column at the cut remains the only referee that can
+  price this phase, per Phase 2's rule.
+
 ## Phase 6 — the static-fluent fold (+ the Darwin byte budget)
 
 The mem-cap column, re-attributed on the new instrument: 74 rows,
@@ -829,6 +854,34 @@ deleting ends turns i17 green.
   same-epoch concurrency, and the 0.20 honest negative closes with a
   fixture instead of a sharper apology.
 
+### Recorded — the witness goes green (boards at the cut)
+
+- **Lever 1 sufficed — after the referee caught its first cut
+  lying.** The initial topo replaced the bubbles, passed every pin
+  and the full suite, and FAILED the referee: the three witness rows
+  stayed VAL-red because the rewrite had dropped the unconditional
+  ε-chaining for relation-free pairs — the emitted plan lost its
+  ε-spread entirely, and pins over ORDER cannot see TIMES. The pin
+  suite is necessary, the board referee is sufficient; that ordering
+  is the phase's own methodological receipt.
+- **The landed shape:** one per-slot Kahn order carrying both old
+  bubble relations plus three conservative cross-kind guards
+  (start→end where the end's dels hit the start's reads — the
+  witness class; end→start where the end provides; two invariant
+  guards so the fix cannot trade one VAL-red for another).
+  Relation-free END pairs keep today's order — ends are rigid at
+  start+duration, any other order hands the STN an infeasible chain.
+  Floor = status quo on cycles and oversized groups; the STN veto
+  stands. Lever 2 (decision-order threading) was NOT needed.
+- **Two pins, both RED on the bubbles:** the distilled witness, and
+  `same_slot_reader_start_crosses_rigid_end_run` — the start must
+  cross ends no adjacent-swap pass can move it past.
+- **The referee, green:** solo map-analyzer ×20 at 30 s, VAL armed —
+  **13 raw solves, 13/13 VAL-GREEN** (one more raw solve than the
+  board, solo vs contended); i17/i18/i20 all flip. The temporal
+  VAL-RED column zeroes at the cut re-sweep. Suite 244/0, fmt +
+  clippy clean.
+
 ## Phase 8 — the probe basket (attribution first)
 
 - **The h-surgery probe, pre-registered.** The bet carried since
@@ -905,6 +958,48 @@ deleting ends turns i17 green.
   dedup is the bug class our quantized StateKey already guards; one
   sweep over heuristic-side caches for un-quantized f64 keys, result
   noted, done.
+
+### Recorded — the fence falls, the audit closes, three items ride behind the cut
+
+- **The h-surgery probe: NEGATIVE, by its pre-registered reads, and
+  the ledger line dies.** Fifth negative on this wall, and the
+  cleanest. The probe landed exactly as scoped (<100 lines, pair
+  table + extraction discount; the pair-prices-as-one pin went RED 2
+  → GREEN 1; helpful sets unchanged; classical provably dormant).
+  Read (a): the village pair's stool contract still DIES at a
+  200k-eval think with the flag ON (200,000/200,000, no plan; decoy
+  2,011→2,220 evals and plank 50→56 prove the discount is live on
+  the surface). Read (b): TMS-2011 i1's best_h floor does not break
+  — flag off 110/110/110 at 15k/30k/60k (the 0.15 receipt to the
+  decimal), flag on 174/174/173: a NEW plateau replaces the old one,
+  flat across a 4× budget. The mechanism note that survives the
+  bet's death: the pair now prices as ONE unit and the wall stands,
+  so the 0.15 diagnosis localizes further — the plateau is not
+  (only) the start's h-credit at selection time; the start-subset
+  lattice re-levels to whatever floor the accounting gives it. The
+  probe code stays in-tree, opt-in and dormant (`FF_H_ENDGATE`), as
+  the record of what was tried.
+- **The PlanForge audit, closed:** every float that reaches a dedup
+  or cache key is quantized through StateKey's 1e-6 path (packed.rs)
+  — the load-bearing surfaces are guarded. One exact-bits site
+  survives on purpose: numeric-threshold LANDMARK dedup
+  (temporal.rs:1532), where a round-off miss costs a redundant
+  landmark and quantizing could wrongly MERGE genuinely distinct
+  thresholds. Correct as is.
+- **The refill/classifier seam** closed with the harness prep (the
+  90% line; both numeric boards' early-exit columns emptied into
+  timeout, coverage untouched) — the early-exit class retires as
+  0.20 Phase 1's referee column, job done.
+- **The settlers gate** passed in Phase 3 (corpus artifact, grounder
+  exact); **the re-attributions** (markettrader, agricola,
+  block-grouping) stand as written above.
+- **Riding BEHIND the cut, deliberately:** the 2026 attribution
+  sitting (attributes walls the charge may already have moved — run
+  it on the promoted 0.21 boards, findings feed 0.22); the
+  organic-synthesis join-ordering probe (day-scale, gated); and the
+  noise docket's two open items (parking-2011, flashfill i10 — they
+  need the QUIET box the cut sweep will occupy; queue them after
+  it).
 
 ## Phase 9 — cut 0.21.0 (recover the −26, then beat it)
 
