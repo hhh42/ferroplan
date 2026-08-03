@@ -121,6 +121,22 @@ maturin publish -m crates/ferroplan-py/Cargo.toml           # needs a PyPI token
 The wheel build is part of the pre-flight from 0.14.0 on; publishing it is a
 separate, optional step (the crates.io release does not depend on it).
 
+**On the Air, build the wheel LOCALLY and record what that does not cover.**
+`docs/migration-m5.md` proposed downgrading this gate to "the CI wheel
+builds", on the grounds that a local `maturin build` produces a macOS-ARM
+wheel rather than the manylinux x86 one that ships. By direct decision the
+gate stays local, because a local build tests almost everything the gate is
+for: the PyO3 bindings compile against the current library, maturin's
+packaging works, and the wheel is well-formed. The crate is **abi3-py38**, so
+one build covers Python 3.8+ and the Python-version dimension is not in
+question either.
+
+What a local build does NOT test is the manylinux x86 cross-build. That is a
+real but narrow gap, and the honest form of this gate is therefore: run it
+locally, and say in the cut record that the shipped manylinux wheel is
+unverified until CI or a zig-cross build runs. A gate that names its own blind
+spot beats a gate that is skipped.
+
 Each crate package bundles `README.md` and both `LICENSE-*` files (symlinked into
 the crate dirs) so the crates.io page and tarball are complete.
 
