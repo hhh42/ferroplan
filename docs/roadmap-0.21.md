@@ -484,6 +484,47 @@ control fixture, not quietly dropped.
   pathwaysmetric +2–6, markettrader +0–2 ceiling recorded up front —
   net +25–40 across the two boards, or the negative is recorded.
 
+### Recorded — the plateau becomes a gradient (boards at the cut)
+
+- **The gate passed.** settlersnumeric i7's verdict is a CORPUS
+  ARTIFACT and the grounder is exact: the goal fact's only adder,
+  build-rail, requires a STATIC `(connected-by-land location6
+  location3)` that init does not carry, and nothing adds
+  connected-by-land — every other rail goal in the instance has land
+  support, matching the grounder's named fact precisely.
+- **Lever a1 landed** (hatch `FF_NO_NUMPRE`), plus the Eq rider —
+  from a point value an Eq is one-sided (~6 lines), so probe rider c
+  became code. **Lever a2 was NOT needed**: pathwaysmetric i1 moved
+  on a1 alone (3,603,865 evals unsolved at the wall → 12 steps at
+  4,710 evals).
+- **Receipts, solo (contended box; eval counts deterministic):**
+  sailing-numeric i1, the 0.20 5,000,048-eval cap-out, now SOLVES —
+  174 steps, 29,203 evals, ~2.3 s. block-grouping i1 (0/20 board,
+  field 19–20): 22 steps in 24 evals via the Eq charge; either hatch
+  restores the 5M cap-out. The unit pin went RED→GREEN exactly as
+  scoped (h(init) 1 → 21 on the sailing-band fixture); the mini
+  fixture's library receipt: 3,019 → 22 evals, same 21-step optimum.
+- **tpp-numeric i1–i3:** byte-identical under the hatch, and — the
+  honest surprise — byte-identical with the charge ON too: tpp's
+  selected ops already satisfy their numeric preconditions in the
+  charged states, so the pass never fires there.
+- **A scoping the spec did not ask for, taken deliberately:** the
+  charge is OFF on temporal groundings (`charge_pre_num=false` on the
+  stratified entry). Un-scoped, it re-routed the village workshop
+  economy (27 → 47 steps, the pinned deep-make witness gone) — the
+  temporal h is Phase 7/8 territory and keeps 0.20 behavior
+  byte-identical until measured on its own boards.
+- **FF_NUMNOV landed opt-in** (quantized per-fluent seen-envelopes,
+  numeric-task-gated, zero cost off) with a mechanism pin; its
+  promote/drop referee stays with the boards. The markettrader
+  negative control is pinned on BOTH sides (finite h, no cycle
+  gradient — the re-attribution is a fixture, not an assertion).
+- The honesty rider grew honestly: `capped` had to thread through
+  `PlanOutcome` and `resolve::Solved` to reach both text paths; the
+  capped wording avoids the word "unsolvable" so no substring
+  classifier can misread it. Suite 232/0 in-worktree; integrated
+  242/0 on main. Boards: the cut's referee.
+
 ## Phase 4 — spend the whole wall, Mode::Optimal (+ the third ⚖️ board)
 
 0.20 Phase 1's principle — an engine holding a time limit never
@@ -573,6 +614,45 @@ decides whether LM-cut deserves the remainder at all.
   12 single-instance probes and the re-sweep is the number), plus a
   new board opening at ~14–20/60. Denominator note: the new board
   moves the twelve-board total from 4,016 to 4,076 instances.
+
+### Recorded — the ladder learns the clock (differential + boards at the cut)
+
+- **Both levers landed** exactly as narrowed: root gate BEFORE the
+  split, everything conditional on an armed `FF_TIME_LIMIT`, the
+  no-wall path byte-for-byte the 0.20 node-split. Hatches verified
+  and pinned: `FF_NO_LMCUT` / `FF_NO_HMAX_SPRINT` keep pure-rung
+  meanings on every path (the gate cannot resurrect the sprint);
+  `FF_OPT_NO_ROOTGATE` restores the unconditional ladder;
+  `FF_OPT_SPRINT_FRAC` (0,1], default 0.4.
+- **The RED observation is the 500-timeout shape to the letter:** on
+  the gatecheck fixture the old ladder ran 786,070 h^max expansions
+  for 16.2 s straight through an armed 5 s wall. GREEN: gate reads
+  h^max 4 vs LM-cut 24, sprint trips at 2 s, LM-cut certifies inside
+  the wall. The battery (tests/opt_wall.rs, five child scenarios in
+  the refill.rs convention) pins default, both pure rungs, the
+  b-branch, and the no-rootgate hatch.
+- **Receipts, solo (contended box):** scanalyzer-08 i4 — PROVEN cost
+  24 by LM-cut at ~24–25 s against 0.20's 60 s SIGKILL (the sprint
+  slice is the price; pure LM-cut reference 8 expansions / 0.09 s).
+  barman-11 i1 — still PROVEN cost 90 by h^max inside the 0.4 slice.
+  genome-edit-distances i4 — the gate's b-branch (1 vs 1, LM-cut
+  uninformative): h^max keeps the whole wall and proves cost 4.
+  city-car i1 gates c-branch (22 vs 24) and the sprint proves in 371
+  expansions anyway — the 2014 recovery is explicitly NOT guaranteed
+  per-domain by the gate; the v0.19 backfill column at the cut is
+  the referee, as specced.
+- **The h-memo rider is KEPT**: elevators-2011 i1 expansions
+  IDENTICAL (47,453, cost 56), evaluated −4.6%, wall within noise.
+- **The numeric-optimal soundness floor is pinned** independent of
+  the corpus (benchmarks/bench/numopt-*: exact numeric goal test,
+  fluent-bearing StateKey, numeric preconditions in exact expansion —
+  three pins, each names its unsoundness axis).
+- **Named honestly:** wall-denominated slices make PROVEN-note
+  expansion counts load-dependent (certificates, costs, provers stay
+  deterministic); scanalyzer-class proofs now pay the sprint slice
+  (~25 s, not 0.2 s) — the differential referees whether the slice
+  should be cheaper. `opt-differential.py` (all 306 re-certify) runs
+  BEFORE the boards at the cut, per the referee order.
 
 ## Phase 5 — the ladder tax (rung budgets denominated in wall)
 
@@ -673,6 +753,37 @@ id remaps plus one two-source lookup in temporal duration eval.
   time (18 mem-caps then, 18 timeouts + 2 now). The CoW/hash-consing
   idea proper stays deferred; after fold+compact its only remaining
   constituency is all-dynamic domains.
+
+### Recorded — the tables leave the node (mem-cap columns at the cut)
+
+- **All three levers landed.** Lever 0 end to end: `FF_MEM_BUDGET_GB`
+  read ahead of `/proc/self/limits`, the temporal solve entry now
+  draws from the same `retained_bytes_budget()` as the classical cap
+  (it consumed the raw 8 GiB constant — the reason temporal jobs died
+  to the external watchdog), and ipc67.py exports the budget beside
+  `FF_TIME_LIMIT`. Levers 1+2 behind `FF_NO_FLUENT_FOLD` /
+  `FF_NO_FLUENT_COMPACT`, mirroring the 0.20 fact compaction in the
+  same file.
+- **One deliberate narrowing, argued and receipted:** foldable =
+  defined-static AND NOT RELEVANT. Pre/goal/cond-read statics stay in
+  `fv0` regardless (rel_fluents must not move or visited-key contents
+  shift), so folding them buys zero bytes while flipping
+  shape-sensitive dispatch (achiever bare/linear splits, thresholds,
+  resource grouping). The byte wins survived the narrowing intact:
+  **data-network i12 3,683 → 209 B/node (17.62×, the estimate to the
+  decimal); tpp i12 24,418 → 4,672 B/node (5.23×, better than the
+  2.6× estimate)** — measured on the engine's own byte model.
+- **The identity bar held where it matters most:** elevator-2011
+  temporal plans BYTE-IDENTICAL hatches on/off, durations resolved
+  from an 82-entry static travel-time table; the fluent_fold suite
+  compares plans and eval counts exactly across six fixture shapes,
+  per hatch and both together.
+- **The session contract has teeth, proven:** with the session entry
+  experimentally flipped to fold, the set_fluent-into-durations
+  fixture PANICS at the exact contract site; reverted, green. Fold
+  never applies on session/verify/trace/introspect entries.
+- The forced-cap RSS re-run and the mem-cap columns (74 → target
+  band ~25–35, every residual named) referee at the cut.
 
 ## Phase 7 — the temporal emission repair (the 0.20 negative, closed)
 

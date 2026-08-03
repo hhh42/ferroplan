@@ -4,6 +4,44 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+Accumulating toward 0.21.0 — the numeric cycle. Every board claim
+below lands with the cut sweep; the entries record what the engine
+now does and the solo receipts it did it with. Full record:
+[`docs/roadmap-0.21.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.21.md).
+
+- **The numeric-precondition charge** (Phase 3): extraction now
+  charges a selected op's unsatisfied numeric preconditions through
+  the existing achiever machinery — sailing-numeric i1 goes from a
+  5,000,048-eval cap-out to a 174-step solve at 29,203 evals;
+  block-grouping i1 (a 0/20 domain) solves in 24 evals via the new
+  one-sided Eq charge. Hatch `FF_NO_NUMPRE`; numeric novelty lands
+  opt-in behind `FF_NUMNOV`; temporal groundings deliberately keep
+  0.20's heuristic. The capped-search text no longer claims "proven
+  unsolvable".
+- **The optimal ladder learns the clock** (Phase 4): under an armed
+  `FF_TIME_LIMIT`, a root informativeness gate decides whether LM-cut
+  earns the remaining wall or h^max keeps the full budget, and the
+  h^max sprint is time-boxed (`FF_OPT_SPRINT_FRAC`, default 0.4).
+  scanalyzer-08 i4: PROVEN cost 24 inside the wall vs 0.20's 60 s
+  kill mid-sprint. No armed wall ⇒ bit-identical to 0.20. Hatch
+  `FF_OPT_NO_ROOTGATE`; h-memo on re-opened states kept (−4.6%
+  evaluated, expansions identical).
+- **The static-fluent fold** (Phase 6): defined-static, irrelevant
+  fluents fold to constants and the fluent tables compact out of
+  every stored node — data-network i12 drops 3,683 → 209 bytes/node
+  (17.6×), tpp i12 24,418 → 4,672 (5.2×) — with plans, eval counts
+  and expansion order byte-identical (hatches `FF_NO_FLUENT_FOLD`,
+  `FF_NO_FLUENT_COMPACT`). The session `set_fluent` contract is
+  pinned with a fixture whose teeth are proven. `FF_MEM_BUDGET_GB`
+  tells the engine its byte budget on kernels without a workable
+  RLIMIT_AS (macOS), so the retained-state cap trips internally and
+  the refill loop spends the wall the RSS watchdog used to eat.
+- **Harness**: the IPC-2026 -opt pairs get a proof-track board
+  (`ipc2026-opt`, cut21-sweeps.sh + promote-air21.sh); multipart
+  instance names keep their full identity in the JSONLs; the
+  early-exit class is closed (the classifier's timeout line moved to
+  the refill loop's 90% re-entry floor).
+
 ## [0.20.0] - 2026-08-01 — The guidance cycle, cut on new silicon
 
 The cycle that set out to improve search GUIDANCE — and then had to move
