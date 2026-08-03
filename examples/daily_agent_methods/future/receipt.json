@@ -1,0 +1,50 @@
+{
+  "schema": "implement-the-future-receipt/v1",
+  "repository": "seanchatmangpt/ferroplan",
+  "branch": "agent/daily-agent-ppddl-2026-08-02",
+  "parent_sha": "a01d06a8e6f47463ea53f0f396c213e845cbbf07",
+  "objective": "Convert desired future states into evidence-bounded reusable planning knowledge without treating forecasts as observations.",
+  "observed": [
+    "Existing retrospective PPDDL snapshot on draft PR 35",
+    "Repository doctrine in README: LLM authors and supervises deterministic inspectable planning artifacts",
+    "Exact future domain and problem files fetched from the branch after creation"
+  ],
+  "admitted": [
+    "Desired state admission requires bounded scope, known authority, cost bound, and declared evidence boundary",
+    "Reversible architecture-preserving proposals precede method admission",
+    "Gall checkpoint is the smallest working system before expansion",
+    "Probabilistic outcomes remain planning priors rather than empirical claims",
+    "BRCE actuation and receipt issuance are one atomic transition",
+    "Replay and an executed falsifier are required before future promotion"
+  ],
+  "changed": [
+    "examples/daily_agent_methods/future/domain.ppddl",
+    "examples/daily_agent_methods/future/problem.ppddl",
+    "examples/daily_agent_methods/future/validation.json",
+    "examples/daily_agent_methods/future/receipt.json"
+  ],
+  "generated_outputs_modified": false,
+  "validation": {
+    "executed": "bounded local Python structural verifier",
+    "exit": 0,
+    "results": {
+      "balanced_s_expressions": "PASS",
+      "domain_problem_identity": "PASS",
+      "unique_action_names": "13/13",
+      "probability_sum": "1.00",
+      "atomic_brce_receipt": "PASS"
+    },
+    "production_parser_planner": "UNSUPPORTED"
+  },
+  "failures_and_exclusions": [
+    "No forecast was admitted as completed work",
+    "No production parser or planner execution was claimed",
+    "No generated projection was hand-edited",
+    "No merge was performed"
+  ],
+  "replay": {
+    "entrypoint": "examples/daily_agent_methods/future/",
+    "promotion_condition": "Run the exact domain/problem pair through an admitted PPDDL parser or policy planner and bind the result to an exact-head receipt."
+  },
+  "final_state": "PARTIAL_ALIVE"
+}
