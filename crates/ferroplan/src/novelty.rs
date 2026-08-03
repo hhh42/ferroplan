@@ -363,6 +363,23 @@ pub fn search_light(
     max_eval: usize,
     forbidden: &[bool],
 ) -> Option<(Vec<usize>, usize)> {
+    // The ladder tax (0.21 Phase 5, lever 1): under an ARMED wall budget
+    // the unconditional pop cap gains a wall-denominated bound —
+    // `FF_NOVLIGHT_WALL_FRAC` (default 0.10) of the REMAINING wall at
+    // rung entry, checked every 4096 pops (pops/sec spans orders of
+    // magnitude across tasks, so a deadline, not a pre-converted pop
+    // count). The receipted wins need plan-length pops — visit-all-2014:
+    // 899/3135/3248, two orders under BOTH caps — so every 0.20 win fits
+    // the slice by construction; what it cuts is the tens of seconds a
+    // big task's 300k pops spend ahead of the rung that would have
+    // solved (the 0.21 backfill's −34 receipt). No armed budget ⇒
+    // `None` ⇒ byte-identical.
+    let slice = crate::search::wall_remaining_secs().map(|rem| {
+        (
+            crate::clock::Clock::now(),
+            crate::search::wall_frac_env("FF_NOVLIGHT_WALL_FRAC", 0.10) * rem,
+        )
+    });
     let node_cap = crate::search::node_cap_for(task);
     let init = task.initial();
     let goal_pos = &task.goal_pos;
@@ -401,6 +418,19 @@ pub fn search_light(
                 );
             }
             return None;
+        }
+        if evaluated & 0xFFF == 0 {
+            if let Some((t0, s)) = &slice {
+                if t0.elapsed_secs() > *s {
+                    if std::env::var("FF_WALL_DEBUG").is_ok() {
+                        eprintln!(
+                            "wall: novelty-light slice exhausted ({evaluated} pops in {:.2}s)",
+                            t0.elapsed_secs()
+                        );
+                    }
+                    return None;
+                }
+            }
         }
         for oi in 0..task.n_ops {
             if forbidden.get(oi).copied().unwrap_or(false) {

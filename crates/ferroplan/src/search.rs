@@ -419,6 +419,19 @@ pub(crate) fn wall_remaining_secs() -> Option<f64> {
         .map(|(start, total)| (total - start.elapsed_ms() as f64 / 1000.0).max(0.0))
 }
 
+/// Wall-slice knob (0.21 Phase 5): `var` read as a fraction of the
+/// REMAINING wall, `default` if unset/unparsable. Positive finite only —
+/// the slices these feed are deadlines, and a zero or negative slice
+/// would turn a rung off rather than budget it (the `FF_NO_*` hatches
+/// are the off switches).
+pub(crate) fn wall_frac_env(var: &str, default: f64) -> f64 {
+    std::env::var(var)
+        .ok()
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f > 0.0)
+        .unwrap_or(default)
+}
+
 pub struct SatGuidance {
     pub prefs: Vec<(PrefPhi, i64)>,
     /// Renewable resources whose live occupancy is penalized on the concrete
@@ -991,8 +1004,17 @@ pub fn plan_avoiding(
             };
         }
     }
+    // The probe eyes again (0.21 Phase 5): the wall-slice receipts need
+    // to name WHICH rung solved, so each rung's win is narrated on
+    // stderr under the same flag. Never affects the search.
+    let narrate_rung = |rung: &str| {
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!("wall: solved by {rung}");
+        }
+    };
     if ehc_first {
         if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval) {
+            narrate_rung("EHC");
             return PlanOutcome {
                 ops: Some(ops),
                 evaluated,
@@ -1021,6 +1043,7 @@ pub fn plan_avoiding(
             if let Some((ops, evaluated)) =
                 crate::novelty::search_light(task, NOVLIGHT_CAP.min(cfg.max_eval), forbidden)
             {
+                narrate_rung("novelty-light");
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
@@ -1039,6 +1062,7 @@ pub fn plan_avoiding(
             if let Some((ops, evaluated)) =
                 crate::lama::search(task, threads, LAMA_CAP.min(cfg.max_eval), forbidden)
             {
+                narrate_rung("LAMA");
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
@@ -1065,6 +1089,7 @@ pub fn plan_avoiding(
             if let Some((ops, evaluated)) =
                 crate::novelty::search(task, threads, NOVELTY_CAP.min(cfg.max_eval), forbidden)
             {
+                narrate_rung("novelty");
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
@@ -1133,6 +1158,7 @@ pub fn plan_avoiding(
             None,
         ) {
             PlanResult::Plan { ops, evaluated, .. } => {
+                narrate_rung(&format!("best-first fallback (round {})", round + 1));
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated: total_evaluated + evaluated,
@@ -1176,6 +1202,27 @@ pub fn plan_avoiding(
 /// evaluated, or None if it gets stuck / hits a dead end (caller falls back to
 /// best-first, which is complete). Single-threaded and deterministic.
 fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<usize>, usize)> {
+    // The ladder tax (0.21 Phase 5, lever 2): under an ARMED wall budget
+    // the op-scaled eval budget below is joined by a wall-denominated
+    // deadline — `FF_EHC_WALL_FRAC` (default 0.25) of the REMAINING wall
+    // at rung entry. The backfill receipt this prices: on exactly the
+    // boards whose solved rows say "EHC found no improving state", the
+    // op-scaled budget spends 30–55 s of a 60 s wall ahead of rungs that
+    // dispatch in milliseconds. Evals/sec spans orders of magnitude
+    // across tasks, so the slice is a DEADLINE checked per evaluation in
+    // the lookahead (where the wall is actually spent), not a
+    // pre-converted eval count. No armed budget ⇒ `None` ⇒ byte-identical;
+    // `FF_NO_EHC_WALLCAP=1` restores op-scaled-only.
+    let slice = if std::env::var("FF_NO_EHC_WALLCAP").is_err() {
+        wall_remaining_secs().map(|rem| {
+            (
+                crate::clock::Clock::now(),
+                wall_frac_env("FF_EHC_WALL_FRAC", 0.25) * rem,
+            )
+        })
+    } else {
+        None
+    };
     let init = task.initial();
     let mut sc = Scratch::new(task);
     let (mut cur_h, _) = relaxed_helpful(
@@ -1206,8 +1253,29 @@ fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<us
     let total_cap = (200 * task.n_ops).max(30_000).min(max_eval);
     let mut current = init;
     let mut plan: Vec<usize> = Vec::new();
+    // A tripped slice is narrated HERE (bfs_improve just returns None),
+    // and only on the hand-down paths — a plan found before the check is
+    // a plan, never discarded.
+    let tripped = |evaluated: usize| {
+        let hit = slice.as_ref().is_some_and(|(t0, s)| t0.elapsed_secs() > *s);
+        if hit && std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: EHC slice exhausted ({evaluated} evals in {:.2}s), handing down the ladder",
+                slice.as_ref().map_or(0.0, |(t0, _)| t0.elapsed_secs())
+            );
+        }
+        hit
+    };
     loop {
-        match bfs_improve(task, &mut sc, &current, cur_h, &mut evaluated, forbidden) {
+        match bfs_improve(
+            task,
+            &mut sc,
+            &current,
+            cur_h,
+            &mut evaluated,
+            forbidden,
+            slice.as_ref(),
+        ) {
             Some((ops, next, next_h)) => {
                 plan.extend(ops);
                 current = next;
@@ -1218,14 +1286,25 @@ fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<us
                 if evaluated > total_cap {
                     return None; // taking too long — hand off to best-first
                 }
+                if tripped(evaluated) {
+                    return None; // wall slice spent — hand off likewise
+                }
             }
-            None => return None, // stuck — let best-first take over
+            None => {
+                let _ = tripped(evaluated); // narration only
+                return None; // stuck — let best-first take over
+            }
         }
     }
 }
 
 /// Breadth-first search from `start`, expanding each node with ITS helpful
 /// actions, until a state with `h < h_start` is found. Returns (path, state, h).
+/// `slice` is the EHC rung's armed wall deadline (start clock, seconds) —
+/// checked per evaluation because ONE lookahead on a big task can burn tens
+/// of seconds inside this function (the openstacks shape), so the outer
+/// loop's cadence alone would never see it. `None` ⇒ unchecked.
+#[allow(clippy::too_many_arguments)]
 fn bfs_improve(
     task: &PackedTask,
     sc: &mut Scratch,
@@ -1233,6 +1312,7 @@ fn bfs_improve(
     h_start: i32,
     evaluated: &mut usize,
     forbidden: &[bool],
+    slice: Option<&(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, State, i32)> {
     // Fail FAST: if a helpful-restricted lookahead can't improve h within this
     // many expansions it is almost certainly on a plateau EHC won't escape, so
@@ -1279,6 +1359,11 @@ fn bfs_improve(
                 continue;
             }
             *evaluated += 1;
+            if let Some((t0, s)) = slice {
+                if t0.elapsed_secs() > *s {
+                    return None; // wall slice exhausted — ehc narrates
+                }
+            }
             let (h_ns, helpful_ns) = match relaxed_helpful(
                 task,
                 sc,
