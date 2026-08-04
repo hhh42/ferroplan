@@ -3,8 +3,7 @@
   "subject": {
     "repository": "seanchatmangpt/ferroplan",
     "branch": "agent/daily-agent-ppddl-2026-08-02",
-    "implementation_head": "d2a47d4603690aa807f12efc933c13acb3aa485c",
-    "receipt_parent_head": "943bf201e5d1e76076f094b4f4bd8ee084db7211",
+    "implementation_head": "a328c18ebf11c0ef5c29eb3e9c4900dc6d583d13",
     "base_sha": "6316c4aa663e46335e5548d140d2402684607d7c",
     "draft_pr": 35
   },
