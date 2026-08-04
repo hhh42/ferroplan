@@ -302,8 +302,21 @@ def write_summary(data):
     hist = _history()
     box = os.environ.get("FERROPLAN_BOX", "m5-air")
     cur = _current_version()
-    prev = next((s for s in reversed(hist)
-                 if s.get("measured_on") == box and s.get("version") != cur), None)
+
+    def vkey(v):
+        try:
+            return tuple(int(x) for x in str(v).split("."))
+        except ValueError:
+            return (0,)
+
+    # The PREVIOUS RELEASE, by version — not the most recently MEASURED
+    # snapshot. A backfilled old tag is measured late (0.19 was re-swept after
+    # 0.20 shipped), so picking by measured_at silently compares a release to
+    # its grandparent and skips one. On 2018-sat that is the difference between
+    # +7 and +17.
+    cands = [s for s in hist
+             if s.get("measured_on") == box and vkey(s.get("version")) < vkey(cur)]
+    prev = max(cands, key=lambda s: vkey(s.get("version"))) if cands else None
 
     live, cloud, pending = [], [], []
     for label, d in data.items():

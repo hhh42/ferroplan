@@ -4,10 +4,55 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-Accumulating toward 0.21.0 — the numeric cycle. Every board claim
-below lands with the cut sweep; the entries record what the engine
-now does and the solo receipts it did it with. Full record:
+## [0.21.0] - 2026-08-04 — The numeric cycle, and the ladders that pay their own way
+
+The cycle that took the sailing wall down, closed a temporal debt
+carried since 0.18, and repaired the −26 coverage regression the v0.19
+backfill exposed in 0.20 — while keeping every win 0.20 had bought.
+Full record:
 [`docs/roadmap-0.21.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.21.md).
+
+### Where this leaves the standings
+
+**53% coverage across 13 IPC boards** (2,153/4,076), of which **354 are
+certified optima** — on the optimal tracks coverage IS proof rate.
+At-a-glance: [`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md);
+per-track detail: [`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md).
+
+Against 0.19.0 — re-measured on the SAME machine, so the comparison is
+engine-to-engine — the twelve comparable boards move **1,943 → 2,132,
++189**:
+
+| board | 0.19 | 0.20 | **0.21** |
+|---|---|---|---|
+| 2026 numeric | 124 | 121 | **165** |
+| seq-opt (08/11) ⚖️ | 235 | 250 | **275** |
+| 2023 numeric | 193 | 194 | **229** |
+| 2014 seq-agile | 114 | 103 | **142** |
+| 2014 seq-sat | 115 | 110 | **138** |
+| seq-sat (08/11) | 472 | 473 | **486** |
+| 2018 seq-sat | 63 | 53 | **70** |
+| 2014 tempo-sat | 65 | 66 | **70** |
+| 2023 classical | 30 | 27 | **32** |
+| 2023 agile ENTRY (300 s) | 49 | 48 | **51** |
+| tempo-sat (08/11) | 419 | 419 | 416 |
+| 2014 seq-opt ⚖️ | 64 | 56 | 58 |
+
+Two boards remain behind 0.19 and are not netted away: **tempo-sat −3**
+(within the ±4 band re-measurement showed on this box) and **2014
+seq-opt −6**, which is entirely `city-car` — the one domain where the
+optimal root gate does not recover what 0.20's unconditional
+quarter-budget sprint cost. Both are 0.22 work.
+
+**Every board in this release was measured under recorded conditions.**
+This box is a laptop, and contention only ever depresses coverage — so
+it invents regressions and hides gains. Each board now carries a
+`conditions.json` (median idle, load, swap, and the competing processes
+by name); a board measured below 65% median idle is refused rather than
+banked, and the driver re-measures it at the next quiet window. All 13
+boards here are verdict `clean`, 67.8–74.2% median idle. Two apparent
+regressions in the first pass (tempo-sat −19, the 300 s entry −3)
+turned out to be contention and vanished on clean measurement.
 
 - **The numeric-precondition charge** (Phase 3): extraction now
   charges a selected op's unsatisfied numeric preconditions through
@@ -285,66 +330,6 @@ history before learning what the planner is. The changelog had reached
   predecessor exists the table says "baseline" instead of inventing a
   delta.
 
-## [0.19.0] - 2026-07-31 — The contest cycle
-
-Improve the standings on every entered track and enter the one the
-project always fenced off — by direct request (cycle record in
-`docs/roadmap-0.19.md`).
-
-### The reject audit (~120 instances back from the front door)
-
-- **Negative number literals** (`(= (d p0) -370)`) now lex; the
-  sailing/fo-sailing/fo-counters reject cluster parses and searches.
-- **Implicit `(total-cost) = 0`** — the PDDL 3.1 `:action-costs`
-  convention: agricola, flashfill, and settlers (60 IPC-2018
-  instances that silently returned zero facts) ground and solve.
-- **Named verdicts**: an unsolvable-at-grounding result now says WHY
-  in `Solution.notes` ("goal fact (X) is unreachable: no surviving
-  grounded action adds it").
-- Reject columns: 2018-sat **60 → 0**, 2023-numeric **60 → 1**.
-
-### The optimal tracks, entered (`Mode::Optimal`)
-
-- A* + admissible cost-labeled h^max over the same packed task,
-  **proof-or-nothing**: a plan is returned only with an optimality
-  certificate; caps are inconclusive, exhaustion certifies
-  UNSOLVABLE past the delete relaxation. Constant and static-fluent
-  action costs; the rest reject by name. `--mode optimal`.
-- First entries: **2008 seq-opt 114/270, 2011 seq-opt 90/280, 2014
-  seq-opt 48/256 — 252 certified optima**, every plan VAL-green,
-  costs cross-checked against the independent cost-sweep oracle and
-  literature. The h^max walls (floor-tile, parking, barman) are
-  named; classical LM-cut is the recorded next bet.
-
-### The numeric-heuristic swing (+52/−1)
-
-- Linear numeric goals (`(>= (+ (* 2 (x)) (y)) (d))` — the 2023
-  numeric track's staple) now get a repetition-counting gradient:
-  `linearize` + ⌈gap / combo-delta⌉ charges, running only where the
-  old bare-fluent path punted. **2023-numeric 129 → 181 solved
-  (valid 113 → 165)**: farmland +17, fo-farmland +17, counters +8.
-  One named casualty (tpp-metric-time i4, `FF_NO_NUMH` hatch).
-
-### Ladder, memory, and emission
-
-- **Novelty by default under a budget**: with `FF_TIME_LIMIT`
-  declared, the width-1 novelty rung runs by default (0.18's gated
-  +4/−0 referee; `FF_NO_NOVELTY` opts out; budget-less behavior
-  byte-identical). At the cut this compounded to **+16/−0 on
-  2018-sat** (30 → 50 valid over the cycle) and **+11 on the
-  580-instance seq-sat flagship** (441 → 452, its first movement in
-  three cycles).
-- **The node cap can now see the memory limit**: the retained-bytes
-  target clamps to 60% of the actual `RLIMIT_AS` — tiny-state
-  numeric searches stop dying to the OOM killer before the internal
-  cap fires (the numeric board's 105-row mem-cap class, attributed
-  to search-state growth, NOT grounding).
-- **Emitted-duration reconciliation**: final plans replay and clamp
-  state-dependent durations to their domain expressions at emitted
-  start times (never half-correcting). The map-analyzer witnesses
-  refused the fix and decoded the debt one level deeper (ε-shifted
-  starts also precede propositional providers) — named 0.20 work.
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (20 earlier releases, 0.1.0–0.18.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (21 earlier releases, 0.1.0–0.19.0).

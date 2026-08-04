@@ -114,6 +114,67 @@
      "total": 256
     }
    }
+  },
+  {
+   "version": "0.21.0",
+   "released": "2026-08-04",
+   "measured_on": "m5-air",
+   "measured_at": "2026-08-04",
+   "note": "0.21 cut sweep; 13 boards all verdict=clean (median idle 67.8-74.2%); conditions recorded per board",
+   "tracks": {
+    "seq-sat": {
+     "solved": 486,
+     "total": 580
+    },
+    "tempo-sat": {
+     "solved": 416,
+     "total": 630
+    },
+    "2014 seq-sat": {
+     "solved": 138,
+     "total": 280
+    },
+    "2014 seq-agile": {
+     "solved": 142,
+     "total": 280
+    },
+    "2014 tempo-sat": {
+     "solved": 70,
+     "total": 200
+    },
+    "2018 seq-sat": {
+     "solved": 70,
+     "total": 240
+    },
+    "2023 classical": {
+     "solved": 32,
+     "total": 140
+    },
+    "2023 numeric": {
+     "solved": 229,
+     "total": 400
+    },
+    "2026 numeric (first board)": {
+     "solved": 165,
+     "total": 320
+    },
+    "2023 agile ENTRY (300s)": {
+     "solved": 51,
+     "total": 140
+    },
+    "seq-opt": {
+     "solved": 275,
+     "total": 550
+    },
+    "2014 seq-opt": {
+     "solved": 58,
+     "total": 256
+    },
+    "2026 numeric-opt": {
+     "solved": 21,
+     "total": 60
+    }
+   }
   }
  ]
 }

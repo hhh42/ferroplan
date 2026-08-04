@@ -69,3 +69,20 @@ next: python3 scripts/standings-snapshot.py --version 0.19.0 \
         --measured-at $(date +%F) --released <original release date> \
         --note 'backfilled on m5-air from tag v0.19.0'
 === chain done 2026-08-02 13:37:24 ===
+=== chain start 2026-08-02 21:03:02 ===
+==> waiting for the box to go quiet (3 consecutive quiet samples)
+    idle 86%  (1/3)
+    idle 89%  (2/3)
+    idle 89%  (3/3)
+==> box is quiet 21:05:10
+SKIP differential lmcut (done)
+SKIP differential novlight (done)
+SKIP differential refill (done)
+==> backfill v0.18.0 2026-08-02 21:05:10
+==> engine: /Users/harold/ferroplan-backfill-0.18.0/target/release/ff
+ff 0.18.0
+==> v0.18.0 predates Mode::Optimal — skipping the two proof-rate boards
+    (feature absent, NOT zero coverage)
+RUN  ipc2023-agile (agile-2023 60s ) 21:05:11
+DONE ipc2023-agile: total coverage: **28/140** 22:05:27
+RUN  ipc2014-tempo (tempo-sat-2014 30s ) 22:05:27

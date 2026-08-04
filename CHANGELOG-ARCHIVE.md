@@ -7,6 +7,70 @@ everything before that lands here, newest first, verbatim and unedited.
 `publish.sh` reads release notes from BOTH files, so archiving a version
 never breaks `--release-only <old-version>`.
 
+## [0.19.0] - 2026-07-31 — The contest cycle
+
+Improve the standings on every entered track and enter the one the
+project always fenced off — by direct request (cycle record in
+`docs/roadmap-0.19.md`).
+
+### The reject audit (~120 instances back from the front door)
+
+- **Negative number literals** (`(= (d p0) -370)`) now lex; the
+  sailing/fo-sailing/fo-counters reject cluster parses and searches.
+- **Implicit `(total-cost) = 0`** — the PDDL 3.1 `:action-costs`
+  convention: agricola, flashfill, and settlers (60 IPC-2018
+  instances that silently returned zero facts) ground and solve.
+- **Named verdicts**: an unsolvable-at-grounding result now says WHY
+  in `Solution.notes` ("goal fact (X) is unreachable: no surviving
+  grounded action adds it").
+- Reject columns: 2018-sat **60 → 0**, 2023-numeric **60 → 1**.
+
+### The optimal tracks, entered (`Mode::Optimal`)
+
+- A* + admissible cost-labeled h^max over the same packed task,
+  **proof-or-nothing**: a plan is returned only with an optimality
+  certificate; caps are inconclusive, exhaustion certifies
+  UNSOLVABLE past the delete relaxation. Constant and static-fluent
+  action costs; the rest reject by name. `--mode optimal`.
+- First entries: **2008 seq-opt 114/270, 2011 seq-opt 90/280, 2014
+  seq-opt 48/256 — 252 certified optima**, every plan VAL-green,
+  costs cross-checked against the independent cost-sweep oracle and
+  literature. The h^max walls (floor-tile, parking, barman) are
+  named; classical LM-cut is the recorded next bet.
+
+### The numeric-heuristic swing (+52/−1)
+
+- Linear numeric goals (`(>= (+ (* 2 (x)) (y)) (d))` — the 2023
+  numeric track's staple) now get a repetition-counting gradient:
+  `linearize` + ⌈gap / combo-delta⌉ charges, running only where the
+  old bare-fluent path punted. **2023-numeric 129 → 181 solved
+  (valid 113 → 165)**: farmland +17, fo-farmland +17, counters +8.
+  One named casualty (tpp-metric-time i4, `FF_NO_NUMH` hatch).
+
+### Ladder, memory, and emission
+
+- **Novelty by default under a budget**: with `FF_TIME_LIMIT`
+  declared, the width-1 novelty rung runs by default (0.18's gated
+  +4/−0 referee; `FF_NO_NOVELTY` opts out; budget-less behavior
+  byte-identical). At the cut this compounded to **+16/−0 on
+  2018-sat** (30 → 50 valid over the cycle) and **+11 on the
+  580-instance seq-sat flagship** (441 → 452, its first movement in
+  three cycles).
+- **The node cap can now see the memory limit**: the retained-bytes
+  target clamps to 60% of the actual `RLIMIT_AS` — tiny-state
+  numeric searches stop dying to the OOM killer before the internal
+  cap fires (the numeric board's 105-row mem-cap class, attributed
+  to search-state growth, NOT grounding).
+- **Emitted-duration reconciliation**: final plans replay and clamp
+  state-dependent durations to their domain expressions at emitted
+  start times (never half-correcting). The map-analyzer witnesses
+  refused the fix and decoded the debt one level deeper (ε-shifted
+  starts also precede propositional providers) — named 0.20 work.
+
+---
+
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (20 earlier releases, 0.1.0–0.18.0).
+
 ## [0.18.0] - 2026-07-29 — The living-village cycle
 
 Correctness debt paid first, then the village made live and visible,
