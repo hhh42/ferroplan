@@ -154,7 +154,7 @@ fn main() -> Result<()> {
         )?)
     };
 
-    let validation_alive = validation.as_ref().is_none_or(|report| report.valid);
+    let validation_alive = validation.as_ref().map_or(true, |report| report.valid);
     let standing = if solution.solved && validation_alive {
         "ALIVE"
     } else {
