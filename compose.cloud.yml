@@ -10,10 +10,8 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    user: "65534:65534"
     volumes:
       - ./examples/daily_agent_methods:/work/methods:ro
-      - ./cloud-receipts:/receipts:rw
     command:
       - --domain
       - /work/methods/future/domain.ppddl
