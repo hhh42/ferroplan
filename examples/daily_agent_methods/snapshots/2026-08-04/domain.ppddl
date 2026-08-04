@@ -1,0 +1,75 @@
+; Evidence-bounded reusable methods admitted from observed work on 2026-08-04.
+(define (domain admitted-agent-methods-2026-08-04)
+  (:requirements :strips :typing :negative-preconditions :fluents :probabilistic-effects)
+  (:types work method artifact dependency checkpoint receipt failure)
+  (:predicates
+    (observed ?w - work) (exact-subject ?w - work) (completed-boundary ?w - work)
+    (excluded ?w - work) (harvested ?w - work)
+    (derived-from ?m - method ?w - work) (deduplicated ?m - method)
+    (authority-bounded ?m - method) (reversible ?m - method)
+    (gall-checkpoint ?c - checkpoint ?m - method) (checkpoint-passed ?c - checkpoint)
+    (dependency-for ?d - dependency ?m - method) (portable ?d - dependency)
+    (artifact-for ?a - artifact ?m - method) (constructed ?a - artifact)
+    (syntax-valid ?a - artifact) (semantics-valid ?a - artifact)
+    (replay-stable ?a - artifact) (negative-control-passed ?a - artifact)
+    (failure-for ?f - failure ?m - method) (failure-preserved ?f - failure)
+    (receipt-for ?r - receipt ?a - artifact) (receipt-issued ?r - receipt)
+    (receipt-replayed ?r - receipt) (method-admitted ?m - method))
+  (:functions (total-cost))
+
+  (:action harvest-observed-work
+    :parameters (?w - work)
+    :precondition (and (observed ?w) (exact-subject ?w) (completed-boundary ?w)
+                       (not (excluded ?w)) (not (harvested ?w)))
+    :effect (and (harvested ?w) (increase (total-cost) 1)))
+
+  (:action derive-and-deduplicate-method
+    :parameters (?m - method ?w - work)
+    :precondition (and (harvested ?w) (derived-from ?m ?w)
+                       (authority-bounded ?m) (reversible ?m) (not (deduplicated ?m)))
+    :effect (and (deduplicated ?m) (increase (total-cost) 1)))
+
+  (:action repair-dependency-boundary
+    :parameters (?d - dependency ?m - method)
+    :precondition (and (deduplicated ?m) (dependency-for ?d ?m) (not (portable ?d)))
+    :effect (probabilistic
+      0.75 (and (portable ?d) (increase (total-cost) 1))
+      0.25 (and (increase (total-cost) 2))))
+
+  (:action pass-gall-checkpoint
+    :parameters (?c - checkpoint ?m - method)
+    :precondition (and (deduplicated ?m) (gall-checkpoint ?c ?m)
+                       (not (checkpoint-passed ?c)))
+    :effect (and (checkpoint-passed ?c) (increase (total-cost) 1)))
+
+  (:action construct-bounded-projection
+    :parameters (?a - artifact ?m - method ?c - checkpoint)
+    :precondition (and (deduplicated ?m) (artifact-for ?a ?m)
+                       (gall-checkpoint ?c ?m) (checkpoint-passed ?c)
+                       (not (constructed ?a)))
+    :effect (and (constructed ?a) (increase (total-cost) 2)))
+
+  (:action validate-and-replay
+    :parameters (?a - artifact)
+    :precondition (and (constructed ?a) (not (syntax-valid ?a))
+                       (not (semantics-valid ?a)) (not (replay-stable ?a)))
+    :effect (and (syntax-valid ?a) (semantics-valid ?a)
+                 (replay-stable ?a) (negative-control-passed ?a)
+                 (increase (total-cost) 2)))
+
+  (:action preserve-failure-state
+    :parameters (?f - failure ?m - method)
+    :precondition (and (deduplicated ?m) (failure-for ?f ?m)
+                       (not (failure-preserved ?f)))
+    :effect (and (failure-preserved ?f) (increase (total-cost) 1)))
+
+  (:action issue-replay-and-admit
+    :parameters (?m - method ?a - artifact ?r - receipt ?f - failure)
+    :precondition (and (deduplicated ?m) (artifact-for ?a ?m)
+                       (syntax-valid ?a) (semantics-valid ?a)
+                       (replay-stable ?a) (negative-control-passed ?a)
+                       (failure-for ?f ?m) (failure-preserved ?f)
+                       (receipt-for ?r ?a) (not (method-admitted ?m)))
+    :effect (and (receipt-issued ?r) (receipt-replayed ?r)
+                 (method-admitted ?m) (increase (total-cost) 1)))
+)
