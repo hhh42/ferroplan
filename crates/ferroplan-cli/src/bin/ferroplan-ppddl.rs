@@ -120,7 +120,11 @@ fn main() -> Result<()> {
 
     let options = ProbabilisticOptions {
         objective: cli.objective.into(),
-        horizon: if cli.infinite { None } else { Some(cli.horizon) },
+        horizon: if cli.infinite {
+            None
+        } else {
+            Some(cli.horizon)
+        },
         discount: cli.discount,
         epsilon: cli.epsilon,
         max_iterations: cli.max_iterations,
