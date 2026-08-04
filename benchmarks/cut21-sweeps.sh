@@ -64,37 +64,31 @@ run_board() { # name track timeout extra-args...
   fi
   wait_quiet
   echo "RUN  $name ($track ${tmo}s $*) $(date '+%H:%M:%S')"
-  # Watch the box for the duration and record the WORST idle seen.
-  local worst=100 tmp="benchmarks/air21/$name.load"
-  ( while : ; do i=$(idle_pct); [ -n "$i" ] && echo "$i"; sleep 30; done ) >"$tmp" 2>/dev/null &
+  # Record what ELSE the machine is doing for the whole board, attributed by
+  # process. This box is a laptop: a browser, Spotlight, a Docker VM running
+  # CI, Time Machine. Contention only ever DEPRESSES coverage, so it invents
+  # regressions and hides gains — a board must carry its own conditions.
+  local cond="benchmarks/air21/$name.conditions.json"
+  python3 benchmarks/contention.py --out "$cond" --interval 20 &
   local watcher=$!
   python3 benchmarks/ipc67.py --track "$track" --timeout "$tmo" \
     --jobs "$JOBS" --mem-gb "$MEMGB" "$@" \
     --out "benchmarks/air21/$name.md" >"benchmarks/air21/$name.log" 2>&1
-  kill "$watcher" 2>/dev/null
-  # Bar raised 45 -> 65 after the first pass: clean boards on this box run at
-  # 75-76% median, and 45% banked boards at 57%. Both apparent REGRESSIONS in
-  # that pass (67-temporal -19, the 300s entry -3) landed on boards measured
-  # below 70%, while every clean board gained — contamination manufactures
-  # losses, which is the expensive direction to get wrong. Solo probes settled
-  # it: four of the eight "lost" sokoban instances solve in 12-14s of a 30s
-  # wall, so the sweep saw a 2.5x slowdown, not an engine change.
-  #
-  # MEDIAN, not minimum. A browser repainting spikes one 30s sample and would
-  # discard an hour of good work; what actually corrupts a board is SUSTAINED
-  # load (last night: four parallel rustc, idle near zero for the whole run).
-  # The bar is also deliberately not "pristine": the 0.19 and 0.20 reference
-  # boards were measured with the CI runner and desktop noise present, so
-  # demanding a silent box here would hand 0.21 an environmental advantage its
-  # comparison boards never had. Comparable, not clean.
-  worst=$(sort -n "$tmp" 2>/dev/null | head -1); [ -z "$worst" ] && worst=100
-  med=$(sort -n "$tmp" 2>/dev/null | awk '{a[NR]=$1} END{if(NR)print a[int(NR/2)+1]; else print 100}')
-  echo "DONE $name: $(tail -1 "benchmarks/air21/$name.md") $(date '+%H:%M:%S') [idle med ${med}% min ${worst}%]"
-  if [ "$med" -lt "${SUSTAINED:-65}" ]; then
-    echo "!! $name ran under SUSTAINED LOAD (median idle ${med}%) — NOT marking done;"
-    echo "   re-run this driver when the box is free to redo it."
-  else
+  kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
+  local verdict med who
+  verdict=$(python3 -c "import json;d=json.load(open('$cond'));print(d['verdict'])" 2>/dev/null || echo unknown)
+  med=$(python3 -c "import json;d=json.load(open('$cond'));print(d['idle_pct']['median'])" 2>/dev/null || echo '?')
+  who=$(python3 -c "
+import json
+d=json.load(open('$cond'))
+c=d.get('competitors_mean_pcpu') or {}
+print(', '.join(f'{k} {v:.0f}%' for k,v in list(c.items())[:2]) or 'none')" 2>/dev/null || echo '?')
+  echo "DONE $name: $(tail -1 "benchmarks/air21/$name.md") $(date '+%H:%M:%S') [idle ${med}% $verdict]"
+  if [ "$verdict" = "clean" ]; then
     touch "benchmarks/air21/$name.done"
+  else
+    echo "!! $name measured under contention (median idle ${med}%; competing: ${who})"
+    echo "   NOT marking done — re-run this driver when the box is free."
   fi
 }
 
