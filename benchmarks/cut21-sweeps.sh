@@ -94,18 +94,55 @@ print(', '.join(f'{k} {v:.0f}%' for k,v in list(c.items())[:2]) or 'none')" 2>/d
 
 # Cheapest first (a driver that dies early banks something); the NEW board
 # leads so the cycle's entry exists even on a truncated day; 300s entry last.
-run_board ipc2026-opt        opt-2026        60 --mode optimal
-run_board ipc2023-agile      agile-2023      60
-run_board ipc2014-tempo      tempo-sat-2014  30
-run_board ipc2018-sat        sat-2018        60
-run_board ipc2014-sat        seq-sat-2014    60
-run_board ipc2014-agile      seq-agile-2014  60
-run_board ipc2014-opt        seq-opt-2014    60 --mode optimal
-run_board ipc2026-numeric    numeric-2026    60
-run_board ipc2023-numeric    numeric-2023    60
-run_board ipc-opt-2008-11    seq-opt         60 --mode optimal
-run_board ipc67-temporal     tempo-sat       30
-run_board ipc67-results      seq-sat         60
-run_board ipc2023-agile-300s agile-2023      300
-echo "0.21 CUT SWEEP ALL DONE $(date '+%Y-%m-%d %H:%M:%S')"
+# One entry per board: name track timeout [extra args].
+BOARDS=(
+  "ipc2026-opt        opt-2026        60 --mode optimal"
+  "ipc2023-agile      agile-2023      60"
+  "ipc2014-tempo      tempo-sat-2014  30"
+  "ipc2018-sat        sat-2018        60"
+  "ipc2014-sat        seq-sat-2014    60"
+  "ipc2014-agile      seq-agile-2014  60"
+  "ipc2014-opt        seq-opt-2014    60 --mode optimal"
+  "ipc2026-numeric    numeric-2026    60"
+  "ipc2023-numeric    numeric-2023    60"
+  "ipc-opt-2008-11    seq-opt         60 --mode optimal"
+  "ipc67-temporal     tempo-sat       30"
+  "ipc67-results      seq-sat         60"
+  "ipc2023-agile-300s agile-2023      300"
+)
+
+remaining() {  # names of boards not yet banked clean
+  local n out=""
+  for spec in "${BOARDS[@]}"; do
+    n=${spec%% *}
+    [ -f "benchmarks/air21/$n.done" ] || out="$out $n"
+  done
+  echo "$out"
+}
+
+# SELF-HEALING PASSES. A board measured under contention is refused, not
+# banked — so without this the driver would finish "done" with holes in it and
+# wait for a human to notice. Instead it keeps making passes: each pass waits
+# for a quiet window, retries only what is still missing, and stops when the
+# set is complete. On a machine that is busy by day and free overnight this
+# converges on its own.
+MAX_PASSES="${MAX_PASSES:-8}"
+pass=1
+while : ; do
+  todo=$(remaining)
+  [ -z "$todo" ] && break
+  if [ "$pass" -gt "$MAX_PASSES" ]; then
+    echo "!! gave up after $MAX_PASSES passes; still contended:$todo"
+    echo "   (raise MAX_PASSES=, or free the box and re-run this driver)"
+    exit 1
+  fi
+  [ "$pass" -gt 1 ] && echo "== pass $pass — retrying contended boards:$todo"
+  for spec in "${BOARDS[@]}"; do
+    # shellcheck disable=SC2086
+    run_board $spec
+  done
+  pass=$((pass + 1))
+done
+
+echo "0.21 CUT SWEEP ALL DONE $(date '+%Y-%m-%d %H:%M:%S') (passes: $((pass - 1)))"
 echo "next: benchmarks/promote-air21.sh"
