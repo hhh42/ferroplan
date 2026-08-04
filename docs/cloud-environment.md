@@ -69,4 +69,4 @@ docker run --rm \
 - Required cloud/container transport unavailable: `BLOCKED`.
 - Unsupported PPDDL surface or platform capability: `UNSUPPORTED`.
 
-Queued or successful CI does not alter these local standing rules.
+Queued or successful CI does not alter these local standing rules. The former PPDDL-specific Actions workflow was removed so the cloud capsule is the canonical acceptance path.
