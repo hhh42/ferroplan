@@ -1,0 +1,76 @@
+{
+  "schema": "powl-2.0-abstract-syntax/v1",
+  "model_id": "session-self-contained-actuator-2026-08-03",
+  "semantics": {
+    "activity": "visible process activity",
+    "partial_order": "strict happens-before relation over child models",
+    "choice_graph": "directed choice or cycle graph over child models",
+    "tau": "silent control activity"
+  },
+  "root": {
+    "kind": "partial_order",
+    "children": [
+      {"id": "a1", "model": {"kind": "activity", "label": "Inspect exact ferroplan branch and production PPDDL surface"}},
+      {"id": "a2", "model": {"kind": "activity", "label": "Author ferroplan-ppddl production CLI"}},
+      {"id": "a3", "model": {"kind": "activity", "label": "Register production binary in Cargo manifest"}},
+      {"id": "a4", "model": {"kind": "activity", "label": "Author pinned Dev Container development capsule"}},
+      {"id": "a5", "model": {"kind": "activity", "label": "Author hardened Docker runtime capsule"}},
+      {"id": "a6", "model": {"kind": "activity", "label": "Remove PPDDL-specific CI workflow"}},
+      {"id": "a7", "model": {"kind": "activity", "label": "Probe actual local actuator capabilities"}},
+      {"id": "a8", "model": {"kind": "activity", "label": "Record Docker Cargo rustc and checkout as BLOCKED"}},
+      {"id": "a9", "model": {"kind": "activity", "label": "Declare persistent self-contained actuator host requirement"}},
+      {"id": "a10", "model": {"kind": "activity", "label": "Project observed session into PPDDL"}},
+      {"id": "a11", "model": {"kind": "activity", "label": "Project observed session into POWL 2.0"}},
+      {"id": "a12", "model": {"kind": "activity", "label": "Issue and replay session receipt"}},
+      {
+        "id": "u1",
+        "model": {
+          "kind": "choice_graph",
+          "status": "UNRESOLVED",
+          "nodes": [
+            {"id": "s", "model": {"kind": "tau"}},
+            {"id": "h1", "model": {"kind": "activity", "label": "Attach persistent Linux actuator host"}},
+            {"id": "h2", "model": {"kind": "activity", "label": "Attach existing Docker-capable workstation"}},
+            {"id": "h3", "model": {"kind": "activity", "label": "Attach authorized cloud development host"}},
+            {"id": "x", "model": {"kind": "activity", "label": "Execute exact-head local build test policy and replay ladder"}}
+          ],
+          "edges": [
+            ["s", "h1"], ["s", "h2"], ["s", "h3"],
+            ["h1", "x"], ["h2", "x"], ["h3", "x"]
+          ],
+          "admission_rule": "Exactly one host path may be selected after authority and cost are admitted; no path was selected in this session."
+        }
+      }
+    ],
+    "order": [
+      ["a1", "a2"], ["a2", "a3"],
+      ["a1", "a4"], ["a1", "a5"],
+      ["a4", "a6"], ["a5", "a6"],
+      ["a6", "a7"], ["a7", "a8"], ["a8", "a9"],
+      ["a3", "a10"], ["a9", "a10"],
+      ["a4", "a11"], ["a5", "a11"], ["a9", "a11"],
+      ["a10", "a12"], ["a11", "a12"],
+      ["a12", "u1"]
+    ]
+  },
+  "invariants": [
+    "GitHub is source and publication, not execution truth.",
+    "CI is not an admitted execution actuator.",
+    "No Docker, Cargo, rustc, checkout, VM, or cloud-host execution is inferred from authored configuration.",
+    "Only the brokered self-contained host may perform DO.",
+    "Every successful actuation must issue a subject-bound receipt and admit deterministic replay.",
+    "The unresolved host choice graph has no standing until authority, cost, and exact execution are observed."
+  ],
+  "observed_standing": {
+    "github_connector": "PARTIAL_ALIVE",
+    "local_shell": "ALIVE",
+    "production_cli_source": "PARTIAL_ALIVE",
+    "development_capsule_source": "PARTIAL_ALIVE",
+    "runtime_capsule_source": "PARTIAL_ALIVE",
+    "docker": "BLOCKED",
+    "cargo": "BLOCKED",
+    "rustc": "BLOCKED",
+    "exact_checkout": "BLOCKED",
+    "self_contained_actuation": "BLOCKED"
+  }
+}
