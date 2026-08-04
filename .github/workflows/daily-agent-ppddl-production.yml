@@ -1,0 +1,91 @@
+name: Daily Agent PPDDL Production
+
+on:
+  pull_request:
+    paths:
+      - "crates/ferroplan-cli/Cargo.toml"
+      - "crates/ferroplan-cli/src/bin/ferroplan-ppddl.rs"
+      - "crates/ferroplan/src/**"
+      - "examples/daily_agent_methods/**"
+      - ".github/workflows/daily-agent-ppddl-production.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-agent-ppddl-production-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  exact-head-policy-replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 1
+
+      - name: Assert exact head
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Resolve repository Rust toolchain
+        run: |
+          rustup show
+          rustc --version --verbose
+          cargo --version --verbose
+
+      - name: Refuse formatter drift
+        run: cargo fmt --all -- --check
+
+      - name: Compile production PPDDL binary
+        run: cargo check -p ferroplan-cli --bin ferroplan-ppddl --locked
+
+      - name: Execute PPDDL core tests
+        run: cargo test -p ferroplan --locked ppddl -- --test-threads=1
+
+      - name: Synthesize, validate, simulate, and replay future policy
+        run: |
+          cargo run -p ferroplan-cli --bin ferroplan-ppddl --locked -- \
+            --domain examples/daily_agent_methods/future/domain.ppddl \
+            --problem examples/daily_agent_methods/future/problem.ppddl \
+            --horizon 64 \
+            --episodes 256 \
+            --seed 42 > /tmp/ppddl-run-a.json
+
+          cargo run -p ferroplan-cli --bin ferroplan-ppddl --locked -- \
+            --domain examples/daily_agent_methods/future/domain.ppddl \
+            --problem examples/daily_agent_methods/future/problem.ppddl \
+            --horizon 64 \
+            --episodes 256 \
+            --seed 42 > /tmp/ppddl-run-b.json
+
+          cmp /tmp/ppddl-run-a.json /tmp/ppddl-run-b.json
+
+      - name: Independently inspect the receipt
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+
+          receipt = json.loads(Path("/tmp/ppddl-run-a.json").read_text(encoding="utf-8"))
+          assert receipt["schema"] == "ferroplan-ppddl-production-receipt/v1"
+          assert receipt["standing"] == "ALIVE", receipt
+          assert receipt["execution"]["solver"] == "ferroplan::solve_ppddl"
+          assert receipt["execution"]["validation"] == "EXECUTED"
+          assert receipt["execution"]["simulation_episodes"] == 256
+          assert receipt["execution"]["simulation_seed"] == 42
+          assert receipt["solution"]["solved"] is True
+          assert receipt["validation"]["valid"] is True
+          print(json.dumps({
+              "standing": receipt["standing"],
+              "domain_blake3": receipt["subject"]["domain_blake3"],
+              "problem_blake3": receipt["subject"]["problem_blake3"],
+              "policy_entries": len(receipt["solution"].get("policy", [])),
+              "replay": "REPLAY_MATCH",
+          }, sort_keys=True))
+          PY
