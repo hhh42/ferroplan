@@ -72,6 +72,14 @@ run_board() { # name track timeout extra-args...
     --jobs "$JOBS" --mem-gb "$MEMGB" "$@" \
     --out "benchmarks/air21/$name.md" >"benchmarks/air21/$name.log" 2>&1
   kill "$watcher" 2>/dev/null
+  # Bar raised 45 -> 65 after the first pass: clean boards on this box run at
+  # 75-76% median, and 45% banked boards at 57%. Both apparent REGRESSIONS in
+  # that pass (67-temporal -19, the 300s entry -3) landed on boards measured
+  # below 70%, while every clean board gained — contamination manufactures
+  # losses, which is the expensive direction to get wrong. Solo probes settled
+  # it: four of the eight "lost" sokoban instances solve in 12-14s of a 30s
+  # wall, so the sweep saw a 2.5x slowdown, not an engine change.
+  #
   # MEDIAN, not minimum. A browser repainting spikes one 30s sample and would
   # discard an hour of good work; what actually corrupts a board is SUSTAINED
   # load (last night: four parallel rustc, idle near zero for the whole run).
@@ -82,7 +90,7 @@ run_board() { # name track timeout extra-args...
   worst=$(sort -n "$tmp" 2>/dev/null | head -1); [ -z "$worst" ] && worst=100
   med=$(sort -n "$tmp" 2>/dev/null | awk '{a[NR]=$1} END{if(NR)print a[int(NR/2)+1]; else print 100}')
   echo "DONE $name: $(tail -1 "benchmarks/air21/$name.md") $(date '+%H:%M:%S') [idle med ${med}% min ${worst}%]"
-  if [ "$med" -lt "${SUSTAINED:-45}" ]; then
+  if [ "$med" -lt "${SUSTAINED:-65}" ]; then
     echo "!! $name ran under SUSTAINED LOAD (median idle ${med}%) — NOT marking done;"
     echo "   re-run this driver when the box is free to redo it."
   else
