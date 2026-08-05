@@ -1,0 +1,47 @@
+name: One-shot source normalization
+
+on:
+  push:
+    branches: [feat/fortune5-capability-readiness]
+
+permissions:
+  contents: write
+
+jobs:
+  normalize:
+    if: github.event.head_commit.message == 'chore: apply one-shot source normalization'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/fortune5-capability-readiness
+      - name: Apply exact source corrections
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          production = Path('crates/ferroplan/src/production.rs')
+          text = production.read_text()
+          before = 'fn serialize_identity<T: Serialize + std::fmt::Debug>(value: &T) -> Vec<u8> {'
+          after = 'fn serialize_identity<T: Serialize + std::fmt::Debug + ?Sized>(value: &T) -> Vec<u8> {'
+          if before not in text:
+              raise SystemExit('production generic normalization target not found')
+          production.write_text(text.replace(before, after, 1))
+
+          readiness = Path('crates/ferroplan/src/readiness.rs')
+          text = readiness.read_text()
+          text = text.replace(
+              'window[0].id >= window[1].id',
+              'window[0].id.as_str() >= window[1].id.as_str()',
+          )
+          readiness.write_text(text)
+
+          Path('.github/workflows/one-shot-source-normalization.yml').unlink()
+          PY
+      - name: Commit normalized source
+        run: |
+          git config user.name 'ferroplan-admission-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix: normalize bounded production source'
+          git push origin HEAD:feat/fortune5-capability-readiness
