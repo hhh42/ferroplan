@@ -1,8 +1,12 @@
-//! ferroplan-bevy — a Bevy GUI for visualizing, inspecting, and animating PDDL
-//! domains/problems. The graph is the Bevy world (nodes/mobiles as entities,
-//! edges as gizmos); logic lives in `ferroplan::viz` + `ferroplan::trace`.
+//! ferroplan-bevy — an unprivileged Bevy visualizer for candidate PDDL plans.
+//!
+//! The GUI never grants execution authority. Native files and browser handoffs
+//! are bounded before parsing; planning runs off the render thread; accepted
+//! browser handoff plans are independently validated before animation.
 
 use bevy::prelude::*;
+#[cfg(not(target_arch = "wasm32"))]
+use std::io::Read;
 
 mod anim;
 mod blocks;
@@ -16,14 +20,15 @@ mod ui;
 #[cfg(target_arch = "wasm32")]
 mod webhandoff;
 
+#[cfg(not(target_arch = "wasm32"))]
+const MAX_GUI_FILE_BYTES: usize = 4 * 1024 * 1024;
+
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "ferroplan — domain visualizer (bevy)".into(),
+                title: "ferroplan — candidate plan visualizer".into(),
                 resolution: (1280, 820).into(),
-                // In the browser: render into <canvas id="ferroplan-canvas">, size
-                // to its parent, and keep key/scroll events on the canvas.
                 #[cfg(target_arch = "wasm32")]
                 canvas: Some("#ferroplan-canvas".into()),
                 #[cfg(target_arch = "wasm32")]
@@ -92,8 +97,6 @@ fn main() {
         .run();
 }
 
-/// Optionally load a domain + problem passed on the command line
-/// (`ferroplan-bevy domain.pddl problem.pddl`), and pre-select the first mobile.
 fn startup_load(
     mut scene: ResMut<scene::Scene>,
     mut selected: ResMut<interact::Selected>,
@@ -101,20 +104,43 @@ fn startup_load(
 ) {
     #[cfg(not(target_arch = "wasm32"))]
     for path in std::env::args().skip(1) {
-        match std::fs::read_to_string(&path) {
-            Ok(src) => scene.load_src(&src),
-            Err(e) => eprintln!("cannot read {path}: {e}"),
+        match read_file_bounded(&path) {
+            Ok(source) => scene.load_src(&source),
+            Err(error) => eprintln!("ferroplan-bevy: refused {path}: {error}"),
         }
     }
-    // No filesystem or CLI args in the browser. Prefer the Solver page's "Animate
-    // this plan" handoff (a domain+problem+already-solved plan in localStorage —
-    // see webhandoff.rs); fall back to the embedded demo if there isn't one.
     #[cfg(target_arch = "wasm32")]
     if !webhandoff::try_load(&mut scene, &mut plan) {
         scene.load_src(include_str!("../demo/domain.pddl"));
         scene.load_src(include_str!("../demo/problem.pddl"));
+        plan.status = "embedded demo · candidate-only".into();
     }
     if selected.0.is_none() {
-        selected.0 = scene.graph.mobiles.first().map(|m| m.object.clone());
+        selected.0 = scene.graph.mobiles.first().map(|mobile| mobile.object.clone());
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn read_file_bounded(path: &str) -> Result<String, String> {
+    let file = std::fs::File::open(path).map_err(|error| error.to_string())?;
+    let mut bytes = Vec::new();
+    file.take((MAX_GUI_FILE_BYTES + 1) as u64)
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if bytes.len() > MAX_GUI_FILE_BYTES {
+        return Err(format!(
+            "input exceeds the {MAX_GUI_FILE_BYTES}-byte GUI limit"
+        ));
+    }
+    String::from_utf8(bytes).map_err(|error| format!("input is not UTF-8: {error}"))
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gui_file_limit_is_finite() {
+        assert_eq!(MAX_GUI_FILE_BYTES, 4 * 1024 * 1024);
     }
 }
