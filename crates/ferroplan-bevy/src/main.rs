@@ -116,7 +116,11 @@ fn startup_load(
         plan.status = "embedded demo · candidate-only".into();
     }
     if selected.0.is_none() {
-        selected.0 = scene.graph.mobiles.first().map(|mobile| mobile.object.clone());
+        selected.0 = scene
+            .graph
+            .mobiles
+            .first()
+            .map(|mobile| mobile.object.clone());
     }
 }
 
