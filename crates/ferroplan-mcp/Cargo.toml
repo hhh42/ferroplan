@@ -23,7 +23,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "ferroplan-mcp-plus"
-path = "src/mcp_plus.rs"
+path = "src/mcp_plus_prod.rs"
 
 [dependencies]
 # `schema` gives Options/Mode/Search a real JsonSchema, so the tool inputs that
