@@ -4,9 +4,16 @@ on:
   pull_request:
     paths:
       - "Cargo.lock"
+      - "crates/ferroplan/src/bin/ferroplan-readiness.rs"
+      - "crates/ferroplan/src/lib.rs"
+      - "crates/ferroplan/src/production.rs"
+      - "crates/ferroplan/src/production_explain.rs"
+      - "crates/ferroplan/src/readiness.rs"
       - "crates/ferroplan/src/ppddl/solver/part02.rs"
       - "crates/ferroplan/src/ppddl/syntax/part02.rs"
       - "crates/ferroplan/src/ppddl/model/part03.rs"
+      - "crates/ferroplan/tests/fortune5_capabilities.rs"
+      - "crates/ferroplan/tests/fortune5_explain_parallel.rs"
       - "crates/ferroplan-cli/**"
       - "crates/ferroplan-mcp/**"
       - "plugins/chatman-ecosystem/**"
@@ -84,10 +91,18 @@ jobs:
 
           allowed_exact = {
               'Cargo.lock',
+              'crates/ferroplan/src/bin/ferroplan-readiness.rs',
+              'crates/ferroplan/src/lib.rs',
+              'crates/ferroplan/src/production.rs',
+              'crates/ferroplan/src/production_explain.rs',
+              'crates/ferroplan/src/readiness.rs',
               'crates/ferroplan/src/ppddl/solver/part02.rs',
               'crates/ferroplan/src/ppddl/syntax/part02.rs',
               'crates/ferroplan/src/ppddl/model/part03.rs',
+              'crates/ferroplan/tests/fortune5_capabilities.rs',
+              'crates/ferroplan/tests/fortune5_explain_parallel.rs',
               'crates/ferroplan-cli/src/lib.rs',
+              'crates/ferroplan-cli/src/main.rs',
               'crates/ferroplan-cli/src/bin/ferroplan-harvest.rs',
               'crates/ferroplan-cli/src/harvest/compile.rs',
               'crates/ferroplan-cli/src/harvest/extract.rs',
@@ -99,6 +114,7 @@ jobs:
               'crates/ferroplan-mcp/src/main.rs',
               'crates/ferroplan-mcp/src/admission.rs',
               'crates/ferroplan-mcp/src/experience.rs',
+              'crates/ferroplan-mcp/src/mcp_plus_ready.rs',
               'crates/ferroplan-mcp/src/session.rs',
               'crates/ferroplan-mcp/src/session_control.rs',
               'crates/ferroplan-mcp/src/result.rs',
@@ -139,9 +155,12 @@ jobs:
           cargo test -p ferroplan-mcp --test experience_plane
           cargo test -p ferroplan-mcp --test merged_server
           cargo test -p ferroplan-mcp --test protocol
+          cargo test -p ferroplan-mcp --bin ferroplan-mcp-plus
           cargo clippy -p ferroplan-cli --bin ferroplan-harvest --tests --no-deps -- -D warnings
           cargo clippy -p ferroplan-mcp --all-targets --no-deps -- -D warnings
           cargo test -p ferroplan --test daily_agent_methods_ppddl
+          cargo test -p ferroplan --test fortune5_capabilities
+          cargo test -p ferroplan --test fortune5_explain_parallel
 
       - name: Execute complete Python plugin control plane
         working-directory: plugins/chatman-ecosystem
@@ -230,9 +249,16 @@ jobs:
           git config user.name "ferroplan-harvester-controller"
           git config user.email "ferroplan-harvester-controller@users.noreply.github.com"
           git add Cargo.lock \
+            crates/ferroplan/src/bin/ferroplan-readiness.rs \
+            crates/ferroplan/src/lib.rs \
+            crates/ferroplan/src/production.rs \
+            crates/ferroplan/src/production_explain.rs \
+            crates/ferroplan/src/readiness.rs \
             crates/ferroplan/src/ppddl/solver/part02.rs \
             crates/ferroplan/src/ppddl/syntax/part02.rs \
             crates/ferroplan/src/ppddl/model/part03.rs \
+            crates/ferroplan/tests/fortune5_capabilities.rs \
+            crates/ferroplan/tests/fortune5_explain_parallel.rs \
             crates/ferroplan-cli/src \
             crates/ferroplan-cli/tests/harvest.rs \
             crates/ferroplan-mcp/build.rs \
