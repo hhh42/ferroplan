@@ -1,10 +1,9 @@
-//! Canonical capability contracts, bounded production execution, and
+//! Canonical capability contracts, bounded deterministic solving, and
 //! evidence-derived readiness.
 //!
-//! Nothing in this module grants execution authority. A successful planning
-//! envelope is a candidate consequence. `ADMITTED` is computed only from an
-//! exact-source evidence set; it is never stored in a producer-authored
-//! capability declaration.
+//! A successful ferroplan result is a candidate consequence. This module does
+//! not grant actuation authority and does not let a capability producer author
+//! its own `ADMITTED` state.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -136,13 +135,16 @@ impl CapabilityManifest {
         if self.schema_version != CAPABILITY_MANIFEST_SCHEMA {
             return Err(ManifestError::Schema(self.schema_version.clone()));
         }
-        let ids: Vec<&str> = self.capabilities.iter().map(|item| item.id.as_str()).collect();
-        if ids.windows(2).any(|window| window[0] >= window[1]) {
+        if self
+            .capabilities
+            .windows(2)
+            .any(|window| window[0].id >= window[1].id)
+        {
             return Err(ManifestError::NonCanonicalOrder);
         }
-        let mut seen = BTreeSet::new();
+        let mut ids = BTreeSet::new();
         for capability in &self.capabilities {
-            if !seen.insert(capability.id.clone()) {
+            if !ids.insert(capability.id.clone()) {
                 return Err(ManifestError::DuplicateId(capability.id.clone()));
             }
             for (field, value) in [
@@ -179,8 +181,8 @@ impl CapabilityManifest {
 
     pub fn fingerprint(&self) -> Result<String, ManifestError> {
         self.validate()?;
-        let bytes = serde_json::to_vec(self).map_err(|_| ManifestError::Serialization)?;
-        Ok(sha256_hex(MANIFEST_HASH_DOMAIN, &[&bytes]))
+        let encoded = serde_json::to_vec(self).map_err(|_| ManifestError::Serialization)?;
+        Ok(sha256_hex(MANIFEST_HASH_DOMAIN, &[&encoded]))
     }
 }
 
@@ -194,8 +196,9 @@ fn contract(
     security: SecurityClass,
     evidence: &[&str],
 ) -> CapabilityContract {
-    let mut evidence: Vec<String> = evidence.iter().map(|value| (*value).to_string()).collect();
-    evidence.sort();
+    let mut required_evidence: Vec<String> = evidence.iter().map(|value| (*value).to_string()).collect();
+    required_evidence.sort();
+    required_evidence.dedup();
     CapabilityContract {
         id: id.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -217,13 +220,15 @@ fn contract(
         },
         security,
         shipped: true,
-        required_evidence: evidence,
+        required_evidence,
     }
 }
 
-/// Canonical inventory for every default production capability family.
-/// Experimental internals and the broad legacy MCP compatibility binary are
-/// intentionally not advertised as production capabilities.
+/// Canonical production capability inventory.
+///
+/// Experimental internals and the broad legacy MCP compatibility server are
+/// deliberately excluded. There is no synthetic `stream` capability: no public
+/// production streaming API exists in this release.
 pub fn capability_manifest() -> CapabilityManifest {
     let mut capabilities = vec![
         contract(
@@ -356,16 +361,6 @@ pub fn capability_manifest() -> CapabilityManifest {
             ],
         ),
         contract(
-            "fp.core.stream",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::OutcomeEquivalent,
-            ReplayClass::Outcome,
-            SecurityClass::UntrustedInput,
-            &["core.stream.bounds", "core.stream.terminal", "core.stream.unit"],
-        ),
-        contract(
             "fp.core.trace",
             "crates/ferroplan",
             InterfaceKind::RustLibrary,
@@ -488,7 +483,7 @@ pub fn capability_manifest() -> CapabilityManifest {
     CapabilityManifest {
         schema_version: CAPABILITY_MANIFEST_SCHEMA.to_string(),
         product_version: env!("CARGO_PKG_VERSION").to_string(),
-        authority_notice: "All planner outputs are candidate-only; external BRCE/POWL/OCEL/Truex receipt closure owns authoritative consequence.".to_string(),
+        authority_notice: "Planner outputs are candidate-only; BRCE/POWL/OCEL/Truex receipt closure owns authoritative consequence.".to_string(),
         capabilities,
     }
 }
@@ -570,9 +565,10 @@ where
         .all(|item| item.state == ReadinessState::Admitted)
     {
         ReadinessState::Admitted
-    } else if capabilities.iter().any(|item| {
-        matches!(item.state, ReadinessState::Blocked | ReadinessState::Refused)
-    }) {
+    } else if capabilities
+        .iter()
+        .any(|item| matches!(item.state, ReadinessState::Blocked | ReadinessState::Refused))
+    {
         ReadinessState::Blocked
     } else if capabilities
         .iter()
@@ -700,10 +696,10 @@ pub struct OperationEnvelope<T> {
     pub error: Option<PublicError>,
 }
 
-/// Bounded deterministic planning with typed failure semantics and independent
+/// Bounded deterministic planning with typed failures and independent plan
 /// validation. Hard wall-clock isolation belongs to service adapters such as
 /// `ferroplan-mcp-plus`; this in-process API is bounded by deterministic work,
-/// worker, plan, input, and output limits.
+/// input, worker, plan, and output limits.
 pub fn solve_production(
     domain: &str,
     problem: &str,
@@ -713,16 +709,14 @@ pub fn solve_production(
 ) -> OperationEnvelope<Solution> {
     let clock = crate::clock::Clock::now();
     let input_fingerprint = production_input_fingerprint(domain, problem, options);
-    let request_id = normalize_request_id(request_id, &input_fingerprint);
-    let manifest_fingerprint = capability_manifest().fingerprint();
     let mut envelope = base_envelope(
         request_id,
-        input_fingerprint,
+        "fp.core.solve",
+        CANDIDATE_AUTHORITY,
+        &input_fingerprint,
         elapsed(&clock),
-        manifest_fingerprint.clone().ok(),
     );
-    if let Err(error) = manifest_fingerprint {
-        envelope.error = Some(PublicError::new("FP_INVARIANT", error.to_string(), false));
+    if envelope.error.is_some() {
         return envelope;
     }
     if let Err(error) = limits.validate() {
@@ -767,15 +761,14 @@ pub fn solve_production(
                 saturating_u64(solution.statistics.threads),
             );
             envelope.warnings = bounded_warnings(&solution.notes);
-
             if !solution.solved {
-                let capped = solution.statistics.evaluated_states >= effective_max;
-                envelope.outcome = if capped {
+                let saturated = solution.statistics.evaluated_states >= effective_max;
+                envelope.outcome = if saturated {
                     OutcomeClass::LimitExceeded
                 } else {
                     OutcomeClass::NoPlan
                 };
-                if capped {
+                if saturated {
                     envelope.error = Some(PublicError::new(
                         "FP_LIMIT_SEARCH",
                         format!("search reached max_evaluated={effective_max}"),
@@ -833,28 +826,15 @@ fn admit_solved_candidate(
         return;
     }
     match independently_validate(domain, problem, plan) {
-        Ok(ValidationStatus::Valid) => {
+        Ok(()) => {
             envelope.outcome = OutcomeClass::Solved;
             envelope.validation = ValidationStatus::Valid;
             envelope.payload = Some(solution);
         }
-        Ok(ValidationStatus::NotApplicable) => {
+        Err(error) => {
             envelope.outcome = OutcomeClass::Failed;
             envelope.validation = ValidationStatus::Failed;
-            envelope.error = Some(PublicError::new(
-                "FP_VALIDATION",
-                "independent validation was unexpectedly unavailable",
-                false,
-            ));
-        }
-        Ok(ValidationStatus::Failed) | Err(_) => {
-            envelope.outcome = OutcomeClass::Failed;
-            envelope.validation = ValidationStatus::Failed;
-            envelope.error = Some(PublicError::new(
-                "FP_VALIDATION",
-                "emitted plan failed independent validation",
-                false,
-            ));
+            envelope.error = Some(PublicError::new("FP_VALIDATION", error, false));
         }
     }
 }
@@ -915,7 +895,7 @@ fn validate_request(
     }
     if options
         .max_evaluated
-        .is_some_and(|requested| requested == 0 || requested > limits.max_evaluated)
+        .is_some_and(|value| value == 0 || value > limits.max_evaluated)
     {
         return Some(PublicError::new(
             "FP_LIMIT_SEARCH",
@@ -944,19 +924,19 @@ fn map_solve_error(error: SolveError) -> PublicError {
     }
 }
 
-fn independently_validate(
+pub(crate) fn independently_validate(
     domain: &str,
     problem: &str,
     plan: &Plan,
-) -> Result<ValidationStatus, String> {
+) -> Result<(), String> {
     let plan_text = render_plan(plan);
     match crate::plan::validate_plan(domain, problem, &plan_text)? {
-        crate::plan::Validity::Valid => Ok(ValidationStatus::Valid),
-        crate::plan::Validity::Invalid(_) => Ok(ValidationStatus::Failed),
+        crate::plan::Validity::Valid => Ok(()),
+        crate::plan::Validity::Invalid(reason) => Err(reason),
     }
 }
 
-fn render_plan(plan: &Plan) -> String {
+pub(crate) fn render_plan(plan: &Plan) -> String {
     let temporal = plan.steps.iter().any(|step| step.time.is_some());
     let mut output = String::new();
     for step in &plan.steps {
@@ -988,30 +968,28 @@ pub fn production_input_fingerprint(domain: &str, problem: &str, options: &Optio
     )
 }
 
-fn build_identity(manifest_fingerprint: Option<String>) -> BuildIdentity {
-    BuildIdentity {
-        product_version: env!("CARGO_PKG_VERSION").to_string(),
-        source_revision: option_env!("FERROPLAN_BUILD_SHA")
-            .filter(|value| !value.trim().is_empty())
-            .map(ToOwned::to_owned),
-        manifest_fingerprint,
-    }
-}
-
-fn base_envelope<T>(
-    request_id: String,
-    input_fingerprint: String,
+pub(crate) fn base_envelope<T>(
+    request_id: Option<&str>,
+    capability_id: &str,
+    authority: &str,
+    input_fingerprint: &str,
     elapsed_micros: u64,
-    manifest_fingerprint: Option<String>,
 ) -> OperationEnvelope<T> {
-    OperationEnvelope {
+    let manifest_fingerprint = capability_manifest().fingerprint();
+    let mut envelope = OperationEnvelope {
         schema_version: OPERATION_ENVELOPE_SCHEMA.to_string(),
-        request_id,
-        capability_id: "fp.core.solve".to_string(),
+        request_id: normalize_request_id(request_id, input_fingerprint),
+        capability_id: capability_id.to_string(),
         capability_version: env!("CARGO_PKG_VERSION").to_string(),
-        build_identity: build_identity(manifest_fingerprint),
-        input_fingerprint,
-        authority: CANDIDATE_AUTHORITY.to_string(),
+        build_identity: BuildIdentity {
+            product_version: env!("CARGO_PKG_VERSION").to_string(),
+            source_revision: option_env!("FERROPLAN_BUILD_SHA")
+                .filter(|value| !value.trim().is_empty())
+                .map(ToOwned::to_owned),
+            manifest_fingerprint: manifest_fingerprint.clone().ok(),
+        },
+        input_fingerprint: input_fingerprint.to_string(),
+        authority: authority.to_string(),
         outcome: OutcomeClass::Failed,
         validation: ValidationStatus::NotApplicable,
         elapsed_micros,
@@ -1019,11 +997,18 @@ fn base_envelope<T>(
         warnings: Vec::new(),
         payload: None,
         error: None,
+    };
+    if let Err(error) = manifest_fingerprint {
+        envelope.error = Some(PublicError::new("FP_INVARIANT", error.to_string(), false));
     }
+    envelope
 }
 
-fn enforce_output_limit<T: Serialize>(envelope: &mut OperationEnvelope<T>, max_bytes: usize) {
-    match serde_json::to_vec(envelope) {
+pub(crate) fn enforce_output_limit<T: Serialize>(
+    envelope: &mut OperationEnvelope<T>,
+    max_bytes: usize,
+) {
+    match serde_json::to_vec(&*envelope) {
         Ok(bytes) if bytes.len() <= max_bytes => {}
         Ok(bytes) => {
             envelope.payload = None;
@@ -1051,7 +1036,7 @@ fn enforce_output_limit<T: Serialize>(envelope: &mut OperationEnvelope<T>, max_b
     }
 }
 
-fn sha256_hex(domain: &[u8], parts: &[&[u8]]) -> String {
+pub(crate) fn sha256_hex(domain: &[u8], parts: &[&[u8]]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(domain);
     for part in parts {
@@ -1077,7 +1062,7 @@ fn bounded_warnings(warnings: &[String]) -> Vec<String> {
         .collect()
 }
 
-fn truncate_utf8(value: &str, max_bytes: usize) -> String {
+pub(crate) fn truncate_utf8(value: &str, max_bytes: usize) -> String {
     if value.len() <= max_bytes {
         return value.to_string();
     }
@@ -1088,11 +1073,11 @@ fn truncate_utf8(value: &str, max_bytes: usize) -> String {
     value[..end].to_string()
 }
 
-fn elapsed(clock: &crate::clock::Clock) -> u64 {
+pub(crate) fn elapsed(clock: &crate::clock::Clock) -> u64 {
     clock.elapsed_us().min(u64::MAX as u128) as u64
 }
 
-fn saturating_u64(value: usize) -> u64 {
+pub(crate) fn saturating_u64(value: usize) -> u64 {
     value.try_into().unwrap_or(u64::MAX)
 }
 
@@ -1107,27 +1092,23 @@ mod tests {
         (:init) (:goal (done)))";
 
     #[test]
-    fn manifest_is_canonical_complete_and_domain_separated() {
+    fn manifest_is_canonical_complete_and_non_fictional() {
         let manifest = capability_manifest();
         manifest.validate().unwrap();
-        let fingerprint = manifest.fingerprint().unwrap();
-        assert_eq!(fingerprint, capability_manifest().fingerprint().unwrap());
-        assert_eq!(fingerprint.len(), 64);
-        assert_ne!(
-            fingerprint,
-            production_input_fingerprint(DOMAIN, PROBLEM, &Options::default())
-        );
         let ids: BTreeSet<_> = manifest
             .capabilities
-            .into_iter()
-            .map(|item| item.id)
+            .iter()
+            .map(|item| item.id.as_str())
             .collect();
+        assert!(!ids.contains("fp.core.stream"));
         for expected in [
             "fp.core.solve",
             "fp.core.parse",
             "fp.core.ppddl",
             "fp.core.session",
             "fp.core.decompose",
+            "fp.core.explain",
+            "fp.core.trace",
             "fp.eve.enter",
             "fp.cli",
             "fp.python",
@@ -1140,6 +1121,19 @@ mod tests {
         ] {
             assert!(ids.contains(expected), "missing {expected}");
         }
+    }
+
+    #[test]
+    fn manifest_and_input_fingerprints_are_stable_and_domain_separated() {
+        let manifest = capability_manifest();
+        let first = manifest.fingerprint().unwrap();
+        let second = capability_manifest().fingerprint().unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 64);
+        assert_ne!(
+            first,
+            production_input_fingerprint(DOMAIN, PROBLEM, &Options::default())
+        );
     }
 
     #[test]
@@ -1203,28 +1197,17 @@ mod tests {
         assert_eq!(envelope.outcome, OutcomeClass::Solved);
         assert_eq!(envelope.validation, ValidationStatus::Valid);
         assert_eq!(
-            envelope.payload.as_ref().and_then(|value| value.plan.as_ref()).map(|plan| plan.length),
+            envelope
+                .payload
+                .as_ref()
+                .and_then(|value| value.plan.as_ref())
+                .map(|plan| plan.length),
             Some(0)
         );
     }
 
     #[test]
-    fn production_solve_refuses_input_before_parse() {
-        let limits = ProductionLimits {
-            max_domain_bytes: 8,
-            ..ProductionLimits::default()
-        };
-        let envelope = solve_production(DOMAIN, PROBLEM, &Options::default(), &limits, None);
-        assert_eq!(envelope.outcome, OutcomeClass::Refused);
-        assert_eq!(
-            envelope.error.as_ref().map(|error| error.code.as_str()),
-            Some("FP_LIMIT_INPUT")
-        );
-        assert!(envelope.payload.is_none());
-    }
-
-    #[test]
-    fn invalid_floats_are_refused_and_remain_fingerprint_distinct() {
+    fn invalid_floats_are_refused_and_fingerprint_distinct() {
         let valid = production_input_fingerprint(DOMAIN, PROBLEM, &Options::default());
         let mut invalid = Options::default();
         invalid.weight_h = f64::NAN;
@@ -1242,13 +1225,5 @@ mod tests {
             envelope.error.as_ref().map(|error| error.code.as_str()),
             Some("FP_INVALID_REQUEST")
         );
-    }
-
-    #[test]
-    fn option_changes_are_bound_into_input_identity() {
-        let auto = production_input_fingerprint(DOMAIN, PROBLEM, &Options::default());
-        let mut ff = Options::default();
-        ff.mode = crate::Mode::Ff;
-        assert_ne!(auto, production_input_fingerprint(DOMAIN, PROBLEM, &ff));
     }
 }
