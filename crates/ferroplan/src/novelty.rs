@@ -56,22 +56,36 @@ struct Node {
     op: usize,
 }
 
+/// Per-cell per-relevant-fluent (min, max) quantized envelopes (FF_NUMNOV).
+type NumEnvelopes = FxHashMap<(u16, u16), Vec<(i64, i64)>>;
+
 /// Per-cell seen-fact tables. A cell's table is lazily allocated on first
 /// touch; `novel_and_mark` reports whether `bits` carries any fact the
 /// cell has never seen and ORs the state in either way.
+///
+/// `FF_NUMNOV=1` (0.21 Phase 3 probe rider b, the field's winning
+/// direction — Panino's partitioned numeric novelty): the bit tables are
+/// structurally blind on fluent-only progress (sailing has ONE predicate,
+/// so every successor is bit-identical). Opt-in, a cell additionally
+/// keeps a per-relevant-fluent seen-ENVELOPE over the quantized values
+/// (packed.rs's 1e-6 state-key quantizer): a state whose fluent leaves
+/// the envelope is novel, first touch of a cell is novel. OFF ⇒
+/// `num_cells` is None and `qvals` stays empty — zero cost.
 struct Seen {
     words: usize,
     cells: FxHashMap<(u16, u16), Vec<u64>>,
+    num_cells: Option<NumEnvelopes>,
 }
 
 impl Seen {
-    fn new(words: usize) -> Self {
+    fn new(words: usize, numnov: bool) -> Self {
         Seen {
             words,
             cells: FxHashMap::default(),
+            num_cells: numnov.then(FxHashMap::default),
         }
     }
-    fn novel_and_mark(&mut self, cell: (u16, u16), bits: &[u64]) -> bool {
+    fn novel_and_mark(&mut self, cell: (u16, u16), bits: &[u64], qvals: &[i64]) -> bool {
         let t = self
             .cells
             .entry(cell)
@@ -83,8 +97,48 @@ impl Seen {
             }
             *w |= b;
         }
+        if let Some(nc) = &mut self.num_cells {
+            if !qvals.is_empty() {
+                match nc.entry(cell) {
+                    std::collections::hash_map::Entry::Vacant(e) => {
+                        e.insert(qvals.iter().map(|&v| (v, v)).collect());
+                        novel = true;
+                    }
+                    std::collections::hash_map::Entry::Occupied(mut e) => {
+                        for (env, &v) in e.get_mut().iter_mut().zip(qvals) {
+                            if v < env.0 {
+                                env.0 = v;
+                                novel = true;
+                            }
+                            if v > env.1 {
+                                env.1 = v;
+                                novel = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
         novel
     }
+}
+
+/// The FF_NUMNOV gate: opt-in AND numeric-task-gated — a task with no
+/// relevant fluents keeps the bit-only tables even under the flag.
+fn numnov_on(task: &PackedTask) -> bool {
+    !task.rel_fluents.is_empty() && std::env::var("FF_NUMNOV").is_ok()
+}
+
+/// Quantized relevant-fluent vector for the envelope; empty when off (the
+/// zero-cost contract).
+fn qvals_of(task: &PackedTask, s: &State, on: bool) -> Vec<i64> {
+    if !on {
+        return Vec::new();
+    }
+    task.rel_fluents
+        .iter()
+        .map(|&i| PackedTask::quantized(s, i as usize))
+        .collect()
 }
 
 fn unachieved(task: &PackedTask, s: &State, goal_pos: &[u32]) -> u16 {
@@ -146,10 +200,11 @@ pub fn search_subgoal(
         father: usize::MAX,
         op: usize::MAX,
     }];
-    let mut seen = Seen::new(words);
+    let numnov = numnov_on(task);
+    let mut seen = Seen::new(words, numnov);
     // The root seeds its cell (parent-h slot 0: no parent evaluation yet).
     let g0 = unachieved(task, &init, goal_pos);
-    seen.novel_and_mark((g0, 0), &init.bits);
+    seen.novel_and_mark((g0, 0), &init.bits, &qvals_of(task, &init, numnov));
 
     let mut pref_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     let mut norm_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
@@ -260,7 +315,7 @@ pub fn search_subgoal(
                 {
                     let g = unachieved(task, &s, goal_pos);
                     let cell = (g, 0);
-                    let novel = seen.novel_and_mark(cell, &s.bits);
+                    let novel = seen.novel_and_mark(cell, &s.bits, &qvals_of(task, &s, numnov));
                     let key = if novel { 0 } else { W_NOVEL } + g as i64 * W_GOALS + ph as i64;
                     let idx = nodes.len();
                     nodes.push(Node {
@@ -308,6 +363,23 @@ pub fn search_light(
     max_eval: usize,
     forbidden: &[bool],
 ) -> Option<(Vec<usize>, usize)> {
+    // The ladder tax (0.21 Phase 5, lever 1): under an ARMED wall budget
+    // the unconditional pop cap gains a wall-denominated bound —
+    // `FF_NOVLIGHT_WALL_FRAC` (default 0.10) of the REMAINING wall at
+    // rung entry, checked every 4096 pops (pops/sec spans orders of
+    // magnitude across tasks, so a deadline, not a pre-converted pop
+    // count). The receipted wins need plan-length pops — visit-all-2014:
+    // 899/3135/3248, two orders under BOTH caps — so every 0.20 win fits
+    // the slice by construction; what it cuts is the tens of seconds a
+    // big task's 300k pops spend ahead of the rung that would have
+    // solved (the 0.21 backfill's −34 receipt). No armed budget ⇒
+    // `None` ⇒ byte-identical.
+    let slice = crate::search::wall_remaining_secs().map(|rem| {
+        (
+            crate::clock::Clock::now(),
+            crate::search::wall_frac_env("FF_NOVLIGHT_WALL_FRAC", 0.10) * rem,
+        )
+    });
     let node_cap = crate::search::node_cap_for(task);
     let init = task.initial();
     let goal_pos = &task.goal_pos;
@@ -321,9 +393,10 @@ pub fn search_light(
         father: usize::MAX,
         op: usize::MAX,
     }];
-    let mut seen = Seen::new(words);
+    let numnov = numnov_on(task);
+    let mut seen = Seen::new(words, numnov);
     let g0 = unachieved(task, &init, goal_pos);
-    seen.novel_and_mark((g0, 0), &init.bits);
+    seen.novel_and_mark((g0, 0), &init.bits, &qvals_of(task, &init, numnov));
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
     // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
@@ -346,6 +419,19 @@ pub fn search_light(
             }
             return None;
         }
+        if evaluated & 0xFFF == 0 {
+            if let Some((t0, s)) = &slice {
+                if t0.elapsed_secs() > *s {
+                    if std::env::var("FF_WALL_DEBUG").is_ok() {
+                        eprintln!(
+                            "wall: novelty-light slice exhausted ({evaluated} pops in {:.2}s)",
+                            t0.elapsed_secs()
+                        );
+                    }
+                    return None;
+                }
+            }
+        }
         for oi in 0..task.n_ops {
             if forbidden.get(oi).copied().unwrap_or(false) {
                 continue;
@@ -364,7 +450,7 @@ pub fn search_light(
             }
             bucket.push(nodes.len() as u32);
             let g = unachieved(task, &ns, goal_pos);
-            let novel = seen.novel_and_mark((g, 0), &ns.bits);
+            let novel = seen.novel_and_mark((g, 0), &ns.bits, &qvals_of(task, &ns, numnov));
             let key = if novel { 0 } else { W_NOVEL } + g as i64 * W_GOALS;
             let idx = nodes.len();
             nodes.push(Node {
@@ -376,4 +462,54 @@ pub fn search_light(
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    //! FF_NUMNOV smoke (0.21 Phase 3 probe rider b): the numeric envelope
+    //! distinguishes two states differing ONLY in a fluent; the bit-only
+    //! tables cannot.
+
+    use super::*;
+
+    fn numeric_task() -> PackedTask {
+        let dom = "(define (domain nn)
+          (:requirements :typing :numeric-fluents)
+          (:predicates (flag))
+          (:functions (x))
+          (:action bump :parameters ()
+            :precondition (<= (x) 100)
+            :effect (increase (x) 1))
+          (:action finish :parameters ()
+            :precondition (>= (x) 3)
+            :effect (flag)))";
+        let prb = "(define (problem nn1) (:domain nn)
+          (:init (= (x) 0)) (:goal (flag)))";
+        let d = crate::parser::parse_domain(dom).unwrap();
+        let p = crate::parser::parse_problem(prb).unwrap();
+        crate::ground::ground_task(&d, &p, 1).unwrap()
+    }
+
+    #[test]
+    fn envelope_distinguishes_fluent_only_states() {
+        let task = numeric_task();
+        let s0 = task.initial();
+        let bump = (0..task.n_ops)
+            .find(|&oi| task.op_display[oi].starts_with("BUMP"))
+            .unwrap();
+        let s1 = task.apply(bump, &s0);
+        let cell = (1u16, 0u16);
+
+        // Bit tables only: s1 is bit-identical to s0 — never novel.
+        let mut plain = Seen::new(s0.bits.len(), false);
+        plain.novel_and_mark(cell, &s0.bits, &qvals_of(&task, &s0, false));
+        assert!(!plain.novel_and_mark(cell, &s1.bits, &qvals_of(&task, &s1, false)));
+
+        // Envelope on: x moved 0 -> 1, outside the seen envelope — novel.
+        let mut env = Seen::new(s0.bits.len(), true);
+        env.novel_and_mark(cell, &s0.bits, &qvals_of(&task, &s0, true));
+        assert!(env.novel_and_mark(cell, &s1.bits, &qvals_of(&task, &s1, true)));
+        // And re-seeing the same value is NOT novel (an envelope, not a set).
+        assert!(!env.novel_and_mark(cell, &s1.bits, &qvals_of(&task, &s1, true)));
+    }
 }

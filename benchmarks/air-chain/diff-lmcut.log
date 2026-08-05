@@ -1,0 +1,26 @@
+=== lmcut: does h^max alone still prove these?
+    hatch=FF_NO_LMCUT  budget=60s  witnesses=13
+  running as shipped (rep 1/2) (13 instances, jobs=1)...
+  running as shipped (rep 2/2) (13 instances, jobs=1)...
+  running FF_NO_LMCUT=1 (13 instances, jobs=1)...
+
+  shipped arm across 2 repeats: [13, 13] solved (union 13)
+
+  instance                                                      shipped          hatched
+  ipc-2008/elevator-sequential-optimal-strips i5       55 (LM-cut) 33.2s [2/2] 55 (h^max) 53.4s
+  ipc-2008/elevator-sequential-optimal-strips i14      63 (LM-cut) 21.6s [2/2]   unsolved 44.3s  <== hatch LOSES it
+  ipc-2008/elevator-sequential-optimal-strips i15      66 (LM-cut) 23.4s [2/2]   unsolved 41.6s  <== hatch LOSES it
+  ipc-2008/elevator-sequential-optimal-strips i22      54 (LM-cut) 25.3s [2/2] 54 (h^max) 19.3s
+  ipc-2008/woodworking-sequential-optimal-stri i3      275 (LM-cut) 34.1s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2008/woodworking-sequential-optimal-stri i25     380 (LM-cut) 32.7s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2011/elevator-sequential-optimal i8              55 (LM-cut) 32.7s [2/2] 55 (h^max) 53.3s
+  ipc-2011/elevator-sequential-optimal i9              54 (LM-cut) 25.5s [2/2] 54 (h^max) 19.4s
+  ipc-2011/elevator-sequential-optimal i10             63 (LM-cut) 22.4s [2/2]   unsolved 44.7s  <== hatch LOSES it
+  ipc-2011/elevator-sequential-optimal i12             53 (LM-cut) 48.3s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2011/elevator-sequential-optimal i16             66 (LM-cut) 24.6s [2/2]   unsolved 41.8s  <== hatch LOSES it
+  ipc-2011/woodworking-sequential-optimal i4           275 (LM-cut) 35.6s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2011/woodworking-sequential-optimal i8           380 (LM-cut) 33.9s [2/2]     unsolved 60s  <== hatch LOSES it
+
+  shipped solved 13/13  hatched solved 4/13
+  the feature is worth: +9 instances (kept-by-both 4, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-lmcut.json

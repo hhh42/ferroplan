@@ -1,0 +1,20 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-backfill-0.19.0/target/release/ff
+ipc-2014/barman-sequential-agile: 20/20 solved, cost 3081, 51.6s solve-time, val 20/20
+ipc-2014/cave-diving-sequential-agile: 3/20 solved, cost 309, 91.5s solve-time, val 3/3
+ipc-2014/child-snack-sequential-agile: 8/20 solved, cost 466, 98.1s solve-time, val 8/8
+ipc-2014/city-car-sequential-agile: 3/20 solved, cost 1363, 77.1s solve-time, val 3/3
+ipc-2014/floor-tile-sequential-agile: 2/20 solved, cost 178, 2.4s solve-time, val 2/2
+ipc-2014/genome-edit-distances-sequential-agile: 20/20 solved, cost 685, 283.2s solve-time, val 20/20
+ipc-2014/hiking-sequential-agile: 14/20 solved, cost 643, 216.0s solve-time, val 14/14
+ipc-2014/maintenance-sequential-agile: 13/20 solved, cost 1223, 36.4s solve-time, val 13/13
+ipc-2014/openstacks-sequential-agile: 10/20 solved, cost 1194, 315.0s solve-time, val 10/10
+ipc-2014/parking-sequential-agile: 1/20 solved, cost 67, 57.8s solve-time, val 1/1
+ipc-2014/tetris-sequential-agile: 1/20 solved, cost 46, 23.9s solve-time, val 1/1
+ipc-2014/thoughtful-sequential-agile: 18/20 solved, cost 1729, 268.1s solve-time, val 18/18
+ipc-2014/transport-sequential-agile: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2014/visit-all-sequential-agile: 1/20 solved, cost 1450, 56.6s solve-time, val 1/1
+
+wrote benchmarks/air-0.19.0/ipc2014-agile.md (raw: benchmarks/air-0.19.0/ipc2014-agile.jsonl) — total coverage 114/280

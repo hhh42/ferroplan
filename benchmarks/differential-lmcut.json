@@ -1,0 +1,272 @@
+{
+ "spec": "lmcut",
+ "hatch": "FF_NO_LMCUT",
+ "timeout": 60,
+ "jobs": 1,
+ "shipped": [
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 5,
+   "cost": 55,
+   "solved": true,
+   "time": 33.2,
+   "got_cost": 55,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 14,
+   "cost": 63,
+   "solved": true,
+   "time": 21.6,
+   "got_cost": 63,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 15,
+   "cost": 66,
+   "solved": true,
+   "time": 23.4,
+   "got_cost": 66,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 22,
+   "cost": 54,
+   "solved": true,
+   "time": 25.3,
+   "got_cost": 54,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "woodworking-sequential-optimal-strips",
+   "instance": 3,
+   "cost": 275,
+   "solved": true,
+   "time": 34.1,
+   "got_cost": 275,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "woodworking-sequential-optimal-strips",
+   "instance": 25,
+   "cost": 380,
+   "solved": true,
+   "time": 32.7,
+   "got_cost": 380,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 8,
+   "cost": 55,
+   "solved": true,
+   "time": 32.7,
+   "got_cost": 55,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 9,
+   "cost": 54,
+   "solved": true,
+   "time": 25.5,
+   "got_cost": 54,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 10,
+   "cost": 63,
+   "solved": true,
+   "time": 22.4,
+   "got_cost": 63,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 12,
+   "cost": 53,
+   "solved": true,
+   "time": 48.3,
+   "got_cost": 53,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 16,
+   "cost": 66,
+   "solved": true,
+   "time": 24.6,
+   "got_cost": 66,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "woodworking-sequential-optimal",
+   "instance": 4,
+   "cost": 275,
+   "solved": true,
+   "time": 35.6,
+   "got_cost": 275,
+   "prover": "LM-cut"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "woodworking-sequential-optimal",
+   "instance": 8,
+   "cost": 380,
+   "solved": true,
+   "time": 33.9,
+   "got_cost": 380,
+   "prover": "LM-cut"
+  }
+ ],
+ "hatched": [
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 5,
+   "cost": 55,
+   "solved": true,
+   "time": 53.4,
+   "got_cost": 55,
+   "prover": "h^max"
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 14,
+   "cost": 63,
+   "solved": false,
+   "time": 44.3,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 15,
+   "cost": 66,
+   "solved": false,
+   "time": 41.6,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "elevator-sequential-optimal-strips",
+   "instance": 22,
+   "cost": 54,
+   "solved": true,
+   "time": 19.3,
+   "got_cost": 54,
+   "prover": "h^max"
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "woodworking-sequential-optimal-strips",
+   "instance": 3,
+   "cost": 275,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2008",
+   "variant": "woodworking-sequential-optimal-strips",
+   "instance": 25,
+   "cost": 380,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 8,
+   "cost": 55,
+   "solved": true,
+   "time": 53.3,
+   "got_cost": 55,
+   "prover": "h^max"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 9,
+   "cost": 54,
+   "solved": true,
+   "time": 19.4,
+   "got_cost": 54,
+   "prover": "h^max"
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 10,
+   "cost": 63,
+   "solved": false,
+   "time": 44.7,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 12,
+   "cost": 53,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "elevator-sequential-optimal",
+   "instance": 16,
+   "cost": 66,
+   "solved": false,
+   "time": 41.8,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "woodworking-sequential-optimal",
+   "instance": 4,
+   "cost": 275,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  },
+  {
+   "ipc": "ipc-2011",
+   "variant": "woodworking-sequential-optimal",
+   "instance": 8,
+   "cost": 380,
+   "solved": false,
+   "time": 60,
+   "got_cost": null,
+   "prover": null
+  }
+ ],
+ "feature_worth": 9,
+ "hatch_only": 0
+}

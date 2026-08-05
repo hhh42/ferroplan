@@ -1,0 +1,280 @@
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 1, "solved": true, "time": 3.15, "metric": null, "length": 162, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 2, "solved": true, "time": 2.45, "metric": null, "length": 153, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 3, "solved": true, "time": 2.96, "metric": null, "length": 159, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 4, "solved": true, "time": 1.79, "metric": null, "length": 140, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 5, "solved": true, "time": 2.15, "metric": null, "length": 150, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 6, "solved": true, "time": 2.81, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 7, "solved": true, "time": 3.15, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 8, "solved": true, "time": 2.73, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 9, "solved": true, "time": 1.83, "metric": null, "length": 137, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 10, "solved": true, "time": 2.48, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 11, "solved": true, "time": 2.84, "metric": null, "length": 153, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 12, "solved": true, "time": 2.9, "metric": null, "length": 170, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 13, "solved": true, "time": 3.62, "metric": null, "length": 165, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 14, "solved": true, "time": 1.94, "metric": null, "length": 148, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 15, "solved": true, "time": 2.03, "metric": null, "length": 152, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 16, "solved": true, "time": 3.11, "metric": null, "length": 156, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 17, "solved": true, "time": 1.98, "metric": null, "length": 141, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 18, "solved": true, "time": 2.49, "metric": null, "length": 154, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 19, "solved": true, "time": 2.67, "metric": null, "length": 156, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 20, "solved": true, "time": 2.57, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 6, "solved": true, "time": 30.21, "metric": 104.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 7, "solved": true, "time": 30.97, "metric": 105.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 8, "solved": false, "time": 28.44, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 9, "solved": true, "time": 30.37, "metric": 100.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 18, "solved": false, "time": 44.27, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 19, "solved": false, "time": 53.09, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 20, "solved": false, "time": 38.97, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 1, "solved": true, "time": 1.37, "metric": null, "length": 47, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 2, "solved": true, "time": 1.74, "metric": null, "length": 47, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 3, "solved": true, "time": 1.64, "metric": null, "length": 52, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 4, "solved": true, "time": 2.06, "metric": null, "length": 57, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 5, "solved": true, "time": 3.89, "metric": null, "length": 62, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 6, "solved": true, "time": 31.27, "metric": null, "length": 62, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 7, "solved": true, "time": 24.9, "metric": null, "length": 67, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 9, "solved": true, "time": 31.23, "metric": null, "length": 72, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "child-snack-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 1, "solved": true, "time": 4.06, "metric": 564.0, "length": 45, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 3, "solved": true, "time": 57.95, "metric": 385.0, "length": 60, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 5, "solved": true, "time": 15.12, "metric": 414.0, "length": 63, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "city-car-sequential-agile", "instance": 20, "solved": false, "time": 53.82, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 1, "solved": true, "time": 2.22, "metric": 86.0, "length": 36, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 2, "solved": false, "time": 37.02, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 3, "solved": false, "time": 42.74, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 4, "solved": false, "time": 37.57, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 5, "solved": false, "time": 46.07, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 7, "solved": false, "time": 35.88, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 8, "solved": false, "time": 40.07, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 9, "solved": false, "time": 52.79, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 11, "solved": false, "time": 41.35, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 14, "solved": false, "time": 37.03, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 15, "solved": false, "time": 47.54, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 16, "solved": false, "time": 50.41, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 18, "solved": true, "time": 0.22, "metric": 92.0, "length": 36, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 19, "solved": false, "time": 53.72, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "floor-tile-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 1, "solved": true, "time": 3.06, "metric": 27.0, "length": 81, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 2, "solved": true, "time": 3.44, "metric": 28.0, "length": 90, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 3, "solved": true, "time": 2.65, "metric": 26.0, "length": 73, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 4, "solved": true, "time": 2.59, "metric": 27.0, "length": 74, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 5, "solved": true, "time": 6.12, "metric": 21.0, "length": 71, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 6, "solved": true, "time": 3.08, "metric": 34.0, "length": 107, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 7, "solved": true, "time": 14.24, "metric": 26.0, "length": 116, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 8, "solved": true, "time": 12.85, "metric": 33.0, "length": 115, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 9, "solved": true, "time": 3.24, "metric": 37.0, "length": 125, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 10, "solved": true, "time": 3.06, "metric": 31.0, "length": 96, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 11, "solved": true, "time": 9.35, "metric": 27.0, "length": 85, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 12, "solved": true, "time": 3.43, "metric": 33.0, "length": 98, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 13, "solved": true, "time": 33.09, "metric": 61.0, "length": 228, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 14, "solved": true, "time": 25.73, "metric": 40.0, "length": 139, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 15, "solved": true, "time": 32.9, "metric": 30.0, "length": 130, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 16, "solved": true, "time": 5.18, "metric": 49.0, "length": 149, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 17, "solved": true, "time": 36.07, "metric": 52.0, "length": 222, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 18, "solved": true, "time": 38.67, "metric": 40.0, "length": 158, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 19, "solved": true, "time": 37.45, "metric": 41.0, "length": 169, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "genome-edit-distances-sequential-agile", "instance": 20, "solved": true, "time": 7.03, "metric": 22.0, "length": 82, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 1, "solved": true, "time": 0.04, "metric": null, "length": 21, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 2, "solved": true, "time": 0.07, "metric": null, "length": 27, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 3, "solved": true, "time": 2.96, "metric": null, "length": 36, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 4, "solved": true, "time": 6.35, "metric": null, "length": 49, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 5, "solved": true, "time": 31.62, "metric": null, "length": 72, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 6, "solved": true, "time": 48.21, "metric": null, "length": 86, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 8, "solved": true, "time": 0.1, "metric": null, "length": 21, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 9, "solved": true, "time": 4.82, "metric": null, "length": 29, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 10, "solved": true, "time": 13.99, "metric": null, "length": 52, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 11, "solved": true, "time": 28.93, "metric": null, "length": 62, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 12, "solved": true, "time": 40.28, "metric": null, "length": 72, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 15, "solved": true, "time": 0.25, "metric": null, "length": 25, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 16, "solved": true, "time": 12.31, "metric": null, "length": 38, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 17, "solved": true, "time": 26.08, "metric": null, "length": 53, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "hiking-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 1, "solved": true, "time": 0.44, "metric": null, "length": 40, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 2, "solved": true, "time": 0.42, "metric": null, "length": 38, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 3, "solved": true, "time": 0.48, "metric": null, "length": 42, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 4, "solved": true, "time": 2.08, "metric": null, "length": 70, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 5, "solved": true, "time": 1.96, "metric": null, "length": 68, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 6, "solved": true, "time": 0.04, "metric": null, "length": 75, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 7, "solved": true, "time": 0.04, "metric": null, "length": 77, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 8, "solved": true, "time": 0.04, "metric": null, "length": 73, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 9, "solved": true, "time": 30.08, "metric": null, "length": 93, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 12, "solved": true, "time": 0.19, "metric": null, "length": 162, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 14, "solved": true, "time": 0.18, "metric": null, "length": 162, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 18, "solved": false, "time": 31.18, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 19, "solved": true, "time": 0.25, "metric": null, "length": 160, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "maintenance-sequential-agile", "instance": 20, "solved": true, "time": 0.25, "metric": null, "length": 163, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 1, "solved": true, "time": 15.24, "metric": 77.0, "length": 467, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 2, "solved": true, "time": 17.3, "metric": 115.0, "length": 505, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 3, "solved": true, "time": 23.43, "metric": 90.0, "length": 540, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 4, "solved": true, "time": 26.94, "metric": 138.0, "length": 588, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 5, "solved": true, "time": 30.76, "metric": 87.0, "length": 597, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 6, "solved": true, "time": 33.14, "metric": 105.0, "length": 615, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 7, "solved": true, "time": 34.83, "metric": 156.0, "length": 666, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 8, "solved": true, "time": 42.33, "metric": 116.0, "length": 686, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 9, "solved": true, "time": 42.53, "metric": 132.0, "length": 702, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 10, "solved": true, "time": 48.51, "metric": 178.0, "length": 748, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "openstacks-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 2, "solved": true, "time": 57.77, "metric": 67.0, "length": 67, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "parking-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 1, "solved": true, "time": 23.9, "metric": 46.0, "length": 24, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "anytime cost sweep improved plan cost 57 -> 46"]}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "tetris-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 1, "solved": true, "time": 0.62, "metric": null, "length": 34, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 2, "solved": true, "time": 0.59, "metric": null, "length": 30, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 3, "solved": true, "time": 0.69, "metric": null, "length": 37, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 4, "solved": true, "time": 0.63, "metric": null, "length": 34, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 5, "solved": true, "time": 0.69, "metric": null, "length": 35, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 6, "solved": true, "time": 16.18, "metric": null, "length": 94, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 7, "solved": true, "time": 17.0, "metric": null, "length": 93, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 8, "solved": true, "time": 16.11, "metric": null, "length": 89, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 10, "solved": true, "time": 20.54, "metric": null, "length": 123, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 11, "solved": true, "time": 21.01, "metric": null, "length": 123, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 12, "solved": true, "time": 21.93, "metric": null, "length": 133, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 13, "solved": true, "time": 31.1, "metric": null, "length": 121, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 15, "solved": true, "time": 19.89, "metric": null, "length": 124, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 16, "solved": true, "time": 20.81, "metric": null, "length": 130, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 17, "solved": true, "time": 20.85, "metric": null, "length": 121, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 18, "solved": true, "time": 19.77, "metric": null, "length": 132, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 19, "solved": true, "time": 20.47, "metric": null, "length": 140, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "thoughtful-sequential-agile", "instance": 20, "solved": true, "time": 19.21, "metric": null, "length": 136, "val": true, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "transport-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 1, "solved": true, "time": 56.58, "metric": null, "length": 1450, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "visit-all-sequential-agile", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}

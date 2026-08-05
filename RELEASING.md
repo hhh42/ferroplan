@@ -29,10 +29,28 @@ stable is the only green that counts.
 ```sh
 cargo fmt --all --check
 cargo clippy --all-targets --all-features -- -D warnings
-cargo test --all
 RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
 cargo bench --no-run
+
+# BOTH test passes — publish.sh runs both, so a pre-flight that runs one
+# is not a pre-flight. They are not interchangeable:
+cargo test --release -p ferroplan -p ferroplan-cli -- --include-ignored
+cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp   # DEBUG
 ```
+
+> **Run the DEBUG pass.** It is easy to check `cargo test --all --release`,
+> see it green, and ship — and 0.21 nearly did. An unoptimised build walks the
+> engine ~20x slower, so any test whose assertion is denominated in WALL TIME
+> while its work is denominated in POPS or NODES behaves differently there.
+> `ladder_wall.rs` asserts that a default 0.10 wall slice holds the light
+> rung's ~25k-pop dispatch; at a 40 s wall that slice is 4 s, and a debug run
+> was measured doing 20,480 pops in 4.40 s. It failed by 10% — intermittently,
+> which is the worst kind. Such tests must scale their wall with
+> `cfg!(debug_assertions)` so the assertion tracks the ENGINE, not the build
+> profile.
+>
+> The `--include-ignored` pass matters for the opposite reason: the normally
+> ignored tests are the slow ones, and they only ever run here.
 
 ## Bump the version
 
@@ -120,6 +138,22 @@ maturin publish -m crates/ferroplan-py/Cargo.toml           # needs a PyPI token
 
 The wheel build is part of the pre-flight from 0.14.0 on; publishing it is a
 separate, optional step (the crates.io release does not depend on it).
+
+**On the Air, build the wheel LOCALLY and record what that does not cover.**
+`docs/migration-m5.md` proposed downgrading this gate to "the CI wheel
+builds", on the grounds that a local `maturin build` produces a macOS-ARM
+wheel rather than the manylinux x86 one that ships. By direct decision the
+gate stays local, because a local build tests almost everything the gate is
+for: the PyO3 bindings compile against the current library, maturin's
+packaging works, and the wheel is well-formed. The crate is **abi3-py38**, so
+one build covers Python 3.8+ and the Python-version dimension is not in
+question either.
+
+What a local build does NOT test is the manylinux x86 cross-build. That is a
+real but narrow gap, and the honest form of this gate is therefore: run it
+locally, and say in the cut record that the shipped manylinux wheel is
+unverified until CI or a zig-cross build runs. A gate that names its own blind
+spot beats a gate that is skipped.
 
 Each crate package bundles `README.md` and both `LICENSE-*` files (symlinked into
 the crate dirs) so the crates.io page and tarball are complete.

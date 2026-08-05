@@ -1,0 +1,13 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-backfill-0.19.0/target/release/ff
+ipc-2023/folding-agile: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023/labyrinth-agile: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023/quantum-layout-agile: 17/20 solved, cost 897, 91.5s solve-time, val 17/17
+ipc-2023/recharging-robots-agile: 4/20 solved, cost 39, 69.9s solve-time, val 4/4
+ipc-2023/ricochet-robots-agile: 2/20 solved, cost 48, 94.9s solve-time, val 2/2
+ipc-2023/rubiks-cube-agile: 5/20 solved, cost 17, 6.9s solve-time, val 5/5
+ipc-2023/slitherlink-agile: 2/20 solved, cost 58, 14.6s solve-time, val 2/2
+
+wrote benchmarks/air-0.19.0/ipc2023-agile.md (raw: benchmarks/air-0.19.0/ipc2023-agile.jsonl) — total coverage 30/140

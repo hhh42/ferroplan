@@ -4,6 +4,109 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-08-04 — The numeric cycle, and the ladders that pay their own way
+
+The cycle that took the sailing wall down, closed a temporal debt
+carried since 0.18, and repaired the −26 coverage regression the v0.19
+backfill exposed in 0.20 — while keeping every win 0.20 had bought.
+Full record:
+[`docs/roadmap-0.21.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.21.md).
+
+### Where this leaves the standings
+
+**53% coverage across 13 IPC boards** (2,153/4,076), of which **354 are
+certified optima** — on the optimal tracks coverage IS proof rate.
+At-a-glance: [`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md);
+per-track detail: [`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md).
+
+Against 0.19.0 — re-measured on the SAME machine, so the comparison is
+engine-to-engine — the twelve comparable boards move **1,943 → 2,132,
++189**:
+
+| board | 0.19 | 0.20 | **0.21** |
+|---|---|---|---|
+| 2026 numeric | 124 | 121 | **165** |
+| seq-opt (08/11) ⚖️ | 235 | 250 | **275** |
+| 2023 numeric | 193 | 194 | **229** |
+| 2014 seq-agile | 114 | 103 | **142** |
+| 2014 seq-sat | 115 | 110 | **138** |
+| seq-sat (08/11) | 472 | 473 | **486** |
+| 2018 seq-sat | 63 | 53 | **70** |
+| 2014 tempo-sat | 65 | 66 | **70** |
+| 2023 classical | 30 | 27 | **32** |
+| 2023 agile ENTRY (300 s) | 49 | 48 | **51** |
+| tempo-sat (08/11) | 419 | 419 | 416 |
+| 2014 seq-opt ⚖️ | 64 | 56 | 58 |
+
+Two boards remain behind 0.19 and are not netted away: **tempo-sat −3**
+(within the ±4 band re-measurement showed on this box) and **2014
+seq-opt −6**, which is entirely `city-car` — the one domain where the
+optimal root gate does not recover what 0.20's unconditional
+quarter-budget sprint cost. Both are 0.22 work.
+
+**Every board in this release was measured under recorded conditions.**
+This box is a laptop, and contention only ever depresses coverage — so
+it invents regressions and hides gains. Each board now carries a
+`conditions.json` (median idle, load, swap, and the competing processes
+by name); a board measured below 65% median idle is refused rather than
+banked, and the driver re-measures it at the next quiet window. All 13
+boards here are verdict `clean`, 67.8–74.2% median idle. Two apparent
+regressions in the first pass (tempo-sat −19, the 300 s entry −3)
+turned out to be contention and vanished on clean measurement.
+
+- **The numeric-precondition charge** (Phase 3): extraction now
+  charges a selected op's unsatisfied numeric preconditions through
+  the existing achiever machinery — sailing-numeric i1 goes from a
+  5,000,048-eval cap-out to a 174-step solve at 29,203 evals;
+  block-grouping i1 (a 0/20 domain) solves in 24 evals via the new
+  one-sided Eq charge. Hatch `FF_NO_NUMPRE`; numeric novelty lands
+  opt-in behind `FF_NUMNOV`; temporal groundings deliberately keep
+  0.20's heuristic. The capped-search text no longer claims "proven
+  unsolvable".
+- **The optimal ladder learns the clock** (Phase 4): under an armed
+  `FF_TIME_LIMIT`, a root informativeness gate decides whether LM-cut
+  earns the remaining wall or h^max keeps the full budget, and the
+  h^max sprint is time-boxed (`FF_OPT_SPRINT_FRAC`, default 0.4).
+  scanalyzer-08 i4: PROVEN cost 24 inside the wall vs 0.20's 60 s
+  kill mid-sprint. No armed wall ⇒ bit-identical to 0.20. Hatch
+  `FF_OPT_NO_ROOTGATE`; h-memo on re-opened states kept (−4.6%
+  evaluated, expansions identical).
+- **The static-fluent fold** (Phase 6): defined-static, irrelevant
+  fluents fold to constants and the fluent tables compact out of
+  every stored node — data-network i12 drops 3,683 → 209 bytes/node
+  (17.6×), tpp i12 24,418 → 4,672 (5.2×) — with plans, eval counts
+  and expansion order byte-identical (hatches `FF_NO_FLUENT_FOLD`,
+  `FF_NO_FLUENT_COMPACT`). The session `set_fluent` contract is
+  pinned with a fixture whose teeth are proven. `FF_MEM_BUDGET_GB`
+  tells the engine its byte budget on kernels without a workable
+  RLIMIT_AS (macOS), so the retained-state cap trips internally and
+  the refill loop spends the wall the RSS watchdog used to eat.
+- **The ladder tax** (Phase 5): under an armed budget, EHC and
+  novelty-light get wall-denominated slices (`FF_EHC_WALL_FRAC` 0.25,
+  `FF_NOVLIGHT_WALL_FRAC` 0.10) instead of op-scaled/fixed-pop
+  budgets — the repair for the −26 the v0.19 backfill exposed.
+  hiking-2014 i6: 55.5 s (half a second inside the kill line) →
+  20.3 s, same plan; openstacks i1 keeps its EHC-direct solve. No
+  armed budget ⇒ byte-identical. Hatch `FF_NO_EHC_WALLCAP`; rung
+  narration under `FF_WALL_DEBUG`.
+- **Temporal emission is sound on the witness** (Phase 7): the two
+  same-slot bubble repairs become one per-slot topological order
+  with cross-kind guard edges — map-analyzer's three VAL-RED rows
+  (the only temporal VAL failures on the twelve boards, 0.20's
+  honest negative) go GREEN: solo referee 13/13 VAL-valid.
+- **The h-surgery bet dies its pre-registered death** (Phase 8): the
+  end-gated interval credit probe landed, priced a snap pair as one
+  unit (pinned), and BOTH reads failed — the village stool contract
+  still dies at 200k evals, and TMS's best_h floor re-levels
+  110→174 without breaking. Fifth negative on this wall; the ledger
+  line dies with a sharper localization; the probe stays dormant
+  behind `FF_H_ENDGATE`.
+- **Harness**: the IPC-2026 -opt pairs get a proof-track board
+  (`ipc2026-opt`, cut21-sweeps.sh + promote-air21.sh); multipart
+  instance names keep their full identity in the JSONLs; the
+  early-exit class is closed (the classifier's timeout line moved to
+  the refill loop's 90% re-entry floor).
+
 ## [0.20.0] - 2026-08-01 — The guidance cycle, cut on new silicon
 
 The cycle that set out to improve search GUIDANCE — and then had to move
@@ -13,8 +116,8 @@ migration is not a footnote: **every scoreboard number in this release
 was re-measured from scratch on the new machine**, and none of them may
 be read against a 0.19 number. Faster silicon inflates coverage at a
 fixed time budget, so a cloud→Air "improvement" would be hardware, not
-progress. Full record: [`docs/roadmap-0.20.md`](docs/roadmap-0.20.md)
-and [`docs/roadmap-0.21.md`](docs/roadmap-0.21.md).
+progress. Full record: [`docs/roadmap-0.20.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.20.md)
+and [`docs/roadmap-0.21.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.21.md).
 
 ### Where this leaves the standings
 
@@ -22,8 +125,8 @@ and [`docs/roadmap-0.21.md`](docs/roadmap-0.21.md).
 which **306 are certified optima** — on the optimal tracks coverage IS
 proof rate. seq-sat 473/580 (82%), tempo-sat 419/630 (67%), 2023
 numeric 194/400, seq-opt 250/550. At-a-glance:
-[`STANDINGS.md`](STANDINGS.md); per-track detail:
-[`benchmarks/ipc-standings.md`](benchmarks/ipc-standings.md).
+[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md); per-track detail:
+[`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md).
 
 Two boards deserve calling out. **482 of 485 temporal plans validate**
 under VAL across the IPC-6/7 boards (419/419 and 473/473 green); the
@@ -56,13 +159,14 @@ the planner had never seen.**
   two-rung ladder — an h^max sprint on a quarter of the node budget,
   then LM-cut on the full one. The PROVEN note names its prover.
   Hatches: `FF_NO_LMCUT`, `FF_NO_HMAX_SPRINT`.
-- **Priced honestly:** LM-cut proves **13 of 306 certificates (4.2%)**.
-  The ladder is wired correctly — it closes instances the sprint cannot
-  — but at a 60 s budget its per-node cost does not pay, which is what
-  the cycle's own barman-opt probe predicted (h^max proves cost 90 in
-  22 s where LM-cut cannot inside 100 s). Recorded as a correct
-  heuristic that does not yet earn its keep at this budget, not as a
-  win.
+- **Priced honestly, by differential.** 13 certificates carry the LM-cut
+  prover label, but re-running exactly those instances with
+  `FF_NO_LMCUT=1` on the same box shows four fall to the h^max sprint
+  anyway — so LM-cut's UNIQUE contribution is **9 of 306 certificates
+  (2.9%)**. No instance is lost by running it (`hatch-only 0`), so the
+  two-rung ladder costs nothing. Against the phase's 554-instance
+  ambition that is a small pot; it is also real, free and correctly
+  wired, which is a different verdict from "does not pay".
 
 ### The novelty-LIGHT rung (Phase 3)
 
@@ -199,7 +303,7 @@ sweep, two artifacts, disagreeing.
 
 `val_check` now tests a list of unavailability signatures, and a VAL
 *timeout* returns `null` rather than `false` for the same reason.
-[`benchmarks/val-availability.py`](benchmarks/val-availability.py)
+[`benchmarks/val-availability.py`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/val-availability.py)
 probes every domain and currently names four VAL cannot ingest.
 
 ### Release notes you can actually read
@@ -209,13 +313,13 @@ The front page had accumulated **sixteen "What's new" blockquotes —
 history before learning what the planner is. The changelog had reached
 22 releases and 1,919 lines.
 
-- [`scripts/release-notes-roll.py`](scripts/release-notes-roll.py)
+- [`scripts/release-notes-roll.py`](https://github.com/hhh42/ferroplan/blob/main/scripts/release-notes-roll.py)
   keeps `[Unreleased]` plus the newest two releases in both places;
   older changelog sections move verbatim to
-  [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md). `publish.sh` reads
+  [`CHANGELOG-ARCHIVE.md`](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG-ARCHIVE.md). `publish.sh` reads
   release notes from BOTH files, so archiving never breaks
   `--release-only <old-version>`.
-- **[`STANDINGS.md`](STANDINGS.md)** is new: every track banded and
+- **[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md)** is new: every track banded and
   sorted, proof tracks marked, cloud-era boards held separate and
   excluded from the headline. Generated by `standings.py`, which
   patches the README headline in the same run so the shop window cannot
@@ -226,66 +330,6 @@ history before learning what the planner is. The changelog had reached
   predecessor exists the table says "baseline" instead of inventing a
   delta.
 
-## [0.19.0] - 2026-07-31 — The contest cycle
-
-Improve the standings on every entered track and enter the one the
-project always fenced off — by direct request (cycle record in
-`docs/roadmap-0.19.md`).
-
-### The reject audit (~120 instances back from the front door)
-
-- **Negative number literals** (`(= (d p0) -370)`) now lex; the
-  sailing/fo-sailing/fo-counters reject cluster parses and searches.
-- **Implicit `(total-cost) = 0`** — the PDDL 3.1 `:action-costs`
-  convention: agricola, flashfill, and settlers (60 IPC-2018
-  instances that silently returned zero facts) ground and solve.
-- **Named verdicts**: an unsolvable-at-grounding result now says WHY
-  in `Solution.notes` ("goal fact (X) is unreachable: no surviving
-  grounded action adds it").
-- Reject columns: 2018-sat **60 → 0**, 2023-numeric **60 → 1**.
-
-### The optimal tracks, entered (`Mode::Optimal`)
-
-- A* + admissible cost-labeled h^max over the same packed task,
-  **proof-or-nothing**: a plan is returned only with an optimality
-  certificate; caps are inconclusive, exhaustion certifies
-  UNSOLVABLE past the delete relaxation. Constant and static-fluent
-  action costs; the rest reject by name. `--mode optimal`.
-- First entries: **2008 seq-opt 114/270, 2011 seq-opt 90/280, 2014
-  seq-opt 48/256 — 252 certified optima**, every plan VAL-green,
-  costs cross-checked against the independent cost-sweep oracle and
-  literature. The h^max walls (floor-tile, parking, barman) are
-  named; classical LM-cut is the recorded next bet.
-
-### The numeric-heuristic swing (+52/−1)
-
-- Linear numeric goals (`(>= (+ (* 2 (x)) (y)) (d))` — the 2023
-  numeric track's staple) now get a repetition-counting gradient:
-  `linearize` + ⌈gap / combo-delta⌉ charges, running only where the
-  old bare-fluent path punted. **2023-numeric 129 → 181 solved
-  (valid 113 → 165)**: farmland +17, fo-farmland +17, counters +8.
-  One named casualty (tpp-metric-time i4, `FF_NO_NUMH` hatch).
-
-### Ladder, memory, and emission
-
-- **Novelty by default under a budget**: with `FF_TIME_LIMIT`
-  declared, the width-1 novelty rung runs by default (0.18's gated
-  +4/−0 referee; `FF_NO_NOVELTY` opts out; budget-less behavior
-  byte-identical). At the cut this compounded to **+16/−0 on
-  2018-sat** (30 → 50 valid over the cycle) and **+11 on the
-  580-instance seq-sat flagship** (441 → 452, its first movement in
-  three cycles).
-- **The node cap can now see the memory limit**: the retained-bytes
-  target clamps to 60% of the actual `RLIMIT_AS` — tiny-state
-  numeric searches stop dying to the OOM killer before the internal
-  cap fires (the numeric board's 105-row mem-cap class, attributed
-  to search-state growth, NOT grounding).
-- **Emitted-duration reconciliation**: final plans replay and clamp
-  state-dependent durations to their domain expressions at emitted
-  start times (never half-correcting). The map-analyzer witnesses
-  refused the fix and decoded the debt one level deeper (ε-shifted
-  starts also precede propositional providers) — named 0.20 work.
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (20 earlier releases, 0.1.0–0.18.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (21 earlier releases, 0.1.0–0.19.0).

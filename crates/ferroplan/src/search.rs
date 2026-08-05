@@ -53,7 +53,16 @@ pub(crate) const NODE_CAP_TARGET_BYTES: usize = if usize::BITS < 64 { 2 << 30 } 
 /// `State` (bits + fluent vecs) in `nodes` plus the hash→index dedup entry
 /// (0.20 Phase 4 — the visited set no longer clones the bitset).
 pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
-    node_cap_for_bytes(task, NODE_CAP_TARGET_BYTES.min(rlimit_budget()))
+    node_cap_for_bytes(task, retained_bytes_budget())
+}
+
+/// The retained-state byte budget every node-cap model shares: the fixed
+/// target clamped by whatever budget the environment declares (RLIMIT_AS
+/// where it exists, `FF_MEM_BUDGET_GB` where it cannot — the temporal cap
+/// consumed the raw constant until 0.21 Phase 6, which is why temporal
+/// jobs died to the external watchdog instead of capping internally).
+pub(crate) fn retained_bytes_budget() -> usize {
+    NODE_CAP_TARGET_BYTES.min(rlimit_budget())
 }
 
 /// The address-space budget the process ACTUALLY has (0.19 Phase 4): the
@@ -70,7 +79,22 @@ pub(crate) fn node_cap_for(task: &PackedTask) -> usize {
 /// Read via `/proc/self/limits` (no libc dependency — the crate stays
 /// serde+thiserror only); non-Linux platforms simply keep the fixed
 /// target.
+///
+/// `FF_MEM_BUDGET_GB` (0.21 Phase 6 lever 0) is read FIRST: on Darwin
+/// `setrlimit(RLIMIT_AS)` cannot be enforced and there is no
+/// `/proc/self/limits`, so the runner's RSS watchdog kills EXTERNALLY
+/// with wall unspent (woodworking dies at 2.9–11.4 s of a 60 s budget
+/// and the refill loop never runs). The runner passes its `--mem-gb`
+/// budget here (fractional GiB) so the engine trips INTERNALLY on any
+/// kernel — a capped return the refill loop can spend the remaining
+/// wall on. The same 60% retained share applies as on the RLIMIT path;
+/// env absent ⇒ today's behavior exactly.
 fn rlimit_budget() -> usize {
+    if let Ok(v) = std::env::var("FF_MEM_BUDGET_GB") {
+        if let Some(bytes) = mem_budget_bytes(&v) {
+            return bytes;
+        }
+    }
     let Ok(limits) = std::fs::read_to_string("/proc/self/limits") else {
         return usize::MAX;
     };
@@ -87,6 +111,19 @@ fn rlimit_budget() -> usize {
         }
     }
     usize::MAX
+}
+
+/// `FF_MEM_BUDGET_GB` parsed to retained-state bytes: fractional GiB
+/// (so the runner can pass e.g. `1.8`), times the 60% retained share
+/// [`rlimit_budget`] applies to an RLIMIT_AS. Non-positive, non-finite,
+/// or unparsable values yield `None` (no override).
+fn mem_budget_bytes(raw: &str) -> Option<usize> {
+    let gb: f64 = raw.trim().parse().ok()?;
+    if !gb.is_finite() || gb <= 0.0 {
+        return None;
+    }
+    let bytes = (gb * (1u64 << 30) as f64) as u128;
+    Some(((bytes * 6 / 10) as u64).try_into().unwrap_or(usize::MAX))
 }
 
 /// [`node_cap_for`] against an explicit byte target (the budgeted-think
@@ -370,6 +407,29 @@ fn wall_remaining_frac() -> Option<f64> {
         let used = start.elapsed_ms() as f64 / 1000.0;
         ((total - used) / total).max(0.0)
     })
+}
+
+/// Seconds of the wall budget remaining, `None` if no limit is set. The
+/// optimal ladder (0.21 Phase 4) denominates its sprint slice in wall
+/// seconds — the currency the boards charge — where the satisficing
+/// gates above read the fraction.
+pub(crate) fn wall_remaining_secs() -> Option<f64> {
+    WALL.get_or_init(|| None)
+        .as_ref()
+        .map(|(start, total)| (total - start.elapsed_ms() as f64 / 1000.0).max(0.0))
+}
+
+/// Wall-slice knob (0.21 Phase 5): `var` read as a fraction of the
+/// REMAINING wall, `default` if unset/unparsable. Positive finite only —
+/// the slices these feed are deadlines, and a zero or negative slice
+/// would turn a rung off rather than budget it (the `FF_NO_*` hatches
+/// are the off switches).
+pub(crate) fn wall_frac_env(var: &str, default: f64) -> f64 {
+    std::env::var(var)
+        .ok()
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f > 0.0)
+        .unwrap_or(default)
 }
 
 pub struct SatGuidance {
@@ -869,6 +929,11 @@ pub struct PlanOutcome {
     pub ops: Option<Vec<usize>>,
     pub evaluated: usize,
     pub ehc_fell_back: bool,
+    /// Unsolved because a CAP fired (eval budget, node-cap byte model) —
+    /// NOT a genuine open-list exhaustion. The text path's "proven
+    /// unsolvable" wording must never fire on this (0.21 Phase 3 honesty
+    /// rider); false on every solved outcome.
+    pub capped: bool,
 }
 
 /// Plan the whole task. With `ehc_first`, run enforced hill-climbing (fast on
@@ -923,6 +988,7 @@ pub fn plan_avoiding(
                 ops: Some(ops),
                 evaluated,
                 ehc_fell_back: true,
+                capped: false,
             };
         }
     }
@@ -934,15 +1000,26 @@ pub fn plan_avoiding(
                 ops: Some(ops),
                 evaluated,
                 ehc_fell_back: true,
+                capped: false,
             };
         }
     }
+    // The probe eyes again (0.21 Phase 5): the wall-slice receipts need
+    // to name WHICH rung solved, so each rung's win is narrated on
+    // stderr under the same flag. Never affects the search.
+    let narrate_rung = |rung: &str| {
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!("wall: solved by {rung}");
+        }
+    };
     if ehc_first {
         if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval) {
+            narrate_rung("EHC");
             return PlanOutcome {
                 ops: Some(ops),
                 evaluated,
                 ehc_fell_back: false,
+                capped: false,
             };
         }
         // Novelty-LIGHT rung (0.20 Phase 3): IW(1) + goal count, ZERO h
@@ -966,10 +1043,12 @@ pub fn plan_avoiding(
             if let Some((ops, evaluated)) =
                 crate::novelty::search_light(task, NOVLIGHT_CAP.min(cfg.max_eval), forbidden)
             {
+                narrate_rung("novelty-light");
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
                     ehc_fell_back: true,
+                    capped: false,
                 };
             }
         }
@@ -983,10 +1062,12 @@ pub fn plan_avoiding(
             if let Some((ops, evaluated)) =
                 crate::lama::search(task, threads, LAMA_CAP.min(cfg.max_eval), forbidden)
             {
+                narrate_rung("LAMA");
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
                     ehc_fell_back: true,
+                    capped: false,
                 };
             }
         }
@@ -1008,10 +1089,12 @@ pub fn plan_avoiding(
             if let Some((ops, evaluated)) =
                 crate::novelty::search(task, threads, NOVELTY_CAP.min(cfg.max_eval), forbidden)
             {
+                narrate_rung("novelty");
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
                     ehc_fell_back: true,
+                    capped: false,
                 };
             }
         }
@@ -1075,10 +1158,12 @@ pub fn plan_avoiding(
             None,
         ) {
             PlanResult::Plan { ops, evaluated, .. } => {
+                narrate_rung(&format!("best-first fallback (round {})", round + 1));
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated: total_evaluated + evaluated,
                     ehc_fell_back: ehc_first,
+                    capped: false,
                 };
             }
             PlanResult::Unsolvable { evaluated, capped } => {
@@ -1089,6 +1174,7 @@ pub fn plan_avoiding(
                         ops: None,
                         evaluated: total_evaluated,
                         ehc_fell_back: ehc_first,
+                        capped,
                     };
                 }
                 round += 1;
@@ -1116,6 +1202,27 @@ pub fn plan_avoiding(
 /// evaluated, or None if it gets stuck / hits a dead end (caller falls back to
 /// best-first, which is complete). Single-threaded and deterministic.
 fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<usize>, usize)> {
+    // The ladder tax (0.21 Phase 5, lever 2): under an ARMED wall budget
+    // the op-scaled eval budget below is joined by a wall-denominated
+    // deadline — `FF_EHC_WALL_FRAC` (default 0.25) of the REMAINING wall
+    // at rung entry. The backfill receipt this prices: on exactly the
+    // boards whose solved rows say "EHC found no improving state", the
+    // op-scaled budget spends 30–55 s of a 60 s wall ahead of rungs that
+    // dispatch in milliseconds. Evals/sec spans orders of magnitude
+    // across tasks, so the slice is a DEADLINE checked per evaluation in
+    // the lookahead (where the wall is actually spent), not a
+    // pre-converted eval count. No armed budget ⇒ `None` ⇒ byte-identical;
+    // `FF_NO_EHC_WALLCAP=1` restores op-scaled-only.
+    let slice = if std::env::var("FF_NO_EHC_WALLCAP").is_err() {
+        wall_remaining_secs().map(|rem| {
+            (
+                crate::clock::Clock::now(),
+                wall_frac_env("FF_EHC_WALL_FRAC", 0.25) * rem,
+            )
+        })
+    } else {
+        None
+    };
     let init = task.initial();
     let mut sc = Scratch::new(task);
     let (mut cur_h, _) = relaxed_helpful(
@@ -1146,8 +1253,29 @@ fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<us
     let total_cap = (200 * task.n_ops).max(30_000).min(max_eval);
     let mut current = init;
     let mut plan: Vec<usize> = Vec::new();
+    // A tripped slice is narrated HERE (bfs_improve just returns None),
+    // and only on the hand-down paths — a plan found before the check is
+    // a plan, never discarded.
+    let tripped = |evaluated: usize| {
+        let hit = slice.as_ref().is_some_and(|(t0, s)| t0.elapsed_secs() > *s);
+        if hit && std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: EHC slice exhausted ({evaluated} evals in {:.2}s), handing down the ladder",
+                slice.as_ref().map_or(0.0, |(t0, _)| t0.elapsed_secs())
+            );
+        }
+        hit
+    };
     loop {
-        match bfs_improve(task, &mut sc, &current, cur_h, &mut evaluated, forbidden) {
+        match bfs_improve(
+            task,
+            &mut sc,
+            &current,
+            cur_h,
+            &mut evaluated,
+            forbidden,
+            slice.as_ref(),
+        ) {
             Some((ops, next, next_h)) => {
                 plan.extend(ops);
                 current = next;
@@ -1158,14 +1286,25 @@ fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<us
                 if evaluated > total_cap {
                     return None; // taking too long — hand off to best-first
                 }
+                if tripped(evaluated) {
+                    return None; // wall slice spent — hand off likewise
+                }
             }
-            None => return None, // stuck — let best-first take over
+            None => {
+                let _ = tripped(evaluated); // narration only
+                return None; // stuck — let best-first take over
+            }
         }
     }
 }
 
 /// Breadth-first search from `start`, expanding each node with ITS helpful
 /// actions, until a state with `h < h_start` is found. Returns (path, state, h).
+/// `slice` is the EHC rung's armed wall deadline (start clock, seconds) —
+/// checked per evaluation because ONE lookahead on a big task can burn tens
+/// of seconds inside this function (the openstacks shape), so the outer
+/// loop's cadence alone would never see it. `None` ⇒ unchecked.
+#[allow(clippy::too_many_arguments)]
 fn bfs_improve(
     task: &PackedTask,
     sc: &mut Scratch,
@@ -1173,6 +1312,7 @@ fn bfs_improve(
     h_start: i32,
     evaluated: &mut usize,
     forbidden: &[bool],
+    slice: Option<&(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, State, i32)> {
     // Fail FAST: if a helpful-restricted lookahead can't improve h within this
     // many expansions it is almost certainly on a plateau EHC won't escape, so
@@ -1219,6 +1359,11 @@ fn bfs_improve(
                 continue;
             }
             *evaluated += 1;
+            if let Some((t0, s)) = slice {
+                if t0.elapsed_secs() > *s {
+                    return None; // wall slice exhausted — ehc narrates
+                }
+            }
             let (h_ns, helpful_ns) = match relaxed_helpful(
                 task,
                 sc,
@@ -1407,5 +1552,31 @@ pub fn solve_subgoal_guided(
     ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),
         PlanResult::Unsolvable { evaluated, .. } => (None, evaluated),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mem_budget_bytes;
+
+    #[test]
+    fn mem_budget_parses_fractional_gib_at_the_60_percent_share() {
+        // 1 GiB -> 60% of 2^30; 0.5 GiB -> half that (fractional accepted).
+        assert_eq!(mem_budget_bytes("1"), Some((1u64 << 30) as usize * 6 / 10));
+        assert_eq!(
+            mem_budget_bytes("0.5"),
+            Some(((1u64 << 29) as u128 * 6 / 10) as usize)
+        );
+        assert_eq!(mem_budget_bytes(" 2 "), mem_budget_bytes("2"));
+    }
+
+    #[test]
+    fn mem_budget_rejects_garbage_zero_and_negatives() {
+        assert_eq!(mem_budget_bytes("not-a-number"), None);
+        assert_eq!(mem_budget_bytes(""), None);
+        assert_eq!(mem_budget_bytes("0"), None);
+        assert_eq!(mem_budget_bytes("-1"), None);
+        assert_eq!(mem_budget_bytes("inf"), None);
+        assert_eq!(mem_budget_bytes("NaN"), None);
     }
 }

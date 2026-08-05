@@ -1,0 +1,88 @@
+=== chain start 2026-08-01 14:59:39 ===
+==> waiting for the box to go quiet (3 consecutive quiet samples)
+    idle 84%  (1/3)
+    idle 85%  (2/3)
+    idle 87%  (3/3)
+==> box is quiet 15:01:50
+==> differential: lmcut 15:01:50
+
+  shipped solved 0/13  hatched solved 0/13
+  the feature is worth: +0 instances (kept-by-both 0, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-lmcut.json
+==> differential: novlight 15:29:53
+!! differential novlight FAILED — see benchmarks/air-chain/diff-novlight.log
+==> differential: refill 15:29:53
+=== chain start 2026-08-01 15:44:05 ===
+==> waiting for the box to go quiet (3 consecutive quiet samples)
+    idle 87%  (1/3)
+    idle 93%  (2/3)
+    idle 95%  (3/3)
+==> box is quiet 15:46:12
+==> differential: lmcut 15:46:12
+
+  shipped solved 13/13  hatched solved 4/13
+  the feature is worth: +9 instances (kept-by-both 4, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-lmcut.json
+==> differential: novlight 16:09:49
+
+  shipped solved 20/20  hatched solved 1/20
+  the feature is worth: +19 instances (kept-by-both 1, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-novlight.json
+==> differential: refill 16:32:44
+
+  shipped solved 9/20  hatched solved 9/20
+  the feature is worth: +0 instances (kept-by-both 9, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-refill.json
+==> backfill v0.19.0 2026-08-01 17:01:07
+==> worktree ../ferroplan-backfill-0.19.0 at v0.19.0
+Preparing worktree (detached HEAD 14fbe8d)
+HEAD is now at 14fbe8d Cut 0.19.0: seven boards +32/-2, the 300s official entry, all gates green
+==> building v0.19.0 (this is the OLD engine)
+==> engine: /Users/harold/ferroplan-backfill-0.19.0/target/release/ff
+ff 0.19.0
+RUN  ipc2023-agile (agile-2023 60s ) 17:01:35
+DONE ipc2023-agile: total coverage: **30/140** 18:00:01
+RUN  ipc2014-tempo (tempo-sat-2014 30s ) 18:00:01
+DONE ipc2014-tempo: total coverage: **68/200** 18:35:40
+RUN  ipc2018-sat (sat-2018 60s ) 18:35:40
+DONE ipc2018-sat: total coverage: **63/240** 20:09:38
+RUN  ipc2014-sat (seq-sat-2014 60s ) 20:09:38
+DONE ipc2014-sat: total coverage: **115/280** 21:42:01
+RUN  ipc2014-agile (seq-agile-2014 60s ) 21:42:01
+DONE ipc2014-agile: total coverage: **114/280** 23:17:37
+RUN  ipc2014-opt (seq-opt-2014 60s --mode optimal) 23:17:37
+DONE ipc2014-opt: total coverage: **64/256** 01:01:48
+RUN  ipc2026-numeric (numeric-2026 60s ) 01:01:48
+DONE ipc2026-numeric: total coverage: **124/320** 02:33:44
+RUN  ipc2023-numeric (numeric-2023 60s ) 02:33:44
+DONE ipc2023-numeric: total coverage: **193/400** 04:07:44
+RUN  ipc-opt-2008-11 (seq-opt 60s --mode optimal) 04:07:44
+DONE ipc-opt-2008-11: total coverage: **235/550** 07:00:52
+RUN  ipc67-temporal (tempo-sat 30s ) 07:00:52
+DONE ipc67-temporal: total coverage: **419/630** 07:58:56
+RUN  ipc67-results (seq-sat 60s ) 07:58:56
+DONE ipc67-results: total coverage: **472/580** 09:19:09
+RUN  ipc2023-agile-300s (agile-2023 300s ) 09:19:09
+DONE ipc2023-agile-300s: total coverage: **49/140** 13:37:24
+BACKFILL v0.19.0 ALL DONE 2026-08-02 13:37:24
+next: python3 scripts/standings-snapshot.py --version 0.19.0 \
+        --measured-at $(date +%F) --released <original release date> \
+        --note 'backfilled on m5-air from tag v0.19.0'
+=== chain done 2026-08-02 13:37:24 ===
+=== chain start 2026-08-02 21:03:02 ===
+==> waiting for the box to go quiet (3 consecutive quiet samples)
+    idle 86%  (1/3)
+    idle 89%  (2/3)
+    idle 89%  (3/3)
+==> box is quiet 21:05:10
+SKIP differential lmcut (done)
+SKIP differential novlight (done)
+SKIP differential refill (done)
+==> backfill v0.18.0 2026-08-02 21:05:10
+==> engine: /Users/harold/ferroplan-backfill-0.18.0/target/release/ff
+ff 0.18.0
+==> v0.18.0 predates Mode::Optimal — skipping the two proof-rate boards
+    (feature absent, NOT zero coverage)
+RUN  ipc2023-agile (agile-2023 60s ) 21:05:11
+DONE ipc2023-agile: total coverage: **28/140** 22:05:27
+RUN  ipc2014-tempo (tempo-sat-2014 30s ) 22:05:27

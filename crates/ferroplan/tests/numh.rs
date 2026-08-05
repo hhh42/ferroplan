@@ -42,6 +42,38 @@ fn fluent_rhs_goal_gets_the_charge() {
     assert_eq!(sol.plan.unwrap().length, 5);
 }
 
+/// The Eq refusal, repaired (0.21 Phase 3 probe rider c): the linear path
+/// returned None on `CompOp::Eq` — block-grouping's ENTIRE goal shape
+/// (`(= (x b1) (x b2))`), leaving h=0 flat. From a point value an Eq is
+/// one-sided (raise if below, lower if above), so it charges toward zero
+/// from cur's side. Four blocks on a 20-cell line meet in ~25 moves; a
+/// charge-less search is blind Dijkstra over the 20^4 grid and caps.
+#[test]
+fn eq_goal_gets_the_charge() {
+    let dom = "(define (domain bg)
+      (:requirements :typing :numeric-fluents)
+      (:types block - object)
+      (:functions (x ?b - block) (max_x) (min_x))
+      (:action right :parameters (?b - block)
+        :precondition (<= (+ (x ?b) 1) (max_x))
+        :effect (increase (x ?b) 1))
+      (:action left :parameters (?b - block)
+        :precondition (>= (- (x ?b) 1) (min_x))
+        :effect (decrease (x ?b) 1)))";
+    let prb = "(define (problem bg1) (:domain bg)
+      (:objects b1 b2 b3 b4 - block)
+      (:init (= (x b1) 20) (= (x b2) 17) (= (x b3) 3) (= (x b4) 9)
+             (= (max_x) 20) (= (min_x) 1))
+      (:goal (and (= (x b1) (x b2)) (= (x b1) (x b3)) (= (x b1) (x b4)))))";
+    let opts = Options {
+        max_evaluated: Some(50_000),
+        threads: 1,
+        ..Default::default()
+    };
+    let sol = solve(dom, prb, &opts).unwrap();
+    assert!(sol.solved, "the Eq charge must give the meet a gradient");
+}
+
 /// The pre-existing bare shape stays byte-identical: same plan and the
 /// same evaluated-state count with the linear path present (it never
 /// runs where the bare path answers).

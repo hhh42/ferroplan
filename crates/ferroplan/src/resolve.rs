@@ -29,7 +29,12 @@ pub struct Stats {
 
 pub enum Solved {
     Plan(Vec<usize>, Stats),
-    Unsolvable,
+    Unsolvable {
+        /// The monolithic endpoint died on a CAP (eval budget / node-cap
+        /// byte model), not genuine open-list exhaustion — the text path
+        /// must not print "proven unsolvable" for it (0.21 Phase 3).
+        capped: bool,
+    },
 }
 
 /// The per-subgoal LAMA rung (the second half of the 0.9 text-path
@@ -130,8 +135,11 @@ pub fn solve(
         // exactly when the library path does, which is the module's stated
         // doctrine. Per-SUBGOAL landmark guidance for the non-monolithic
         // groups remains future work (goal_landmarks is whole-goal today).
+        let mut mono_capped = false;
         let subplans: Vec<Option<Vec<usize>>> = if monolithic {
-            vec![crate::search::plan(task, threads, cfg, true).ops]
+            let o = crate::search::plan(task, threads, cfg, true);
+            mono_capped = o.capped;
+            vec![o.ops]
         } else {
             par::par_map(&groups, threads, |g| {
                 if g.is_empty() {
@@ -147,7 +155,9 @@ pub fn solve(
         // first; merge and retry (or, if monolithic, genuinely unsolvable).
         if let Some(i) = subplans.iter().position(|s| s.is_none()) {
             if monolithic {
-                return Solved::Unsolvable;
+                return Solved::Unsolvable {
+                    capped: mono_capped,
+                };
             }
             merge_with_neighbor(&mut groups, i);
             merges += 1;
@@ -249,7 +259,7 @@ pub fn solve(
         if monolithic {
             // single group already = whole goal but compose didn't satisfy it:
             // treat as unsolvable (matches ffdp on the full problem).
-            return Solved::Unsolvable;
+            return Solved::Unsolvable { capped: false };
         }
         let last = groups.len() - 1;
         match conflict {

@@ -1,0 +1,240 @@
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "agricola-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 1, "solved": true, "time": 17.04, "metric": null, "length": 11, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 2, "solved": true, "time": 17.33, "metric": null, "length": 11, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 1, "solved": true, "time": 0.54, "metric": 72.0, "length": 38, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 2, "solved": true, "time": 0.51, "metric": 78.0, "length": 39, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 4, "solved": true, "time": 3.23, "metric": 96.0, "length": 55, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "caldera-split-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 1, "solved": true, "time": 5.44, "metric": 680.0, "length": 67, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 2, "solved": true, "time": 4.43, "metric": 338.0, "length": 36, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 3, "solved": true, "time": 6.08, "metric": 407.0, "length": 49, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 4, "solved": true, "time": 18.81, "metric": 978.0, "length": 130, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 5, "solved": true, "time": 22.0, "metric": 898.0, "length": 107, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 6, "solved": true, "time": 53.6, "metric": 1303.0, "length": 130, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 7, "solved": false, "time": 22.17, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 8, "solved": false, "time": 30.18, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 9, "solved": false, "time": 43.53, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 10, "solved": false, "time": 25.75, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 11, "solved": true, "time": 3.65, "metric": 625.0, "length": 25, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 12, "solved": true, "time": 5.22, "metric": 512.0, "length": 26, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 13, "solved": true, "time": 7.86, "metric": 690.0, "length": 43, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 14, "solved": true, "time": 9.63, "metric": 816.0, "length": 50, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 16, "solved": false, "time": 50.55, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 17, "solved": true, "time": 57.55, "metric": 1785.0, "length": 112, "val": null, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 20, "solved": false, "time": 55.26, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 1, "solved": true, "time": 5.05, "metric": 619.0, "length": 21, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 6, "solved": true, "time": 10.13, "metric": 413.0, "length": 15, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 7, "solved": true, "time": 13.18, "metric": 413.0, "length": 15, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 8, "solved": true, "time": 16.01, "metric": 417.0, "length": 20, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 9, "solved": true, "time": 22.56, "metric": 421.0, "length": 25, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 10, "solved": true, "time": 28.94, "metric": 425.0, "length": 30, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 11, "solved": true, "time": 23.75, "metric": 722.0, "length": 24, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 13, "solved": false, "time": 51.24, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 16, "solved": true, "time": 9.24, "metric": 310.0, "length": 12, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 17, "solved": true, "time": 37.33, "metric": 310.0, "length": 12, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 18, "solved": false, "time": 38.26, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 19, "solved": false, "time": 39.65, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "flashfill-sequential-satisficing", "instance": 20, "solved": false, "time": 44.5, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 1, "solved": true, "time": 0.17, "metric": null, "length": 42, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 2, "solved": true, "time": 0.46, "metric": null, "length": 38, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 3, "solved": true, "time": 0.42, "metric": null, "length": 54, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 4, "solved": true, "time": 4.14, "metric": null, "length": 54, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 5, "solved": true, "time": 1.36, "metric": null, "length": 82, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 6, "solved": true, "time": 4.29, "metric": null, "length": 59, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 7, "solved": true, "time": 10.42, "metric": null, "length": 76, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 8, "solved": true, "time": 13.65, "metric": null, "length": 73, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 12, "solved": true, "time": 56.51, "metric": null, "length": 110, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "nurikabe-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 3, "solved": false, "time": 23.69, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 6, "solved": false, "time": 14.2, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 11, "solved": false, "time": 31.5, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 18, "solved": false, "time": 28.11, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 1, "solved": true, "time": 0.62, "metric": 252.0, "length": 31, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "plan cost proven optimal"]}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 2, "solved": true, "time": 1.83, "metric": 252.0, "length": 37, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "plan cost proven optimal"]}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 3, "solved": true, "time": 15.14, "metric": 252.0, "length": 41, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "plan cost proven optimal"]}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 4, "solved": true, "time": 8.65, "metric": 252.0, "length": 24, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "plan cost proven optimal"]}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 6, "solved": true, "time": 0.44, "metric": 82.0, "length": 28, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "plan cost proven optimal"]}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 7, "solved": true, "time": 29.2, "metric": 82.0, "length": 51, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 15, "solved": true, "time": 15.92, "metric": 882.0, "length": 53, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "organic-synthesis-split-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 1, "solved": true, "time": 8.82, "metric": 535.0, "length": 70, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 2, "solved": true, "time": 15.98, "metric": 660.0, "length": 88, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 3, "solved": true, "time": 8.05, "metric": 565.0, "length": 74, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 4, "solved": true, "time": 13.72, "metric": 555.0, "length": 75, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 5, "solved": true, "time": 18.2, "metric": 1005.0, "length": 134, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 6, "solved": true, "time": 36.77, "metric": 1180.0, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 8, "solved": true, "time": 22.88, "metric": 840.0, "length": 105, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 9, "solved": true, "time": 9.2, "metric": 525.0, "length": 70, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 10, "solved": true, "time": 22.79, "metric": 630.0, "length": 82, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "settlers-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 1, "solved": true, "time": 1.87, "metric": null, "length": 49, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 2, "solved": true, "time": 10.84, "metric": null, "length": 105, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 3, "solved": true, "time": 13.19, "metric": null, "length": 111, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 5, "solved": true, "time": 1.78, "metric": null, "length": 37, "val": true, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 6, "solved": true, "time": 12.01, "metric": null, "length": 68, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 16, "solved": false, "time": 12.97, "metric": null, "length": null, "val": null, "notes": "mem-cap"}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "snake-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 14, "solved": true, "time": 27.32, "metric": 24.0, "length": 112, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "spider-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 1, "solved": true, "time": 0.61, "metric": null, "length": 110, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 2, "solved": true, "time": 1.17, "metric": null, "length": 222, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 4, "solved": true, "time": 1.16, "metric": null, "length": 204, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 5, "solved": true, "time": 2.06, "metric": null, "length": 302, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 6, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 7, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 8, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 9, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 11, "solved": true, "time": 0.89, "metric": null, "length": 179, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 12, "solved": true, "time": 16.15, "metric": null, "length": 452, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 16, "solved": true, "time": 10.5, "metric": null, "length": 326, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 18, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 19, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2018", "variant": "termes-sequential-satisficing", "instance": 20, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}

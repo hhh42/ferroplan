@@ -31,7 +31,11 @@ import json, os, re, resource, shutil, subprocess, sys, tempfile, threading, tim
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FF = os.path.join(ROOT, "target", "release", "ff")
+# $FERROPLAN_FF points the runner at a DIFFERENT `ff` binary — the supported
+# way to sweep an OLD tagged engine with the CURRENT harness, so that a
+# backfilled history varies only the engine. Building the old tree in a
+# worktree and pointing here keeps one instrument across every comparison.
+FF = os.environ.get("FERROPLAN_FF") or os.path.join(ROOT, "target", "release", "ff")
 
 
 def arg(name, default):
@@ -130,6 +134,11 @@ TRACK_PATTERNS = {
     # 0.20: the IPC-2026 numeric dataset (vendored by get-ipc.sh from the
     # competition's public repo after the track ran at ICAPS Dublin).
     "numeric-2026": r"numeric-2026",
+    # 0.21 Phase 4: the corpus's three -sat/-opt pairs swept as a PROOF
+    # board (pair with `--mode optimal`; coverage = proof rate). The
+    # -opt instance sets also appear satisficing-style on numeric-2026 —
+    # same files, different question.
+    "opt-2026": r"-opt-numeric-2026",
 }
 
 # Which competition directories each track lives in.
@@ -154,6 +163,7 @@ TRACK_IPCS = {
     "agile-2023": ("ipc-2023",),
     "numeric-2023": ("ipc-2023n",),
     "numeric-2026": ("ipc-2026n",),
+    "opt-2026": ("ipc-2026n",),
 }
 
 
@@ -208,11 +218,22 @@ def instances(vdir):
     if skipped:
         print(f"WARN {vdir}: skipping un-numbered instance file(s): "
               f"{', '.join(sorted(skipped))}", file=sys.stderr)
-    names = sorted(named, key=lambda n: int(re.search(r"\d+", n).group()))
+    # Multipart names (petri-net's instance-10-1.pddl, line-exchange's
+    # instance-3_10_50_10.pddl) must keep EVERY digit group in the row's
+    # instance label: first-group-only collapsed 20 distinct problems onto
+    # 3-5 labels (ipc2026-numeric held 320 rows under 288 keys), which
+    # silently breaks the per-instance diff and --score-against joins.
+    # Single-number names stay ints so every existing board's identity is
+    # unchanged; the domain-<n> pairing convention keys on the FIRST group
+    # either way.
+    def groups(f):
+        return re.findall(r"\d+", f)
+    names = sorted(named, key=lambda f: tuple(int(g) for g in groups(f)))
     for f in names:
-        n = int(re.search(r"\d+", f).group())
+        gs = groups(f)
+        n = int(gs[0]) if len(gs) == 1 else "_".join(gs)
         d = shared if os.path.isfile(shared) else os.path.join(
-            vdir, "domains", f"domain-{n}.pddl")
+            vdir, "domains", f"domain-{gs[0]}.pddl")
         if os.path.isfile(d):
             out.append((n, d, os.path.join(idir, f)))
     if MAXI:
@@ -340,6 +361,12 @@ def run_instance(val, n, d, p):
     # Budget-aware ladder (0.18): tell the engine its real wall budget so
     # bounded rungs stop starving the complete fallback near the edge.
     env = dict(os.environ, FF_TIME_LIMIT=str(TIMEOUT))
+    if MEMGB > 0:
+        # The engine cannot learn the budget from RLIMIT_AS on Darwin
+        # (0.21 Phase 6 lever 0): tell it outright, so the retained-state
+        # cap trips INTERNALLY (capped:true, refill spends the wall)
+        # instead of the RSS watchdog killing the job with wall unspent.
+        env["FF_MEM_BUDGET_GB"] = str(MEMGB)
 
     # Only install a preexec_fn where the cap actually takes: an unusable
     # setrlimit raises INSIDE the fork hook, and every row becomes spawn-fail.
@@ -419,8 +446,15 @@ def main():
     reference = load_reference(SCORE_AGAINST) if SCORE_AGAINST else None
     print(f"corpus: {corpus}\nVAL: {val or 'not found (external validation skipped)'}\n"
           f"timeout {TIMEOUT}s, jobs {JOBS}, mode {MODE or 'auto'}", flush=True)
-    subprocess.run(["cargo", "build", "--release", "-q", "-p", "ferroplan-cli"],
-                   cwd=ROOT, check=True)
+    if os.environ.get("FERROPLAN_FF"):
+        # An externally supplied binary must not be silently rebuilt from the
+        # CURRENT tree — that would defeat the entire point of the override.
+        if not os.path.isfile(FF):
+            sys.exit(f"FERROPLAN_FF={FF} does not exist")
+        print(f"using external binary: {FF}")
+    else:
+        subprocess.run(["cargo", "build", "--release", "-q", "-p", "ferroplan-cli"],
+                       cwd=ROOT, check=True)
     summary = []
     raw = open(RAW, "w")
     with ThreadPoolExecutor(max_workers=JOBS) as pool:

@@ -1,0 +1,33 @@
+=== novlight: how much of visit-all is the light rung?
+    hatch=FF_NO_NOVLIGHT  budget=60s  witnesses=20
+  running as shipped (rep 1/2) (20 instances, jobs=1)...
+  running as shipped (rep 2/2) (20 instances, jobs=1)...
+  running FF_NO_NOVLIGHT=1 (20 instances, jobs=1)...
+
+  shipped arm across 2 repeats: [20, 20] solved (union 20)
+
+  instance                                                      shipped          hatched
+  ipc-2014/visit-all-sequential-satisficing i1         None (-) 0.9s [2/2]   None (-) 47.7s
+  ipc-2014/visit-all-sequential-satisficing i2         None (-) 0.9s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i3         None (-) 1.0s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i4         None (-) 1.0s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i5         None (-) 3.5s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i6         None (-) 3.9s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i7         None (-) 4.0s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i8         None (-) 4.3s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i9         None (-) 4.6s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i10        None (-) 5.0s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i11        None (-) 5.0s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i12        None (-) 5.6s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i13        None (-) 5.7s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i14        None (-) 6.1s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i15        None (-) 6.3s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i16        None (-) 6.4s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i17        None (-) 6.9s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i18        None (-) 7.2s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i19        None (-) 7.7s [2/2]     unsolved 60s  <== hatch LOSES it
+  ipc-2014/visit-all-sequential-satisficing i20        None (-) 7.9s [2/2]     unsolved 60s  <== hatch LOSES it
+
+  shipped solved 20/20  hatched solved 1/20
+  the feature is worth: +19 instances (kept-by-both 1, hatch-only 0)
+  wrote /Users/harold/ferroplan/benchmarks/differential-novlight.json

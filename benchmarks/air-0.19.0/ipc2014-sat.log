@@ -1,0 +1,20 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-backfill-0.19.0/target/release/ff
+ipc-2014/barman-sequential-satisficing: 20/20 solved, cost 3081, 53.7s solve-time, val 20/20
+ipc-2014/cave-diving-sequential-satisficing: 3/20 solved, cost 309, 93.0s solve-time, val 3/3
+ipc-2014/child-snack-sequential-satisficing: 9/20 solved, cost 543, 64.5s solve-time, val 9/9
+ipc-2014/city-car-sequential-satisficing: 3/20 solved, cost 1363, 78.5s solve-time, val 3/3
+ipc-2014/floor-tile-sequential-satisficing: 2/20 solved, cost 178, 2.6s solve-time, val 2/2
+ipc-2014/genome-edit-distances-sequential-satisficing: 20/20 solved, cost 685, 321.1s solve-time, val 20/20
+ipc-2014/hiking-sequential-satisficing: 19/20 solved, cost 1104, 106.6s solve-time, val 19/19
+ipc-2014/maintenance-sequential-satisficing: 13/20 solved, cost 1223, 30.3s solve-time, val 13/13
+ipc-2014/openstacks-sequential-satisficing: 5/20 solved, cost 687, 205.2s solve-time, val 5/5
+ipc-2014/parking-sequential-satisficing: 1/20 solved, cost 67, 58.0s solve-time, val 1/1
+ipc-2014/tetris-sequential-satisficing: 1/20 solved, cost 46, 22.5s solve-time, val 1/1
+ipc-2014/thoughtful-sequential-satisficing: 18/20 solved, cost 1729, 267.2s solve-time, val 18/18
+ipc-2014/transport-sequential-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2014/visit-all-sequential-satisficing: 1/20 solved, cost 1450, 55.4s solve-time, val 1/1
+
+wrote benchmarks/air-0.19.0/ipc2014-sat.md (raw: benchmarks/air-0.19.0/ipc2014-sat.jsonl) — total coverage 115/280

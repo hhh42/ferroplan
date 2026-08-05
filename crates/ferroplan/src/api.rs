@@ -830,7 +830,7 @@ fn solve_classic(
         let groups = crate::invariants::synthesize(domain, &task);
         match resolve::solve(&task, threads, opts.search_cfg(), &groups) {
             Solved::Plan(ops, _) => (Some(ops), 0),
-            Solved::Unsolvable => (None, 0),
+            Solved::Unsolvable { .. } => (None, 0),
         }
     } else {
         let ehc_first = opts.search != Search::BestFirst;
