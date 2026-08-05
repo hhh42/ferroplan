@@ -1,11 +1,9 @@
-//! Read the "Animate this plan" handoff the Solver web page (`ferroplan-wasm/web/`)
-//! writes to `localStorage['ferroplan.handoff']` before navigating here — the domain,
-//! problem, and the solution ALREADY SOLVED there, so clicking "Animate" shows that
-//! exact plan instead of falling back to the embedded demo or re-solving (which could
-//! disagree with the Solver's result if search options ever differ).
+//! Bounded browser handoff from the solver page into the Bevy visualizer.
 //!
-//! wasm32-only; `main.rs` calls [`try_load`] at startup and falls back to the
-//! embedded demo when it returns `false` (no handoff, or it failed to parse).
+//! The handoff is candidate data, never authority. Domain, problem, and JSON
+//! sizes are bounded before deserialization. A supplied plan is independently
+//! validated against the supplied model before it may enter the animation
+//! timeline.
 
 use bevy::prelude::*;
 
@@ -13,44 +11,98 @@ use crate::anim::{load_result, result_from_solution, Plan};
 use crate::scene::Scene;
 
 const KEY: &str = "ferroplan.handoff";
+const MAX_HANDOFF_BYTES: usize = 8 * 1024 * 1024;
+const MAX_MODEL_BYTES: usize = 4 * 1024 * 1024;
 
-/// Read, parse, and apply the handoff if present. Returns `true` on success (the
-/// scene + plan are populated and the caller should skip loading the demo).
 pub(crate) fn try_load(scene: &mut Scene, plan: &mut Plan) -> bool {
     let Some(raw) = read_local_storage(KEY) else {
         return false;
     };
-    let Ok(v) = serde_json::from_str::<serde_json::Value>(&raw) else {
-        web_sys::console::warn_1(&"ferroplan.handoff: invalid JSON, ignoring".into());
+    if raw.len() > MAX_HANDOFF_BYTES {
+        warn("handoff exceeds the 8 MiB input limit; refusing");
+        return false;
+    }
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        warn("invalid JSON; refusing");
         return false;
     };
     let (Some(domain), Some(problem)) = (
-        v.get("domain").and_then(|x| x.as_str()),
-        v.get("problem").and_then(|x| x.as_str()),
+        value.get("domain").and_then(|item| item.as_str()),
+        value.get("problem").and_then(|item| item.as_str()),
     ) else {
-        web_sys::console::warn_1(&"ferroplan.handoff: missing domain/problem, ignoring".into());
+        warn("missing domain/problem; refusing");
         return false;
     };
+    if domain.is_empty()
+        || problem.is_empty()
+        || domain.len() > MAX_MODEL_BYTES
+        || problem.len() > MAX_MODEL_BYTES
+    {
+        warn("domain/problem is empty or exceeds the 4 MiB model limit; refusing");
+        return false;
+    }
+
     scene.load_src(domain);
     scene.load_src(problem);
 
-    // The solved plan is optional in principle (a future caller might hand off just
-    // a domain+problem to load and let the user press S) — apply it if present and
-    // parses as a Solution; a plan-less handoff still counts as a successful load
-    // since the scene came through.
-    if let Some(sol_v) = v.get("solution") {
-        match serde_json::from_value::<ferroplan::Solution>(sol_v.clone()) {
-            Ok(sol) => {
-                let res = result_from_solution(domain, problem, sol);
-                load_result(plan, res, true); // autoplay: they clicked "Animate"
+    if let Some(solution_value) = value.get("solution") {
+        match serde_json::from_value::<ferroplan::Solution>(solution_value.clone()) {
+            Ok(solution) if candidate_solution_valid(domain, problem, &solution) => {
+                let result = result_from_solution(domain, problem, solution);
+                load_result(plan, result, true);
+                plan.status.push_str(" · candidate-only · independently validated");
             }
-            Err(e) => web_sys::console::warn_1(
-                &format!("ferroplan.handoff: solution didn't parse ({e}), scene loaded anyway")
-                    .into(),
-            ),
+            Ok(_) => warn("candidate solution failed independent validation; scene loaded without plan"),
+            Err(error) => warn(&format!(
+                "candidate solution did not parse ({error}); scene loaded without plan"
+            )),
         }
     }
     true
+}
+
+fn candidate_solution_valid(domain: &str, problem: &str, solution: &ferroplan::Solution) -> bool {
+    if !solution.solved {
+        return solution.plan.is_none();
+    }
+    let Some(plan) = solution.plan.as_ref() else {
+        return false;
+    };
+    if plan.length != plan.steps.len() {
+        return false;
+    }
+    let plan_text = render_plan(plan);
+    matches!(
+        ferroplan::plan::validate_plan(domain, problem, &plan_text),
+        Ok(ferroplan::plan::Validity::Valid)
+    )
+}
+
+fn render_plan(plan: &ferroplan::Plan) -> String {
+    let temporal = plan.steps.iter().any(|step| step.time.is_some());
+    let mut output = String::new();
+    for step in &plan.steps {
+        let args = if step.args.is_empty() {
+            String::new()
+        } else {
+            format!(" {}", step.args.join(" "))
+        };
+        if temporal {
+            output.push_str(&format!(
+                "{:.6}: ({}{args}) [{:.6}]\n",
+                step.time.unwrap_or(0.0),
+                step.action,
+                step.duration.unwrap_or(0.0)
+            ));
+        } else {
+            output.push_str(&format!("step {}: {}{args}\n", step.index, step.action));
+        }
+    }
+    output
+}
+
+fn warn(message: &str) {
+    web_sys::console::warn_1(&format!("ferroplan.handoff: {message}").into());
 }
 
 fn read_local_storage(key: &str) -> Option<String> {
@@ -59,4 +111,21 @@ fn read_local_storage(key: &str) -> Option<String> {
         .ok()??
         .get_item(key)
         .ok()?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn solved_without_plan_is_refused() {
+        let solution = ferroplan::Solution {
+            solved: true,
+            mode: ferroplan::Mode::Ff,
+            plan: None,
+            statistics: ferroplan::Statistics::default(),
+            notes: vec![],
+        };
+        assert!(!candidate_solution_valid("", "", &solution));
+    }
 }
