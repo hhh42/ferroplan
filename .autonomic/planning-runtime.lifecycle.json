@@ -1,0 +1,91 @@
+{
+  "schema": "urn:mfw:autonomic-lifecycle-manifest:v1",
+  "id": "ferroplan-planning-runtime-crown-v1",
+  "workspace": "..",
+  "inherit_environment": [
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "TEMP",
+    "TMP",
+    "CI",
+    "RUSTC_WRAPPER",
+    "FERROPLAN_REQUIRE_MFW_ORACLE",
+    "MFW_PLANNER_ORACLE_PYTHONPATH",
+    "PYTHONPATH"
+  ],
+  "output_preview_bytes": 16384,
+  "stages": [
+    {
+      "id": "mfw-source-capsule-admission",
+      "command": ["python3", "scripts/verify_mfw_planning_capsule.py"],
+      "mutation": "read_only",
+      "timeout_seconds": 60,
+      "failure_classification": "BUILD_BROKEN"
+    },
+    {
+      "id": "oracle-capability-observation",
+      "depends_on": ["mfw-source-capsule-admission"],
+      "command": ["python3", "-m", "mfw_planner_oracle", "capabilities"],
+      "mutation": "read_only",
+      "timeout_seconds": 30,
+      "failure_classification": "UNSUPPORTED"
+    },
+    {
+      "id": "format",
+      "depends_on": ["oracle-capability-observation"],
+      "command": ["cargo", "fmt", "-p", "ferroplan", "--", "--check"],
+      "mutation": "read_only",
+      "timeout_seconds": 120
+    },
+    {
+      "id": "compile",
+      "depends_on": ["format"],
+      "command": ["cargo", "check", "-p", "ferroplan", "--all-targets", "--all-features"],
+      "mutation": "read_only",
+      "timeout_seconds": 600
+    },
+    {
+      "id": "lint",
+      "depends_on": ["compile"],
+      "command": ["cargo", "clippy", "-p", "ferroplan", "--all-targets", "--all-features", "--", "-D", "warnings"],
+      "mutation": "read_only",
+      "timeout_seconds": 600
+    },
+    {
+      "id": "planning-constitution",
+      "depends_on": ["lint"],
+      "command": ["cargo", "test", "-p", "ferroplan", "--test", "planning_types"],
+      "mutation": "read_only",
+      "timeout_seconds": 300
+    },
+    {
+      "id": "planner-family-runtime",
+      "depends_on": ["planning-constitution"],
+      "command": ["cargo", "test", "-p", "ferroplan", "--test", "planning_runtime"],
+      "mutation": "read_only",
+      "timeout_seconds": 600
+    },
+    {
+      "id": "independent-python-oracle",
+      "depends_on": ["planner-family-runtime"],
+      "command": ["cargo", "test", "-p", "ferroplan", "--test", "mfw_python_oracle", "--", "--nocapture"],
+      "mutation": "read_only",
+      "timeout_seconds": 600
+    },
+    {
+      "id": "complete-core-regression",
+      "depends_on": ["independent-python-oracle"],
+      "command": ["cargo", "test", "-p", "ferroplan", "--all-features"],
+      "mutation": "read_only",
+      "timeout_seconds": 900
+    },
+    {
+      "id": "source-drift-refusal",
+      "depends_on": ["complete-core-regression"],
+      "command": ["git", "diff", "--exit-code"],
+      "mutation": "read_only",
+      "timeout_seconds": 30
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+name: Planning Runtime Crown
+
+on:
+  pull_request:
+    paths:
+      - "crates/ferroplan/src/planning_runtime.rs"
+      - "crates/ferroplan/src/planning_types.rs"
+      - "crates/ferroplan/src/lib.rs"
+      - "crates/ferroplan/tests/planning_runtime.rs"
+      - "crates/ferroplan/tests/planning_types.rs"
+      - "crates/ferroplan/tests/mfw_python_oracle.rs"
+      - "scripts/verify_mfw_planning_capsule.py"
+      - "vendor/mfw-planning-autonomic/**"
+      - ".autonomic/planning-runtime.lifecycle.json"
+      - ".github/workflows/planning-runtime.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUSTC_WRAPPER: ""
+  FERROPLAN_REQUIRE_MFW_ORACLE: "1"
+  MFW_PLANNER_ORACLE_PYTHONPATH: ${{ github.workspace }}/vendor/mfw-planning-autonomic/oracle
+  PYTHONPATH: ${{ github.workspace }}/vendor/mfw-planning-autonomic/oracle:${{ github.workspace }}/vendor/mfw-planning-autonomic/lifecycle
+
+jobs:
+  planning-runtime:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - name: Checkout exact Ferroplan head
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install stable Rust
+        run: rustup toolchain install stable --profile minimal --component rustfmt,clippy
+
+      - name: Compile projected MFW capsule
+        run: |
+          python3 -m compileall -q \
+            vendor/mfw-planning-autonomic/oracle \
+            vendor/mfw-planning-autonomic/lifecycle \
+            scripts/verify_mfw_planning_capsule.py
+
+      - name: Verify MFW source authority capsule
+        run: python3 scripts/verify_mfw_planning_capsule.py > mfw-planning-capsule.verification.json
+
+      - name: Execute complete autonomic planning lifecycle
+        run: |
+          python3 -m mfw_autonomic_lifecycle check .autonomic/planning-runtime.lifecycle.json
+          python3 -m mfw_autonomic_lifecycle run \
+            .autonomic/planning-runtime.lifecycle.json \
+            --receipt planning-runtime-lifecycle.receipt.json
+
+      - name: Replay complete read-only lifecycle
+        run: |
+          python3 -m mfw_autonomic_lifecycle replay \
+            .autonomic/planning-runtime.lifecycle.json \
+            planning-runtime-lifecycle.receipt.json \
+            > planning-runtime-lifecycle.replay.json
+
+      - name: Assert terminal ALIVE standing
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          source = json.loads(Path('vendor/mfw-planning-autonomic/SOURCE.json').read_text())
+          verification = json.loads(Path('mfw-planning-capsule.verification.json').read_text())
+          lifecycle = json.loads(Path('planning-runtime-lifecycle.receipt.json').read_text())
+          replay = json.loads(Path('planning-runtime-lifecycle.replay.json').read_text())
+          assert source['producer']['commit'] == 'df511b2dd6aec591d49bf25f652d46a2d03fc3d1'
+          assert verification['standing'] == 'ALIVE'
+          assert lifecycle['standing'] == 'ALIVE'
+          assert lifecycle['wip_limit'] == 1
+          assert replay['standing'] == 'ALIVE'
+          assert replay['agreement'] is True
+          PY
+
+      - name: Upload lifecycle receipts
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-runtime-lifecycle-receipts
+          path: |
+            vendor/mfw-planning-autonomic/SOURCE.json
+            mfw-planning-capsule.verification.json
+            planning-runtime-lifecycle.receipt.json
+            planning-runtime-lifecycle.replay.json
+          if-no-files-found: error
+          retention-days: 30
