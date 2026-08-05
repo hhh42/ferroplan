@@ -17,9 +17,16 @@
 //! through HDDL, governed through PPDDL when uncertainty is explicit, and
 //! handed to ggen/MCP+ with Truex receipt and replay obligations intact.
 //!
+//! The [`readiness`] module publishes the canonical capability inventory and
+//! bounded candidate-only production envelope. Readiness is evidence-derived;
+//! compilation alone never crowns a capability as admitted.
+//!
 //! ## The public API (all `serde`-serializable)
 //!
 //! - [`solve`] — plan a deterministic domain + problem; returns a [`Solution`].
+//! - [`solve_production`] — bounded solve with typed errors, independent
+//!   validation, fingerprints, authority classification, and resource counters.
+//! - [`capability_manifest`] — canonical shipped capability contracts.
 //! - [`solve_ppddl`] — synthesize a bounded stochastic policy for PPDDL.
 //! - [`simulate_ppddl`] / [`validate_ppddl_policy`] — probabilistic execution receipts.
 //! - [`decompose`] — split and solve a temporal goal as ordered [`Contract`]s.
@@ -87,6 +94,7 @@ pub mod viz;
 pub mod api;
 pub mod eve;
 pub mod planner;
+pub mod readiness;
 pub mod session;
 
 pub use api::{
@@ -106,6 +114,14 @@ pub use ppddl::{
     PolicyDecision, PolicyOutcome, PolicyValidation, PpddlError, PpddlParseReport,
     ProbabilisticObjective, ProbabilisticOptions, ProbabilisticSolution, ProbabilisticState,
     ProbabilisticStatistics, SimulationReport,
+};
+pub use readiness::{
+    capability_manifest, evaluate_readiness, production_input_fingerprint, solve_production,
+    AuthorityClass, BuildIdentity, CapabilityContract, CapabilityEvaluation, CapabilityManifest,
+    CompatibilityClass, DeterminismClass, InterfaceKind, ManifestError, OperationEnvelope,
+    OutcomeClass, ProductionLimits, PublicError, ReadinessReport, ReadinessState, ReplayClass,
+    SecurityClass, ValidationStatus, CANDIDATE_AUTHORITY, CAPABILITY_MANIFEST_SCHEMA,
+    OPERATION_ENVELOPE_SCHEMA,
 };
 pub use session::Session;
 pub use trace::{trace, StateSnapshot};
