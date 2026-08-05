@@ -18,6 +18,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: planning-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   RUSTC_WRAPPER: ""
   FERROPLAN_REQUIRE_MFW_ORACLE: "1"
@@ -34,8 +38,14 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+          persist-credentials: false
 
-      - uses: actions/setup-python@v5
+      - name: Assert exact head identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD" || exit 42
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.11"
 
@@ -84,13 +94,14 @@ jobs:
           PY
 
       - name: Upload lifecycle receipts
-        uses: actions/upload-artifact@v4
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: planning-runtime-lifecycle-receipts
+          name: planning-runtime-lifecycle-receipts-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             vendor/mfw-planning-autonomic/SOURCE.json
             mfw-planning-capsule.verification.json
             planning-runtime-lifecycle.receipt.json
             planning-runtime-lifecycle.replay.json
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
