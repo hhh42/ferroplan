@@ -5,6 +5,7 @@
 - [Install & quick start](./install.md)
 - [Command line (`ff`)](./cli.md)
 - [Library API](./library.md)
+- [Eve and the Genesis planning lifecycle](./eve-genesis.md)
 - [Game embedding (the Session)](./session.md)
 - [Architecture](./architecture.md)
 - [PDDL3 preferences](./pddl3.md)

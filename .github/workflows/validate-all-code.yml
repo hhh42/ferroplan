@@ -1,0 +1,141 @@
+name: Validate All Code
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-all-code-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: ""
+
+jobs:
+  native-workspace:
+    name: Native workspace including Bevy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install native GUI build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev \
+            libudev-dev \
+            libwayland-dev \
+            libx11-dev \
+            libxcursor-dev \
+            libxi-dev \
+            libxinerama-dev \
+            libxkbcommon-dev \
+            libxrandr-dev \
+            pkg-config
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Check every workspace target and feature
+        run: cargo check --workspace --all-targets --all-features
+      - name: Clippy every workspace target and feature
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Test complete workspace
+        run: cargo test --workspace
+      - name: Validate every shell script parses
+        run: find . -type f -name '*.sh' -not -path './target/*' -print0 | xargs -0 -r -n1 bash -n
+
+  browser-wasm:
+    name: Planner and Bevy browser builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install WASM target and binding generator
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-bindgen-cli --version 0.2.126 --locked
+      - name: Build planner WASM surface
+        run: crates/ferroplan-wasm/build.sh
+      - name: Build Bevy WASM surface
+        run: crates/ferroplan-bevy/build-wasm.sh
+      - name: Verify emitted browser artifacts
+        run: |
+          test -s crates/ferroplan-wasm/web/pkg/ferroplan_wasm_bg.wasm
+          test -s crates/ferroplan-wasm/web/pkg/ferroplan_wasm.js
+          test -s crates/ferroplan-bevy/web/pkg/ferroplan-bevy_bg.wasm
+          test -s crates/ferroplan-bevy/web/pkg/ferroplan-bevy.js
+      - name: Parse browser demo module
+        run: |
+          node --input-type=module -e "
+            import('./crates/ferroplan-wasm/web/examples.js').then(m => {
+              if (!m.DOMAINS || !m.DOMAINS.length) throw new Error('DOMAINS missing/empty');
+              console.log(m.DOMAINS.length + ' demo domains OK');
+            })"
+
+  python-binding:
+    name: Build and import abi3 Python wheel
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: Swatinem/rust-cache@v2
+      - name: Install maturin
+        run: python -m pip install --quiet maturin
+      - name: Build wheel
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
+        run: maturin build --release --manifest-path crates/ferroplan-py/Cargo.toml --out target/py-wheels
+      - name: Install and execute binding smoke test
+        run: |
+          python -m pip install --force-reinstall target/py-wheels/*.whl
+          python - <<'PY'
+          import json
+          import ferroplan
+
+          assert ferroplan.version() == "0.21.0"
+          domain = """(define (domain smoke)
+            (:requirements :strips)
+            (:predicates (done))
+            (:action finish
+              :parameters ()
+              :precondition (and)
+              :effect (done)))"""
+          problem = """(define (problem smoke-p)
+            (:domain smoke)
+            (:init)
+            (:goal (done)))"""
+          result = json.loads(ferroplan.plan(domain, problem, threads=1))
+          assert "error" not in result, result
+          assert result["solved"] is True, result
+          print({"version": ferroplan.version(), "solved": result["solved"]})
+          PY
+
+  documentation:
+    name: Build complete mdBook
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install mdBook
+        run: cargo install mdbook --version "^0.4" --locked
+      - name: Build book from committed evidence
+        run: |
+          cp benchmarks/results.md book/src/results.md
+          mdbook build book
+      - name: Verify Eve chapter is rendered
+        run: test -s book/book/eve-genesis.html

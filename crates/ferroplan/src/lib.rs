@@ -12,12 +12,19 @@
 //! with explicit-MDP policy synthesis, rewards, simulation, and policy validation.
 //! Plus an SGPlan-style **partition-and-resolve** mode.
 //!
+//! The [`eve`] module adds the relational outer contract: human purpose is
+//! grounded against a Genesis ontology, projected through SPARQL, decomposed
+//! through HDDL, governed through PPDDL when uncertainty is explicit, and
+//! handed to ggen/MCP+ with Truex receipt and replay obligations intact.
+//!
 //! ## The public API (all `serde`-serializable)
 //!
 //! - [`solve`] — plan a deterministic domain + problem; returns a [`Solution`].
 //! - [`solve_ppddl`] — synthesize a bounded stochastic policy for PPDDL.
 //! - [`simulate_ppddl`] / [`validate_ppddl_policy`] — probabilistic execution receipts.
 //! - [`decompose`] — split and solve a temporal goal as ordered [`Contract`]s.
+//! - [`Eve::enter`] — compile human purpose into the Genesis/HDDL/PPDDL/ggen/MCP+
+//!   consequence handoff without granting actuation authority.
 //! - [`parse`] / [`parse_ppddl`] — fast syntax and structure feedback.
 //! - [`Session`] — ground once, replan many for mutable deterministic worlds.
 //! - [`plan::validate_plan`] — independently check a deterministic plan.
@@ -76,14 +83,22 @@ pub mod tsched;
 pub mod verify;
 pub mod viz;
 
-// orchestration + smart public API
+// relational orchestration + smart public API
 pub mod api;
+pub mod eve;
 pub mod planner;
 pub mod session;
 
 pub use api::{
     decompose, parse, solve, Contract, Decomposition, DomainSummary, Metric, Mode, Options,
     ParseReport, Plan, ProblemSummary, Search, Solution, SolveError, Statistics, Step,
+};
+pub use eve::{
+    Activator, CapabilityTarget, Eve, EveError, EveHandoff, EveRequest, EveStage,
+    GenesisProjection, GenesisWorld, GgenManufacturingRequest, GroundedGoal,
+    HddlDecompositionRequest, HddlSurface, HumanPurpose, ManufactureTarget, McpPlusHandoff,
+    PlanningRegime, PpddlPolicyRequest, PpddlSurface, SplitDirective, TruexContinuation,
+    MAX_PRIMARY_ACTIVATORS,
 };
 pub use planner::{run_ff, run_planner};
 pub use ppddl::{
