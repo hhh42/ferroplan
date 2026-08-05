@@ -255,8 +255,16 @@ impl WasmSession {
     /// Ground a world. Errors as a JS string.
     #[wasm_bindgen(constructor)]
     pub fn new(domain: &str, problem: &str) -> Result<WasmSession, JsValue> {
-        ensure_js_len(domain, ProductionLimits::default().max_domain_bytes, "domain")?;
-        ensure_js_len(problem, ProductionLimits::default().max_problem_bytes, "problem")?;
+        ensure_js_len(
+            domain,
+            ProductionLimits::default().max_domain_bytes,
+            "domain",
+        )?;
+        ensure_js_len(
+            problem,
+            ProductionLimits::default().max_problem_bytes,
+            "problem",
+        )?;
         std::panic::set_hook(Box::new(|info| {
             js_console_error(&format!("wasm panic: {info}"));
         }));
