@@ -15,6 +15,13 @@ const WASM_JSON_FIELD_BYTES: usize = 16 * 1024 * 1024;
 const WASM_MAX_THINK_EVALS: usize = 1_000_000;
 const WASM_MAX_THINK_MEMORY_MB: usize = 2_048;
 
+macro_rules! serialize_or_error {
+    ($value:expr) => {
+        serde_json::to_string($value)
+            .unwrap_or_else(|error| err_json("FP_ADAPTER", &format!("serialize: {error}")))
+    };
+}
+
 /// Compatibility solve surface. Returns legacy `Solution` JSON or an error JSON.
 #[wasm_bindgen]
 pub fn plan(
@@ -35,7 +42,7 @@ pub fn plan(
         ..Default::default()
     };
     match solve(domain, problem, &opts) {
-        Ok(sol) => serialize_or_error(&sol),
+        Ok(sol) => serialize_or_error!(&sol),
         Err(e) => err_json("FP_ADAPTER", &e.to_string()),
     }
 }
@@ -77,7 +84,7 @@ pub fn plan_production(
         max_evaluated,
         ..Default::default()
     };
-    serialize_or_error(&solve_production(
+    serialize_or_error!(&solve_production(
         domain,
         problem,
         &options,
@@ -144,7 +151,7 @@ pub fn explain(domain: &str, problem: &str, plan_json: &str) -> String {
         Err(e) => return err_json("FP_PARSE", &format!("plan: {e}")),
     };
     match ferroplan::introspect::explain(domain, problem, &plan) {
-        Ok(ex) => serialize_or_error(&ex),
+        Ok(ex) => serialize_or_error!(&ex),
         Err(e) => err_json("FP_VALIDATION", &e),
     }
 }
@@ -198,11 +205,6 @@ fn ensure_compat_input(domain: &str, problem: &str) -> Result<(), String> {
         return Err("domain or problem exceeds the browser hard input limit".to_string());
     }
     Ok(())
-}
-
-fn serialize_or_error(value: &impl serde::Serialize) -> String {
-    serde_json::to_string(value)
-        .unwrap_or_else(|error| err_json("FP_ADAPTER", &format!("serialize: {error}")))
 }
 
 fn adapter_refusal_json(request_id: Option<&str>, message: &str) -> String {
@@ -329,7 +331,7 @@ impl WasmSession {
         let sol = self.inner.replan_budgeted(evals, Some(mem_mb));
         self.plan = if sol.solved { sol.plan.clone() } else { None };
         self.cursor = 0;
-        serialize_or_error(&sol)
+        serialize_or_error!(&sol)
     }
 
     /// Free suffix replay of the stored plan from the cursor.
