@@ -8,6 +8,12 @@ This document is the operator-facing projection of `FP-PRD-F5-001` and `FP-ARD-F
 
 A capability is production-admitted only for an exact source revision when every required evidence identifier in the canonical manifest is produced by a completed verification command and the independent `ferroplan-readiness` evaluator reports `ADMITTED`.
 
+## Exact-head execution handoff
+
+The evidence harvester completed its Rust, MCP+, Python, SHACL, replay, formatter, and clean-tree boundaries on source `c1e76cf8a7b8c7ca054c1216b373656de8e9e53f`, then committed the verified formatter and lockfile projections as `e1288fc4b6bb3aed94cdbd6c6479553df82b3e3c`.
+
+That projection commit is not self-admission. This human-owned successor commit exists to trigger the complete exact-head matrix against the formatter-normalized source. Only the resulting independent admission report may promote the successor source revision to `ADMITTED`.
+
 ## Authority boundary
 
 All planning outputs are candidate-only. Parse, validation, explanation, trace, and release reports are evidence-only or presentation-only. None grants actuation authority.
