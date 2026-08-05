@@ -18,8 +18,9 @@
 //! handed to ggen/MCP+ with Truex receipt and replay obligations intact.
 //!
 //! The [`readiness`] module publishes the canonical capability inventory and
-//! evidence-derived admission model. The [`production`] module provides the
-//! bounded, candidate-only entry points for solve, parse, validation, trace,
+//! evidence-derived admission model. The [`production`] and
+//! [`production_explain`] modules provide bounded, candidate-only or
+//! evidence-only entry points for solve, parse, validation, explanation, trace,
 //! decomposition, PPDDL, and persistent sessions.
 //!
 //! ## Public API
@@ -33,6 +34,7 @@
 //! - [`solve_production`]
 //! - [`parse_production`]
 //! - [`validate_plan_production`]
+//! - [`explain_production`]
 //! - [`trace_production`]
 //! - [`decompose_production`]
 //! - [`solve_ppddl_production`]
@@ -76,6 +78,7 @@ pub mod plan;
 pub mod portfolio;
 pub mod ppddl;
 pub mod production;
+pub mod production_explain;
 pub mod report;
 pub mod resolve;
 pub mod selection;
@@ -115,6 +118,7 @@ pub use production::{
     decompose_production, parse_production, solve_ppddl_production, trace_production,
     validate_plan_production, PlanValidationEvidence, ProductionSession,
 };
+pub use production_explain::explain_production;
 pub use readiness::{
     capability_manifest, evaluate_readiness, production_input_fingerprint, solve_production,
     AuthorityClass, BuildIdentity, CapabilityContract, CapabilityEvaluation, CapabilityManifest,
