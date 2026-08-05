@@ -1,72 +1,160 @@
 # ferroplan-mcp
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that exposes the
-[`ferroplan`](https://github.com/seanchatmangpt/ferroplan/tree/main/crates/ferroplan) PDDL planner to an LLM agent. This is the README's bet
-made operational: the agent is the **author and supervisor** of a planner, not its
-runtime — it writes PDDL, calls a tool, reads a structured, deterministic result, and
-iterates.
+`ferroplan-mcp` is a single Model Context Protocol server that exposes Ferroplan as a deterministic planning, persistent-mind, evidence, diagnosis, composition, and operator-experience platform.
 
-There are two ways to use it. **One-shot** tools take the PDDL they need and answer.
-**Session** tools ground a world once and then take incremental updates — which is the
-shape a running simulation actually has, and the only shape in which re-planning is
-cheap.
+The server advertises **42 typed tools** over MCP stdio. Tool schemas are derived from Rust types. Semantic resources are generated from the repository's Turtle ontologies at build time.
 
-## One-shot tools
+## Authority map
 
-| tool | what it does |
-|---|---|
-| `solve` | Plan a domain + problem; returns the structured `Solution` (typed steps, makespan/metric, statistics). Mode is auto-detected (STRIPS / typing / ADL / numeric / derived axioms / PDDL3 preferences / PDDL2.1 temporal). |
-| `parse` | Syntax-check a single PDDL string (domain *or* problem, auto-detected) and return a structure summary — name, requirements, counts — without grounding or solving. Fast feedback while authoring. |
-| `validate` | Independently check a plan against a domain + problem under ferroplan's own semantics (classical or temporal); returns valid / invalid-with-reason. |
-| `decompose` | Split a temporal goal too big for one-shot search into ordered, individually-solved contracts and stitch them into one validated plan; returns the inspectable `Decomposition` (each contract's named sub-goal + sub-plan + offset). Falls back to a monolithic contract when a goal can't be split. |
+| Plane | Tools | Purpose |
+|---|---|---|
+| Planning | `solve`, `parse`, `validate`, `decompose` | Author, solve, inspect, and independently validate PDDL plans. |
+| Session lifecycle | `session_open`, `session_observe`, `session_set_goal`, `session_think`, `session_advance`, `session_status`, `session_close` | Keep a grounded planning world open and update it incrementally. |
+| Persistent control | `session_list`, `session_state`, `session_set`, `session_fork`, `session_replan`, `session_checkpoint`, `session_restore`, `session_verify_checkpoint`, `session_history`, `session_compare`, `session_restrict_ops`, `session_schedule_fact`, `session_apply_start`, `session_elapse` | Operate many independent minds over shared grounding with authority, recovery, time, and receipts. |
+| Allocation | `cmca_allocate`, `cmca_allocate_recursive` | Execute the pinned Chatman Multifractal Cascade Allocator. |
+| Admission | `canonical_digest`, `bind_allocation_receipt`, `bind_plan_receipt`, `verify_receipt` | Bind canonical identities and verify receipt envelopes. |
+| DX | `dx_manifest`, `dx_compose` | Make the server self-describing and compile desired outcomes into minimal tool sequences. |
+| Doctor | `doctor_scan`, `doctor_explain` | Diagnose server/session standing and turn refusals into typed recovery guidance. |
+| Wizard | `wizard_bootstrap`, `wizard_recipe` | Manufacture ready planning minds and compile high-level operator intents into inspectable recipes. |
+| QoL | `qol_snapshot`, `qol_batch` | Collapse many reads into one snapshot and many compatible writes into one atomic transaction. |
+| Telco | `telco_envelope`, `telco_verify` | Manufacture and verify transport-neutral integrity envelopes without performing network delivery. |
+| Vision | `vision_lattice` | Enumerate bounded combinatorial capability reachability and blocked frontiers. |
 
-`solve` and `decompose` accept an optional `options` object (the same fields as the
-library `Options`: `mode`, `search`, `weight_g`, `weight_h`, `threads`,
-`max_evaluated`, `optimize`); omitted fields use defaults. The crate enables
-ferroplan's `schema` feature, so `options` is advertised as a **typed** JSON Schema
-with its real knobs rather than an opaque object.
+## The persistent-mind model
 
-## Session tools — a world kept open
+A `Session` separates immutable grounded columns from mutable mind state. Forking a session therefore creates another independent mind without re-grounding the world.
 
-Grounding is the expensive part of planning, and re-sending a whole domain on every
-step throws that work away. A **session** grounds once and stays open: you tell it what
-changed and ask it to rethink.
+Each managed mind carries:
 
-| tool | what it does |
-|---|---|
-| `session_open` | Ground a domain + problem and keep it live; returns a `session_id` plus the memory split. |
-| `session_close` / `session_list` | Free a session; list the open ones with `goal_met` and their memory split. |
-| `session_fork` | Fork a second **mind** over the *same* grounded world — the many-minds primitive. |
-| `session_set` | Edit the world in one call: flip facts, set fluents, schedule exogenous timed facts, and/or replace the goal. |
-| `session_observe` | Tell a mind what it now sees; get back only the **surprises** — sightings that contradicted its beliefs. |
-| `session_elapse` | Advance the clock by `dt`, firing due timed facts and the ends of in-flight durative actions. |
-| `session_apply_start` | Commit to starting an action; a durative action goes in flight and the mind can rethink while it runs. |
-| `session_replan` | Rethink from the current state, optionally budgeted (`max_evaluated` / `memory_mb`). |
-| `session_state` | Read back `goal_met`, the memory split, and any facts/fluents you name. |
+- semantic state and a BLAKE3 state fingerprint;
+- goal, retained plan, and cursor;
+- optimistic-concurrency epoch;
+- parent and generation lineage;
+- allowed and denied operator prefixes;
+- scheduled world events and in-flight durative ends;
+- bounded canonical event history;
+- receipt-chain head;
+- shared-world and private-mind memory measurements.
 
-The loop is: `session_open` once, then repeat *(tell it what changed)* →
-`session_replan`. Because the grounded world is shared by every fork, a second actor
-costs one **mind**, not one world — `world_bytes` vs `mind_bytes` in `session_state`
-report exactly that split.
+The control plane preserves these laws:
 
-```jsonc
-// after session_open returns {"session_id": "s1", ...}
-{"name": "session_set",    "arguments": {"session_id": "s1",
-                                         "facts": [["(at v1 field)", true]]}}
-{"name": "session_replan", "arguments": {"session_id": "s1"}}
+1. A stale `expected_epoch` is refused before mutation.
+2. `session_set` and `qol_batch` stage changes on a fork and commit only after complete validation.
+3. A failed batch cannot expose partial state.
+4. Operator restrictions alter the planner's search mask rather than filtering a finished plan.
+5. Checkpoint restore is explicit and lineage-bound.
+6. Search, memory, history, lattice, payload, and TTL boundaries have mechanical ceilings.
+7. Every accepted session mutation extends the canonical receipt chain.
+
+## Fast paths
+
+### Bootstrap a ready planning mind
+
+`wizard_bootstrap` combines grounding, optional goal replacement, operator scope, bounded search, session insertion, diagnosis, and receipt binding into one transaction.
+
+```json
+{
+  "name": "wizard_bootstrap",
+  "arguments": {
+    "session_id": "factory-1",
+    "domain": "(define ...)",
+    "problem": "(define ...)",
+    "goal": "(and (verified) (released))",
+    "allowed_prefixes": ["VERIFY", "RELEASE"],
+    "plan": true,
+    "max_evaluated": 50000
+  }
+}
 ```
 
-Session handles live in the server process: they do not survive a restart, and an
-unknown handle comes back as a readable tool error rather than a protocol failure.
+### Read the operating state in one round trip
 
-## Build & run
+`qol_snapshot` returns identity, lineage, selected facts and fluents, plan standing, authority scope, memory, history tail, and doctor findings.
+
+```json
+{
+  "name": "qol_snapshot",
+  "arguments": {
+    "session_id": "factory-1",
+    "facts": ["(verified)", "(released)"],
+    "fluents": ["(remaining-budget)"],
+    "history_tail": 16
+  }
+}
+```
+
+### Commit a heterogeneous transaction once
+
+`qol_batch` supports fact writes, fluent writes, goal replacement, operator-scope replacement, temporal scheduling, durative starts, elapsed time, and one final bounded replan. The replan operation, when present, must be last.
+
+```json
+{
+  "name": "qol_batch",
+  "arguments": {
+    "session_id": "factory-1",
+    "expected_epoch": 3,
+    "operations": [
+      {"op": "set_fact", "fact": "(verified)", "value": true},
+      {"op": "set_goal", "goal": "(released)"},
+      {"op": "replan", "max_evaluated": 50000}
+    ]
+  }
+}
+```
+
+## Self-describing composition
+
+`dx_manifest` returns the modeled contract for every tool: category, required atoms, provided atoms, mutation behavior, reversibility, receipt behavior, latency class, and summary.
+
+`dx_compose` performs bounded breadth-first search over those contracts. Given admitted starting atoms and desired outcome atoms, it returns a minimal deterministic tool sequence or an explicit missing frontier.
+
+`vision_lattice` enumerates bounded reachable atom sets, minimal atom depth, tool dependency edges, blocked capabilities, and theoretical subset capacity. Its limits prevent combinatorial exploration from becoming unbounded execution.
+
+## Doctor and wizard
+
+`doctor_scan` evaluates one session or the server's complete live session set. Findings use typed codes such as missing receipt chain, absent plan, exhausted plan, invalid retained suffix, active operator scope, and memory imbalance.
+
+`doctor_explain` deterministically classifies common protocol and tool failures, including unknown sessions, stale epochs, identity collisions, bounded-search refusals, non-finite inputs, missing checkpoints, invalid plans, ungrounded facts, expired envelopes, and integrity mismatches.
+
+`wizard_recipe` converts supported operator intents into explicit tool recipes with preflight, rollback, and receipt checkpoints. Recipes never bypass tool schemas or session authority.
+
+## Transport-neutral telco envelopes
+
+`telco_envelope` binds sender, recipient, channel, issue and expiry times, correlation, causation, predecessor, idempotency, canonical payload, and BLAKE3 identities.
+
+`telco_verify` checks schema, payload identity, envelope identity, recipient expectation, predecessor expectation, issue time, and expiry.
+
+The boundary is deliberate:
+
+- the tools perform **no network operation**;
+- BLAKE3 establishes canonical identity and tamper evidence;
+- authentication is reported as `UNSUPPORTED` rather than inferred from integrity;
+- delivery, retries, authorization, and external actuation remain downstream broker responsibilities.
+
+## RDF-owned semantics
+
+MCP resources use the unified URI form:
+
+```text
+ferroplan://tools/<tool-name>
+```
+
+Planning, session, allocation, and admission semantics come from `plugins/chatman-ecosystem/ontology/ferroplan-domain.ttl`.
+
+The operator-experience plane comes from `plugins/chatman-ecosystem/ontology/ferroplan-experience.ttl`. That graph defines the experience plane, capability contracts, composition atoms, mutation/reversibility/receipt properties, telco non-actuation law, integrity-versus-authentication distinction, all eleven experience tools, and SHACL constraints.
+
+`build.rs` extracts the tool comments into generated `OUT_DIR` constants. Runtime resource descriptions therefore cannot silently diverge from the admitted ontology source.
+
+## Build and run
 
 ```sh
-cargo build --release -p ferroplan-mcp     # -> target/release/ferroplan-mcp
+cargo build --release -p ferroplan-mcp
+./target/release/ferroplan-mcp
 ```
 
-The server speaks MCP over **stdio** (newline-delimited JSON-RPC 2.0). Point any MCP
-client at the binary. For Claude Code / Claude Desktop, add it to your MCP config:
+The server speaks MCP over stdio using `rmcp` and Tokio.
+
+Example MCP configuration:
 
 ```json
 {
@@ -78,23 +166,18 @@ client at the binary. For Claude Code / Claude Desktop, add it to your MCP confi
 }
 ```
 
-Then ask the agent to author a domain and `solve` it, or to `decompose` a goal that
-overruns the one-shot search (see [`../../examples/BORDERS.md`](https://github.com/seanchatmangpt/ferroplan/blob/main/examples/BORDERS.md)).
+## Verification
 
-## Notes
+The permanent repository crown executes the built server through real MCP stdio and includes:
 
-- Built on [`rmcp`](https://crates.io/crates/rmcp), the official MCP Rust SDK, so
-  framing, capability negotiation, tool-schema derivation and the error conventions
-  come from the SDK rather than a hand-rolled loop. Tool input schemas are derived
-  from the Rust parameter types, so they cannot drift from the code.
-- **This crate's MSRV is 1.88** (rmcp's), not the workspace's 1.74. The library keeps
-  the wider MSRV — an MCP server is a tool you run, not a dependency you compile into
-  something old.
-- Requests are served **concurrently**, and the two expensive calls — `session_open`
-  (grounding) and `session_replan` (search) — run off the async runtime, so one deep
-  search cannot stall other sessions. Ordering dependent calls is the client's job, as
-  in any JSON-RPC service: wait for `session_open` to return its handle before using it.
-- Failures stay readable: a failing tool returns an `isError` result (so the agent sees
-  the message and can fix its PDDL) rather than a protocol error, and `solved: false`
-  is a normal answer, not an error. As of the rmcp migration the server enforces the
-  MCP lifecycle — `initialize` must precede `tools/call`, per spec.
+- planning and protocol tests;
+- admitted session lifecycle tests;
+- persistent-control tests;
+- Vision 2030 experience-plane tests;
+- exact 42-tool and 42-resource catalogue checks;
+- ontology extraction and resource provenance checks;
+- RDF parsing and SHACL validation;
+- strict Clippy with warnings denied;
+- plugin, Luna, live-harvest, receipt, replay, projection, and clean-tree boundaries.
+
+A tool refusal remains a tool-level error with a readable message. `solved: false` remains a normal bounded planning result. Neither is promoted into success by the experience plane.

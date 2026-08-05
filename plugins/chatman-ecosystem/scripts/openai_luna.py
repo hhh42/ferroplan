@@ -12,7 +12,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from mcp_client import McpClient  # noqa: E402
-from openai_luna_protocol import A2AClient, McpSurface, OpenAIResponsesClient, OstarStarClient, RuntimeRefusal, TRACE_SCHEMA, canonical_json, load_profile  # noqa: E402
+from openai_luna_protocol import (  # noqa: E402
+    TRACE_SCHEMA,
+    A2AClient,
+    McpSurface,
+    OpenAIResponsesClient,
+    OstarStarClient,
+    RuntimeRefusal,
+    canonical_json,
+    load_profile,
+)
 from openai_luna_runtime import LunaHost, seal_trace  # noqa: E402
 
 

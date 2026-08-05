@@ -9,8 +9,9 @@ import json
 import os
 import sys
 import time
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 try:
     import fcntl  # type: ignore
@@ -24,7 +25,7 @@ try:
     from plugin_data import plugin_data_root as resolve_plugin_data_root
 except ImportError:
     resolve_plugin_data_root = None
-from roots import project_directory, project_key  # noqa: E402
+from roots import project_directory  # noqa: E402
 
 SCHEMA = "urn:chatman:claude-code-lifecycle-candidate:v1"
 

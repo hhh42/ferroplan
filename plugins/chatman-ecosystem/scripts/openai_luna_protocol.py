@@ -31,7 +31,7 @@ class RuntimeRefusal(RuntimeError):
 
 
 class McpSurface(Protocol):
-    def __enter__(self) -> "McpSurface": ...
+    def __enter__(self) -> McpSurface: ...
     def __exit__(self, *exc_info: object) -> None: ...
     def list_tools(self) -> list[dict[str, Any]]: ...
     def call_tool(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]: ...
@@ -53,7 +53,7 @@ class RuntimeProfile:
     max_tool_result_bytes: int = 1024 * 1024
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "RuntimeProfile":
+    def from_dict(cls, value: Mapping[str, Any]) -> RuntimeProfile:
         if value.get("schema") != PROFILE_SCHEMA:
             raise RuntimeRefusal("PROFILE_SCHEMA_MISMATCH", "profile schema mismatch")
         model = value.get("model")

@@ -3,10 +3,15 @@ from __future__ import annotations
 import copy
 
 import pytest
-
-from openai_luna_testkit import FakeStar, ScriptedResponses, profile, standard_script, standard_surfaces
 from openai_luna_protocol import OpenAIResponsesClient, RuntimeRefusal
 from openai_luna_runtime import LunaHost, seal_trace, verify_trace
+from openai_luna_testkit import (
+    FakeStar,
+    ScriptedResponses,
+    profile,
+    standard_script,
+    standard_surfaces,
+)
 
 
 def make_trace() -> dict:

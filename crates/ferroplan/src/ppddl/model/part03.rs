@@ -26,6 +26,13 @@ struct ExplicitMdp {
     transitions: usize,
 }
 
+type InitialDistribution = (
+    Vec<State>,
+    Vec<bool>,
+    Vec<InitialMass>,
+    HashMap<StateKey, usize>,
+);
+
 fn canonicalize_successor(model: &CompiledModel, source: &State, successor: &mut State) -> f64 {
     for &fact in &model.marker_facts {
         bitset::clear(&mut successor.bits, fact);
@@ -52,7 +59,7 @@ fn canonicalize_successor(model: &CompiledModel, source: &State, successor: &mut
 fn initial_distribution(
     model: &CompiledModel,
     options: &ProbabilisticOptions,
-) -> Result<(Vec<State>, Vec<bool>, Vec<InitialMass>, HashMap<StateKey, usize>), PpddlError> {
+) -> Result<InitialDistribution, PpddlError> {
     let base = model.task.initial();
     let mut states = Vec::new();
     let mut goals = Vec::new();

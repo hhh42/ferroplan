@@ -1,23 +1,28 @@
 # Chatman Phase Engine
 
-A phase-changing Claude Code plugin that makes Ferroplan its first managed world.
+Ferroplan v26.7.29 provides the first lawful managed-world projection of the Chatman ecosystem into Claude Code.
 
-It composes:
+> Claude Code is not the Chatman ecosystem. It is one managed-world projection of the ecosystem.
 
-- current Claude Code loader validation;
-- `claude-code-config-lsp` diagnostics, completion, semantic tokens, and Declare conformance;
-- RDF/PROV/SHACL-shaped repository observation;
-- the Chatman Multifractal Cascade Allocator (CMCA);
-- stateless and persistent Ferroplan planning;
-- reversible manufacturing agents;
-- independent validation;
-- protected hooks, monitors, and canonical BLAKE3 receipt chains.
+The plugin composes current Claude Code loader validation, bounded configuration validation, RDF-shaped observation, BCINR-CMCA allocation, persistent Ferroplan candidate planning, mechanically restricted agents, isolated manufacture, independent validation, structured protected-actuation intents, skill-triggered monitors, and canonical BLAKE3 receipts.
 
-## Design law
+## Constitutional law
 
-The plugin follows **design for combinatorial maximalism**. It does not encode one fixed workflow. It defines orthogonal primitives and laws for composing them.
+```text
+A = μ(O*)
+```
 
-The live operating state is a product of six dimensions:
+`O*` is admitted observation. `μ` is lawful manufacture. `A` is an artifact with standing.
+
+```text
+zero unreceipted actuation
+```
+
+The model may propose and supervise. It cannot manufacture execution evidence through prose.
+
+## Combinatorial maximalism
+
+The plugin defines orthogonal primitives and composition laws rather than one fixed workflow.
 
 | Dimension | States |
 |---|---|
@@ -26,105 +31,152 @@ The live operating state is a product of six dimensions:
 | Planning | unplanned, candidate, validated |
 | Actuation | sealed, manufacturing, receipted, publishable |
 | Drift | stable, drifted, refused |
-| Configuration | unknown, nonconformant, conformant |
+| Conformance | unknown, nonconformant, conformant |
 
-This produces 648 raw combinations, of which **136 (21.0%) are lawful** —
-`profiles/phase-space.json` declares the transitions and invariants that admit
-only those. Both numbers are derived at runtime by `phase.py status` (see the
-`census` field), never read from a literal, so an invariant that stops
-constraining anything shows up as a change in the lawful count. Publication is
-the narrowest state in the space: exactly one lawful vector is `publishable`.
+The product contains 648 raw combinations. `profiles/phase-space.json` declares lawful transitions and invariants.
 
-The active agents, skills, and capabilities are the set union associated with
-the current vector.
-
-Repository mutations deliberately collapse affected dimensions back to:
+Pending repository observations project the effective state to:
 
 ```text
 observed × unallocated × unplanned × sealed × drifted × unknown
 ```
 
-Nothing re-enters an advanced phase without a receipt.
+The canonical snapshot remains a cache; it cannot override a pending frontier.
+
+```sh
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/effective-phase.py" \
+  --project "$CLAUDE_PROJECT_DIR"
+```
 
 ## Authority graph
 
 | Component | Maximum claim |
 |---|---|
 | Claude | model authoring and supervision |
-| Claude Code loader | plugin load/install conformance |
-| claude-code-config-lsp | conformance for its modeled schema epoch |
-| RDF observer | bounded semantic projection |
-| CMCA | bounded allocation |
+| Claude Code loader | plugin load and installation conformance |
+| Config validator | bounded modeled-surface conformance |
+| RDF observer | bounded repository projection |
+| BCINR-CMCA | bounded allocation |
 | Ferroplan | deterministic candidate plan and suffix validity |
-| Source manufacturer | reversible source construction |
-| Independent validator | exercised validation result |
-| Admission MCP | canonical evidence envelope |
-| Hooks | observation and protected-command refusal |
+| Source manufacturer | reversible construction in an isolated worktree |
+| Independent validator | exercised validation evidence |
+| Admission tools | canonical evidence envelopes |
+| Knowledge Hooks | observation and intent candidates |
+| BRCE adapter | Claude-runtime protected-actuation admission |
 | Receipt auditor | replay and maximum lawful standing |
 
-These ceilings are a review discipline, not a mechanical check. The projection
-in `phase.py` computes the set union of capabilities, agents, and skills across
-the selected dimension states; nothing compares the result against the table
-above, because no ordering over these claim values is defined anywhere. Agents
-and skills are instructed to respect the ceilings, and an auditor is expected to
-report violations — but a composition that exceeded one would load and run.
+No composition raises a component above its claim ceiling.
+
+## Mechanical agent authority
+
+Every non-manufacturing agent denies `Write`, `Edit`, and `NotebookEdit`.
+
+The controller can route work and spawn only declared Chatman roles. It cannot directly edit source.
+
+The source manufacturer is the single source actuator and declares:
+
+```yaml
+isolation: worktree
+```
+
+Worktree isolation establishes reversibility, not validation or publication.
 
 ## Installation
-
-From Claude Code:
 
 ```text
 /plugin marketplace add seanchatmangpt/ferroplan
 /plugin install chatman-ecosystem@chatman-ecosystem --scope project
 ```
 
-The repository also declares the marketplace and plugin in `.claude/settings.json`, so trusted project sessions can enable the plugin at project scope.
+The distributed plugin is opt-in with `defaultEnabled: false`. Ferroplan's checked-in project settings explicitly enable it for trusted project sessions.
 
-At enable time, the plugin can accept optional checkout locations for:
+Optional user configuration:
 
-- `claude-code-config-lsp`;
+- `ferroplan_root`: checkout used to launch the single combined `ferroplan` MCP server;
+- `config_lsp_root`: checkout used only for explicit bounded config validation.
 
-If omitted, resolvers first use an installed binary and then look for a sibling checkout beside Ferroplan. They never install from the network automatically.
-
-## Main skills
+## Skills
 
 | Skill | Purpose |
 |---|---|
 | `/chatman-ecosystem:self-host` | Run the complete dogfooding loop |
 | `/chatman-ecosystem:phase-change` | Inspect or advance the product-state vector |
-| `/chatman-ecosystem:compose` | Manufacture a new capability from existing primitives |
-| `/chatman-ecosystem:configure` | Federate loader and config-LSP conformance |
+| `/chatman-ecosystem:compose` | Compose a capability from admitted primitives |
+| `/chatman-ecosystem:configure` | Federate loader, ownership, and bounded config validation |
 | `/chatman-ecosystem:observe` | Build the RDF-shaped repository world |
-| `/chatman-ecosystem:allocate` | Run CMCA and bind allocation evidence |
-| `/chatman-ecosystem:plan` | Retain or replan a persistent Ferroplan Session |
-| `/chatman-ecosystem:manufacture` | Execute one reversible plan step |
+| `/chatman-ecosystem:allocate` | Run recursive bounded CMCA allocation |
+| `/chatman-ecosystem:plan` | Retain or repair a persistent Ferroplan Session |
+| `/chatman-ecosystem:manufacture` | Execute one reversible worktree step |
 | `/chatman-ecosystem:validate` | Independently exercise the changed surface |
 | `/chatman-ecosystem:admit` | Bind canonical plan and validator evidence |
 | `/chatman-ecosystem:audit` | Replay receipts and determine standing |
-| `/chatman-ecosystem:doctor` | Diagnose every plugin surface |
-| `/chatman-ecosystem:publish` | Explicitly perform protected publication |
+| `/chatman-ecosystem:doctor` | Diagnose every projection surface |
+| `/chatman-ecosystem:publish` | Explicitly derive a grant and perform protected publication |
 
 `publish` cannot be invoked automatically by the model.
 
-## MCP servers
+## One MCP process, multiple claim ceilings
 
-The plugin starts two independent stdio authorities:
+The plugin starts one `ferroplan` stdio MCP process. It exposes stateless planning, persistent sessions, BCINR-CMCA allocation, and admission-envelope tools. One process does not imply one authority.
 
-- `ferroplan`: stateless parse/solve/validate/decompose, persistent `Session`
-  (observation, suffix replay, bounded replanning, CMCA), and Chatman
-  admission (canonical digest, allocation envelope, plan envelope, receipt
-  verification) — all 16 tools in one process, one `rmcp` server;
+## Bounded configuration validation
+
+The main plugin does not register `claude-code-config-lsp` as the global server for JSON, Markdown, TOML, and shell files. Claude Code's LSP dispatch is extension-based and lacks the path predicate needed to restrict common extensions to configuration files.
+
+The standalone LSP remains available as a separate marketplace plugin or explicit CLI validator. `profiles/config-schema-epoch.json` records known loader/model differences. Known deltas cannot create false refusals; unknown disagreements remain `UNKNOWN`.
+
+## Generated configuration ownership
+
+Canonical owners include:
+
+- `ontology/chatman-ecosystem.ttl`;
+- `ontology/chatman-shapes.ttl`;
+- `ontology/authority-graph.ttl`;
+- `profiles/claude-projection.json`;
+- `profiles/artifact-ownership.json`.
+
+```text
+admitted ontology/profile
+→ ggen projection
+→ source validation
+→ Claude loader validation
+→ bounded modeled validation
+→ exact digest comparison
+→ configuration receipt
+```
+
+Hand-editing a generated projection without changing its owner is refused.
+
+```sh
+python3 "$CLAUDE_PLUGIN_ROOT/scripts/validate-claude-projection.py" \
+  --plugin-root "$CLAUDE_PLUGIN_ROOT"
+```
+
+## Knowledge Hooks
+
+```text
+hook event ≠ admitted truth
+```
+
+Per-tool events preserve exact mutation identity. `PostToolBatch` supplies one bounded summary. Configuration changes and worktree lifecycle events are recorded as separate candidates. The frontier must be admitted before advanced standing returns.
+
+## Structured protected actuation
+
+`scripts/actuation-intent.py` converts protected Bash requests into exact `ActuationIntent` objects binding operation, command digest, effective phase, required phase, pending frontier, predecessor receipt, and reversibility.
+
+`scripts/grant-actuation.py` creates a matching `DerivedExecutionGrant` only after receipt verification and frontier closure. The older regex fence in `loop.py` remains as defense in depth.
+
+A grant proves admission of the exact intent. It does not prove execution. The resulting tool event must later become execution evidence.
+
+## Recursive CMCA
+
+Every allocation remains exactly eight nodes with ten ordered factors. A selected node may root another admitted eight-node frontier. Recursive descent binds its parent allocation receipt and returns a consequence upward.
+
+This provides multifractal scale without an unbounded global allocator.
 
 ## Live self-hosting world
 
-The repository world is represented by:
-
-- `world/ferroplan-self-host-domain.pddl`;
-- `scripts/project-world.py`;
-- the hook ledger;
-- the current phase vector.
-
-Generate a live problem:
+The world is represented by `world/ferroplan-self-host-domain.pddl`, `scripts/project-world.py`, the observation ledger, the canonical phase snapshot, and the effective pending-state projection.
 
 ```sh
 python3 "$CLAUDE_PLUGIN_ROOT/scripts/project-world.py" \
@@ -134,57 +186,31 @@ python3 "$CLAUDE_PLUGIN_ROOT/scripts/project-world.py" \
   --metadata /tmp/ferroplan-live.json
 ```
 
-The problem is deterministic for the same ledger and phase state. Ferroplan therefore plans against its actual observed repository standing rather than a static example.
-
-## Configuration schema epochs
-
-`claude-code-config-lsp` is ontology-generated and valuable, but its current ontology models an earlier Claude Code plugin schema. `profiles/config-schema-epoch.json` records known differences, including:
-
-- optional commit-SHA plugin versions;
-- object marketplace sources;
-- plugin dependencies;
-- experimental monitors;
-- user configuration;
-- expanded hook types;
-- plugin-root agent and skill locations.
-
-The current Claude loader and `claude plugin validate` govern loadability. The LSP governs only the surfaces represented in its ontology. Known epoch differences cannot create false refusals. Unknown disagreements remain `UNKNOWN`.
-
 ## Receipt chain
 
-Allocation and plan envelopes bind canonical forms of:
-
-- observation frontier;
-- eight CMCA candidates;
-- CMCA result and BCINR revision;
-- PDDL domain and problem commitments through the Session receipt;
-- candidate plan;
-- independent validator result;
-- predecessor receipt.
-
-The admission server uses recursively key-sorted JSON, length-framed inputs, and BLAKE3. Verification recomputes both the payload digest and receipt.
-
-## Protected actuation
-
-Hooks deny protected Bash operations when repository observations are ahead of the admitted receipt frontier. Protected surfaces include publication, destructive git operations, package publishing, recursive forced deletion, and state-changing HTTP requests.
-
-A source change is allowed only as reversible manufacturing. It immediately becomes a new observation and seals advanced actuation until the loop closes again.
+Receipts bind the observation frontier, RDF projection, eight CMCA candidates, CMCA output and BCINR revision, parent allocation receipt when recursive, PDDL commitments, candidate plan, independent validation, configuration projection, actuation intent and grant, and predecessor receipt.
 
 ## Standing
 
-- `ALIVE`: exact runtime and replay evidence establishes the complete stated claim.
-- `PARTIAL_ALIVE`: a bounded subset is evidenced and the remaining obligations are named.
-- `BUILD_BROKEN`: an exercised build, validation, or execution surface failed.
-- `UNKNOWN`: the required executor or evidence was unavailable.
+- `ALIVE`: exact runtime and replay evidence establishes the full claim.
+- `PARTIAL_ALIVE`: a bounded subset is evidenced and remaining obligations are named.
+- `BLOCKED`: an admitted dependency or authority prevents lawful progress.
+- `BUILD_BROKEN`: an exercised surface failed.
+- `UNKNOWN`: required evidence or execution was unavailable.
+- `UNSUPPORTED`: the capability is outside the wired boundary.
 
-Source presence, plans, confidence, and prose do not establish `ALIVE`.
+Source presence, plans, schema validity, confidence, and prose do not establish `ALIVE`.
 
-## Development check
-
-Run the plugin doctor inside Claude Code:
+## Development checks
 
 ```text
 /chatman-ecosystem:doctor
 ```
 
-The doctor checks loader validation, LSP resolution, Python syntax, shell resolvers, Rust binaries, MCP startup, live PDDL projection, phase invariants, and receipt replay.
+```sh
+python3 plugins/chatman-ecosystem/scripts/validate-claude-projection.py \
+  --plugin-root plugins/chatman-ecosystem
+python3 -m compileall -q plugins/chatman-ecosystem/scripts
+```
+
+The crown check additionally requires loader validation, MCP protocol exercise, agent authority enforcement, worktree manufacture, independent validation, receipt replay, tamper refusal, and protected publication through an exact grant.

@@ -507,6 +507,48 @@ impl Session {
         }
     }
 
+    /// Canonical BLAKE3 identity of the complete mutable mind state.
+    ///
+    /// Immutable grounding columns are bound separately by the MCP layer's
+    /// domain/problem digests. This digest commits to every mutable planning
+    /// input: facts, fluents, definedness, goal, operator mask, scheduled
+    /// world events, and in-flight action ends.
+    pub fn state_fingerprint(&self) -> String {
+        const DOMAIN: &[u8] = b"urn:ferroplan:session-state:v1\0";
+        let mut hasher = blake3::Hasher::new();
+        hasher.update(DOMAIN);
+        let mut frame = |bytes: &[u8]| {
+            hasher.update(&(bytes.len() as u64).to_be_bytes());
+            hasher.update(bytes);
+        };
+        for word in &self.task.init_bits {
+            frame(&word.to_be_bytes());
+        }
+        for value in &self.task.fv0 {
+            frame(&value.to_bits().to_be_bytes());
+        }
+        for defined in &self.task.fdef0 {
+            frame(&[*defined as u8]);
+        }
+        for fact in &self.task.goal_pos {
+            frame(&fact.to_be_bytes());
+        }
+        frame(format!("{:?}", self.task.goal_num).as_bytes());
+        for forbidden in &self.forbidden {
+            frame(&[*forbidden as u8]);
+        }
+        for (delay, fact, value) in &self.timed {
+            frame(&delay.to_bits().to_be_bytes());
+            frame(&fact.to_be_bytes());
+            frame(&[*value as u8]);
+        }
+        for (remaining, end_op) in &self.running {
+            frame(&remaining.to_bits().to_be_bytes());
+            frame(&(*end_op as u64).to_be_bytes());
+        }
+        hasher.finalize().to_hex().to_string()
+    }
+
     /// The temporal think (0.12 Phase 1): rebuild the duration table against
     /// the CURRENT fluent values (so `set_fluent` on an op-unmodified fluent
     /// flows into parameter-dependent durations), then run the bounded

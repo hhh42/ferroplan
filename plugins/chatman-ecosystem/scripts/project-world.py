@@ -16,8 +16,8 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-import loop  # type: ignore  # local plugin script
-import phase  # type: ignore  # local plugin script
+import loop  # noqa: E402  # type: ignore  # local plugin script
+import phase  # noqa: E402  # type: ignore  # local plugin script
 
 PREDICATES = {
     "epistemic": {
@@ -170,22 +170,7 @@ def problem(
 
     if not skip_live_checks:
         git_dirty_result = _git_dirty_check(cwd, timeout=10.0)
-        # cargo check --workspace is used instead of `cargo build --workspace`:
-        # it exercises the same type/borrow-check/link-resolution surface that
-        # actually breaks most PRs, at a fraction of the wall-clock cost of a
-        # full codegen build. This is a deliberate speed/fidelity tradeoff —
-        # a `cargo check` pass does not guarantee `cargo build` (or
-        # `cargo test`) also succeeds (e.g. codegen-only or test-only
-        # failures can still slip through), so it's a proxy for build-green,
-        # not an exact match.
         build_result = _run_check(["cargo", "check", "--workspace"], cwd, timeout=180.0)
-        # validator-green: "validator" in this ontology is the independent
-        # validator agent's verdict, which this script has no access to
-        # invoke or query. `cargo test --workspace` is used as an honest,
-        # explicitly-labeled PROXY for validator-green — it is not the same
-        # guarantee as an actual independent-validator run (it can't see
-        # anything the validator agent checks beyond automated test passage,
-        # e.g. spec conformance, review judgment).
         test_result = _run_check(["cargo", "test", "--workspace"], cwd, timeout=300.0)
 
     live_checks["git_dirty"] = git_dirty_result
@@ -200,29 +185,13 @@ def problem(
         facts.add("allocation-bound")
     if vector["planning"] in {"candidate", "validated"}:
         facts.add("plan-bound")
-    # build-green: only asserted when a live `cargo check --workspace` was
-    # actually run and passed in this call. Never fabricated from the cached
-    # phase vector alone.
     if build_result.get("ran") and build_result.get("ok"):
         facts.add("build-green")
-    # validator-green: proxied by a live `cargo test --workspace` pass when
-    # live checks are enabled; falls back to the cached-vector condition
-    # (vector["planning"] == "validated") when live checks are skipped, so
-    # --skip-live-checks callers keep the old fast-path behavior rather than
-    # silently losing the fact. Gated on `not drifted`: a drift collapse
-    # (phase.py's PostToolUse handler) invalidates any prior validator
-    # verdict, so the proxy must not outlive it.
     if (
         (test_result.get("ran") and test_result.get("ok"))
         or (skip_live_checks and vector["planning"] == "validated")
     ) and vector["drift"] != "drifted":
         facts.add("validator-green")
-    # receipt-bound: `loop_state["plan_receipt"]` records that a receipt was
-    # EVER admitted into this project's ledger and is never reset, so on its
-    # own it cannot tell "a receipt was bound once" from "the current phase
-    # state is receipted". Require the live `phase_state["receipt"]` (which
-    # phase.py nulls on every drift collapse) and `not drifted` as well, so
-    # this fact tracks the CURRENT phase state, not ledger history.
     if (
         loop_state.get("plan_receipt")
         and phase_state.get("receipt") is not None

@@ -1,189 +1,260 @@
-//! The session surface, driven over the real stdio protocol.
+//! Persistent session authority, driven through the real merged MCP stdio
+//! server.
 //!
-//! What these pin is the thing the server exists for: a world grounded ONCE,
-//! then told what changed and asked to rethink — and `fork`, which gives a
-//! second mind its own beliefs and goal over the SAME shared grounded world.
+//! The authoritative surface grounds one named repository mind, admits
+//! observations and goal changes, follows or replans under a declared budget,
+//! advances a plan cursor, reports standing, and closes the session. Forking,
+//! list-all sessions, ambient state mutation, and implicit handle minting are
+//! intentionally not part of this authority.
 
 mod common;
 
 use common::{Client, DOM, PROB};
-use serde_json::json;
+use serde_json::{json, Value};
 
-/// The loop an agent actually runs: open, look, think, tell it the world
-/// moved, think again — and the second plan must be shorter because the
-/// session kept the state instead of re-grounding from scratch.
+fn open(c: &mut Client, session_id: &str) -> Value {
+    c.call_json(
+        "session_open",
+        json!({
+            "session_id": session_id,
+            "domain": DOM,
+            "problem": PROB
+        }),
+    )
+}
+
+fn reported_plan_length(think: &Value) -> usize {
+    think["plan"]["steps"]
+        .as_array()
+        .map(Vec::len)
+        .or_else(|| think["solution"]["plan"]["steps"].as_array().map(Vec::len))
+        .unwrap_or(0)
+}
+
+fn assert_blake3_hex(value: &str) {
+    assert_eq!(value.len(), 64, "BLAKE3 receipt must be 32 bytes in hex");
+    assert!(
+        value
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f')),
+        "BLAKE3 receipt must be canonical lowercase hex: {value}"
+    );
+}
+
 #[test]
-fn open_then_tell_then_rethink_replans_from_the_new_state() {
+fn open_observe_then_think_replans_from_the_admitted_state() {
     let mut c = Client::start();
-    let opened = c.call_json("session_open", json!({"domain": DOM, "problem": PROB}));
-    let sid = opened["session_id"].as_str().expect("a session handle");
+    let sid = "stateful-replan";
+    let opened = open(&mut c, sid);
+    assert_eq!(opened["schema"], "urn:chatman:ferroplan-session-open:v1");
+    assert_eq!(opened["session_id"], sid);
     assert_eq!(opened["goal_met"], false);
 
-    let state = c.call_json(
-        "session_state",
-        json!({"session_id": sid, "facts": ["(p)", "(q)", "(r)"]}),
+    let first = c.call_json(
+        "session_think",
+        json!({"session_id": sid, "max_evaluated": 10_000}),
     );
-    assert_eq!(state["facts"]["(p)"], true);
-    assert_eq!(state["facts"]["(r)"], false);
+    assert_eq!(first["decision"], "replan");
+    assert_eq!(reported_plan_length(&first), 2, "initial plan is A then B");
 
-    let first = c.call_json("session_replan", json!({"session_id": sid}));
-    assert_eq!(first["solved"], true);
-    assert_eq!(
-        first["plan"]["length"], 2,
-        "from the initial state: A then B"
+    // The external world reports that A already happened. Observation is the
+    // only state-mutation path; completed plan steps are not ambiently applied.
+    let observed = c.call_json(
+        "session_observe",
+        json!({
+            "session_id": sid,
+            "facts": [
+                {"fact": "(P)", "value": false},
+                {"fact": "(Q)", "value": true}
+            ],
+            "fluents": []
+        }),
     );
+    assert_eq!(observed["schema"], "urn:chatman:ferroplan-observation:v1");
+    assert_eq!(observed["fact_surprises"].as_array().unwrap().len(), 2);
+    assert_eq!(observed["replan_required"], true);
 
-    // The world moved without us: `a` fired out there.
-    let applied = c.call_json(
-        "session_set",
-        json!({"session_id": sid, "facts": [["(p)", false], ["(q)", true]]}),
+    let second = c.call_json(
+        "session_think",
+        json!({"session_id": sid, "max_evaluated": 10_000}),
     );
-    assert_eq!(applied["facts"], 2);
-
-    let second = c.call_json("session_replan", json!({"session_id": sid}));
-    assert_eq!(second["solved"], true);
-    assert_eq!(
-        second["plan"]["length"], 1,
-        "the session kept its state — only B is left to do"
-    );
-    assert_eq!(second["plan"]["steps"][0]["action"], "B");
+    assert_eq!(second["decision"], "replan");
+    assert_eq!(reported_plan_length(&second), 1, "only B remains");
+    assert_eq!(second["solution"]["plan"]["steps"][0]["action"], "B");
     c.finish();
 }
 
-/// The many-minds primitive. A fork shares the grounded world (same
-/// `world_bytes`) but owns its beliefs and goal, so the two can disagree
-/// about whether they are done.
 #[test]
-fn fork_shares_the_world_and_owns_its_goal() {
+fn session_id_is_caller_owned_and_replace_is_explicit() {
     let mut c = Client::start();
-    let a = c.call_json("session_open", json!({"domain": DOM, "problem": PROB}));
-    let a_id = a["session_id"].as_str().unwrap().to_string();
+    let sid = "caller-owned-id";
+    let first = open(&mut c, sid);
+    let first_receipt = first["receipt"].as_str().unwrap_or_default();
+    assert_blake3_hex(first_receipt);
 
-    let b = c.call_json("session_fork", json!({"session_id": a_id}));
-    let b_id = b["session_id"].as_str().unwrap().to_string();
-    assert_ne!(a_id, b_id, "a fork is a distinct handle");
-    assert_eq!(b["forked_from"], a_id.as_str());
-
-    // Move the shared-looking world only in the FORK, and give it its own goal.
-    c.call_json(
-        "session_set",
-        json!({"session_id": b_id, "facts": [["(p)", false], ["(q)", true]], "goal": "(q)"}),
+    let (text, error) = c.call_text(
+        "session_open",
+        json!({"session_id": sid, "domain": DOM, "problem": PROB}),
+    );
+    assert!(error, "duplicate open must be refused");
+    assert!(
+        text.contains("already exists"),
+        "unexpected refusal: {text}"
     );
 
-    let a_state = c.call_json(
-        "session_state",
-        json!({"session_id": a_id, "facts": ["(q)"]}),
+    let replacement = c.call_json(
+        "session_open",
+        json!({
+            "session_id": sid,
+            "domain": DOM,
+            "problem": PROB,
+            "replace": true
+        }),
     );
-    let b_state = c.call_json(
-        "session_state",
-        json!({"session_id": b_id, "facts": ["(q)"]}),
-    );
-
-    // Beliefs are private...
-    assert_eq!(a_state["facts"]["(q)"], false, "the parent did not move");
-    assert_eq!(b_state["facts"]["(q)"], true);
-    // ...goals are private...
-    assert_eq!(a_state["goal_met"], false);
-    assert_eq!(
-        b_state["goal_met"], true,
-        "the fork's own goal is satisfied"
-    );
-    // ...but the grounded world is ONE copy, which is the whole point.
-    assert_eq!(
-        a_state["world_bytes"], b_state["world_bytes"],
-        "forks share the grounded payload"
+    assert_eq!(replacement["session_id"], sid);
+    assert_blake3_hex(
+        replacement["receipt"]
+            .as_str()
+            .expect("replacement receipt"),
     );
     c.finish();
 }
 
 #[test]
-fn observe_reports_only_the_surprises() {
+fn observe_reports_only_contradictions_and_updates_the_receipt_head() {
     let mut c = Client::start();
-    let s = c.call_json("session_open", json!({"domain": DOM, "problem": PROB}));
-    let sid = s["session_id"].as_str().unwrap().to_string();
+    let sid = "surprise-boundary";
+    let opened = open(&mut c, sid);
+    let open_receipt = opened["receipt"].as_str().expect("open receipt").to_owned();
+    assert_blake3_hex(&open_receipt);
 
-    // It already believes (p); seeing (p) true is no news.
     let quiet = c.call_json(
         "session_observe",
-        json!({"session_id": sid, "sight": [["(p)", true]]}),
+        json!({
+            "session_id": sid,
+            "facts": [{"fact": "(P)", "value": true}],
+            "fluents": []
+        }),
     );
-    assert_eq!(
-        quiet["surprises"].as_array().unwrap().len(),
-        0,
-        "a sighting that matches belief is not a surprise"
-    );
+    assert!(quiet["fact_surprises"].as_array().unwrap().is_empty());
+    assert_eq!(quiet["epoch"], 0);
+    let quiet_receipt = quiet["receipt"]
+        .as_str()
+        .expect("quiet observation receipt")
+        .to_owned();
+    assert_blake3_hex(&quiet_receipt);
+    assert_ne!(quiet_receipt, open_receipt);
 
-    // Seeing (q) true contradicts it.
     let news = c.call_json(
         "session_observe",
-        json!({"session_id": sid, "sight": [["(q)", true]]}),
+        json!({
+            "session_id": sid,
+            "facts": [{"fact": "(Q)", "value": true}],
+            "fluents": []
+        }),
     );
+    assert_eq!(news["fact_surprises"].as_array().unwrap().len(), 1);
+    assert_eq!(news["epoch"], 1);
+    let news_receipt = news["receipt"]
+        .as_str()
+        .expect("surprise receipt")
+        .to_owned();
+    assert_blake3_hex(&news_receipt);
+    assert_ne!(news_receipt, quiet_receipt);
+
+    let status = c.call_json("session_status", json!({"session_id": sid}));
+    assert_eq!(status["receipt_chain_head"], news_receipt);
+    c.finish();
+}
+
+#[test]
+fn think_budget_is_a_hard_bounded_contract() {
+    let mut c = Client::start();
+    let sid = "bounded-think";
+    open(&mut c, sid);
+
+    let (zero_text, zero_error) = c.call_text(
+        "session_think",
+        json!({"session_id": sid, "max_evaluated": 0}),
+    );
+    assert!(zero_error);
+    assert!(zero_text.contains("greater than zero"));
+
+    let (ceiling_text, ceiling_error) = c.call_text(
+        "session_think",
+        json!({"session_id": sid, "max_evaluated": 10_000_001}),
+    );
+    assert!(ceiling_error);
+    assert!(ceiling_text.contains("at most 10000000"));
+
+    let admitted = c.call_json(
+        "session_think",
+        json!({"session_id": sid, "max_evaluated": 10_000}),
+    );
+    assert!(matches!(
+        admitted["decision"].as_str(),
+        Some("follow" | "replan" | "bounded-refusal")
+    ));
+    c.finish();
+}
+
+#[test]
+fn status_close_and_unknown_handle_refusals_preserve_the_server() {
+    let mut c = Client::start();
+    let sid = "close-boundary";
+    open(&mut c, sid);
+
+    let status = c.call_json("session_status", json!({"session_id": sid}));
+    assert_eq!(status["schema"], "urn:chatman:ferroplan-session-status:v1");
+    assert_eq!(status["session_id"], sid);
+    assert_eq!(status["cursor"], 0);
+
+    let (unknown_text, unknown_error) =
+        c.call_text("session_status", json!({"session_id": "never-opened"}));
+    assert!(unknown_error);
+    assert!(unknown_text.contains("unknown session `never-opened`"));
+
+    let closed = c.call_json("session_close", json!({"session_id": sid}));
+    assert_eq!(closed["closed"], true);
+    let closed_again = c.call_json("session_close", json!({"session_id": sid}));
     assert_eq!(
-        news["surprises"].as_array().unwrap().len(),
-        1,
-        "a contradicted belief must be reported: {news}"
-    );
-    c.finish();
-}
-
-#[test]
-fn budgeted_replan_is_a_contract() {
-    let mut c = Client::start();
-    let s = c.call_json("session_open", json!({"domain": DOM, "problem": PROB}));
-    let sid = s["session_id"].as_str().unwrap().to_string();
-    // A generous budget still solves this two-step task.
-    let sol = c.call_json(
-        "session_replan",
-        json!({"session_id": sid, "max_evaluated": 10000}),
-    );
-    assert_eq!(sol["solved"], true);
-    c.finish();
-}
-
-#[test]
-fn sessions_are_listed_closed_and_missing_handles_are_tool_errors() {
-    let mut c = Client::start();
-    let s = c.call_json("session_open", json!({"domain": DOM, "problem": PROB}));
-    let sid = s["session_id"].as_str().unwrap().to_string();
-
-    let listed = c.call_json("session_list", json!({}));
-    assert_eq!(listed["sessions"].as_array().unwrap().len(), 1);
-
-    // An unknown handle is a tool error the agent can recover from, and it
-    // must NOT take the connection down.
-    let (text, err) = c.call_text("session_replan", json!({"session_id": "nope"}));
-    assert!(err, "unknown handle must be an isError result");
-    assert!(
-        text.contains("nope"),
-        "message should name the handle: {text}"
+        closed_again["closed"], false,
+        "close is observable and idempotent"
     );
 
-    let (_, err) = c.call_text("session_close", json!({"session_id": sid}));
-    assert!(!err, "closing a live session succeeds");
-    let after = c.call_json("session_list", json!({}));
-    assert_eq!(after["sessions"].as_array().unwrap().len(), 0);
+    let (after_text, after_error) = c.call_text("session_status", json!({"session_id": sid}));
+    assert!(after_error);
+    assert!(after_text.contains("unknown session"));
 
-    // Still serving.
+    // A refused session lookup does not terminate the merged server.
     let report = c.call_json("parse", json!({"pddl": DOM}));
     assert_eq!(report["ok"], true);
     c.finish();
 }
 
-/// A rejected edit must say what it managed to apply first — a half-applied
-/// world the agent cannot see is worse than one it can.
 #[test]
-fn a_rejected_edit_reports_what_it_applied_first() {
+fn cursor_advance_refuses_unobserved_execution_beyond_the_plan() {
     let mut c = Client::start();
-    let s = c.call_json("session_open", json!({"domain": DOM, "problem": PROB}));
-    let sid = s["session_id"].as_str().unwrap().to_string();
-    let (text, err) = c.call_text(
-        "session_set",
-        json!({"session_id": sid, "facts": [["(q)", true], ["(nonexistent-fact)", true]]}),
+    let sid = "cursor-boundary";
+    open(&mut c, sid);
+    let think = c.call_json(
+        "session_think",
+        json!({"session_id": sid, "max_evaluated": 10_000}),
     );
-    assert!(err, "an unknown fact must be refused: {text}");
-    assert!(
-        text.contains("applied before the failure"),
-        "the partial application must be reported: {text}"
+    let length = reported_plan_length(&think);
+    assert_eq!(length, 2);
+
+    let (text, error) = c.call_text(
+        "session_advance",
+        json!({"session_id": sid, "completed_steps": length + 1}),
+    );
+    assert!(error);
+    assert!(text.contains("beyond plan length"));
+
+    let status = c.call_json("session_status", json!({"session_id": sid}));
+    assert_eq!(
+        status["cursor"], 0,
+        "refused advance must not mutate cursor"
     );
     c.finish();
 }

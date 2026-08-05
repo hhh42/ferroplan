@@ -9,7 +9,7 @@ import pytest
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-import openai_ostar_star as star
+import openai_ostar_star as star  # noqa: E402
 
 
 @pytest.mark.parametrize(("value", "expected"), [(True, True), (False, False), ("yes", True), ("0", False), (1, True), (0, False)])

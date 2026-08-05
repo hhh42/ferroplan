@@ -13,7 +13,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 import roots
 from models import ChatmanError
 

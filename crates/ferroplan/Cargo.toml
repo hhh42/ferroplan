@@ -15,6 +15,7 @@ readme = "../../README.md"
 [dependencies]
 serde = { workspace = true }
 thiserror = { workspace = true }
+blake3 = "1"
 schemars = { version = "1.2.2", optional = true }
 
 [features]

@@ -10,7 +10,12 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from openai_luna_protocol import LUNA_MODEL, OSTAR_STAR_SCHEMA, PROFILE_SCHEMA, RuntimeProfile
+from openai_luna_protocol import (  # noqa: E402
+    LUNA_MODEL,
+    OSTAR_STAR_SCHEMA,
+    PROFILE_SCHEMA,
+    RuntimeProfile,
+)
 
 
 def mustar_result(**overrides: Any) -> dict[str, Any]:

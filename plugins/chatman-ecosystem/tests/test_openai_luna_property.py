@@ -4,10 +4,9 @@ import random
 import string
 
 import pytest
-
-from openai_luna_testkit import FakeMcp
 from openai_luna_protocol import canonical_json, sha256_digest
 from openai_luna_runtime import McpToolRegistry, _negative
+from openai_luna_testkit import FakeMcp
 
 
 def test_tool_name_projection_property() -> None:

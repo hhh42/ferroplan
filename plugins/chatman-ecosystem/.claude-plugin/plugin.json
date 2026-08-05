@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "chatman-ecosystem",
   "displayName": "Chatman Phase Engine",
-  "version": "0.17.0",
+  "version": "26.7.29",
   "defaultEnabled": false,
   "description": "A lawful managed-world Claude Code projection combining generated configuration law, RDF-shaped observation, BCINR-CMCA allocation, persistent Ferroplan candidate planning, isolated manufacture, validation, structured actuation intents, and chained receipts",
   "author": {

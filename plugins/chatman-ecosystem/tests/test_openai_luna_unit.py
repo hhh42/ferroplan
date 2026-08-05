@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+import threading
+import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
-import threading
-import time
-from types import SimpleNamespace
-
+from mcp_client import McpClient, McpToolError, tool_structured_result
+from openai_luna_protocol import (
+    LUNA_MODEL,
+    PROFILE_SCHEMA,
+    OpenAIResponsesClient,
+    RuntimeProfile,
+    RuntimeRefusal,
+    canonical_json,
+    sha256_digest,
+    validate_star_envelope,
+)
+from openai_luna_runtime import LunaHost, McpToolRegistry, redact_for_trace
 from openai_luna_testkit import (
     FakeMcp,
     FakeStar,
@@ -19,9 +30,6 @@ from openai_luna_testkit import (
     standard_surfaces,
     star_envelope,
 )
-from mcp_client import McpClient, McpToolError, tool_structured_result
-from openai_luna_protocol import LUNA_MODEL, PROFILE_SCHEMA, OpenAIResponsesClient, RuntimeProfile, RuntimeRefusal, canonical_json, sha256_digest, validate_star_envelope
-from openai_luna_runtime import LunaHost, McpToolRegistry, redact_for_trace
 
 
 def test_profile_accepts_explicit_bounds() -> None:

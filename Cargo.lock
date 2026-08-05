@@ -375,6 +375,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b25655df2c3cdd83c5e5b293b88acd880332b2ddadd7c30ac43144fdc0033da9"
 
 [[package]]
+name = "bcinr-cmca"
+version = "26.7.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7aa454f03b50b6990c672fd72a4e2bc3ec3af63bed5d4dfae02dee5ca30ba19"
+dependencies = [
+ "bcinr-logic",
+]
+
+[[package]]
+name = "bcinr-logic"
+version = "26.7.28"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0be283759631eeff5f9be7313a699ae8efde493ab5b2ba2b5308d86030287b79"
+
+[[package]]
 name = "bevy"
 version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2406,6 +2421,7 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 name = "ferroplan"
 version = "0.21.0"
 dependencies = [
+ "blake3",
  "criterion",
  "schemars",
  "serde",
@@ -2432,6 +2448,7 @@ name = "ferroplan-cli"
 version = "0.21.0"
 dependencies = [
  "anyhow",
+ "blake3",
  "clap",
  "ferroplan",
  "serde",

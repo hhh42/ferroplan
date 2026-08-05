@@ -1,0 +1,124 @@
+@prefix fp: <urn:chatman:ferroplan-domain:v1#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+
+# Vision 2030 operator-experience ontology. The planner and persistent-session
+# ontologies define execution. This graph defines discoverability, composition,
+# diagnosis, guided manufacture, one-round-trip operation, transport-neutral
+# integrity envelopes, and bounded combinatorial exploration.
+
+fp:ExperiencePlane a rdfs:Class ;
+  dcterms:title "Ferroplan operator-experience plane" ;
+  rdfs:comment "A non-networked operator layer over Ferroplan planning and persistent-session authority. It makes capabilities self-describing, composable, diagnosable, guided, batchable, and transportable while preserving existing mutation, receipt, and refusal laws." .
+
+fp:CapabilityAtom a rdfs:Class ;
+  rdfs:comment "A normalized symbolic precondition or outcome used by the bounded capability-composition graph." .
+
+fp:CapabilityContract a rdfs:Class ;
+  rdfs:comment "A tool-level contract declaring required atoms, provided atoms, mutation behavior, reversibility, receipt behavior, latency class, and semantic summary." .
+
+fp:requiresAtom a rdf:Property ;
+  rdfs:domain fp:CapabilityContract ; rdfs:range fp:CapabilityAtom ;
+  rdfs:comment "A normalized atom required before the capability can be selected by the composition search." .
+
+fp:providesAtom a rdf:Property ;
+  rdfs:domain fp:CapabilityContract ; rdfs:range fp:CapabilityAtom ;
+  rdfs:comment "A normalized atom made reachable after the capability executes successfully." .
+
+fp:mutatesState a rdf:Property ;
+  rdfs:domain fp:CapabilityContract ; rdfs:range xsd:boolean ;
+  rdfs:comment "Whether the capability changes persistent server or session state." .
+
+fp:reversibleCapability a rdf:Property ;
+  rdfs:domain fp:CapabilityContract ; rdfs:range xsd:boolean ;
+  rdfs:comment "Whether the capability is read-only or has an explicit bounded recovery path." .
+
+fp:emitsReceipt a rdf:Property ;
+  rdfs:domain fp:CapabilityContract ; rdfs:range xsd:boolean ;
+  rdfs:comment "Whether successful execution emits or extends a canonical receipt identity." .
+
+fp:latencyClass a rdf:Property ;
+  rdfs:domain fp:CapabilityContract ; rdfs:range xsd:string ;
+  rdfs:comment "One of instant, bounded, grounding, or search." .
+
+fp:noNetworkActuation a rdf:Property ;
+  rdfs:domain fp:ExperiencePlane ; rdfs:range xsd:boolean ;
+  rdfs:comment "True when the plane manufactures only transport-neutral envelopes and performs no delivery or socket actuation." .
+
+fp:integrityNotAuthentication a rdf:Property ;
+  rdfs:domain fp:ExperiencePlane ; rdfs:range xsd:boolean ;
+  rdfs:comment "True when BLAKE3 identity is explicitly represented as integrity rather than sender authentication." .
+
+fp:Vision2030ExperiencePlane a fp:ExperiencePlane ;
+  fp:noNetworkActuation true ;
+  fp:integrityNotAuthentication true ;
+  rdfs:comment "The 42-tool Ferroplan authority surface after adding DX, doctor, wizard, QoL, telco, and bounded combinatorial-lattice capabilities." .
+
+fp:ToolDxManifest a fp:McpTool ; rdfs:label "dx_manifest" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Return the complete self-describing Ferroplan capability manifest, including authority categories, contracts, effects, reversibility, receipt behavior, and composition examples." .
+
+fp:ToolDxCompose a fp:McpTool ; rdfs:label "dx_compose" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Search the bounded capability graph for a minimal deterministic tool sequence from admitted starting atoms to requested outcome atoms." .
+
+fp:ToolDoctorScan a fp:McpTool ; rdfs:label "doctor_scan" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Diagnose global or per-session health, assign typed findings, calculate standing, and emit executable remediation hints without mutating state." .
+
+fp:ToolDoctorExplain a fp:McpTool ; rdfs:label "doctor_explain" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Classify a tool or protocol failure into a typed cause with bounded confidence, corrective actions, and refusal-preserving recovery guidance." .
+
+fp:ToolWizardBootstrap a fp:McpTool ; rdfs:label "wizard_bootstrap" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Atomically manufacture a ready persistent planning mind from domain, problem, goal, authority scope, and bounded search settings." .
+
+fp:ToolWizardRecipe a fp:McpTool ; rdfs:label "wizard_recipe" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Compile a high-level operator intent into an ordered, inspectable Ferroplan tool recipe with preflight, rollback, and receipt checkpoints." .
+
+fp:ToolQolSnapshot a fp:McpTool ; rdfs:label "qol_snapshot" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Read session state, selected facts and fluents, plan standing, diagnostics, memory, lineage, and recent history in one round trip." .
+
+fp:ToolQolBatch a fp:McpTool ; rdfs:label "qol_batch" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Apply a bounded heterogeneous session transaction on a staged fork and commit exactly once, or refuse without partial mutation." .
+
+fp:ToolTelcoEnvelope a fp:McpTool ; rdfs:label "telco_envelope" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Manufacture a deterministic transport-neutral BLAKE3 integrity envelope with correlation, causation, idempotency, predecessor, and expiry fields; it performs no network operation." .
+
+fp:ToolTelcoVerify a fp:McpTool ; rdfs:label "telco_verify" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Verify a transport envelope's schema, payload identity, envelope identity, routing expectations, predecessor, and expiry without treating integrity as authentication." .
+
+fp:ToolVisionLattice a fp:McpTool ; rdfs:label "vision_lattice" ; fp:providedBy fp:FerroplanMcp ;
+  fp:toolSourceLocation "experience.rs" ;
+  rdfs:comment "Enumerate a bounded combinatorial capability lattice, minimal reachability depths, dependency edges, blocked frontiers, and theoretical composition capacity." .
+
+fp:ExperiencePlaneShape a sh:NodeShape ;
+  sh:targetClass fp:ExperiencePlane ;
+  sh:property [
+    sh:path fp:noNetworkActuation ;
+    sh:minCount 1 ; sh:maxCount 1 ;
+    sh:hasValue true ;
+    sh:message "The experience plane must not claim or perform network actuation."
+  ] ;
+  sh:property [
+    sh:path fp:integrityNotAuthentication ;
+    sh:minCount 1 ; sh:maxCount 1 ;
+    sh:hasValue true ;
+    sh:message "Transport integrity must not be represented as sender authentication."
+  ] .
+
+fp:CapabilityContractShape a sh:NodeShape ;
+  sh:targetClass fp:CapabilityContract ;
+  sh:property [ sh:path fp:mutatesState ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:boolean ] ;
+  sh:property [ sh:path fp:reversibleCapability ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:boolean ] ;
+  sh:property [ sh:path fp:emitsReceipt ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:boolean ] ;
+  sh:property [ sh:path fp:latencyClass ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ("instant" "bounded" "grounding" "search") ] .

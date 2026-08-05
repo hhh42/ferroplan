@@ -1,11 +1,12 @@
 //! Drive the built `ferroplan-mcp` binary over stdio and check the MCP
-//! protocol end to end: handshake, the tool catalogue, the four stateless
-//! planning tools, and the error conventions.
+//! protocol end to end: handshake, the complete merged tool catalogue,
+//! stateless planning, persistent sessions, admission authority, and error
+//! conventions.
 //!
-//! These pin the behaviour that had to SURVIVE the move onto rmcp — the
-//! stateless four answer exactly as they did before, tool failures stay
-//! `isError` results the agent can read, and an unknown method is still
-//! `-32601`.
+//! These pin the behaviour that must survive the merged-router composition:
+//! tool failures stay `isError` results an agent can read, structured
+//! validation remains machine-readable, and an unknown method remains
+//! JSON-RPC `-32601`.
 
 mod common;
 
@@ -13,41 +14,64 @@ use common::{Client, DOM, PROB};
 use serde_json::json;
 
 #[test]
-fn initialize_advertises_server_and_both_tool_families() {
+fn initialize_advertises_the_exact_merged_authority_surface() {
     let mut c = Client::start();
     let list = c.request("tools/list", json!({}));
-    let names: Vec<&str> = list["result"]["tools"]
+    let mut names: Vec<&str> = list["result"]["tools"]
         .as_array()
         .expect("tools array")
         .iter()
-        .map(|t| t["name"].as_str().unwrap())
+        .map(|tool| tool["name"].as_str().expect("tool name"))
         .collect();
+    names.sort_unstable();
 
-    // The stateless four, unchanged since before rmcp.
-    for want in ["solve", "parse", "validate", "decompose"] {
-        assert!(
-            names.contains(&want),
-            "missing stateless tool {want}: {names:?}"
-        );
-    }
-    // The session surface this server exists to add.
-    for want in [
-        "session_open",
-        "session_close",
-        "session_list",
-        "session_fork",
-        "session_set",
-        "session_observe",
-        "session_elapse",
+    let mut expected = vec![
+        "bind_allocation_receipt",
+        "bind_plan_receipt",
+        "canonical_digest",
+        "cmca_allocate",
+        "cmca_allocate_recursive",
+        "decompose",
+        "doctor_explain",
+        "doctor_scan",
+        "dx_compose",
+        "dx_manifest",
+        "parse",
+        "qol_batch",
+        "qol_snapshot",
+        "session_advance",
         "session_apply_start",
+        "session_checkpoint",
+        "session_close",
+        "session_compare",
+        "session_elapse",
+        "session_fork",
+        "session_history",
+        "session_list",
         "session_replan",
+        "session_restore",
+        "session_restrict_ops",
+        "session_schedule_fact",
+        "session_set",
         "session_state",
-    ] {
-        assert!(
-            names.contains(&want),
-            "missing session tool {want}: {names:?}"
-        );
-    }
+        "session_verify_checkpoint",
+        "session_observe",
+        "session_open",
+        "session_set_goal",
+        "session_status",
+        "session_think",
+        "solve",
+        "telco_envelope",
+        "telco_verify",
+        "vision_lattice",
+        "wizard_bootstrap",
+        "wizard_recipe",
+        "validate",
+        "verify_receipt",
+    ];
+    expected.sort_unstable();
+
+    assert_eq!(names, expected, "merged MCP authority surface drifted");
     c.finish();
 }
 
@@ -62,7 +86,7 @@ fn solve_advertises_a_typed_options_schema() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|t| t["name"] == "solve")
+        .find(|tool| tool["name"] == "solve")
         .expect("solve is advertised")
         .clone();
     let schema = solve["inputSchema"].to_string();
@@ -88,39 +112,46 @@ fn parse_tool_summarizes_a_domain() {
 #[test]
 fn solve_tool_returns_a_plan() {
     let mut c = Client::start();
-    let sol = c.call_json("solve", json!({"domain": DOM, "problem": PROB}));
-    assert_eq!(sol["solved"], true);
-    assert_eq!(sol["plan"]["steps"][0]["action"], "A");
-    assert_eq!(sol["plan"]["steps"][1]["action"], "B");
+    let solution = c.call_json("solve", json!({"domain": DOM, "problem": PROB}));
+    assert_eq!(solution["solved"], true);
+    assert_eq!(solution["plan"]["steps"][0]["action"], "A");
+    assert_eq!(solution["plan"]["steps"][1]["action"], "B");
     c.finish();
 }
 
 #[test]
-fn validate_tool_checks_a_plan() {
+fn validate_tool_returns_the_structured_validation_contract() {
     let mut c = Client::start();
-    let (text, err) = c.call_text(
+    let valid = c.call_json(
         "validate",
         json!({"domain": DOM, "problem": PROB, "plan": "step 0: (a)\nstep 1: (b)"}),
     );
-    assert!(!err, "validate should not be an error result: {text}");
-    assert_eq!(text, "Plan valid");
+    assert_eq!(valid["schema"], "urn:ferroplan:plan-validation:v1");
+    assert_eq!(valid["valid"], true);
+    assert!(valid["reason"].is_null());
 
-    let (text, err) = c.call_text(
+    let invalid = c.call_json(
         "validate",
         json!({"domain": DOM, "problem": PROB, "plan": "step 0: (b)"}),
     );
-    assert!(!err, "an invalid PLAN is still a successful tool call");
-    assert!(text.starts_with("Plan invalid"), "got {text}");
+    assert_eq!(invalid["schema"], "urn:ferroplan:plan-validation:v1");
+    assert_eq!(invalid["valid"], false);
+    assert!(
+        invalid["reason"]
+            .as_str()
+            .is_some_and(|reason| !reason.is_empty()),
+        "invalid plans must carry a reason: {invalid}"
+    );
     c.finish();
 }
 
 #[test]
 fn unsolvable_problem_is_a_normal_answer_not_an_error() {
     let mut c = Client::start();
-    let prob = "(define (problem pr) (:domain d) (:init ) (:goal (r)))";
-    let sol = c.call_json("solve", json!({"domain": DOM, "problem": prob}));
+    let problem = "(define (problem pr) (:domain d) (:init ) (:goal (r)))";
+    let solution = c.call_json("solve", json!({"domain": DOM, "problem": problem}));
     assert_eq!(
-        sol["solved"], false,
+        solution["solved"], false,
         "solved:false is an answer, not a failure"
     );
     c.finish();
@@ -131,25 +162,25 @@ fn bad_args_are_tool_errors_and_unknown_method_is_an_rpc_error() {
     let mut c = Client::start();
     // A missing required argument is a TOOL error the agent can read and fix,
     // not a protocol error that kills the connection.
-    let (text, err) = c.call_text("solve", json!({"problem": PROB}));
-    assert!(err, "missing `domain` must be an isError result");
+    let (text, error) = c.call_text("solve", json!({"problem": PROB}));
+    assert!(error, "missing `domain` must be an isError result");
     assert!(
         text.contains("domain"),
         "message should name the field: {text}"
     );
 
     // Bad PDDL: also a tool error, and the server stays usable afterwards.
-    let (_, err) = c.call_text(
+    let (_, error) = c.call_text(
         "solve",
         json!({"domain": "(this is not pddl", "problem": PROB}),
     );
-    assert!(err, "unparseable PDDL must be an isError result");
+    assert!(error, "unparseable PDDL must be an isError result");
 
     // ...still alive.
     let report = c.call_json("parse", json!({"pddl": DOM}));
     assert_eq!(report["ok"], true);
 
-    let r = c.request("no/such/method", json!({}));
-    assert_eq!(r["error"]["code"], -32601);
+    let response = c.request("no/such/method", json!({}));
+    assert_eq!(response["error"]["code"], -32601);
     c.finish();
 }

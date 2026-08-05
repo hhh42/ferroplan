@@ -11,12 +11,12 @@ from typing import Any
 
 from mcp_client import McpToolError, tool_structured_result
 from openai_luna_protocol import (
+    TRACE_SCHEMA,
     A2AClient,
     McpSurface,
     OpenAIResponsesClient,
     RuntimeProfile,
     RuntimeRefusal,
-    TRACE_SCHEMA,
     canonical_json,
     sha256_digest,
     validate_star_envelope,
