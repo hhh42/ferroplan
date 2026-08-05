@@ -1,0 +1,25 @@
+services:
+  ppddl:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.ppddl
+    image: ferroplan-ppddl:local
+    init: true
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - ./examples/daily_agent_methods:/work/methods:ro
+    command:
+      - --domain
+      - /work/methods/future/domain.ppddl
+      - --problem
+      - /work/methods/future/problem.ppddl
+      - --horizon
+      - "64"
+      - --episodes
+      - "1000"
+      - --seed
+      - "42"

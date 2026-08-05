@@ -1,0 +1,98 @@
+{
+  "schema": "ferroplan-ppddl-production-implementation-receipt/v1",
+  "subject": {
+    "repository": "seanchatmangpt/ferroplan",
+    "branch": "agent/daily-agent-ppddl-2026-08-02",
+    "implementation_head": "a328c18ebf11c0ef5c29eb3e9c4900dc6d583d13",
+    "base_sha": "6316c4aa663e46335e5548d140d2402684607d7c",
+    "draft_pr": 35
+  },
+  "observed": {
+    "library_surface": [
+      "ferroplan::solve_ppddl",
+      "ferroplan::validate_ppddl_policy",
+      "ferroplan::simulate_ppddl",
+      "ferroplan::ProbabilisticOptions",
+      "ferroplan::ProbabilisticObjective"
+    ],
+    "typed_refusals": [
+      "InvalidOptions",
+      "Unsupported",
+      "InvalidProbability",
+      "OutcomeLimit",
+      "StateLimit",
+      "TransitionLimit",
+      "InitialOutcomeLimit",
+      "PolicyLimit",
+      "ValueTableLimit"
+    ]
+  },
+  "changed": {
+    "files": [
+      "crates/ferroplan-cli/src/bin/ferroplan-ppddl.rs",
+      "crates/ferroplan-cli/Cargo.toml",
+      "docs/production-ppddl.md",
+      "examples/daily_agent_methods/production/receipt.json"
+    ],
+    "generated_outputs_hand_edited": false,
+    "ci_configuration_changed": false
+  },
+  "production_path": {
+    "binary": "ferroplan-ppddl",
+    "route": [
+      "read exact domain/problem",
+      "bounded policy synthesis",
+      "independent policy validation",
+      "deterministic seeded simulation",
+      "BLAKE3 subject binding",
+      "machine-readable receipt",
+      "standing and process exit"
+    ],
+    "default_replay": {
+      "episodes": 1000,
+      "seed": 42
+    },
+    "ci_used": false
+  },
+  "validation": {
+    "executed": [
+      {
+        "command": "GitHub connector exact-file inspection",
+        "exit": 0,
+        "checks": [
+          "binary registered in ferroplan-cli manifest",
+          "called APIs are publicly re-exported by ferroplan",
+          "ProbabilisticOptions fields match the public struct",
+          "Rust 1.74-incompatible Option::is_none_or removed",
+          "receipt requires solved policy and valid independent validation for ALIVE",
+          "no CI result admitted"
+        ]
+      }
+    ],
+    "not_executed": [
+      "cargo fmt --check",
+      "cargo check -p ferroplan-cli --bin ferroplan-ppddl",
+      "cargo test -p ferroplan ppddl::",
+      "production policy synthesis over the future corpus"
+    ]
+  },
+  "failures": [
+    {
+      "state": "BLOCKED",
+      "edge": "local Rust execution",
+      "reason": "rustc, cargo, rustfmt, and gh are absent from the execution container"
+    },
+    {
+      "state": "BLOCKED",
+      "edge": "exact checkout materialization",
+      "reason": "direct git transport cannot resolve github.com in the execution container"
+    }
+  ],
+  "exclusions": [
+    "queued, pending, or completed GitHub CI as validation evidence",
+    "unexecuted cargo commands represented as passed",
+    "production ALIVE crown before exact binary execution",
+    "hand-edited generated outputs"
+  ],
+  "final_state": "PARTIAL_ALIVE"
+}

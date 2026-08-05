@@ -1,0 +1,31 @@
+{
+  "name": "ferroplan-cloud",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "CARGO_TARGET_DIR": "/workspaces/.cargo-target",
+    "RUST_BACKTRACE": "1"
+  },
+  "mounts": [
+    "source=ferroplan-cargo-registry,target=/usr/local/cargo/registry,type=volume",
+    "source=ferroplan-cargo-git,target=/usr/local/cargo/git,type=volume",
+    "source=ferroplan-target,target=/workspaces/.cargo-target,type=volume"
+  ],
+  "postCreateCommand": "bash .devcontainer/bootstrap.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "vadimcn.vscode-lldb"
+      ],
+      "settings": {
+        "rust-analyzer.check.command": "clippy",
+        "rust-analyzer.cargo.allFeatures": true
+      }
+    }
+  }
+}

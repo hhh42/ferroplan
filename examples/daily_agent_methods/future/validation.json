@@ -1,0 +1,30 @@
+{
+  "schema": "future-ppddl-validation/v1",
+  "subject": {
+    "domain": "examples/daily_agent_methods/future/domain.ppddl",
+    "problem": "examples/daily_agent_methods/future/problem.ppddl"
+  },
+  "executed": [
+    {
+      "validator": "bounded local Python structural verifier",
+      "checks": {
+        "domain_balanced_s_expressions": "PASS",
+        "problem_balanced_s_expressions": "PASS",
+        "domain_problem_identity": "PASS",
+        "unique_action_names": "13/13",
+        "probability_sum": "1.00",
+        "brce_atomic_receipt_effect": "PASS",
+        "goal_requires_receipt_replay_falsifier": "PASS"
+      },
+      "exit": 0
+    }
+  ],
+  "not_executed": [
+    {
+      "validator": "ferroplan production parser/planner",
+      "state": "UNSUPPORTED",
+      "reason": "No mounted checkout or admitted executable runtime was available through the connector path."
+    }
+  ],
+  "standing": "PARTIAL_ALIVE"
+}

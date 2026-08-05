@@ -1,0 +1,44 @@
+{
+  "schema": "ppddl-validation/v1",
+  "files": {
+    "domain.ppddl": {
+      "bytes": 4634,
+      "balanced": true,
+      "final_balance": 0
+    },
+    "problem.ppddl": {
+      "bytes": 1787,
+      "balanced": true,
+      "final_balance": 0
+    }
+  },
+  "checks": [
+    {
+      "name": "balanced-s-expression",
+      "exit": 0
+    },
+    {
+      "name": "domain-problem-identity",
+      "exit": 0,
+      "domain": "admitted-agent-methods-2026-08-02"
+    },
+    {
+      "name": "problem-predicates-declared",
+      "exit": 0
+    },
+    {
+      "name": "unique-action-schema",
+      "exit": 0,
+      "count": 10
+    },
+    {
+      "name": "probabilistic-requirement-and-effect",
+      "exit": 0
+    },
+    {
+      "name": "required-invariants-present",
+      "exit": 0
+    }
+  ],
+  "standing": "ALIVE"
+}

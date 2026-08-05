@@ -20,6 +20,10 @@ path = "src/main.rs"
 name = "ferroplan-harvest"
 path = "src/bin/ferroplan-harvest.rs"
 
+[[bin]]
+name = "ferroplan-ppddl"
+path = "src/bin/ferroplan-ppddl.rs"
+
 [dependencies]
 ferroplan = { path = "../ferroplan", version = "0.21.0" }
 clap = { version = "4", features = ["derive"] }

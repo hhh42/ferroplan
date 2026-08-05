@@ -1,0 +1,140 @@
+; Evidence-bounded future implementation calculus
+; Forecasts are priors, never observations. Only BRCE may actuate.
+(define (domain implement-the-future)
+  (:requirements :strips :typing :negative-preconditions :conditional-effects :fluents :probabilistic-effects)
+  (:types objective proposal method checkpoint experiment artifact intent broker actuation receipt falsifier)
+  (:predicates
+    (desired ?o - objective) (bounded ?o - objective) (authority-known ?o - objective)
+    (cost-bounded ?o - objective) (evidence-boundary-declared ?o - objective)
+    (objective-admitted ?o - objective) (unsupported ?o - objective) (blocked ?o - objective)
+    (proposes ?p - proposal ?o - objective) (reversible ?p - proposal)
+    (preserves-existing ?p - proposal) (architecture-compatible ?p - proposal)
+    (deduplicated ?p - proposal) (proposal-admitted ?p - proposal)
+    (implements ?m - method ?p - proposal) (preconditions-declared ?m - method)
+    (effects-declared ?m - method) (failure-states-declared ?m - method)
+    (invariants-declared ?m - method) (receipt-hook-declared ?m - method)
+    (replay-hook-declared ?m - method) (method-admitted ?m - method)
+    (checkpoint-for ?c - checkpoint ?m - method) (smallest-working-system ?c - checkpoint)
+    (checkpoint-built ?c - checkpoint) (checkpoint-verified ?c - checkpoint)
+    (checkpoint-failed ?c - checkpoint)
+    (experiment-for ?e - experiment ?c - checkpoint) (experiment-bounded ?e - experiment)
+    (experiment-ready ?e - experiment) (experiment-succeeded ?e - experiment)
+    (experiment-failed ?e - experiment) (experiment-inconclusive ?e - experiment)
+    (failure-preserved ?e - experiment)
+    (constructs ?a - artifact ?m - method) (artifact-constructed ?a - artifact)
+    (syntax-valid ?a - artifact) (semantics-valid ?a - artifact)
+    (negative-control-passed ?a - artifact)
+    (intent-for ?i - intent ?a - artifact) (intent-manufactured ?i - intent)
+    (intent-admitted ?i - intent) (broker-authorized ?b - broker)
+    (broker-routes ?b - broker ?i - intent) (actuation-for ?x - actuation ?i - intent)
+    (actuated ?x - actuation) (refused ?x - actuation) (zero-unreceipted-actuation)
+    (receipt-for ?r - receipt ?x - actuation) (receipt-issued ?r - receipt)
+    (receipt-binds ?r - receipt ?x - actuation) (receipt-replayed ?r - receipt)
+    (replay-matches ?r - receipt)
+    (falsifies ?f - falsifier ?m - method) (falsifier-executed ?f - falsifier)
+    (falsifier-triggered ?f - falsifier) (future-promoted ?o - objective))
+  (:functions (total-cost) (risk-budget))
+
+  (:action admit-objective
+    :parameters (?o - objective)
+    :precondition (and (desired ?o) (bounded ?o) (authority-known ?o) (cost-bounded ?o)
+      (evidence-boundary-declared ?o) (not (objective-admitted ?o))
+      (not (unsupported ?o)) (not (blocked ?o)))
+    :effect (and (objective-admitted ?o) (increase (total-cost) 1)))
+
+  (:action deduplicate-proposal
+    :parameters (?p - proposal ?o - objective)
+    :precondition (and (objective-admitted ?o) (proposes ?p ?o) (reversible ?p)
+      (preserves-existing ?p) (architecture-compatible ?p) (not (deduplicated ?p)))
+    :effect (and (deduplicated ?p) (increase (total-cost) 1)))
+
+  (:action admit-proposal
+    :parameters (?p - proposal ?o - objective)
+    :precondition (and (objective-admitted ?o) (proposes ?p ?o)
+      (deduplicated ?p) (not (proposal-admitted ?p)))
+    :effect (and (proposal-admitted ?p) (increase (total-cost) 1)))
+
+  (:action admit-method
+    :parameters (?m - method ?p - proposal)
+    :precondition (and (proposal-admitted ?p) (implements ?m ?p)
+      (preconditions-declared ?m) (effects-declared ?m) (failure-states-declared ?m)
+      (invariants-declared ?m) (receipt-hook-declared ?m) (replay-hook-declared ?m)
+      (not (method-admitted ?m)))
+    :effect (and (method-admitted ?m) (increase (total-cost) 1)))
+
+  (:action build-gall-checkpoint
+    :parameters (?c - checkpoint ?m - method)
+    :precondition (and (method-admitted ?m) (checkpoint-for ?c ?m)
+      (smallest-working-system ?c) (not (checkpoint-built ?c)))
+    :effect (and (checkpoint-built ?c) (increase (total-cost) 2)))
+
+  (:action run-bounded-experiment
+    :parameters (?e - experiment ?c - checkpoint)
+    :precondition (and (checkpoint-built ?c) (experiment-for ?e ?c)
+      (experiment-bounded ?e) (experiment-ready ?e)
+      (not (experiment-succeeded ?e)) (not (experiment-failed ?e))
+      (not (experiment-inconclusive ?e)) (> (risk-budget) 0))
+    :effect (probabilistic
+      0.60 (and (experiment-succeeded ?e) (checkpoint-verified ?c)
+        (decrease (risk-budget) 1) (increase (total-cost) 2))
+      0.25 (and (experiment-failed ?e) (checkpoint-failed ?c)
+        (failure-preserved ?e) (decrease (risk-budget) 1) (increase (total-cost) 2))
+      0.15 (and (experiment-inconclusive ?e) (failure-preserved ?e)
+        (decrease (risk-budget) 1) (increase (total-cost) 1))))
+
+  (:action construct-artifact
+    :parameters (?a - artifact ?m - method ?c - checkpoint)
+    :precondition (and (method-admitted ?m) (checkpoint-for ?c ?m)
+      (checkpoint-verified ?c) (constructs ?a ?m) (not (artifact-constructed ?a)))
+    :effect (and (artifact-constructed ?a) (increase (total-cost) 2)))
+
+  (:action validate-artifact
+    :parameters (?a - artifact)
+    :precondition (and (artifact-constructed ?a) (not (syntax-valid ?a))
+      (not (semantics-valid ?a)) (not (negative-control-passed ?a)))
+    :effect (and (syntax-valid ?a) (semantics-valid ?a)
+      (negative-control-passed ?a) (increase (total-cost) 2)))
+
+  (:action manufacture-intent
+    :parameters (?i - intent ?a - artifact)
+    :precondition (and (intent-for ?i ?a) (artifact-constructed ?a)
+      (syntax-valid ?a) (semantics-valid ?a) (negative-control-passed ?a)
+      (not (intent-manufactured ?i)))
+    :effect (and (intent-manufactured ?i) (intent-admitted ?i)
+      (increase (total-cost) 1)))
+
+  ; Atomic BRCE transition: actuation and its binding receipt are one DO.
+  (:action broker-actuate-with-receipt
+    :parameters (?b - broker ?i - intent ?x - actuation ?r - receipt)
+    :precondition (and (zero-unreceipted-actuation) (broker-authorized ?b)
+      (broker-routes ?b ?i) (intent-admitted ?i) (actuation-for ?x ?i)
+      (receipt-for ?r ?x) (not (actuated ?x)) (not (refused ?x))
+      (not (receipt-issued ?r)))
+    :effect (and (actuated ?x) (receipt-issued ?r) (receipt-binds ?r ?x)
+      (increase (total-cost) 2)))
+
+  (:action replay-receipt
+    :parameters (?r - receipt ?x - actuation)
+    :precondition (and (receipt-issued ?r) (receipt-binds ?r ?x)
+      (not (receipt-replayed ?r)))
+    :effect (and (receipt-replayed ?r) (replay-matches ?r)
+      (increase (total-cost) 1)))
+
+  (:action execute-falsifier
+    :parameters (?f - falsifier ?m - method ?r - receipt)
+    :precondition (and (falsifies ?f ?m) (method-admitted ?m)
+      (receipt-replayed ?r) (replay-matches ?r) (not (falsifier-executed ?f)))
+    :effect (and (falsifier-executed ?f) (increase (total-cost) 1)))
+
+  (:action promote-future
+    :parameters (?o - objective ?p - proposal ?m - method ?c - checkpoint
+      ?a - artifact ?i - intent ?x - actuation ?r - receipt ?f - falsifier)
+    :precondition (and (objective-admitted ?o) (proposes ?p ?o) (proposal-admitted ?p)
+      (implements ?m ?p) (method-admitted ?m) (checkpoint-for ?c ?m)
+      (checkpoint-verified ?c) (constructs ?a ?m) (artifact-constructed ?a)
+      (intent-for ?i ?a) (actuation-for ?x ?i) (actuated ?x)
+      (receipt-for ?r ?x) (receipt-replayed ?r) (replay-matches ?r)
+      (falsifies ?f ?m) (falsifier-executed ?f)
+      (not (falsifier-triggered ?f)) (not (future-promoted ?o)))
+    :effect (and (future-promoted ?o) (increase (total-cost) 1)))
+)

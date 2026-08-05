@@ -1,0 +1,25 @@
+{
+  "schema": "daily-agent-ppddl-receipt/v3",
+  "snapshot_date": "2026-08-04",
+  "repository": "seanchatmangpt/ferroplan",
+  "branch": "agent/daily-agent-ppddl-2026-08-02",
+  "observed_sources": [
+    {"repo":"seanchatmangpt/ggen-legacy","pr":17,"head":"8d022c685f1436ccd66cdae6e48ae6f6990e619a","standing":"ALIVE","admitted":["bounded structured-observation foundry","deterministic two-run projection replay","epistemic negative controls","output-directory-only authority"]},
+    {"repo":"seanchatmangpt/ggen-legacy","pr":18,"head":"26df3f7f23f85375dbc2230c03130cfc6866a116","standing":"PARTIAL_ALIVE","admitted":["dependency-first diagnostic repair","acceptance ladder expansion","byte-identical stdio replay","explicit clean-exit failure preservation"]},
+    {"repo":"seanchatmangpt/lsp-max","pr":22,"head":"c1cab89bf54fcc9100b3ce75580b3cc3aa8eb852","standing":"PARTIAL_ALIVE","admitted":["machine-local dependency leak removal","registry substitution for portability","cargo metadata Gall checkpoint"]},
+    {"repo":"seanchatmangpt/ggen","pr":575,"head":"4cb7cc9550746ad00c8bfbfaa7d8176f3e4a00e5","standing":"PARTIAL_ALIVE","admitted":["full-tree deterministic projection","zero-drift replay","untracked-output detection","non-force rebase publication repair"]}
+  ],
+  "methods": ["bounded-foundry","dependency-repair","acceptance-replay","generated-publication"],
+  "deduplication": {"equivalent_existing_operators_reused":true,"new_non_equivalent_action_schemas":8},
+  "changed_files": [
+    "examples/daily_agent_methods/snapshots/2026-08-04/domain.ppddl",
+    "examples/daily_agent_methods/snapshots/2026-08-04/problem.ppddl",
+    "examples/daily_agent_methods/snapshots/2026-08-04/validation.json",
+    "examples/daily_agent_methods/snapshots/2026-08-04/receipt.json"
+  ],
+  "generated_outputs_hand_edited": false,
+  "validation": {"command":"embedded Python structural verifier over exact authored domain/problem strings","exit":0,"results":["balanced domain","balanced problem","matching identity","8/8 unique actions","probability sum 1.0","zero undeclared problem predicates"]},
+  "failures": ["production PPDDL parser unavailable","planner execution unavailable","ggen-legacy PR 18 clean exit unresolved","ggen PR 575 canonical parser/template gate unobserved"],
+  "exclusions": ["ggen PR 574 documentation-only work without runtime execution evidence","queued or pending CI as successful execution","unmerged dependency repair as repository-wide crown","arbitrary raw transcript extraction","ambient repository execution authority"],
+  "final_state": "PARTIAL_ALIVE"
+}

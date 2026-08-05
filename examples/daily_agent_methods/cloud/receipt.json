@@ -1,0 +1,76 @@
+{
+  "schema": "ferroplan-cloud-environment-receipt/v1",
+  "subject": {
+    "repository": "seanchatmangpt/ferroplan",
+    "branch": "agent/daily-agent-ppddl-2026-08-02",
+    "base_sha": "6316c4aa663e46335e5548d140d2402684607d7c",
+    "implementation_parent_head": "1480853654ca8bfdbcbb8dd72e082c48f0d545ad",
+    "draft_pr": 35
+  },
+  "changed": {
+    "files": [
+      "rust-toolchain.toml",
+      ".devcontainer/Dockerfile",
+      ".devcontainer/devcontainer.json",
+      ".devcontainer/bootstrap.sh",
+      "deploy/Dockerfile.ppddl",
+      "compose.cloud.yml",
+      "docs/cloud-environment.md",
+      "examples/daily_agent_methods/cloud/receipt.json"
+    ],
+    "deleted_files": [
+      ".github/workflows/daily-agent-ppddl-production.yml"
+    ],
+    "generated_outputs_hand_edited": false,
+    "ci_dependency_removed": true
+  },
+  "capabilities": {
+    "development_capsule": [
+      "pinned Rust 1.97.1",
+      "rustfmt and clippy",
+      "persistent Cargo registry, Git, and target caches",
+      "bootstrap build and PPDDL test ladder",
+      "machine-readable bootstrap receipt"
+    ],
+    "runtime_capsule": [
+      "multi-stage release build",
+      "non-root runtime",
+      "read-only root filesystem through Compose",
+      "all Linux capabilities dropped",
+      "no-new-privileges",
+      "read-only planning corpus mount",
+      "bounded production PPDDL receipt output"
+    ]
+  },
+  "validation": {
+    "executed": [
+      {"command": "Python json.loads over devcontainer definition", "exit": 0, "result": "PASS"},
+      {"command": "Python tomllib.loads over rust-toolchain.toml", "exit": 0, "result": "PASS"},
+      {"command": "Python yaml.safe_load over compose.cloud.yml", "exit": 0, "result": "PASS"},
+      {"command": "GitHub connector exact-file inspection", "exit": 0, "result": "PASS"}
+    ],
+    "not_executed": [
+      "docker build -f deploy/Dockerfile.ppddl -t ferroplan-ppddl:local .",
+      "docker compose -f compose.cloud.yml run --rm ppddl",
+      "cargo fetch --locked",
+      "cargo fmt --all --check",
+      "cargo check --locked -p ferroplan-cli --bin ferroplan-ppddl",
+      "cargo test --locked -p ferroplan ppddl::"
+    ]
+  },
+  "failures": [
+    {"state": "BLOCKED", "edge": "container image execution", "reason": "docker is absent from the current execution container"},
+    {"state": "BLOCKED", "edge": "local Rust execution", "reason": "rustc and cargo are absent from the current execution container"}
+  ],
+  "exclusions": [
+    "GitHub CI as validation evidence or required execution path",
+    "unexecuted image build represented as successful",
+    "unexecuted Rust acceptance ladder represented as passed",
+    "cloud-provider credentials or infrastructure fabricated without authority"
+  ],
+  "replay": {
+    "development": "Open in Codespaces or a Dev Container; .devcontainer/bootstrap.sh emits .cloud/receipts/bootstrap.json",
+    "runtime": "docker compose -f compose.cloud.yml run --rm ppddl > cloud-policy-receipt.json"
+  },
+  "final_state": "PARTIAL_ALIVE"
+}

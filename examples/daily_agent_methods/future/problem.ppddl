@@ -1,0 +1,67 @@
+(define (problem implement-evidence-bounded-future)
+  (:domain implement-the-future)
+
+  (:objects
+    reusable-forward-planning - objective
+    future-corpus-update - proposal
+    forward-method - method
+    gall-smallest-system - checkpoint
+    bounded-forward-trial - experiment
+    future-domain-artifact - artifact
+    apply-future-corpus - intent
+    brce - broker
+    corpus-actuation - actuation
+    future-receipt - receipt
+    replay-divergence - falsifier)
+
+  (:init
+    (= (total-cost) 0)
+    (= (risk-budget) 3)
+
+    (desired reusable-forward-planning)
+    (bounded reusable-forward-planning)
+    (authority-known reusable-forward-planning)
+    (cost-bounded reusable-forward-planning)
+    (evidence-boundary-declared reusable-forward-planning)
+
+    (proposes future-corpus-update reusable-forward-planning)
+    (reversible future-corpus-update)
+    (preserves-existing future-corpus-update)
+    (architecture-compatible future-corpus-update)
+
+    (implements forward-method future-corpus-update)
+    (preconditions-declared forward-method)
+    (effects-declared forward-method)
+    (failure-states-declared forward-method)
+    (invariants-declared forward-method)
+    (receipt-hook-declared forward-method)
+    (replay-hook-declared forward-method)
+
+    (checkpoint-for gall-smallest-system forward-method)
+    (smallest-working-system gall-smallest-system)
+
+    (experiment-for bounded-forward-trial gall-smallest-system)
+    (experiment-bounded bounded-forward-trial)
+    (experiment-ready bounded-forward-trial)
+
+    (constructs future-domain-artifact forward-method)
+    (intent-for apply-future-corpus future-domain-artifact)
+
+    (zero-unreceipted-actuation)
+    (broker-authorized brce)
+    (broker-routes brce apply-future-corpus)
+    (actuation-for corpus-actuation apply-future-corpus)
+
+    (receipt-for future-receipt corpus-actuation)
+    (falsifies replay-divergence forward-method))
+
+  (:goal (and
+    (future-promoted reusable-forward-planning)
+    (receipt-issued future-receipt)
+    (receipt-replayed future-receipt)
+    (replay-matches future-receipt)
+    (falsifier-executed replay-divergence)
+    (zero-unreceipted-actuation)))
+
+  (:metric minimize (total-cost))
+)

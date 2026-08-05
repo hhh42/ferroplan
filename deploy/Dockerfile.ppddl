@@ -1,0 +1,25 @@
+FROM rust:1.97.1-bookworm AS builder
+WORKDIR /src
+
+COPY rust-toolchain.toml Cargo.toml Cargo.lock ./
+COPY crates ./crates
+COPY plugins ./plugins
+COPY examples ./examples
+
+RUN cargo build --locked --release -p ferroplan-cli --bin ferroplan-ppddl
+
+FROM debian:bookworm-slim AS runtime
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system ferroplan \
+    && useradd --system --gid ferroplan --home-dir /var/lib/ferroplan ferroplan \
+    && mkdir -p /work /receipts \
+    && chown -R ferroplan:ferroplan /work /receipts
+
+COPY --from=builder /src/target/release/ferroplan-ppddl /usr/local/bin/ferroplan-ppddl
+
+USER ferroplan
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/ferroplan-ppddl"]
+CMD ["--help"]

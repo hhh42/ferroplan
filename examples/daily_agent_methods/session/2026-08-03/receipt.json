@@ -1,0 +1,101 @@
+{
+  "schema": "session-ppddl-powl-receipt/v1",
+  "session_date": "2026-08-03",
+  "subject": {
+    "repository": "seanchatmangpt/ferroplan",
+    "base_sha": "6316c4aa663e46335e5548d140d2402684607d7c",
+    "branch": "agent/daily-agent-ppddl-2026-08-02",
+    "draft_pr": 35,
+    "implementation_parent_head": "a60026f38f618a048b5f5495810dea56a142531c"
+  },
+  "observed_work": [
+    "inspected the exact repository branch and native PPDDL library surface",
+    "authored and registered the ferroplan-ppddl production CLI",
+    "authored a pinned Dev Container development capsule",
+    "authored a hardened Docker runtime capsule",
+    "removed the PPDDL-specific GitHub Actions workflow",
+    "probed the actual session actuator surface",
+    "observed local shell ALIVE",
+    "observed Docker Cargo rustc and exact checkout BLOCKED",
+    "derived the requirement for a persistent self-contained actuator host"
+  ],
+  "artifacts": [
+    "examples/daily_agent_methods/session/2026-08-03/domain.ppddl",
+    "examples/daily_agent_methods/session/2026-08-03/problem.ppddl",
+    "examples/daily_agent_methods/session/2026-08-03/process.powl.json",
+    "examples/daily_agent_methods/session/2026-08-03/receipt.json"
+  ],
+  "ppddl": {
+    "domain": "session-self-contained-actuator",
+    "problem": "encode-session-2026-08-03",
+    "action_schemas": 13,
+    "probabilistic_outcomes_admitted": 0,
+    "reason_no_probabilities": "No empirical probability distribution was observed during the session; inventing priors would violate the evidence boundary.",
+    "invariants": [
+      "zero unreceipted actuation",
+      "CI is not the execution path",
+      "blocked capabilities remain blocked",
+      "both PPDDL and POWL projections precede receipt admission",
+      "replay match is required before process admission"
+    ]
+  },
+  "powl_v2": {
+    "representation": "POWL 2.0 abstract-syntax JSON projection",
+    "root_operator": "partial_order",
+    "visible_activities": 16,
+    "unresolved_choice_graphs": 1,
+    "choice_graph_state": "UNRESOLVED",
+    "choice_graph_subject": "selection of an authorized persistent actuator host",
+    "non_fabrication": "No host path is represented as selected or executed."
+  },
+  "validation": {
+    "executed": [
+      {
+        "command": "embedded Python balanced-parenthesis and unique-action verifier over authored PPDDL strings",
+        "exit": 0,
+        "results": {
+          "domain_balanced": "PASS",
+          "problem_balanced": "PASS",
+          "unique_action_schemas": "13/13",
+          "domain_problem_identity": "PASS"
+        }
+      },
+      {
+        "command": "Python json.loads over authored POWL 2.0 abstract-syntax projection",
+        "exit": 0,
+        "result": "PASS"
+      },
+      {
+        "command": "GitHub connector exact-file readback",
+        "exit": 0,
+        "result": "PASS"
+      }
+    ],
+    "not_executed": [
+      "ferroplan-ppddl parse or solve over the session domain/problem",
+      "production POWL 2.0 parser or soundness checker",
+      "Docker Cargo rustc or exact-checkout replay"
+    ]
+  },
+  "failures": [
+    {
+      "state": "BLOCKED",
+      "edge": "self-contained local actuation",
+      "reason": "Docker Cargo rustc and an exact repository checkout are unavailable in the session container."
+    },
+    {
+      "state": "UNSUPPORTED",
+      "edge": "production POWL 2.0 parser validation",
+      "reason": "No admitted POWL 2.0 parser is available in the current execution surface."
+    }
+  ],
+  "exclusions": [
+    "GitHub CI as execution evidence",
+    "unexecuted cloud host represented as attached",
+    "invented probabilities",
+    "configuration represented as runtime execution",
+    "generated outputs hand-edited"
+  ],
+  "generated_outputs_hand_edited": false,
+  "final_state": "PARTIAL_ALIVE"
+}

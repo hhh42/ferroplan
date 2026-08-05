@@ -1,0 +1,32 @@
+(define (problem encode-session-2026-08-03)
+  (:domain session-self-contained-actuator)
+  (:objects
+    ferroplan - repository
+    session-branch - branch
+    github-connector local-shell docker cargo rustc exact-checkout - capability
+    production-ppddl-cli development-capsule runtime-capsule - artifact
+    session-ppddl session-powl-v2 - process
+    local-actuator-gap - boundary
+    session-receipt - receipt)
+  (:init
+    (session-started)
+    (exact-repository ferroplan)
+    (exact-branch session-branch)
+    (connector-capability github-connector)
+    (capability-alive github-connector)
+    (local-capability local-shell)
+    (local-capability docker)
+    (local-capability cargo)
+    (local-capability rustc)
+    (local-capability exact-checkout)
+    (ci-workflow-observed)
+    (zero-unreceipted-actuation))
+  (:goal (and
+    (artifact-registered production-ppddl-cli)
+    (cloud-development-capsule development-capsule)
+    (cloud-runtime-capsule runtime-capsule)
+    (ci-independent)
+    (self-contained-host-required local-actuator-gap)
+    (session-model-admitted session-ppddl)
+    (session-model-admitted session-powl-v2)))
+)

@@ -1,0 +1,119 @@
+; Session manufacture and actuator-boundary domain.
+; Only session-observed capabilities and mutations are represented.
+(define (domain session-self-contained-actuator)
+  (:requirements :strips :typing :negative-preconditions)
+  (:types repository branch capability artifact process receipt boundary)
+  (:predicates
+    (session-started)
+    (exact-repository ?r - repository)
+    (exact-branch ?b - branch)
+    (connector-capability ?c - capability)
+    (local-capability ?c - capability)
+    (capability-alive ?c - capability)
+    (capability-blocked ?c - capability)
+    (surface-inspected ?r - repository)
+    (native-ppddl-observed ?r - repository)
+    (artifact-authored ?a - artifact)
+    (artifact-registered ?a - artifact)
+    (cloud-development-capsule ?a - artifact)
+    (cloud-runtime-capsule ?a - artifact)
+    (ci-workflow-observed)
+    (ci-workflow-removed)
+    (ci-independent)
+    (actuator-boundary-recorded ?x - boundary)
+    (self-contained-host-required ?x - boundary)
+    (process-projected ?p - process)
+    (receipt-issued ?x - receipt)
+    (receipt-binds ?x - receipt ?p - process)
+    (receipt-replayed ?x - receipt)
+    (replay-matches ?x - receipt)
+    (zero-unreceipted-actuation)
+    (session-model-admitted ?p - process))
+
+  (:action inspect-production-surface
+    :parameters (?r - repository)
+    :precondition (and (session-started) (exact-repository ?r) (not (surface-inspected ?r)))
+    :effect (and (surface-inspected ?r) (native-ppddl-observed ?r)))
+
+  (:action author-production-ppddl-cli
+    :parameters (?r - repository ?a - artifact)
+    :precondition (and (surface-inspected ?r) (native-ppddl-observed ?r) (not (artifact-authored ?a)))
+    :effect (artifact-authored ?a))
+
+  (:action register-production-binary
+    :parameters (?a - artifact)
+    :precondition (and (artifact-authored ?a) (not (artifact-registered ?a)))
+    :effect (artifact-registered ?a))
+
+  (:action author-development-capsule
+    :parameters (?a - artifact)
+    :precondition (and (session-started) (not (artifact-authored ?a)))
+    :effect (and (artifact-authored ?a) (cloud-development-capsule ?a)))
+
+  (:action author-runtime-capsule
+    :parameters (?a - artifact)
+    :precondition (and (session-started) (not (artifact-authored ?a)))
+    :effect (and (artifact-authored ?a) (cloud-runtime-capsule ?a)))
+
+  (:action remove-ci-execution-path
+    :parameters ()
+    :precondition (and (ci-workflow-observed) (not (ci-workflow-removed)))
+    :effect (and (ci-workflow-removed) (ci-independent)))
+
+  (:action probe-local-actuator-surface
+    :parameters (?shell ?docker ?cargo ?rustc ?checkout - capability)
+    :precondition (and
+      (local-capability ?shell) (local-capability ?docker) (local-capability ?cargo)
+      (local-capability ?rustc) (local-capability ?checkout)
+      (not (capability-alive ?shell)) (not (capability-blocked ?docker))
+      (not (capability-blocked ?cargo)) (not (capability-blocked ?rustc))
+      (not (capability-blocked ?checkout)))
+    :effect (and
+      (capability-alive ?shell) (capability-blocked ?docker) (capability-blocked ?cargo)
+      (capability-blocked ?rustc) (capability-blocked ?checkout)))
+
+  (:action record-self-contained-actuator-boundary
+    :parameters (?x - boundary ?shell ?docker ?cargo ?rustc ?checkout - capability)
+    :precondition (and
+      (capability-alive ?shell) (capability-blocked ?docker) (capability-blocked ?cargo)
+      (capability-blocked ?rustc) (capability-blocked ?checkout)
+      (not (actuator-boundary-recorded ?x)))
+    :effect (and (actuator-boundary-recorded ?x) (self-contained-host-required ?x)))
+
+  (:action project-session-ppddl
+    :parameters (?p - process ?a - artifact ?x - boundary)
+    :precondition (and
+      (artifact-registered ?a) (ci-independent) (actuator-boundary-recorded ?x)
+      (not (process-projected ?p)))
+    :effect (process-projected ?p))
+
+  (:action project-session-powl-v2
+    :parameters (?p - process ?d ?r - artifact ?x - boundary)
+    :precondition (and
+      (artifact-authored ?d) (cloud-development-capsule ?d)
+      (artifact-authored ?r) (cloud-runtime-capsule ?r)
+      (ci-independent) (self-contained-host-required ?x)
+      (not (process-projected ?p)))
+    :effect (process-projected ?p))
+
+  (:action issue-session-receipt
+    :parameters (?x - receipt ?p ?q - process)
+    :precondition (and
+      (zero-unreceipted-actuation) (process-projected ?p) (process-projected ?q)
+      (not (receipt-issued ?x)))
+    :effect (and (receipt-issued ?x) (receipt-binds ?x ?p) (receipt-binds ?x ?q)))
+
+  (:action replay-session-receipt
+    :parameters (?x - receipt)
+    :precondition (and (receipt-issued ?x) (not (receipt-replayed ?x)))
+    :effect (and (receipt-replayed ?x) (replay-matches ?x)))
+
+  (:action admit-session-process
+    :parameters (?p ?q - process ?x - receipt)
+    :precondition (and
+      (process-projected ?p) (process-projected ?q)
+      (receipt-binds ?x ?p) (receipt-binds ?x ?q)
+      (receipt-replayed ?x) (replay-matches ?x)
+      (not (session-model-admitted ?p)) (not (session-model-admitted ?q)))
+    :effect (and (session-model-admitted ?p) (session-model-admitted ?q)))
+)

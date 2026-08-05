@@ -1,0 +1,58 @@
+(define (problem admit-agent-methods-2026-08-04)
+  (:domain admitted-agent-methods-2026-08-04)
+  (:objects
+    ggen-legacy-pr17 ggen-legacy-pr18 lsp-max-pr22 ggen-pr575 - work
+    bounded-foundry dependency-repair acceptance-replay generated-publication - method
+    foundry-output runtime-output metadata-output diagram-output - artifact
+    foundry-deps runtime-deps workspace-deps renderer-deps - dependency
+    foundry-cp runtime-cp metadata-cp renderer-cp - checkpoint
+    foundry-receipt runtime-receipt metadata-receipt renderer-receipt - receipt
+    unresolved-decisions clean-exit dependency-leak generated-drift - failure)
+  (:init
+    (= (total-cost) 0)
+    (observed ggen-legacy-pr17) (exact-subject ggen-legacy-pr17) (completed-boundary ggen-legacy-pr17)
+    (observed ggen-legacy-pr18) (exact-subject ggen-legacy-pr18) (completed-boundary ggen-legacy-pr18)
+    (observed lsp-max-pr22) (exact-subject lsp-max-pr22) (completed-boundary lsp-max-pr22)
+    (observed ggen-pr575) (exact-subject ggen-pr575) (completed-boundary ggen-pr575)
+
+    (derived-from bounded-foundry ggen-legacy-pr17)
+    (derived-from dependency-repair lsp-max-pr22)
+    (derived-from acceptance-replay ggen-legacy-pr18)
+    (derived-from generated-publication ggen-pr575)
+
+    (authority-bounded bounded-foundry) (reversible bounded-foundry)
+    (authority-bounded dependency-repair) (reversible dependency-repair)
+    (authority-bounded acceptance-replay) (reversible acceptance-replay)
+    (authority-bounded generated-publication) (reversible generated-publication)
+
+    (dependency-for foundry-deps bounded-foundry) (portable foundry-deps)
+    (dependency-for runtime-deps acceptance-replay) (portable runtime-deps)
+    (dependency-for workspace-deps dependency-repair)
+    (dependency-for renderer-deps generated-publication) (portable renderer-deps)
+
+    (gall-checkpoint foundry-cp bounded-foundry)
+    (gall-checkpoint runtime-cp acceptance-replay)
+    (gall-checkpoint metadata-cp dependency-repair)
+    (gall-checkpoint renderer-cp generated-publication)
+
+    (artifact-for foundry-output bounded-foundry)
+    (artifact-for runtime-output acceptance-replay)
+    (artifact-for metadata-output dependency-repair)
+    (artifact-for diagram-output generated-publication)
+
+    (failure-for unresolved-decisions bounded-foundry)
+    (failure-for clean-exit acceptance-replay)
+    (failure-for dependency-leak dependency-repair)
+    (failure-for generated-drift generated-publication)
+
+    (receipt-for foundry-receipt foundry-output)
+    (receipt-for runtime-receipt runtime-output)
+    (receipt-for metadata-receipt metadata-output)
+    (receipt-for renderer-receipt diagram-output))
+  (:goal (and
+    (method-admitted bounded-foundry)
+    (method-admitted dependency-repair)
+    (method-admitted acceptance-replay)
+    (method-admitted generated-publication)))
+  (:metric minimize (total-cost))
+)

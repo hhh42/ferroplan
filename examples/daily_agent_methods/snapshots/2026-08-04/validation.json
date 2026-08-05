@@ -1,0 +1,20 @@
+{
+  "schema": "ppddl-validation/v1",
+  "snapshot_date": "2026-08-04",
+  "command": "embedded Python structural verifier over exact authored domain/problem strings",
+  "exit": 0,
+  "checks": {
+    "domain_balanced": true,
+    "problem_balanced": true,
+    "domain_problem_identity": true,
+    "unique_action_schemas": "8/8",
+    "probability_sum": 1.0,
+    "undeclared_problem_predicates": [],
+    "required_receipt_replay_hooks": true,
+    "failure_preservation_operator": true,
+    "gall_checkpoint_operator": true
+  },
+  "production_ppddl_parser": "UNSUPPORTED",
+  "planner_execution": "UNSUPPORTED",
+  "standing": "PARTIAL_ALIVE"
+}
