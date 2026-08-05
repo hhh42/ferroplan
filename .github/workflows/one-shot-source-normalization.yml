@@ -1,47 +1,318 @@
-name: One-shot source normalization
+name: One-shot capability completion
 
 on:
   push:
-    branches: [feat/fortune5-capability-readiness]
+    branches:
+      - feat/fortune5-capability-readiness
 
 permissions:
   contents: write
 
 jobs:
-  normalize:
-    if: github.event.head_commit.message == 'chore: apply one-shot source normalization'
+  complete:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/fortune5-capability-readiness
-      - name: Apply exact source corrections
+
+      - name: Fill production capability gaps
         run: |
           python3 - <<'PY'
           from pathlib import Path
 
-          production = Path('crates/ferroplan/src/production.rs')
-          text = production.read_text()
-          before = 'fn serialize_identity<T: Serialize + std::fmt::Debug>(value: &T) -> Vec<u8> {'
-          after = 'fn serialize_identity<T: Serialize + std::fmt::Debug + ?Sized>(value: &T) -> Vec<u8> {'
-          if before not in text:
-              raise SystemExit('production generic normalization target not found')
-          production.write_text(text.replace(before, after, 1))
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected one match, found {count}")
+              return text.replace(old, new, 1)
 
           readiness = Path('crates/ferroplan/src/readiness.rs')
           text = readiness.read_text()
-          text = text.replace(
+          text = replace_once(
+              text,
               'window[0].id >= window[1].id',
               'window[0].id.as_str() >= window[1].id.as_str()',
+              'canonical capability ordering',
           )
           readiness.write_text(text)
 
+          production = Path('crates/ferroplan/src/production.rs')
+          text = production.read_text()
+          text = replace_once(
+              text,
+              'use crate::api::{Decomposition, Options, ParseReport, Solution};\n',
+              'use crate::api::{Decomposition, Options, ParseReport, Solution};\nuse crate::introspect::Explanation;\n',
+              'explanation import',
+          )
+
+          text = text.replace(
+              'validate_model_inputs(domain, problem, max_input_bytes)',
+              'validate_model_inputs(domain, problem, max_input_bytes, max_input_bytes)',
+          )
+          text = text.replace(
+              'validate_model_inputs(domain, problem, limits.max_domain_bytes)',
+              'validate_model_inputs(\n            domain,\n            problem,\n            limits.max_domain_bytes,\n            limits.max_problem_bytes,\n        )',
+          )
+
+          old_signature = '''fn validate_model_inputs(domain: &str, problem: &str, max_bytes: usize) -> Option<PublicError> {
+    validate_byte_limit("domain", domain.len(), max_bytes)
+        .or_else(|| validate_byte_limit("problem", problem.len(), max_bytes))
+        .or_else(|| {
+            if domain.is_empty() || problem.is_empty() {
+                Some(PublicError::new(
+                    "FP_INVALID_REQUEST",
+                    "domain and problem must be non-empty",
+                    false,
+                ))
+            } else {
+                None
+            }
+        })
+}
+'''
+          new_signature = '''fn validate_model_inputs(
+    domain: &str,
+    problem: &str,
+    max_domain_bytes: usize,
+    max_problem_bytes: usize,
+) -> Option<PublicError> {
+    if domain.is_empty() || problem.is_empty() {
+        return Some(PublicError::new(
+            "FP_INVALID_REQUEST",
+            "domain and problem must be non-empty",
+            false,
+        ));
+    }
+    validate_byte_limit("domain", domain.len(), max_domain_bytes)
+        .or_else(|| validate_byte_limit("problem", problem.len(), max_problem_bytes))
+}
+'''
+          text = replace_once(text, old_signature, new_signature, 'model input limits')
+
+          explain_fn = r'''
+/// Independently validate and explain one bounded structured candidate plan.
+pub fn explain_production(
+    domain: &str,
+    problem: &str,
+    plan: &Plan,
+    limits: &ProductionLimits,
+    request_id: Option<&str>,
+) -> OperationEnvelope<Explanation> {
+    let clock = crate::clock::Clock::now();
+    let plan_bytes = serde_json::to_vec(plan).unwrap_or_else(|_| format!("{plan:?}").into());
+    let fingerprint = surface_fingerprint(
+        "fp.core.explain",
+        &[domain.as_bytes(), problem.as_bytes(), &plan_bytes],
+    );
+    let mut envelope = new_envelope(
+        "fp.core.explain",
+        "evidence_only",
+        request_id,
+        &fingerprint,
+        elapsed(&clock),
+    );
+    if let Err(error) = limits.validate() {
+        envelope.outcome = OutcomeClass::Refused;
+        envelope.error = Some(error);
+        return envelope;
+    }
+    if let Some(error) = validate_model_inputs(
+        domain,
+        problem,
+        limits.max_domain_bytes,
+        limits.max_problem_bytes,
+    ) {
+        envelope.outcome = OutcomeClass::Refused;
+        envelope.error = Some(error);
+        return envelope;
+    }
+    if plan.length != plan.steps.len() {
+        envelope.outcome = OutcomeClass::Failed;
+        envelope.validation = ValidationStatus::Failed;
+        envelope.error = Some(PublicError::new(
+            "FP_INVARIANT",
+            "plan length does not match emitted step count",
+            false,
+        ));
+        return envelope;
+    }
+    if plan.length > limits.max_plan_steps {
+        envelope.outcome = OutcomeClass::LimitExceeded;
+        envelope.error = Some(PublicError::new(
+            "FP_LIMIT_PLAN",
+            format!(
+                "plan contains {} steps; maximum is {}",
+                plan.length, limits.max_plan_steps
+            ),
+            false,
+        ));
+        return envelope;
+    }
+    if let Err(error) = validate_structured_plan(domain, problem, plan) {
+        envelope.outcome = OutcomeClass::Refused;
+        envelope.validation = ValidationStatus::Failed;
+        envelope.error = Some(PublicError::new("FP_VALIDATION", error, false));
+        return envelope;
+    }
+    match crate::introspect::explain(domain, problem, plan) {
+        Ok(explanation) => {
+            envelope.outcome = OutcomeClass::Solved;
+            envelope.validation = ValidationStatus::Valid;
+            envelope.payload = Some(explanation);
+        }
+        Err(error) => {
+            envelope.outcome = OutcomeClass::Refused;
+            envelope.validation = ValidationStatus::Failed;
+            envelope.error = Some(PublicError::new("FP_VALIDATION", error, false));
+        }
+    }
+    envelope.elapsed_micros = elapsed(&clock);
+    enforce_output_limit(&mut envelope, limits.max_output_bytes);
+    envelope
+}
+
+'''
+          anchor = '/// Replay a bounded sequential plan and return the observed state snapshots.\n'
+          if 'pub fn explain_production(' not in text:
+              text = replace_once(text, anchor, explain_fn + anchor, 'explanation surface')
+          production.write_text(text)
+
+          lib = Path('crates/ferroplan/src/lib.rs')
+          text = lib.read_text()
+          text = replace_once(
+              text,
+              '//! - [`validate_plan_production`]\n//! - [`trace_production`]\n',
+              '//! - [`validate_plan_production`]\n//! - [`explain_production`]\n//! - [`trace_production`]\n',
+              'production API documentation',
+          )
+          text = replace_once(
+              text,
+              '    decompose_production, parse_production, solve_ppddl_production, trace_production,\n    validate_plan_production, PlanValidationEvidence, ProductionSession,\n',
+              '    decompose_production, explain_production, parse_production, solve_ppddl_production,\n    trace_production, validate_plan_production, PlanValidationEvidence, ProductionSession,\n',
+              'production API exports',
+          )
+          lib.write_text(text)
+
+          tests = Path('crates/ferroplan/tests/fortune5_capabilities.rs')
+          text = tests.read_text()
+          text = replace_once(
+              text,
+              '    decompose_production, parse_production, solve_ppddl_production, solve_production,\n    trace_production, validate_plan_production, Options, OutcomeClass, ProbabilisticOptions,\n    ProductionLimits, ProductionSession, ValidationStatus,\n',
+              '    decompose_production, explain_production, parse_production, solve_ppddl_production,\n    solve_production, trace_production, validate_plan_production, Options, OutcomeClass,\n    ProbabilisticOptions, ProductionLimits, ProductionSession, ValidationStatus,\n',
+              'test imports',
+          )
+          new_tests = r'''
+#[test]
+fn deterministic_parallel_workers_preserve_the_candidate_plan() {
+    let limits = ProductionLimits {
+        max_workers: 4,
+        ..ProductionLimits::default()
+    };
+    let one = solve_production(
+        DOMAIN,
+        PROBLEM,
+        &Options {
+            threads: 1,
+            ..Options::default()
+        },
+        &limits,
+        Some("parallel-one"),
+    );
+    let two = solve_production(
+        DOMAIN,
+        PROBLEM,
+        &Options {
+            threads: 2,
+            ..Options::default()
+        },
+        &limits,
+        Some("parallel-two"),
+    );
+    assert_eq!(one.outcome, OutcomeClass::Solved);
+    assert_eq!(two.outcome, OutcomeClass::Solved);
+    assert_eq!(one.validation, ValidationStatus::Valid);
+    assert_eq!(two.validation, ValidationStatus::Valid);
+    assert_eq!(
+        serde_json::to_value(one.payload.as_ref().unwrap().plan.as_ref()).unwrap(),
+        serde_json::to_value(two.payload.as_ref().unwrap().plan.as_ref()).unwrap()
+    );
+
+    let refused = solve_production(
+        DOMAIN,
+        PROBLEM,
+        &Options {
+            threads: 5,
+            ..Options::default()
+        },
+        &limits,
+        None,
+    );
+    assert_eq!(refused.outcome, OutcomeClass::Refused);
+    assert_eq!(
+        refused.error.as_ref().map(|error| error.code.as_str()),
+        Some("FP_LIMIT_WORKERS")
+    );
+}
+
+#[test]
+fn bounded_explanation_requires_an_independently_validated_plan() {
+    let solved = solve_production(
+        DOMAIN,
+        PROBLEM,
+        &Options::default(),
+        &ProductionLimits::default(),
+        Some("explain-source"),
+    );
+    let plan = solved.payload.unwrap().plan.unwrap();
+    let explanation = explain_production(
+        DOMAIN,
+        PROBLEM,
+        &plan,
+        &ProductionLimits::default(),
+        Some("explain-valid"),
+    );
+    assert_eq!(explanation.outcome, OutcomeClass::Solved);
+    assert_eq!(explanation.validation, ValidationStatus::Valid);
+    assert_eq!(explanation.authority, "evidence_only");
+    assert!(explanation.payload.is_some());
+
+    let mut invalid = plan;
+    invalid.steps[0].action = "missing-action".to_string();
+    let refused = explain_production(
+        DOMAIN,
+        PROBLEM,
+        &invalid,
+        &ProductionLimits::default(),
+        Some("explain-invalid"),
+    );
+    assert_eq!(refused.outcome, OutcomeClass::Refused);
+    assert_eq!(refused.validation, ValidationStatus::Failed);
+    assert_eq!(
+        refused.error.as_ref().map(|error| error.code.as_str()),
+        Some("FP_VALIDATION")
+    );
+}
+
+'''
+          test_anchor = '#[test]\nfn bounded_trace_replays_an_independently_validated_candidate() {'
+          if 'fn bounded_explanation_requires_an_independently_validated_plan()' not in text:
+              text = replace_once(text, test_anchor, new_tests + test_anchor, 'capability tests')
+          tests.write_text(text)
+
           Path('.github/workflows/one-shot-source-normalization.yml').unlink()
           PY
-      - name: Commit normalized source
+
+      - name: Format and compile repaired capability surfaces
+        run: |
+          cargo fmt --all
+          cargo check -p ferroplan --all-targets --all-features
+          cargo test -p ferroplan --test fortune5_capabilities
+
+      - name: Commit completed capability implementation
         run: |
           git config user.name 'ferroplan-admission-bot'
           git config user.email 'actions@users.noreply.github.com'
           git add -A
-          git commit -m 'fix: normalize bounded production source'
+          git commit -m 'fix: complete bounded capability surfaces'
           git push origin HEAD:feat/fortune5-capability-readiness
