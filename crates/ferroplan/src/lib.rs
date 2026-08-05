@@ -77,6 +77,9 @@ pub mod pddl3;
 pub mod plan;
 pub mod portfolio;
 pub mod ppddl;
+// The compatibility wrapper still contains one retained diagnostic constant.
+// Scope the allowance to this legacy module; warnings remain denied elsewhere.
+#[allow(dead_code)]
 pub mod production;
 pub mod production_explain;
 pub mod report;
