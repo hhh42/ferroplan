@@ -121,7 +121,18 @@ fn run_child(scenario: &str) -> (String, String, f64) {
             // A LONG armed wall: the default 0.10 slice must hold the
             // light rung's full calibrated dispatch (~25k pops) with
             // contention headroom — the receipted-wins-survive shape.
-            cmd.env("FF_TIME_LIMIT", "40").env("FF_NOVLIGHT_ONLY", "1");
+            //
+            // The wall is PROFILE-SCALED because the slice is denominated in
+            // wall time while the dispatch is denominated in pops, and an
+            // unoptimised build walks that dispatch ~20x slower. At 40 s the
+            // slice is 4 s, and a debug run was measured doing 20,480 pops in
+            // 4.40 s — i.e. it fails by 10%, sometimes. That is the worst kind
+            // of test: green on a fast box, red on a slow or busy one, and
+            // green again on a re-run. Scale the wall with the profile so the
+            // ASSERTION (a default slice holds a full dispatch) is what varies
+            // with the engine, not with how the test binary was compiled.
+            let wall = if cfg!(debug_assertions) { "400" } else { "40" };
+            cmd.env("FF_TIME_LIMIT", wall).env("FF_NOVLIGHT_ONLY", "1");
         }
         "no-budget" => {}
         other => panic!("unknown scenario {other}"),
