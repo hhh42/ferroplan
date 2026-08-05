@@ -26,7 +26,7 @@
   },
   "capabilities": {
     "development_capsule": [
-      "pinned Rust 1.85.1",
+      "pinned Rust 1.97.1",
       "rustfmt and clippy",
       "persistent Cargo registry, Git, and target caches",
       "bootstrap build and PPDDL test ladder",

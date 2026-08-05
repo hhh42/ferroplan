@@ -6,7 +6,7 @@ This repository ships two cloud-ready capsules. Neither depends on GitHub Action
 
 Open the repository in a Dev Container or GitHub Codespace. The configuration under `.devcontainer/` provides:
 
-- Rust 1.85.1 with `rustfmt` and `clippy`;
+- Rust 1.97.1 with `rustfmt` and `clippy`;
 - persistent Cargo registry, Git, and target caches;
 - Rust Analyzer and LLDB editor support;
 - a bootstrap acceptance ladder that writes `.cloud/receipts/bootstrap.json`.

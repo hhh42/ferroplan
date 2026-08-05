@@ -1,4 +1,4 @@
-FROM rust:1.88.0-bookworm
+FROM rust:1.97.1-bookworm
 
 ARG USERNAME=vscode
 ARG USER_UID=1000
@@ -23,8 +23,7 @@ ENV CARGO_HOME=/usr/local/cargo
 ENV RUSTUP_HOME=/usr/local/rustup
 ENV CARGO_TERM_COLOR=always
 
-RUN rustup toolchain install 1.88.0 --profile minimal --component rustfmt --component clippy \
-    && rustup default 1.88.0 \
+RUN rustup component add rustfmt clippy \
     && chmod -R a+rwX /usr/local/cargo /usr/local/rustup
 
 USER ${USERNAME}
