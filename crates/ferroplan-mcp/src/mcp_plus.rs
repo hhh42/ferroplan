@@ -1,17 +1,14 @@
-//! `ferroplan-mcp-plus` — the bounded production MCP+ profile.
+//! `ferroplan-mcp-plus` — bounded, process-isolated, candidate-only MCP+.
 //!
-//! This binary intentionally has a smaller authority and capability surface
-//! than the legacy `ferroplan-mcp` server. It accepts line-delimited JSON-RPC
-//! 2.0 over stdio, exposes only planning/evidence operations, isolates every
-//! untrusted computational request in a child process, kills that worker at a
-//! hard deadline, and never executes caller-selected commands.
-//!
-//! Protocol profile: `ferroplan-mcp-plus/1.0`. This is an exact ferroplan
-//! profile; the binary does not claim conformance to an external MCP revision
-//! beyond the JSON-RPC method shapes tested in this crate.
+//! The profile is line-delimited JSON-RPC 2.0 over stdio. It exposes only
+//! planning and evidence operations. Every untrusted computational call runs
+//! in a fixed child-process mode of this executable and is killed at a hard
+//! deadline. Caller-selected commands, network access, filesystem mutation,
+//! ambient authority, and self-issued execution admission are absent.
 
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::process::{Command, Stdio};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use ferroplan::{
@@ -68,8 +65,6 @@ struct PlanArgs {
     limits: Option<McpLimits>,
     #[serde(default)]
     request_id: Option<String>,
-    #[serde(default)]
-    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -107,8 +102,6 @@ impl McpLimits {
 #[serde(deny_unknown_fields)]
 struct ParseArgs {
     pddl: String,
-    #[serde(default)]
-    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,8 +110,6 @@ struct ValidateArgs {
     domain: String,
     problem: String,
     plan: String,
-    #[serde(default)]
-    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -127,8 +118,6 @@ struct ExplainArgs {
     domain: String,
     problem: String,
     plan: Plan,
-    #[serde(default)]
-    timeout_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -179,26 +168,19 @@ impl WorkerReply {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let result = if args.get(1).map(String::as_str) == Some("--worker") {
-        let tool = args.get(2).map(String::as_str).unwrap_or("");
-        worker_entry(tool)
-    } else if args.get(1).map(String::as_str) == Some("--self-test") {
-        self_test()
-    } else if args.len() == 1 {
-        serve()
-    } else {
-        Err(format!(
-            "unsupported arguments; use no arguments, --self-test, or internal --worker"
-        ))
+    let result = match args.get(1).map(String::as_str) {
+        None => serve(),
+        Some("--worker") => worker_entry(args.get(2).map(String::as_str).unwrap_or("")),
+        Some("--self-test") if args.len() == 2 => self_test(),
+        _ => Err("unsupported arguments; use no arguments or --self-test".to_string()),
     };
-
     if let Err(error) = result {
         eprintln!(
             "{}",
             json!({
                 "event": "mcp_plus.process.failed",
                 "profile": PROFILE,
-                "error_code": "FP_ADAPTER",
+                "errorCode": "FP_ADAPTER",
                 "message": bounded_text(&error, 2_048),
             })
         );
@@ -211,34 +193,30 @@ fn serve() -> Result<(), String> {
     let stdout = io::stdout();
     let mut reader = BufReader::new(stdin.lock());
     let mut writer = stdout.lock();
-
     loop {
-        let frame = match read_frame(&mut reader, MAX_FRAME_BYTES)
+        let Some(frame) = read_frame(&mut reader, MAX_FRAME_BYTES)
             .map_err(|error| format!("reading protocol frame: {error}"))?
-        {
-            None => return Ok(()),
-            Some(frame) => frame,
+        else {
+            return Ok(());
         };
-
         match frame {
-            Frame::TooLarge => {
-                let response = rpc_error(
+            Frame::TooLarge => write_response(
+                &mut writer,
+                &rpc_error(
                     Value::Null,
                     -32_600,
                     "request frame exceeds the MCP+ limit",
                     "FP_LIMIT_INPUT",
                     false,
-                );
-                write_response(&mut writer, &response)?;
-            }
+                ),
+            )?,
             Frame::Complete(bytes) if bytes.iter().all(u8::is_ascii_whitespace) => {}
             Frame::Complete(bytes) => {
                 let started = Instant::now();
-                let parsed = serde_json::from_slice::<JsonRpcRequest>(&bytes);
-                let (response, method, outcome) = match parsed {
+                let (response, method, outcome) = match serde_json::from_slice::<JsonRpcRequest>(&bytes)
+                {
                     Ok(request) => {
                         let method = bounded_text(&request.method, MAX_METHOD_BYTES);
-                        let id = request.id.clone();
                         match handle_request(request) {
                             Some(response) => {
                                 let outcome = response_outcome(&response);
@@ -269,7 +247,7 @@ fn serve() -> Result<(), String> {
                         "profile": PROFILE,
                         "method": method,
                         "outcome": outcome,
-                        "elapsed_micros": started.elapsed().as_micros().min(u64::MAX as u128) as u64,
+                        "elapsedMicros": started.elapsed().as_micros().min(u64::MAX as u128) as u64,
                     })
                 );
             }
@@ -297,7 +275,6 @@ fn handle_request(request: JsonRpcRequest) -> Option<Value> {
             false,
         ));
     }
-
     let result = match request.method.as_str() {
         "initialize" => Ok(initialize_result()),
         "tools/list" => Ok(json!({ "tools": tool_definitions() })),
@@ -310,7 +287,6 @@ fn handle_request(request: JsonRpcRequest) -> Option<Value> {
             retryable: false,
         }),
     };
-
     Some(match result {
         Ok(value) => rpc_success(id, value),
         Err(error) => rpc_error(
@@ -345,32 +321,28 @@ fn handle_tool_call(params: Value) -> Result<Value, WorkerError> {
     if call.name == "version" {
         return Ok(tool_result_success(version_result()));
     }
-
     let timeout_ms = requested_timeout(&call.arguments)?;
-    let reply = run_worker(&call.name, &call.arguments, timeout_ms)?;
+    let mut worker_arguments = call.arguments;
+    if let Some(object) = worker_arguments.as_object_mut() {
+        object.remove("timeout_ms");
+    }
+    let reply = run_worker(&call.name, &worker_arguments, timeout_ms)?;
     if let Some(error) = reply.error {
         return Err(error);
     }
-    let result = reply.result.unwrap_or(Value::Null);
+    let value = reply.result.unwrap_or(Value::Null);
     Ok(if reply.is_error {
-        tool_result_error(result)
+        tool_result_error(value)
     } else {
-        tool_result_success(result)
+        tool_result_success(value)
     })
 }
 
 fn initialize_result() -> Value {
     json!({
         "protocolProfile": PROFILE,
-        "serverInfo": {
-            "name": "ferroplan-mcp-plus",
-            "version": env!("CARGO_PKG_VERSION"),
-        },
-        "capabilities": {
-            "tools": { "listChanged": false },
-            "resources": false,
-            "prompts": false,
-        },
+        "serverInfo": { "name": "ferroplan-mcp-plus", "version": env!("CARGO_PKG_VERSION") },
+        "capabilities": { "tools": { "listChanged": false }, "resources": false, "prompts": false },
         "authority": "candidate_only",
         "authorityNotice": "Tool discovery and planning grant no actuation authority. BRCE, observed consequence, POWL conformance, OCEL evidence, Truex receipt/refusal, and replay remain downstream obligations.",
         "limits": {
@@ -378,7 +350,7 @@ fn initialize_result() -> Value {
             "maxResponseBytes": MAX_RESPONSE_BYTES,
             "defaultTimeoutMs": DEFAULT_TIMEOUT_MS,
             "maxTimeoutMs": MAX_TIMEOUT_MS,
-            "maxConcurrentRequests": 1,
+            "maxConcurrentRequests": 1
         }
     })
 }
@@ -389,7 +361,7 @@ fn version_result() -> Value {
         "productVersion": env!("CARGO_PKG_VERSION"),
         "capabilityManifestSchema": ferroplan::CAPABILITY_MANIFEST_SCHEMA,
         "operationEnvelopeSchema": ferroplan::OPERATION_ENVELOPE_SCHEMA,
-        "authority": "candidate_only",
+        "authority": "candidate_only"
     })
 }
 
@@ -408,83 +380,42 @@ fn readiness_result() -> Result<Value, WorkerError> {
         "contractValid": true,
         "admissionState": "declared",
         "admissionNotice": "Admission is independently derived from exact-source evidence; this endpoint cannot self-crown the build.",
-        "manifest": manifest,
+        "manifest": manifest
     }))
 }
 
 fn tool_definitions() -> Vec<Value> {
     vec![
-        json!({
-            "name": "plan",
-            "description": "Bounded candidate-only PDDL planning with independent validation and a hard worker-process deadline.",
-            "inputSchema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["domain", "problem"],
-                "properties": {
-                    "domain": { "type": "string", "maxLength": MAX_DOMAIN_BYTES },
-                    "problem": { "type": "string", "maxLength": MAX_PROBLEM_BYTES },
-                    "options": { "type": "object" },
-                    "limits": { "type": "object" },
-                    "request_id": { "type": "string", "maxLength": 128 },
-                    "timeout_ms": { "type": "integer", "minimum": 1, "maximum": MAX_TIMEOUT_MS }
-                }
-            }
-        }),
-        json!({
-            "name": "parse",
-            "description": "Bounded PDDL syntax and structure inspection; evidence-only, not execution authority.",
-            "inputSchema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["pddl"],
-                "properties": {
-                    "pddl": { "type": "string", "maxLength": MAX_PDDL_BYTES },
-                    "timeout_ms": { "type": "integer", "minimum": 1, "maximum": MAX_TIMEOUT_MS }
-                }
-            }
-        }),
-        json!({
-            "name": "validate",
-            "description": "Independently validate a bounded plan against its domain and problem.",
-            "inputSchema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["domain", "problem", "plan"],
-                "properties": {
-                    "domain": { "type": "string", "maxLength": MAX_DOMAIN_BYTES },
-                    "problem": { "type": "string", "maxLength": MAX_PROBLEM_BYTES },
-                    "plan": { "type": "string", "maxLength": MAX_PLAN_BYTES },
-                    "timeout_ms": { "type": "integer", "minimum": 1, "maximum": MAX_TIMEOUT_MS }
-                }
-            }
-        }),
-        json!({
-            "name": "explain",
-            "description": "Produce bounded explanation evidence for a typed candidate plan.",
-            "inputSchema": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": ["domain", "problem", "plan"],
-                "properties": {
-                    "domain": { "type": "string", "maxLength": MAX_DOMAIN_BYTES },
-                    "problem": { "type": "string", "maxLength": MAX_PROBLEM_BYTES },
-                    "plan": { "type": "object" },
-                    "timeout_ms": { "type": "integer", "minimum": 1, "maximum": MAX_TIMEOUT_MS }
-                }
-            }
-        }),
-        json!({
-            "name": "readiness",
-            "description": "Return the canonical capability contract and manifest fingerprint without self-authoring admission.",
-            "inputSchema": { "type": "object", "additionalProperties": false }
-        }),
-        json!({
-            "name": "version",
-            "description": "Return exact product and schema versions for this MCP+ profile.",
-            "inputSchema": { "type": "object", "additionalProperties": false }
-        }),
+        tool_definition("plan", "Bounded candidate-only PDDL planning with independent validation and a hard worker-process deadline.", &["domain", "problem"]),
+        tool_definition("parse", "Bounded PDDL syntax and structure evidence.", &["pddl"]),
+        tool_definition("validate", "Independently validate a bounded plan against a domain and problem.", &["domain", "problem", "plan"]),
+        tool_definition("explain", "Produce bounded explanation evidence for a typed candidate plan.", &["domain", "problem", "plan"]),
+        tool_definition("readiness", "Return the canonical capability contract without self-authoring admission.", &[]),
+        tool_definition("version", "Return exact product and schema versions for this MCP+ profile.", &[]),
     ]
+}
+
+fn tool_definition(name: &str, description: &str, required: &[&str]) -> Value {
+    json!({
+        "name": name,
+        "description": description,
+        "inputSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": required,
+            "x-ferroplan-maxFrameBytes": MAX_FRAME_BYTES,
+            "properties": {
+                "domain": { "type": "string", "x-ferroplan-maxBytes": MAX_DOMAIN_BYTES },
+                "problem": { "type": "string", "x-ferroplan-maxBytes": MAX_PROBLEM_BYTES },
+                "pddl": { "type": "string", "x-ferroplan-maxBytes": MAX_PDDL_BYTES },
+                "plan": {},
+                "options": { "type": "object" },
+                "limits": { "type": "object" },
+                "request_id": { "type": "string" },
+                "timeout_ms": { "type": "integer", "minimum": 1, "maximum": MAX_TIMEOUT_MS }
+            }
+        }
+    })
 }
 
 fn requested_timeout(arguments: &Value) -> Result<u64, WorkerError> {
@@ -509,17 +440,18 @@ fn run_worker(tool: &str, arguments: &Value, timeout_ms: u64) -> Result<WorkerRe
         retryable: false,
     })?;
     if request.len() > MAX_FRAME_BYTES {
-        return Err(WorkerError {
-            code: "FP_LIMIT_INPUT".to_string(),
-            message: "worker request exceeds the MCP+ frame limit".to_string(),
-            retryable: false,
-        });
+        return Err(worker_error(
+            "FP_LIMIT_INPUT",
+            "worker request exceeds the MCP+ frame limit",
+            false,
+        ));
     }
-
-    let executable = std::env::current_exe().map_err(|error| WorkerError {
-        code: "FP_ADAPTER".to_string(),
-        message: format!("resolving current executable: {error}"),
-        retryable: false,
+    let executable = std::env::current_exe().map_err(|error| {
+        worker_error(
+            "FP_ADAPTER",
+            format!("resolving current executable: {error}"),
+            false,
+        )
     })?;
     let mut child = Command::new(executable)
         .arg("--worker")
@@ -528,59 +460,87 @@ fn run_worker(tool: &str, arguments: &Value, timeout_ms: u64) -> Result<WorkerRe
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|error| WorkerError {
-            code: "FP_ADAPTER".to_string(),
-            message: format!("spawning isolated worker: {error}"),
-            retryable: true,
+        .map_err(|error| {
+            worker_error(
+                "FP_ADAPTER",
+                format!("spawning isolated worker: {error}"),
+                true,
+            )
         })?;
 
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(&request).map_err(|error| WorkerError {
-            code: "FP_ADAPTER".to_string(),
-            message: format!("writing isolated worker request: {error}"),
-            retryable: true,
-        })?;
+    let stdout = child.stdout.take().ok_or_else(|| {
+        worker_error("FP_ADAPTER", "worker stdout pipe was not created", false)
+    })?;
+    let output_reader = thread::spawn(move || {
+        let mut output = Vec::new();
+        stdout
+            .take((MAX_RESPONSE_BYTES + 1) as u64)
+            .read_to_end(&mut output)
+            .map(|_| output)
+    });
+
+    let write_result = child
+        .stdin
+        .take()
+        .ok_or_else(|| worker_error("FP_ADAPTER", "worker stdin pipe was not created", false))
+        .and_then(|mut stdin| {
+            stdin.write_all(&request).map_err(|error| {
+                worker_error(
+                    "FP_ADAPTER",
+                    format!("writing isolated worker request: {error}"),
+                    true,
+                )
+            })
+        });
+    if let Err(error) = write_result {
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = output_reader.join();
+        return Err(error);
     }
 
     let status = child
         .wait_timeout(Duration::from_millis(timeout_ms))
-        .map_err(|error| WorkerError {
-            code: "FP_ADAPTER".to_string(),
-            message: format!("waiting for isolated worker: {error}"),
-            retryable: true,
+        .map_err(|error| {
+            worker_error(
+                "FP_ADAPTER",
+                format!("waiting for isolated worker: {error}"),
+                true,
+            )
         })?;
     if status.is_none() {
         let _ = child.kill();
         let _ = child.wait();
-        return Err(WorkerError {
-            code: "FP_TIMEOUT".to_string(),
-            message: format!("isolated worker exceeded the {timeout_ms} ms deadline"),
-            retryable: true,
-        });
+        let _ = output_reader.join();
+        return Err(worker_error(
+            "FP_TIMEOUT",
+            format!("isolated worker exceeded the {timeout_ms} ms deadline"),
+            true,
+        ));
     }
-
-    let mut output = Vec::new();
-    if let Some(stdout) = child.stdout.take() {
-        stdout
-            .take((MAX_RESPONSE_BYTES + 1) as u64)
-            .read_to_end(&mut output)
-            .map_err(|error| WorkerError {
-                code: "FP_ADAPTER".to_string(),
-                message: format!("reading isolated worker response: {error}"),
-                retryable: true,
-            })?;
-    }
+    let output = output_reader
+        .join()
+        .map_err(|_| worker_error("FP_INVARIANT", "worker output reader panicked", false))?
+        .map_err(|error| {
+            worker_error(
+                "FP_ADAPTER",
+                format!("reading isolated worker response: {error}"),
+                true,
+            )
+        })?;
     if output.len() > MAX_RESPONSE_BYTES {
-        return Err(WorkerError {
-            code: "FP_LIMIT_OUTPUT".to_string(),
-            message: "isolated worker response exceeds the MCP+ output limit".to_string(),
-            retryable: true,
-        });
+        return Err(worker_error(
+            "FP_LIMIT_OUTPUT",
+            "isolated worker response exceeds the MCP+ output limit",
+            true,
+        ));
     }
-    serde_json::from_slice(&output).map_err(|error| WorkerError {
-        code: "FP_ADAPTER".to_string(),
-        message: format!("decoding isolated worker response: {error}"),
-        retryable: true,
+    serde_json::from_slice(&output).map_err(|error| {
+        worker_error(
+            "FP_ADAPTER",
+            format!("decoding isolated worker response: {error}"),
+            true,
+        )
     })
 }
 
@@ -686,9 +646,9 @@ fn worker_parse(arguments: Value) -> WorkerReply {
     }
     WorkerReply::success(json!({
         "schemaVersion": "ferroplan.parse-evidence.v1",
-        "capabilityId": "fp.core.validate",
+        "capabilityId": "fp.core.parse",
         "authority": "evidence_only",
-        "result": ferroplan::parse(&args.pddl),
+        "result": ferroplan::parse(&args.pddl)
     }))
 }
 
@@ -712,14 +672,14 @@ fn worker_validate(arguments: Value) -> WorkerReply {
             "capabilityId": "fp.core.validate",
             "authority": "evidence_only",
             "valid": true,
-            "reason": null,
+            "reason": null
         })),
         Ok(ferroplan::plan::Validity::Invalid(reason)) => WorkerReply::success(json!({
             "schemaVersion": "ferroplan.plan-validation.v1",
             "capabilityId": "fp.core.validate",
             "authority": "evidence_only",
             "valid": false,
-            "reason": bounded_text(&reason, 2_048),
+            "reason": bounded_text(&reason, 2_048)
         })),
         Err(error) => WorkerReply::failure("FP_VALIDATION", error, false),
     }
@@ -745,7 +705,7 @@ fn worker_explain(arguments: Value) -> WorkerReply {
                 "schemaVersion": "ferroplan.explanation-evidence.v1",
                 "capabilityId": "fp.core.explain",
                 "authority": "evidence_only",
-                "result": value,
+                "result": value
             })),
             Err(error) => WorkerReply::failure(
                 "FP_ADAPTER",
@@ -772,7 +732,7 @@ fn validate_text_bounds(domain: &str, problem: &str, plan: Option<&str>) -> Opti
             false,
         ));
     }
-    if plan.is_some_and(|plan| plan.len() > MAX_PLAN_BYTES) {
+    if plan.is_some_and(|value| value.len() > MAX_PLAN_BYTES) {
         return Some(WorkerReply::failure(
             "FP_LIMIT_INPUT",
             "plan exceeds the MCP+ input limit",
@@ -782,21 +742,28 @@ fn validate_text_bounds(domain: &str, problem: &str, plan: Option<&str>) -> Opti
     None
 }
 
+fn worker_error(code: &str, message: impl Into<String>, retryable: bool) -> WorkerError {
+    WorkerError {
+        code: code.to_string(),
+        message: bounded_text(&message.into(), 2_048),
+        retryable,
+    }
+}
+
 fn tool_result_success(value: Value) -> Value {
-    let text = serde_json::to_string_pretty(&value).unwrap_or_else(|_| "null".to_string());
-    json!({
-        "content": [{ "type": "text", "text": text }],
-        "structuredContent": value,
-        "isError": false,
-    })
+    tool_result(value, false)
 }
 
 fn tool_result_error(value: Value) -> Value {
+    tool_result(value, true)
+}
+
+fn tool_result(value: Value, is_error: bool) -> Value {
     let text = serde_json::to_string_pretty(&value).unwrap_or_else(|_| "null".to_string());
     json!({
         "content": [{ "type": "text", "text": text }],
         "structuredContent": value,
-        "isError": true,
+        "isError": is_error
     })
 }
 
@@ -817,26 +784,22 @@ fn rpc_error(
         "error": {
             "code": code,
             "message": bounded_text(&message.into(), 2_048),
-            "data": {
-                "ferroplanCode": ferroplan_code,
-                "retryable": retryable,
-                "profile": PROFILE,
-            }
+            "data": { "ferroplanCode": ferroplan_code, "retryable": retryable, "profile": PROFILE }
         }
     })
 }
 
-fn response_outcome(response: &Value) -> String {
+fn response_outcome(response: &Value) -> &'static str {
     if response.get("error").is_some() {
-        "refused".to_string()
+        "refused"
     } else if response
         .pointer("/result/isError")
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
-        "tool_error".to_string()
+        "tool_error"
     } else {
-        "success".to_string()
+        "success"
     }
 }
 
@@ -918,16 +881,15 @@ fn bounded_text(value: &str, max_bytes: usize) -> String {
 }
 
 fn self_test() -> Result<(), String> {
-    let manifest = capability_manifest();
-    manifest
+    capability_manifest()
         .validate()
         .map_err(|error| format!("capability manifest: {error}"))?;
-    let tools = tool_definitions();
-    let names: Vec<_> = tools
-        .iter()
-        .filter_map(|tool| tool.get("name").and_then(Value::as_str))
+    let names: Vec<_> = tool_definitions()
+        .into_iter()
+        .filter_map(|tool| tool["name"].as_str().map(ToOwned::to_owned))
         .collect();
-    if names != ["plan", "parse", "validate", "explain", "readiness", "version"] {
+    let expected = ["plan", "parse", "validate", "explain", "readiness", "version"];
+    if names.iter().map(String::as_str).collect::<Vec<_>>() != expected {
         return Err(format!("unexpected tool inventory: {names:?}"));
     }
     println!(
@@ -940,7 +902,7 @@ fn self_test() -> Result<(), String> {
             "maxConcurrentRequests": 1,
             "workerIsolation": true,
             "hardDeadline": true,
-            "toolCount": names.len(),
+            "toolCount": names.len()
         })
     );
     Ok(())
@@ -958,7 +920,7 @@ mod tests {
         (:init) (:goal (done)))";
 
     #[test]
-    fn frame_reader_refuses_oversized_input_and_recovers_at_newline() {
+    fn frame_reader_refuses_oversized_input_and_recovers() {
         let mut input = vec![b'x'; 9];
         input.extend_from_slice(b"\n{}\n");
         let mut cursor = Cursor::new(input);
@@ -971,13 +933,13 @@ mod tests {
 
     #[test]
     fn notifications_emit_no_response() {
-        let request = JsonRpcRequest {
+        assert!(handle_request(JsonRpcRequest {
             jsonrpc: "2.0".to_string(),
             id: None,
             method: "initialized".to_string(),
             params: Value::Null,
-        };
-        assert!(handle_request(request).is_none());
+        })
+        .is_none());
     }
 
     #[test]
@@ -996,12 +958,8 @@ mod tests {
     }
 
     #[test]
-    fn plan_worker_is_candidate_only_and_independently_validated() {
-        let reply = worker_plan(json!({
-            "domain": DOMAIN,
-            "problem": PROBLEM,
-            "timeout_ms": 1000
-        }));
+    fn plan_worker_is_candidate_only_and_validated() {
+        let reply = worker_plan(json!({ "domain": DOMAIN, "problem": PROBLEM }));
         assert!(!reply.is_error, "{reply:?}");
         let result = reply.result.unwrap();
         assert_eq!(result["authority"], "candidate_only");
