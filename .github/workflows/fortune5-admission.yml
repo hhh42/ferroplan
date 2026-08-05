@@ -39,9 +39,17 @@ jobs:
           cargo fmt --all -- --check
           cargo check --workspace --all-targets --all-features
           cargo clippy --workspace --all-targets --all-features -- -D warnings
-      - name: Complete native tests
+      - name: Complete native and bounded-capability tests
         run: |
           cargo test --workspace
+          cargo test -p ferroplan --test fortune5_capabilities
+          cargo test -p ferroplan --test eve_genesis
+          cargo test -p ferroplan --test ppddl
+          cargo test -p ferroplan --test decompose
+          cargo test -p ferroplan --test parse
+          cargo test -p ferroplan --test robustness
+          cargo test -p ferroplan --test mem_budget
+          cargo test -p ferroplan --test node_cap
           cargo test --release -p ferroplan -- --ignored
       - name: Documentation and benchmark compile gates
         env:
@@ -72,7 +80,7 @@ jobs:
             --production -o target/fortune5/domain.pddl -f target/fortune5/problem.pddl \
             --request-id native-2 > target/fortune5/native-2.json
           python3 - <<'PY'
-          import json
+          import json, os
           from pathlib import Path
           a = json.loads(Path('target/fortune5/native-1.json').read_text())
           b = json.loads(Path('target/fortune5/native-2.json').read_text())
@@ -81,6 +89,8 @@ jobs:
           assert a['authority'] == b['authority'] == 'candidate_only'
           assert a['input_fingerprint'] == b['input_fingerprint']
           assert a['payload']['plan'] == b['payload']['plan']
+          assert a['build_identity']['source_revision'] == os.environ['GITHUB_SHA']
+          assert b['build_identity']['source_revision'] == os.environ['GITHUB_SHA']
           readiness = json.loads(Path('target/fortune5/readiness-contract.json').read_text())
           assert readiness['contract_valid'] is True
           assert readiness['admission_state'] == 'declared'
@@ -106,38 +116,50 @@ jobs:
       - name: Record exact command evidence
         run: |
           cat > target/fortune5/evidence-core.txt <<'EOF'
-          bevy.native.build
           bevy.input.bounds
+          bevy.native.build
           cli.contract
           cli.exit-codes
           cli.input.bounds
           cli.replay
-          core.explain.unit
+          core.decompose.bounds
+          core.decompose.unit
+          core.decompose.validation
           core.explain.negative
           core.explain.replay
+          core.explain.unit
           core.fingerprint.domain-separated
           core.fingerprint.replay
-          core.parallel.unit
-          core.parallel.thread-parity
           core.parallel.bounds
-          core.solve.unit
+          core.parallel.thread-parity
+          core.parallel.unit
+          core.parse.bounds
+          core.parse.negative
+          core.parse.unit
+          core.ppddl.policy-validation
+          core.ppddl.replay
+          core.ppddl.unit
+          core.session.budget
+          core.session.replay
+          core.session.unit
+          core.solve.bounds
           core.solve.independent-validation
           core.solve.negative
-          core.solve.bounds
           core.solve.replay
-          core.stream.unit
-          core.stream.bounds
-          core.stream.terminal
-          core.validate.unit
+          core.solve.unit
+          core.trace.negative
+          core.trace.replay
+          core.trace.unit
           core.validate.negative
           core.validate.replay
+          core.validate.unit
+          docs.capability-truth
           docs.mdbook
           docs.rustdoc
-          docs.capability-truth
-          eve.unit
-          eve.need9-split
           eve.authority
+          eve.need9-split
           eve.replay
+          eve.unit
           EOF
       - uses: actions/upload-artifact@v4
         with:
@@ -193,10 +215,10 @@ jobs:
           mkdir -p target/fortune5
           cat > target/fortune5/evidence-browser.txt <<'EOF'
           bevy.wasm.build
-          wasm.build
           wasm.bounds
-          wasm.parity
+          wasm.build
           wasm.no-ambient-authority
+          wasm.parity
           EOF
       - uses: actions/upload-artifact@v4
         with:
@@ -223,7 +245,7 @@ jobs:
           maturin build --release --manifest-path crates/ferroplan-py/Cargo.toml --out target/fortune5/py-wheels
           python -m pip install --force-reinstall target/fortune5/py-wheels/*.whl
           python - <<'PY'
-          import json
+          import json, os
           import ferroplan
           domain = '''(define (domain smoke)
             (:requirements :strips)
@@ -234,6 +256,7 @@ jobs:
           assert result['outcome'] == 'solved', result
           assert result['validation'] == 'valid', result
           assert result['authority'] == 'candidate_only', result
+          assert result['build_identity']['source_revision'] == os.environ['GITHUB_SHA']
           readiness = json.loads(ferroplan.readiness())
           assert readiness['contract_valid'] is True
           refusal = json.loads(ferroplan.plan_production(domain, problem, mode='unknown'))
@@ -245,10 +268,10 @@ jobs:
       - name: Record Python evidence
         run: |
           cat > target/fortune5/evidence-python.txt <<'EOF'
-          python.wheel
-          python.import
           python.bounds
+          python.import
           python.parity
+          python.wheel
           EOF
       - uses: actions/upload-artifact@v4
         with:
@@ -326,13 +349,13 @@ jobs:
         run: |
           mkdir -p target/fortune5
           cat > target/fortune5/evidence-mcp-plugin.txt <<'EOF'
-          mcp.protocol
-          mcp.frame-bounds
-          mcp.concurrency-bounds
           mcp.candidate-authority
+          mcp.concurrency-bounds
+          mcp.frame-bounds
           mcp.integration
-          plugin.lint
+          mcp.protocol
           plugin.generated-current
+          plugin.lint
           plugin.tests
           plugin.verifier
           EOF
@@ -369,15 +392,13 @@ jobs:
           import json
           from pathlib import Path
           metadata = json.loads(Path('target/fortune5/cargo-metadata.json').read_text())
-          rows = []
-          missing = []
+          rows, missing = [], []
           for package in metadata['packages']:
-              row = {
+              rows.append({
                   'name': package['name'], 'version': package['version'],
                   'source': package.get('source'), 'license': package.get('license'),
                   'license_file': package.get('license_file')
-              }
-              rows.append(row)
+              })
               if package.get('source') and not (package.get('license') or package.get('license_file')):
                   missing.append(f"{package['name']}@{package['version']}")
           Path('target/fortune5/license-inventory.json').write_text(json.dumps(rows, indent=2, sort_keys=True))
@@ -385,16 +406,21 @@ jobs:
           PY
       - name: Build attributable release artifacts and checksums
         run: |
-          cargo build --release -p ferroplan-cli -p ferroplan-mcp --bin ferroplan-mcp-plus
+          cargo build --release -p ferroplan-cli
+          cargo build --release -p ferroplan-mcp --bin ferroplan-mcp-plus
+          test -x target/release/ff
+          test -x target/release/ferroplan-mcp-plus
           sha256sum Cargo.lock target/release/ff target/release/ferroplan-mcp-plus \
             > target/fortune5/SHA256SUMS
           test -s target/fortune5/SHA256SUMS
       - name: Record supply-chain evidence
         run: |
           cat > target/fortune5/evidence-supply.txt <<'EOF'
-          release.dependency-audit
-          release.sbom
           release.checksums
+          release.dependency-audit
+          release.license-inventory
+          release.sbom
+          release.source-identity
           EOF
       - uses: actions/upload-artifact@v4
         with:
@@ -425,8 +451,8 @@ jobs:
           find target/fortune5/downloaded -name 'evidence-*.txt' -type f -print0 \
             | xargs -0 cat > target/fortune5/evidence.txt
           cat >> target/fortune5/evidence.txt <<'EOF'
-          release.full-matrix
           release.admission-report
+          release.full-matrix
           EOF
           sort -u target/fortune5/evidence.txt -o target/fortune5/evidence.txt
       - name: Compute verifier-derived admission report
