@@ -18,10 +18,10 @@
 //! handed to ggen/MCP+ with Truex receipt and replay obligations intact.
 //!
 //! The [`readiness`] module publishes the canonical capability inventory and
-//! evidence-derived admission model. The [`production`] and
-//! [`production_explain`] modules provide bounded, candidate-only or
-//! evidence-only entry points for solve, parse, validation, explanation, trace,
-//! decomposition, PPDDL, and persistent sessions.
+//! evidence-derived admission model. The [`production`],
+//! [`production_decompose`], and [`production_explain`] modules provide bounded,
+//! candidate-only or evidence-only entry points for solve, parse, validation,
+//! explanation, trace, decomposition, PPDDL, and persistent sessions.
 //!
 //! ## Public API
 //!
@@ -81,6 +81,7 @@ pub mod ppddl;
 // Scope the allowance to this legacy module; warnings remain denied elsewhere.
 #[allow(dead_code)]
 pub mod production;
+pub mod production_decompose;
 pub mod production_explain;
 pub mod report;
 pub mod resolve;
@@ -118,9 +119,10 @@ pub use ppddl::{
     ProbabilisticStatistics, SimulationReport,
 };
 pub use production::{
-    decompose_production, parse_production, solve_ppddl_production, trace_production,
-    validate_plan_production, PlanValidationEvidence, ProductionSession,
+    parse_production, solve_ppddl_production, trace_production, validate_plan_production,
+    PlanValidationEvidence, ProductionSession,
 };
+pub use production_decompose::decompose_production;
 pub use production_explain::explain_production;
 pub use readiness::{
     capability_manifest, evaluate_readiness, production_input_fingerprint, solve_production,
