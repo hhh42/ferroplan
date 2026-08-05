@@ -1,162 +1,121 @@
 name: CI
 
 on:
+  pull_request:
   push:
     branches: [main]
-  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: ""
 
 jobs:
-  # Core library + CLI. Excludes the Bevy GUI (the engine needs heavy system
-  # libraries to build on Linux; it's built locally for now).
-  test:
-    runs-on: ubuntu-latest
+  classify:
+    name: Route owned evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    outputs:
+      rust: ${{ steps.route.outputs.rust }}
+      plugin: ${{ steps.route.outputs.plugin }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          components: rustfmt, clippy
-      - uses: Swatinem/rust-cache@v2
-      - name: Format
-        run: cargo fmt --all --check
-      - name: Clippy
-        run: cargo clippy --workspace --exclude ferroplan-bevy --all-targets --all-features -- -D warnings
-      - name: Test
-        run: cargo test --workspace --exclude ferroplan-bevy
-      # The IPC-benchmark regression guards (espc / ipc5_pref_metric) are `#[ignore]`d
-      # so they don't bloat the default `cargo test` (and the publish pre-flight) with
-      # multi-minute solves. Run them here in release, where they're ~3× faster.
-      - name: Heavy IPC regression guards (release)
-        run: cargo test --release -p ferroplan -- --ignored
-      - name: Docs
-        run: cargo doc --no-deps --all-features --workspace --exclude ferroplan-bevy
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - id: subject
         env:
-          RUSTDOCFLAGS: -D warnings
-      - name: Bench compiles (perf gate)
-        run: cargo bench --no-run -p ferroplan
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          base="${PR_BASE:-$(git rev-parse HEAD^)}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+      - id: route
+        run: >-
+          python3 scripts/ci_router.py
+          --base '${{ steps.subject.outputs.base }}'
+          --head '${{ github.event.pull_request.head.sha || github.sha }}'
+          --report target/ci/ci-route.json
 
-  # The plugin's complete Python control plane. A separate job on purpose:
-  # a plugin failure must not be masked by a Rust failure.
+  rust-core:
+    name: Rust core deep lane
+    needs: classify
+    if: needs.classify.outputs.rust == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy owned native workspace
+        run: cargo clippy --workspace --exclude ferroplan-bevy --all-targets --all-features -- -D warnings
+      - name: Test owned native workspace
+        run: cargo test --workspace --exclude ferroplan-bevy
+      - name: Heavy IPC regression guards
+        run: cargo test --release -p ferroplan -- --ignored
+      - name: Documentation and benchmark compile
+        run: |
+          RUSTDOCFLAGS='-D warnings' cargo doc --no-deps --all-features --workspace --exclude ferroplan-bevy
+          cargo bench --no-run -p ferroplan
+
   plugin:
-    runs-on: ubuntu-latest
+    name: Chatman plugin deep lane
+    needs: classify
+    if: needs.classify.outputs.plugin == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: plugins/chatman-ecosystem
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.11'
-      - name: Install tooling
-        run: pip install --quiet pytest ruff typer pydantic jsonschema rdflib pyshacl
-      - name: Lint
-        run: ruff check scripts tests
-      - name: Compile every script
-        run: python -m compileall -q scripts
-      - name: Shell syntax
-        run: for f in scripts/*.sh; do sh -n "$f"; done
-      - name: Generated files are current
-        run: python3 scripts/generate.py build --check
-      - name: Test
+      - name: Install verifier tooling
+        run: pip install --quiet pytest ruff coverage typer pydantic jsonschema rdflib pyshacl
+      - name: Static and generated projection checks
+        run: |
+          ruff check scripts tests
+          python -m compileall -q scripts
+          for f in scripts/*.sh; do sh -n "$f"; done
+          python scripts/generate.py build --check
+      - name: Complete plugin tests
         run: pytest
-
-  # The OpenAI/OStar rail gets an independent compatibility and evidence job.
-  # It uses only local deterministic fakes; no external API credential is needed.
-  openai-luna-verification:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ['3.11', '3.12', '3.13']
-    defaults:
-      run:
-        working-directory: plugins/chatman-ecosystem
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install focused verifier tooling
-        run: pip install --quiet pytest ruff coverage
-      - name: Focused lint
-        run: >-
-          ruff check
-          scripts/mcp_client.py
-          scripts/openai_luna.py
-          scripts/openai_luna_protocol.py
-          scripts/openai_luna_runtime.py
-          scripts/openai_ostar_star.py
-          scripts/verify_openai_luna.py
-          tests/openai_luna_testkit.py
-          tests/test_openai_luna*.py
-          tests/test_openai_ostar_star.py
-      - name: Compile focused runtime
-        run: >-
-          python -m compileall -q
-          scripts/mcp_client.py
-          scripts/openai_luna.py
-          scripts/openai_luna_protocol.py
-          scripts/openai_luna_runtime.py
-          scripts/openai_ostar_star.py
-          scripts/verify_openai_luna.py
-          tests/openai_luna_testkit.py
-          tests/test_openai_luna*.py
-          tests/test_openai_ostar_star.py
-      - name: Shell syntax
-        run: for f in scripts/*.sh; do sh -n "$f"; done
-      - name: Full focused ladder
-        env:
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
-        run: >-
-          python -m pytest -q
-          --junitxml=openai-luna-junit.xml
-          tests/test_openai_luna*.py
-          tests/test_openai_ostar_star.py
-      - name: Branch coverage gate
-        if: matrix.python-version == '3.11'
+      - name: Focused Luna evidence
         env:
           PYTEST_DISABLE_PLUGIN_AUTOLOAD: '1'
         run: |
-          coverage run --branch \
-            --source=mcp_client,openai_luna_protocol,openai_luna_runtime,openai_ostar_star,verify_openai_luna \
-            -m pytest -q \
-            tests/test_openai_luna_unit.py \
-            tests/test_openai_luna_contract.py \
-            tests/test_openai_luna_property.py \
-            tests/test_openai_luna_replay.py \
-            tests/test_openai_luna_mutation.py \
-            tests/test_openai_luna_security.py \
-            tests/test_openai_luna_integration.py \
-            tests/test_openai_luna_chaos.py \
-            tests/test_openai_luna_verifier.py \
-            tests/test_openai_ostar_star.py
+          python -m pytest -q --junitxml=openai-luna-junit.xml tests/test_openai_luna*.py tests/test_openai_ostar_star.py
+          coverage run --branch --source=mcp_client,openai_luna_protocol,openai_luna_runtime,openai_ostar_star,verify_openai_luna -m pytest -q tests/test_openai_luna_unit.py tests/test_openai_luna_contract.py tests/test_openai_luna_property.py tests/test_openai_luna_replay.py tests/test_openai_luna_mutation.py tests/test_openai_luna_security.py tests/test_openai_luna_integration.py tests/test_openai_luna_chaos.py tests/test_openai_luna_verifier.py tests/test_openai_ostar_star.py
           coverage report --fail-under=75
           coverage xml -o openai-luna-coverage.xml
-      - name: Build sealed verifier report
-        shell: bash
-        run: |
-          checks=(
-            --static-check ruff
-            --static-check compileall
-            --static-check shell-syntax
-          )
-          if [[ "${{ matrix.python-version }}" == "3.11" ]]; then
-            checks+=(--static-check coverage)
-          fi
-          python scripts/verify_openai_luna.py \
-            --junit openai-luna-junit.xml \
-            --output openai-luna-verifier.json \
-            --python-version "${{ matrix.python-version }}" \
-            "${checks[@]}"
-      - name: Upload verification receipts
+          python scripts/verify_openai_luna.py --junit openai-luna-junit.xml --output openai-luna-verifier.json --python-version '3.11' --static-check ruff --static-check compileall --static-check shell-syntax --static-check coverage
+      - name: Upload plugin receipts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: openai-luna-verification-py${{ matrix.python-version }}
+          name: plugin-evidence-${{ github.event.pull_request.head.sha || github.sha }}
           path: |
             plugins/chatman-ecosystem/openai-luna-junit.xml
             plugins/chatman-ecosystem/openai-luna-verifier.json
             plugins/chatman-ecosystem/openai-luna-coverage.xml
           if-no-files-found: warn
+          retention-days: 30
