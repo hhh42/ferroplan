@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import unittest
 
-from ci_router import route
+from scripts.ci_router import route
 
 
 class RouterTests(unittest.TestCase):
