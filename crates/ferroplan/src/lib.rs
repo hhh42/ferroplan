@@ -28,6 +28,7 @@
 //! Compatibility surfaces:
 //!
 //! - [`solve`], [`parse`], [`decompose`], [`trace`], [`solve_ppddl`], [`Session`].
+//! - [`route_planning_request`] and [`solve_planning_type`] for the typed universal model.
 //!
 //! Bounded production surfaces:
 //!
@@ -75,6 +76,8 @@ pub mod espc;
 pub mod partition;
 pub mod pddl3;
 pub mod plan;
+pub mod planning_runtime;
+pub mod planning_types;
 pub mod portfolio;
 pub mod ppddl;
 // The compatibility wrapper still contains one retained diagnostic constant.
@@ -111,6 +114,17 @@ pub use eve::{
     MAX_PRIMARY_ACTIVATORS,
 };
 pub use planner::{run_ff, run_planner};
+pub use planning_runtime::{
+    solve_planning_type, Agent, Goal as UniversalGoal, Method as PlanningMethod, PlanStep,
+    PlannerError, PlannerLimits, PlanningProblem, PolicyEntry as UniversalPolicyEntry,
+    PolicyOutcome as UniversalPolicyOutcome, QueueState, RdfTriple, State as UniversalState,
+    Task as PlanningTask, Tool, Transition as UniversalTransition, UniversalPlan,
+    UniversalPlanningRequest, WorkflowEdge,
+};
+pub use planning_types::{
+    route_planning_request, PlanningCapability, PlanningRail, PlanningRequest, PlanningRoute,
+    PlanningRouteError, PlanningType,
+};
 pub use ppddl::{
     parse_ppddl, simulate_ppddl, solve_ppddl, validate_ppddl_policy, InitialStateProbability,
     PolicyDecision, PolicyOutcome, PolicyValidation, PpddlError, PpddlParseReport,
