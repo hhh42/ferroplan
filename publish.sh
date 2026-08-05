@@ -52,6 +52,20 @@ TAG="v${VERSION}"
 # nice-to-have, never worth failing a crates.io publish over).
 create_github_release() {
   local ver="$1" tag="v${1}"
+  # Derive owner/repo from ORIGIN and pass it explicitly to every gh call.
+  # Without --repo, gh needs a "default repository" — per-clone state written
+  # by `gh repo set-default`. This repo has a second remote (the downstream
+  # fork), so gh refuses to guess, and on 0.21.0 the release step died AFTER
+  # all three crates were already published. A fresh clone would hit it again,
+  # so ambient state is the wrong place for this to live.
+  local slug
+  slug="$(git remote get-url origin 2>/dev/null \
+          | sed -E 's#^git@github\.com:#https://github.com/#; s#\.git$##' \
+          | sed -E 's#^https://github\.com/##')"
+  if [[ -z "$slug" ]]; then
+    echo "!! could not derive owner/repo from the 'origin' remote" >&2
+    return 1
+  fi
   if ! git rev-parse "$tag" >/dev/null 2>&1; then
     git fetch origin --tags -q 2>/dev/null || true
   fi
@@ -63,7 +77,7 @@ create_github_release() {
     echo "==> gh CLI not found — skipping the GitHub Release."
     echo "    Install: https://cli.github.com/, then \`gh auth login\`, then re-run:"
     echo "      ./publish.sh --release-only ${ver}"
-    echo "    Or create it by hand: https://github.com/hhh42/ferroplan/releases/new?tag=${tag}"
+    echo "    Or create it by hand: https://github.com/${slug}/releases/new?tag=${tag}"
     return 0
   fi
   local header notes_file title src
@@ -91,14 +105,15 @@ create_github_release() {
     /^## \[/ {flag=0}
     flag {print}
   ' "$src" | sed -e '/./,$!d' >"$notes_file"  # drop leading blank line(s) only
-  if gh release view "$tag" >/dev/null 2>&1; then
+  echo "==> GitHub repo: ${slug}"
+  if gh release view "$tag" --repo "$slug" >/dev/null 2>&1; then
     echo "==> Updating the existing GitHub Release for ${tag}"
-    gh release edit "$tag" --title "$title" --notes-file "$notes_file"
+    gh release edit "$tag" --repo "$slug" --title "$title" --notes-file "$notes_file"
   else
     echo "==> Creating the GitHub Release for ${tag}"
-    gh release create "$tag" --title "$title" --notes-file "$notes_file"
+    gh release create "$tag" --repo "$slug" --title "$title" --notes-file "$notes_file"
   fi
-  echo "    https://github.com/hhh42/ferroplan/releases/tag/${tag}"
+  echo "    https://github.com/${slug}/releases/tag/${tag}"
 }
 
 if [[ "$RELEASE_ONLY" == 1 ]]; then
