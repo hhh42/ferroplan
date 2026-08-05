@@ -50,9 +50,12 @@ pub(crate) fn try_load(scene: &mut Scene, plan: &mut Plan) -> bool {
             Ok(solution) if candidate_solution_valid(domain, problem, &solution) => {
                 let result = result_from_solution(domain, problem, solution);
                 load_result(plan, result, true);
-                plan.status.push_str(" · candidate-only · independently validated");
+                plan.status
+                    .push_str(" · candidate-only · independently validated");
             }
-            Ok(_) => warn("candidate solution failed independent validation; scene loaded without plan"),
+            Ok(_) => {
+                warn("candidate solution failed independent validation; scene loaded without plan")
+            }
             Err(error) => warn(&format!(
                 "candidate solution did not parse ({error}); scene loaded without plan"
             )),
