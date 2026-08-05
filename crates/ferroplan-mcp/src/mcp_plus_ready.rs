@@ -162,8 +162,8 @@ fn serve() -> Result<(), String> {
     let mut reader = BufReader::new(stdin.lock());
     let mut writer = stdout.lock();
 
-    while let Some(frame) = read_frame(&mut reader, MAX_FRAME)
-        .map_err(|error| format!("reading frame: {error}"))?
+    while let Some(frame) =
+        read_frame(&mut reader, MAX_FRAME).map_err(|error| format!("reading frame: {error}"))?
     {
         let response = match frame {
             Frame::TooLarge => Some(rpc_error(
@@ -226,18 +226,13 @@ fn handle(request: Request) -> Option<Value> {
 
     Some(match result {
         Ok(value) => json!({ "jsonrpc": "2.0", "id": id, "result": value }),
-        Err(error) => rpc_error(
-            id,
-            -32_601,
-            error.message,
-            &error.code,
-            error.retryable,
-        ),
+        Err(error) => rpc_error(id, -32_601, error.message, &error.code, error.retryable),
     })
 }
 
 fn call_tool(params: Value) -> Result<Value, Failure> {
-    let call = serde_json::from_value::<Call>(params).map_err(|error| invalid(error.to_string()))?;
+    let call =
+        serde_json::from_value::<Call>(params).map_err(|error| invalid(error.to_string()))?;
     match call.name.as_str() {
         "readiness" => return readiness().map(|value| tool_result(value, false)),
         "version" => return Ok(tool_result(version(), false)),
@@ -331,16 +326,23 @@ fn readiness() -> Result<Value, Failure> {
 }
 
 fn tool_definitions() -> Vec<Value> {
-    ["plan", "parse", "validate", "explain", "readiness", "version"]
-        .into_iter()
-        .map(|name| {
-            json!({
-                "name": name,
-                "description": format!("ferroplan MCP+ {name} capability"),
-                "inputSchema": { "type": "object", "x-ferroplan-maxFrameBytes": MAX_FRAME }
-            })
+    [
+        "plan",
+        "parse",
+        "validate",
+        "explain",
+        "readiness",
+        "version",
+    ]
+    .into_iter()
+    .map(|name| {
+        json!({
+            "name": name,
+            "description": format!("ferroplan MCP+ {name} capability"),
+            "inputSchema": { "type": "object", "x-ferroplan-maxFrameBytes": MAX_FRAME }
         })
-        .collect()
+    })
+    .collect()
 }
 
 fn invoke_worker(tool: &str, arguments: &Value, timeout_ms: u64) -> Result<WorkerReply, Failure> {
@@ -422,7 +424,11 @@ fn worker(tool: &str) -> Result<(), String> {
         .map_err(|error| format!("reading worker input: {error}"))?;
 
     let reply = if bytes.len() > MAX_FRAME {
-        WorkerReply::failure("FP_LIMIT_INPUT", "worker input exceeds the frame limit", false)
+        WorkerReply::failure(
+            "FP_LIMIT_INPUT",
+            "worker input exceeds the frame limit",
+            false,
+        )
     } else {
         match serde_json::from_slice::<Value>(&bytes) {
             Ok(arguments) => execute(tool, arguments),
@@ -484,9 +490,7 @@ fn validate_worker(arguments: Value) -> WorkerReply {
         Ok(args) => args,
         Err(error) => return WorkerReply::failure("FP_INVALID_REQUEST", error.to_string(), false),
     };
-    if args.domain.len() > MAX_MODEL
-        || args.problem.len() > MAX_MODEL
-        || args.plan.len() > MAX_PLAN
+    if args.domain.len() > MAX_MODEL || args.problem.len() > MAX_MODEL || args.plan.len() > MAX_PLAN
     {
         return WorkerReply::failure("FP_LIMIT_INPUT", "validation input exceeds limits", false);
     }
@@ -527,7 +531,10 @@ fn envelope_reply<T: Serialize>(outcome: OutcomeClass, envelope: T) -> WorkerRep
             if matches!(
                 outcome,
                 OutcomeClass::Refused | OutcomeClass::Failed | OutcomeClass::LimitExceeded
-            ) => WorkerReply::tool_error(value),
+            ) =>
+        {
+            WorkerReply::tool_error(value)
+        }
         Ok(value) => WorkerReply::success(value),
         Err(error) => WorkerReply::failure("FP_ADAPTER", error.to_string(), false),
     }
@@ -581,8 +588,8 @@ fn adapter(message: impl Into<String>) -> Failure {
 }
 
 fn write_response(writer: &mut impl Write, response: &Value) -> Result<(), String> {
-    let mut bytes = serde_json::to_vec(response)
-        .map_err(|error| format!("serializing response: {error}"))?;
+    let mut bytes =
+        serde_json::to_vec(response).map_err(|error| format!("serializing response: {error}"))?;
     if bytes.len() > MAX_RESPONSE {
         bytes = serde_json::to_vec(&rpc_error(
             response.get("id").cloned().unwrap_or(Value::Null),
@@ -665,7 +672,14 @@ fn self_test() -> Result<(), String> {
         .into_iter()
         .filter_map(|tool| tool.get("name").and_then(Value::as_str).map(str::to_string))
         .collect::<Vec<_>>();
-    let expected = ["plan", "parse", "validate", "explain", "readiness", "version"];
+    let expected = [
+        "plan",
+        "parse",
+        "validate",
+        "explain",
+        "readiness",
+        "version",
+    ];
     if names.iter().map(String::as_str).collect::<Vec<_>>() != expected {
         return Err(format!("unexpected tool inventory: {names:?}"));
     }
@@ -694,7 +708,10 @@ mod tests {
         let mut bytes = vec![b'x'; 9];
         bytes.extend_from_slice(b"\n{}\n");
         let mut cursor = Cursor::new(bytes);
-        assert!(matches!(read_frame(&mut cursor, 8).unwrap(), Some(Frame::TooLarge)));
+        assert!(matches!(
+            read_frame(&mut cursor, 8).unwrap(),
+            Some(Frame::TooLarge)
+        ));
         assert!(matches!(
             read_frame(&mut cursor, 8).unwrap(),
             Some(Frame::Data(value)) if value == b"{}"
@@ -709,7 +726,14 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(
             names,
-            ["plan", "parse", "validate", "explain", "readiness", "version"]
+            [
+                "plan",
+                "parse",
+                "validate",
+                "explain",
+                "readiness",
+                "version"
+            ]
         );
         assert!(!names.iter().any(|name| {
             name.contains("exec")

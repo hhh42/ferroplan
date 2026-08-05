@@ -156,8 +156,8 @@ pub fn trace_production(
         envelope.error = Some(error);
         return envelope;
     }
-    if let Some(error) = validate_model_inputs(domain, problem, limits.max_domain_bytes)
-        .or_else(|| {
+    if let Some(error) =
+        validate_model_inputs(domain, problem, limits.max_domain_bytes).or_else(|| {
             if plan.len() > limits.max_plan_steps.min(HARD_TRACE_STEPS) {
                 Some(PublicError::new(
                     "FP_LIMIT_PLAN",
@@ -207,7 +207,8 @@ pub fn decompose_production(
     request_id: Option<&str>,
 ) -> OperationEnvelope<Decomposition> {
     let clock = crate::clock::Clock::now();
-    let option_bytes = serde_json::to_vec(options).unwrap_or_else(|_| format!("{options:?}").into());
+    let option_bytes =
+        serde_json::to_vec(options).unwrap_or_else(|_| format!("{options:?}").into());
     let fingerprint = surface_fingerprint(
         "fp.core.decompose",
         &[domain.as_bytes(), problem.as_bytes(), &option_bytes],
@@ -298,7 +299,8 @@ pub fn solve_ppddl_production(
     request_id: Option<&str>,
 ) -> OperationEnvelope<ProbabilisticSolution> {
     let clock = crate::clock::Clock::now();
-    let option_bytes = serde_json::to_vec(options).unwrap_or_else(|_| format!("{options:?}").into());
+    let option_bytes =
+        serde_json::to_vec(options).unwrap_or_else(|_| format!("{options:?}").into());
     let fingerprint = surface_fingerprint(
         "fp.core.ppddl",
         &[domain.as_bytes(), problem.as_bytes(), &option_bytes],
@@ -352,11 +354,7 @@ pub fn solve_ppddl_production(
             Err(error) => {
                 envelope.outcome = OutcomeClass::Failed;
                 envelope.validation = ValidationStatus::Failed;
-                envelope.error = Some(PublicError::new(
-                    "FP_VALIDATION",
-                    error.to_string(),
-                    false,
-                ));
+                envelope.error = Some(PublicError::new("FP_VALIDATION", error.to_string(), false));
             }
         },
     }
@@ -600,7 +598,9 @@ fn validate_ppddl_limits(
         || options.max_transitions > HARD_PPDDL_TRANSITIONS
         || options.max_policy_entries > HARD_PPDDL_POLICY_ENTRIES
         || options.max_value_cells > HARD_PPDDL_VALUE_CELLS
-        || options.horizon.is_some_and(|value| value > HARD_PPDDL_HORIZON)
+        || options
+            .horizon
+            .is_some_and(|value| value > HARD_PPDDL_HORIZON)
     {
         return Some(PublicError::new(
             "FP_LIMIT_SEARCH",
@@ -710,7 +710,10 @@ fn enforce_output_limit<T: Serialize>(envelope: &mut OperationEnvelope<T>, max_b
             envelope.validation = ValidationStatus::NotApplicable;
             envelope.error = Some(PublicError::new(
                 "FP_LIMIT_OUTPUT",
-                format!("operation envelope is {} bytes; maximum is {max_bytes}", bytes.len()),
+                format!(
+                    "operation envelope is {} bytes; maximum is {max_bytes}",
+                    bytes.len()
+                ),
                 true,
             ));
         }

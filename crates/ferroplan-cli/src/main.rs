@@ -9,9 +9,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 use clap::{Parser, ValueEnum};
-use ferroplan::{
-    Decomposition, Mode, Options, OutcomeClass, ProductionLimits, Search,
-};
+use ferroplan::{Decomposition, Mode, Options, OutcomeClass, ProductionLimits, Search};
 use serde::Deserialize;
 
 const CLI_HARD_MAX_INPUT_BYTES: usize = 64 * 1024 * 1024;
@@ -291,8 +289,7 @@ fn read_source(path: &str, max_bytes: usize) -> Result<String> {
 }
 
 fn read_path(path: &Path, max_bytes: usize) -> Result<String> {
-    let file = std::fs::File::open(path)
-        .with_context(|| format!("opening {}", path.display()))?;
+    let file = std::fs::File::open(path).with_context(|| format!("opening {}", path.display()))?;
     read_limited(file, max_bytes, &path.display().to_string())
 }
 
@@ -386,10 +383,7 @@ fn main() -> Result<()> {
         CLI_HARD_MAX_INPUT_BYTES
     };
     let (domain, problem) = match (&cli.domain, &cli.problem) {
-        (Some(d), Some(p)) => (
-            read_path(d, domain_limit)?,
-            read_path(p, problem_limit)?,
-        ),
+        (Some(d), Some(p)) => (read_path(d, domain_limit)?, read_path(p, problem_limit)?),
         _ => bail!(
             "need both -o <domain> and -f <problem> (or --json-request <file>, or --readiness)"
         ),

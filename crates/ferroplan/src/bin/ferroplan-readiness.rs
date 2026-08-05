@@ -54,7 +54,10 @@ fn parse_args() -> Result<Args, String> {
     }
     let source = source.ok_or_else(|| format!("missing --source; {}", usage()))?;
     if evidence_files.is_empty() {
-        return Err(format!("at least one --evidence file is required; {}", usage()));
+        return Err(format!(
+            "at least one --evidence file is required; {}",
+            usage()
+        ));
     }
     Ok(Args {
         source,

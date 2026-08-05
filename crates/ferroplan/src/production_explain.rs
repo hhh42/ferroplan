@@ -132,8 +132,8 @@ pub fn decompose_production(
         envelope.error = Some(error);
         return envelope;
     }
-    if let Some(error) = validate_model_inputs(domain, problem, limits)
-        .or_else(|| validate_options(options, limits))
+    if let Some(error) =
+        validate_model_inputs(domain, problem, limits).or_else(|| validate_options(options, limits))
     {
         envelope.outcome = OutcomeClass::Refused;
         envelope.error = Some(error);
@@ -232,7 +232,8 @@ fn validate_model_inputs(
             "FP_LIMIT_INPUT",
             format!(
                 "domain is {} bytes; maximum is {}",
-                domain.len(), limits.max_domain_bytes
+                domain.len(),
+                limits.max_domain_bytes
             ),
             false,
         ));
@@ -242,7 +243,8 @@ fn validate_model_inputs(
             "FP_LIMIT_INPUT",
             format!(
                 "problem is {} bytes; maximum is {}",
-                problem.len(), limits.max_problem_bytes
+                problem.len(),
+                limits.max_problem_bytes
             ),
             false,
         ));
@@ -310,11 +312,7 @@ fn domain_is_temporal(domain: &str) -> Result<bool, PublicError> {
     crate::parser::parse_domain(domain)
         .map(|parsed| crate::temporal::is_temporal(&parsed))
         .map_err(|error| {
-            PublicError::new(
-                "FP_PARSE",
-                format!("domain parse error: {error}"),
-                false,
-            )
+            PublicError::new("FP_PARSE", format!("domain parse error: {error}"), false)
         })
 }
 
@@ -494,13 +492,8 @@ mod tests {
             None,
         );
         let plan = solved.payload.unwrap().plan.unwrap();
-        let explained = explain_production(
-            DOMAIN,
-            PROBLEM,
-            &plan,
-            &ProductionLimits::default(),
-            None,
-        );
+        let explained =
+            explain_production(DOMAIN, PROBLEM, &plan, &ProductionLimits::default(), None);
         assert_eq!(explained.outcome, OutcomeClass::Solved);
         assert_eq!(explained.validation, ValidationStatus::Valid);
         assert_eq!(explained.authority, "evidence_only");

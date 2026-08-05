@@ -1,6 +1,5 @@
 use ferroplan::{
-    explain_production, solve_production, Options, OutcomeClass, ProductionLimits,
-    ValidationStatus,
+    explain_production, solve_production, Options, OutcomeClass, ProductionLimits, ValidationStatus,
 };
 
 const DOMAIN: &str = r#"
