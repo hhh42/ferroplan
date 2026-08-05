@@ -54,7 +54,12 @@ fn trace_replays_the_solved_candidate_from_the_declared_initial_state() {
         .collect();
     let snapshots = trace(DOMAIN, PROBLEM, &steps).unwrap();
     assert_eq!(snapshots.len(), steps.len() + 1);
-    assert!(snapshots.last().unwrap().facts.iter().any(|fact| fact == "(DONE)"));
+    assert!(snapshots
+        .last()
+        .unwrap()
+        .facts
+        .iter()
+        .any(|fact| fact == "(DONE)"));
 }
 
 #[test]
@@ -63,7 +68,10 @@ fn session_budget_is_deterministic_and_replayable() {
     let first = session.replan_budgeted(1_000, Some(64));
     let second = session.replan_budgeted(1_000, Some(64));
     assert!(first.solved && second.solved);
-    assert_eq!(first.plan, second.plan);
+    assert_eq!(
+        serde_json::to_value(&first.plan).unwrap(),
+        serde_json::to_value(&second.plan).unwrap()
+    );
     let plan = first.plan.as_ref().unwrap();
     assert!(session.plan_still_valid(plan, 0));
     assert!(session.world_bytes() > 0);
@@ -78,7 +86,14 @@ fn decomposition_returns_a_valid_stitched_candidate() {
     let text = plan
         .steps
         .iter()
-        .map(|step| format!("step {}: {} {}", step.index, step.action, step.args.join(" ")))
+        .map(|step| {
+            let args = if step.args.is_empty() {
+                String::new()
+            } else {
+                format!(" {}", step.args.join(" "))
+            };
+            format!("step {}: {}{args}", step.index, step.action)
+        })
         .collect::<Vec<_>>()
         .join("\n");
     assert!(matches!(
@@ -108,5 +123,7 @@ fn ppddl_policy_is_bounded_validated_and_seed_replayable() {
     let second = ferroplan::simulate_ppddl(RETRY_DOMAIN, RETRY_PROBLEM, &options, 1_000, 7)
         .unwrap();
     assert_eq!(first.reached_goal, second.reached_goal);
-    assert_eq!(first.total_reward, second.total_reward);
+    assert_eq!(first.average_reward, second.average_reward);
+    assert_eq!(first.average_discounted_reward, second.average_discounted_reward);
+    assert_eq!(first.average_steps, second.average_steps);
 }
