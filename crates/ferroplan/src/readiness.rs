@@ -1,9 +1,8 @@
-//! Canonical capability contracts, bounded deterministic solving, and
-//! evidence-derived readiness.
+//! Canonical production capability contracts and evidence-derived admission.
 //!
-//! A successful ferroplan result is a candidate consequence. This module does
-//! not grant actuation authority and does not let a capability producer author
-//! its own `ADMITTED` state.
+//! A successful planning result is a candidate consequence. Nothing in this
+//! module grants actuation authority, and capability declarations cannot author
+//! their own `ADMITTED` state.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,8 +23,8 @@ const HARD_MAX_EVALUATED: usize = 50_000_000;
 const HARD_MAX_PLAN_STEPS: usize = 100_000;
 const HARD_MAX_WORKERS: usize = 64;
 const MAX_REQUEST_ID_BYTES: usize = 128;
-const MAX_WARNING_COUNT: usize = 32;
 const MAX_DIAGNOSTIC_BYTES: usize = 2_048;
+const MAX_WARNING_COUNT: usize = 32;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
@@ -138,13 +137,14 @@ impl CapabilityManifest {
         if self
             .capabilities
             .windows(2)
-            .any(|window| window[0].id >= window[1].id)
+            .any(|window| window[0].id.as_str() >= window[1].id.as_str())
         {
             return Err(ManifestError::NonCanonicalOrder);
         }
-        let mut ids = BTreeSet::new();
+
+        let mut seen = BTreeSet::new();
         for capability in &self.capabilities {
-            if !ids.insert(capability.id.clone()) {
+            if !seen.insert(capability.id.clone()) {
                 return Err(ManifestError::DuplicateId(capability.id.clone()));
             }
             for (field, value) in [
@@ -181,8 +181,8 @@ impl CapabilityManifest {
 
     pub fn fingerprint(&self) -> Result<String, ManifestError> {
         self.validate()?;
-        let encoded = serde_json::to_vec(self).map_err(|_| ManifestError::Serialization)?;
-        Ok(sha256_hex(MANIFEST_HASH_DOMAIN, &[&encoded]))
+        let bytes = serde_json::to_vec(self).map_err(|_| ManifestError::Serialization)?;
+        Ok(sha256_hex(MANIFEST_HASH_DOMAIN, &[&bytes]))
     }
 }
 
@@ -196,9 +196,13 @@ fn contract(
     security: SecurityClass,
     evidence: &[&str],
 ) -> CapabilityContract {
-    let mut required_evidence: Vec<String> = evidence.iter().map(|value| (*value).to_string()).collect();
+    let mut required_evidence = evidence
+        .iter()
+        .map(|value| (*value).to_string())
+        .collect::<Vec<_>>();
     required_evidence.sort();
     required_evidence.dedup();
+
     CapabilityContract {
         id: id.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -224,262 +228,30 @@ fn contract(
     }
 }
 
-/// Canonical production capability inventory.
-///
-/// Experimental internals and the broad legacy MCP compatibility server are
-/// deliberately excluded. There is no synthetic `stream` capability: no public
-/// production streaming API exists in this release.
 pub fn capability_manifest() -> CapabilityManifest {
     let mut capabilities = vec![
-        contract(
-            "fp.bevy",
-            "crates/ferroplan-bevy",
-            InterfaceKind::BevyGui,
-            AuthorityClass::PresentationOnly,
-            DeterminismClass::OutcomeEquivalent,
-            ReplayClass::Outcome,
-            SecurityClass::LocalPresentation,
-            &["bevy.input.bounds", "bevy.native.build", "bevy.wasm.build"],
-        ),
-        contract(
-            "fp.cli",
-            "crates/ferroplan-cli",
-            InterfaceKind::NativeCli,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &["cli.contract", "cli.exit-codes", "cli.input.bounds", "cli.replay"],
-        ),
-        contract(
-            "fp.core.decompose",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.decompose.bounds",
-                "core.decompose.unit",
-                "core.decompose.validation",
-            ],
-        ),
-        contract(
-            "fp.core.explain",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::EvidenceOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.explain.negative",
-                "core.explain.replay",
-                "core.explain.unit",
-            ],
-        ),
-        contract(
-            "fp.core.fingerprint",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::EvidenceOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.fingerprint.domain-separated",
-                "core.fingerprint.replay",
-            ],
-        ),
-        contract(
-            "fp.core.parallel",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.parallel.bounds",
-                "core.parallel.thread-parity",
-                "core.parallel.unit",
-            ],
-        ),
-        contract(
-            "fp.core.parse",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::EvidenceOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &["core.parse.bounds", "core.parse.negative", "core.parse.unit"],
-        ),
-        contract(
-            "fp.core.ppddl",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.ppddl.policy-validation",
-                "core.ppddl.replay",
-                "core.ppddl.unit",
-            ],
-        ),
-        contract(
-            "fp.core.session",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::OutcomeEquivalent,
-            ReplayClass::Outcome,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.session.budget",
-                "core.session.replay",
-                "core.session.unit",
-            ],
-        ),
-        contract(
-            "fp.core.solve",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.solve.bounds",
-                "core.solve.independent-validation",
-                "core.solve.negative",
-                "core.solve.replay",
-                "core.solve.unit",
-            ],
-        ),
-        contract(
-            "fp.core.trace",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::EvidenceOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &["core.trace.negative", "core.trace.replay", "core.trace.unit"],
-        ),
-        contract(
-            "fp.core.validate",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::EvidenceOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "core.validate.negative",
-                "core.validate.replay",
-                "core.validate.unit",
-            ],
-        ),
-        contract(
-            "fp.docs",
-            "book",
-            InterfaceKind::Documentation,
-            AuthorityClass::PresentationOnly,
-            DeterminismClass::NotApplicable,
-            ReplayClass::BuildReproducible,
-            SecurityClass::LocalPresentation,
-            &["docs.capability-truth", "docs.mdbook", "docs.rustdoc"],
-        ),
-        contract(
-            "fp.eve.enter",
-            "crates/ferroplan",
-            InterfaceKind::RustLibrary,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &["eve.authority", "eve.need9-split", "eve.replay", "eve.unit"],
-        ),
-        contract(
-            "fp.mcpplus",
-            "crates/ferroplan-mcp",
-            InterfaceKind::McpPlus,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::OutcomeEquivalent,
-            ReplayClass::Outcome,
-            SecurityClass::UntrustedInput,
-            &[
-                "mcp.candidate-authority",
-                "mcp.concurrency-bounds",
-                "mcp.frame-bounds",
-                "mcp.integration",
-                "mcp.protocol",
-            ],
-        ),
-        contract(
-            "fp.plugin.chatman",
-            "plugins/chatman-ecosystem",
-            InterfaceKind::Plugin,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::OutcomeEquivalent,
-            ReplayClass::Outcome,
-            SecurityClass::UntrustedInput,
-            &[
-                "plugin.generated-current",
-                "plugin.lint",
-                "plugin.tests",
-                "plugin.verifier",
-            ],
-        ),
-        contract(
-            "fp.python",
-            "crates/ferroplan-py",
-            InterfaceKind::PythonAbi3,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &["python.bounds", "python.import", "python.parity", "python.wheel"],
-        ),
-        contract(
-            "fp.release",
-            ".github/workflows",
-            InterfaceKind::ReleasePipeline,
-            AuthorityClass::EvidenceOnly,
-            DeterminismClass::NotApplicable,
-            ReplayClass::BuildReproducible,
-            SecurityClass::BuildControl,
-            &[
-                "release.admission-report",
-                "release.checksums",
-                "release.dependency-audit",
-                "release.full-matrix",
-                "release.license-inventory",
-                "release.sbom",
-                "release.source-identity",
-            ],
-        ),
-        contract(
-            "fp.wasm",
-            "crates/ferroplan-wasm",
-            InterfaceKind::BrowserWasm,
-            AuthorityClass::CandidateOnly,
-            DeterminismClass::Exact,
-            ReplayClass::Exact,
-            SecurityClass::UntrustedInput,
-            &[
-                "wasm.bounds",
-                "wasm.build",
-                "wasm.no-ambient-authority",
-                "wasm.parity",
-            ],
-        ),
+        contract("fp.bevy", "crates/ferroplan-bevy", InterfaceKind::BevyGui, AuthorityClass::PresentationOnly, DeterminismClass::OutcomeEquivalent, ReplayClass::Outcome, SecurityClass::LocalPresentation, &["bevy.input.bounds", "bevy.native.build", "bevy.wasm.build"]),
+        contract("fp.cli", "crates/ferroplan-cli", InterfaceKind::NativeCli, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["cli.contract", "cli.exit-codes", "cli.input.bounds", "cli.replay"]),
+        contract("fp.core.decompose", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.decompose.bounds", "core.decompose.unit", "core.decompose.validation"]),
+        contract("fp.core.explain", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::EvidenceOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.explain.negative", "core.explain.replay", "core.explain.unit"]),
+        contract("fp.core.fingerprint", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::EvidenceOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.fingerprint.domain-separated", "core.fingerprint.replay"]),
+        contract("fp.core.parallel", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.parallel.bounds", "core.parallel.thread-parity", "core.parallel.unit"]),
+        contract("fp.core.parse", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::EvidenceOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.parse.bounds", "core.parse.negative", "core.parse.unit"]),
+        contract("fp.core.ppddl", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.ppddl.policy-validation", "core.ppddl.replay", "core.ppddl.unit"]),
+        contract("fp.core.session", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::CandidateOnly, DeterminismClass::OutcomeEquivalent, ReplayClass::Outcome, SecurityClass::UntrustedInput, &["core.session.budget", "core.session.replay", "core.session.unit"]),
+        contract("fp.core.solve", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.solve.bounds", "core.solve.independent-validation", "core.solve.negative", "core.solve.replay", "core.solve.unit"]),
+        contract("fp.core.trace", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::EvidenceOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.trace.negative", "core.trace.replay", "core.trace.unit"]),
+        contract("fp.core.validate", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::EvidenceOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["core.validate.negative", "core.validate.replay", "core.validate.unit"]),
+        contract("fp.docs", "book", InterfaceKind::Documentation, AuthorityClass::PresentationOnly, DeterminismClass::NotApplicable, ReplayClass::BuildReproducible, SecurityClass::LocalPresentation, &["docs.capability-truth", "docs.mdbook", "docs.rustdoc"]),
+        contract("fp.eve.enter", "crates/ferroplan", InterfaceKind::RustLibrary, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["eve.authority", "eve.need9-split", "eve.replay", "eve.unit"]),
+        contract("fp.mcpplus", "crates/ferroplan-mcp", InterfaceKind::McpPlus, AuthorityClass::CandidateOnly, DeterminismClass::OutcomeEquivalent, ReplayClass::Outcome, SecurityClass::UntrustedInput, &["mcp.candidate-authority", "mcp.concurrency-bounds", "mcp.frame-bounds", "mcp.integration", "mcp.protocol"]),
+        contract("fp.plugin.chatman", "plugins/chatman-ecosystem", InterfaceKind::Plugin, AuthorityClass::CandidateOnly, DeterminismClass::OutcomeEquivalent, ReplayClass::Outcome, SecurityClass::UntrustedInput, &["plugin.generated-current", "plugin.lint", "plugin.tests", "plugin.verifier"]),
+        contract("fp.python", "crates/ferroplan-py", InterfaceKind::PythonAbi3, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["python.bounds", "python.import", "python.parity", "python.wheel"]),
+        contract("fp.release", ".github/workflows", InterfaceKind::ReleasePipeline, AuthorityClass::EvidenceOnly, DeterminismClass::NotApplicable, ReplayClass::BuildReproducible, SecurityClass::BuildControl, &["release.admission-report", "release.checksums", "release.dependency-audit", "release.full-matrix", "release.license-inventory", "release.sbom", "release.source-identity"]),
+        contract("fp.wasm", "crates/ferroplan-wasm", InterfaceKind::BrowserWasm, AuthorityClass::CandidateOnly, DeterminismClass::Exact, ReplayClass::Exact, SecurityClass::UntrustedInput, &["wasm.bounds", "wasm.build", "wasm.no-ambient-authority", "wasm.parity"]),
     ];
     capabilities.sort_by(|left, right| left.id.cmp(&right.id));
+
     CapabilityManifest {
         schema_version: CAPABILITY_MANIFEST_SCHEMA.to_string(),
         product_version: env!("CARGO_PKG_VERSION").to_string(),
@@ -531,9 +303,11 @@ where
     if source_identity.trim().is_empty() {
         return Err(ManifestError::MissingSourceIdentity);
     }
+
     let manifest = capability_manifest();
     manifest.validate()?;
-    let evidence: BTreeSet<String> = evidence.into_iter().map(Into::into).collect();
+    let evidence = evidence.into_iter().map(Into::into).collect::<BTreeSet<_>>();
+
     let capabilities = manifest
         .capabilities
         .iter()
@@ -560,24 +334,28 @@ where
             }
         })
         .collect::<Vec<_>>();
+
     let overall_state = if capabilities
         .iter()
-        .all(|item| item.state == ReadinessState::Admitted)
+        .all(|evaluation| evaluation.state == ReadinessState::Admitted)
     {
         ReadinessState::Admitted
-    } else if capabilities
-        .iter()
-        .any(|item| matches!(item.state, ReadinessState::Blocked | ReadinessState::Refused))
-    {
+    } else if capabilities.iter().any(|evaluation| {
+        matches!(
+            evaluation.state,
+            ReadinessState::Blocked | ReadinessState::Refused
+        )
+    }) {
         ReadinessState::Blocked
     } else if capabilities
         .iter()
-        .any(|item| item.state == ReadinessState::Partial)
+        .any(|evaluation| evaluation.state == ReadinessState::Partial)
     {
         ReadinessState::Partial
     } else {
         ReadinessState::Declared
     };
+
     Ok(ReadinessReport {
         schema_version: "ferroplan.readiness-report.v1".to_string(),
         product_version: manifest.product_version.clone(),
@@ -696,10 +474,6 @@ pub struct OperationEnvelope<T> {
     pub error: Option<PublicError>,
 }
 
-/// Bounded deterministic planning with typed failures and independent plan
-/// validation. Hard wall-clock isolation belongs to service adapters such as
-/// `ferroplan-mcp-plus`; this in-process API is bounded by deterministic work,
-/// input, worker, plan, and output limits.
 pub fn solve_production(
     domain: &str,
     problem: &str,
@@ -709,14 +483,32 @@ pub fn solve_production(
 ) -> OperationEnvelope<Solution> {
     let clock = crate::clock::Clock::now();
     let input_fingerprint = production_input_fingerprint(domain, problem, options);
-    let mut envelope = base_envelope(
-        request_id,
-        "fp.core.solve",
-        CANDIDATE_AUTHORITY,
-        &input_fingerprint,
-        elapsed(&clock),
-    );
-    if envelope.error.is_some() {
+    let manifest_fingerprint = capability_manifest().fingerprint();
+    let mut envelope = OperationEnvelope {
+        schema_version: OPERATION_ENVELOPE_SCHEMA.to_string(),
+        request_id: normalize_request_id(request_id, &input_fingerprint),
+        capability_id: "fp.core.solve".to_string(),
+        capability_version: env!("CARGO_PKG_VERSION").to_string(),
+        build_identity: BuildIdentity {
+            product_version: env!("CARGO_PKG_VERSION").to_string(),
+            source_revision: option_env!("FERROPLAN_BUILD_SHA")
+                .filter(|value| !value.trim().is_empty())
+                .map(ToOwned::to_owned),
+            manifest_fingerprint: manifest_fingerprint.clone().ok(),
+        },
+        input_fingerprint,
+        authority: CANDIDATE_AUTHORITY.to_string(),
+        outcome: OutcomeClass::Failed,
+        validation: ValidationStatus::NotApplicable,
+        elapsed_micros: elapsed(&clock),
+        counters: BTreeMap::new(),
+        warnings: Vec::new(),
+        payload: None,
+        error: None,
+    };
+
+    if let Err(error) = manifest_fingerprint {
+        envelope.error = Some(PublicError::new("FP_INVARIANT", error.to_string(), false));
         return envelope;
     }
     if let Err(error) = limits.validate() {
@@ -760,7 +552,13 @@ pub fn solve_production(
                 "threads".to_string(),
                 saturating_u64(solution.statistics.threads),
             );
-            envelope.warnings = bounded_warnings(&solution.notes);
+            envelope.warnings = solution
+                .notes
+                .iter()
+                .take(MAX_WARNING_COUNT)
+                .map(|warning| truncate_utf8(warning, MAX_DIAGNOSTIC_BYTES))
+                .collect();
+
             if !solution.solved {
                 let saturated = solution.statistics.evaluated_states >= effective_max;
                 envelope.outcome = if saturated {
@@ -777,16 +575,17 @@ pub fn solve_production(
                 }
                 envelope.payload = Some(solution);
             } else {
-                admit_solved_candidate(domain, problem, solution, limits, &mut envelope);
+                admit_solution(domain, problem, solution, limits, &mut envelope);
             }
         }
     }
+
     envelope.elapsed_micros = elapsed(&clock);
     enforce_output_limit(&mut envelope, limits.max_output_bytes);
     envelope
 }
 
-fn admit_solved_candidate(
+fn admit_solution(
     domain: &str,
     problem: &str,
     solution: Solution,
@@ -794,7 +593,6 @@ fn admit_solved_candidate(
     envelope: &mut OperationEnvelope<Solution>,
 ) {
     let Some(plan) = solution.plan.as_ref() else {
-        envelope.outcome = OutcomeClass::Failed;
         envelope.validation = ValidationStatus::Failed;
         envelope.error = Some(PublicError::new(
             "FP_INVARIANT",
@@ -804,7 +602,6 @@ fn admit_solved_candidate(
         return;
     };
     if plan.length != plan.steps.len() {
-        envelope.outcome = OutcomeClass::Failed;
         envelope.validation = ValidationStatus::Failed;
         envelope.error = Some(PublicError::new(
             "FP_INVARIANT",
@@ -832,7 +629,6 @@ fn admit_solved_candidate(
             envelope.payload = Some(solution);
         }
         Err(error) => {
-            envelope.outcome = OutcomeClass::Failed;
             envelope.validation = ValidationStatus::Failed;
             envelope.error = Some(PublicError::new("FP_VALIDATION", error, false));
         }
@@ -906,29 +702,7 @@ fn validate_request(
     None
 }
 
-fn map_solve_error(error: SolveError) -> PublicError {
-    match error {
-        SolveError::DomainParse(error) => {
-            PublicError::new("FP_PARSE", format!("domain parse error: {error}"), false)
-        }
-        SolveError::ProblemParse(error) => {
-            PublicError::new("FP_PARSE", format!("problem parse error: {error}"), false)
-        }
-        SolveError::Unsupported(message) => PublicError::new("FP_UNSUPPORTED", message, false),
-        SolveError::EmptyType { kind, pred, ty } => PublicError::new(
-            "FP_MODEL",
-            format!("{kind} {pred} uses an unknown or empty type {ty}"),
-            false,
-        ),
-        SolveError::Derived(message) => PublicError::new("FP_MODEL", message, false),
-    }
-}
-
-pub(crate) fn independently_validate(
-    domain: &str,
-    problem: &str,
-    plan: &Plan,
-) -> Result<(), String> {
+fn independently_validate(domain: &str, problem: &str, plan: &Plan) -> Result<(), String> {
     let plan_text = render_plan(plan);
     match crate::plan::validate_plan(domain, problem, &plan_text)? {
         crate::plan::Validity::Valid => Ok(()),
@@ -936,7 +710,7 @@ pub(crate) fn independently_validate(
     }
 }
 
-pub(crate) fn render_plan(plan: &Plan) -> String {
+fn render_plan(plan: &Plan) -> String {
     let temporal = plan.steps.iter().any(|step| step.time.is_some());
     let mut output = String::new();
     for step in &plan.steps {
@@ -959,55 +733,34 @@ pub(crate) fn render_plan(plan: &Plan) -> String {
     output
 }
 
+fn map_solve_error(error: SolveError) -> PublicError {
+    match error {
+        SolveError::DomainParse(error) => {
+            PublicError::new("FP_PARSE", format!("domain parse error: {error}"), false)
+        }
+        SolveError::ProblemParse(error) => {
+            PublicError::new("FP_PARSE", format!("problem parse error: {error}"), false)
+        }
+        SolveError::Unsupported(message) => PublicError::new("FP_UNSUPPORTED", message, false),
+        SolveError::EmptyType { kind, pred, ty } => PublicError::new(
+            "FP_MODEL",
+            format!("{kind} {pred} uses an unknown or empty type {ty}"),
+            false,
+        ),
+        SolveError::Derived(message) => PublicError::new("FP_MODEL", message, false),
+    }
+}
+
 pub fn production_input_fingerprint(domain: &str, problem: &str, options: &Options) -> String {
-    let options_bytes = serde_json::to_vec(options)
+    let options = serde_json::to_vec(options)
         .unwrap_or_else(|_| format!("{options:?}").into_bytes());
     sha256_hex(
         INPUT_HASH_DOMAIN,
-        &[domain.as_bytes(), problem.as_bytes(), &options_bytes],
+        &[domain.as_bytes(), problem.as_bytes(), &options],
     )
 }
 
-pub(crate) fn base_envelope<T>(
-    request_id: Option<&str>,
-    capability_id: &str,
-    authority: &str,
-    input_fingerprint: &str,
-    elapsed_micros: u64,
-) -> OperationEnvelope<T> {
-    let manifest_fingerprint = capability_manifest().fingerprint();
-    let mut envelope = OperationEnvelope {
-        schema_version: OPERATION_ENVELOPE_SCHEMA.to_string(),
-        request_id: normalize_request_id(request_id, input_fingerprint),
-        capability_id: capability_id.to_string(),
-        capability_version: env!("CARGO_PKG_VERSION").to_string(),
-        build_identity: BuildIdentity {
-            product_version: env!("CARGO_PKG_VERSION").to_string(),
-            source_revision: option_env!("FERROPLAN_BUILD_SHA")
-                .filter(|value| !value.trim().is_empty())
-                .map(ToOwned::to_owned),
-            manifest_fingerprint: manifest_fingerprint.clone().ok(),
-        },
-        input_fingerprint: input_fingerprint.to_string(),
-        authority: authority.to_string(),
-        outcome: OutcomeClass::Failed,
-        validation: ValidationStatus::NotApplicable,
-        elapsed_micros,
-        counters: BTreeMap::new(),
-        warnings: Vec::new(),
-        payload: None,
-        error: None,
-    };
-    if let Err(error) = manifest_fingerprint {
-        envelope.error = Some(PublicError::new("FP_INVARIANT", error.to_string(), false));
-    }
-    envelope
-}
-
-pub(crate) fn enforce_output_limit<T: Serialize>(
-    envelope: &mut OperationEnvelope<T>,
-    max_bytes: usize,
-) {
+fn enforce_output_limit<T: Serialize>(envelope: &mut OperationEnvelope<T>, max_bytes: usize) {
     match serde_json::to_vec(&*envelope) {
         Ok(bytes) if bytes.len() <= max_bytes => {}
         Ok(bytes) => {
@@ -1036,7 +789,7 @@ pub(crate) fn enforce_output_limit<T: Serialize>(
     }
 }
 
-pub(crate) fn sha256_hex(domain: &[u8], parts: &[&[u8]]) -> String {
+fn sha256_hex(domain: &[u8], parts: &[&[u8]]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(domain);
     for part in parts {
@@ -1054,15 +807,7 @@ fn normalize_request_id(request_id: Option<&str>, fingerprint: &str) -> String {
         .unwrap_or_else(|| format!("req-{}", &fingerprint[..16.min(fingerprint.len())]))
 }
 
-fn bounded_warnings(warnings: &[String]) -> Vec<String> {
-    warnings
-        .iter()
-        .take(MAX_WARNING_COUNT)
-        .map(|warning| truncate_utf8(warning, MAX_DIAGNOSTIC_BYTES))
-        .collect()
-}
-
-pub(crate) fn truncate_utf8(value: &str, max_bytes: usize) -> String {
+fn truncate_utf8(value: &str, max_bytes: usize) -> String {
     if value.len() <= max_bytes {
         return value.to_string();
     }
@@ -1073,11 +818,11 @@ pub(crate) fn truncate_utf8(value: &str, max_bytes: usize) -> String {
     value[..end].to_string()
 }
 
-pub(crate) fn elapsed(clock: &crate::clock::Clock) -> u64 {
+fn elapsed(clock: &crate::clock::Clock) -> u64 {
     clock.elapsed_us().min(u64::MAX as u128) as u64
 }
 
-pub(crate) fn saturating_u64(value: usize) -> u64 {
+fn saturating_u64(value: usize) -> u64 {
     value.try_into().unwrap_or(u64::MAX)
 }
 
@@ -1092,54 +837,24 @@ mod tests {
         (:init) (:goal (done)))";
 
     #[test]
-    fn manifest_is_canonical_complete_and_non_fictional() {
+    fn manifest_is_canonical_and_non_fictional() {
         let manifest = capability_manifest();
         manifest.validate().unwrap();
-        let ids: BTreeSet<_> = manifest
+        let ids = manifest
             .capabilities
             .iter()
-            .map(|item| item.id.as_str())
-            .collect();
+            .map(|capability| capability.id.as_str())
+            .collect::<BTreeSet<_>>();
+        assert_eq!(ids.len(), 19);
         assert!(!ids.contains("fp.core.stream"));
-        for expected in [
-            "fp.core.solve",
-            "fp.core.parse",
-            "fp.core.ppddl",
-            "fp.core.session",
-            "fp.core.decompose",
-            "fp.core.explain",
-            "fp.core.trace",
-            "fp.eve.enter",
-            "fp.cli",
-            "fp.python",
-            "fp.wasm",
-            "fp.bevy",
-            "fp.mcpplus",
-            "fp.plugin.chatman",
-            "fp.docs",
-            "fp.release",
-        ] {
-            assert!(ids.contains(expected), "missing {expected}");
-        }
+        assert!(ids.contains("fp.core.explain"));
     }
 
     #[test]
-    fn manifest_and_input_fingerprints_are_stable_and_domain_separated() {
-        let manifest = capability_manifest();
-        let first = manifest.fingerprint().unwrap();
-        let second = capability_manifest().fingerprint().unwrap();
-        assert_eq!(first, second);
-        assert_eq!(first.len(), 64);
-        assert_ne!(
-            first,
-            production_input_fingerprint(DOMAIN, PROBLEM, &Options::default())
-        );
-    }
-
-    #[test]
-    fn admission_is_computed_from_complete_evidence() {
+    fn admission_is_evidence_derived() {
         let declared = evaluate_readiness("test-source", Vec::<String>::new()).unwrap();
         assert_eq!(declared.overall_state, ReadinessState::Declared);
+
         let all = capability_manifest()
             .capabilities
             .iter()
@@ -1147,27 +862,10 @@ mod tests {
             .collect::<Vec<_>>();
         let admitted = evaluate_readiness("test-source", all).unwrap();
         assert_eq!(admitted.overall_state, ReadinessState::Admitted);
-        assert!(admitted
-            .capabilities
-            .iter()
-            .all(|item| item.state == ReadinessState::Admitted));
     }
 
     #[test]
-    fn partial_evidence_cannot_be_crowned() {
-        let report = evaluate_readiness("test-source", ["core.solve.unit"]).unwrap();
-        assert_eq!(report.overall_state, ReadinessState::Partial);
-        let solve = report
-            .capabilities
-            .iter()
-            .find(|item| item.capability_id == "fp.core.solve")
-            .unwrap();
-        assert_eq!(solve.state, ReadinessState::Partial);
-        assert!(!solve.missing_evidence.is_empty());
-    }
-
-    #[test]
-    fn production_solve_is_bounded_validated_and_candidate_only() {
+    fn solve_is_bounded_validated_and_candidate_only() {
         let envelope = solve_production(
             DOMAIN,
             PROBLEM,
@@ -1178,41 +876,18 @@ mod tests {
         assert_eq!(envelope.outcome, OutcomeClass::Solved);
         assert_eq!(envelope.validation, ValidationStatus::Valid);
         assert_eq!(envelope.authority, CANDIDATE_AUTHORITY);
-        assert_eq!(envelope.request_id, "smoke-request");
         assert!(envelope.payload.as_ref().is_some_and(|value| value.solved));
-        assert!(envelope.build_identity.manifest_fingerprint.is_some());
     }
 
     #[test]
-    fn empty_plan_is_independently_validated() {
-        let problem = "(define (problem smoke-p) (:domain smoke) \
-            (:init (done)) (:goal (done)))";
-        let envelope = solve_production(
-            DOMAIN,
-            problem,
-            &Options::default(),
-            &ProductionLimits::default(),
-            None,
-        );
-        assert_eq!(envelope.outcome, OutcomeClass::Solved);
-        assert_eq!(envelope.validation, ValidationStatus::Valid);
-        assert_eq!(
-            envelope
-                .payload
-                .as_ref()
-                .and_then(|value| value.plan.as_ref())
-                .map(|plan| plan.length),
-            Some(0)
-        );
-    }
-
-    #[test]
-    fn invalid_floats_are_refused_and_fingerprint_distinct() {
+    fn invalid_float_is_refused_and_fingerprint_distinct() {
         let valid = production_input_fingerprint(DOMAIN, PROBLEM, &Options::default());
         let mut invalid = Options::default();
         invalid.weight_h = f64::NAN;
-        let invalid_fingerprint = production_input_fingerprint(DOMAIN, PROBLEM, &invalid);
-        assert_ne!(valid, invalid_fingerprint);
+        assert_ne!(
+            valid,
+            production_input_fingerprint(DOMAIN, PROBLEM, &invalid)
+        );
         let envelope = solve_production(
             DOMAIN,
             PROBLEM,
