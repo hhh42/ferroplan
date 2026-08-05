@@ -18,34 +18,29 @@
 //! handed to ggen/MCP+ with Truex receipt and replay obligations intact.
 //!
 //! The [`readiness`] module publishes the canonical capability inventory and
-//! bounded candidate-only production envelope. Readiness is evidence-derived;
-//! compilation alone never crowns a capability as admitted.
+//! evidence-derived admission model. The [`production`] module provides the
+//! bounded, candidate-only entry points for solve, parse, validation, trace,
+//! decomposition, PPDDL, and persistent sessions.
 //!
-//! ## The public API (all `serde`-serializable)
+//! ## Public API
 //!
-//! - [`solve`] — plan a deterministic domain + problem; returns a [`Solution`].
-//! - [`solve_production`] — bounded solve with typed errors, independent
-//!   validation, fingerprints, authority classification, and resource counters.
-//! - [`capability_manifest`] — canonical shipped capability contracts.
-//! - [`solve_ppddl`] — synthesize a bounded stochastic policy for PPDDL.
-//! - [`simulate_ppddl`] / [`validate_ppddl_policy`] — probabilistic execution receipts.
-//! - [`decompose`] — split and solve a temporal goal as ordered [`Contract`]s.
-//! - [`Eve::enter`] — compile human purpose into the Genesis/HDDL/PPDDL/ggen/MCP+
-//!   consequence handoff without granting actuation authority.
-//! - [`parse`] / [`parse_ppddl`] — fast syntax and structure feedback.
-//! - [`Session`] — ground once, replan many for mutable deterministic worlds.
-//! - [`plan::validate_plan`] — independently check a deterministic plan.
+//! Compatibility surfaces:
 //!
-//! ## Quick start
-//! ```no_run
-//! let domain = std::fs::read_to_string("domain.pddl").unwrap();
-//! let problem = std::fs::read_to_string("problem.pddl").unwrap();
+//! - [`solve`], [`parse`], [`decompose`], [`trace`], [`solve_ppddl`], [`Session`].
 //!
-//! let solution = ferroplan::solve(&domain, &problem, &ferroplan::Options::default()).unwrap();
-//! if let Some(plan) = solution.plan {
-//!     for step in &plan.steps { println!("{}", step.action); }
-//! }
-//! ```
+//! Bounded production surfaces:
+//!
+//! - [`solve_production`]
+//! - [`parse_production`]
+//! - [`validate_plan_production`]
+//! - [`trace_production`]
+//! - [`decompose_production`]
+//! - [`solve_ppddl_production`]
+//! - [`ProductionSession`]
+//! - [`capability_manifest`] and [`evaluate_readiness`]
+//!
+//! Production results are candidate or evidence outputs. They carry no
+//! actuation authority and do not replace BRCE, POWL, OCEL, Truex receipt, or replay.
 
 // engine (data-oriented core)
 pub mod bitset;
@@ -80,6 +75,7 @@ pub mod pddl3;
 pub mod plan;
 pub mod portfolio;
 pub mod ppddl;
+pub mod production;
 pub mod report;
 pub mod resolve;
 pub mod selection;
@@ -114,6 +110,10 @@ pub use ppddl::{
     PolicyDecision, PolicyOutcome, PolicyValidation, PpddlError, PpddlParseReport,
     ProbabilisticObjective, ProbabilisticOptions, ProbabilisticSolution, ProbabilisticState,
     ProbabilisticStatistics, SimulationReport,
+};
+pub use production::{
+    decompose_production, parse_production, solve_ppddl_production, trace_production,
+    validate_plan_production, PlanValidationEvidence, ProductionSession,
 };
 pub use readiness::{
     capability_manifest, evaluate_readiness, production_input_fingerprint, solve_production,
