@@ -1,16 +1,17 @@
-//! Fortune 5 capability contracts and bounded production execution.
+//! Canonical capability contracts, bounded production execution, and
+//! evidence-derived readiness.
 //!
-//! This module does not claim that a capability is production-admitted merely
-//! because it is compiled. It provides the canonical contract inventory, an
-//! evidence-driven evaluator, and the bounded solve envelope used by public
-//! adapters.
+//! Nothing in this module grants execution authority. A successful planning
+//! envelope is a candidate consequence. `ADMITTED` is computed only from an
+//! exact-source evidence set; it is never stored in a producer-authored
+//! capability declaration.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::api::{Mode, Options, Plan, Solution, SolveError};
+use crate::api::{Options, Plan, Solution, SolveError};
 
 pub const CAPABILITY_MANIFEST_SCHEMA: &str = "ferroplan.capabilities.v1";
 pub const OPERATION_ENVELOPE_SCHEMA: &str = "ferroplan.operation.v1";
@@ -18,7 +19,6 @@ pub const CANDIDATE_AUTHORITY: &str = "candidate_only";
 
 const MANIFEST_HASH_DOMAIN: &[u8] = b"ferroplan.capability-manifest.v1\0";
 const INPUT_HASH_DOMAIN: &[u8] = b"ferroplan.production-input.v1\0";
-
 const HARD_MAX_INPUT_BYTES: usize = 64 * 1024 * 1024;
 const HARD_MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
 const HARD_MAX_EVALUATED: usize = 50_000_000;
@@ -26,7 +26,7 @@ const HARD_MAX_PLAN_STEPS: usize = 100_000;
 const HARD_MAX_WORKERS: usize = 64;
 const MAX_REQUEST_ID_BYTES: usize = 128;
 const MAX_WARNING_COUNT: usize = 32;
-const MAX_WARNING_BYTES: usize = 1_024;
+const MAX_DIAGNOSTIC_BYTES: usize = 2_048;
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 #[serde(rename_all = "snake_case")]
@@ -72,7 +72,6 @@ pub enum ReplayClass {
 pub enum CompatibilityClass {
     Semver,
     VersionedSchema,
-    Internal,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -124,8 +123,12 @@ pub enum ManifestError {
     MissingField { id: String, field: String },
     #[error("capability `{0}` has no executable evidence requirements")]
     MissingEvidence(String),
-    #[error("capability `{0}` grants an unsupported authority class")]
-    InvalidAuthority(String),
+    #[error("capability `{0}` has duplicate or non-canonical evidence identifiers")]
+    NonCanonicalEvidence(String),
+    #[error("source identity must be non-empty")]
+    MissingSourceIdentity,
+    #[error("canonical manifest serialization failed")]
+    Serialization,
 }
 
 impl CapabilityManifest {
@@ -133,8 +136,8 @@ impl CapabilityManifest {
         if self.schema_version != CAPABILITY_MANIFEST_SCHEMA {
             return Err(ManifestError::Schema(self.schema_version.clone()));
         }
-        let ids: Vec<&str> = self.capabilities.iter().map(|c| c.id.as_str()).collect();
-        if ids.windows(2).any(|w| w[0] >= w[1]) {
+        let ids: Vec<&str> = self.capabilities.iter().map(|item| item.id.as_str()).collect();
+        if ids.windows(2).any(|window| window[0] >= window[1]) {
             return Err(ManifestError::NonCanonicalOrder);
         }
         let mut seen = BTreeSet::new();
@@ -163,13 +166,12 @@ impl CapabilityManifest {
             if capability.required_evidence.is_empty() {
                 return Err(ManifestError::MissingEvidence(capability.id.clone()));
             }
-            if !matches!(
-                capability.authority,
-                AuthorityClass::CandidateOnly
-                    | AuthorityClass::EvidenceOnly
-                    | AuthorityClass::PresentationOnly
-            ) {
-                return Err(ManifestError::InvalidAuthority(capability.id.clone()));
+            if capability
+                .required_evidence
+                .windows(2)
+                .any(|window| window[0] >= window[1])
+            {
+                return Err(ManifestError::NonCanonicalEvidence(capability.id.clone()));
             }
         }
         Ok(())
@@ -177,10 +179,7 @@ impl CapabilityManifest {
 
     pub fn fingerprint(&self) -> Result<String, ManifestError> {
         self.validate()?;
-        let bytes = serde_json::to_vec(self).map_err(|_| ManifestError::MissingField {
-            id: "manifest".to_string(),
-            field: "serializable canonical content".to_string(),
-        })?;
+        let bytes = serde_json::to_vec(self).map_err(|_| ManifestError::Serialization)?;
         Ok(sha256_hex(MANIFEST_HASH_DOMAIN, &[&bytes]))
     }
 }
@@ -195,6 +194,8 @@ fn contract(
     security: SecurityClass,
     evidence: &[&str],
 ) -> CapabilityContract {
+    let mut evidence: Vec<String> = evidence.iter().map(|value| (*value).to_string()).collect();
+    evidence.sort();
     CapabilityContract {
         id: id.to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
@@ -209,19 +210,20 @@ fn contract(
         resource_profile: "ferroplan.bounded-production.v1".to_string(),
         failure_contract: "ferroplan.public-errors.v1".to_string(),
         telemetry_contract: "ferroplan.redacted-events.v1".to_string(),
-        compatibility: if matches!(interface, InterfaceKind::RustLibrary) {
+        compatibility: if interface == InterfaceKind::RustLibrary {
             CompatibilityClass::Semver
         } else {
             CompatibilityClass::VersionedSchema
         },
         security,
         shipped: true,
-        required_evidence: evidence.iter().map(|s| (*s).to_string()).collect(),
+        required_evidence: evidence,
     }
 }
 
-/// The canonical shipped capability inventory. Documentation and adapters must
-/// project from this list rather than maintain independent capability claims.
+/// Canonical inventory for every default production capability family.
+/// Experimental internals and the broad legacy MCP compatibility binary are
+/// intentionally not advertised as production capabilities.
 pub fn capability_manifest() -> CapabilityManifest {
     let mut capabilities = vec![
         contract(
@@ -232,7 +234,7 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::OutcomeEquivalent,
             ReplayClass::Outcome,
             SecurityClass::LocalPresentation,
-            &["bevy.native.build", "bevy.wasm.build", "bevy.input.bounds"],
+            &["bevy.input.bounds", "bevy.native.build", "bevy.wasm.build"],
         ),
         contract(
             "fp.cli",
@@ -245,6 +247,20 @@ pub fn capability_manifest() -> CapabilityManifest {
             &["cli.contract", "cli.exit-codes", "cli.input.bounds", "cli.replay"],
         ),
         contract(
+            "fp.core.decompose",
+            "crates/ferroplan",
+            InterfaceKind::RustLibrary,
+            AuthorityClass::CandidateOnly,
+            DeterminismClass::Exact,
+            ReplayClass::Exact,
+            SecurityClass::UntrustedInput,
+            &[
+                "core.decompose.bounds",
+                "core.decompose.unit",
+                "core.decompose.validation",
+            ],
+        ),
+        contract(
             "fp.core.explain",
             "crates/ferroplan",
             InterfaceKind::RustLibrary,
@@ -252,7 +268,11 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::Exact,
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
-            &["core.explain.unit", "core.explain.negative", "core.explain.replay"],
+            &[
+                "core.explain.negative",
+                "core.explain.replay",
+                "core.explain.unit",
+            ],
         ),
         contract(
             "fp.core.fingerprint",
@@ -262,7 +282,10 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::Exact,
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
-            &["core.fingerprint.domain-separated", "core.fingerprint.replay"],
+            &[
+                "core.fingerprint.domain-separated",
+                "core.fingerprint.replay",
+            ],
         ),
         contract(
             "fp.core.parallel",
@@ -272,7 +295,49 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::Exact,
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
-            &["core.parallel.unit", "core.parallel.thread-parity", "core.parallel.bounds"],
+            &[
+                "core.parallel.bounds",
+                "core.parallel.thread-parity",
+                "core.parallel.unit",
+            ],
+        ),
+        contract(
+            "fp.core.parse",
+            "crates/ferroplan",
+            InterfaceKind::RustLibrary,
+            AuthorityClass::EvidenceOnly,
+            DeterminismClass::Exact,
+            ReplayClass::Exact,
+            SecurityClass::UntrustedInput,
+            &["core.parse.bounds", "core.parse.negative", "core.parse.unit"],
+        ),
+        contract(
+            "fp.core.ppddl",
+            "crates/ferroplan",
+            InterfaceKind::RustLibrary,
+            AuthorityClass::CandidateOnly,
+            DeterminismClass::Exact,
+            ReplayClass::Exact,
+            SecurityClass::UntrustedInput,
+            &[
+                "core.ppddl.policy-validation",
+                "core.ppddl.replay",
+                "core.ppddl.unit",
+            ],
+        ),
+        contract(
+            "fp.core.session",
+            "crates/ferroplan",
+            InterfaceKind::RustLibrary,
+            AuthorityClass::CandidateOnly,
+            DeterminismClass::OutcomeEquivalent,
+            ReplayClass::Outcome,
+            SecurityClass::UntrustedInput,
+            &[
+                "core.session.budget",
+                "core.session.replay",
+                "core.session.unit",
+            ],
         ),
         contract(
             "fp.core.solve",
@@ -283,11 +348,11 @@ pub fn capability_manifest() -> CapabilityManifest {
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
             &[
-                "core.solve.unit",
+                "core.solve.bounds",
                 "core.solve.independent-validation",
                 "core.solve.negative",
-                "core.solve.bounds",
                 "core.solve.replay",
+                "core.solve.unit",
             ],
         ),
         contract(
@@ -298,7 +363,17 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::OutcomeEquivalent,
             ReplayClass::Outcome,
             SecurityClass::UntrustedInput,
-            &["core.stream.unit", "core.stream.bounds", "core.stream.terminal"],
+            &["core.stream.bounds", "core.stream.terminal", "core.stream.unit"],
+        ),
+        contract(
+            "fp.core.trace",
+            "crates/ferroplan",
+            InterfaceKind::RustLibrary,
+            AuthorityClass::EvidenceOnly,
+            DeterminismClass::Exact,
+            ReplayClass::Exact,
+            SecurityClass::UntrustedInput,
+            &["core.trace.negative", "core.trace.replay", "core.trace.unit"],
         ),
         contract(
             "fp.core.validate",
@@ -308,7 +383,11 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::Exact,
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
-            &["core.validate.unit", "core.validate.negative", "core.validate.replay"],
+            &[
+                "core.validate.negative",
+                "core.validate.replay",
+                "core.validate.unit",
+            ],
         ),
         contract(
             "fp.docs",
@@ -318,7 +397,7 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::NotApplicable,
             ReplayClass::BuildReproducible,
             SecurityClass::LocalPresentation,
-            &["docs.mdbook", "docs.rustdoc", "docs.capability-truth"],
+            &["docs.capability-truth", "docs.mdbook", "docs.rustdoc"],
         ),
         contract(
             "fp.eve.enter",
@@ -328,7 +407,7 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::Exact,
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
-            &["eve.unit", "eve.need9-split", "eve.authority", "eve.replay"],
+            &["eve.authority", "eve.need9-split", "eve.replay", "eve.unit"],
         ),
         contract(
             "fp.mcpplus",
@@ -339,11 +418,11 @@ pub fn capability_manifest() -> CapabilityManifest {
             ReplayClass::Outcome,
             SecurityClass::UntrustedInput,
             &[
-                "mcp.protocol",
-                "mcp.frame-bounds",
-                "mcp.concurrency-bounds",
                 "mcp.candidate-authority",
+                "mcp.concurrency-bounds",
+                "mcp.frame-bounds",
                 "mcp.integration",
+                "mcp.protocol",
             ],
         ),
         contract(
@@ -354,7 +433,12 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::OutcomeEquivalent,
             ReplayClass::Outcome,
             SecurityClass::UntrustedInput,
-            &["plugin.lint", "plugin.generated-current", "plugin.tests", "plugin.verifier"],
+            &[
+                "plugin.generated-current",
+                "plugin.lint",
+                "plugin.tests",
+                "plugin.verifier",
+            ],
         ),
         contract(
             "fp.python",
@@ -364,7 +448,7 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::Exact,
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
-            &["python.wheel", "python.import", "python.bounds", "python.parity"],
+            &["python.bounds", "python.import", "python.parity", "python.wheel"],
         ),
         contract(
             "fp.release",
@@ -375,11 +459,13 @@ pub fn capability_manifest() -> CapabilityManifest {
             ReplayClass::BuildReproducible,
             SecurityClass::BuildControl,
             &[
-                "release.full-matrix",
-                "release.dependency-audit",
-                "release.sbom",
-                "release.checksums",
                 "release.admission-report",
+                "release.checksums",
+                "release.dependency-audit",
+                "release.full-matrix",
+                "release.license-inventory",
+                "release.sbom",
+                "release.source-identity",
             ],
         ),
         contract(
@@ -390,14 +476,19 @@ pub fn capability_manifest() -> CapabilityManifest {
             DeterminismClass::Exact,
             ReplayClass::Exact,
             SecurityClass::UntrustedInput,
-            &["wasm.build", "wasm.bounds", "wasm.parity", "wasm.no-ambient-authority"],
+            &[
+                "wasm.bounds",
+                "wasm.build",
+                "wasm.no-ambient-authority",
+                "wasm.parity",
+            ],
         ),
     ];
-    capabilities.sort_by(|a, b| a.id.cmp(&b.id));
+    capabilities.sort_by(|left, right| left.id.cmp(&right.id));
     CapabilityManifest {
         schema_version: CAPABILITY_MANIFEST_SCHEMA.to_string(),
         product_version: env!("CARGO_PKG_VERSION").to_string(),
-        authority_notice: "All planner outputs are candidate-only; external BRCE/OCEL/Truex receipt closure owns authoritative consequence.".to_string(),
+        authority_notice: "All planner outputs are candidate-only; external BRCE/POWL/OCEL/Truex receipt closure owns authoritative consequence.".to_string(),
         capabilities,
     }
 }
@@ -428,12 +519,11 @@ pub struct ReadinessReport {
     pub product_version: String,
     pub source_identity: String,
     pub manifest_fingerprint: String,
+    pub evaluator_version: String,
     pub overall_state: ReadinessState,
     pub capabilities: Vec<CapabilityEvaluation>,
 }
 
-/// Compute readiness from independently supplied evidence identifiers. The
-/// capability producer cannot set `Admitted` in the manifest.
 pub fn evaluate_readiness<I, S>(
     source_identity: impl Into<String>,
     evidence: I,
@@ -442,51 +532,51 @@ where
     I: IntoIterator<Item = S>,
     S: Into<String>,
 {
+    let source_identity = source_identity.into();
+    if source_identity.trim().is_empty() {
+        return Err(ManifestError::MissingSourceIdentity);
+    }
     let manifest = capability_manifest();
     manifest.validate()?;
     let evidence: BTreeSet<String> = evidence.into_iter().map(Into::into).collect();
-    let mut evaluations = Vec::with_capacity(manifest.capabilities.len());
-    for contract in &manifest.capabilities {
-        let mut satisfied = Vec::new();
-        let mut missing = Vec::new();
-        for requirement in &contract.required_evidence {
-            if evidence.contains(requirement) {
-                satisfied.push(requirement.clone());
-            } else {
-                missing.push(requirement.clone());
-            }
-        }
-        let state = if !contract.shipped {
-            ReadinessState::Blocked
-        } else if missing.is_empty() {
-            ReadinessState::Admitted
-        } else if satisfied.is_empty() {
-            ReadinessState::Declared
-        } else {
-            ReadinessState::Partial
-        };
-        evaluations.push(CapabilityEvaluation {
-            capability_id: contract.id.clone(),
-            state,
-            satisfied_evidence: satisfied,
-            missing_evidence: missing,
-        });
-    }
-    let overall_state = if evaluations
+    let capabilities = manifest
+        .capabilities
         .iter()
-        .all(|evaluation| evaluation.state == ReadinessState::Admitted)
+        .map(|contract| {
+            let (satisfied_evidence, missing_evidence): (Vec<_>, Vec<_>) = contract
+                .required_evidence
+                .iter()
+                .cloned()
+                .partition(|requirement| evidence.contains(requirement));
+            let state = if !contract.shipped {
+                ReadinessState::Blocked
+            } else if missing_evidence.is_empty() {
+                ReadinessState::Admitted
+            } else if satisfied_evidence.is_empty() {
+                ReadinessState::Declared
+            } else {
+                ReadinessState::Partial
+            };
+            CapabilityEvaluation {
+                capability_id: contract.id.clone(),
+                state,
+                satisfied_evidence,
+                missing_evidence,
+            }
+        })
+        .collect::<Vec<_>>();
+    let overall_state = if capabilities
+        .iter()
+        .all(|item| item.state == ReadinessState::Admitted)
     {
         ReadinessState::Admitted
-    } else if evaluations.iter().any(|evaluation| {
-        matches!(
-            evaluation.state,
-            ReadinessState::Blocked | ReadinessState::Refused
-        )
+    } else if capabilities.iter().any(|item| {
+        matches!(item.state, ReadinessState::Blocked | ReadinessState::Refused)
     }) {
         ReadinessState::Blocked
-    } else if evaluations
+    } else if capabilities
         .iter()
-        .any(|evaluation| evaluation.state == ReadinessState::Partial)
+        .any(|item| item.state == ReadinessState::Partial)
     {
         ReadinessState::Partial
     } else {
@@ -495,10 +585,11 @@ where
     Ok(ReadinessReport {
         schema_version: "ferroplan.readiness-report.v1".to_string(),
         product_version: manifest.product_version.clone(),
-        source_identity: source_identity.into(),
+        source_identity,
         manifest_fingerprint: manifest.fingerprint()?,
+        evaluator_version: env!("CARGO_PKG_VERSION").to_string(),
         overall_state,
-        capabilities: evaluations,
+        capabilities,
     })
 }
 
@@ -576,7 +667,7 @@ impl PublicError {
     pub fn new(code: impl Into<String>, message: impl Into<String>, retryable: bool) -> Self {
         Self {
             code: code.into(),
-            message: truncate_utf8(&message.into(), MAX_WARNING_BYTES),
+            message: truncate_utf8(&message.into(), MAX_DIAGNOSTIC_BYTES),
             retryable,
         }
     }
@@ -585,8 +676,8 @@ impl PublicError {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct BuildIdentity {
     pub product_version: String,
-    pub source_revision: String,
-    pub manifest_fingerprint: String,
+    pub source_revision: Option<String>,
+    pub manifest_fingerprint: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -609,44 +700,10 @@ pub struct OperationEnvelope<T> {
     pub error: Option<PublicError>,
 }
 
-fn build_identity() -> BuildIdentity {
-    let manifest = capability_manifest();
-    BuildIdentity {
-        product_version: env!("CARGO_PKG_VERSION").to_string(),
-        source_revision: option_env!("FERROPLAN_BUILD_SHA")
-            .unwrap_or("source-revision-not-embedded")
-            .to_string(),
-        manifest_fingerprint: manifest
-            .fingerprint()
-            .unwrap_or_else(|_| "invalid-manifest".to_string()),
-    }
-}
-
-fn base_envelope<T>(
-    request_id: String,
-    input_fingerprint: String,
-    elapsed_micros: u64,
-) -> OperationEnvelope<T> {
-    OperationEnvelope {
-        schema_version: OPERATION_ENVELOPE_SCHEMA.to_string(),
-        request_id,
-        capability_id: "fp.core.solve".to_string(),
-        capability_version: env!("CARGO_PKG_VERSION").to_string(),
-        build_identity: build_identity(),
-        input_fingerprint,
-        authority: CANDIDATE_AUTHORITY.to_string(),
-        outcome: OutcomeClass::Failed,
-        validation: ValidationStatus::NotApplicable,
-        elapsed_micros,
-        counters: BTreeMap::new(),
-        warnings: Vec::new(),
-        payload: None,
-        error: None,
-    }
-}
-
-/// Execute the deterministic planner through bounded, independently validated,
-/// candidate-only production semantics.
+/// Bounded deterministic planning with typed failure semantics and independent
+/// validation. Hard wall-clock isolation belongs to service adapters such as
+/// `ferroplan-mcp-plus`; this in-process API is bounded by deterministic work,
+/// worker, plan, input, and output limits.
 pub fn solve_production(
     domain: &str,
     problem: &str,
@@ -657,34 +714,37 @@ pub fn solve_production(
     let clock = crate::clock::Clock::now();
     let input_fingerprint = production_input_fingerprint(domain, problem, options);
     let request_id = normalize_request_id(request_id, &input_fingerprint);
-
+    let manifest_fingerprint = capability_manifest().fingerprint();
+    let mut envelope = base_envelope(
+        request_id,
+        input_fingerprint,
+        elapsed(&clock),
+        manifest_fingerprint.clone().ok(),
+    );
+    if let Err(error) = manifest_fingerprint {
+        envelope.error = Some(PublicError::new("FP_INVARIANT", error.to_string(), false));
+        return envelope;
+    }
     if let Err(error) = limits.validate() {
-        let mut envelope = base_envelope(request_id, input_fingerprint, elapsed(&clock));
         envelope.outcome = OutcomeClass::Refused;
         envelope.error = Some(error);
         return envelope;
     }
     if let Some(error) = validate_request(domain, problem, options, limits) {
-        let mut envelope = base_envelope(request_id, input_fingerprint, elapsed(&clock));
         envelope.outcome = OutcomeClass::Refused;
         envelope.error = Some(error);
         return envelope;
     }
 
+    let effective_max = options
+        .max_evaluated
+        .unwrap_or(limits.max_evaluated)
+        .min(limits.max_evaluated);
     let mut bounded_options = options.clone();
-    if bounded_options.threads == 0 {
-        bounded_options.threads = 1;
-    }
-    bounded_options.max_evaluated = Some(
-        bounded_options
-            .max_evaluated
-            .unwrap_or(limits.max_evaluated)
-            .min(limits.max_evaluated),
-    );
+    bounded_options.threads = bounded_options.threads.max(1);
+    bounded_options.max_evaluated = Some(effective_max);
 
-    let result = crate::api::solve(domain, problem, &bounded_options);
-    let mut envelope = base_envelope(request_id, input_fingerprint, elapsed(&clock));
-    match result {
+    match crate::api::solve(domain, problem, &bounded_options) {
         Err(error) => {
             envelope.outcome = OutcomeClass::Refused;
             envelope.error = Some(map_solve_error(error));
@@ -709,7 +769,7 @@ pub fn solve_production(
             envelope.warnings = bounded_warnings(&solution.notes);
 
             if !solution.solved {
-                let capped = solution.statistics.evaluated_states >= limits.max_evaluated;
+                let capped = solution.statistics.evaluated_states >= effective_max;
                 envelope.outcome = if capped {
                     OutcomeClass::LimitExceeded
                 } else {
@@ -718,110 +778,85 @@ pub fn solve_production(
                 if capped {
                     envelope.error = Some(PublicError::new(
                         "FP_LIMIT_SEARCH",
-                        format!(
-                            "search reached the configured max_evaluated limit ({})",
-                            limits.max_evaluated
-                        ),
+                        format!("search reached max_evaluated={effective_max}"),
                         true,
                     ));
                 }
                 envelope.payload = Some(solution);
-                envelope.elapsed_micros = elapsed(&clock);
-                return envelope;
-            }
-
-            let plan = match solution.plan.as_ref() {
-                Some(plan) => plan,
-                None => {
-                    envelope.outcome = OutcomeClass::Failed;
-                    envelope.validation = ValidationStatus::Failed;
-                    envelope.error = Some(PublicError::new(
-                        "FP_INVARIANT",
-                        "solver reported solved=true without a plan",
-                        false,
-                    ));
-                    envelope.elapsed_micros = elapsed(&clock);
-                    return envelope;
-                }
-            };
-            if plan.length != plan.steps.len() {
-                envelope.outcome = OutcomeClass::Failed;
-                envelope.validation = ValidationStatus::Failed;
-                envelope.error = Some(PublicError::new(
-                    "FP_INVARIANT",
-                    "plan length does not match the number of emitted steps",
-                    false,
-                ));
-                envelope.elapsed_micros = elapsed(&clock);
-                return envelope;
-            }
-            if plan.length > limits.max_plan_steps {
-                envelope.outcome = OutcomeClass::LimitExceeded;
-                envelope.error = Some(PublicError::new(
-                    "FP_LIMIT_PLAN",
-                    format!(
-                        "plan contains {} steps; configured maximum is {}",
-                        plan.length, limits.max_plan_steps
-                    ),
-                    true,
-                ));
-                envelope.elapsed_micros = elapsed(&clock);
-                return envelope;
-            }
-
-            match independently_validate(domain, problem, plan) {
-                Ok(ValidationStatus::Valid) => {
-                    envelope.validation = ValidationStatus::Valid;
-                }
-                Ok(ValidationStatus::NotApplicable) => {
-                    envelope.validation = ValidationStatus::NotApplicable;
-                    envelope.warnings.push(
-                        "independent text-plan validation is not applicable to the empty plan"
-                            .to_string(),
-                    );
-                }
-                Ok(ValidationStatus::Failed) | Err(_) => {
-                    envelope.outcome = OutcomeClass::Failed;
-                    envelope.validation = ValidationStatus::Failed;
-                    envelope.error = Some(PublicError::new(
-                        "FP_VALIDATION",
-                        "the emitted plan failed independent validation",
-                        false,
-                    ));
-                    envelope.elapsed_micros = elapsed(&clock);
-                    return envelope;
-                }
-            }
-
-            match serde_json::to_vec(&solution) {
-                Ok(bytes) if bytes.len() <= limits.max_output_bytes => {
-                    envelope.outcome = OutcomeClass::Solved;
-                    envelope.payload = Some(solution);
-                }
-                Ok(bytes) => {
-                    envelope.outcome = OutcomeClass::LimitExceeded;
-                    envelope.error = Some(PublicError::new(
-                        "FP_LIMIT_OUTPUT",
-                        format!(
-                            "serialized solution is {} bytes; configured maximum is {}",
-                            bytes.len(), limits.max_output_bytes
-                        ),
-                        true,
-                    ));
-                }
-                Err(_) => {
-                    envelope.outcome = OutcomeClass::Failed;
-                    envelope.error = Some(PublicError::new(
-                        "FP_ADAPTER",
-                        "solution could not be serialized",
-                        false,
-                    ));
-                }
+            } else {
+                admit_solved_candidate(domain, problem, solution, limits, &mut envelope);
             }
         }
     }
     envelope.elapsed_micros = elapsed(&clock);
+    enforce_output_limit(&mut envelope, limits.max_output_bytes);
     envelope
+}
+
+fn admit_solved_candidate(
+    domain: &str,
+    problem: &str,
+    solution: Solution,
+    limits: &ProductionLimits,
+    envelope: &mut OperationEnvelope<Solution>,
+) {
+    let Some(plan) = solution.plan.as_ref() else {
+        envelope.outcome = OutcomeClass::Failed;
+        envelope.validation = ValidationStatus::Failed;
+        envelope.error = Some(PublicError::new(
+            "FP_INVARIANT",
+            "solver reported solved=true without a plan",
+            false,
+        ));
+        return;
+    };
+    if plan.length != plan.steps.len() {
+        envelope.outcome = OutcomeClass::Failed;
+        envelope.validation = ValidationStatus::Failed;
+        envelope.error = Some(PublicError::new(
+            "FP_INVARIANT",
+            "plan length does not match emitted step count",
+            false,
+        ));
+        return;
+    }
+    if plan.length > limits.max_plan_steps {
+        envelope.outcome = OutcomeClass::LimitExceeded;
+        envelope.error = Some(PublicError::new(
+            "FP_LIMIT_PLAN",
+            format!(
+                "plan contains {} steps; maximum is {}",
+                plan.length, limits.max_plan_steps
+            ),
+            true,
+        ));
+        return;
+    }
+    match independently_validate(domain, problem, plan) {
+        Ok(ValidationStatus::Valid) => {
+            envelope.outcome = OutcomeClass::Solved;
+            envelope.validation = ValidationStatus::Valid;
+            envelope.payload = Some(solution);
+        }
+        Ok(ValidationStatus::NotApplicable) => {
+            envelope.outcome = OutcomeClass::Failed;
+            envelope.validation = ValidationStatus::Failed;
+            envelope.error = Some(PublicError::new(
+                "FP_VALIDATION",
+                "independent validation was unexpectedly unavailable",
+                false,
+            ));
+        }
+        Ok(ValidationStatus::Failed) | Err(_) => {
+            envelope.outcome = OutcomeClass::Failed;
+            envelope.validation = ValidationStatus::Failed;
+            envelope.error = Some(PublicError::new(
+                "FP_VALIDATION",
+                "emitted plan failed independent validation",
+                false,
+            ));
+        }
+    }
 }
 
 fn validate_request(
@@ -841,7 +876,7 @@ fn validate_request(
         return Some(PublicError::new(
             "FP_LIMIT_INPUT",
             format!(
-                "domain is {} bytes; configured maximum is {}",
+                "domain is {} bytes; maximum is {}",
                 domain.len(), limits.max_domain_bytes
             ),
             false,
@@ -851,7 +886,7 @@ fn validate_request(
         return Some(PublicError::new(
             "FP_LIMIT_INPUT",
             format!(
-                "problem is {} bytes; configured maximum is {}",
+                "problem is {} bytes; maximum is {}",
                 problem.len(), limits.max_problem_bytes
             ),
             false,
@@ -872,7 +907,7 @@ fn validate_request(
         return Some(PublicError::new(
             "FP_LIMIT_WORKERS",
             format!(
-                "requested {} workers; configured maximum is {}",
+                "requested {} workers; maximum is {}",
                 options.threads, limits.max_workers
             ),
             false,
@@ -884,10 +919,7 @@ fn validate_request(
     {
         return Some(PublicError::new(
             "FP_LIMIT_SEARCH",
-            format!(
-                "max_evaluated must be in 1..={} for this surface",
-                limits.max_evaluated
-            ),
+            format!("max_evaluated must be in 1..={}", limits.max_evaluated),
             false,
         ));
     }
@@ -917,9 +949,6 @@ fn independently_validate(
     problem: &str,
     plan: &Plan,
 ) -> Result<ValidationStatus, String> {
-    if plan.steps.is_empty() {
-        return Ok(ValidationStatus::NotApplicable);
-    }
     let plan_text = render_plan(plan);
     match crate::plan::validate_plan(domain, problem, &plan_text)? {
         crate::plan::Validity::Valid => Ok(ValidationStatus::Valid),
@@ -929,7 +958,7 @@ fn independently_validate(
 
 fn render_plan(plan: &Plan) -> String {
     let temporal = plan.steps.iter().any(|step| step.time.is_some());
-    let mut out = String::new();
+    let mut output = String::new();
     for step in &plan.steps {
         let args = if step.args.is_empty() {
             String::new()
@@ -937,25 +966,89 @@ fn render_plan(plan: &Plan) -> String {
             format!(" {}", step.args.join(" "))
         };
         if temporal {
-            let time = step.time.unwrap_or(0.0);
-            let duration = step.duration.unwrap_or(0.0);
-            out.push_str(&format!(
-                "{time:.6}: ({}{args}) [{duration:.6}]\n",
-                step.action
+            output.push_str(&format!(
+                "{:.6}: ({}{args}) [{:.6}]\n",
+                step.time.unwrap_or(0.0),
+                step.action,
+                step.duration.unwrap_or(0.0)
             ));
         } else {
-            out.push_str(&format!("step {}: {}{args}\n", step.index, step.action));
+            output.push_str(&format!("step {}: {}{args}\n", step.index, step.action));
         }
     }
-    out
+    output
 }
 
 pub fn production_input_fingerprint(domain: &str, problem: &str, options: &Options) -> String {
-    let options = serde_json::to_vec(options).unwrap_or_default();
+    let options_bytes = serde_json::to_vec(options)
+        .unwrap_or_else(|_| format!("{options:?}").into_bytes());
     sha256_hex(
         INPUT_HASH_DOMAIN,
-        &[domain.as_bytes(), problem.as_bytes(), &options],
+        &[domain.as_bytes(), problem.as_bytes(), &options_bytes],
     )
+}
+
+fn build_identity(manifest_fingerprint: Option<String>) -> BuildIdentity {
+    BuildIdentity {
+        product_version: env!("CARGO_PKG_VERSION").to_string(),
+        source_revision: option_env!("FERROPLAN_BUILD_SHA")
+            .filter(|value| !value.trim().is_empty())
+            .map(ToOwned::to_owned),
+        manifest_fingerprint,
+    }
+}
+
+fn base_envelope<T>(
+    request_id: String,
+    input_fingerprint: String,
+    elapsed_micros: u64,
+    manifest_fingerprint: Option<String>,
+) -> OperationEnvelope<T> {
+    OperationEnvelope {
+        schema_version: OPERATION_ENVELOPE_SCHEMA.to_string(),
+        request_id,
+        capability_id: "fp.core.solve".to_string(),
+        capability_version: env!("CARGO_PKG_VERSION").to_string(),
+        build_identity: build_identity(manifest_fingerprint),
+        input_fingerprint,
+        authority: CANDIDATE_AUTHORITY.to_string(),
+        outcome: OutcomeClass::Failed,
+        validation: ValidationStatus::NotApplicable,
+        elapsed_micros,
+        counters: BTreeMap::new(),
+        warnings: Vec::new(),
+        payload: None,
+        error: None,
+    }
+}
+
+fn enforce_output_limit<T: Serialize>(envelope: &mut OperationEnvelope<T>, max_bytes: usize) {
+    match serde_json::to_vec(envelope) {
+        Ok(bytes) if bytes.len() <= max_bytes => {}
+        Ok(bytes) => {
+            envelope.payload = None;
+            envelope.outcome = OutcomeClass::LimitExceeded;
+            envelope.validation = ValidationStatus::NotApplicable;
+            envelope.error = Some(PublicError::new(
+                "FP_LIMIT_OUTPUT",
+                format!(
+                    "operation envelope is {} bytes; maximum is {max_bytes}",
+                    bytes.len()
+                ),
+                true,
+            ));
+        }
+        Err(_) => {
+            envelope.payload = None;
+            envelope.outcome = OutcomeClass::Failed;
+            envelope.validation = ValidationStatus::Failed;
+            envelope.error = Some(PublicError::new(
+                "FP_ADAPTER",
+                "operation envelope could not be serialized",
+                false,
+            ));
+        }
+    }
 }
 
 fn sha256_hex(domain: &[u8], parts: &[&[u8]]) -> String {
@@ -969,17 +1062,18 @@ fn sha256_hex(domain: &[u8], parts: &[&[u8]]) -> String {
 }
 
 fn normalize_request_id(request_id: Option<&str>, fingerprint: &str) -> String {
-    match request_id.map(str::trim).filter(|id| !id.is_empty()) {
-        Some(id) => truncate_utf8(id, MAX_REQUEST_ID_BYTES),
-        None => format!("req-{}", &fingerprint[..16.min(fingerprint.len())]),
-    }
+    request_id
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| truncate_utf8(value, MAX_REQUEST_ID_BYTES))
+        .unwrap_or_else(|| format!("req-{}", &fingerprint[..16.min(fingerprint.len())]))
 }
 
 fn bounded_warnings(warnings: &[String]) -> Vec<String> {
     warnings
         .iter()
         .take(MAX_WARNING_COUNT)
-        .map(|warning| truncate_utf8(warning, MAX_WARNING_BYTES))
+        .map(|warning| truncate_utf8(warning, MAX_DIAGNOSTIC_BYTES))
         .collect()
 }
 
@@ -1013,120 +1107,27 @@ mod tests {
         (:init) (:goal (done)))";
 
     #[test]
-    fn manifest_is_canonical_and_domain_separated() {
+    fn manifest_is_canonical_complete_and_domain_separated() {
         let manifest = capability_manifest();
         manifest.validate().unwrap();
-        let first = manifest.fingerprint().unwrap();
-        let second = capability_manifest().fingerprint().unwrap();
-        assert_eq!(first, second);
-        assert_eq!(first.len(), 64);
-        assert_ne!(first, production_input_fingerprint(DOMAIN, PROBLEM, &Options::default()));
-    }
-
-    #[test]
-    fn admission_is_evidence_derived() {
-        let declared = evaluate_readiness("test-source", Vec::<String>::new()).unwrap();
-        assert_eq!(declared.overall_state, ReadinessState::Declared);
-        assert!(declared
-            .capabilities
-            .iter()
-            .all(|evaluation| evaluation.state == ReadinessState::Declared));
-
-        let all = capability_manifest()
-            .capabilities
-            .iter()
-            .flat_map(|contract| contract.required_evidence.clone())
-            .collect::<Vec<_>>();
-        let admitted = evaluate_readiness("test-source", all).unwrap();
-        assert_eq!(admitted.overall_state, ReadinessState::Admitted);
-    }
-
-    #[test]
-    fn production_solve_is_bounded_validated_and_candidate_only() {
-        let envelope = solve_production(
-            DOMAIN,
-            PROBLEM,
-            &Options::default(),
-            &ProductionLimits::default(),
-            Some("smoke-request"),
+        let fingerprint = manifest.fingerprint().unwrap();
+        assert_eq!(fingerprint, capability_manifest().fingerprint().unwrap());
+        assert_eq!(fingerprint.len(), 64);
+        assert_ne!(
+            fingerprint,
+            production_input_fingerprint(DOMAIN, PROBLEM, &Options::default())
         );
-        assert_eq!(envelope.outcome, OutcomeClass::Solved);
-        assert_eq!(envelope.validation, ValidationStatus::Valid);
-        assert_eq!(envelope.authority, CANDIDATE_AUTHORITY);
-        assert_eq!(envelope.request_id, "smoke-request");
-        assert!(envelope.payload.as_ref().is_some_and(|solution| solution.solved));
-    }
-
-    #[test]
-    fn production_solve_refuses_oversized_input_before_parse() {
-        let limits = ProductionLimits {
-            max_domain_bytes: 8,
-            ..ProductionLimits::default()
-        };
-        let envelope = solve_production(DOMAIN, PROBLEM, &Options::default(), &limits, None);
-        assert_eq!(envelope.outcome, OutcomeClass::Refused);
-        assert_eq!(
-            envelope.error.as_ref().map(|error| error.code.as_str()),
-            Some("FP_LIMIT_INPUT")
-        );
-        assert!(envelope.payload.is_none());
-    }
-
-    #[test]
-    fn invalid_weights_are_refused_not_sanitized_at_public_boundary() {
-        let mut options = Options::default();
-        options.weight_h = f64::NAN;
-        let envelope = solve_production(
-            DOMAIN,
-            PROBLEM,
-            &options,
-            &ProductionLimits::default(),
-            None,
-        );
-        assert_eq!(envelope.outcome, OutcomeClass::Refused);
-        assert_eq!(
-            envelope.error.as_ref().map(|error| error.code.as_str()),
-            Some("FP_INVALID_REQUEST")
-        );
-    }
-
-    #[test]
-    fn partial_evidence_cannot_be_crowned() {
-        let report = evaluate_readiness("test-source", ["core.solve.unit"]).unwrap();
-        assert_eq!(report.overall_state, ReadinessState::Partial);
-        let solve = report
-            .capabilities
-            .iter()
-            .find(|evaluation| evaluation.capability_id == "fp.core.solve")
-            .unwrap();
-        assert_eq!(solve.state, ReadinessState::Partial);
-        assert!(!solve.missing_evidence.is_empty());
-    }
-
-    #[test]
-    fn empty_plan_is_not_falsely_claimed_independently_validated() {
-        let already_true = "(define (problem smoke-p) (:domain smoke) \
-            (:init (done)) (:goal (done)))";
-        let envelope = solve_production(
-            DOMAIN,
-            already_true,
-            &Options::default(),
-            &ProductionLimits::default(),
-            None,
-        );
-        assert_eq!(envelope.outcome, OutcomeClass::Solved);
-        assert_eq!(envelope.validation, ValidationStatus::NotApplicable);
-    }
-
-    #[test]
-    fn canonical_manifest_contains_every_advertised_surface() {
-        let ids: BTreeSet<_> = capability_manifest()
+        let ids: BTreeSet<_> = manifest
             .capabilities
             .into_iter()
-            .map(|contract| contract.id)
+            .map(|item| item.id)
             .collect();
         for expected in [
             "fp.core.solve",
+            "fp.core.parse",
+            "fp.core.ppddl",
+            "fp.core.session",
+            "fp.core.decompose",
             "fp.eve.enter",
             "fp.cli",
             "fp.python",
@@ -1142,10 +1143,112 @@ mod tests {
     }
 
     #[test]
-    fn mode_is_bound_into_input_identity() {
+    fn admission_is_computed_from_complete_evidence() {
+        let declared = evaluate_readiness("test-source", Vec::<String>::new()).unwrap();
+        assert_eq!(declared.overall_state, ReadinessState::Declared);
+        let all = capability_manifest()
+            .capabilities
+            .iter()
+            .flat_map(|contract| contract.required_evidence.clone())
+            .collect::<Vec<_>>();
+        let admitted = evaluate_readiness("test-source", all).unwrap();
+        assert_eq!(admitted.overall_state, ReadinessState::Admitted);
+        assert!(admitted
+            .capabilities
+            .iter()
+            .all(|item| item.state == ReadinessState::Admitted));
+    }
+
+    #[test]
+    fn partial_evidence_cannot_be_crowned() {
+        let report = evaluate_readiness("test-source", ["core.solve.unit"]).unwrap();
+        assert_eq!(report.overall_state, ReadinessState::Partial);
+        let solve = report
+            .capabilities
+            .iter()
+            .find(|item| item.capability_id == "fp.core.solve")
+            .unwrap();
+        assert_eq!(solve.state, ReadinessState::Partial);
+        assert!(!solve.missing_evidence.is_empty());
+    }
+
+    #[test]
+    fn production_solve_is_bounded_validated_and_candidate_only() {
+        let envelope = solve_production(
+            DOMAIN,
+            PROBLEM,
+            &Options::default(),
+            &ProductionLimits::default(),
+            Some("smoke-request"),
+        );
+        assert_eq!(envelope.outcome, OutcomeClass::Solved);
+        assert_eq!(envelope.validation, ValidationStatus::Valid);
+        assert_eq!(envelope.authority, CANDIDATE_AUTHORITY);
+        assert_eq!(envelope.request_id, "smoke-request");
+        assert!(envelope.payload.as_ref().is_some_and(|value| value.solved));
+        assert!(envelope.build_identity.manifest_fingerprint.is_some());
+    }
+
+    #[test]
+    fn empty_plan_is_independently_validated() {
+        let problem = "(define (problem smoke-p) (:domain smoke) \
+            (:init (done)) (:goal (done)))";
+        let envelope = solve_production(
+            DOMAIN,
+            problem,
+            &Options::default(),
+            &ProductionLimits::default(),
+            None,
+        );
+        assert_eq!(envelope.outcome, OutcomeClass::Solved);
+        assert_eq!(envelope.validation, ValidationStatus::Valid);
+        assert_eq!(
+            envelope.payload.as_ref().and_then(|value| value.plan.as_ref()).map(|plan| plan.length),
+            Some(0)
+        );
+    }
+
+    #[test]
+    fn production_solve_refuses_input_before_parse() {
+        let limits = ProductionLimits {
+            max_domain_bytes: 8,
+            ..ProductionLimits::default()
+        };
+        let envelope = solve_production(DOMAIN, PROBLEM, &Options::default(), &limits, None);
+        assert_eq!(envelope.outcome, OutcomeClass::Refused);
+        assert_eq!(
+            envelope.error.as_ref().map(|error| error.code.as_str()),
+            Some("FP_LIMIT_INPUT")
+        );
+        assert!(envelope.payload.is_none());
+    }
+
+    #[test]
+    fn invalid_floats_are_refused_and_remain_fingerprint_distinct() {
+        let valid = production_input_fingerprint(DOMAIN, PROBLEM, &Options::default());
+        let mut invalid = Options::default();
+        invalid.weight_h = f64::NAN;
+        let invalid_fingerprint = production_input_fingerprint(DOMAIN, PROBLEM, &invalid);
+        assert_ne!(valid, invalid_fingerprint);
+        let envelope = solve_production(
+            DOMAIN,
+            PROBLEM,
+            &invalid,
+            &ProductionLimits::default(),
+            None,
+        );
+        assert_eq!(envelope.outcome, OutcomeClass::Refused);
+        assert_eq!(
+            envelope.error.as_ref().map(|error| error.code.as_str()),
+            Some("FP_INVALID_REQUEST")
+        );
+    }
+
+    #[test]
+    fn option_changes_are_bound_into_input_identity() {
         let auto = production_input_fingerprint(DOMAIN, PROBLEM, &Options::default());
         let mut ff = Options::default();
-        ff.mode = Mode::Ff;
+        ff.mode = crate::Mode::Ff;
         assert_ne!(auto, production_input_fingerprint(DOMAIN, PROBLEM, &ff));
     }
 }
