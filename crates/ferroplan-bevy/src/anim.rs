@@ -83,8 +83,7 @@ pub fn controls(
             let domain = scene.domain_src.clone();
             let problem = scene.problem_src.clone();
             job.0 = Some(
-                AsyncComputeTaskPool::get()
-                    .spawn(async move { solve_blocking(domain, problem) }),
+                AsyncComputeTaskPool::get().spawn(async move { solve_blocking(domain, problem) }),
             );
             plan.status = "solving bounded candidate…".into();
         }
@@ -160,7 +159,9 @@ fn solve_blocking(domain: String, problem: String) -> SolveResult {
     match (envelope.outcome, envelope.validation, envelope.payload) {
         (OutcomeClass::Solved, ValidationStatus::Valid, Some(solution)) => {
             let mut result = result_from_solution(&domain, &problem, solution);
-            result.status.push_str(" · candidate-only · independently validated");
+            result
+                .status
+                .push_str(" · candidate-only · independently validated");
             result
         }
         (OutcomeClass::Solved, ValidationStatus::NotApplicable, Some(solution)) => {
