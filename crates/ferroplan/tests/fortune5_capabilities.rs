@@ -1,6 +1,7 @@
 use ferroplan::{
-    decompose, parse, solve, solve_ppddl, trace, validate_ppddl_policy, Options,
-    ProbabilisticOptions, Session,
+    decompose_production, parse_production, solve_ppddl_production, solve_production,
+    trace_production, validate_plan_production, Options, OutcomeClass, ProbabilisticOptions,
+    ProductionLimits, ProductionSession, ValidationStatus,
 };
 
 const DOMAIN: &str = r#"
@@ -35,24 +36,53 @@ const RETRY_PROBLEM: &str = r#"
 "#;
 
 #[test]
-fn parse_accepts_valid_input_and_refuses_malformed_input() {
-    let valid = parse(DOMAIN);
-    assert!(valid.ok, "{:?}", valid.error);
-    let invalid = parse("(define (domain broken)");
-    assert!(!invalid.ok);
-    assert!(invalid.error.is_some());
+fn bounded_parse_accepts_valid_input_and_refuses_malformed_or_oversized_input() {
+    let valid = parse_production(DOMAIN, 1024 * 1024, Some("parse-valid"));
+    assert_eq!(valid.outcome, OutcomeClass::Solved);
+    assert_eq!(valid.validation, ValidationStatus::Valid);
+    assert_eq!(valid.authority, "evidence_only");
+
+    let malformed = parse_production("(define (domain broken)", 1024, None);
+    assert_eq!(malformed.outcome, OutcomeClass::Refused);
+    assert_eq!(
+        malformed.error.as_ref().map(|error| error.code.as_str()),
+        Some("FP_PARSE")
+    );
+
+    let oversized = parse_production(DOMAIN, 8, None);
+    assert_eq!(oversized.outcome, OutcomeClass::Refused);
+    assert_eq!(
+        oversized.error.as_ref().map(|error| error.code.as_str()),
+        Some("FP_LIMIT_INPUT")
+    );
 }
 
 #[test]
-fn trace_replays_the_solved_candidate_from_the_declared_initial_state() {
-    let solution = solve(DOMAIN, PROBLEM, &Options::default()).unwrap();
-    let plan = solution.plan.expect("solved plan");
+fn bounded_trace_replays_an_independently_validated_candidate() {
+    let solve = solve_production(
+        DOMAIN,
+        PROBLEM,
+        &Options::default(),
+        &ProductionLimits::default(),
+        Some("trace-source"),
+    );
+    assert_eq!(solve.outcome, OutcomeClass::Solved);
+    let plan = solve.payload.unwrap().plan.unwrap();
     let steps: Vec<(String, Vec<String>)> = plan
         .steps
         .iter()
         .map(|step| (step.action.clone(), step.args.clone()))
         .collect();
-    let snapshots = trace(DOMAIN, PROBLEM, &steps).unwrap();
+    let traced = trace_production(
+        DOMAIN,
+        PROBLEM,
+        &steps,
+        &ProductionLimits::default(),
+        Some("trace-replay"),
+    );
+    assert_eq!(traced.outcome, OutcomeClass::Solved);
+    assert_eq!(traced.validation, ValidationStatus::Valid);
+    let snapshots = traced.payload.unwrap();
     assert_eq!(snapshots.len(), steps.len() + 1);
     assert!(snapshots
         .last()
@@ -60,29 +90,59 @@ fn trace_replays_the_solved_candidate_from_the_declared_initial_state() {
         .facts
         .iter()
         .any(|fact| fact == "(DONE)"));
+
+    let invalid = trace_production(
+        DOMAIN,
+        PROBLEM,
+        &[("MISSING".to_string(), Vec::new())],
+        &ProductionLimits::default(),
+        None,
+    );
+    assert_eq!(invalid.outcome, OutcomeClass::Refused);
+    assert_eq!(invalid.validation, ValidationStatus::Failed);
 }
 
 #[test]
-fn session_budget_is_deterministic_and_replayable() {
-    let session = Session::new(DOMAIN, PROBLEM, &Options::default()).unwrap();
-    let first = session.replan_budgeted(1_000, Some(64));
-    let second = session.replan_budgeted(1_000, Some(64));
-    assert!(first.solved && second.solved);
+fn production_session_is_budgeted_deterministic_and_replayable() {
+    let session = ProductionSession::new(
+        DOMAIN,
+        PROBLEM,
+        &Options::default(),
+        ProductionLimits::default(),
+    )
+    .unwrap();
+    let first = session.replan(1_000, Some(64), Some("session-first"));
+    let second = session.replan(1_000, Some(64), Some("session-second"));
+    assert_eq!(first.outcome, OutcomeClass::Solved);
+    assert_eq!(second.outcome, OutcomeClass::Solved);
+    assert_eq!(first.validation, ValidationStatus::Valid);
     assert_eq!(
-        serde_json::to_value(&first.plan).unwrap(),
-        serde_json::to_value(&second.plan).unwrap()
+        serde_json::to_value(&first.payload).unwrap(),
+        serde_json::to_value(&second.payload).unwrap()
     );
-    let plan = first.plan.as_ref().unwrap();
-    assert!(session.plan_still_valid(plan, 0));
     assert!(session.world_bytes() > 0);
     assert!(session.mind_bytes() > 0);
+
+    let refused = session.replan(0, Some(64), None);
+    assert_eq!(refused.outcome, OutcomeClass::Refused);
+    assert_eq!(
+        refused.error.as_ref().map(|error| error.code.as_str()),
+        Some("FP_LIMIT_SEARCH")
+    );
 }
 
 #[test]
-fn decomposition_returns_a_valid_stitched_candidate() {
-    let decomposition = decompose(DOMAIN, PROBLEM, &Options::default()).unwrap();
-    assert!(decomposition.solved, "{:?}", decomposition.notes);
-    let plan = decomposition.plan.expect("stitched plan");
+fn production_decomposition_returns_a_valid_stitched_candidate() {
+    let decomposition = decompose_production(
+        DOMAIN,
+        PROBLEM,
+        &Options::default(),
+        &ProductionLimits::default(),
+        Some("decompose"),
+    );
+    assert_eq!(decomposition.outcome, OutcomeClass::Solved);
+    assert_eq!(decomposition.validation, ValidationStatus::Valid);
+    let plan = decomposition.payload.unwrap().plan.unwrap();
     let text = plan
         .steps
         .iter()
@@ -96,14 +156,20 @@ fn decomposition_returns_a_valid_stitched_candidate() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(matches!(
-        ferroplan::plan::validate_plan(DOMAIN, PROBLEM, &text).unwrap(),
-        ferroplan::plan::Validity::Valid
-    ));
+    let validation = validate_plan_production(
+        DOMAIN,
+        PROBLEM,
+        &text,
+        1024 * 1024,
+        1024 * 1024,
+        Some("decompose-validation"),
+    );
+    assert_eq!(validation.outcome, OutcomeClass::Solved);
+    assert_eq!(validation.validation, ValidationStatus::Valid);
 }
 
 #[test]
-fn ppddl_policy_is_bounded_validated_and_seed_replayable() {
+fn production_ppddl_policy_is_bounded_validated_and_replayable() {
     let options = ProbabilisticOptions {
         horizon: Some(2),
         max_states: 128,
@@ -114,16 +180,43 @@ fn ppddl_policy_is_bounded_validated_and_seed_replayable() {
         threads: 1,
         ..Default::default()
     };
-    let solution = solve_ppddl(RETRY_DOMAIN, RETRY_PROBLEM, &options).unwrap();
-    let validation =
-        validate_ppddl_policy(RETRY_DOMAIN, RETRY_PROBLEM, &options, &solution).unwrap();
-    assert!(validation.valid, "{:?}", validation.errors);
-    let first = ferroplan::simulate_ppddl(RETRY_DOMAIN, RETRY_PROBLEM, &options, 1_000, 7)
-        .unwrap();
-    let second = ferroplan::simulate_ppddl(RETRY_DOMAIN, RETRY_PROBLEM, &options, 1_000, 7)
-        .unwrap();
-    assert_eq!(first.reached_goal, second.reached_goal);
-    assert_eq!(first.average_reward, second.average_reward);
-    assert_eq!(first.average_discounted_reward, second.average_discounted_reward);
-    assert_eq!(first.average_steps, second.average_steps);
+    let first = solve_ppddl_production(
+        RETRY_DOMAIN,
+        RETRY_PROBLEM,
+        &options,
+        1024 * 1024,
+        4 * 1024 * 1024,
+        Some("ppddl-first"),
+    );
+    let second = solve_ppddl_production(
+        RETRY_DOMAIN,
+        RETRY_PROBLEM,
+        &options,
+        1024 * 1024,
+        4 * 1024 * 1024,
+        Some("ppddl-second"),
+    );
+    assert_eq!(first.outcome, OutcomeClass::Solved);
+    assert_eq!(first.validation, ValidationStatus::Valid);
+    assert_eq!(second.outcome, OutcomeClass::Solved);
+    assert_eq!(
+        serde_json::to_value(&first.payload).unwrap(),
+        serde_json::to_value(&second.payload).unwrap()
+    );
+
+    let mut excessive = options;
+    excessive.max_states = usize::MAX;
+    let refused = solve_ppddl_production(
+        RETRY_DOMAIN,
+        RETRY_PROBLEM,
+        &excessive,
+        1024 * 1024,
+        4 * 1024 * 1024,
+        None,
+    );
+    assert_eq!(refused.outcome, OutcomeClass::Refused);
+    assert_eq!(
+        refused.error.as_ref().map(|error| error.code.as_str()),
+        Some("FP_LIMIT_SEARCH")
+    );
 }
