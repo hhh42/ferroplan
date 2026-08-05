@@ -228,13 +228,41 @@ fn mcp_problem() -> PlanningProblem {
 fn rdf_problem() -> PlanningProblem {
     PlanningProblem {
         rdf: vec![
-            RdfTriple { subject: "s0".into(), predicate: "state".into(), object: "true".into() },
-            RdfTriple { subject: "s0".into(), predicate: "initial".into(), object: "true".into() },
-            RdfTriple { subject: "g".into(), predicate: "state".into(), object: "true".into() },
-            RdfTriple { subject: "g".into(), predicate: "goal".into(), object: "true".into() },
-            RdfTriple { subject: "move".into(), predicate: "from".into(), object: "s0".into() },
-            RdfTriple { subject: "move".into(), predicate: "to".into(), object: "g".into() },
-            RdfTriple { subject: "move".into(), predicate: "action".into(), object: "move".into() },
+            RdfTriple {
+                subject: "s0".into(),
+                predicate: "state".into(),
+                object: "true".into(),
+            },
+            RdfTriple {
+                subject: "s0".into(),
+                predicate: "initial".into(),
+                object: "true".into(),
+            },
+            RdfTriple {
+                subject: "g".into(),
+                predicate: "state".into(),
+                object: "true".into(),
+            },
+            RdfTriple {
+                subject: "g".into(),
+                predicate: "goal".into(),
+                object: "true".into(),
+            },
+            RdfTriple {
+                subject: "move".into(),
+                predicate: "from".into(),
+                object: "s0".into(),
+            },
+            RdfTriple {
+                subject: "move".into(),
+                predicate: "to".into(),
+                object: "g".into(),
+            },
+            RdfTriple {
+                subject: "move".into(),
+                predicate: "action".into(),
+                object: "move".into(),
+            },
         ],
         ..PlanningProblem::default()
     }
@@ -289,10 +317,7 @@ fn every_planner_is_admitted_by_the_mfw_python_oracle() {
         None => panic!("MFW_PLANNER_ORACLE_PYTHONPATH is required"),
     };
 
-    let root = std::env::temp_dir().join(format!(
-        "ferroplan-mfw-oracle-{}",
-        std::process::id()
-    ));
+    let root = std::env::temp_dir().join(format!("ferroplan-mfw-oracle-{}", std::process::id()));
     fs::create_dir_all(&root).expect("create oracle temp directory");
 
     for (index, (planning_type, problem)) in fixtures().into_iter().enumerate() {
