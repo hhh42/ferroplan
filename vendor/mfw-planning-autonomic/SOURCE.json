@@ -1,0 +1,35 @@
+{
+  "schema": "urn:mfw:planning-autonomic-source-capsule:v1",
+  "producer": {
+    "repository": "seanchatmangpt/mfw",
+    "commit": "df511b2dd6aec591d49bf25f652d46a2d03fc3d1",
+    "pull_request": 59
+  },
+  "projection": {
+    "mode": "bounded-semantic-source-projection",
+    "claim_ceiling": "planner-oracle-and-read-only-lifecycle-v1",
+    "generated": true,
+    "hand_edit_refused": true
+  },
+  "source_blobs": {
+    "tools/mfw-planner-oracle-python/src/mfw_planner_oracle/oracle.py": "070c534706e0311e75bd8748bd3aa3e000bc99b1",
+    "tools/mfw-planner-oracle-python/src/mfw_planner_oracle/compare.py": "5484fa59eda4f9a8c6eb8c1a1413fa443b6ef5f8",
+    "tools/mfw-planner-oracle-python/src/mfw_planner_oracle/cli.py": "dd08acd9d66428e790dd85eff841a21cd0259405f8",
+    "tools/mfw-autonomic-lifecycle-python/src/mfw_autonomic_lifecycle/controller.py": "a2439898e8b39fcf73698ee985dce4852dc78513"
+  },
+  "consumer_paths": [
+    "vendor/mfw-planning-autonomic/oracle/mfw_planner_oracle/oracle.py",
+    "vendor/mfw-planning-autonomic/oracle/mfw_planner_oracle/compare.py",
+    "vendor/mfw-planning-autonomic/oracle/mfw_planner_oracle/cli.py",
+    "vendor/mfw-planning-autonomic/lifecycle/mfw_autonomic_lifecycle/controller.py",
+    "vendor/mfw-planning-autonomic/lifecycle/mfw_autonomic_lifecycle/cli.py"
+  ],
+  "authority": {
+    "actuation": false,
+    "merge": false,
+    "release": false,
+    "network": false,
+    "shell_interpretation": false,
+    "lifecycle_wip_limit": 1
+  }
+}
