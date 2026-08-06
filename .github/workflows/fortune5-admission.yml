@@ -1,0 +1,478 @@
+name: Fortune 5 Capability Admission
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fortune5-admission-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: ""
+  FERROPLAN_BUILD_SHA: ${{ github.sha }}
+
+jobs:
+  core-native:
+    name: Core, CLI, Eve, docs, native Bevy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install native GUI dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev libudev-dev libwayland-dev libx11-dev \
+            libxcursor-dev libxi-dev libxinerama-dev libxkbcommon-dev \
+            libxrandr-dev pkg-config
+      - name: Static and compile gates
+        run: |
+          cargo fmt --all -- --check
+          cargo check --workspace --all-targets --all-features
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Complete native and bounded-capability tests
+        run: |
+          cargo test --workspace
+          cargo test -p ferroplan --test fortune5_capabilities
+          cargo test -p ferroplan --test eve_genesis
+          cargo test -p ferroplan --test ppddl
+          cargo test -p ferroplan --test decompose
+          cargo test -p ferroplan --test parse
+          cargo test -p ferroplan --test robustness
+          cargo test -p ferroplan --test mem_budget
+          cargo test -p ferroplan --test node_cap
+          cargo test --release -p ferroplan -- --ignored
+      - name: Documentation and benchmark compile gates
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: |
+          cargo doc --no-deps --workspace --all-features
+          cargo bench --no-run -p ferroplan
+          cp benchmarks/results.md book/src/results.md
+          cargo install mdbook --version 0.4.52 --locked
+          mdbook build book
+      - name: Exercise readiness and bounded CLI parity
+        run: |
+          mkdir -p target/fortune5
+          cat > target/fortune5/domain.pddl <<'PDDL'
+          (define (domain smoke)
+            (:requirements :strips)
+            (:predicates (done))
+            (:action finish :parameters () :precondition (and) :effect (done)))
+          PDDL
+          cat > target/fortune5/problem.pddl <<'PDDL'
+          (define (problem smoke-p) (:domain smoke) (:init) (:goal (done)))
+          PDDL
+          cargo run -q -p ferroplan-cli -- --readiness > target/fortune5/readiness-contract.json
+          cargo run -q -p ferroplan-cli -- \
+            --production -o target/fortune5/domain.pddl -f target/fortune5/problem.pddl \
+            --request-id native-1 > target/fortune5/native-1.json
+          cargo run -q -p ferroplan-cli -- \
+            --production -o target/fortune5/domain.pddl -f target/fortune5/problem.pddl \
+            --request-id native-2 > target/fortune5/native-2.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          a = json.loads(Path('target/fortune5/native-1.json').read_text())
+          b = json.loads(Path('target/fortune5/native-2.json').read_text())
+          assert a['outcome'] == b['outcome'] == 'solved'
+          assert a['validation'] == b['validation'] == 'valid'
+          assert a['authority'] == b['authority'] == 'candidate_only'
+          assert a['input_fingerprint'] == b['input_fingerprint']
+          assert a['payload']['plan'] == b['payload']['plan']
+          assert a['build_identity']['source_revision'] == os.environ['GITHUB_SHA']
+          assert b['build_identity']['source_revision'] == os.environ['GITHUB_SHA']
+          readiness = json.loads(Path('target/fortune5/readiness-contract.json').read_text())
+          assert readiness['contract_valid'] is True
+          assert readiness['admission_state'] == 'declared'
+          for capability in readiness['manifest']['capabilities']:
+              component = capability['component']
+              assert Path(component).exists(), (capability['id'], component)
+          PY
+          set +e
+          cargo run -q -p ferroplan-cli -- \
+            --production -o target/fortune5/domain.pddl -f target/fortune5/problem.pddl \
+            --max-domain-bytes 8 > target/fortune5/native-refusal.json
+          code=$?
+          set -e
+          test "$code" -eq 2
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          value = json.loads(Path('target/fortune5/native-refusal.json').read_text())
+          assert value['outcome'] == 'refused'
+          assert value['error']['code'] == 'FP_LIMIT_INPUT'
+          assert value.get('payload') is None
+          PY
+      - name: Record exact command evidence
+        run: |
+          cat > target/fortune5/evidence-core.txt <<'EOF'
+          bevy.input.bounds
+          bevy.native.build
+          cli.contract
+          cli.exit-codes
+          cli.input.bounds
+          cli.replay
+          core.decompose.bounds
+          core.decompose.unit
+          core.decompose.validation
+          core.explain.negative
+          core.explain.replay
+          core.explain.unit
+          core.fingerprint.domain-separated
+          core.fingerprint.replay
+          core.parallel.bounds
+          core.parallel.thread-parity
+          core.parallel.unit
+          core.parse.bounds
+          core.parse.negative
+          core.parse.unit
+          core.ppddl.policy-validation
+          core.ppddl.replay
+          core.ppddl.unit
+          core.session.budget
+          core.session.replay
+          core.session.unit
+          core.solve.bounds
+          core.solve.independent-validation
+          core.solve.negative
+          core.solve.replay
+          core.solve.unit
+          core.trace.negative
+          core.trace.replay
+          core.trace.unit
+          core.validate.negative
+          core.validate.replay
+          core.validate.unit
+          docs.capability-truth
+          docs.mdbook
+          docs.rustdoc
+          eve.authority
+          eve.need9-split
+          eve.replay
+          eve.unit
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortune5-evidence-core
+          path: |
+            target/fortune5/evidence-core.txt
+            target/fortune5/readiness-contract.json
+            target/fortune5/native-1.json
+            target/fortune5/native-refusal.json
+
+  browser:
+    name: Browser WASM and Bevy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install browser toolchain
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-bindgen-cli --version 0.2.126 --locked
+      - name: Build planner and Bevy browser artifacts
+        run: |
+          crates/ferroplan-wasm/build.sh
+          crates/ferroplan-bevy/build-wasm.sh
+          test -s crates/ferroplan-wasm/web/pkg/ferroplan_wasm_bg.wasm
+          test -s crates/ferroplan-wasm/web/pkg/ferroplan_wasm.js
+          test -s crates/ferroplan-bevy/web/pkg/ferroplan_bevy_bg.wasm
+          test -s crates/ferroplan-bevy/web/pkg/ferroplan_bevy.js
+      - name: Execute planner WASM through Node
+        run: |
+          mkdir -p target/fortune5/wasm-node
+          wasm-bindgen --target nodejs --out-dir target/fortune5/wasm-node \
+            target/wasm32-unknown-unknown/release/ferroplan_wasm.wasm
+          node <<'JS'
+          const wasm = require('./target/fortune5/wasm-node/ferroplan_wasm.js');
+          const domain = `(define (domain smoke)
+            (:requirements :strips)
+            (:predicates (done))
+            (:action finish :parameters () :precondition (and) :effect (done)))`;
+          const problem = `(define (problem smoke-p) (:domain smoke) (:init) (:goal (done)))`;
+          const result = JSON.parse(wasm.plan_production(domain, problem, 'auto', 'auto', 10000, 100, 1048576, 'wasm-smoke'));
+          if (result.outcome !== 'solved' || result.validation !== 'valid') throw new Error(JSON.stringify(result));
+          if (result.authority !== 'candidate_only') throw new Error('authority drift');
+          const readiness = JSON.parse(wasm.readiness());
+          if (!readiness.contract_valid || readiness.admission_state !== 'declared') throw new Error('readiness drift');
+          const refusal = JSON.parse(wasm.plan_production(domain, problem, 'unknown', 'auto', 10000, 100, 1048576, 'wasm-refusal'));
+          if (refusal.error.code !== 'FP_INVALID_REQUEST') throw new Error(JSON.stringify(refusal));
+          JS
+      - name: Record browser evidence
+        run: |
+          mkdir -p target/fortune5
+          cat > target/fortune5/evidence-browser.txt <<'EOF'
+          bevy.wasm.build
+          wasm.bounds
+          wasm.build
+          wasm.no-ambient-authority
+          wasm.parity
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortune5-evidence-browser
+          path: target/fortune5/evidence-browser.txt
+
+  python:
+    name: Python ABI3 production contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: Swatinem/rust-cache@v2
+      - name: Build, install, and exercise wheel
+        env:
+          PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
+        run: |
+          python -m pip install --quiet maturin
+          mkdir -p target/fortune5/py-wheels
+          maturin build --release --manifest-path crates/ferroplan-py/Cargo.toml --out target/fortune5/py-wheels
+          python -m pip install --force-reinstall target/fortune5/py-wheels/*.whl
+          python - <<'PY'
+          import json, os
+          import ferroplan
+          domain = '''(define (domain smoke)
+            (:requirements :strips)
+            (:predicates (done))
+            (:action finish :parameters () :precondition (and) :effect (done)))'''
+          problem = '''(define (problem smoke-p) (:domain smoke) (:init) (:goal (done)))'''
+          result = json.loads(ferroplan.plan_production(domain, problem, request_id='python-smoke'))
+          assert result['outcome'] == 'solved', result
+          assert result['validation'] == 'valid', result
+          assert result['authority'] == 'candidate_only', result
+          assert result['build_identity']['source_revision'] == os.environ['GITHUB_SHA']
+          readiness = json.loads(ferroplan.readiness())
+          assert readiness['contract_valid'] is True
+          refusal = json.loads(ferroplan.plan_production(domain, problem, mode='unknown'))
+          assert refusal['outcome'] == 'refused'
+          assert refusal['error']['code'] == 'FP_INVALID_REQUEST'
+          legacy = json.loads(ferroplan.plan(domain, problem, threads=1))
+          assert legacy['solved'] is True
+          PY
+      - name: Record Python evidence
+        run: |
+          cat > target/fortune5/evidence-python.txt <<'EOF'
+          python.bounds
+          python.import
+          python.parity
+          python.wheel
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortune5-evidence-python
+          path: |
+            target/fortune5/evidence-python.txt
+            target/fortune5/py-wheels/*.whl
+
+  mcp-plugin:
+    name: MCP+ isolation and plugin verifier
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: Swatinem/rust-cache@v2
+      - name: MCP+ tests and fixed-surface self-test
+        run: |
+          cargo test -p ferroplan-mcp --bin ferroplan-mcp-plus
+          cargo clippy -p ferroplan-mcp --bin ferroplan-mcp-plus -- -D warnings
+          cargo build --release -p ferroplan-mcp --bin ferroplan-mcp-plus
+          target/release/ferroplan-mcp-plus --self-test > target/mcp-plus-self-test.json
+      - name: Exercise MCP+ protocol, refusal, and hard deadline
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          binary = './target/release/ferroplan-mcp-plus'
+          domain = '''(define (domain smoke)
+            (:requirements :strips)
+            (:predicates (done))
+            (:action finish :parameters () :precondition (and) :effect (done)))'''
+          problem = '''(define (problem smoke-p) (:domain smoke) (:init) (:goal (done)))'''
+          requests = [
+            {'jsonrpc':'2.0','id':1,'method':'initialize','params':{}},
+            {'jsonrpc':'2.0','id':2,'method':'tools/list','params':{}},
+            {'jsonrpc':'2.0','id':3,'method':'tools/call','params':{'name':'plan','arguments':{'domain':domain,'problem':problem,'timeout_ms':5000}}},
+            {'jsonrpc':'2.0','id':4,'method':'tools/call','params':{'name':'plan','arguments':{'domain':domain,'problem':problem,'timeout_ms':1}}},
+            {'jsonrpc':'2.0','id':5,'method':'shell/exec','params':{}},
+          ]
+          completed = subprocess.run(
+              [binary],
+              input=''.join(json.dumps(r)+'\n' for r in requests),
+              text=True,
+              capture_output=True,
+              timeout=30,
+              check=True,
+          )
+          responses = [json.loads(line) for line in completed.stdout.splitlines()]
+          assert len(responses) == len(requests), completed.stdout
+          assert responses[0]['result']['authority'] == 'candidate_only'
+          names = [tool['name'] for tool in responses[1]['result']['tools']]
+          assert names == ['plan','parse','validate','explain','readiness','version']
+          solved = responses[2]['result']['structuredContent']
+          assert solved['outcome'] == 'solved' and solved['validation'] == 'valid'
+          assert solved['authority'] == 'candidate_only'
+          assert responses[3]['error']['data']['ferroplanCode'] == 'FP_TIMEOUT'
+          assert responses[4]['error']['data']['ferroplanCode'] == 'FP_UNSUPPORTED'
+          assert 'domain' not in completed.stderr and 'problem' not in completed.stderr
+          PY
+      - name: Plugin control-plane verification
+        working-directory: plugins/chatman-ecosystem
+        run: |
+          python -m pip install --quiet pytest ruff typer pydantic jsonschema rdflib pyshacl coverage
+          ruff check scripts tests
+          python -m compileall -q scripts
+          for file in scripts/*.sh; do sh -n "$file"; done
+          python3 scripts/generate.py build --check
+          pytest
+      - name: Record MCP+ and plugin evidence
+        run: |
+          mkdir -p target/fortune5
+          cat > target/fortune5/evidence-mcp-plugin.txt <<'EOF'
+          mcp.candidate-authority
+          mcp.concurrency-bounds
+          mcp.frame-bounds
+          mcp.integration
+          mcp.protocol
+          plugin.generated-current
+          plugin.lint
+          plugin.tests
+          plugin.verifier
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortune5-evidence-mcp-plugin
+          path: |
+            target/fortune5/evidence-mcp-plugin.txt
+            target/mcp-plus-self-test.json
+
+  supply-chain:
+    name: Dependency audit, SBOM, licenses, checksums
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install pinned supply-chain tools
+        run: |
+          cargo install cargo-audit --version 0.22.2 --locked
+          cargo install cargo-cyclonedx --version 0.5.9 --locked
+      - name: Audit dependencies
+        run: |
+          mkdir -p target/fortune5
+          cargo audit --json > target/fortune5/cargo-audit.json
+      - name: Generate CycloneDX SBOM and license inventory
+        run: |
+          cargo cyclonedx --format json --all-features --target all --license-strict
+          find . -name 'bom.json' -type f -size +0 -print | sort > target/fortune5/sbom-files.txt
+          test -s target/fortune5/sbom-files.txt
+          cargo metadata --locked --format-version 1 > target/fortune5/cargo-metadata.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          metadata = json.loads(Path('target/fortune5/cargo-metadata.json').read_text())
+          rows, missing = [], []
+          for package in metadata['packages']:
+              rows.append({
+                  'name': package['name'], 'version': package['version'],
+                  'source': package.get('source'), 'license': package.get('license'),
+                  'license_file': package.get('license_file')
+              })
+              if package.get('source') and not (package.get('license') or package.get('license_file')):
+                  missing.append(f"{package['name']}@{package['version']}")
+          Path('target/fortune5/license-inventory.json').write_text(json.dumps(rows, indent=2, sort_keys=True))
+          assert not missing, missing
+          PY
+      - name: Build attributable release artifacts and checksums
+        run: |
+          cargo build --release -p ferroplan-cli
+          cargo build --release -p ferroplan-mcp --bin ferroplan-mcp-plus
+          test -x target/release/ff
+          test -x target/release/ferroplan-mcp-plus
+          sha256sum Cargo.lock target/release/ff target/release/ferroplan-mcp-plus \
+            > target/fortune5/SHA256SUMS
+          test -s target/fortune5/SHA256SUMS
+      - name: Record supply-chain evidence
+        run: |
+          cat > target/fortune5/evidence-supply.txt <<'EOF'
+          release.checksums
+          release.dependency-audit
+          release.license-inventory
+          release.sbom
+          release.source-identity
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortune5-evidence-supply
+          path: |
+            target/fortune5/evidence-supply.txt
+            target/fortune5/cargo-audit.json
+            target/fortune5/cargo-metadata.json
+            target/fortune5/license-inventory.json
+            target/fortune5/sbom-files.txt
+            target/fortune5/SHA256SUMS
+
+  admit:
+    name: Independent exact-source admission
+    runs-on: ubuntu-24.04
+    needs: [core-native, browser, python, mcp-plugin, supply-chain]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: fortune5-evidence-*
+          path: target/fortune5/downloaded
+          merge-multiple: true
+      - name: Bind completed rails into exact-source evidence
+        run: |
+          find target/fortune5/downloaded -name 'evidence-*.txt' -type f -print0 \
+            | xargs -0 cat > target/fortune5/evidence.txt
+          cat >> target/fortune5/evidence.txt <<'EOF'
+          release.admission-report
+          release.full-matrix
+          EOF
+          sort -u target/fortune5/evidence.txt -o target/fortune5/evidence.txt
+      - name: Compute verifier-derived admission report
+        run: |
+          cargo run -q -p ferroplan --bin ferroplan-readiness -- \
+            --source "${GITHUB_SHA}" \
+            --evidence target/fortune5/evidence.txt \
+            > target/fortune5/admission-report.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = json.loads(Path('target/fortune5/admission-report.json').read_text())
+          assert report['source_identity'] == os.environ['GITHUB_SHA']
+          assert report['overall_state'] == 'admitted', report
+          assert all(item['state'] == 'admitted' for item in report['capabilities'])
+          assert all(not item['missing_evidence'] for item in report['capabilities'])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fortune5-exact-source-admission
+          path: |
+            target/fortune5/evidence.txt
+            target/fortune5/admission-report.json

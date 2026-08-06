@@ -21,6 +21,10 @@ publish = true
 name = "ferroplan-mcp"
 path = "src/main.rs"
 
+[[bin]]
+name = "ferroplan-mcp-plus"
+path = "src/mcp_plus_ready.rs"
+
 [dependencies]
 # `schema` gives Options/Mode/Search a real JsonSchema, so the tool inputs that
 # embed them advertise the actual knobs instead of an opaque object.
@@ -34,3 +38,4 @@ bcinr-cmca = { version = "26.7.28", features = ["std"] }
 rmcp = { version = "3.1", features = ["server", "macros", "transport-io"] }
 schemars = "1.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync"] }
+wait-timeout = "0.2"

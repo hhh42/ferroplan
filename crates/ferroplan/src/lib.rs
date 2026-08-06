@@ -17,30 +17,33 @@
 //! through HDDL, governed through PPDDL when uncertainty is explicit, and
 //! handed to ggen/MCP+ with Truex receipt and replay obligations intact.
 //!
-//! ## The public API (all `serde`-serializable)
+//! The [`readiness`] module publishes the canonical capability inventory and
+//! evidence-derived admission model. The [`production`] and
+//! [`production_explain`] modules provide bounded, candidate-only or
+//! evidence-only entry points for solve, parse, validation, explanation, trace,
+//! decomposition, PPDDL, and persistent sessions.
 //!
-//! - [`solve`] — plan a deterministic domain + problem; returns a [`Solution`].
-//! - [`solve_ppddl`] — synthesize a bounded stochastic policy for PPDDL.
-//! - [`simulate_ppddl`] / [`validate_ppddl_policy`] — probabilistic execution receipts.
-//! - [`decompose`] — split and solve a temporal goal as ordered [`Contract`]s.
-//! - [`Eve::enter`] — compile human purpose into the Genesis/HDDL/PPDDL/ggen/MCP+
-//!   consequence handoff without granting actuation authority.
-//! - [`route_planning_request`] — select the lawful execution rail for a typed planning request.
-//! - [`solve_planning_type`] — execute every admitted planning family over the bounded universal model.
-//! - [`parse`] / [`parse_ppddl`] — fast syntax and structure feedback.
-//! - [`Session`] — ground once, replan many for mutable deterministic worlds.
-//! - [`plan::validate_plan`] — independently check a deterministic plan.
+//! ## Public API
 //!
-//! ## Quick start
-//! ```no_run
-//! let domain = std::fs::read_to_string("domain.pddl").unwrap();
-//! let problem = std::fs::read_to_string("problem.pddl").unwrap();
+//! Compatibility surfaces:
 //!
-//! let solution = ferroplan::solve(&domain, &problem, &ferroplan::Options::default()).unwrap();
-//! if let Some(plan) = solution.plan {
-//!     for step in &plan.steps { println!("{}", step.action); }
-//! }
-//! ```
+//! - [`solve`], [`parse`], [`decompose`], [`trace`], [`solve_ppddl`], [`Session`].
+//! - [`route_planning_request`] and [`solve_planning_type`] for the typed universal model.
+//!
+//! Bounded production surfaces:
+//!
+//! - [`solve_production`]
+//! - [`parse_production`]
+//! - [`validate_plan_production`]
+//! - [`explain_production`]
+//! - [`trace_production`]
+//! - [`decompose_production`]
+//! - [`solve_ppddl_production`]
+//! - [`ProductionSession`]
+//! - [`capability_manifest`] and [`evaluate_readiness`]
+//!
+//! Production results are candidate or evidence outputs. They carry no
+//! actuation authority and do not replace BRCE, POWL, OCEL, Truex receipt, or replay.
 
 // engine (data-oriented core)
 pub mod bitset;
@@ -77,6 +80,11 @@ pub mod planning_runtime;
 pub mod planning_types;
 pub mod portfolio;
 pub mod ppddl;
+// The compatibility wrapper still contains one retained diagnostic constant.
+// Scope the allowance to this legacy module; warnings remain denied elsewhere.
+#[allow(dead_code)]
+pub mod production;
+pub mod production_explain;
 pub mod report;
 pub mod resolve;
 pub mod selection;
@@ -91,6 +99,7 @@ pub mod viz;
 pub mod api;
 pub mod eve;
 pub mod planner;
+pub mod readiness;
 pub mod session;
 
 pub use api::{
@@ -121,6 +130,19 @@ pub use ppddl::{
     PolicyDecision, PolicyOutcome, PolicyValidation, PpddlError, PpddlParseReport,
     ProbabilisticObjective, ProbabilisticOptions, ProbabilisticSolution, ProbabilisticState,
     ProbabilisticStatistics, SimulationReport,
+};
+pub use production::{
+    parse_production, solve_ppddl_production, trace_production, validate_plan_production,
+    PlanValidationEvidence, ProductionSession,
+};
+pub use production_explain::{decompose_production, explain_production};
+pub use readiness::{
+    capability_manifest, evaluate_readiness, production_input_fingerprint, solve_production,
+    AuthorityClass, BuildIdentity, CapabilityContract, CapabilityEvaluation, CapabilityManifest,
+    CompatibilityClass, DeterminismClass, InterfaceKind, ManifestError, OperationEnvelope,
+    OutcomeClass, ProductionLimits, PublicError, ReadinessReport, ReadinessState, ReplayClass,
+    SecurityClass, ValidationStatus, CANDIDATE_AUTHORITY, CAPABILITY_MANIFEST_SCHEMA,
+    OPERATION_ENVELOPE_SCHEMA,
 };
 pub use session::Session;
 pub use trace::{trace, StateSnapshot};

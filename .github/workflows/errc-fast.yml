@@ -1,0 +1,147 @@
+name: ERRC Fast Admission
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: errc-fast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTC_WRAPPER: ""
+
+jobs:
+  exact-head-fast-admission:
+    name: Exact-head fast admission
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact head identity
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          actual="$(git rev-parse HEAD)"
+          test "$actual" = "$EXPECTED_HEAD" || {
+            echo "REFUSED:HEAD_IDENTITY_MISMATCH expected=$EXPECTED_HEAD actual=$actual" >&2
+            exit 42
+          }
+
+      - name: Resolve admitted base
+        id: subject
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if [[ -n "$PR_BASE" ]]; then
+            base="$PR_BASE"
+          else
+            base="$(git rev-parse HEAD^)"
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "head=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Route changed files
+        id: route
+        run: >-
+          python3 scripts/ci_router.py
+          --base '${{ steps.subject.outputs.base }}'
+          --head '${{ steps.subject.outputs.head }}'
+          --report target/ci/route.json
+
+      - name: Router self-tests
+        run: python3 -m unittest -v scripts/test_ci_router.py
+
+      - name: Parse structured manifests
+        run: |
+          python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          for path in sorted(Path('.').rglob('Cargo.toml')):
+              with path.open('rb') as handle:
+                  tomllib.load(handle)
+          print('TOML_MANIFESTS_PARSED')
+          PY
+
+      - name: Cheapest authoritative Rust checks
+        run: |
+          cargo fmt --all -- --check
+          cargo check -p ferroplan --lib --locked
+
+      - name: Emit exact-head ERRC receipt
+        if: always()
+        env:
+          BASE_SHA: ${{ steps.subject.outputs.base }}
+          HEAD_SHA: ${{ steps.subject.outputs.head }}
+          RUN_ID: ${{ github.run_id }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          route_path = Path('target/ci/route.json')
+          route = json.loads(route_path.read_text()) if route_path.exists() else {
+              'changed_files': [],
+              'routing': {},
+          }
+          status = os.environ['JOB_STATUS']
+          receipt = {
+              'schema': 'ferroplan.ci.errc.receipt.v1',
+              'subject': {
+                  'repository': 'seanchatmangpt/ferroplan',
+                  'base': os.environ.get('BASE_SHA', ''),
+                  'head': os.environ.get('HEAD_SHA', ''),
+                  'workflow': 'ERRC Fast Admission',
+                  'run_id': os.environ['RUN_ID'],
+              },
+              'errc': {
+                  'eliminate': ['unowned pull-request fan-out'],
+                  'reduce': ['setup before earliest falsifier', 'duplicate broad validation'],
+                  'raise': ['exact-head identity', 'deterministic routing', 'failure transparency'],
+                  'create': ['universal fast gate', 'machine-readable receipt'],
+              },
+              'changed_files': route['changed_files'],
+              'routing': route['routing'],
+              'checks': [
+                  'HEAD_IDENTITY',
+                  'ROUTER_SELF_TEST',
+                  'TOML_PARSE',
+                  'RUSTFMT',
+                  'CORE_CHECK',
+              ],
+              'failures': [] if status == 'success' else ['BUILD_BROKEN:FAST_GATE_FAILED'],
+              'standing': 'ALIVE' if status == 'success' else 'BUILD_BROKEN',
+              'claim_ceiling': 'EXACT_HEAD_FAST_AUTHORITY_AND_ROUTING_ONLY',
+              'replay': {
+                  'command': 'python3 -m unittest -v scripts/test_ci_router.py && cargo fmt --all -- --check && cargo check -p ferroplan --lib --locked'
+              },
+          }
+          out = Path('target/ci/receipt.json')
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_text(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
+          PY
+
+      - name: Upload exact-head receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ferroplan-errc-${{ steps.subject.outputs.head }}
+          path: |
+            target/ci/route.json
+            target/ci/receipt.json
+          if-no-files-found: error
+          retention-days: 30

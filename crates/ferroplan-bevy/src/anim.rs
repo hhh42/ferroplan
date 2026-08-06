@@ -1,5 +1,4 @@
-//! Solve off-thread and animate the plan trace: a timeline scrubbed by keyboard,
-//! with mobiles tweened between the node they're on in successive snapshots.
+//! Solve off-thread and animate only bounded, independently validated candidate plans.
 //!
 //! Controls: **S** solve · **Space** play/pause · **←/→** step · **R** reset.
 
@@ -9,7 +8,9 @@ use bevy::prelude::*;
 use bevy::tasks::{block_on, AsyncComputeTaskPool, Task};
 use futures_lite::future;
 
-use ferroplan::{Mode, Options, StateSnapshot, Step};
+use ferroplan::{
+    Mode, Options, OutcomeClass, ProductionLimits, StateSnapshot, Step, ValidationStatus,
+};
 
 use crate::scene::{FanOffset, MobileObj, NodeObj, Scene};
 
@@ -25,20 +26,14 @@ pub(crate) struct SolveResult {
 pub struct Plan {
     pub steps: Vec<Step>,
     pub snapshots: Vec<StateSnapshot>,
-    /// Timeline cursor. For classic/numeric plans this is a step index in
-    /// `0..=steps.len()`; for temporal plans it is wall-clock plan time in
-    /// `0..=makespan` (so it lines up with the Gantt time axis).
     pub t: f32,
     pub playing: bool,
     pub status: String,
-    /// True for temporal plans (overlapping durative actions): `t` is time, the
-    /// graph isn't snapshot-animated, and the Gantt timescale view is shown.
     pub temporal: bool,
     pub makespan: f32,
 }
 
 impl Plan {
-    /// Upper bound of the timeline cursor `t` — makespan (temporal) or step count.
     pub fn span(&self) -> f32 {
         if self.temporal {
             self.makespan.max(1e-3)
@@ -47,20 +42,17 @@ impl Plan {
         }
     }
 
-    /// Cursor as a `0..=1` fraction of the timeline (for the fill / playhead).
     pub fn frac(&self) -> f32 {
         (self.t / self.span()).clamp(0.0, 1.0)
     }
 
-    /// Action start time (temporal) or step start index, as a fraction of the
-    /// timeline — where the transport notches and Gantt bars begin.
     pub fn start_frac(&self, step: &Step, idx: usize) -> f32 {
-        let v = if self.temporal {
+        let value = if self.temporal {
             step.time.unwrap_or(0.0) as f32
         } else {
             idx as f32
         };
-        (v / self.span()).clamp(0.0, 1.0)
+        (value / self.span()).clamp(0.0, 1.0)
     }
 }
 
@@ -74,7 +66,6 @@ pub fn controls(
     mut plan: ResMut<Plan>,
     mut job: ResMut<SolveJob>,
 ) {
-    // Don't steal keystrokes while the editor is capturing text.
     if editor.focus.is_some() {
         return;
     }
@@ -83,10 +74,19 @@ pub fn controls(
         && !scene.domain_src.is_empty()
         && !scene.problem_src.is_empty()
     {
-        let d = scene.domain_src.clone();
-        let p = scene.problem_src.clone();
-        job.0 = Some(AsyncComputeTaskPool::get().spawn(async move { solve_blocking(d, p) }));
-        plan.status = "solving…".into();
+        let limits = ProductionLimits::default();
+        if scene.domain_src.len() > limits.max_domain_bytes
+            || scene.problem_src.len() > limits.max_problem_bytes
+        {
+            plan.status = "refused: model exceeds the bounded GUI planning profile".into();
+        } else {
+            let domain = scene.domain_src.clone();
+            let problem = scene.problem_src.clone();
+            job.0 = Some(
+                AsyncComputeTaskPool::get().spawn(async move { solve_blocking(domain, problem) }),
+            );
+            plan.status = "solving bounded candidate…".into();
+        }
     }
     let span = plan.span();
     if keys.just_pressed(KeyCode::Space) && !plan.steps.is_empty() {
@@ -109,31 +109,28 @@ pub fn controls(
     }
 }
 
-/// Sorted, de-duplicated timeline marks to snap stepping to: every action's
-/// start (and end, temporally), plus 0 and the span. Classic plans fall back to
-/// integer step boundaries.
 fn marks(plan: &Plan) -> Vec<f32> {
     if !plan.temporal {
-        return (0..=plan.steps.len()).map(|i| i as f32).collect();
+        return (0..=plan.steps.len()).map(|index| index as f32).collect();
     }
-    let mut v = vec![0.0_f32, plan.span()];
-    for s in &plan.steps {
-        if let Some(t) = s.time {
-            v.push(t as f32);
-            if let Some(d) = s.duration {
-                v.push((t + d) as f32);
+    let mut marks = vec![0.0_f32, plan.span()];
+    for step in &plan.steps {
+        if let Some(time) = step.time {
+            marks.push(time as f32);
+            if let Some(duration) = step.duration {
+                marks.push((time + duration) as f32);
             }
         }
     }
-    v.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-    v.dedup();
-    v
+    marks.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    marks.dedup();
+    marks
 }
 
 fn next_mark(plan: &Plan, t: f32) -> f32 {
     marks(plan)
         .into_iter()
-        .find(|&m| m > t + 1e-4)
+        .find(|mark| *mark > t + 1e-4)
         .unwrap_or_else(|| plan.span())
 }
 
@@ -141,52 +138,103 @@ fn prev_mark(plan: &Plan, t: f32) -> f32 {
     marks(plan)
         .into_iter()
         .rev()
-        .find(|&m| m < t - 1e-4)
+        .find(|mark| *mark < t - 1e-4)
         .unwrap_or(0.0)
 }
 
 fn solve_blocking(domain: String, problem: String) -> SolveResult {
-    match ferroplan::solve(&domain, &problem, &Options::default()) {
-        Ok(sol) => result_from_solution(&domain, &problem, sol),
-        Err(e) => SolveResult {
-            steps: vec![],
-            snapshots: vec![],
-            status: format!("error: {e}"),
-            temporal: false,
-            makespan: 0.0,
-        },
+    let limits = ProductionLimits::default();
+    let options = Options {
+        threads: 1,
+        max_evaluated: Some(limits.max_evaluated),
+        ..Options::default()
+    };
+    let envelope = ferroplan::solve_production(
+        &domain,
+        &problem,
+        &options,
+        &limits,
+        Some("bevy-interactive-solve"),
+    );
+    match (envelope.outcome, envelope.validation, envelope.payload) {
+        (OutcomeClass::Solved, ValidationStatus::Valid, Some(solution)) => {
+            let mut result = result_from_solution(&domain, &problem, solution);
+            result
+                .status
+                .push_str(" · candidate-only · independently validated");
+            result
+        }
+        (OutcomeClass::Solved, ValidationStatus::NotApplicable, Some(solution)) => {
+            let mut result = result_from_solution(&domain, &problem, solution);
+            result
+                .status
+                .push_str(" · candidate-only · empty-plan goal closure");
+            result
+        }
+        (OutcomeClass::NoPlan, _, _) => empty_result("no plan found within the declared model"),
+        (OutcomeClass::LimitExceeded, _, _) => empty_result(&format!(
+            "bounded solve saturated: {}",
+            envelope
+                .error
+                .as_ref()
+                .map(|error| error.message.as_str())
+                .unwrap_or("resource limit exceeded")
+        )),
+        (OutcomeClass::Refused | OutcomeClass::Failed | OutcomeClass::Solved, _, _) => {
+            empty_result(&format!(
+                "refused: {}",
+                envelope
+                    .error
+                    .as_ref()
+                    .map(|error| error.message.as_str())
+                    .unwrap_or("candidate failed production validation")
+            ))
+        }
     }
 }
 
-/// Build the animator's [`SolveResult`] (steps + replayed snapshots) from an
-/// already-computed [`ferroplan::Solution`] — shared by the native `S`-key solve
-/// path and the web Solver page's "Animate this plan" handoff (`webhandoff`),
-/// which hands over a plan already solved there instead of resolving it.
+fn empty_result(status: &str) -> SolveResult {
+    SolveResult {
+        steps: vec![],
+        snapshots: vec![],
+        status: status.into(),
+        temporal: false,
+        makespan: 0.0,
+    }
+}
+
 pub(crate) fn result_from_solution(
     domain: &str,
     problem: &str,
-    sol: ferroplan::Solution,
+    solution: ferroplan::Solution,
 ) -> SolveResult {
-    match sol.plan {
+    match solution.plan {
         Some(plan) => {
             let pairs: Vec<(String, Vec<String>)> = plan
                 .steps
                 .iter()
-                .map(|s| (s.action.clone(), s.args.clone()))
+                .map(|step| (step.action.clone(), step.args.clone()))
                 .collect();
-            let snapshots = if sol.mode == Mode::Temporal {
+            let temporal = solution.mode == Mode::Temporal;
+            let snapshots = if temporal {
                 Vec::new()
             } else {
-                ferroplan::trace(domain, problem, &pairs).unwrap_or_default()
+                match ferroplan::trace(domain, problem, &pairs) {
+                    Ok(snapshots) => snapshots,
+                    Err(error) => {
+                        return empty_result(&format!(
+                            "refused: candidate trace replay failed ({error})"
+                        ))
+                    }
+                }
             };
-            let temporal = sol.mode == Mode::Temporal;
             let makespan = plan.makespan.unwrap_or(0.0) as f32;
-            let mut status = format!("solved: {} steps", plan.steps.len());
-            if let Some(m) = plan.metric {
-                status.push_str(&format!(", metric {m}"));
+            let mut status = format!("candidate: {} steps", plan.steps.len());
+            if let Some(metric) = plan.metric {
+                status.push_str(&format!(", metric {metric}"));
             }
             if temporal {
-                status.push_str(&format!(" (temporal: makespan {makespan:.2})"));
+                status.push_str(&format!(" (temporal makespan {makespan:.2})"));
             }
             SolveResult {
                 steps: plan.steps,
@@ -196,43 +244,30 @@ pub(crate) fn result_from_solution(
                 makespan,
             }
         }
-        None => SolveResult {
-            steps: vec![],
-            snapshots: vec![],
-            status: "no plan found".into(),
-            temporal: false,
-            makespan: 0.0,
-        },
+        None => empty_result("no candidate plan"),
     }
 }
 
-/// Load a [`SolveResult`] straight into the timeline, as if it had just finished
-/// solving — used by both `poll_solve` (native solve completion) and the web
-/// handoff (a plan already solved on the Solver page). `autoplay` starts playback
-/// immediately (the handoff path: the user explicitly clicked "Animate this plan").
-pub(crate) fn load_result(plan: &mut Plan, res: SolveResult, autoplay: bool) {
-    plan.steps = res.steps;
-    plan.snapshots = res.snapshots;
-    plan.status = res.status;
-    plan.temporal = res.temporal;
-    plan.makespan = res.makespan;
+pub(crate) fn load_result(plan: &mut Plan, result: SolveResult, autoplay: bool) {
+    plan.steps = result.steps;
+    plan.snapshots = result.snapshots;
+    plan.status = result.status;
+    plan.temporal = result.temporal;
+    plan.makespan = result.makespan;
     plan.t = 0.0;
     plan.playing = autoplay && !plan.steps.is_empty();
 }
 
 pub fn poll_solve(mut job: ResMut<SolveJob>, mut plan: ResMut<Plan>) {
     if let Some(task) = job.0.as_mut() {
-        if let Some(res) = block_on(future::poll_once(task)) {
+        if let Some(result) = block_on(future::poll_once(task)) {
             job.0 = None;
-            load_result(&mut plan, res, false);
+            load_result(&mut plan, result, false);
         }
     }
 }
 
-/// Baseline classic-plan playback rate, in (unit-duration) steps per second.
 const PLAY_RATE: f32 = 1.5;
-/// Temporal plans play their whole makespan in roughly this many real seconds,
-/// so a long horizon stays watchable while preserving relative durations.
 const TEMPORAL_SECONDS: f32 = 7.0;
 
 pub fn advance(time: Res<Time>, mut plan: ResMut<Plan>) {
@@ -241,24 +276,17 @@ pub fn advance(time: Res<Time>, mut plan: ResMut<Plan>) {
     }
     let span = plan.span();
     if plan.temporal {
-        // Real wall-clock sweep across the makespan — durations are honoured
-        // because the axis IS plan time.
         plan.t = (plan.t + time.delta_secs() * span / TEMPORAL_SECONDS).min(span);
     } else {
-        // Per-step-duration timing: the playhead dwells on each step in proportion
-        // to that step's `duration`. Plain STRIPS steps have no duration → 1.0,
-        // i.e. uniform playback as before.
-        let k = (plan.t.floor() as usize).min(plan.steps.len() - 1);
-        let dur = plan.steps[k].duration.unwrap_or(1.0).max(0.05) as f32;
-        plan.t = (plan.t + time.delta_secs() * PLAY_RATE / dur).min(span);
+        let index = (plan.t.floor() as usize).min(plan.steps.len() - 1);
+        let duration = plan.steps[index].duration.unwrap_or(1.0).max(0.05) as f32;
+        plan.t = (plan.t + time.delta_secs() * PLAY_RATE / duration).min(span);
     }
     if plan.t >= span {
         plan.playing = false;
     }
 }
 
-/// Move each mobile to its position for the current timeline `t`, tweening between
-/// the node it's on in snapshot k and k+1.
 pub fn animate(
     plan: Res<Plan>,
     scene: Res<Scene>,
@@ -269,33 +297,30 @@ pub fn animate(
         return;
     }
     let count = plan.snapshots.len();
-    let k = (plan.t.floor() as usize).min(count - 1);
-    let kn = (k + 1).min(count - 1);
-    let frac = if kn == k {
+    let index = (plan.t.floor() as usize).min(count - 1);
+    let next = (index + 1).min(count - 1);
+    let fraction = if next == index {
         0.0
     } else {
-        // ease-in-out-cubic on the step-local progress (the redesign's motion curve),
-        // so mobiles accelerate out of a node and settle into the next.
-        ease_in_out_cubic((plan.t - k as f32).clamp(0.0, 1.0))
+        ease_in_out_cubic((plan.t - index as f32).clamp(0.0, 1.0))
     };
-    let from = scene.graph.positions_at(&plan.snapshots[k].facts);
-    let to = scene.graph.positions_at(&plan.snapshots[kn].facts);
-    let npos: HashMap<&str, Vec2> = nodes
+    let from = scene.graph.positions_at(&plan.snapshots[index].facts);
+    let to = scene.graph.positions_at(&plan.snapshots[next].facts);
+    let node_positions: HashMap<&str, Vec2> = nodes
         .iter()
-        .map(|(n, t)| (n.0.as_str(), t.translation.truncate()))
+        .map(|(node, transform)| (node.0.as_str(), transform.translation.truncate()))
         .collect();
 
-    for (m, off, mut tf) in &mut mobiles {
-        let here = tf.translation.truncate() - off.0;
-        let fp = node_pos(&from, &m.0, &npos).unwrap_or(here);
-        let tp = node_pos(&to, &m.0, &npos).unwrap_or(here);
-        let target = fp.lerp(tp, frac) + off.0;
-        tf.translation.x = target.x;
-        tf.translation.y = target.y;
+    for (mobile, offset, mut transform) in &mut mobiles {
+        let current = transform.translation.truncate() - offset.0;
+        let from_position = node_pos(&from, &mobile.0, &node_positions).unwrap_or(current);
+        let to_position = node_pos(&to, &mobile.0, &node_positions).unwrap_or(current);
+        let target = from_position.lerp(to_position, fraction) + offset.0;
+        transform.translation.x = target.x;
+        transform.translation.y = target.y;
     }
 }
 
-/// Ease-in-out-cubic — smooth acceleration then deceleration over `t` in `0..=1`.
 fn ease_in_out_cubic(t: f32) -> f32 {
     if t < 0.5 {
         4.0 * t * t * t
@@ -306,10 +331,10 @@ fn ease_in_out_cubic(t: f32) -> f32 {
 
 fn node_pos(
     map: &HashMap<String, Option<String>>,
-    obj: &str,
-    npos: &HashMap<&str, Vec2>,
+    object: &str,
+    positions: &HashMap<&str, Vec2>,
 ) -> Option<Vec2> {
-    map.get(obj)
-        .and_then(|o| o.as_deref())
-        .and_then(|n| npos.get(n).copied())
+    map.get(object)
+        .and_then(|node| node.as_deref())
+        .and_then(|node| positions.get(node).copied())
 }
