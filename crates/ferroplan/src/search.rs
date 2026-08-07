@@ -584,6 +584,18 @@ impl SatGuidance {
 /// Solve toward an ARBITRARY (sub)goal from an arbitrary start state over a
 /// shared grounded task — the reusable subplanner entry point for SGPlan-style
 /// partition-and-resolve. `search` is the whole-task convenience wrapper.
+///
+/// `orbit` (0.22 Phase 6 L3) switches the visited structure to CANONICAL
+/// keys: the successor hash and the on-collision equality both run
+/// through [`crate::orbits::OrbitMap::canonical_skey`], so states
+/// differing only by a member permutation dedup to one stored node.
+/// Memory stays Phase-4-shaped (one u64 + node index per state, states
+/// concrete in the arena); the canonicalization is paid per successor
+/// hash and per duplicate. The B&B cost fluent is appended AFTER
+/// canonicalization, so equal-orbit/different-cost states stay distinct.
+/// Guarded here — the single enforcement point — to plain searches: any
+/// forbidden mask, guidance, or closure drops the orbit (a mask the σ
+/// does not fix would break the automorphism the merge relies on).
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
 pub fn search_from(
     task: &PackedTask,
@@ -597,7 +609,14 @@ pub fn search_from(
     forbidden: &[bool],
     sat: Option<&SatGuidance>,
     closure: Option<&ClosureCost>,
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> PlanResult {
+    let orbit =
+        orbit.filter(|_| sat.is_none() && closure.is_none() && !forbidden.iter().any(|&b| b));
+    let khash = |s: &State| match orbit {
+        Some(om) => om.canonical_skey_hash(task, s, cost_fluent),
+        None => task.state_key_hash(s, cost_fluent),
+    };
     let batch = BATCH;
     let node_cap = match cfg.node_bytes_target {
         Some(b) => node_cap_for_bytes(task, b),
@@ -668,7 +687,7 @@ pub fn search_from(
                                 // byte-identical: the hash only routes to candidates, the exact
                                 // `state_key_eq` decides.
     let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
-    visited.insert(task.state_key_hash(&init, cost_fluent), vec![0]);
+    visited.insert(khash(&init), vec![0]);
 
     let mut evaluated = 0usize;
     let mut best = i32::MAX;
@@ -892,7 +911,7 @@ pub fn search_from(
                                 continue; // cost already >= bound: cannot beat incumbent
                             }
                         }
-                        let k = task.state_key_hash(&ns, cost_fluent);
+                        let k = khash(&ns);
                         v.push((ni, oi, ns, k, ph));
                     }
                 }
@@ -923,10 +942,21 @@ pub fn search_from(
                     continue; // cannot beat the length incumbent (see SearchCfg)
                 }
                 let bucket = visited.entry(k).or_default();
-                if bucket
-                    .iter()
-                    .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, cost_fluent))
-                {
+                // Orbit dedup pays canonicalization per COLLISION (the
+                // candidate once, plus each bucket occupant) — genuine
+                // duplicates are exactly where the lever earns its keep.
+                let dup = match orbit {
+                    Some(om) => {
+                        let ck = om.canonical_skey(task, &s, cost_fluent);
+                        bucket.iter().any(|&idx| {
+                            om.canonical_skey(task, &nodes[idx as usize].state, cost_fluent) == ck
+                        })
+                    }
+                    None => bucket
+                        .iter()
+                        .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, cost_fluent)),
+                };
+                if dup {
                     continue;
                 }
                 bucket.push(nodes.len() as u32);
@@ -1037,6 +1067,7 @@ pub fn search(task: &PackedTask, threads: usize, cfg: SearchCfg) -> PlanResult {
         &[],
         None,
         None,
+        None,
     )
 }
 
@@ -1057,19 +1088,31 @@ pub struct PlanOutcome {
 /// most problems) and fall back to weighted best-first if it gets stuck;
 /// otherwise run best-first directly. EHC plans are valid but not length-optimal
 /// — this matches the FF/Metric-FF default and is the main speed lever.
-pub fn plan(task: &PackedTask, threads: usize, cfg: SearchCfg, ehc_first: bool) -> PlanOutcome {
-    plan_avoiding(task, threads, cfg, ehc_first, &[])
+pub fn plan(
+    task: &PackedTask,
+    threads: usize,
+    cfg: SearchCfg,
+    ehc_first: bool,
+    orbit: Option<&crate::orbits::OrbitMap>,
+) -> PlanOutcome {
+    plan_avoiding(task, threads, cfg, ehc_first, &[], orbit)
 }
 
 /// Like [`plan`], but never uses any op `oi` where `forbidden[oi]` is true. Used
 /// by the metric optimizer's force-collect tightening (forbid forgo actions to
 /// force their preferences to actually be satisfied).
+///
+/// `orbit` reaches only the best-first fallback's canonical dedup
+/// (0.22 Phase 6 L3) — the EHC/novelty/LAMA rungs keep their own visited
+/// structures untouched — and is dropped by `search_from`'s guard the
+/// moment a forbidden mask is in play.
 pub fn plan_avoiding(
     task: &PackedTask,
     threads: usize,
     cfg: SearchCfg,
     ehc_first: bool,
     forbidden: &[bool],
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> PlanOutcome {
     // Budget-aware ladder (0.18 Phase 4, the novelty referee's next idea):
     // `FF_TIME_LIMIT=<secs>` tells the ladder its REAL wall budget (the
@@ -1382,6 +1425,7 @@ pub fn plan_avoiding(
             forbidden,
             None,
             None,
+            orbit,
         ) {
             PlanResult::Plan { ops, evaluated, .. } => {
                 narrate_rung(&format!("best-first fallback (round {})", round + 1));
@@ -1660,6 +1704,12 @@ fn bfs_improve(
 
 /// Subplanner API: return the op sequence achieving `(goal_pos, goal_num)` from
 /// `start`, or None if unsolvable. This is what `sgp` calls per partition.
+///
+/// `orbit` (0.22 Phase 6 L5): the partition cascade hands its GOAL-FREE
+/// orbit view down here — a subgoal is a goal subset, so only orbits no
+/// goal fact touches stay sound. The avoiding-path siblings below take
+/// no orbit at all: their forbidden masks are built from sibling goal
+/// facts and are not σ-invariant.
 pub fn solve_subgoal(
     task: &PackedTask,
     start: &State,
@@ -1667,8 +1717,25 @@ pub fn solve_subgoal(
     goal_num: &[NumPre],
     threads: usize,
     cfg: SearchCfg,
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Option<Vec<usize>> {
-    solve_subgoal_avoiding(task, start, goal_pos, goal_num, &[], threads, cfg)
+    match search_from(
+        task,
+        start,
+        goal_pos,
+        goal_num,
+        None,
+        f64::INFINITY,
+        threads,
+        cfg,
+        &[],
+        None,
+        None,
+        orbit,
+    ) {
+        PlanResult::Plan { ops, .. } => Some(ops),
+        PlanResult::Unsolvable { .. } => None,
+    }
 }
 
 /// `solve_subgoal` but never using any op `oi` where `forbidden[oi]` is true —
@@ -1694,6 +1761,7 @@ pub fn solve_subgoal_avoiding(
         threads,
         cfg,
         forbidden,
+        None,
         None,
         None,
     ) {
@@ -1729,6 +1797,7 @@ pub fn solve_subgoal_bounded(
         cfg,
         &[],
         sat,
+        None,
         None,
     ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated, false),
@@ -1769,6 +1838,7 @@ pub fn solve_closure_bounded(
         forbidden,
         sat,
         Some(closure),
+        None,
     ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated, false),
         PlanResult::Unsolvable { evaluated, capped } => (None, evaluated, capped),
@@ -1804,6 +1874,7 @@ pub fn solve_subgoal_guided(
         cfg,
         forbidden,
         sat,
+        None,
         None,
     ) {
         PlanResult::Plan { ops, evaluated, .. } => (Some(ops), evaluated),

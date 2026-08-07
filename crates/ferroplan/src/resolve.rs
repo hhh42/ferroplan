@@ -97,7 +97,23 @@ pub fn solve(
     threads: usize,
     cfg: crate::search::SearchCfg,
     mutex_groups: &[Vec<u32>],
+    // 0.22 Phase 6 L5: the caller's detected orbit map. SUBGOAL solves
+    // get only its goal-free view (a subgoal is a goal subset, so
+    // goal-bound orbits freeze); the monolithic endpoint solves the
+    // WHOLE goal and keeps the full map. Avoiding-path solves stay
+    // orbit-free — their sibling-protection masks are not σ-invariant.
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Solved {
+    let goal_free = orbit.and_then(|om| om.goal_free_view());
+    if orbit.is_some() {
+        narrate(format_args!(
+            "orbit passdown: {} goal-free of {} orbit(s)",
+            goal_free
+                .as_ref()
+                .map_or(0, |om| om.goal_bound.iter().filter(|&&b| !b).count()),
+            orbit.map_or(0, |om| om.orbits.len())
+        ));
+    }
     let init = task.initial();
     // Resource-trip term data (0.14 ext Phase 11, FF_RESLM hatch): built
     // here because this is where the mutex groups live; the search reads
@@ -157,7 +173,7 @@ pub fn solve(
                 "monolithic ladder, remaining {:?}",
                 crate::search::wall_remaining_secs()
             ));
-            let o = crate::search::plan(task, threads, cfg, true);
+            let o = crate::search::plan(task, threads, cfg, true, orbit);
             mono_capped = o.capped;
             vec![o.ops]
         } else {
@@ -172,7 +188,7 @@ pub fn solve(
                     g.pos.len(),
                     g.num.len()
                 ));
-                let r = solve_subgoal(task, &init, &g.pos, &g.num, 1, sub_cfg)
+                let r = solve_subgoal(task, &init, &g.pos, &g.num, 1, sub_cfg, goal_free.as_ref())
                     .or_else(|| lama_rung(task, &init, g, 1, sub_cfg));
                 narrate(format_args!(
                     "subgoal {i} done: {}, remaining {:?}",
@@ -258,6 +274,7 @@ pub fn solve(
                             &groups[i].num,
                             threads,
                             sub_cfg,
+                            goal_free.as_ref(),
                         )
                     })
                     .or_else(|| lama_rung(task, &state, &groups[i], threads, sub_cfg))

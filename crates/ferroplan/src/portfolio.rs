@@ -132,6 +132,7 @@ fn run_member(
                     ..cfg
                 },
                 true,
+                None,
             );
             // plan() folds EHC + LAMA + best-first; its None is budget-capped
             // in practice — never claim a proof through the wrapper.
@@ -153,6 +154,7 @@ fn run_member(
                 threads,
                 SearchCfg::from_weights(1.0, wh, Some(budget)),
                 &[],
+                None,
                 None,
                 None,
             ) {

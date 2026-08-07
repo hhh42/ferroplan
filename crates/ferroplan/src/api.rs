@@ -849,6 +849,16 @@ fn solve_classic(
         }
     };
 
+    // The classical orbit consumer (0.22 Phase 6): canonical visited
+    // keys for the best-first dedup, the partition passdown, and the
+    // B&B cost sweep. Constrained (monitor-compiled) tasks stay
+    // orbit-free — a trajectory constraint can distinguish members over
+    // time in ways the compiled artifacts alone are not re-audited for.
+    let orbit = if strip_end {
+        None
+    } else {
+        crate::orbits::detect_classical(domain, problem, &task)
+    };
     let (ops, evaluated) = if mode == Mode::Portfolio {
         let o = crate::portfolio::solve(&task, threads, opts.search_cfg());
         if let Some(w) = o.winner {
@@ -857,13 +867,13 @@ fn solve_classic(
         (o.ops, o.evaluated)
     } else if mode == Mode::Partition {
         let groups = crate::invariants::synthesize(domain, &task);
-        match resolve::solve(&task, threads, opts.search_cfg(), &groups) {
+        match resolve::solve(&task, threads, opts.search_cfg(), &groups, orbit.as_ref()) {
             Solved::Plan(ops, _) => (Some(ops), 0),
             Solved::Unsolvable { .. } => (None, 0),
         }
     } else {
         let ehc_first = opts.search != Search::BestFirst;
-        let o = search::plan(&task, threads, opts.search_cfg(), ehc_first);
+        let o = search::plan(&task, threads, opts.search_cfg(), ehc_first, orbit.as_ref());
         if o.ehc_fell_back && o.ops.is_some() {
             notes.push("EHC found no improving state; used weighted best-first".into());
         }
@@ -890,6 +900,7 @@ fn solve_classic(
                             threads,
                             opts.search_cfg(),
                             evaluated,
+                            orbit.as_ref(),
                         );
                         ops = r.ops;
                         metric = Some(r.cost);

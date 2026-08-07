@@ -1099,6 +1099,7 @@ pub fn metric_optimize(
             threads,
             SearchCfg::from_weights(1.0, 5.0, Some(1_500_000)),
             true,
+            None,
         );
         if let Some(ops) = first.ops {
             let cost = plan_cost(task, &ops, cost_fluent);
@@ -1204,6 +1205,7 @@ pub fn metric_optimize(
         threads,
         SearchCfg::from_weights(1.0, 5.0, Some(1_500_000)),
         true,
+        None,
     );
     if let Some(ops) = first.ops {
         let cost = plan_cost(task, &ops, cost_fluent);

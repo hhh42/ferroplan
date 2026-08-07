@@ -115,6 +115,7 @@ fn sweep_budget(spent: usize, cfg_max: usize) -> usize {
 /// relaxed plan. Deterministic (all knobs are integer/deterministic and the
 /// underlying sweep is thread-count independent). Returns the best plan seen
 /// — never worse than the input.
+#[allow(clippy::too_many_arguments)]
 pub fn improve(
     task: &PackedTask,
     cf: usize,
@@ -123,6 +124,10 @@ pub fn improve(
     threads: usize,
     base: SearchCfg,
     spent: usize,
+    // 0.22 Phase 6 L3: the B&B sweep dedups on canonical keys with the
+    // cost fluent appended AFTER canonicalization; sound because
+    // detection's L2 gate certified the op costs symmetric.
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> CostOutcome {
     if first_cost <= 0.0 {
         // Nothing can beat a free plan.
@@ -161,6 +166,7 @@ pub fn improve(
         &[],
         None,
         None,
+        orbit,
     ) {
         PlanResult::Plan {
             ops: better,
@@ -209,6 +215,7 @@ pub fn optimize_text(
     threads: usize,
     cfg: SearchCfg,
     ops: &mut Vec<usize>,
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Option<(f64, &'static str)> {
     let disp = metric_fluent(problem)?;
     let cf = task.fluent_id(&disp)?;
@@ -216,7 +223,7 @@ pub fn optimize_text(
     if !optimize {
         return Some((c0, " (not optimized: --satisfice)"));
     }
-    let r = improve(task, cf, std::mem::take(ops), c0, threads, cfg, 0);
+    let r = improve(task, cf, std::mem::take(ops), c0, threads, cfg, 0, orbit);
     *ops = r.ops;
     let note = if r.proven {
         " (proven optimal)"
@@ -283,6 +290,7 @@ pub fn improve_length(
             threads,
             cfg,
             &[],
+            None,
             None,
             None,
         ) {

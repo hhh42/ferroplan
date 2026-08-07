@@ -144,12 +144,26 @@ pub fn run_planner(
     };
 
     out.push_str(&report::preamble(threads));
+    // The classical orbit consumer (0.22 Phase 6): partition passdown +
+    // B&B sweep keys. Constrained tasks stay orbit-free (api.rs's rule).
+    let orbit = if constrained {
+        None
+    } else {
+        crate::orbits::detect_classical(&domain, &problem, &task)
+    };
     let groups = crate::invariants::synthesize(&domain, &task);
-    match resolve::solve(&task, threads, cfg, &groups) {
+    match resolve::solve(&task, threads, cfg, &groups, orbit.as_ref()) {
         Solved::Plan(mut ops, stats) => {
             // IPC6 `:action-costs`: anytime cost sweep + reported plan cost.
-            let cost =
-                crate::costs::optimize_text(&problem, &task, opts.optimize, threads, cfg, &mut ops);
+            let cost = crate::costs::optimize_text(
+                &problem,
+                &task,
+                opts.optimize,
+                threads,
+                cfg,
+                &mut ops,
+                orbit.as_ref(),
+            );
             if constrained {
                 crate::constraints::strip_end(&task, &mut ops);
             }
@@ -361,10 +375,12 @@ fn satisficing_fallback(
     };
     out.push_str(&report::preamble(threads));
     let groups = crate::invariants::synthesize(domain, &task);
-    match resolve::solve(&task, threads, cfg, &groups) {
+    // Orbit-free on purpose: this is the PDDL3 fallback — the compiled
+    // preference machinery is outside the orbit audit.
+    match resolve::solve(&task, threads, cfg, &groups, None) {
         Solved::Plan(mut ops, stats) => {
             let cost =
-                crate::costs::optimize_text(problem, &task, optimize, threads, cfg, &mut ops);
+                crate::costs::optimize_text(problem, &task, optimize, threads, cfg, &mut ops, None);
             // The "NOT optimized" disclaimer stays honest: it is dropped only
             // when the classical cost path actually optimized the metric.
             let note = if cost.is_some() && optimize {
@@ -527,8 +543,20 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
             (out, 0)
         }
         Outcome::Task(task) => {
-            let o =
-                crate::search::plan(&task, threads, cfg, opts.search != crate::Search::BestFirst);
+            // The classical orbit consumer (0.22 Phase 6), same rule as
+            // run_planner: constrained tasks stay orbit-free.
+            let orbit = if constrained {
+                None
+            } else {
+                crate::orbits::detect_classical(&domain, &problem, &task)
+            };
+            let o = crate::search::plan(
+                &task,
+                threads,
+                cfg,
+                opts.search != crate::Search::BestFirst,
+                orbit.as_ref(),
+            );
             let mut cost = None;
             let result = match o.ops {
                 Some(mut ops) => {
@@ -540,6 +568,7 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
                         threads,
                         cfg,
                         &mut ops,
+                        orbit.as_ref(),
                     );
                     if constrained {
                         crate::constraints::strip_end(&task, &mut ops);

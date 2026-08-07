@@ -35,23 +35,35 @@
 //!   sorting per-member signatures, so determinism and t1 ≡ t8 hold. Any
 //!   σ is sound: canon(s1) = canon(s2) implies s2 = σ2⁻¹σ1(s1), a true
 //!   automorphism image (ties may MISS merges, never mis-merge).
-//! - Applied to the TEMPORAL visited key only (state bits, relevant
-//!   fluent values, and the pending-end agenda's op ids all permute
-//!   together); the classical paths are untouched by construction.
-//!   Callers must pass a σ-invariant `forbidden` mask (the CLI passes
-//!   none; Session/tresolve pass no orbit at all — recorded decision).
+//! - Applied to VISITED KEYS only — the temporal key (state bits,
+//!   relevant fluent values, and the pending-end agenda's op ids all
+//!   permute together) since 0.14 ext, and the CLASSICAL keys since 0.22
+//!   Phase 6 ([`OrbitMap::canonical_skey`]: optimal mode's
+//!   visited/closed/best_g sites and the satisficing dedup in the
+//!   parallel successor phase). Nodes stay CONCRETE everywhere, so plan
+//!   extraction and VAL are untouched. Callers must pass a σ-invariant
+//!   `forbidden` mask (the CLI passes none; Session/tresolve pass no
+//!   orbit at all — recorded decision).
+//! - A non-total-time metric bails UNLESS it is the classical
+//!   single-fluent `minimize` shape AND every op family's constant costs
+//!   are uniform within each equality class (the 0.22 Phase 6 L2 gate —
+//!   the soundness trap is merging quality-distinct states, so any cost
+//!   the gate cannot certify as a symmetric constant drops detection).
 //!
-//! `FF_NO_ORBIT=1` disables detection entirely.
+//! `FF_NO_ORBIT=1` disables detection entirely;
+//! `FF_NO_ORBIT_CLASSICAL=1` kills only the classical consumer
+//! ([`detect_classical`]) while the temporal one keeps its orbit.
 
 use crate::hash::FxHashMap;
 use crate::packed::{PackedTask, State};
-use crate::types::{Domain, Expr, Formula, Problem, Sym, Term};
+use crate::types::{AssignOp, Domain, Expr, Formula, Problem, Sym, Term};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// One orbit: `k` interchangeable member units. Per member, the SAME
 /// template list (single-member facts / relevant-fluent slots / ops, in
 /// family order) — the sort key that picks σ. Cross-member entries live
 /// in the families, not here.
+#[derive(Clone)]
 pub struct Orbit {
     /// member -> fact ids, in template order.
     pub facts: Vec<Vec<u32>>,
@@ -64,6 +76,7 @@ pub struct Orbit {
 /// All displays sharing one (head, pattern) — the pattern fixes literals
 /// and (orbit, obj-within-member) slots; the table stores the concrete id
 /// per member-coordinate tuple, row-major, `u32::MAX` = absent.
+#[derive(Clone)]
 struct Family {
     /// orbit index per slot position.
     axes: Vec<u16>,
@@ -121,6 +134,53 @@ impl Family {
             let present = self.table[self.flat(&coords)] != u32::MAX;
             if *classes.entry(code).or_insert(present) != present {
                 return false;
+            }
+            // odometer
+            let mut d = n;
+            loop {
+                if d == 0 {
+                    return true;
+                }
+                d -= 1;
+                coords[d] += 1;
+                if (coords[d] as u32) < self.dims[d] {
+                    break;
+                }
+                coords[d] = 0;
+            }
+        }
+    }
+    /// The 0.22 Phase 6 L2 gate, per op family: σ maps a cell to any
+    /// other cell of its equality class, so canonicalization merges
+    /// states whose remaining plans swap those ops — sound for quality
+    /// only if every present cell of a class carries the SAME certified
+    /// constant cost. A cell whose cost the caller could not certify
+    /// (`None`: state-dependent, conditional, or non-increase) fails the
+    /// gate outright. Same equality-class walk as [`Self::closed`].
+    fn cost_uniform(&self, cost: &[Option<f64>]) -> bool {
+        let n = self.axes.len(); // ≤ 16, enforced at creation
+        let mut coords = vec![0u16; n];
+        let mut classes: FxHashMap<u128, f64> = FxHashMap::default();
+        loop {
+            let id = self.table[self.flat(&coords)];
+            if id != u32::MAX {
+                let Some(c) = cost[id as usize] else {
+                    return false;
+                };
+                let mut code: u128 = 0;
+                for d in 0..n {
+                    let mut cc = d as u128;
+                    for e in 0..d {
+                        if self.axes[e] == self.axes[d] && coords[e] == coords[d] {
+                            cc = e as u128;
+                            break;
+                        }
+                    }
+                    code = (code << 8) | cc;
+                }
+                if *classes.entry(code).or_insert(c) != c {
+                    return false;
+                }
             }
             // odometer
             let mut d = n;
@@ -261,10 +321,70 @@ fn parse(disp: &str) -> (String, Vec<String>) {
     (head, it.map(|s| s.to_string()).collect())
 }
 
+/// Per-op certified-constant cost on `cf`, `None` where no constant can
+/// be certified — the same evidence bar as optimal mode's `op_costs`
+/// (sum of `Increase` effects whose expression reads only never-written,
+/// init-defined fluents; a conditional effect on `cf` is state-dependent
+/// by construction). Kept local: the L2 gate needs VALUES to compare,
+/// not the mode's reject wording, and only family ops are ever read.
+fn const_op_costs(task: &PackedTask, cf: usize) -> Vec<Option<f64>> {
+    let mut written = vec![false; task.fv0.len()];
+    for oi in 0..task.n_ops {
+        for ne in task.num_eff.slice(oi) {
+            written[ne.target as usize] = true;
+        }
+        for ce in task.cond_effs(oi) {
+            for ne in &ce.num {
+                written[ne.target as usize] = true;
+            }
+        }
+    }
+    let mut reads = Vec::new();
+    (0..task.n_ops)
+        .map(|oi| {
+            if task
+                .cond_effs(oi)
+                .any(|ce| ce.num.iter().any(|ne| ne.target as usize == cf))
+            {
+                return None;
+            }
+            let mut total = 0.0f64;
+            for ne in task.num_eff.slice(oi) {
+                if ne.target as usize != cf {
+                    continue;
+                }
+                if ne.op != AssignOp::Increase {
+                    return None;
+                }
+                reads.clear();
+                ne.value.collect_fluents(&mut reads);
+                if !reads
+                    .iter()
+                    .all(|&f| !written[f as usize] && task.fdef0[f as usize])
+                {
+                    return None;
+                }
+                total += ne.value.eval(&task.fv0, &task.fdef0)?;
+            }
+            Some(total)
+        })
+        .collect()
+}
+
+#[derive(Clone)]
 pub struct OrbitMap {
     pub orbits: Vec<Orbit>,
     /// op id -> (orbit, member, template) for per-member agenda signatures.
     pub op_owner: FxHashMap<usize, (usize, usize, usize)>,
+    /// Per orbit: some goal fact's family touches it (the whole-diagonal
+    /// invariance is verified below, so permuting these members is sound
+    /// for the WHOLE goal — but not for a subgoal SUBSET, which is what
+    /// [`Self::goal_free_view`] freezes them for).
+    pub goal_bound: Vec<bool>,
+    /// Per orbit: σ pinned to identity (the L5 passdown view). Frozen
+    /// orbits keep their families in place — cross-orbit tables still
+    /// rewrite correctly — but never permute.
+    frozen: Vec<bool>,
     fact_fams: Vec<Family>,
     fact_touch: Vec<(u32, u32, Vec<u16>)>,
     op_fams: Vec<Family>,
@@ -275,7 +395,20 @@ pub struct OrbitMap {
 
 /// Detect orbits on the lifted problem, then materialize them against the
 /// grounded task. `None` = no usable symmetry (or `FF_NO_ORBIT=1`).
+/// This entry keeps the TEMPORAL consumer's 0.21 strictness — a
+/// non-total-time metric bails; the classical L2 cost carve-out lives
+/// only behind [`detect_classical`], so temporal behavior is
+/// byte-identical this cycle by construction.
 pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<OrbitMap> {
+    detect_gated(domain, problem, task, false)
+}
+
+fn detect_gated(
+    domain: &Domain,
+    problem: &Problem,
+    task: &PackedTask,
+    allow_cost_metric: bool,
+) -> Option<OrbitMap> {
     if std::env::var("FF_NO_ORBIT").is_ok() {
         return None;
     }
@@ -292,6 +425,12 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
         odbg(|| "TILs / derived rules / constraints present".into());
         return None;
     }
+    // A non-total-time metric could make merged states quality-distinct.
+    // The 0.22 Phase 6 L2 carve-out: the classical single-fluent minimize
+    // shape (IPC `:action-costs`) is admitted PROVISIONALLY — the fluent
+    // is recorded here and the grounded cost-uniformity gate below must
+    // then certify every op family's costs symmetric, or detection bails.
+    let mut cost_cf: Option<usize> = None;
     if let Some((_, e)) = &problem.metric {
         fn only_total_time(e: &Expr) -> bool {
             match e {
@@ -304,8 +443,16 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
             }
         }
         if !only_total_time(e) {
-            odbg(|| "metric reads more than total-time".into());
-            return None;
+            match crate::costs::metric_fluent(problem)
+                .filter(|_| allow_cost_metric)
+                .and_then(|d| task.fluent_id(&d))
+            {
+                Some(cf) => cost_cf = Some(cf),
+                None => {
+                    odbg(|| "metric reads more than total-time".into());
+                    return None;
+                }
+            }
         }
     }
 
@@ -470,6 +617,27 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
             in_unit.extend(args.iter().cloned());
         }
     }
+    // Unary-goal SOLO units (0.22 Phase 6 L4): an object whose ONLY goal
+    // appearance is one UNARY atom (cave-diving's four identical divers,
+    // child-snack's children). The key carries the goal predicate, so
+    // members group only with same-goal-shape peers; the grounded
+    // goal-invariance check below still verifies every member's diagonal
+    // goal fact is present before the orbit is trusted.
+    for (pred, args) in &goal_atoms {
+        if let [a] = args.as_slice() {
+            if goal_count.get(a.as_str()) == Some(&1)
+                && !in_unit.contains(a)
+                && !named.contains(a)
+                && ty.contains_key(a.as_str())
+            {
+                units.push(Unit {
+                    key: format!("SOLO1 {pred} {} {}", ty[a.as_str()], profile(a)),
+                    objs: vec![a.clone()],
+                });
+                in_unit.insert(a.clone());
+            }
+        }
+    }
     for (o, t) in problem.objects.iter() {
         let up = o.to_ascii_uppercase();
         if goal_count.contains_key(up.as_str()) || in_unit.contains(&up) || named.contains(&up) {
@@ -613,6 +781,19 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
     {
         return None;
     }
+    // The metric/cost-uniformity gate (0.22 Phase 6 L2): with a minimized
+    // cost fluent admitted above, every op family must carry equal
+    // certified-constant costs within each equality class — merging
+    // states whose plans differ in cost would certify wrong optima and
+    // silently degrade B&B bounds. Ops OUTSIDE every family are fixed by
+    // σ and never need checking.
+    if let Some(cf) = cost_cf {
+        let op_cost = const_op_costs(task, cf);
+        if !ops.fams.iter().all(|fam| fam.cost_uniform(&op_cost)) {
+            odbg(|| "op family cost not a uniform certified constant".into());
+            return None;
+        }
+    }
 
     // Per-member signature templates: families whose axes all sit in ONE
     // orbit contribute their diagonal (all-coordinates-equal) cells, one
@@ -696,7 +877,10 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
     // Goal invariance: every goal fact must be untouched, or a
     // single-orbit diagonal fact whose WHOLE diagonal is in the goal (the
     // goal set is then fixed by every σ). Numeric goals reading a touched
-    // fluent bail.
+    // fluent bail. Orbits touched by goal facts are recorded as
+    // GOAL-BOUND: sound for the whole goal, frozen by
+    // [`OrbitMap::goal_free_view`] for subgoal-subset searches.
+    let mut goal_bound = vec![false; n_orbits];
     let goal_set: std::collections::HashSet<u32> = task.goal_pos.iter().copied().collect();
     let fact_of: FxHashMap<u32, (u32, &Vec<u16>)> = facts
         .touch
@@ -722,6 +906,7 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
                     return None;
                 }
             }
+            goal_bound[o] = true;
         }
     }
     let mut goal_fluents: Vec<u32> = Vec::new();
@@ -739,6 +924,8 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
     Some(OrbitMap {
         orbits,
         op_owner,
+        frozen: vec![false; goal_bound.len()],
+        goal_bound,
         fact_fams: facts.fams,
         fact_touch: facts.touch,
         op_fams: ops.fams,
@@ -750,6 +937,17 @@ pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<O
         flu_fams: flu.fams,
         flu_touch: flu.touch,
     })
+}
+
+/// The classical consumer's detection entry (0.22 Phase 6):
+/// [`detect`] behind the consumer-scoped hatch — `FF_NO_ORBIT_CLASSICAL=1`
+/// kills ONLY the classical canonical keys/dedup while the temporal
+/// consumer keeps its orbit; `FF_NO_ORBIT=1` still kills both.
+pub fn detect_classical(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<OrbitMap> {
+    if std::env::var("FF_NO_ORBIT_CLASSICAL").is_ok() {
+        return None;
+    }
+    detect_gated(domain, problem, task, true)
 }
 
 impl OrbitMap {
@@ -766,13 +964,97 @@ impl OrbitMap {
         state: &State,
         agenda: &[(i64, usize)],
     ) -> (crate::packed::StateKey, Vec<(i64, usize)>) {
+        let (sigma, identity) = self.member_sigma(task, state, agenda);
+        let mut ag: Vec<(i64, usize)> = agenda.to_vec();
+        if identity {
+            ag.sort_unstable();
+            return (task.state_key(state), ag);
+        }
+        let canon = self.rewrite_state(state, &sigma);
+        for e in ag.iter_mut() {
+            if let Some((fam, coords)) = self.op_touch.get(&e.1) {
+                e.1 = self.op_fams[*fam as usize].map(coords, &sigma) as usize;
+            }
+        }
+        ag.sort_unstable();
+        (task.state_key(&canon), ag)
+    }
+
+    /// The classical canonical visited key (0.22 Phase 6): the temporal
+    /// pattern with an empty agenda, plus the branch-and-bound cost
+    /// fluent appended AFTER canonicalization (the σ-invariance of the
+    /// cost value is exactly what the L2 gate certified; the fluent is
+    /// 0-ary in every admitted metric shape, so the rewrite never moves
+    /// it). Matches [`PackedTask::state_key_with_cost`] content-for-content
+    /// on the identity path.
+    pub fn canonical_skey(
+        &self,
+        task: &PackedTask,
+        state: &State,
+        cost_fluent: Option<usize>,
+    ) -> crate::packed::StateKey {
+        let (sigma, identity) = self.member_sigma(task, state, &[]);
+        if identity {
+            return task.state_key_with_cost(state, cost_fluent);
+        }
+        let canon = self.rewrite_state(state, &sigma);
+        task.state_key_with_cost(&canon, cost_fluent)
+    }
+
+    /// Streaming-hash companion of [`Self::canonical_skey`] (the
+    /// [`PackedTask::state_key_hash`] contract): the identity σ — the
+    /// overwhelmingly common case — pays no clone at all, so the
+    /// canonicalization tax on asymmetric states is per-DUPLICATE, not
+    /// per-node (docs/roadmap-0.22.md Phase 6 L3).
+    pub fn canonical_skey_hash(
+        &self,
+        task: &PackedTask,
+        state: &State,
+        cost_fluent: Option<usize>,
+    ) -> u64 {
+        let (sigma, identity) = self.member_sigma(task, state, &[]);
+        if identity {
+            return task.state_key_hash(state, cost_fluent);
+        }
+        let canon = self.rewrite_state(state, &sigma);
+        task.state_key_hash(&canon, cost_fluent)
+    }
+
+    /// The L5 passdown view (0.22 Phase 6): goal-BOUND orbits freeze to
+    /// identity — a partition SUBGOAL is a strict subset of the goal, so
+    /// permuting members the goal distinguishes is no longer invariant —
+    /// while goal-free orbits (child-snack's sandwiches) keep merging.
+    /// `None` when every orbit is goal-bound: nothing left to permute,
+    /// so callers skip the tax entirely.
+    pub fn goal_free_view(&self) -> Option<OrbitMap> {
+        if self.goal_bound.iter().all(|&b| b) {
+            return None;
+        }
+        let mut v = self.clone();
+        v.frozen = self.goal_bound.clone();
+        Some(v)
+    }
+
+    /// σ per orbit (member -> destination), plus the all-identity flag.
+    /// Chosen by sorting per-member signatures — fact bits (template
+    /// order), fluent (defined, value) pairs, this member's pending
+    /// agenda entries (time, template), src index last as tiebreak — so
+    /// the canonical form is a pure function of the state and t1 ≡ t8
+    /// holds. Frozen orbits ([`Self::goal_free_view`]) pin identity.
+    fn member_sigma(
+        &self,
+        task: &PackedTask,
+        state: &State,
+        agenda: &[(i64, usize)],
+    ) -> (Vec<Vec<u16>>, bool) {
         let mut sigma: Vec<Vec<u16>> = Vec::with_capacity(self.orbits.len());
         let mut identity = true;
         for (oi, orbit) in self.orbits.iter().enumerate() {
             let k = orbit.facts.len();
-            // signature per member: fact bits (template order), fluent
-            // (defined, value) pairs, this member's pending agenda
-            // entries (time, template) — src index last as tiebreak.
+            if self.frozen[oi] {
+                sigma.push((0..k as u16).collect());
+                continue;
+            }
             #[allow(clippy::type_complexity)]
             let mut sig: Vec<(Vec<bool>, Vec<(bool, i64)>, Vec<(i64, usize)>, usize)> =
                 Vec::with_capacity(k);
@@ -808,19 +1090,19 @@ impl OrbitMap {
             }
             sigma.push(dest);
         }
-        let mut ag: Vec<(i64, usize)> = agenda.to_vec();
-        if identity {
-            ag.sort_unstable();
-            return (task.state_key(state), ag);
-        }
-        // σ is a bijection on each touched id space (closure-checked at
-        // detection), so writing every image exactly once from the
-        // PRISTINE source state is a complete, alias-free rewrite.
+        (sigma, identity)
+    }
+
+    /// σ applied to bits/fluents. σ is a bijection on each touched id
+    /// space (closure-checked at detection), so writing every image
+    /// exactly once from the PRISTINE source state is a complete,
+    /// alias-free rewrite.
+    fn rewrite_state(&self, state: &State, sigma: &[Vec<u16>]) -> State {
         let mut bits = state.bits.clone();
         let mut fv = state.fv.clone();
         let mut fdef = state.fdef.clone();
         for (f, fam, coords) in &self.fact_touch {
-            let nf = self.fact_fams[*fam as usize].map(coords, &sigma) as usize;
+            let nf = self.fact_fams[*fam as usize].map(coords, sigma) as usize;
             if crate::bitset::test(&state.bits, *f as usize) {
                 crate::bitset::set(&mut bits, nf);
             } else {
@@ -828,18 +1110,11 @@ impl OrbitMap {
             }
         }
         for (fid, fam, coords) in &self.flu_touch {
-            let nf = self.flu_fams[*fam as usize].map(coords, &sigma) as usize;
+            let nf = self.flu_fams[*fam as usize].map(coords, sigma) as usize;
             fv[nf] = state.fv[*fid as usize];
             fdef[nf] = state.fdef[*fid as usize];
         }
-        for e in ag.iter_mut() {
-            if let Some((fam, coords)) = self.op_touch.get(&e.1) {
-                e.1 = self.op_fams[*fam as usize].map(coords, &sigma) as usize;
-            }
-        }
-        ag.sort_unstable();
-        let canon = State { bits, fv, fdef };
-        (task.state_key(&canon), ag)
+        State { bits, fv, fdef }
     }
 
     /// Stabilizer classes for GENERATION-side symmetry skipping (0.15

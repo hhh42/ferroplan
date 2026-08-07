@@ -1314,7 +1314,17 @@ impl Session {
             Some(max_evaluated),
         );
         cfg.node_bytes_target = memory_mb.map(|mb| mb.saturating_mul(1 << 20));
-        let o = search::plan_avoiding(&seeded, self.threads, cfg, self.ehc_first, &self.forbidden);
+        // Session passes no orbit at all — the recorded decision
+        // (orbits.rs module docs): its forbidden masks and seeded inits
+        // are caller-shaped, not σ-checked.
+        let o = search::plan_avoiding(
+            &seeded,
+            self.threads,
+            cfg,
+            self.ehc_first,
+            &self.forbidden,
+            None,
+        );
         match o.ops {
             Some(ops) => {
                 let followed = prefix.len();
@@ -1621,6 +1631,7 @@ impl Session {
             cfg,
             self.ehc_first,
             &self.forbidden,
+            None,
         );
         let mut notes = Vec::new();
         if o.ehc_fell_back && o.ops.is_some() {
