@@ -14,8 +14,33 @@ use crate::bitset;
 use crate::packed::PackedTask;
 use crate::types::{eval_numpre, AssignOp, CompOp, NExpr, NumEff, NumPre};
 
-const LAYER_CAP: u32 = 2000;
+pub(crate) const LAYER_CAP: u32 = 2000;
 const INF: u32 = u32::MAX;
+
+/// Why an RPG build stopped (0.22 Phase 4 L0). The exit reason is the
+/// numeric-admissible bound's whole payload: with a passing
+/// [`numeric_interval_audit`], layer `k`'s facts+intervals CONTAIN every
+/// state reachable by a real plan of length ≤ k (induction over `widen`:
+/// each real step's effect is covered by that op's widening in the round
+/// after it becomes applicable, and applied ops re-widen every round), so
+/// the first goal-satisfiable layer LOWER-BOUNDS plan length.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum RpgExit {
+    /// The goal became (relaxed+widened) satisfiable at loop entry with
+    /// this many completed widening rounds — a lower bound on plan LENGTH.
+    /// The off-by-one convention, pinned by the numopt-p04 fixture: ops
+    /// applied in round ℓ land their adds at fact layer ℓ+1, and the goal
+    /// check sees them entering round ℓ+1 — a gap-60 chain of +1 pumps
+    /// reads GoalAt(60), never 59 or 61.
+    GoalAt(u32),
+    /// Fixpoint without the goal: under a passing audit the widened RPG
+    /// over-approximates reachability, so the goal is truly unreachable
+    /// (h = ∞, a safe prune).
+    Fixpoint,
+    /// LAYER_CAP rounds without fixpoint or goal: the goal needs MORE than
+    /// LAYER_CAP steps (still a valid lower bound; never a prune).
+    Cap,
+}
 
 /// Measurement-only phase accumulators (FF_RES_DEBUG; printed by the search
 /// cap dump). Atomic because h runs on worker threads.
@@ -229,7 +254,9 @@ fn goal_done(
 /// Build the delete-relaxed planning graph into `sc` (op_layer / reached /
 /// bounds). With `to_fixpoint` it ignores the goal and runs to a fixpoint
 /// (so every reachable op gets a layer); otherwise it stops once the goal is
-/// relaxed-reached. `sc` must be reset first.
+/// relaxed-reached. `sc` must be reset first. Returns WHY it stopped
+/// (0.22 Phase 4 L0) — the satisficing callers ignore it, so their paths
+/// are byte-identical.
 fn build_rpg(
     task: &PackedTask,
     sc: &mut Scratch,
@@ -237,7 +264,7 @@ fn build_rpg(
     goal_num: &[NumPre],
     def: &[bool],
     to_fixpoint: bool,
-) {
+) -> RpgExit {
     // ---- build the relaxed planning graph (two-phase, incremental) ----
     // Only UNAPPLIED ops are re-scanned each layer; applied ops never lose
     // applicability (delete-relaxed), so they are skipped — except those with
@@ -251,7 +278,7 @@ fn build_rpg(
     let mut layer: u32 = 0;
     loop {
         if !to_fixpoint && goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
-            break;
+            return RpgExit::GoalAt(layer);
         }
         let mut changed = false;
 
@@ -351,10 +378,99 @@ fn build_rpg(
         }
 
         layer += 1;
-        if !changed || layer > LAYER_CAP {
-            break;
+        if !changed {
+            return RpgExit::Fixpoint;
+        }
+        if layer > LAYER_CAP {
+            return RpgExit::Cap;
         }
     }
+}
+
+/// The numeric-admissible LENGTH bound (0.22 Phase 4 L0): reset `sc` on the
+/// given state, build the RPG toward the task's own goal, and return the
+/// exit reason — `GoalAt(k)` lower-bounds plan length from this state (see
+/// [`RpgExit`]). ONLY sound behind a passing [`numeric_interval_audit`]:
+/// the containment argument holds case-by-case in `widen` for
+/// Increase/Decrease/Assign over defined, closure-complete fluents, and
+/// FAILS for the audited-out shapes. No repetition-count shortcut lives
+/// here on purpose — ceil(gap/rate-now) is inadmissible when a plan can
+/// raise the rate first (sailing-wind's velocity assign is the live
+/// witness); the layer bound already encodes the admissible form.
+pub(crate) fn admissible_goal_layers(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+) -> RpgExit {
+    sc.reset(task, bits, fv);
+    build_rpg(task, sc, &task.goal_pos, &task.goal_num, def, false)
+}
+
+/// The containment audit (0.22 Phase 4 L0): rejects BY NAME the shapes
+/// that break the layer bound's over-approximation, and an audit reject
+/// means UNARMED — byte-identical search (the 0.20 conditional-effect
+/// repair is the precedent for taking these rejects seriously).
+///
+/// The three shapes:
+/// - **scale-up/down on a relevant-closure fluent**: `widen` is one-sided
+///   there (ScaleUp only raises ub, ScaleDown only lowers lb), so a real
+///   application scaling the other way ESCAPES the interval — e.g. a
+///   scale-up by a factor < 1 shrinks the true value below lb forever.
+/// - **relevant-closure fluent undefined at init**: `eval_iv` reads None,
+///   `num_sat` stays false, and a goal a real plan reaches by
+///   assign-then-read is labeled unreachable — an overestimate.
+/// - **monitored / shared_cond**: trajectory-monitor transitions carry
+///   negative conditions and delete semantics the relaxation drops in a
+///   direction the containment induction does not cover; fail closed.
+///
+/// `task.relevant_fluent` IS the relevant closure (ground.rs builds it as
+/// pre_num/cond_num/goal reads plus the transitive closure over effect-RHS
+/// reads feeding relevant targets), so every fluent whose interval feeds
+/// the bound is widened — nothing escapes the audit by being read only
+/// inside an effect expression.
+pub(crate) fn numeric_interval_audit(task: &PackedTask) -> Result<(), String> {
+    if !task.shared_cond.is_empty() && task.monitored.iter().any(|&m| m) {
+        return Err("numeric bound unarmed: monitored (shared trajectory-monitor) block".into());
+    }
+    for &f in &task.rel_fluents {
+        if !task.fdef0[f as usize] {
+            return Err(format!(
+                "numeric bound unarmed: relevant fluent `{}` undefined at init",
+                task.fluent_names
+                    .get(f as usize)
+                    .map(|s| s.as_str())
+                    .unwrap_or("?")
+            ));
+        }
+    }
+    let scale_reject = |ne: &NumEff| -> Option<String> {
+        let t = ne.target as usize;
+        if task.relevant_fluent[t] && matches!(ne.op, AssignOp::ScaleUp | AssignOp::ScaleDown) {
+            Some(format!(
+                "numeric bound unarmed: scale-up/down effect on relevant fluent `{}`",
+                task.fluent_names.get(t).map(|s| s.as_str()).unwrap_or("?")
+            ))
+        } else {
+            None
+        }
+    };
+    for oi in 0..task.n_ops {
+        for ne in task.num_eff.slice(oi) {
+            if let Some(why) = scale_reject(ne) {
+                return Err(why);
+            }
+        }
+        for ce in task.cond.slice(oi) {
+            for ne in &ce.num {
+                if let Some(why) = scale_reject(ne) {
+                    return Err(why);
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Goal-blind relaxed reachability to a FIXPOINT: returns `(fact_layer,
@@ -1304,5 +1420,179 @@ mod tests {
         let pair = water_h_pair();
         std::env::remove_var("FF_NUMPRE_NODAMP");
         assert_eq!(pair, (3, 10), "(h_init, h_after_right): the jump");
+    }
+
+    // ---- 0.22 Phase 4 L0: the numeric-admissible layer bound + audit ----
+
+    fn goal_layers_init(task: &PackedTask) -> RpgExit {
+        let init = task.initial();
+        let mut sc = Scratch::new(task);
+        admissible_goal_layers(task, &mut sc, &init.bits, &init.fv, &init.fdef)
+    }
+
+    /// The numopt admissibility pins: h_num(init) ≤ the known optimum on
+    /// every problem the 0.21 soundness fixtures pinned, with the EXACT
+    /// layer asserted so the counter's arithmetic can never drift quietly.
+    /// p01: optimum LENGTH 3 (bigpump pump fire); each layer widens charge
+    /// by +6 (pump and bigpump both re-widen), fire arms at layer 1, done
+    /// lands at fact layer 2 ⇒ GoalAt(2). p02: charge ≥ 6 at layer 1
+    /// (optimum 2 steps). p03: GoalAt(2) = the optimum exactly.
+    #[test]
+    fn numopt_layer_bounds_are_admissible() {
+        let dom = include_str!("../../../benchmarks/bench/numopt-domain.pddl");
+        let cases = [
+            ("../../../benchmarks/bench/numopt-p01.pddl", 2, 3),
+            ("../../../benchmarks/bench/numopt-p02.pddl", 1, 2),
+            ("../../../benchmarks/bench/numopt-p03.pddl", 2, 2),
+        ];
+        let probs = [
+            include_str!("../../../benchmarks/bench/numopt-p01.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p02.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p03.pddl"),
+        ];
+        for (i, prb) in probs.iter().enumerate() {
+            let (name, layers, optimum) = cases[i];
+            let task = task_of(dom, prb);
+            assert_eq!(numeric_interval_audit(&task), Ok(()), "{name}");
+            let got = goal_layers_init(&task);
+            assert_eq!(got, RpgExit::GoalAt(layers), "{name}");
+            assert!(layers <= optimum, "{name}: bound must not exceed optimum");
+        }
+    }
+
+    /// The gap-60 pump chain (numopt-p04): +1 per layer from charge 0
+    /// toward 60 makes the counter's arithmetic transparent — GoalAt(60),
+    /// exactly. 61 would be INADMISSIBLE (the true optimum IS 60 pumps),
+    /// 59 a silent weakening; the off-by-one is pinned forever.
+    #[test]
+    fn pump_chain_layer_counter_off_by_one_is_pinned() {
+        let task = task_of(
+            include_str!("../../../benchmarks/bench/numopt-pump-domain.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p04.pddl"),
+        );
+        assert_eq!(numeric_interval_audit(&task), Ok(()));
+        assert_eq!(goal_layers_init(&task), RpgExit::GoalAt(60));
+    }
+
+    /// sailing-band on the ADMISSIBLE side (0.22 Phase 4): the audit
+    /// passes (increase/decrease by constants, everything defined), and
+    /// the layer bound reads GoalAt(4) — both +3/step band sides sit 30
+    /// short, all five movers re-widen every layer (±4.5 on x, +3/−2 on
+    /// y), so x+y's ub crosses −30 after 4 rounds and save fires — a
+    /// LOWER bound two orders under the charged h's exact 21, and that is
+    /// the design: weak-but-admissible against the proof boards' currency.
+    #[test]
+    fn sailing_band_layer_bound_is_admissible() {
+        let task = task_of(
+            include_str!("../../../benchmarks/bench/sailing-band-domain.pddl"),
+            include_str!("../../../benchmarks/bench/sailing-band-i1.pddl"),
+        );
+        assert_eq!(numeric_interval_audit(&task), Ok(()));
+        match goal_layers_init(&task) {
+            RpgExit::GoalAt(l) => {
+                assert_eq!(l, 4, "the widening arithmetic moved");
+                assert!(l <= 21, "must lower-bound the 21-step optimum");
+            }
+            other => panic!("expected GoalAt, got {other:?}"),
+        }
+    }
+
+    /// trader-cycle stays the NEGATIVE control on the admissible side
+    /// too: the audit passes and the bound is sound, but a cyclic economy
+    /// prices at a handful of layers (every sell re-widens cash each
+    /// round) against a ~2,400-step real optimum — the bound may never be
+    /// used as evidence of guidance on cycle domains.
+    #[test]
+    fn trader_cycle_layer_bound_is_weak_but_sound() {
+        let task = task_of(
+            include_str!("../../../benchmarks/bench/trader-cycle-domain.pddl"),
+            include_str!("../../../benchmarks/bench/trader-cycle-i1.pddl"),
+        );
+        assert_eq!(numeric_interval_audit(&task), Ok(()));
+        match goal_layers_init(&task) {
+            RpgExit::GoalAt(l) => assert!(
+                (1..=20).contains(&l),
+                "GoalAt({l}): admissible (≤ 2,400) and honestly blind to the lap"
+            ),
+            other => panic!("expected GoalAt, got {other:?}"),
+        }
+    }
+
+    /// Audit reject #1, by name: a scale-up on a relevant fluent. widen's
+    /// ScaleUp only raises ub — a factor-0.25 scale-up SHRINKS the true
+    /// value below lb forever, the goal (<= x 0.5) reads unreachable at
+    /// every layer, and an unaudited arm would certify PROVEN UNSOLVABLE
+    /// on a 1-step task (tests/optimal.rs carries the end-to-end teeth).
+    #[test]
+    fn audit_rejects_scale_on_relevant_fluent() {
+        let task = task_of(
+            "(define (domain sc) (:requirements :numeric-fluents)
+              (:functions (x))
+              (:action shrink :parameters ()
+                :precondition (and) :effect (scale-up (x) 0.25)))",
+            "(define (problem p) (:domain sc)
+              (:init (= (x) 1)) (:goal (<= (x) 0.5)))",
+        );
+        let err = numeric_interval_audit(&task).unwrap_err();
+        assert!(err.contains("scale-up/down"), "{err}");
+    }
+
+    /// Audit reject #2, by name: a relevant fluent undefined at init.
+    /// eval_iv reads None, num_sat stays false, and a goal a real plan
+    /// reaches by define-then-read is labeled unreachable — an
+    /// overestimate the audit fails closed on. The grounder NORMALIZES
+    /// most of this class away (its definedness fixpoint marks
+    /// assign-reachable fluents defined-at-0.0, ground.rs:1540 — engine
+    /// semantics the RPG then matches), so the residual shape is a
+    /// runtime-only definition the fixpoint could not prove; the pin
+    /// constructs it directly on the packed task rather than hunting a
+    /// PDDL incantation the normalizer might learn to close later.
+    #[test]
+    fn audit_rejects_undefined_at_init_relevant_fluent() {
+        let mut task = task_of(
+            include_str!("../../../benchmarks/bench/numopt-domain.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p02.pddl"),
+        );
+        assert_eq!(numeric_interval_audit(&task), Ok(()), "baseline is clean");
+        let charge = task.rel_fluents[0] as usize;
+        task.fdef0[charge] = false;
+        let err = numeric_interval_audit(&task).unwrap_err();
+        assert!(err.contains("undefined at init"), "{err}");
+    }
+
+    /// Audit reject #3, by name: the shared trajectory-monitor block.
+    /// Monitor transitions carry negative conditions and delete semantics
+    /// the containment induction does not cover; fail closed.
+    #[test]
+    fn audit_rejects_monitored_tasks() {
+        let d = crate::parser::parse_domain(
+            "(define (domain mon) (:requirements :numeric-fluents)
+              (:predicates (loaded) (done))
+              (:functions (fuel))
+              (:action load :parameters ()
+                :precondition (and) :effect (loaded))
+              (:action go :parameters ()
+                :precondition (and (loaded) (>= (fuel) 1))
+                :effect (and (done) (decrease (fuel) 1))))",
+        )
+        .unwrap();
+        let p = crate::parser::parse_problem(
+            "(define (problem m) (:domain mon)
+              (:init (= (fuel) 3)) (:goal (done))
+              (:constraints (at-most-once (loaded))))",
+        )
+        .unwrap();
+        let (d, p) = crate::derived::compile(&d, &p).expect("derived");
+        let (d, p) = match crate::constraints::gate(&d, &p).expect("gate") {
+            Some(pair) => pair,
+            None => panic!("constraints must compile to monitors"),
+        };
+        let task = crate::ground::ground_task(&d, &p, 1).expect("ground");
+        assert!(
+            task.monitored.iter().any(|&m| m),
+            "fixture must actually carry a monitor block"
+        );
+        let err = numeric_interval_audit(&task).unwrap_err();
+        assert!(err.contains("monitored"), "{err}");
     }
 }

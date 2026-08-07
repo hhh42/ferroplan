@@ -29,6 +29,7 @@ use std::collections::BinaryHeap;
 
 use crate::bitset;
 use crate::hash::FxHashMap;
+use crate::heuristic::RpgExit;
 use crate::packed::{PackedTask, State, StateKey};
 use crate::types::AssignOp;
 
@@ -46,8 +47,9 @@ pub struct OptOutcome {
     /// The problem shape is outside the mode's certified scope.
     pub reject: Option<String>,
     /// Which admissible heuristic produced this outcome's certificate
-    /// ("h^max" from the sprint rung or `FF_NO_LMCUT`, else "LM-cut") —
-    /// surfaced in the PROVEN note so the record names its prover.
+    /// ("h^max" from the sprint rung or `FF_NO_LMCUT`, else "LM-cut";
+    /// "+numRPG" appended when the 0.22 Phase 4 numeric arm rode along) —
+    /// surfaced in the PROVEN note so the record names its prover(s).
     pub heuristic: &'static str,
     /// This inconclusive came from the WALL DEADLINE, not the node cap
     /// (0.22 Phase 2 lever 2): the node-cap refill must never re-enter
@@ -548,58 +550,122 @@ impl Ord for K {
     }
 }
 
-/// The optimal LADDER (0.20; wall-denominated 0.21 Phase 4): an h^max
-/// SPRINT, then LM-cut over the full budget. The differential priced both
+/// Fraction knob: `var` read as a fraction of remaining wall, (0, 1] only.
+fn frac_env(var: &str, default: f64) -> f64 {
+    std::env::var(var)
+        .ok()
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|f| f.is_finite() && *f > 0.0 && *f <= 1.0)
+        .unwrap_or(default)
+}
+
+/// The numeric-admissible arm (0.22 Phase 4 L1/L2): `Some(root bound)`
+/// when every arming condition holds, `None` otherwise — and `None` means
+/// every search below is byte-identical to the unarmed engine.
+///
+/// Armed on: a genuinely numeric task (numeric goal or preconditions),
+/// certificate currency LENGTH (no active `:metric` — the layer bound
+/// counts STEPS, so it is only admissible against unit costs; all three
+/// ipc2026-opt domains qualify), a passing
+/// [`crate::heuristic::numeric_interval_audit`] (fail closed — the audit
+/// rejects by name the shapes that break containment), and the root-drop
+/// guard (L2): a root bound of 0 means the widened RPG closes the goal
+/// without a single step — the bound buys nothing anywhere, so disarm for
+/// the solve and skip the per-eval RPG tax (dropping a max-component is
+/// always sound). `FF_OPT_NO_NUMH=1` disarms unconditionally, on every
+/// path — the pure-hatch discriminator.
+fn num_arm_root(task: &PackedTask, cf: Option<usize>) -> Option<f64> {
+    if std::env::var("FF_OPT_NO_NUMH").is_ok() || cf.is_some() {
+        return None;
+    }
+    if task.goal_num.is_empty() && task.pre_num.flat.is_empty() {
+        return None;
+    }
+    if crate::heuristic::numeric_interval_audit(task).is_err() {
+        return None;
+    }
+    let init = task.initial();
+    let mut sc = crate::heuristic::Scratch::new(task);
+    match crate::heuristic::admissible_goal_layers(task, &mut sc, &init.bits, &init.fv, &init.fdef)
+    {
+        RpgExit::GoalAt(0) => None,
+        RpgExit::GoalAt(l) => Some(l as f64),
+        RpgExit::Fixpoint => Some(f64::INFINITY),
+        RpgExit::Cap => Some(crate::heuristic::LAYER_CAP as f64),
+    }
+}
+
+/// The optimal LADDER (0.20; wall-denominated 0.21 Phase 4; allocation
+/// repriced + resumption 0.22 Phase 3): an h^max SPRINT, then LM-cut,
+/// then — new this cycle — h^max RESUMED. The differential priced both
 /// heuristics honestly — LM-cut collapses the expansion count where h^max
 /// walls (floor-tile 1.95M -> 58k), but its per-node cost LOSES races
 /// h^max wins easily (barman-opt i1: h^max proves cost 90 in 22 s,
 /// LM-cut does not finish in 100 s). The sprint keeps every cheap h^max
 /// certificate at a bounded cost; a PROVEN verdict either way returns
-/// immediately, only an inconclusive cap falls through to LM-cut.
+/// immediately, only an inconclusive cap falls through.
 ///
 /// With no armed `FF_TIME_LIMIT` the split is the 0.20 node-split
 /// (sprint = a quarter of the node budget), bit-identical — dev boxes
 /// and every existing test are out of blast range by construction.
-/// Under an armed wall the ladder is denominated in the currency the
-/// boards charge, WALL SECONDS, because on medium tasks h^max cannot
-/// fill a quarter of the 8 GiB node model inside the wall — the sprint
-/// never returned, and LM-cut got zero wall on exactly the domains it
-/// dominates (293 of 306 v0.20 certificates were h^max's):
-/// - ROOT GATE first: one LM-cut evaluation against h^max's root value
-///   (a one-node cost, ~30x one h^max eval). Equal ⇒ no landmark
-///   structure (the city-car/genome class the quarter-budget sprint was
-///   starving, the backfill's −8) — h^max keeps the FULL node budget
-///   and the whole remaining wall, no sprint split at all.
-/// - Strictly greater ⇒ LM-cut earns the remainder (the
-///   scanalyzer/elevator class): the sprint is TIME-boxed at
-///   `FF_OPT_SPRINT_FRAC` (default 0.4 — a 25% slice would kill the
-///   22 s barman class) of the remaining wall on top of its node quota,
-///   then LM-cut runs with the rest and the full node budget.
+/// Under an armed wall the ladder is denominated in WALL SECONDS:
+/// - ROOT GATE first (0.21), now MARGIN-shaped (0.22 Phase 3 lever 1):
+///   city-car's six v0.19 proofs gated c-branch at LM-cut/h^max ratios
+///   1.09–1.36 while every probed TRUE-c domain sits at 2.2–6.0, so the
+///   binary `lc > hm` was handing thin margins to the wrong rung.
+///   Ratio < `FF_OPT_GATE_MARGIN` (default 1.4) ⇒ h^max keeps the FULL
+///   node budget and the whole remaining wall (margin 1.0 restores the
+///   0.21 binary gate exactly).
+/// - MARGIN-SCALED sprint slice (lever 2): ratio ≥ 2 means the landmark
+///   structure is unambiguous (the scanalyzer/elevator class, where every
+///   0.21 LM-cut certificate paid the full 24 s sprint first — min cert
+///   24.12 s, three within 1.7 s of the kill line) — the sprint shrinks
+///   to `FF_OPT_SPRINT_FRAC_HI` (default 0.1) of the remaining wall;
+///   below 2 it keeps `FF_OPT_SPRINT_FRAC` (default 0.4 — a 25% slice
+///   would kill the 22 s barman class).
+/// - SPRINT-RESUME (lever 3, the new machinery): the ten h^max
+///   certificates the 0.21 slice killed have root ratios 2.59–3.5 —
+///   inside the true-c range, no threshold saves them; they need the
+///   h^max seconds the ladder used to throw away at handover. The
+///   sprint's A* state is KEPT; LM-cut runs a bounded probe
+///   (`FF_OPT_LMCUT_PROBE_FRAC`, default 0.33 of the remaining wall, half
+///   the node budget — a probe, and its arena drops mid-flight, far from
+///   the wall); on LM-cut failure h^max RESUMES its own open list with
+///   the leftover wall and the FULL node budget (plus the one cap-raise
+///   re-entry, in place — no re-tread). `FF_OPT_NO_RESUME=1` restores
+///   the 0.21 throw-away handover (sprint dropped, LM-cut gets the whole
+///   remainder with the refill).
 ///
 /// `FF_NO_LMCUT=1` = h^max only (full budget); `FF_NO_HMAX_SPRINT=1`
 /// = LM-cut only (the gate never resurrects the sprint) — the two
 /// discriminator hatches keep their pure-rung meanings on every path.
-/// `FF_OPT_NO_ROOTGATE=1` restores the unconditional sprint-then-LM-cut
-/// ladder under a wall.
+/// `FF_OPT_NO_ROOTGATE=1` restores the unconditional 0.21
+/// sprint-then-LM-cut ladder under a wall (no margin, no resume).
+/// The numeric arm ([`num_arm_root`], 0.22 Phase 4) composes with every
+/// branch via max() and never touches the gate's h^max-vs-LM-cut verdict.
 pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutcome {
     let wall = crate::search::wall_remaining_secs();
+    let narm = num_arm_root(task, cf);
+    let num = narm.is_some();
     if std::env::var("FF_NO_LMCUT").is_ok() {
-        return astar_wall_refill(task, cf, max_nodes, false, wall);
+        return astar_wall_refill(task, cf, max_nodes, false, num, wall);
     }
     if std::env::var("FF_NO_HMAX_SPRINT").is_ok() {
-        return astar_wall_refill(task, cf, max_nodes, true, wall);
+        return astar_wall_refill(task, cf, max_nodes, true, num, wall);
     }
     let Some(remaining) = wall else {
-        let o = astar(task, cf, (max_nodes / 4).max(2), false, None);
+        let o = astar(task, cf, (max_nodes / 4).max(2), false, num, None);
         if o.proven || o.reject.is_some() {
             return o;
         }
-        let mut full = astar(task, cf, max_nodes, true, None);
+        let mut full = astar(task, cf, max_nodes, true, num, None);
         full.expanded += o.expanded;
         full.evaluated += o.evaluated;
         return full;
     };
-    if std::env::var("FF_OPT_NO_ROOTGATE").is_err() {
+    let rootgate = std::env::var("FF_OPT_NO_ROOTGATE").is_err();
+    let mut ratio_hi = false;
+    if rootgate {
         // An op_costs Err falls through: the sprint below surfaces the
         // identical reject.
         if let Ok(costs) = op_costs(task, cf) {
@@ -608,34 +674,115 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
             let s = task.initial();
             let hm = hmax(task, &s, &graph, &costs, &mut w);
             let lc = lmcut(task, &s, &graph, &costs, &mut w);
-            let informative = lc > hm;
+            let margin = std::env::var("FF_OPT_GATE_MARGIN")
+                .ok()
+                .and_then(|v| v.trim().parse::<f64>().ok())
+                .filter(|m| m.is_finite() && *m > 0.0)
+                .unwrap_or(1.4);
+            let ratio = if hm > 0.0 {
+                lc / hm
+            } else if lc > 0.0 {
+                f64::INFINITY
+            } else {
+                1.0
+            };
+            let informative = lc > hm && ratio >= margin;
+            ratio_hi = informative && ratio >= 2.0;
             // The probe eyes (FF_WALL_DEBUG's pattern): narrate the
             // verdict on stderr, never affect the search.
             if std::env::var("FF_WALL_DEBUG").is_ok() {
+                let numroot = narm.map(|n| format!(", num root {n}")).unwrap_or_default();
                 eprintln!(
-                    "wall: opt root gate h^max {hm} vs LM-cut {lc} -> {}",
+                    "wall: opt root gate h^max {hm} vs LM-cut {lc} \
+                     (ratio {ratio:.2}, margin {margin}{numroot}) -> {}",
                     if informative {
-                        "LM-cut earns the remainder"
+                        if ratio_hi {
+                            "LM-cut earns the remainder (sprint 0.1-class)"
+                        } else {
+                            "LM-cut earns the remainder"
+                        }
                     } else {
                         "h^max holds the wall"
                     }
                 );
             }
             if !informative {
-                return astar_wall_refill(task, cf, max_nodes, false, Some(remaining));
+                return astar_wall_refill(task, cf, max_nodes, false, num, Some(remaining));
             }
         }
     }
-    let frac = std::env::var("FF_OPT_SPRINT_FRAC")
-        .ok()
-        .and_then(|v| v.trim().parse::<f64>().ok())
-        .filter(|f| f.is_finite() && *f > 0.0 && *f <= 1.0)
-        .unwrap_or(0.4);
+    let frac = if ratio_hi {
+        frac_env("FF_OPT_SPRINT_FRAC_HI", 0.1)
+    } else {
+        frac_env("FF_OPT_SPRINT_FRAC", 0.4)
+    };
+    if rootgate && std::env::var("FF_OPT_NO_RESUME").is_err() {
+        // Lever 3: the resumable ladder. The sprint engine LIVES through
+        // the LM-cut probe; nothing is re-expanded on resume.
+        let mut sprint = match AstarState::new(task, cf, false, num) {
+            Ok(e) => e,
+            Err(reject) => return reject,
+        };
+        let o = sprint.run((max_nodes / 4).max(2), Some(frac * remaining));
+        if o.proven || o.reject.is_some() {
+            return o;
+        }
+        let probe_frac = frac_env("FF_OPT_LMCUT_PROBE_FRAC", 0.33);
+        let probe_wall = crate::search::wall_remaining_secs().unwrap_or(0.0);
+        let mut probe = astar(
+            task,
+            cf,
+            (max_nodes / 2).max(2),
+            true,
+            num,
+            Some(probe_frac * probe_wall),
+        );
+        if probe.proven || probe.reject.is_some() {
+            probe.expanded += o.expanded;
+            probe.evaluated += o.evaluated;
+            return probe;
+        }
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: LM-cut probe inconclusive — h^max resumes its open list \
+                 ({:.1}s remaining)",
+                crate::search::wall_remaining_secs().unwrap_or(0.0)
+            );
+        }
+        let mut out = sprint.run(max_nodes, crate::search::wall_remaining_secs());
+        // The node-cap refill (0.22 Phase 2 lever 2) on the resumed
+        // engine: the raise happens IN PLACE — the open list continues,
+        // no re-tread — under the same conditions and hatch as
+        // astar_wall_refill's fresh-pass form.
+        if !out.proven
+            && out.reject.is_none()
+            && !out.clock_tripped
+            && std::env::var("FF_NO_NODECAP_REFILL").is_err()
+            && crate::search::wall_remaining_frac().is_some_and(|f| f > 0.10)
+        {
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: optimal node cap raised x2 in place ({:.1}s remaining)",
+                    crate::search::wall_remaining_secs().unwrap_or(0.0)
+                );
+            }
+            out = sprint.run(
+                max_nodes.saturating_mul(2),
+                crate::search::wall_remaining_secs(),
+            );
+        }
+        out.expanded += probe.expanded;
+        out.evaluated += probe.evaluated;
+        return out;
+    }
+    // The 0.21 throw-away handover (FF_OPT_NO_RESUME, or the whole
+    // unconditional ladder under FF_OPT_NO_ROOTGATE).
     let o = astar(
         task,
         cf,
         (max_nodes / 4).max(2),
         false,
+        num,
         Some(frac * remaining),
     );
     if o.proven || o.reject.is_some() {
@@ -646,6 +793,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
         cf,
         max_nodes,
         true,
+        num,
         crate::search::wall_remaining_secs(),
     );
     full.expanded += o.expanded;
@@ -669,9 +817,10 @@ fn astar_wall_refill(
     cf: Option<usize>,
     max_nodes: usize,
     use_lmcut: bool,
+    num: bool,
     deadline: Option<f64>,
 ) -> OptOutcome {
-    let mut out = astar(task, cf, max_nodes, use_lmcut, deadline);
+    let mut out = astar(task, cf, max_nodes, use_lmcut, num, deadline);
     if deadline.is_none() {
         return out;
     }
@@ -696,6 +845,7 @@ fn astar_wall_refill(
             cf,
             max_nodes.saturating_mul(raise),
             use_lmcut,
+            num,
             crate::search::wall_remaining_secs(),
         );
         out = OptOutcome {
@@ -707,174 +857,326 @@ fn astar_wall_refill(
     out
 }
 
-/// One A* pass with the chosen admissible heuristic. `max_nodes` bounds
-/// STORED nodes (the retained-memory model, like the satisficing
-/// searches); hitting it returns inconclusive. `deadline` (0.21 Phase 4)
-/// is wall seconds from entry: checked every 1024 expansions — one
-/// Instant read per boundary — and a trip returns the same inconclusive
-/// shape as a node-cap hit, so the ladder proceeds identically. `None`
-/// never trips (the no-wall path stays bit-identical).
-///
-/// LM-cut is admissible but NOT consistent, so the A* re-opens closed
-/// states on cheaper routes (the `best_g` map already allows it): with an
-/// admissible h and re-opening, some node on an optimal path always sits
-/// in open with its optimal g, so the first goal POP still carries the
-/// optimality certificate.
+/// One A* pass with the chosen admissible heuristic: one engine, one
+/// `run`. `max_nodes` bounds STORED nodes (the retained-memory model,
+/// like the satisficing searches); hitting it returns inconclusive.
+/// `deadline` (0.21 Phase 4) is wall seconds from entry; a trip returns
+/// the same inconclusive shape as a node-cap hit, so the ladder proceeds
+/// identically. `None` never trips (the no-wall path stays bit-identical).
 fn astar(
     task: &PackedTask,
     cf: Option<usize>,
     max_nodes: usize,
     use_lmcut: bool,
+    num: bool,
     deadline: Option<f64>,
 ) -> OptOutcome {
-    let hname: &'static str = if use_lmcut { "LM-cut" } else { "h^max" };
-    let costs = match op_costs(task, cf) {
-        Ok(c) => c,
-        Err(why) => {
-            return OptOutcome {
-                ops: None,
-                cost: 0.0,
-                expanded: 0,
-                evaluated: 0,
-                proven: false,
-                reject: Some(why),
-                heuristic: hname,
-                clock_tripped: false,
-            }
-        }
+    match AstarState::new(task, cf, use_lmcut, num) {
+        Ok(mut e) => e.run(max_nodes, deadline),
+        Err(reject) => reject,
+    }
+}
+
+/// Evaluate the admissible heuristic on one state: h^max or LM-cut, and —
+/// with the numeric arm ([`num_arm_root`], 0.22 Phase 4 L1) — max() with
+/// the interval-RPG layer bound (max of admissible bounds is admissible).
+/// The propositional ∞ short-circuits: the state is already a safe prune,
+/// so the RPG tax is skipped there.
+#[allow(clippy::too_many_arguments)]
+fn eval_state(
+    task: &PackedTask,
+    use_lmcut: bool,
+    graph: &RelaxGraph,
+    costs: &[f64],
+    w: &mut CutSpace,
+    numsc: &mut Option<crate::heuristic::Scratch>,
+    s: &State,
+) -> f64 {
+    let ph = if use_lmcut {
+        lmcut(task, s, graph, costs, w)
+    } else {
+        hmax(task, s, graph, costs, w)
     };
-    let clock = crate::clock::Clock::now();
-    if deadline.is_some_and(|d| d <= 0.0) {
-        let mut o = inconclusive(0, 0, hname);
+    let Some(sc) = numsc else { return ph };
+    if ph.is_infinite() {
+        return ph;
+    }
+    let nh = match crate::heuristic::admissible_goal_layers(task, sc, &s.bits, &s.fv, &s.fdef) {
+        RpgExit::GoalAt(l) => l as f64,
+        RpgExit::Fixpoint => f64::INFINITY,
+        RpgExit::Cap => crate::heuristic::LAYER_CAP as f64,
+    };
+    ph.max(nh)
+}
+
+/// The resumable A* engine (0.22 Phase 3 lever 3). One `run` is exactly
+/// the historical one-shot pass — same pop order, same counters, same
+/// trip shapes — but the open list, arena, and `best_g` memo SURVIVE the
+/// return, so a later `run` continues where the trip happened instead of
+/// re-treading the prefix. Resume soundness rides `pending`: both trip
+/// shapes fire after a node was popped (clock: before its successor loop;
+/// node cap: mid-loop), which would silently LOSE that node's remaining
+/// successors on resume — so the tripped node's index is parked, and the
+/// next `run` re-drives its successor loop first (idempotent: already-
+/// inserted successors dedup through `best_g` at equal g; the node's
+/// `expanded` count is not double-charged).
+///
+/// LM-cut is admissible but NOT consistent, so the A* re-opens closed
+/// states on cheaper routes (the `best_g` map already allows it): with an
+/// admissible h and re-opening, some node on an optimal path always sits
+/// in open with its optimal g, so the first goal POP still carries the
+/// optimality certificate — across resumes too, because nothing that was
+/// reachable at the trip is forgotten.
+struct AstarState<'t> {
+    task: &'t PackedTask,
+    use_lmcut: bool,
+    num: bool,
+    hname: &'static str,
+    costs: Vec<f64>,
+    per_node: usize,
+    reserve_on: bool,
+    // Primed lazily on the first run() call, AFTER its deadline check —
+    // an already-spent deadline must return before any graph is built
+    // (the 0.21 shape, kept byte-identical).
+    graph: Option<RelaxGraph>,
+    cutspace: Option<CutSpace>,
+    numsc: Option<crate::heuristic::Scratch>,
+    /// (state, parent index, op from parent)
+    nodes: Vec<(State, usize, usize)>,
+    /// Per stored state: best g AND its h (0.21 Phase 4 rider). h is a
+    /// pure function of the state, so a cheaper route to a known state —
+    /// an open-list decrease or a genuine re-open — reuses the memo
+    /// instead of re-paying eval_state.
+    best_g: FxHashMap<StateKey, (f64, f64)>,
+    open: BinaryHeap<Reverse<K>>,
+    g_of: Vec<f64>,
+    expanded: usize,
+    evaluated: usize,
+    /// A popped node whose successor loop was interrupted by a trip;
+    /// the next run() re-drives it before popping anything.
+    pending: Option<usize>,
+}
+
+impl<'t> AstarState<'t> {
+    fn new(
+        task: &'t PackedTask,
+        cf: Option<usize>,
+        use_lmcut: bool,
+        num: bool,
+    ) -> Result<Self, OptOutcome> {
+        // The prover names itself in the PROVEN note; the numeric arm
+        // rides along as "+numRPG" so the record names BOTH admissible
+        // components (0.22 Phase 4 L1).
+        let hname: &'static str = match (use_lmcut, num) {
+            (true, true) => "LM-cut+numRPG",
+            (true, false) => "LM-cut",
+            (false, true) => "h^max+numRPG",
+            (false, false) => "h^max",
+        };
+        let costs = match op_costs(task, cf) {
+            Ok(c) => c,
+            Err(why) => {
+                return Err(OptOutcome {
+                    ops: None,
+                    cost: 0.0,
+                    expanded: 0,
+                    evaluated: 0,
+                    proven: false,
+                    reject: Some(why),
+                    heuristic: hname,
+                    clock_tripped: false,
+                })
+            }
+        };
+        Ok(AstarState {
+            task,
+            use_lmcut,
+            num,
+            hname,
+            costs,
+            // The teardown reserve (0.22 Phase 2): dropping the arena is
+            // paid at RETURN, before the caller can report —
+            // sailing-wind-opt i9 measured ~13 s of frees for ~4.5M
+            // stored 1.2KB states AFTER its deadline trip, blowing a
+            // 60 s solo run to 90+. Reserve stored-bytes / 4e8 (the
+            // measured give-back rate on the sweep box), capped at half
+            // the deadline so small tasks keep the whole wall. Rides the
+            // 0.22 checkpoint hatch so the RED overrun stays pinnable.
+            per_node: crate::search::opt_per_node_model_bytes(task),
+            reserve_on: crate::search::rung_wallcap_on(),
+            graph: None,
+            cutspace: None,
+            numsc: None,
+            nodes: Vec::new(),
+            best_g: FxHashMap::default(),
+            open: BinaryHeap::new(),
+            g_of: Vec::new(),
+            expanded: 0,
+            evaluated: 0,
+            pending: None,
+        })
+    }
+
+    fn prime(&mut self) {
+        if self.graph.is_some() {
+            return;
+        }
+        let graph = RelaxGraph::new(self.task);
+        self.cutspace = Some(CutSpace::new(
+            self.task.fact_names.len(),
+            self.task.n_ops,
+            &graph,
+        ));
+        self.graph = Some(graph);
+        if self.num {
+            self.numsc = Some(crate::heuristic::Scratch::new(self.task));
+        }
+        let init = self.task.initial();
+        let h0 = eval_state(
+            self.task,
+            self.use_lmcut,
+            self.graph.as_ref().unwrap(),
+            &self.costs,
+            self.cutspace.as_mut().unwrap(),
+            &mut self.numsc,
+            &init,
+        );
+        self.best_g.insert(self.task.state_key(&init), (0.0, h0));
+        self.nodes.push((init, usize::MAX, usize::MAX));
+        self.evaluated = 1;
+        if h0.is_finite() {
+            self.open.push(Reverse(K(h0, h0, 0)));
+        }
+        self.g_of.push(0.0);
+    }
+
+    fn tripped(&self) -> OptOutcome {
+        let mut o = inconclusive(self.expanded, self.evaluated, self.hname);
         o.clock_tripped = true;
-        return o;
+        o
     }
-    // The teardown reserve (0.22 Phase 2): dropping the arena is paid at
-    // RETURN, before the caller can report — sailing-wind-opt i9 measured
-    // ~13 s of frees for ~4.5M stored 1.2KB states AFTER its deadline
-    // trip, blowing a 60 s solo run to 90+ (docs/roadmap-0.22.md Phase 2).
-    // Reserve stored-bytes / 4e8 (the measured give-back rate on the
-    // sweep box), capped at half the deadline so small tasks keep the
-    // whole wall. Rides the 0.22 checkpoint hatch so the RED overrun
-    // stays pinnable.
-    let per_node = crate::search::opt_per_node_model_bytes(task);
-    let reserve_on = crate::search::rung_wallcap_on();
-    let graph = RelaxGraph::new(task);
-    let mut cutspace = CutSpace::new(task.fact_names.len(), task.n_ops, &graph);
-    let eval_h = |s: &State, w: &mut CutSpace| {
-        if use_lmcut {
-            lmcut(task, s, &graph, &costs, w)
-        } else {
-            hmax(task, s, &graph, &costs, w)
-        }
-    };
 
-    let init = task.initial();
-    // nodes: (state, parent index, op from parent)
-    let mut nodes: Vec<(State, usize, usize)> = vec![(init, usize::MAX, usize::MAX)];
-    // Per stored state: best g AND its h (0.21 Phase 4 rider). h is a
-    // pure function of the state, so a cheaper route to a known state —
-    // an open-list decrease or a genuine re-open (LM-cut is admissible-
-    // not-consistent) — reuses the memo instead of re-paying eval_h.
-    let mut best_g: FxHashMap<StateKey, (f64, f64)> = FxHashMap::default();
-    let mut open: BinaryHeap<Reverse<K>> = BinaryHeap::new();
-    let h0 = eval_h(&nodes[0].0, &mut cutspace);
-    best_g.insert(task.state_key(&nodes[0].0), (0.0, h0));
-    let mut evaluated = 1usize;
-    if h0.is_finite() {
-        open.push(Reverse(K(h0, h0, 0)));
-    }
-    let mut g_of: Vec<f64> = vec![0.0];
-    let mut expanded = 0usize;
-
-    while let Some(Reverse(K(_, _, ni))) = open.pop() {
-        let g = g_of[ni];
-        let key = task.state_key(&nodes[ni].0);
-        // stale entry: a cheaper route to this state was expanded already
-        if best_g.get(&key).map_or(f64::INFINITY, |&(bg, _)| bg) < g {
-            continue;
-        }
-        if task.goal_met(&nodes[ni].0) {
-            // admissible h + re-opening ⇒ the first goal POP is optimal
-            let mut ops = Vec::new();
-            let mut cur = ni;
-            while nodes[cur].1 != usize::MAX {
-                ops.push(nodes[cur].2);
-                cur = nodes[cur].1;
-            }
-            ops.reverse();
-            return OptOutcome {
-                ops: Some(ops),
-                cost: g,
-                expanded,
-                evaluated,
-                proven: true,
-                reject: None,
-                heuristic: hname,
-                clock_tripped: false,
-            };
-        }
-        expanded += 1;
-        // Checked EVERY pop, not every 1024 (0.22 Phase 2 lever 1): a
-        // clock read costs ~25 ns against a µs-plus expansion, and on
-        // sailing-wind i9 the count cadence went BLIND exactly when it
-        // mattered — past ~6 GB the memory compressor makes each pop
-        // cost milliseconds, 1024 pops take minutes, and a 60 s wall ran
-        // to a 120 s external kill with the deadline armed the whole
-        // time.
-        if let Some(d) = deadline {
-            let reserve = if reserve_on {
-                ((nodes.len() * per_node) as f64 / 4e8).min(d * 0.5)
-            } else {
-                0.0
-            };
-            if clock.elapsed_secs() >= d - reserve {
-                let mut o = inconclusive(expanded, evaluated, hname);
-                o.clock_tripped = true;
-                return o;
-            }
-        }
-        for (oi, &op_cost) in costs.iter().enumerate() {
-            if !task.op_applicable(oi, &nodes[ni].0) {
+    /// Drive node `ni`'s successor loop. `Some(outcome)` = the node cap
+    /// tripped mid-loop (ni parked in `pending` for the next run).
+    fn expand(&mut self, ni: usize, max_nodes: usize) -> Option<OptOutcome> {
+        let g = self.g_of[ni];
+        for oi in 0..self.costs.len() {
+            let op_cost = self.costs[oi];
+            if !self.task.op_applicable(oi, &self.nodes[ni].0) {
                 continue;
             }
-            let succ = task.apply(oi, &nodes[ni].0);
+            let succ = self.task.apply(oi, &self.nodes[ni].0);
             let sg = g + op_cost;
-            let skey = task.state_key(&succ);
-            let prev = best_g.get(&skey).copied();
+            let skey = self.task.state_key(&succ);
+            let prev = self.best_g.get(&skey).copied();
             if prev.is_some_and(|(bg, _)| bg <= sg) {
                 continue;
             }
-            if nodes.len() >= max_nodes {
-                return inconclusive(expanded, evaluated, hname);
+            if self.nodes.len() >= max_nodes {
+                self.pending = Some(ni);
+                return Some(inconclusive(self.expanded, self.evaluated, self.hname));
             }
             let h = match prev {
                 Some((_, ph)) => ph,
                 None => {
-                    evaluated += 1;
-                    eval_h(&succ, &mut cutspace)
+                    self.evaluated += 1;
+                    eval_state(
+                        self.task,
+                        self.use_lmcut,
+                        self.graph.as_ref().unwrap(),
+                        &self.costs,
+                        self.cutspace.as_mut().unwrap(),
+                        &mut self.numsc,
+                        &succ,
+                    )
                 }
             };
             if h.is_infinite() {
                 continue; // relaxed-unreachable goal: safe prune
             }
-            best_g.insert(skey, (sg, h));
-            nodes.push((succ, ni, oi));
-            g_of.push(sg);
-            open.push(Reverse(K(sg + h, h, nodes.len() - 1)));
+            self.best_g.insert(skey, (sg, h));
+            self.nodes.push((succ, ni, oi));
+            self.g_of.push(sg);
+            self.open.push(Reverse(K(sg + h, h, self.nodes.len() - 1)));
         }
+        None
     }
-    // open exhausted without a goal: the task is PROVEN unsolvable (under
-    // exact expansion; h prunes only relaxed-unreachable states)
-    OptOutcome {
-        ops: None,
-        cost: 0.0,
-        expanded,
-        evaluated,
-        proven: true,
-        reject: None,
-        heuristic: hname,
-        clock_tripped: false,
+
+    fn run(&mut self, max_nodes: usize, deadline: Option<f64>) -> OptOutcome {
+        let clock = crate::clock::Clock::now();
+        if deadline.is_some_and(|d| d <= 0.0) {
+            return self.tripped();
+        }
+        self.prime();
+        // Resume repair: finish the successor loop the last trip cut
+        // short (its node was already popped, goal-checked and counted).
+        if let Some(ni) = self.pending.take() {
+            if let Some(o) = self.expand(ni, max_nodes) {
+                return o;
+            }
+        }
+        while let Some(Reverse(K(_, _, ni))) = self.open.pop() {
+            let g = self.g_of[ni];
+            let key = self.task.state_key(&self.nodes[ni].0);
+            // stale entry: a cheaper route to this state was expanded already
+            if self.best_g.get(&key).map_or(f64::INFINITY, |&(bg, _)| bg) < g {
+                continue;
+            }
+            if self.task.goal_met(&self.nodes[ni].0) {
+                // admissible h + re-opening ⇒ the first goal POP is optimal
+                let mut ops = Vec::new();
+                let mut cur = ni;
+                while self.nodes[cur].1 != usize::MAX {
+                    ops.push(self.nodes[cur].2);
+                    cur = self.nodes[cur].1;
+                }
+                ops.reverse();
+                return OptOutcome {
+                    ops: Some(ops),
+                    cost: g,
+                    expanded: self.expanded,
+                    evaluated: self.evaluated,
+                    proven: true,
+                    reject: None,
+                    heuristic: self.hname,
+                    clock_tripped: false,
+                };
+            }
+            self.expanded += 1;
+            // Checked EVERY pop, not every 1024 (0.22 Phase 2 lever 1): a
+            // clock read costs ~25 ns against a µs-plus expansion, and on
+            // sailing-wind i9 the count cadence went BLIND exactly when it
+            // mattered — past ~6 GB the memory compressor makes each pop
+            // cost milliseconds, 1024 pops take minutes, and a 60 s wall
+            // ran to a 120 s external kill with the deadline armed the
+            // whole time.
+            if let Some(d) = deadline {
+                let reserve = if self.reserve_on {
+                    ((self.nodes.len() * self.per_node) as f64 / 4e8).min(d * 0.5)
+                } else {
+                    0.0
+                };
+                if clock.elapsed_secs() >= d - reserve {
+                    self.pending = Some(ni);
+                    return self.tripped();
+                }
+            }
+            if let Some(o) = self.expand(ni, max_nodes) {
+                return o;
+            }
+        }
+        // open exhausted without a goal: the task is PROVEN unsolvable
+        // (under exact expansion; h prunes only relaxed-unreachable states)
+        OptOutcome {
+            ops: None,
+            cost: 0.0,
+            expanded: self.expanded,
+            evaluated: self.evaluated,
+            proven: true,
+            reject: None,
+            heuristic: self.hname,
+            clock_tripped: false,
+        }
     }
 }
 
@@ -940,6 +1242,60 @@ mod tests {
         let (hm, lc) = h_values(dom, prb);
         assert_eq!(hm, 9.0);
         assert_eq!(lc, 9.0);
+    }
+
+    /// The numeric arm's gating table (0.22 Phase 4 L1/L2), pinned at the
+    /// unit level: length currency + numeric task + audit Ok + informative
+    /// root ⇒ armed with the root bound; an active metric (p01/p03)
+    /// disarms on currency (the layer bound counts STEPS — inadmissible
+    /// against weighted costs); an audit reject disarms fail-closed; a
+    /// classical task never arms (and pays zero audit tax).
+    #[test]
+    fn num_arm_gates_on_currency_audit_and_root() {
+        // p02: pure numeric goal, no metric — armed, root GoalAt(1).
+        let (task, cf) = task_of(
+            include_str!("../../../benchmarks/bench/numopt-domain.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p02.pddl"),
+        );
+        assert_eq!(num_arm_root(&task, cf), Some(1.0));
+        // p01: same task shape, active :metric — currency disarms.
+        let (task, cf) = task_of(
+            include_str!("../../../benchmarks/bench/numopt-domain.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p01.pddl"),
+        );
+        assert!(cf.is_some());
+        assert_eq!(num_arm_root(&task, cf), None);
+        // p04: the gap-60 pump chain — armed, root exactly 60.
+        let (task, cf) = task_of(
+            include_str!("../../../benchmarks/bench/numopt-pump-domain.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p04.pddl"),
+        );
+        assert_eq!(num_arm_root(&task, cf), Some(60.0));
+        // sailing-band through Mode::Optimal's arm, admissible side:
+        // propositional goal behind numeric bands — pre_num alone arms it,
+        // root GoalAt(4) ≤ the 21-step optimum.
+        let (task, cf) = task_of(
+            include_str!("../../../benchmarks/bench/sailing-band-domain.pddl"),
+            include_str!("../../../benchmarks/bench/sailing-band-i1.pddl"),
+        );
+        assert_eq!(num_arm_root(&task, cf), Some(4.0));
+        // scale-up shape: the audit rejects, the arm stays down.
+        let (task, cf) = task_of(
+            "(define (domain sc) (:requirements :numeric-fluents)
+              (:functions (x))
+              (:action shrink :parameters ()
+                :precondition (and) :effect (scale-up (x) 0.25)))",
+            "(define (problem p) (:domain sc)
+              (:init (= (x) 1)) (:goal (<= (x) 0.5)))",
+        );
+        assert_eq!(num_arm_root(&task, cf), None);
+        // classical: no numeric anything — never armed.
+        let (task, cf) = task_of(
+            "(define (domain ch) (:predicates (p) (g))
+              (:action a :parameters () :precondition (p) :effect (g)))",
+            "(define (problem c) (:domain ch) (:init (p)) (:goal (g)))",
+        );
+        assert_eq!(num_arm_root(&task, cf), None);
     }
 
     /// The 0.20 admissibility-repair witness at the heuristic level: the
