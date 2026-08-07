@@ -136,6 +136,10 @@ pub fn run_planner(
             );
             return (out, 1);
         }
+        Outcome::WallExhausted(_) => {
+            out.push_str(GROUNDING_WALL_LINE);
+            return (out, 0);
+        }
         Outcome::Task(t) => t,
     };
 
@@ -180,6 +184,12 @@ fn unsolvable_line(capped: bool) -> &'static str {
         "\n\nbest first search space empty! problem proven unsolvable.\n\n"
     }
 }
+
+/// Same honesty bar for a grounding that stopped at the armed wall (0.22
+/// Phase 1): a budget exit, never a verdict — the word "unsolvable" must
+/// not appear.
+const GROUNDING_WALL_LINE: &str =
+    "\n\ngrounding budget reached! no plan found within budget (grounding NOT finished).\n\n";
 
 /// PDDL3 path: compile soft goals away, ground the augmented problem, and
 /// anytime branch-and-bound minimize the metric. Appends to `out`, returns exit.
@@ -256,6 +266,10 @@ fn plan_pddl3(
                 "\n\nff: goal accesses a fluent that will never have a defined value. Problem unsolvable.\n\n",
             );
             return 1;
+        }
+        Outcome::WallExhausted(_) => {
+            out.push_str(GROUNDING_WALL_LINE);
+            return 0;
         }
         Outcome::Task(t) => t,
     };
@@ -335,6 +349,10 @@ fn satisficing_fallback(
         Outcome::GoalFalse(_) => {
             out.push_str("\n\nff: goal can be simplified to FALSE. No plan will solve it\n\n");
             return 1;
+        }
+        Outcome::WallExhausted(_) => {
+            out.push_str(GROUNDING_WALL_LINE);
+            return 0;
         }
         _ => {
             out.push_str("\n\nbest first search space empty! problem proven unsolvable.\n\n");
@@ -503,6 +521,10 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
         Outcome::GoalUndefinedFluent(_) => {
             out.push_str("\n\nff: goal accesses a fluent that will never have a defined value. Problem unsolvable.\n\n");
             (out, 1)
+        }
+        Outcome::WallExhausted(_) => {
+            out.push_str(GROUNDING_WALL_LINE);
+            (out, 0)
         }
         Outcome::Task(task) => {
             let o =

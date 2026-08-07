@@ -96,6 +96,34 @@ fn capped_text_says_cap_not_proof() {
     assert!(!out.contains("proven unsolvable"), "no false proof:\n{out}");
 }
 
+const WATER_DOM: &str = include_str!("../../../benchmarks/bench/watering-line-domain.pddl");
+const WATER_PRB: &str = include_str!("../../../benchmarks/bench/watering-line-i1.pddl");
+
+/// The charge's bill, end to end (0.22 Phase 1): the distilled
+/// ext-plant-watering shape solves mode-auto under the DAMPED charge —
+/// shared-achiever preconditions price at the SUM of their gaps, so every
+/// arrival retires its term smoothly instead of re-pointing the charge at
+/// a farther plant (the exact h values are pinned in heuristic.rs's
+/// watering-mini unit tests; i7's solo receipt: 2.9M evals unsolved
+/// first-wins → 860k solved damped, and the 0.21 near-wall solves
+/// i5/i6/i8/i10/i16 all keep or better their times — the MAX damping
+/// probed first traded them away and is the recorded negative).
+#[test]
+fn watering_line_mode_auto_solves_on_the_damped_charge() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (out, code) = ferroplan::run_planner(WATER_DOM, WATER_PRB, &capped(150_000), false);
+    assert_eq!(code, 0, "clean exit:\n{out}");
+    assert!(out.contains("found legal plan"), "must solve:\n{out}");
+
+    let sol = ferroplan::solve(WATER_DOM, WATER_PRB, &capped(150_000)).unwrap();
+    assert!(sol.solved, "library mode-auto solves too");
+    assert!(
+        sol.statistics.evaluated_states < 150_000,
+        "the damped charge stays inside the cap: {} evals",
+        sol.statistics.evaluated_states
+    );
+}
+
 /// FF_NUMNOV plumbing smoke (probe rider b): the opt-in numeric-novelty
 /// envelope must not break a numeric solve routed through the novelty rung
 /// machinery. (The signature-level pin lives in novelty.rs's unit tests.)

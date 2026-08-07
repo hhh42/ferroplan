@@ -9,19 +9,25 @@ rather than a rejected plan.
 
 Cheap by construction: a VAL that cannot read a domain fails immediately.
 """
-import os, re, subprocess, sys, json
+import os, re, subprocess, sys, json, tempfile
 
 C = "benchmarks/.ipc-corpus"
 VAL = "benchmarks/.val/VAL/build/bin/Validate"
 CORPORA = ["ipc-2008", "ipc-2011", "ipc-2014", "ipc-2018", "ipc-2023",
            "ipc-2023n", "ipc-2026n"]
-EMPTY = "/private/tmp/claude-501/-Users-harold-ferroplan/838a1be1-8874-4e21-bbd6-1dd5f60e5bee/scratchpad/empty.plan"
+# (0.22 Phase 1: these were absolute paths into a long-dead session's
+# scratchpad — the script crashed for anyone but its author's box.)
+_TMP = tempfile.mkdtemp(prefix="val-availability-")
+EMPTY = os.path.join(_TMP, "empty.plan")
 open(EMPTY, "w").close()
 
 # VAL's ways of saying "I cannot ingest this domain/problem", none of which
-# are a verdict on a plan.
+# are a verdict on a plan. Kept in step with ipc67.py's
+# VAL_UNAVAILABLE_SIGNATURES.
 UNAVAILABLE = ("Problem in domain definition!", "Parser failed",
-               "Problem in problem definition!", "Syntax error")
+               "Problem in problem definition!", "Syntax error",
+               "Type problem in domain description!",
+               "Type problem in problem specification!")
 
 out = {}
 for ipc in CORPORA:
@@ -57,8 +63,8 @@ for ipc in CORPORA:
         if hit:
             print(f"  UNAVAILABLE  {ipc}/{v:<52} {hit}", flush=True)
 
-json.dump(out, open("/private/tmp/claude-501/-Users-harold-ferroplan/"
-                    "838a1be1-8874-4e21-bbd6-1dd5f60e5bee/scratchpad/"
-                    "val_availability.json", "w"), indent=1)
+raw = os.path.join(_TMP, "val_availability.json")
+json.dump(out, open(raw, "w"), indent=1)
 bad = sum(1 for v in out.values() if v)
-print(f"\n{bad} of {len(out)} domains cannot be validated by VAL at all")
+print(f"\nraw map: {raw}")
+print(f"{bad} of {len(out)} domains cannot be validated by VAL at all")

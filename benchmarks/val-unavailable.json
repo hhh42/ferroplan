@@ -4,6 +4,7 @@
  "unavailable": {
   "ipc-2018/data-network-sequential-satisficing": "Problem in domain definition!",
   "ipc-2023n/drone-numeric-satisficing": "Parser failed",
+  "ipc-2023n/markettrader-numeric-satisficing": "Type problem in problem specification!",
   "ipc-2023n/sailing-numeric-satisficing": "Problem in domain definition!",
   "ipc-2026n/factory-robot-numeric-2026": "Problem in domain definition!"
  }

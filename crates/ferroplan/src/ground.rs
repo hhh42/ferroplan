@@ -32,9 +32,103 @@ pub enum Outcome {
         pred: String,
         ty: String,
     },
+    /// Grounding hit the armed `FF_TIME_LIMIT` wall MID-EXPANSION and
+    /// stopped honestly (0.22 Phase 1). NOT a verdict on the task —
+    /// callers report "budget exhausted", never "unsolvable".
+    /// block-grouping i3's 21 disjunctive coordinate-Eq goals DNF-multiply
+    /// to 4^21 conjuncts; the product loop used to balloon 76 s past a
+    /// 60 s wall (every stack sample inside `and_merge`) with no way out.
+    WallExhausted(String),
 }
 
 // ----- DNF over ground formulas (string atoms) -----------------------------
+
+/// The goal-DNF wall check (0.22 Phase 1, Phase 2's clock discipline
+/// extended to the one pre-search loop with no driver above it): armed
+/// only around the GOAL `to_dnf` call — action grounding runs in
+/// parallel elsewhere and has its own phase's checks — and probed every
+/// [`DNF_WALL_STRIDE`] produced conjuncts inside `and_merge`, where the
+/// cartesian product actually balloons. Thread-local because grounding
+/// tests run concurrently in one process; zero cost while unarmed.
+struct DnfWall {
+    armed: bool,
+    hit: bool,
+    produced: usize,
+    /// The declared retained-byte budget (`FF_MEM_BUDGET_GB` /
+    /// RLIMIT_AS, the search's own model), snapshot at arm time.
+    /// `usize::MAX` when nothing is declared.
+    budget_bytes: usize,
+}
+thread_local! {
+    static DNF_WALL: std::cell::RefCell<DnfWall> = const {
+        std::cell::RefCell::new(DnfWall {
+            armed: false,
+            hit: false,
+            produced: 0,
+            budget_bytes: usize::MAX,
+        })
+    };
+}
+const DNF_WALL_STRIDE: usize = 1 << 16;
+
+/// True once the armed wall has expired (checked at stride boundaries).
+fn dnf_wall_hit() -> bool {
+    DNF_WALL.with(|w| {
+        let mut w = w.borrow_mut();
+        if !w.armed {
+            return false;
+        }
+        if !w.hit {
+            w.produced += 1;
+            if w.produced % DNF_WALL_STRIDE == 0
+                && crate::search::wall_remaining_secs() == Some(0.0)
+            {
+                w.hit = true;
+            }
+        }
+        w.hit
+    })
+}
+
+/// The predictive arm of the same check: a product level whose ESTIMATED
+/// build alone outruns the remaining wall is refused before it starts.
+/// The stride check alone fires mid-level and leaves a partial product
+/// whose DROP is as wide as its build — measured 20 s of tail past a 15 s
+/// wall (and 2 min past a 60 s one) on block-grouping i3, because each
+/// cloned conjunct carries every literal accumulated so far. The estimate
+/// is therefore denominated in LITERALS (products x conjunct width), at a
+/// measured ~60 ns per cloned literal on this class of box, doubled for
+/// the eventual drop. Unarmed (no `FF_TIME_LIMIT`): never fires.
+fn dnf_wall_doomed(est_products: usize, width: usize) -> bool {
+    DNF_WALL.with(|w| {
+        let mut w = w.borrow_mut();
+        if !w.armed || w.hit {
+            return w.armed && w.hit;
+        }
+        if let Some(remaining) = crate::search::wall_remaining_secs() {
+            let est_secs = est_products as f64 * (width.max(1) as f64) * 120e-9;
+            if remaining < est_secs {
+                w.hit = true;
+                return true;
+            }
+        }
+        // The byte-model arm (same discipline, the other currency): a
+        // declared FF_MEM_BUDGET_GB used to be enforced only in search,
+        // so a 257-or-goal DNF (block-grouping i13/i20) ballooned until
+        // the runner's RSS watchdog killed it from outside. ~100 B is a
+        // floor per cloned literal (three vecs + heap Exprs); a product
+        // level whose floor alone exceeds the retained share can never
+        // pack into a task under it.
+        let est_bytes = est_products
+            .saturating_mul(width.max(1))
+            .saturating_mul(100);
+        if est_bytes > w.budget_bytes {
+            w.hit = true;
+            return true;
+        }
+        false
+    })
+}
 
 struct Conjunct {
     pos: Vec<(Sym, Vec<Sym>)>,
@@ -91,11 +185,27 @@ fn merge_conj(a: &Conjunct, b: &Conjunct) -> Conjunct {
     }
 }
 
-/// AND-combine two DNF lists (cartesian product of conjuncts).
+/// AND-combine two DNF lists (cartesian product of conjuncts). Under an
+/// armed goal-DNF wall the product truncates the moment the wall expires —
+/// the caller reads the hit flag and reports budget, never a verdict.
 fn and_merge(acc: &[Conjunct], cd: &[Conjunct]) -> Vec<Conjunct> {
-    let mut next = Vec::with_capacity(acc.len() * cd.len());
+    let est = acc.len().saturating_mul(cd.len());
+    let width = acc
+        .first()
+        .map(|c| c.pos.len() + c.neg.len() + c.num.len())
+        .unwrap_or(0)
+        + cd.first()
+            .map(|c| c.pos.len() + c.neg.len() + c.num.len())
+            .unwrap_or(0);
+    if est > DNF_WALL_STRIDE && dnf_wall_doomed(est, width) {
+        return Vec::new();
+    }
+    let mut next = Vec::with_capacity(est.min(1 << 20));
     for a in acc {
         for c in cd {
+            if dnf_wall_hit() {
+                return next;
+            }
             next.push(Conjunct {
                 pos: a.pos.iter().chain(&c.pos).cloned().collect(),
                 neg: a.neg.iter().chain(&c.neg).cloned().collect(),
@@ -1365,6 +1475,20 @@ fn ground_v(
         add_preds: &add_predicates,
         del_preds: &del_predicates,
     };
+    // The goal expansion runs under the armed wall (0.22 Phase 1): a goal
+    // whose disjunctive items DNF-multiply (block-grouping's pairwise
+    // coordinate-Eq network: 4^21 conjuncts on i3) used to balloon here
+    // unchecked, 76 s past a 60 s budget, upstream of every narrating
+    // driver. Armed ONLY around this call — action grounding is parallel
+    // and out of scope; unarmed, the probe is a thread-local flag read.
+    DNF_WALL.with(|w| {
+        *w.borrow_mut() = DnfWall {
+            armed: true,
+            hit: false,
+            produced: 0,
+            budget_bytes: crate::search::rlimit_budget(),
+        }
+    });
     let goal_dnf = to_dnf(
         &problem.goal,
         &HashMap::new(),
@@ -1372,6 +1496,25 @@ fn ground_v(
         &objects_of_type,
         dnf_static.then_some(&goal_stx),
     );
+    let wall_hit = DNF_WALL.with(|w| {
+        let hit = w.borrow().hit;
+        *w.borrow_mut() = DnfWall {
+            armed: false,
+            hit: false,
+            produced: 0,
+            budget_bytes: usize::MAX,
+        };
+        hit
+    });
+    if wall_hit {
+        return Outcome::WallExhausted(format!(
+            "goal DNF expansion ({} goal items) exceeded the declared budget",
+            match &problem.goal {
+                Formula::And(fs) => fs.len(),
+                _ => 1,
+            }
+        ));
+    }
     if goal_dnf.is_empty() {
         return Outcome::GoalFalse(
             "the goal simplifies to FALSE against static init (no satisfiable disjunct)".into(),

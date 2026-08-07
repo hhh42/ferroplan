@@ -486,15 +486,58 @@ fn relaxed_extract(
         let selected_ops: Vec<usize> = (0..task.n_ops)
             .filter(|&oi| sc.selected[oi] == sc.gen)
             .collect();
-        for oi in selected_ops {
-            for np in task.pre_num.slice(oi) {
+        // The charge DAMPING (0.22 Phase 1, the 0.21 charge's bill), two
+        // coordinated corrections behind one hatch:
+        //
+        //  1. SUM, not first-wins: when several selected ops' preconditions
+        //     price the SAME achiever — ext-plant-watering's eleven pour
+        //     ops all pricing one agent's move op — `select`'s dedup used
+        //     to keep whichever gap came FIRST in op order and drop the
+        //     rest, so the priced plant's identity flipped as the agent
+        //     walked and h JUMPED UP on arrival at a near plant (i7:
+        //     0.15 s at 0.20 → 2.9M evals unsolved at 0.21). Summing the
+        //     per-precondition gaps keeps every plant's term: arrivals
+        //     retire a term smoothly (no jump) and each step toward any
+        //     unmet gate still descends. (MAX was probed first: monotone
+        //     but too flat — it traded i5/i6/i8/i10/i16, the 0.21
+        //     near-wall solves, for i7. The sum keeps all of them AND
+        //     recovers i7/i13/rover i19; receipts in the 0.22 record.)
+        //     Accumulate per-achiever sums, select once each after the
+        //     walk; a lone achiever (sailing's fixture) is identical.
+        //
+        //  2. Skip preconditions the relaxed plan already pays a mover
+        //     for: delivery's picks read `load + w ≤ limit` as violated in
+        //     THIS state while the extraction has already selected the
+        //     drop that lowers the load — charging them prices a
+        //     satisfied-in-relaxation precondition, penalizes carrying,
+        //     and inverts the progress gradient (i18: 9.3 s at 0.20 →
+        //     timeout at 0.21). The walk runs against the extraction's
+        //     selection snapshot, so the rule is deterministic and never
+        //     sees the charge's own additions. Sailing keeps its whole
+        //     gradient: nothing selected there moves the band fluents.
+        //
+        // `FF_NUMPRE_NODAMP=1` restores the 0.21 charge exactly.
+        let damp = std::env::var("FF_NUMPRE_NODAMP").is_err();
+        let mut charges: Vec<(usize, i32)> = Vec::new();
+        for oi in &selected_ops {
+            for np in task.pre_num.slice(*oi) {
                 if eval_numpre(np, fv, def).unwrap_or(false) {
+                    continue;
+                }
+                if damp && selected_mover_exists(task, &selected_ops, np, fv, def) {
                     continue;
                 }
                 let Some((ai, reps)) = numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen)
                 else {
                     continue;
                 };
+                if damp {
+                    match charges.iter_mut().find(|(a, _)| *a == ai) {
+                        Some((_, r)) => *r = r.saturating_add(reps),
+                        None => charges.push((ai, reps)),
+                    }
+                    continue;
+                }
                 select(task, sc, ai, reps, &mut count);
                 while head < sc.queue.len() {
                     let f = sc.queue[head] as usize;
@@ -508,6 +551,22 @@ fn relaxed_extract(
                         select(task, sc, o2, 1, &mut count);
                         queue_cond_for(task, sc, o2, f);
                     }
+                }
+            }
+        }
+        for (ai, reps) in charges {
+            select(task, sc, ai, reps, &mut count);
+            while head < sc.queue.len() {
+                let f = sc.queue[head] as usize;
+                head += 1;
+                if bitset::test(bits, f) {
+                    continue;
+                }
+                if let Some(o2) =
+                    achiever(task, &sc.op_layer, &sc.op_stamp, sc.gen, &sc.fact_layer, f)
+                {
+                    select(task, sc, o2, 1, &mut count);
+                    queue_cond_for(task, sc, o2, f);
                 }
             }
         }
@@ -978,6 +1037,72 @@ fn numeric_achiever_linear(
     best
 }
 
+/// Does any ALREADY-SELECTED op move `np`'s linear combination toward
+/// satisfaction from this state? The damped charge (0.22 Phase 1) skips
+/// such preconditions: the relaxed plan is already paying for a mover, so
+/// charging them again prices a satisfied-in-relaxation precondition
+/// (delivery's carrying penalty). Non-linear shapes and Assign/Scale
+/// writers return false — they keep their charge, the conservative side.
+fn selected_mover_exists(
+    task: &PackedTask,
+    selected_ops: &[usize],
+    np: &NumPre,
+    fv: &[f64],
+    def: &[bool],
+) -> bool {
+    let mut coeffs: Vec<(u32, f64)> = Vec::new();
+    let mut konst = 0.0;
+    if !linearize(&np.lhs, 1.0, &mut coeffs, &mut konst)
+        || !linearize(&np.rhs, -1.0, &mut coeffs, &mut konst)
+    {
+        return false;
+    }
+    let cur: f64 = konst
+        + coeffs
+            .iter()
+            .map(|&(f, c)| {
+                if def[f as usize] {
+                    c * fv[f as usize]
+                } else {
+                    0.0
+                }
+            })
+            .sum::<f64>();
+    let need_raise = match np.op {
+        CompOp::Ge | CompOp::Gt => true,
+        CompOp::Le | CompOp::Lt => false,
+        CompOp::Eq => cur < 0.0,
+    };
+    for &oi in selected_ops {
+        let mut combo_delta = 0.0;
+        for ne in task.num_eff.slice(oi) {
+            let Some(&(_, coeff)) = coeffs.iter().find(|&&(f2, _)| f2 == ne.target) else {
+                continue;
+            };
+            let Some(v) = ne.value.eval(fv, def) else {
+                continue;
+            };
+            match ne.op {
+                AssignOp::Increase => combo_delta += coeff * v,
+                AssignOp::Decrease => combo_delta -= coeff * v,
+                _ => {
+                    combo_delta = f64::NAN;
+                    break;
+                }
+            }
+        }
+        let toward = if need_raise {
+            combo_delta
+        } else {
+            -combo_delta
+        };
+        if combo_delta.is_finite() && toward > 1e-9 {
+            return true;
+        }
+    }
+    false
+}
+
 fn numeric_achiever(
     task: &PackedTask,
     np: &NumPre,
@@ -1082,5 +1207,74 @@ mod tests {
             h < 100,
             "h(init) = {h}: the relaxation must keep under-pricing the cycle"
         );
+    }
+
+    /// One test mutates `FF_NUMPRE_NODAMP`; both watering pins take this
+    /// lock so the parallel runner cannot race the hatch.
+    static DAMP_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// The charge's BILL, distilled (0.22 Phase 1): two pour ops price the
+    /// ONE shared raiser (move_right) — plant A at gap 1, plant B at gap 9.
+    const WATER_DOM: &str = "
+    (define (domain watering-mini)
+      (:requirements :typing :numeric-fluents)
+      (:types agent plant - object)
+      (:functions (x ?o - object) (carrying ?a - agent)
+                  (poured ?p - plant) (maxx))
+      (:action move_right :parameters (?a - agent)
+        :precondition (<= (+ (x ?a) 1) (maxx))
+        :effect (increase (x ?a) 1))
+      (:action move_left :parameters (?a - agent)
+        :precondition (>= (- (x ?a) 1) 0)
+        :effect (decrease (x ?a) 1))
+      (:action pour :parameters (?a - agent ?p - plant)
+        :precondition (and (= (x ?a) (x ?p)) (>= (carrying ?a) 1))
+        :effect (and (decrease (carrying ?a) 1) (increase (poured ?p) 1))))";
+    const WATER_PRB: &str = "
+    (define (problem watering-mini-1) (:domain watering-mini)
+      (:objects a1 - agent pa pb - plant)
+      (:init (= (x a1) 0) (= (x pa) 1) (= (x pb) 9)
+             (= (carrying a1) 5) (= (poured pa) 0) (= (poured pb) 0)
+             (= (maxx) 12))
+      (:goal (and (= (poured pa) 1) (= (poured pb) 1))))";
+
+    fn water_h_pair() -> (i32, i32) {
+        let task = task_of(WATER_DOM, WATER_PRB);
+        let mr = (0..task.n_ops)
+            .find(|&oi| task.op_display[oi].to_uppercase().contains("MOVE_RIGHT"))
+            .expect("move_right grounds");
+        let init = task.initial();
+        let stepped = task.apply(mr, &init);
+        let mut sc = Scratch::new(&task);
+        let h0 = relaxed(&task, &mut sc, &init.bits, &init.fv, &init.fdef).unwrap();
+        let h1 = relaxed(&task, &mut sc, &stepped.bits, &stepped.fv, &stepped.fdef).unwrap();
+        (h0, h1)
+    }
+
+    /// The damped charge prices the shared raiser at the SUM of the gaps:
+    /// h(init) = 2 pours + (1 + 9) = 12, and one step right DESCENDS to
+    /// 2 + (0 + 8) = 10 — arriving at plant A retires its term smoothly,
+    /// never re-points the charge upward. (A MAX damping was probed first
+    /// and pinned here as (11, 10): monotone but too flat — it traded the
+    /// 0.21 near-wall ext-plant-watering solves for i7; the sum keeps
+    /// both. The 0.22 record carries the receipts.)
+    #[test]
+    fn damped_charge_prices_shared_achiever_at_gap_sum() {
+        let _g = DAMP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        assert_eq!(water_h_pair(), (12, 10), "(h_init, h_after_right)");
+    }
+
+    /// The 0.21 first-wins charge under the hatch: plant A's gap-1 charge
+    /// wins at init (h = 3), and the step ONTO plant A re-points the charge
+    /// at plant B's gap 8 (h = 10) — h jumps UP on progress, the exact
+    /// gradient inversion that took ext-plant-watering i7 from 0.15 s at
+    /// 0.20 to 2.9M evals unsolved at 0.21.
+    #[test]
+    fn nodamp_hatch_restores_the_first_wins_jump() {
+        let _g = DAMP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("FF_NUMPRE_NODAMP", "1");
+        let pair = water_h_pair();
+        std::env::remove_var("FF_NUMPRE_NODAMP");
+        assert_eq!(pair, (3, 10), "(h_init, h_after_right): the jump");
     }
 }

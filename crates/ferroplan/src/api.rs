@@ -379,6 +379,10 @@ enum Grounded {
     /// names the mechanism, surfaced as a `Solution.notes` entry (0.19
     /// Phase 1: a silent unsolvable verdict at grounding is a bug).
     Unsolvable(String),
+    /// grounding stopped at the armed wall budget (0.22 Phase 1) — a
+    /// BUDGET note, never the word "unsolvable" (the 0.21 honesty rider's
+    /// wording bar: no substring classifier may read a cap as a proof).
+    Budget(String),
 }
 
 fn do_ground(
@@ -393,6 +397,7 @@ fn do_ground(
         Outcome::GoalUndefinedFluent(fl) => Ok(Grounded::Unsolvable(format!(
             "goal reads fluent {fl}, which never has a defined value"
         ))),
+        Outcome::WallExhausted(why) => Ok(Grounded::Budget(why)),
         Outcome::EmptyType { kind, pred, ty } => Err(SolveError::EmptyType {
             kind: kind.to_string(),
             pred,
@@ -617,6 +622,13 @@ fn solve_optimal(
                 vec![format!("unsolvable at grounding: {why}")],
             ));
         }
+        Grounded::Budget(why) => {
+            return Ok(unsolved(
+                Mode::Optimal,
+                stats0,
+                vec![format!("grounding stopped at the declared budget: {why}")],
+            ));
+        }
     };
     let cf = crate::costs::metric_fluent(problem).and_then(|d| task.fluent_id(&d));
     let max_nodes = crate::search::node_cap_for(&task);
@@ -818,6 +830,17 @@ fn solve_classic(
                 notes,
             ));
         }
+        Grounded::Budget(why) => {
+            notes.push(format!("grounding stopped at the declared budget: {why}"));
+            return Ok(unsolved(
+                mode,
+                Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                notes,
+            ));
+        }
     };
 
     let (ops, evaluated) = if mode == Mode::Portfolio {
@@ -980,6 +1003,16 @@ fn solve_pddl3(
                     ..Default::default()
                 },
                 vec![format!("unsolvable at grounding: {why}")],
+            ));
+        }
+        Grounded::Budget(why) => {
+            return Ok(unsolved(
+                Mode::Pddl3,
+                Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                vec![format!("grounding stopped at the declared budget: {why}")],
             ));
         }
     };

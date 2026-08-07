@@ -69,6 +69,16 @@ fn lama_rung(
     .map(|(ops, _)| ops)
 }
 
+/// The probe eyes for PARTITION mode (0.22 Phase 1): every other driver
+/// narrates under `FF_WALL_DEBUG`, this one hung 76 s on block-grouping i3
+/// with no way to see where. Same flag, same stderr-only contract as
+/// search.rs's `wall:` lines; never affects the search.
+fn narrate(msg: std::fmt::Arguments<'_>) {
+    if std::env::var("FF_WALL_DEBUG").is_ok() {
+        eprintln!("wall: partition {msg}");
+    }
+}
+
 /// Does op-sequence `ops` apply from `state` and achieve `g`? (cheap replay).
 fn replay_ok(task: &PackedTask, state: &State, ops: &[usize], g: &Subgoal) -> bool {
     let mut s = state.clone();
@@ -106,6 +116,11 @@ pub fn solve(
     let mut groups = interaction_partition(task, mutex_groups);
     let init_groups = groups.len();
     let mut merges = 0usize;
+    narrate(format_args!(
+        "entry: {} groups, remaining {:?}",
+        init_groups,
+        crate::search::wall_remaining_secs()
+    ));
 
     // Per-SUBGOAL solves are BOUNDED probes (the 0.9 text-path unification,
     // second half): a subgoal unsolvable in isolation used to burn the full
@@ -137,17 +152,34 @@ pub fn solve(
         // groups remains future work (goal_landmarks is whole-goal today).
         let mut mono_capped = false;
         let subplans: Vec<Option<Vec<usize>>> = if monolithic {
+            narrate(format_args!(
+                "monolithic ladder, remaining {:?}",
+                crate::search::wall_remaining_secs()
+            ));
             let o = crate::search::plan(task, threads, cfg, true);
             mono_capped = o.capped;
             vec![o.ops]
         } else {
-            par::par_map(&groups, threads, |g| {
+            let idx: Vec<usize> = (0..groups.len()).collect();
+            par::par_map(&idx, threads, |&i| {
+                let g = &groups[i];
                 if g.is_empty() {
-                    Some(Vec::new())
-                } else {
-                    solve_subgoal(task, &init, &g.pos, &g.num, 1, sub_cfg)
-                        .or_else(|| lama_rung(task, &init, g, 1, sub_cfg))
+                    return Some(Vec::new());
                 }
+                narrate(format_args!(
+                    "subgoal {i} start (|pos| {}, |num| {})",
+                    g.pos.len(),
+                    g.num.len()
+                ));
+                let r = solve_subgoal(task, &init, &g.pos, &g.num, 1, sub_cfg)
+                    .or_else(|| lama_rung(task, &init, g, 1, sub_cfg));
+                narrate(format_args!(
+                    "subgoal {i} done: {}, remaining {:?}",
+                    r.as_ref()
+                        .map_or("none".into(), |o| format!("{} ops", o.len())),
+                    crate::search::wall_remaining_secs()
+                ));
+                r
             })
         };
 
@@ -159,6 +191,11 @@ pub fn solve(
                     capped: mono_capped,
                 };
             }
+            narrate(format_args!(
+                "merge {}: subgoal {i} unsolvable in isolation, {} groups left",
+                merges + 1,
+                groups.len() - 1
+            ));
             merge_with_neighbor(&mut groups, i);
             merges += 1;
             continue;
@@ -197,6 +234,11 @@ pub fn solve(
             let ops = if protected.is_empty() && replay_ok(task, &state, pre, &groups[i]) {
                 pre.clone() // no siblings to protect yet — reuse the from-init plan
             } else {
+                narrate(format_args!(
+                    "compose re-solve subgoal {i} ({} protected), remaining {:?}",
+                    protected.len(),
+                    crate::search::wall_remaining_secs()
+                ));
                 let protected_solve = solve_subgoal_avoiding(
                     task,
                     &state,
@@ -262,6 +304,16 @@ pub fn solve(
             return Solved::Unsolvable { capped: false };
         }
         let last = groups.len() - 1;
+        narrate(format_args!(
+            "merge {}: {}, {} groups left",
+            merges + 1,
+            match conflict {
+                Some((i, Some(j))) => format!("subgoal {i} broke sibling {j}"),
+                Some((i, None)) => format!("subgoal {i} stuck in compose"),
+                None => "compose fell short of the full goal".into(),
+            },
+            groups.len() - 1
+        ));
         match conflict {
             Some((i, Some(j))) => merge_at(&mut groups, i, j),
             Some((i, None)) => merge_with_neighbor(&mut groups, i),

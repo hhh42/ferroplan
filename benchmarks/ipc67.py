@@ -249,6 +249,13 @@ VAL_UNAVAILABLE_SIGNATURES = (
     "Problem in domain definition!",
     "Problem in problem definition!",
     "Syntax error",
+    # VAL's typechecker refuses the files BEFORE reading any plan (Validate
+    # main.cpp: typecheckDomain/typecheckProblem). markettrader's instances
+    # init undeclared fluents (fuel/fuel-used, a commented-out metric's
+    # leftovers) and hit the problem-side one — 0.21 booked its single solve
+    # as the board's only VAL-RED through exactly this gap (0.22 Phase 1).
+    "Type problem in domain description!",
+    "Type problem in problem specification!",
 )
 
 

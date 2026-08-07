@@ -89,7 +89,7 @@ pub(crate) fn retained_bytes_budget() -> usize {
 /// kernel — a capped return the refill loop can spend the remaining
 /// wall on. The same 60% retained share applies as on the RLIMIT path;
 /// env absent ⇒ today's behavior exactly.
-fn rlimit_budget() -> usize {
+pub(crate) fn rlimit_budget() -> usize {
     if let Ok(v) = std::env::var("FF_MEM_BUDGET_GB") {
         if let Some(bytes) = mem_budget_bytes(&v) {
             return bytes;
