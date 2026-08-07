@@ -608,6 +608,134 @@ impl WallTick<'_> {
     }
 }
 
+/// Parse an `FF_*` threshold override: finite and positive, else the default.
+fn env_f64(name: &str, default: f64) -> f64 {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|v| v.is_finite() && *v > 0.0)
+        .unwrap_or(default)
+}
+
+/// Each parameter's typed object domain, narrowed by STATIC UNARY
+/// precondition literals against init (a precond `(P ?x)` with P static
+/// means ?x ranges over init's `(P ...)` objects — gripper: 150*2*2
+/// instead of 154^3). Factored out of `ground_action` (0.22 Phase 7) so
+/// the threshold routers price EXACTLY the space the enumeration walks:
+/// the "post-restriction typed product" that `FF_MCV_THRESHOLD` and
+/// `FF_FIXPOINT_THRESHOLD` are denominated in.
+fn restricted_domains(
+    action: &Action,
+    objects_of_type: &HashMap<Sym, Vec<Sym>>,
+    init_unary: &FxHashMap<Sym, FxHashSet<Sym>>,
+    static_lits: &[(Sym, Vec<Term>)],
+) -> Vec<Vec<Sym>> {
+    let mut domains: Vec<Vec<Sym>> = action
+        .params
+        .iter()
+        .map(|(_, ty)| objects_of_type.get(ty).cloned().unwrap_or_default())
+        .collect();
+    for (p, pargs) in static_lits {
+        if pargs.len() == 1 {
+            if let Term::Var(v) = &pargs[0] {
+                if let Some(pos) = action.params.iter().position(|(pv, _)| pv == v) {
+                    match init_unary.get(p) {
+                        Some(allowed) => domains[pos].retain(|o| allowed.contains(o)),
+                        None => domains[pos].clear(),
+                    }
+                }
+            }
+        }
+    }
+    domains
+}
+
+/// Post-restriction typed product — the currency of every Phase 7
+/// threshold. f64 so a 435M-node 2048 product neither overflows nor
+/// allocates; an empty domain prices 0.
+fn typed_product(domains: &[Vec<Sym>]) -> f64 {
+    domains.iter().map(|d| d.len() as f64).product()
+}
+
+/// The greedy bound-connected most-constrained-variable order (0.22
+/// Phase 7 lever 1). Repeatedly pick, among unchosen parameters: first
+/// any CONNECTED to the chosen set through a join literal (binding it
+/// next lets that literal prune as early as possible), then any that
+/// OCCURS in a join literal at all, then the rest; ties broken by
+/// smallest restricted domain, then declaration index. 2048's shift
+/// actions order d, r1, then each pos-at collapses its ?p to one value —
+/// 21M-node subtrees become hundreds. Returns None when the greedy order
+/// IS the declaration order (the plain recursion already visits
+/// survivors-first there, and skips the collect+sort pass).
+fn mcv_order(
+    params: &[(Sym, Sym)],
+    domains: &[Vec<Sym>],
+    enum_lits: &[&(Sym, Vec<Term>)],
+) -> Option<Vec<usize>> {
+    let n = params.len();
+    if n <= 1 || enum_lits.is_empty() {
+        return None;
+    }
+    let param_pos = |v: &Sym| params.iter().position(|(pv, _)| pv == v);
+    let lit_vars: Vec<Vec<usize>> = enum_lits
+        .iter()
+        .map(|lit| {
+            let mut vars = Vec::new();
+            for t in &lit.1 {
+                if let Term::Var(v) = t {
+                    if let Some(p) = param_pos(v) {
+                        if !vars.contains(&p) {
+                            vars.push(p);
+                        }
+                    }
+                }
+            }
+            vars
+        })
+        .collect();
+    let mut chosen = vec![false; n];
+    let mut order = Vec::with_capacity(n);
+    for _ in 0..n {
+        let mut best: Option<(u8, usize, usize)> = None;
+        for p in 0..n {
+            if chosen[p] {
+                continue;
+            }
+            let mut occurs = false;
+            let mut connected = false;
+            for vars in &lit_vars {
+                if !vars.contains(&p) {
+                    continue;
+                }
+                occurs = true;
+                if vars.iter().any(|&q| chosen[q]) {
+                    connected = true;
+                    break;
+                }
+            }
+            let class = if connected {
+                0
+            } else if occurs {
+                1
+            } else {
+                2
+            };
+            let key = (class, domains[p].len(), p);
+            if best.is_none_or(|b| key < b) {
+                best = Some(key);
+            }
+        }
+        let (_, _, p) = best.expect("some parameter is unchosen");
+        chosen[p] = true;
+        order.push(p);
+    }
+    if order.iter().enumerate().all(|(i, &p)| i == p) {
+        None
+    } else {
+        Some(order)
+    }
+}
+
 /// Enumerate parameter bindings in row-major (natural declaration) order,
 /// pruning a whole subtree as soon as a STATIC precondition literal has all
 /// its variables bound and fails against init. This is the join-style
@@ -621,6 +749,17 @@ impl WallTick<'_> {
 /// the emitted op sequence — and every downstream tie-break — is
 /// byte-identical.
 ///
+/// `mcv` (0.22 Phase 7 lever 1, armed by `ground_action` above
+/// `FF_MCV_THRESHOLD`): recurse instead in the [`mcv_order`] so literals
+/// prune at the highest possible level — 2048's every-static-names-the-
+/// last-parameter header stops costing the whole product — then SORT the
+/// survivor tuples BACK to declaration row-major and emit in that order.
+/// The survivor SET is order-independent (pruning only ever removes
+/// post-filter rejects), so the emitted stream stays byte-identical by
+/// construction; the recorded sokoban-t fixpoint regression class
+/// (fact-id first-reference order shifted) is structurally impossible,
+/// and tests/mcv_ground.rs pins it.
+///
 /// `tick`: the wall checkpoint handle — a tripped wall abandons the
 /// remaining subtree (the partial output is discarded wholesale by the
 /// caller, so the abort point never shapes a task).
@@ -630,32 +769,33 @@ fn for_each_binding(
     static_lits: &[(Sym, Vec<Term>)],
     init_atom_set: &HashSet<(Sym, Vec<Sym>)>,
     tick: &mut WallTick,
+    mcv: bool,
     mut f: impl FnMut(&HashMap<Sym, Sym>),
 ) {
     if domains.iter().any(|d| d.is_empty()) {
         return;
     }
-    // For each static literal: the highest param index among its variables
-    // (the level where it becomes fully bound). Literals over constants only
-    // (or over no params — impossible for well-formed input, treated alike)
-    // are checked once, up front.
+    // Literals decidable DURING enumeration: every variable is a parameter.
+    // Literals with quantified/unknown variables stay the caller's
+    // post-filter; literals over constants only decide the whole action
+    // here, once.
     let param_pos = |v: &Sym| params.iter().position(|(pv, _)| pv == v);
-    let mut lits_at: Vec<Vec<&(Sym, Vec<Term>)>> = vec![Vec::new(); params.len()];
+    let mut enum_lits: Vec<&(Sym, Vec<Term>)> = Vec::new();
     for lit in static_lits {
-        let mut level: Option<usize> = None;
+        let mut any_var = false;
         let mut all_known = true;
         for t in &lit.1 {
             if let Term::Var(v) = t {
-                match param_pos(v) {
-                    Some(k) => level = Some(level.map_or(k, |l: usize| l.max(k))),
-                    None => all_known = false, // quantified/unknown var: post-check only
+                any_var = true;
+                if param_pos(v).is_none() {
+                    all_known = false; // quantified/unknown var: post-check only
                 }
             }
         }
-        match (level, all_known) {
-            (Some(k), true) => lits_at[k].push(lit),
+        match (any_var, all_known) {
+            (true, true) => enum_lits.push(lit),
             // fully ground literal: decide the whole action here
-            (None, true)
+            (false, true)
                 if !init_atom_set
                     .contains(&(lit.0.clone(), subst_args(&lit.1, &HashMap::new()))) =>
             {
@@ -664,6 +804,111 @@ fn for_each_binding(
             _ => {} // not decidable during enumeration; the caller's post-filter has it
         }
     }
+    // For each enumerable literal: the visit-order level where it becomes
+    // fully bound (identity order reproduces the historical `lits_at`).
+    let levels_for = |order: &[usize]| -> Vec<Vec<&(Sym, Vec<Term>)>> {
+        let mut lits_at: Vec<Vec<&(Sym, Vec<Term>)>> = vec![Vec::new(); params.len()];
+        for lit in &enum_lits {
+            let mut level = 0usize;
+            for t in &lit.1 {
+                if let Term::Var(v) = t {
+                    let p = param_pos(v).expect("enum_lits vars are params");
+                    let at = order.iter().position(|&q| q == p).expect("order is total");
+                    level = level.max(at);
+                }
+            }
+            lits_at[level].push(*lit);
+        }
+        lits_at
+    };
+
+    if mcv {
+        if let Some(order) = mcv_order(params, domains, &enum_lits) {
+            let lits_at = levels_for(&order);
+            // Survivors as DECLARATION-ORDER domain-index tuples; the
+            // recursion itself walks the permuted order.
+            #[allow(clippy::too_many_arguments)]
+            fn mrec(
+                j: usize,
+                order: &[usize],
+                params: &[(Sym, Sym)],
+                domains: &[Vec<Sym>],
+                lits_at: &[Vec<&(Sym, Vec<Term>)>],
+                init: &HashSet<(Sym, Vec<Sym>)>,
+                binding: &mut HashMap<Sym, Sym>,
+                idx: &mut [u32],
+                tick: &mut WallTick,
+                out: &mut Vec<Vec<u32>>,
+            ) -> bool {
+                if tick.tripped() {
+                    return false;
+                }
+                if j == order.len() {
+                    out.push(idx.to_vec());
+                    return true;
+                }
+                let p = order[j];
+                let var = &params[p].0;
+                for (di, o) in domains[p].iter().enumerate() {
+                    binding.insert(var.clone(), o.clone());
+                    idx[p] = di as u32;
+                    let ok = lits_at[j]
+                        .iter()
+                        .all(|lit| init.contains(&(lit.0.clone(), subst_args(&lit.1, binding))));
+                    if ok
+                        && !mrec(
+                            j + 1,
+                            order,
+                            params,
+                            domains,
+                            lits_at,
+                            init,
+                            binding,
+                            idx,
+                            tick,
+                            out,
+                        )
+                    {
+                        return false;
+                    }
+                }
+                binding.remove(var);
+                true
+            }
+            let mut binding: HashMap<Sym, Sym> = HashMap::new();
+            let mut idx = vec![0u32; params.len()];
+            let mut survivors: Vec<Vec<u32>> = Vec::new();
+            mrec(
+                0,
+                &order,
+                params,
+                domains,
+                &lits_at,
+                init_atom_set,
+                &mut binding,
+                &mut idx,
+                tick,
+                &mut survivors,
+            );
+            // SORT BACK to declaration row-major: emission — and with it the
+            // RawOp stream and the fact-intern order — is byte-identical to
+            // the plain product's.
+            survivors.sort_unstable();
+            for tup in &survivors {
+                if tick.tripped() {
+                    return; // wall: the caller discards the output wholesale
+                }
+                for (p, &di) in tup.iter().enumerate() {
+                    binding.insert(params[p].0.clone(), domains[p][di as usize].clone());
+                }
+                f(&binding);
+            }
+            return;
+        }
+    }
+
+    let identity: Vec<usize> = (0..params.len()).collect();
+    let lits_at = levels_for(&identity);
     let mut binding: HashMap<Sym, Sym> = HashMap::new();
     // Returns false iff the wall tripped — the whole recursion unwinds.
     #[allow(clippy::too_many_arguments)]
@@ -731,6 +976,7 @@ fn ground_action(
     dnf_static: bool,
     skip_bindings: Option<&FxHashSet<Vec<Sym>>>,
     wall: Option<&GroundWall>,
+    mcv_threshold: Option<f64>,
 ) -> Vec<RawOp> {
     let static_lits = static_top_atoms(&action.precond, add_predicates);
     let param_vars: Vec<Sym> = action.params.iter().map(|(v, _)| v.clone()).collect();
@@ -740,23 +986,11 @@ fn ground_action(
     // enumerating the full cartesian product over an untyped `object` domain
     // (e.g. gripper: 154^3 instead of 150*2*2). The post-filter below still
     // checks every static literal, so the set of ground ops is identical.
-    let mut domains: Vec<Vec<Sym>> = action
-        .params
-        .iter()
-        .map(|(_, ty)| objects_of_type.get(ty).cloned().unwrap_or_default())
-        .collect();
-    for (p, pargs) in &static_lits {
-        if pargs.len() == 1 {
-            if let Term::Var(v) = &pargs[0] {
-                if let Some(pos) = param_vars.iter().position(|pv| pv == v) {
-                    match init_unary.get(p) {
-                        Some(allowed) => domains[pos].retain(|o| allowed.contains(o)),
-                        None => domains[pos].clear(),
-                    }
-                }
-            }
-        }
-    }
+    let domains = restricted_domains(action, objects_of_type, init_unary, &static_lits);
+    // MCV join ordering (0.22 Phase 7 lever 1): PER-ACTION, priced on the
+    // post-restriction typed product — small actions keep the plain
+    // recursion (no collect+sort tax), the 2048/sokoban-t class reorders.
+    let mcv = mcv_threshold.is_some_and(|t| typed_product(&domains) > t);
     // Gating literals join the static list AFTER the unary-domain restriction
     // above (that map is init-derived; a no-init gating predicate must not
     // clear a domain) but BEFORE enumeration, so they prune subtrees too.
@@ -770,6 +1004,7 @@ fn ground_action(
         &join_lits,
         join_atoms,
         &mut tick,
+        mcv,
         |b| {
             // Fixpoint rounds (0.12 Phase 3): a binding emitted in an earlier
             // round is final — skip it wholesale (its DNF conjuncts came
@@ -1150,6 +1385,14 @@ fn ground_v(
     // DNF static resolution (see `DnfStatics`); one env read for all actions.
     let dnf_static = std::env::var("FF_NO_DNF_STATIC").is_err();
 
+    // MCV join ordering (0.22 Phase 7 lever 1); one env read for all
+    // actions, priced per action inside `ground_action`. `FF_NO_MCV_JOIN=1`
+    // is the hatch; the default threshold keeps every small action on the
+    // untouched plain recursion.
+    let mcv_threshold: Option<f64> = std::env::var("FF_NO_MCV_JOIN")
+        .is_err()
+        .then(|| env_f64("FF_MCV_THRESHOLD", 1e6));
+
     // ---- Phase B: parallel per-action grounding (optionally stratified) ----
     //
     // Stratified grounding (opt-in via `ground_stratified`; the temporal snap
@@ -1183,8 +1426,44 @@ fn ground_v(
                 total,
                 tripped: std::sync::atomic::AtomicBool::new(false),
             });
+    // Threshold-routed fixpoint (0.22 Phase 7 lever 2): the PLAIN solve
+    // entry routes into the fixpoint enumeration below when any action's
+    // post-restriction typed product exceeds `FF_FIXPOINT_THRESHOLD`
+    // (default 1e8) — organic-synthesis's and caldera's all-dynamic
+    // precondition predicates finally give the join something to hold
+    // (static pruning has nothing there; the 0.21 receipt stands: memory
+    // flat, time is the wall). Fact-id first-reference order shifts ONLY
+    // for tasks that today ground NOTHING inside the budget — vacuous —
+    // and benchmarks/ground-audit.py asserts every currently-solved
+    // domain on all thirteen boards sits BELOW the threshold (agricola,
+    // 246,879 plain-path ops, is the named near-threshold negative
+    // control). The temporal entries keep their own routing (`stratified`
+    // snap, `fixpoint` session); the validator entry never routes.
+    let routed_fixpoint = !fixpoint
+        && !validate
+        && !stratified
+        && std::env::var("FF_NO_FIXPOINT_GROUND").is_err()
+        && {
+            let thr = env_f64("FF_FIXPOINT_THRESHOLD", 1e8);
+            let max_product = domain
+                .actions
+                .iter()
+                .map(|a| {
+                    let sl = static_top_atoms(&a.precond, &add_predicates);
+                    typed_product(&restricted_domains(a, &objects_of_type, &init_unary, &sl))
+                })
+                .fold(0.0f64, f64::max);
+            let hit = max_product > thr;
+            if hit && std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "ground: fixpoint route armed (max post-restriction typed \
+                     product {max_product:.3e} > {thr:.0e})"
+                );
+            }
+            hit
+        };
     // Reached-restricted FIXPOINT grounding (0.12 Phase 3, temporal entry
-    // only, `FF_NO_FIXPOINT_GROUND=1` falls back to the stratified pass):
+    // + the Phase 7 route above, `FF_NO_FIXPOINT_GROUND=1` falls back):
     // every action joins its positive dynamic top-level literals against the
     // atoms REACHED so far (init + emitted ops' adds), rounds to fixpoint,
     // bindings deduped across rounds. Enumeration cost tracks the REACHABLE
@@ -1193,8 +1472,10 @@ fn ground_v(
     // Subsumes the producer-known stratification (RUNNING-* literals are
     // dynamic literals like any other). Dense-reachable domains (the bazaar
     // fixture: 197k of 211k candidates real) pay only the round overhead.
-    let fixpoint_raws: Option<Vec<RawOp>> = if fixpoint
-        && std::env::var("FF_NO_FIXPOINT_GROUND").is_err()
+    // MCV stays active INSIDE each round's enumeration, and within-round
+    // emission keeps the sort-back (the composition tests/mcv_ground.rs).
+    let fixpoint_raws: Option<Vec<RawOp>> = if routed_fixpoint
+        || (fixpoint && std::env::var("FF_NO_FIXPOINT_GROUND").is_err())
     {
         let dyn_lits: Vec<Vec<(Sym, Vec<Term>)>> = domain
             .actions
@@ -1219,6 +1500,7 @@ fn ground_v(
                     dnf_static,
                     Some(&emitted[ai]),
                     gwall.as_ref(),
+                    mcv_threshold,
                 )
             });
             let mut new_atom = false;
@@ -1320,6 +1602,7 @@ fn ground_v(
                 dnf_static,
                 None,
                 gwall.as_ref(),
+                mcv_threshold,
             )
         });
         let idx2: Vec<usize> = (0..n_actions)
@@ -1361,6 +1644,7 @@ fn ground_v(
                     dnf_static,
                     None,
                     gwall.as_ref(),
+                    mcv_threshold,
                 )
             })
         };
@@ -1598,13 +1882,76 @@ fn ground_v(
             budget_bytes: crate::search::rlimit_budget(),
         }
     });
-    let goal_dnf = to_dnf(
-        &problem.goal,
-        &HashMap::new(),
-        false,
-        &objects_of_type,
-        dnf_static.then_some(&goal_stx),
-    );
+    // Factored goal-check pre-pass (0.22 Phase 7, the lever Wave 1's
+    // decode handed over): when the goal is a conjunction whose PER-ITEM
+    // DNF sizes MULTIPLY past `FF_GOAL_FACTOR_THRESHOLD` (default 65536),
+    // do not build the product at all. Single-disjunct items merge into
+    // one base conjunct; each multi-disjunct item is kept whole and
+    // compiled below into a chained per-item achievement check — op count
+    // is the SUM of item disjunct counts (block-grouping i3: 84, not
+    // 4^21). The per-item expansions are exactly the sub-expansions the
+    // plain path's And-fold would run first, under the same armed wall,
+    // so below the threshold — where the plain `to_dnf` call still runs —
+    // behavior is byte-identical, and the honest budget exit is intact
+    // above it. `FF_NO_GOAL_FACTOR=1` restores the product compilation.
+    // Solve entries only: the validator must replay plans on the
+    // un-factored task, and the temporal entries keep their own goals.
+    let factor_enabled =
+        !validate && !stratified && !fixpoint && std::env::var("FF_NO_GOAL_FACTOR").is_err();
+    let st_goal = dnf_static.then_some(&goal_stx);
+    let mut factored_items: Vec<Vec<Conjunct>> = Vec::new();
+    let mut goal_dnf: Option<Vec<Conjunct>> = None;
+    if factor_enabled {
+        if let Formula::And(items) = &problem.goal {
+            let factor_threshold = env_f64("FF_GOAL_FACTOR_THRESHOLD", 65536.0);
+            let mut per_item: Vec<Vec<Conjunct>> = Vec::with_capacity(items.len());
+            let mut product: f64 = 1.0;
+            for it in items {
+                let d = to_dnf(it, &HashMap::new(), false, &objects_of_type, st_goal);
+                if DNF_WALL.with(|w| w.borrow().hit) {
+                    break; // the budget verdict below owns this exit
+                }
+                if d.is_empty() {
+                    product = 0.0; // one AND-item statically false => goal false
+                } else {
+                    product *= d.len() as f64;
+                }
+                per_item.push(d);
+                if product == 0.0 {
+                    break;
+                }
+            }
+            if !DNF_WALL.with(|w| w.borrow().hit) {
+                if product == 0.0 {
+                    // Same verdict, same words, as the plain path's empty
+                    // DNF — reached without building the doomed prefix
+                    // product (items = [4,4,...,0] used to balloon first).
+                    goal_dnf = Some(Vec::new());
+                } else if product > factor_threshold {
+                    let mut base = empty_conj();
+                    for d in per_item {
+                        if d.len() == 1 {
+                            base = merge_conj(&base, &d[0]);
+                        } else {
+                            factored_items.push(d);
+                        }
+                    }
+                    goal_dnf = Some(vec![base]);
+                }
+            }
+        }
+    }
+    let goal_dnf: Vec<Conjunct> = match goal_dnf {
+        Some(g) => g,
+        None if !DNF_WALL.with(|w| w.borrow().hit) => to_dnf(
+            &problem.goal,
+            &HashMap::new(),
+            false,
+            &objects_of_type,
+            st_goal,
+        ),
+        None => Vec::new(), // wall already hit in the pre-pass
+    };
     let wall_hit = DNF_WALL.with(|w| {
         let hit = w.borrow().hit;
         *w.borrow_mut() = DnfWall {
@@ -1628,6 +1975,14 @@ fn ground_v(
         return Outcome::GoalFalse(
             "the goal simplifies to FALSE against static init (no satisfiable disjunct)".into(),
         );
+    }
+    // Chain disjuncts carry their own negative literals: they need the
+    // same complementary-fact compilation as every other negation, and
+    // the table must be complete BEFORE the per-op toggles below.
+    for d in factored_items.iter().flatten() {
+        for a in &d.neg {
+            neg_atoms.insert(a.clone());
+        }
     }
     // collect negative atoms from EVERY disjunct (a disjunctive goal is compiled
     // below; each disjunct may carry its own negative literals)
@@ -1765,6 +2120,65 @@ fn ground_v(
         &goal_dnf[0]
     };
 
+    // ---- factored goal-check compilation (0.22 Phase 7) ----
+    // One PLAN-MODE fact (init-true), required by EVERY real op and
+    // deleted by EVERY chain op; one GOAL-ITEM-j fact per factored item;
+    // one REACH-GOAL op per ITEM DISJUNCT: pre = the disjunct's literals
+    // + GOAL-ITEM-(j-1), eff = add GOAL-ITEM-j, del PLAN-MODE. The final
+    // goal carries GOAL-ITEM-m.
+    //
+    // SOUND by the freeze argument: the first chain op deletes PLAN-MODE,
+    // after which no real op applies, and chain ops touch no real fact —
+    // so a plan reaching GOAL-ITEM-m checked every item against the SAME
+    // final real state (suffix induction over the chain: GOAL-ITEM-j
+    // exists only via a REACH op whose disjunct held in that state).
+    // COMPLETE by construction: any state satisfying the original goal
+    // extends with one REACH per item (pick a true disjunct each).
+    // The chain is a constant-length forced suffix (m ops, any disjunct
+    // choice), so plan EXISTENCE is exactly preserved; the synthetic
+    // steps strip everywhere the classic REACH-GOAL closer already does.
+    let mut factored_goal_fact: Option<u32> = None;
+    let mut plan_mode_fact: Option<u32> = None;
+    if !factored_items.is_empty() {
+        let pm = intern.fact(&("PLAN-MODE".to_string(), Vec::new()));
+        for op in fops.iter_mut() {
+            op.pre_pos.push(pm);
+        }
+        let mut prev: Option<u32> = None;
+        for (j, disjuncts) in factored_items.iter().enumerate() {
+            let item = intern.fact(&(format!("GOAL-ITEM-{}", j + 1), Vec::new()));
+            for conj in disjuncts {
+                let mut pre_pos: Vec<u32> = conj.pos.iter().map(|k| intern.fact(k)).collect();
+                for a in &conj.neg {
+                    pre_pos.push(neg_fact[a]);
+                }
+                if let Some(p) = prev {
+                    pre_pos.push(p);
+                }
+                let mut pre_num = Vec::new();
+                for (op, l, r) in &conj.num {
+                    let mut rd = Vec::new();
+                    let lhs = intern.resolve_expr(l, &mut rd);
+                    let rhs = intern.resolve_expr(r, &mut rd);
+                    pre_num.push(NumPre { op: *op, lhs, rhs });
+                }
+                fops.push(FinalOp {
+                    display: "REACH-GOAL".to_string(),
+                    pre_pos,
+                    pre_num,
+                    add: vec![item],
+                    del: vec![pm],
+                    num_eff: vec![],
+                    cond: vec![],
+                    monitored: false,
+                });
+            }
+            prev = Some(item);
+        }
+        factored_goal_fact = prev;
+        plan_mode_fact = Some(pm);
+    }
+
     // ---- initial state facts ----
     let mut init_ids: Vec<u32> = problem.init_atoms.iter().map(|k| intern.fact(k)).collect();
     init_ids.sort_unstable();
@@ -1778,6 +2192,11 @@ fn ground_v(
         if !init_atom_set.contains(a) {
             init_true[c as usize] = true;
         }
+    }
+    // PLAN-MODE starts true: real ops stay applicable until the goal
+    // check chain begins (0.22 Phase 7 factored goals).
+    if let Some(pm) = plan_mode_fact {
+        init_true[pm as usize] = true;
     }
 
     // ---- relaxed reachability (prune ops) ----
@@ -1859,6 +2278,12 @@ fn ground_v(
     let mut goal_pos: Vec<u32> = goal_conj.pos.iter().map(|k| intern.fact(k)).collect();
     for a in &goal_conj.neg {
         goal_pos.push(neg_fact[a]);
+    }
+    // Factored goals: the chain's LAST item fact is the whole check —
+    // GOAL-ITEM-m is reachable only through every item's disjunct, so a
+    // single goal fact carries the full conjunction (0.22 Phase 7).
+    if let Some(f) = factored_goal_fact {
+        goal_pos.push(f);
     }
     let n_facts2 = intern.fact_names.len();
     if init_true.len() < n_facts2 {
