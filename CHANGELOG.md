@@ -4,6 +4,36 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+Accumulating toward 0.22.0 — the coverage cycle. Board claims land
+with the cut sweep; entries record engine behavior and solo receipts.
+Full record:
+[`docs/roadmap-0.22.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.22.md).
+
+- **The gate passed, and the boards' one VAL-RED is not ours**
+  (Phase 1): VAL type-check-refuses markettrader's instances before
+  reading any plan (undeclared fuel fluents from a commented-out
+  metric); the plan hand-replays valid. The harness knows both
+  typecheck signatures now; the VAL-RED class zeroes with no board
+  edits.
+- **The charge's -8 bill, paid** (Phase 1): per-achiever gap-SUM
+  damping (MAX built first, measured, recorded as the negative)
+  recovers ext-plant-watering i7/i13, delivery i18/i19, rover i19
+  while sailing/pathwaysmetric/tpp receipts stay byte-identical.
+  `FF_NUMPRE_NODAMP=1` restores 0.21 exactly. counters/zenotravel's
+  three re-attributed to the old-binary column.
+- **Grounding holds a budget** (Phases 1+2): block-grouping i3's
+  4^21-conjunct DNF balloon (76 s past a 60 s wall) becomes a 7.8 s
+  honest exit; 2048's 67-74 s enumeration zombies end by 60.6 s;
+  partition mode finally narrates under `FF_WALL_DEBUG`. Notes say
+  "stopped at the declared budget" — never "unsolvable".
+- **The wall is spent on a clock** (Phases 2+5A): time-based
+  checkpoints in every rung, a teardown reserve so huge-arena runs
+  report instead of dying mid-drop, progress-conditional LAMA slice
+  (0.25) + novelty slice (0.30) + per-rung-entry affordability.
+  gear-car i6 converts at 57.8 s; sailing-wind-opt's node-cap
+  early-exits end honestly (conversion negative recorded);
+  tidybot/openstacks casualties clean.
+
 ## [0.21.0] - 2026-08-04 — The numeric cycle, and the ladders that pay their own way
 
 The cycle that took the sailing wall down, closed a temporal debt

@@ -104,6 +104,47 @@ discipline that makes the levers safe to pull.
   board at 30.7 s); parking-2011's docket entry stays open (12/20
   now, frontier at 47 s).
 
+### Recorded — the gate passes, the bill is paid, the balloon pops honestly
+
+- **The VAL-RED is NOT ours.** VAL refuses markettrader's INSTANCE
+  before reading any plan: `Type-checking initial state failed` —
+  the instance files init `fuel`/`fuel-used` fluents a commented-out
+  metric left undeclared. The 453-step plan hand-replays at exact
+  floats with zero violations (final cash 1001.3000000000025 ≥
+  1000); a fuel-stripped copy gets `Plan valid`. Adjudicated like
+  settlersnumeric i7 before it. The harness learned BOTH typecheck
+  refusal signatures (from Validate's own main.cpp),
+  val-availability.py re-probed all 216 domains, and markettrader is
+  the map's one new row — the VAL-RED class zeroes with no board
+  edits, and val-availability.py's dead hardcoded paths got fixed in
+  passing.
+- **The bill is paid with a SUM, and MAX is the probed negative.**
+  The charge's damping is per-achiever gap SUM plus skipping
+  preconditions an already-selected op moves toward satisfaction;
+  `FF_NUMPRE_NODAMP=1` restores 0.21 exactly. MAX-damping was built
+  first and measured: it recovered i7 but traded five 0.21 near-wall
+  solves — replaced, recorded. Recovered on a quiet box: the named
+  ext-plant-watering i7 (2.94M evals unsolved → 354 steps at 859,772
+  evals) and i13, delivery i18/i19 at the hatch's EXACT eval counts,
+  rover i19 — plus 2–8× wall margins on i4/i5/i6/i8. Held
+  byte-identical: sailing i1 (174/29,203), pathwaysmetric i1
+  (12/4,710), tpp i1. Re-attributed OFF the bill: counters i12/i16
+  and zenotravel i20 — the hatch no longer recovers them, so
+  something else in 0.21 moved them; the old-binary column at the
+  cut owns the answer.
+- **block-grouping's hang, decoded to arithmetic:** i3's 21
+  disjunctive coordinate-Eq or-goals DNF-multiply to 4^21 conjuncts
+  inside `and_merge` (2172/2172 stack samples; the board's own
+  shape: i1 at 4 ors solves, i13's 257 ors mem-cap in 3.8 s).
+  Grounding now holds a BUDGET (wall + declared-byte arms,
+  `Grounded::Budget`): i3's 76 s balloon becomes a 7.8 s honest
+  exit that names itself and never says "unsolvable"; partition
+  mode narrates under `FF_WALL_DEBUG` at last. The CONVERSION lever
+  (a factored goal-check compilation, ~100 synthetic ops vs 4^21)
+  is sized and handed to Phase 7.
+- Suite 252/0 in-worktree and after merge; +4 pins including the
+  damped-charge unit pair and the goal-DNF budget battery.
+
 ## Phase 2 — the honest wall (spend it, all of it, and no more)
 
 0.20 taught the engine to spend the whole wall; 0.21 denominated the
@@ -129,6 +170,39 @@ domains near the line lose solves the engine had time for.
   wall on BOTH temporal boards). Band: +6–15, and a cleaner
   instrument for every phase behind it. No armed budget ⇒
   byte-identical, as always.
+
+### Recorded — every overrun ends by ~61 s, and one converts (with 5A)
+
+- **The named receipts, re-run:** 2048 i8 67.2 s zombie → 60.6 s
+  honest exit; sailing-wind-sat i0 73.9 → 60.7 s capped;
+  sailing-wind-opt i9's 90–120 s external kills → 59.3 s honest
+  inconclusive (conversion NOT achieved at 13.1M expansions — the
+  recorded negative — and a model finding banked: the sat byte
+  model overcharges ~2× there). And one conversion already:
+  **gear-car i6 SOLVES at 57.8 s inside the wall** (LAMA slice →
+  novelty slice → best-first round 1), a candidate board +1.
+- **5A landed with a design upgrade the receipts forced:** a flat
+  LAMA fraction provably loses hiking i6 (its board solve spends
+  ~43 s in the LAMA rung), so the slice is PROGRESS-CONDITIONAL —
+  half-tranche extensions while best-h/landmark-count improve, hard
+  checkpoint backstop. tetris i4 converts via the novelty rung on a
+  quiet box ('wall: solved by novelty'); at load the 0.30 default is
+  marginal (0.5 converts loaded) — the sweep referees the knob.
+- **Beyond the spec's letter, to actually deliver "end by 61":** a
+  teardown/report reserve (stored-bytes-scaled; a ~13 s arena drop
+  was measured on sailing i9) in astar and search_from, and astar's
+  deadline moved to every-pop (the count cadence went blind inside
+  the memory compressor). Grounding's wall check arms only on plain
+  solve entries — validator/session/temporal always finish
+  grounding a found plan.
+- **Casualty watch clean:** tidybot-2011 i18/i19 and
+  openstacks-2011 i16 — unsolved both ways (no further ground
+  lost), now honest ~60 s exits instead of 90 s external kills.
+- **An integration seam worth its line:** both Wave-1 builders
+  independently invented a grounding budget exit; the merge unified
+  them on `Grounded::Budget(String)` (P1's wall+byte arms carrying
+  P2's enumeration trip as its message), one seam pin re-worded,
+  252/0 integrated.
 
 ## Phase 3 — the optimal ladder, third lesson (allocation, then resumption)
 
