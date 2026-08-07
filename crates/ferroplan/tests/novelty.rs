@@ -48,8 +48,8 @@ fn assert_valid(task: &ferroplan::packed::PackedTask, ops: &[usize]) {
 #[test]
 fn novelty_rung_solves_the_catalog_fixture_with_a_valid_plan() {
     let task = fixture();
-    let (ops, evaluated) =
-        novelty::search(&task, 1, 500_000, &[]).expect("novelty rung should solve catalog-120");
+    let (ops, evaluated) = novelty::search(&task, 1, 500_000, &[], None)
+        .expect("novelty rung should solve catalog-120");
     assert!(evaluated > 0);
     assert_valid(&task, &ops);
 }
@@ -57,7 +57,7 @@ fn novelty_rung_solves_the_catalog_fixture_with_a_valid_plan() {
 #[test]
 fn novelty_rung_is_deterministic_across_thread_counts() {
     let task = fixture();
-    let (p1, _) = novelty::search(&task, 1, 500_000, &[]).expect("t1 solve");
-    let (p4, _) = novelty::search(&task, 4, 500_000, &[]).expect("t4 solve");
+    let (p1, _) = novelty::search(&task, 1, 500_000, &[], None).expect("t1 solve");
+    let (p4, _) = novelty::search(&task, 4, 500_000, &[], None).expect("t4 solve");
     assert_eq!(p1, p4, "plan must be identical at any thread count");
 }

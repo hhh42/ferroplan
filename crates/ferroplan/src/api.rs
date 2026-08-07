@@ -379,9 +379,12 @@ enum Grounded {
     /// names the mechanism, surfaced as a `Solution.notes` entry (0.19
     /// Phase 1: a silent unsolvable verdict at grounding is a bug).
     Unsolvable(String),
-    /// grounding stopped at the armed wall budget (0.22 Phase 1) — a
-    /// BUDGET note, never the word "unsolvable" (the 0.21 honesty rider's
-    /// wording bar: no substring classifier may read a cap as a proof).
+    /// grounding stopped at a declared budget — the armed wall
+    /// (0.22 Phase 2: the enumeration did not finish inside
+    /// `FF_TIME_LIMIT`) or the byte budget (0.22 Phase 1: the DNF
+    /// balloon). A BUDGET note, never the word "unsolvable" (the 0.21
+    /// honesty rider's wording bar: no substring classifier may read a
+    /// cap as a proof). The string names which budget and where.
     Budget(String),
 }
 
@@ -631,7 +634,10 @@ fn solve_optimal(
         }
     };
     let cf = crate::costs::metric_fluent(problem).and_then(|d| task.fluent_id(&d));
-    let max_nodes = crate::search::node_cap_for(&task);
+    // The optimal ladder's OWN byte model (0.22 Phase 2 lever 2): its
+    // best_g memo retains a full StateKey per stored node, which the
+    // satisficing model never counted — see `opt_per_node_model_bytes`.
+    let max_nodes = crate::search::opt_node_cap_for(&task);
     let o = crate::optimal::solve(&task, cf, max_nodes);
     let stats = Statistics {
         grounded_facts: task.fact_names.len(),

@@ -68,7 +68,7 @@ fn lama_rung_solves_the_chain() {
         CHAIN,
         "(define (problem p) (:domain chain) (:init (a)) (:goal (c)))",
     );
-    let (ops, _evaluated) = lama::search(&task, 1, 10_000, &[]).expect("chain is solvable");
+    let (ops, _evaluated) = lama::search(&task, 1, 10_000, &[], None).expect("chain is solvable");
     assert_eq!(ops.len(), 2);
 }
 
@@ -87,5 +87,5 @@ fn lama_rung_reports_unsolvable_within_budget() {
         domain,
         "(define (problem p) (:domain consume) (:init (a)) (:goal (and (a) (b))))",
     );
-    assert!(lama::search(&task, 1, 10_000, &[]).is_none());
+    assert!(lama::search(&task, 1, 10_000, &[], None).is_none());
 }

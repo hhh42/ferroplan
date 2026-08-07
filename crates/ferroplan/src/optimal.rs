@@ -49,6 +49,13 @@ pub struct OptOutcome {
     /// ("h^max" from the sprint rung or `FF_NO_LMCUT`, else "LM-cut") —
     /// surfaced in the PROVEN note so the record names its prover.
     pub heuristic: &'static str,
+    /// This inconclusive came from the WALL DEADLINE, not the node cap
+    /// (0.22 Phase 2 lever 2): the node-cap refill must never re-enter
+    /// after a clock trip — with the teardown reserve, a clock trip can
+    /// leave >10% of the wall standing on purpose, so the remaining-wall
+    /// test alone no longer discriminates. Always false on proven or
+    /// rejected outcomes.
+    pub clock_tripped: bool,
 }
 
 fn inconclusive(expanded: usize, evaluated: usize, heuristic: &'static str) -> OptOutcome {
@@ -60,6 +67,7 @@ fn inconclusive(expanded: usize, evaluated: usize, heuristic: &'static str) -> O
         proven: false,
         reject: None,
         heuristic,
+        clock_tripped: false,
     }
 }
 
@@ -576,10 +584,10 @@ impl Ord for K {
 pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutcome {
     let wall = crate::search::wall_remaining_secs();
     if std::env::var("FF_NO_LMCUT").is_ok() {
-        return astar(task, cf, max_nodes, false, wall);
+        return astar_wall_refill(task, cf, max_nodes, false, wall);
     }
     if std::env::var("FF_NO_HMAX_SPRINT").is_ok() {
-        return astar(task, cf, max_nodes, true, wall);
+        return astar_wall_refill(task, cf, max_nodes, true, wall);
     }
     let Some(remaining) = wall else {
         let o = astar(task, cf, (max_nodes / 4).max(2), false, None);
@@ -614,7 +622,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
                 );
             }
             if !informative {
-                return astar(task, cf, max_nodes, false, Some(remaining));
+                return astar_wall_refill(task, cf, max_nodes, false, Some(remaining));
             }
         }
     }
@@ -633,7 +641,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
     if o.proven || o.reject.is_some() {
         return o;
     }
-    let mut full = astar(
+    let mut full = astar_wall_refill(
         task,
         cf,
         max_nodes,
@@ -643,6 +651,60 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
     full.expanded += o.expanded;
     full.evaluated += o.evaluated;
     full
+}
+
+/// The full-budget pass plus the node-cap refill (0.22 Phase 2 lever 2).
+/// The sailing-wind receipt: 9 early-exit rows on ipc2026-opt died at
+/// the old cap with 20–40 s of a 60 s wall LEFT. With the cap now on
+/// the honest optimal model (`opt_per_node_model_bytes`), a node-capped
+/// pass with wall remaining re-enters ONCE with the cap doubled — one
+/// doubling spends the actual headroom the conservative 8 GiB default
+/// leaves on the sweep box, and under the runner's `FF_MEM_BUDGET_GB`
+/// the raise stays inside watchdog territory. The 0.20 refill pattern,
+/// on the proof ladder; `clock_tripped` keeps it from re-entering after
+/// a deadline trip. No armed wall (`deadline` None) ⇒ one pass,
+/// bit-identical; `FF_NO_NODECAP_REFILL=1` restores the fixed cap.
+fn astar_wall_refill(
+    task: &PackedTask,
+    cf: Option<usize>,
+    max_nodes: usize,
+    use_lmcut: bool,
+    deadline: Option<f64>,
+) -> OptOutcome {
+    let mut out = astar(task, cf, max_nodes, use_lmcut, deadline);
+    if deadline.is_none() {
+        return out;
+    }
+    let mut raise = 1usize;
+    while !out.proven
+        && out.ops.is_none()
+        && out.reject.is_none()
+        && !out.clock_tripped
+        && raise < 2
+        && std::env::var("FF_NO_NODECAP_REFILL").is_err()
+        && crate::search::wall_remaining_frac().is_some_and(|f| f > 0.10)
+    {
+        raise *= 2;
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: optimal node cap raised x{raise} ({:.1}s remaining)",
+                crate::search::wall_remaining_secs().unwrap_or(0.0)
+            );
+        }
+        let o = astar(
+            task,
+            cf,
+            max_nodes.saturating_mul(raise),
+            use_lmcut,
+            crate::search::wall_remaining_secs(),
+        );
+        out = OptOutcome {
+            expanded: out.expanded + o.expanded,
+            evaluated: out.evaluated + o.evaluated,
+            ..o
+        };
+    }
+    out
 }
 
 /// One A* pass with the chosen admissible heuristic. `max_nodes` bounds
@@ -677,13 +739,26 @@ fn astar(
                 proven: false,
                 reject: Some(why),
                 heuristic: hname,
+                clock_tripped: false,
             }
         }
     };
     let clock = crate::clock::Clock::now();
     if deadline.is_some_and(|d| d <= 0.0) {
-        return inconclusive(0, 0, hname);
+        let mut o = inconclusive(0, 0, hname);
+        o.clock_tripped = true;
+        return o;
     }
+    // The teardown reserve (0.22 Phase 2): dropping the arena is paid at
+    // RETURN, before the caller can report — sailing-wind-opt i9 measured
+    // ~13 s of frees for ~4.5M stored 1.2KB states AFTER its deadline
+    // trip, blowing a 60 s solo run to 90+ (docs/roadmap-0.22.md Phase 2).
+    // Reserve stored-bytes / 4e8 (the measured give-back rate on the
+    // sweep box), capped at half the deadline so small tasks keep the
+    // whole wall. Rides the 0.22 checkpoint hatch so the RED overrun
+    // stays pinnable.
+    let per_node = crate::search::opt_per_node_model_bytes(task);
+    let reserve_on = crate::search::rung_wallcap_on();
     let graph = RelaxGraph::new(task);
     let mut cutspace = CutSpace::new(task.fact_names.len(), task.n_ops, &graph);
     let eval_h = |s: &State, w: &mut CutSpace| {
@@ -736,14 +811,27 @@ fn astar(
                 proven: true,
                 reject: None,
                 heuristic: hname,
+                clock_tripped: false,
             };
         }
         expanded += 1;
-        if expanded % 1024 == 0 {
-            if let Some(d) = deadline {
-                if clock.elapsed_secs() >= d {
-                    return inconclusive(expanded, evaluated, hname);
-                }
+        // Checked EVERY pop, not every 1024 (0.22 Phase 2 lever 1): a
+        // clock read costs ~25 ns against a µs-plus expansion, and on
+        // sailing-wind i9 the count cadence went BLIND exactly when it
+        // mattered — past ~6 GB the memory compressor makes each pop
+        // cost milliseconds, 1024 pops take minutes, and a 60 s wall ran
+        // to a 120 s external kill with the deadline armed the whole
+        // time.
+        if let Some(d) = deadline {
+            let reserve = if reserve_on {
+                ((nodes.len() * per_node) as f64 / 4e8).min(d * 0.5)
+            } else {
+                0.0
+            };
+            if clock.elapsed_secs() >= d - reserve {
+                let mut o = inconclusive(expanded, evaluated, hname);
+                o.clock_tripped = true;
+                return o;
             }
         }
         for (oi, &op_cost) in costs.iter().enumerate() {
@@ -786,6 +874,7 @@ fn astar(
         proven: true,
         reject: None,
         heuristic: hname,
+        clock_tripped: false,
     }
 }
 

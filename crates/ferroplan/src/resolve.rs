@@ -65,6 +65,7 @@ fn lama_rung(
         LAMA_CAP.min(cfg.max_eval),
         &[],
         false, // subgoal probes return on first goal
+        None,  // the cascade's budget discipline is its own — no slice
     )
     .map(|(ops, _)| ops)
 }

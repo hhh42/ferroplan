@@ -7,6 +7,16 @@
 //! `FF_NOVLIGHT_WALL_FRAC` (default 0.10), checked every 4096 pops.
 //! With no armed wall the ladder is byte-identical.
 //!
+//! 0.22 Phase 2 + 5A (docs/roadmap-0.22.md) finish the lesson: LAMA
+//! gains a slice at `FF_LAMA_WALL_FRAC` (0.25), the h-guided novelty
+//! rung one at `FF_NOV_WALL_FRAC` (0.30), affordability is re-read at
+//! every rung entry, the best-first fallback checks the clock at its
+//! batch boundary, and GROUNDING's binding enumeration checks it too
+//! (trip ⇒ an honest no-verdict failure, never a partial task).
+//! `FF_NO_RUNG_WALLCAP=1` hatches all of it, joining FF_NO_EHC_WALLCAP
+//! — the `no-rung-wallcap` and `ground-wall-hatched` legs keep the RED
+//! overrun shapes on the record permanently.
+//!
 //! One sequential test on purpose: the wall clock is a process-global
 //! OnceLock and FF_* are process-global env knobs, so each scenario runs
 //! in a CHILD process (the tests/refill.rs convention).
@@ -30,6 +40,85 @@
 
 use std::process::Command;
 use std::time::Instant;
+
+/// The tetris shape, distilled (0.22 Phase 5A a1): a DECEPTIVE LAWN the
+/// relaxed heuristic loves and a NOVEL CORRIDOR it prices at h≈m. The
+/// fake goal route (`winop`, behind the opt_wall.rs mutex trick: mk-a
+/// and mk-b both consume the one `fr` token) keeps every lawn state at
+/// h ≤ 3+k while `enter` DELETES `fr`, so the real corridor opens at
+/// h = m+1 — LAMA grinds the 2^k lawn to its 400k-eval cap without ever
+/// popping the corridor, while the novelty rung walks it structurally
+/// (every c_i is a never-seen fact) in ~m rounds. `junk` zero-effect-
+/// variety actions (all add the same `jf`, preconditioned on the mutex
+/// pair so they stay relaxed-reachable but never applicable) price each
+/// heuristic evaluation like a medium task without growing the fact
+/// space.
+fn deceptlawn(k: usize, m: usize, junk: usize) -> (String, String) {
+    let mut preds = String::from(" (win) (fr) (mua) (mub) (jf)");
+    for i in 0..k {
+        preds.push_str(&format!(" (on{i}) (off{i})"));
+    }
+    for i in 0..=m {
+        preds.push_str(&format!(" (c{i})"));
+    }
+    let mut acts = String::new();
+    for i in 0..k {
+        acts.push_str(&format!(
+            "(:action set{i} :parameters () :precondition (off{i}) :effect (and (on{i}) (not (off{i}))))\n\
+             (:action unset{i} :parameters () :precondition (on{i}) :effect (and (off{i}) (not (on{i}))))\n"
+        ));
+    }
+    let allon: String = (0..k).map(|i| format!(" (on{i})")).collect();
+    acts.push_str(&format!(
+        "(:action winop :parameters () :precondition (and (mua) (mub){allon}) :effect (win))\n\
+         (:action mk-a :parameters () :precondition (fr) :effect (and (mua) (not (fr))))\n\
+         (:action mk-b :parameters () :precondition (fr) :effect (and (mub) (not (fr))))\n\
+         (:action enter :parameters () :precondition (fr) :effect (and (c0) (not (fr))))\n\
+         (:action realwin :parameters () :precondition (c{m}) :effect (win))\n"
+    ));
+    for i in 0..m {
+        acts.push_str(&format!(
+            "(:action walk{i} :parameters () :precondition (c{i}) :effect (c{})\n)",
+            i + 1
+        ));
+    }
+    for j in 0..junk {
+        acts.push_str(&format!(
+            "(:action junk{j} :parameters () :precondition (and (mua) (mub)) :effect (jf))\n"
+        ));
+    }
+    let offs: String = (0..k).map(|i| format!(" (off{i})")).collect();
+    (
+        format!("(define (domain deceptlawn) (:predicates{preds}) {acts})"),
+        format!("(define (problem dl) (:domain deceptlawn) (:init{offs} (fr)) (:goal (win)))"),
+    )
+}
+
+/// The 2048 grounding shape, distilled (0.22 Phase 2 lever 1): one
+/// 5-parameter action whose only static literal names the FIRST and
+/// LAST parameters, so the binding enumeration walks the full n^4
+/// prefix product and checks n^5 candidates at the leaf — with zero
+/// survivors (the `trip` predicate has no init atoms). The task itself
+/// is solved by one trivial action AFTER grounding, so the hatched leg
+/// proves the overrun shape: grounding grinds far past the armed wall
+/// and then "solves".
+fn bindstorm(n: usize) -> (String, String) {
+    let objs: String = (0..n).map(|i| format!(" o{i}")).collect();
+    (
+        "(define (domain bindstorm)
+          (:requirements :typing)
+          (:types obj)
+          (:predicates (trip ?a - obj ?e - obj) (start) (gw))
+          (:action heavy :parameters (?a - obj ?b - obj ?c - obj ?d - obj ?e - obj)
+            :precondition (trip ?a ?e) :effect (gw))
+          (:action easy :parameters () :precondition (start) :effect (gw)))"
+            .into(),
+        format!(
+            "(define (problem bs) (:domain bindstorm) (:objects{objs} - obj) \
+             (:init (start)) (:goal (gw)))"
+        ),
+    )
+}
 
 /// The openstacks shape, distilled (see module docs). Zero-ary
 /// predicates/actions ground 1:1, so `n_ops ≈ L+3` and grounding stays
@@ -117,6 +206,31 @@ fn run_child(scenario: &str) -> (String, String, f64) {
                 .env("FF_NOVLIGHT_ONLY", "1")
                 .env("FF_NOVLIGHT_WALL_FRAC", "0.001");
         }
+        "lama-slice" => {
+            // The tetris shape (0.22 Phase 5A a1): light is stood down so
+            // the scenario pins the LAMA rung itself — the light rung's
+            // own slice legs sit above. EHC bails on its own here (the
+            // mutex pair dead-ends its lookahead in milliseconds).
+            cmd.env("FF_TIME_LIMIT", "5").env("FF_NO_NOVLIGHT", "1");
+        }
+        "no-rung-wallcap" => {
+            // The permanent RED record (the FF_NO_EHC_WALLCAP pattern):
+            // unsliced LAMA grinds its 400k-eval budget straight through
+            // the armed wall before the ladder moves on.
+            cmd.env("FF_TIME_LIMIT", "5")
+                .env("FF_NO_NOVLIGHT", "1")
+                .env("FF_NO_RUNG_WALLCAP", "1");
+        }
+        "ground-wall" => {
+            // 0.22 Phase 2 lever 1: grounding must exit HONESTLY at a
+            // tiny armed wall — no partial task, no zombie enumeration.
+            cmd.env("FF_TIME_LIMIT", "1");
+        }
+        "ground-wall-hatched" => {
+            // The permanent RED record: unchecked enumeration grinds far
+            // past the wall, then "solves" — the 2048 receipt shape.
+            cmd.env("FF_TIME_LIMIT", "1").env("FF_NO_RUNG_WALLCAP", "1");
+        }
         "light-whole-slice" => {
             // A LONG armed wall: the default 0.10 slice must hold the
             // light rung's full calibrated dispatch (~25k pops) with
@@ -155,6 +269,19 @@ fn ladder_rungs_pay_the_wall() {
             "capped" | "no-ehc-wallcap" => laddertax(1900),
             "no-budget" => laddertax(120),
             "light-slice" | "light-whole-slice" => lightlawn(13, 6000),
+            // Profile-scaled like light-whole-slice's wall: the RED shape
+            // is denominated in evals/binding nodes while the wall is in
+            // seconds, and a debug build walks both ~10-20x slower.
+            "lama-slice" | "no-rung-wallcap" => {
+                if cfg!(debug_assertions) {
+                    deceptlawn(14, 40, 200)
+                } else {
+                    deceptlawn(19, 60, 2000)
+                }
+            }
+            "ground-wall" | "ground-wall-hatched" => {
+                bindstorm(if cfg!(debug_assertions) { 14 } else { 30 })
+            }
             other => panic!("unknown scenario {other}"),
         };
         let opts = ferroplan::Options {
@@ -243,6 +370,92 @@ fn ladder_rungs_pay_the_wall() {
         stdout.contains("EHC found no improving state"),
         "the light probe itself must solve it: {stdout}"
     );
+
+    // 0.22 Phase 5A a1 — THE PIN (the tetris shape): armed 5 s wall on
+    // the deceptive lawn. LAMA's slice expires at 0.25 x remaining, the
+    // ladder reaches the h-guided novelty rung with real wall left, and
+    // novelty walks the corridor structurally — inside the wall. RED
+    // today: LAMA grinds its 400k-eval budget past the whole wall
+    // before novelty ever runs (the tetris i4 board loss to the
+    // letter).
+    let (stdout, stderr, secs) = run_child("lama-slice");
+    assert!(stdout.contains("CHILD-lama-slice-SOLVED:true"), "{stdout}");
+    assert!(
+        stderr.contains("wall: LAMA slice exhausted"),
+        "LAMA must hand down at its wall slice:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("wall: solved by novelty"),
+        "the novelty rung must get the dispatch:\n{stderr}"
+    );
+    if !cfg!(debug_assertions) {
+        assert!(secs < 5.0, "blew the 5 s wall: {secs:.1} s");
+    }
+
+    // The hatch keeps the RED shape on the record permanently (the
+    // FF_NO_EHC_WALLCAP pattern): unsliced LAMA eats its whole eval
+    // budget through the armed wall; the solve still lands (novelty,
+    // eventually) but only by blowing the budget a runner would have
+    // killed.
+    let (stdout, stderr, secs) = run_child("no-rung-wallcap");
+    assert!(
+        stdout.contains("CHILD-no-rung-wallcap-SOLVED:true"),
+        "{stdout}"
+    );
+    assert!(
+        !stderr.contains("wall: LAMA slice exhausted"),
+        "hatch must disarm the slice:\n{stderr}"
+    );
+    if !cfg!(debug_assertions) {
+        assert!(
+            secs > 5.0,
+            "unsliced LAMA was expected to blow the 5 s wall (the RED shape): {secs:.1} s"
+        );
+    }
+
+    // 0.22 Phase 2 lever 1 — grounding checks the clock: a 1 s armed
+    // wall on the binding storm must end HONESTLY — solved:false, the
+    // no-verdict note, no partial task — instead of enumerating n^5
+    // candidates to the end (RED today: the 2048 shape, 67-74 s of a
+    // 60 s budget spent pre-search).
+    let (stdout, stderr, secs) = run_child("ground-wall");
+    assert!(
+        stdout.contains("CHILD-ground-wall-SOLVED:false"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("grounding stopped at the declared budget")
+            && stdout.contains("wall budget exhausted during binding enumeration"),
+        "the honest no-verdict note must name the mechanism: {stdout}"
+    );
+    assert!(
+        stderr.contains("wall: grounding checkpoint expired"),
+        "grounding trip narration missing:\n{stderr}"
+    );
+    if !cfg!(debug_assertions) {
+        assert!(
+            secs < 3.0,
+            "grounding must end within a beat of the 1 s wall: {secs:.1} s"
+        );
+    }
+
+    // The hatched leg keeps the zombie shape on the record: unchecked
+    // enumeration grinds past the wall, then solves via the trivial op.
+    let (stdout, stderr, secs) = run_child("ground-wall-hatched");
+    assert!(
+        stdout.contains("CHILD-ground-wall-hatched-SOLVED:true"),
+        "{stdout}"
+    );
+    assert!(
+        !stderr.contains("wall: grounding checkpoint expired"),
+        "hatch must disarm the grounding check:\n{stderr}"
+    );
+    if !cfg!(debug_assertions) {
+        assert!(
+            secs > 1.0,
+            "unchecked grounding was expected to blow the 1 s wall (the RED shape): {secs:.1} s"
+        );
+    }
 
     // No declared budget: no slice arms anywhere — byte-identical
     // ladder (the 0.20 Phase 1 pattern; every other test in the suite

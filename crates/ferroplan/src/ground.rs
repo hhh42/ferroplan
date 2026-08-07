@@ -32,12 +32,18 @@ pub enum Outcome {
         pred: String,
         ty: String,
     },
-    /// Grounding hit the armed `FF_TIME_LIMIT` wall MID-EXPANSION and
-    /// stopped honestly (0.22 Phase 1). NOT a verdict on the task —
-    /// callers report "budget exhausted", never "unsolvable".
-    /// block-grouping i3's 21 disjunctive coordinate-Eq goals DNF-multiply
-    /// to 4^21 conjuncts; the product loop used to balloon 76 s past a
-    /// 60 s wall (every stack sample inside `and_merge`) with no way out.
+    /// Grounding hit a declared budget and stopped honestly — the armed
+    /// `FF_TIME_LIMIT` mid-DNF-expansion or mid-binding-enumeration, or
+    /// the byte budget on a DNF balloon (0.22 Phases 1+2). NOT a verdict
+    /// on the task — callers report "budget exhausted", never
+    /// "unsolvable", and NEVER receive a partial task. The receipts that
+    /// demanded it: block-grouping i3's 21 disjunctive coordinate-Eq
+    /// goals DNF-multiply to 4^21 conjuncts (76 s past a 60 s wall, every
+    /// stack sample inside `and_merge`); 2048 spent 67–74 s of a 60 s
+    /// budget in binding enumeration with no clock check at all. Raised
+    /// only on plain solve entries; the validator/session/temporal
+    /// entries never trip — a plan already found must still be
+    /// groundable for verification after the wall.
     WallExhausted(String),
 }
 
@@ -553,6 +559,55 @@ struct RawOp {
     monitored: bool,
 }
 
+/// The armed wall, shared across Phase B's parallel workers (0.22
+/// Phase 2 lever 1): 2048 spends 67–74 s of a 60 s budget inside the
+/// binding enumeration with no clock check at all (solo receipts,
+/// docs/roadmap-0.22.md). Each worker counts binding nodes through a
+/// [`WallTick`] and reads the clock every 8192; the first to see the
+/// deadline flips `tripped` and every enumeration unwinds. The caller
+/// then returns [`Outcome::WallExhausted`] — never a partial task.
+struct GroundWall {
+    clock: crate::clock::Clock,
+    total: f64,
+    tripped: std::sync::atomic::AtomicBool,
+}
+
+impl GroundWall {
+    fn tripped(&self) -> bool {
+        self.tripped.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
+/// One worker's counting handle on the shared [`GroundWall`]. `None`
+/// wall ⇒ every check is two instructions and the enumeration is
+/// byte-identical to the unchecked shape.
+struct WallTick<'a> {
+    wall: Option<&'a GroundWall>,
+    n: u32,
+}
+
+impl WallTick<'_> {
+    const STRIDE: u32 = 8192;
+
+    #[inline]
+    fn tripped(&mut self) -> bool {
+        use std::sync::atomic::Ordering::Relaxed;
+        let Some(w) = self.wall else { return false };
+        self.n = self.n.wrapping_add(1);
+        if self.n & (Self::STRIDE - 1) != 0 {
+            return false;
+        }
+        if w.tripped.load(Relaxed) {
+            return true;
+        }
+        if w.clock.elapsed_secs() >= w.total {
+            w.tripped.store(true, Relaxed);
+            return true;
+        }
+        false
+    }
+}
+
 /// Enumerate parameter bindings in row-major (natural declaration) order,
 /// pruning a whole subtree as soon as a STATIC precondition literal has all
 /// its variables bound and fails against init. This is the join-style
@@ -565,11 +620,16 @@ struct RawOp {
 /// product's (pruning only skips bindings the post-filter would reject), so
 /// the emitted op sequence — and every downstream tie-break — is
 /// byte-identical.
+///
+/// `tick`: the wall checkpoint handle — a tripped wall abandons the
+/// remaining subtree (the partial output is discarded wholesale by the
+/// caller, so the abort point never shapes a task).
 fn for_each_binding(
     params: &[(Sym, Sym)],
     domains: &[Vec<Sym>],
     static_lits: &[(Sym, Vec<Term>)],
     init_atom_set: &HashSet<(Sym, Vec<Sym>)>,
+    tick: &mut WallTick,
     mut f: impl FnMut(&HashMap<Sym, Sym>),
 ) {
     if domains.iter().any(|d| d.is_empty()) {
@@ -605,6 +665,8 @@ fn for_each_binding(
         }
     }
     let mut binding: HashMap<Sym, Sym> = HashMap::new();
+    // Returns false iff the wall tripped — the whole recursion unwinds.
+    #[allow(clippy::too_many_arguments)]
     fn rec(
         k: usize,
         params: &[(Sym, Sym)],
@@ -612,11 +674,15 @@ fn for_each_binding(
         lits_at: &[Vec<&(Sym, Vec<Term>)>],
         init: &HashSet<(Sym, Vec<Sym>)>,
         binding: &mut HashMap<Sym, Sym>,
+        tick: &mut WallTick,
         f: &mut impl FnMut(&HashMap<Sym, Sym>),
-    ) {
+    ) -> bool {
+        if tick.tripped() {
+            return false;
+        }
         if k == params.len() {
             f(binding);
-            return;
+            return true;
         }
         let var = &params[k].0;
         for o in &domains[k] {
@@ -624,11 +690,12 @@ fn for_each_binding(
             let ok = lits_at[k]
                 .iter()
                 .all(|lit| init.contains(&(lit.0.clone(), subst_args(&lit.1, binding))));
-            if ok {
-                rec(k + 1, params, domains, lits_at, init, binding, f);
+            if ok && !rec(k + 1, params, domains, lits_at, init, binding, tick, f) {
+                return false;
             }
         }
         binding.remove(var);
+        true
     }
     rec(
         0,
@@ -637,6 +704,7 @@ fn for_each_binding(
         &lits_at,
         init_atom_set,
         &mut binding,
+        tick,
         &mut f,
     );
 }
@@ -662,6 +730,7 @@ fn ground_action(
     extra_join_lits: &[(Sym, Vec<Term>)],
     dnf_static: bool,
     skip_bindings: Option<&FxHashSet<Vec<Sym>>>,
+    wall: Option<&GroundWall>,
 ) -> Vec<RawOp> {
     let static_lits = static_top_atoms(&action.precond, add_predicates);
     let param_vars: Vec<Sym> = action.params.iter().map(|(v, _)| v.clone()).collect();
@@ -694,71 +763,79 @@ fn ground_action(
     let mut join_lits = static_lits;
     join_lits.extend(extra_join_lits.iter().cloned());
     let mut out = Vec::new();
-    for_each_binding(&action.params, &domains, &join_lits, join_atoms, |b| {
-        // Fixpoint rounds (0.12 Phase 3): a binding emitted in an earlier
-        // round is final — skip it wholesale (its DNF conjuncts came
-        // together), so each round pays only for NEW bindings' emission.
-        if let Some(skip) = skip_bindings {
+    let mut tick = WallTick { wall, n: 0 };
+    for_each_binding(
+        &action.params,
+        &domains,
+        &join_lits,
+        join_atoms,
+        &mut tick,
+        |b| {
+            // Fixpoint rounds (0.12 Phase 3): a binding emitted in an earlier
+            // round is final — skip it wholesale (its DNF conjuncts came
+            // together), so each round pays only for NEW bindings' emission.
+            if let Some(skip) = skip_bindings {
+                let args: Vec<Sym> = param_vars.iter().map(|v| b[v].clone()).collect();
+                if skip.contains(&args) {
+                    return;
+                }
+            }
+            // The enumeration already pruned on every static literal decidable
+            // during binding; this post-filter keeps the remainder (literals
+            // with quantified/unknown variables) AND stays the semantic oracle
+            // for the pruning — the surviving set is identical by construction.
+            for (p, a) in &join_lits {
+                let ga = subst_args(a, b);
+                if !join_atoms.contains(&(p.clone(), ga)) {
+                    return;
+                }
+            }
+            let stx = DnfStatics {
+                init: join_atoms,
+                add_preds: add_predicates,
+                del_preds: del_predicates,
+            };
+            let st = dnf_static.then_some(&stx);
+            let dnf = to_dnf(&action.precond, b, false, objects_of_type, st);
+            let multi = dnf.len() > 1;
+            let mut eff = REff {
+                add: vec![],
+                del: vec![],
+                num: vec![],
+                cond: vec![],
+            };
+            ground_effect(
+                &action.effect,
+                b,
+                objects_of_type,
+                &empty_conj(),
+                &mut eff,
+                st,
+            );
             let args: Vec<Sym> = param_vars.iter().map(|v| b[v].clone()).collect();
-            if skip.contains(&args) {
-                return;
+            let display = if args.is_empty() {
+                action.name.clone()
+            } else {
+                format!("{} {}", action.name, args.join(" "))
+            };
+            for conj in &dnf {
+                out.push(RawOp {
+                    display: display.clone(),
+                    pos: conj.pos.clone(),
+                    neg: conj.neg.clone(),
+                    num_pre: conj.num.clone(),
+                    eff: REff {
+                        add: eff.add.clone(),
+                        del: eff.del.clone(),
+                        num: eff.num.clone(),
+                        cond: eff.cond.clone(),
+                    },
+                    multi,
+                    monitored: action.monitored,
+                });
             }
-        }
-        // The enumeration already pruned on every static literal decidable
-        // during binding; this post-filter keeps the remainder (literals
-        // with quantified/unknown variables) AND stays the semantic oracle
-        // for the pruning — the surviving set is identical by construction.
-        for (p, a) in &join_lits {
-            let ga = subst_args(a, b);
-            if !join_atoms.contains(&(p.clone(), ga)) {
-                return;
-            }
-        }
-        let stx = DnfStatics {
-            init: join_atoms,
-            add_preds: add_predicates,
-            del_preds: del_predicates,
-        };
-        let st = dnf_static.then_some(&stx);
-        let dnf = to_dnf(&action.precond, b, false, objects_of_type, st);
-        let multi = dnf.len() > 1;
-        let mut eff = REff {
-            add: vec![],
-            del: vec![],
-            num: vec![],
-            cond: vec![],
-        };
-        ground_effect(
-            &action.effect,
-            b,
-            objects_of_type,
-            &empty_conj(),
-            &mut eff,
-            st,
-        );
-        let args: Vec<Sym> = param_vars.iter().map(|v| b[v].clone()).collect();
-        let display = if args.is_empty() {
-            action.name.clone()
-        } else {
-            format!("{} {}", action.name, args.join(" "))
-        };
-        for conj in &dnf {
-            out.push(RawOp {
-                display: display.clone(),
-                pos: conj.pos.clone(),
-                neg: conj.neg.clone(),
-                num_pre: conj.num.clone(),
-                eff: REff {
-                    add: eff.add.clone(),
-                    del: eff.del.clone(),
-                    num: eff.num.clone(),
-                    cond: eff.cond.clone(),
-                },
-                multi,
-                monitored: action.monitored,
-            });
-        }
-    });
+        },
+    );
     out
 }
 
@@ -1091,6 +1168,21 @@ fn ground_v(
     // is why the classical path keeps this off — its exact fixtures pin
     // today's ids. `FF_NO_STRAT_GROUND=1` disables for A/B measurement.
     let n_actions = domain.actions.len();
+    // The grounding wall checkpoint (0.22 Phase 2 lever 1), armed ONLY
+    // on the plain solve entry (`ground`): the validator entry must
+    // still ground a found plan's task after the wall (a plan found is
+    // a plan, never discarded), and the temporal/session entries keep
+    // their own budget discipline (0.23's tier). Unarmed `FF_TIME_LIMIT`
+    // or `FF_NO_RUNG_WALLCAP=1` ⇒ `None` ⇒ byte-identical enumeration.
+    let gwall: Option<GroundWall> =
+        (!validate && !stratified && !fixpoint && crate::search::rung_wallcap_on())
+            .then(crate::search::wall_deadline)
+            .flatten()
+            .map(|(clock, total)| GroundWall {
+                clock,
+                total,
+                tripped: std::sync::atomic::AtomicBool::new(false),
+            });
     // Reached-restricted FIXPOINT grounding (0.12 Phase 3, temporal entry
     // only, `FF_NO_FIXPOINT_GROUND=1` falls back to the stratified pass):
     // every action joins its positive dynamic top-level literals against the
@@ -1126,6 +1218,7 @@ fn ground_v(
                     &dyn_lits[ai],
                     dnf_static,
                     Some(&emitted[ai]),
+                    gwall.as_ref(),
                 )
             });
             let mut new_atom = false;
@@ -1226,6 +1319,7 @@ fn ground_v(
                 &[],
                 dnf_static,
                 None,
+                gwall.as_ref(),
             )
         });
         let idx2: Vec<usize> = (0..n_actions)
@@ -1266,6 +1360,7 @@ fn ground_v(
                     &gating_of[ai],
                     dnf_static,
                     None,
+                    gwall.as_ref(),
                 )
             })
         };
@@ -1280,6 +1375,20 @@ fn ground_v(
         }
         raw_chunks.into_iter().flatten().collect()
     };
+    // A tripped wall discards the partial Phase B output WHOLESALE:
+    // the abort point depends on scheduling, and a task shaped by it
+    // would be nondeterministic — honest failure or a whole task,
+    // nothing in between.
+    if gwall.as_ref().is_some_and(|g| g.tripped()) {
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!("wall: grounding checkpoint expired mid-enumeration (no task, no verdict)");
+        }
+        return Outcome::WallExhausted(
+            "wall budget exhausted during binding enumeration (FF_TIME_LIMIT): \
+             no task grounded, no verdict"
+                .into(),
+        );
+    }
     let n_easy = raws.iter().filter(|r| !r.multi).count();
     let n_hard = raws.iter().filter(|r| r.multi).count();
 

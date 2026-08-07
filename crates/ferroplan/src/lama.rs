@@ -59,11 +59,19 @@ fn unaccepted(accepted: &[u64], n: usize) -> i64 {
 
 /// Bounded landmark/preferred greedy search toward the task goal. Returns the
 /// plan ops and states evaluated, or None (dead end, cap, or node cap).
+///
+/// `slice` (0.22 Phase 5A a1): the rung's armed wall deadline — (start
+/// clock, seconds) — checked at the batch boundary, where the wall is
+/// actually spent (each batch's h evaluations dominate). The ladder
+/// passes `FF_LAMA_WALL_FRAC` (default 0.25) of the REMAINING wall;
+/// the portfolio and the partition cascade pass `None` (their budget
+/// discipline is their own). `None` ⇒ unchecked ⇒ byte-identical.
 pub fn search(
     task: &PackedTask,
     threads: usize,
     max_eval: usize,
     forbidden: &[bool],
+    slice: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
     let init = task.initial();
     // Length-anytime on the whole-task rung only (subgoal probes return on
@@ -79,6 +87,7 @@ pub fn search(
         max_eval,
         forbidden,
         len_anytime,
+        slice,
     )
 }
 
@@ -96,6 +105,7 @@ pub fn search_subgoal(
     max_eval: usize,
     forbidden: &[bool],
     len_anytime: bool,
+    slice: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
     let lms = crate::landmarks::landmarks_for(task, start, goal_pos);
     let lm_words = lms.len().div_ceil(64);
@@ -131,6 +141,22 @@ pub fn search_subgoal(
     let mut best_plan: Option<Vec<usize>> = None;
     let mut best_len = usize::MAX;
     let mut eval_ceiling = max_eval;
+    // The slice is PROGRESS-CONDITIONAL (0.22 Phase 5A a1): the EHC
+    // precedent pairs its slice with a progress exit ("no improving
+    // state"), and a flat deadline here trades named receipts against
+    // each other — hiking-2014 i6's board solve is 43 s of STEADY
+    // landmark progress inside LAMA (no fraction of a 60 s wall covers
+    // it), while tetris i4's board loss is 400k evals of NO progress
+    // eating the clock. So: a rung that lowered its best h or accepted
+    // a new landmark within the last half-tranche is CONVERGING and
+    // earns another half-tranche; a stalled rung hands down at its
+    // deadline. The ladder's hard wall checkpoint still backstops the
+    // extensions.
+    let mut deadline = slice.map(|(_, s)| s);
+    let tranche = slice.map_or(0.0, |(_, s)| s);
+    let (mut best_ph, mut best_hlm) = (i64::MAX, i64::MAX);
+    let mut last_improve_s = 0.0f64;
+    let mut improved = false;
 
     loop {
         // Deterministic mixed batch: boosted share from the preferred heap,
@@ -195,6 +221,43 @@ pub fn search_subgoal(
             // budget spent: the incumbent (if any), else hand off to the fallback
             return best_plan.map(|p| (p, evaluated));
         }
+        // The wall slice (0.22 Phase 5A a1) + the hard checkpoint (Phase 2
+        // lever 1), both at the batch boundary where the h evaluations
+        // spend the wall. A trip hands down like any exhausted budget —
+        // the incumbent (if any) is still a plan, never discarded.
+        if let Some((t0, _)) = &slice {
+            let now = t0.elapsed_secs();
+            if improved {
+                last_improve_s = now;
+                improved = false;
+            }
+            if let Some(d) = deadline.as_mut() {
+                if now > *d {
+                    if now - last_improve_s < 0.5 * tranche {
+                        // Converging (see the tracker docs above): earn
+                        // another half-tranche instead of handing down.
+                        *d = now + 0.5 * tranche;
+                        if std::env::var("FF_WALL_DEBUG").is_ok() {
+                            eprintln!(
+                                "wall: LAMA slice extended to {:.2}s (progress {:.2}s ago)",
+                                *d,
+                                now - last_improve_s
+                            );
+                        }
+                    } else {
+                        if std::env::var("FF_WALL_DEBUG").is_ok() {
+                            eprintln!(
+                                "wall: LAMA slice exhausted ({evaluated} evals in {now:.2}s), handing down the ladder"
+                            );
+                        }
+                        return best_plan.map(|p| (p, evaluated));
+                    }
+                }
+            }
+        }
+        if crate::search::wall_hard_expired() {
+            return best_plan.map(|p| (p, evaluated));
+        }
 
         // PARALLEL: expand live nodes; preferred = successor via a helpful op.
         let chunks: Vec<Vec<Cand>> = {
@@ -238,6 +301,16 @@ pub fn search_subgoal(
                     // Landmark count is EXACT for the successor (cheap bit
                     // math); the FF term is deferred from the parent.
                     let h_lm = unaccepted(&accepted, lms.len());
+                    // The slice's convergence signal (see the tracker
+                    // docs at the loop head).
+                    if h_lm < best_hlm {
+                        best_hlm = h_lm;
+                        improved = true;
+                    }
+                    if (ph as i64) < best_ph {
+                        best_ph = ph as i64;
+                        improved = true;
+                    }
                     let key = W_FF * ph as i64 + W_LM * h_lm;
                     let idx = nodes.len();
                     nodes.push(Node {

@@ -169,14 +169,19 @@ fn opt_ladder_spends_the_wall() {
     );
 
     // FF_NO_LMCUT keeps its pure-rung meaning: h^max with the FULL node
-    // budget holds the FULL wall (not the sprint slice), then returns
-    // the honest inconclusive instead of flooding ~14 s past the limit.
+    // budget holds the wall (not the 0.4 sprint slice — the lower bound
+    // discriminates against 2.0 s), then returns the honest inconclusive
+    // instead of flooding ~14 s past the limit. Since 0.22 Phase 2 the
+    // deadline carries a TEARDOWN RESERVE (stored-bytes / 4e8 s, the
+    // measured arena-drop rate), so the trip lands a beat BEFORE the
+    // wall and the process still EXITS by it — the upper bound is the
+    // honesty assertion, the lower one the slice discrimination.
     let (stdout, _, secs) = run_child("no-lmcut");
     assert!(stdout.contains("CHILD-no-lmcut-SOLVED:false"), "{stdout}");
     assert!(stdout.contains("inconclusive"), "{stdout}");
     assert!(
-        (4.5..15.0).contains(&secs),
-        "h^max must hold the whole 5 s wall, then stop: {secs:.1} s"
+        (2.4..15.0).contains(&secs),
+        "h^max must hold the wall past any sprint slice, then stop: {secs:.1} s"
     );
 
     // The gate's b-branch: LM-cut root == h^max root on a serial chain,

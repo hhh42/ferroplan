@@ -137,7 +137,7 @@ fn run_member(
             // in practice — never claim a proof through the wrapper.
             (o.ops, o.evaluated.max(1), false)
         }
-        1 => match crate::lama::search(task, threads, budget, &[]) {
+        1 => match crate::lama::search(task, threads, budget, &[], None) {
             Some((ops, ev)) => (Some(ops), ev.max(1), false),
             None => (None, budget, false), // lama doesn't report evals on failure
         },

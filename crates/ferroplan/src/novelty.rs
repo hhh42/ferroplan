@@ -154,11 +154,20 @@ fn unachieved(task: &PackedTask, s: &State, goal_pos: &[u32]) -> u16 {
 
 /// Bounded novelty-first greedy search toward the task goal. Returns the
 /// plan ops and states evaluated, or None (dead end, cap, or node cap).
+///
+/// `slice` (0.22 Phase 5A a2): the rung's armed wall deadline — (start
+/// clock, seconds) — checked at the batch boundary, where the per-pop
+/// `relaxed_helpful` calls spend the wall. The ladder passes
+/// `FF_NOV_WALL_FRAC` (default 0.30 — the last bounded rung can afford
+/// the most) of the REMAINING wall; the `FF_NOVELTY_ONLY` probe passes
+/// `None` (the probe prices the rung with the whole wall). `None` ⇒
+/// unchecked ⇒ byte-identical.
 pub fn search(
     task: &PackedTask,
     threads: usize,
     max_eval: usize,
     forbidden: &[bool],
+    slice: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
     let init = task.initial();
     search_subgoal(
@@ -169,6 +178,7 @@ pub fn search(
         threads,
         max_eval,
         forbidden,
+        slice,
     )
 }
 
@@ -183,6 +193,7 @@ pub fn search_subgoal(
     threads: usize,
     max_eval: usize,
     forbidden: &[bool],
+    slice: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
     let node_cap = crate::search::node_cap_for(task);
     let words = start.bits.len();
@@ -272,6 +283,23 @@ pub fn search_subgoal(
                     nodes.len()
                 );
             }
+            return None;
+        }
+        // The wall slice (0.22 Phase 5A a2) + the hard checkpoint (Phase 2
+        // lever 1), both at the batch boundary where the h evaluations
+        // spend the wall (same shape as the LAMA rung's).
+        if let Some((t0, s)) = &slice {
+            if t0.elapsed_secs() > *s {
+                if std::env::var("FF_WALL_DEBUG").is_ok() {
+                    eprintln!(
+                        "wall: novelty slice exhausted ({evaluated} evals in {:.2}s), handing down the ladder",
+                        t0.elapsed_secs()
+                    );
+                }
+                return None;
+            }
+        }
+        if crate::search::wall_hard_expired() {
             return None;
         }
 
