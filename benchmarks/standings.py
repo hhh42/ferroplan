@@ -64,6 +64,9 @@ AIR_REBASELINED = {
     "2023 classical", "2014 tempo-sat", "2018 seq-sat", "2014 seq-sat",
     "2014 seq-agile", "2014 seq-opt", "2026 numeric (first board)",
     "2023 numeric", "2023 agile ENTRY (300s)", "2026 numeric-opt",
+    # 0.22 Phase 8 re-entries: committed to the Air this cycle, so a
+    # missing raw is a sweep in flight, not a cloud-era ghost.
+    "propositional", "net-benefit", "constraints",
     # shared-sweep labels, split per competition at render time
     "seq-opt", "tempo-sat", "seq-sat",
 }

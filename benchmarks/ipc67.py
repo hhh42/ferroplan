@@ -416,8 +416,14 @@ def run_instance(val, n, d, p):
             # "searched and found nothing" JSON verdict.
             rec["notes"] = f"engine-exit-{r.returncode}"
         if s.get("solved"):
+            # makespan recorded since 0.22 (a 0.14-era runner debt): the
+            # temporal tracks' quality currency, so the IPC-5 time /
+            # metric-time boards can score against the archive when they
+            # re-baseline (0.23) without a second sweep. None on
+            # non-temporal plans.
             rec.update(solved=True,
                        metric=plan.get("metric"), length=plan.get("length"),
+                       makespan=plan.get("makespan"),
                        notes=s.get("notes"))
             if val:
                 rec["val"] = val_check(val, d, p, plan.get("steps", []),
