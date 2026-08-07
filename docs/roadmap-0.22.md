@@ -414,6 +414,43 @@ Riders, all cheap, all named:
 - **Conditions for all**: the sweep driver writes conditions.json
   for every board, closing the 6-of-13 gap.
 
+### Recorded — the riders land; the boards wait for the cut
+
+- **Harness in** (the day the build opened): cut22-sweeps.sh /
+  promote-air22.sh carry all sixteen boards with the 0.21 contention
+  machinery wholesale — conditions-for-all comes free; the three
+  re-entry tracks verified to enumerate; makespan recorded on every
+  solved row from now on; the three labels moved to "sweep in
+  flight" in the standings.
+- **The sitting ran, and re-attributed a family.** floor-tile-t is a
+  pure plateau both eras (best_h flat, zero duplicates, zero
+  blocked — the clear-chain lever's constituency, symmetry
+  secondary); driver-log plateau-provisional; satellite honestly
+  PENDING, never guessed. The hard finding: **sokoban-t's bulk is a
+  GROUNDING wall, not a search wall** — two of three probes died
+  pre-search with stack samples inside `for_each_binding` (the
+  Phase 7 MCV class; push's typed product runs 1e7–1e8). Its 34 do
+  not price into 0.23's temporal pot until Phase 7's gates
+  re-referee them. Protocol note for every future sitting:
+  `FF_NO_ESCALATE=1` is mandatory for eval-denominated probes —
+  escalation re-arms the eval budget and the goal-decomposer pass
+  ignores it entirely. Table: benchmarks/metrics/
+  temporal-attribution-0.22.md.
+- **The zero block is priced against the field at last**
+  (benchmarks/ipc2011-temporal-field.md, provenance labeled per row
+  — the official 2008/2011 per-instance tarballs are LOST, and the
+  file says where it looked): at the field's 30-MINUTE budget the
+  block falls only to machinery we do not have — TMS to
+  required-concurrency planners (POPF2 5/20; ITSAT 18/20 while
+  every non-SAT 2014 entrant scored 0 valid), model-train to
+  reachability at 60× our budget, storage to the ITSAT/SCP2/LPG-td
+  class while OPTIC and TFD, the styles nearest ours, score 0/20.
+  Half the field sits at zero on every one of the three: a
+  planner-STYLE ceiling, shared with our nearest relatives. And the
+  budget consolation, on the record: the 2011 coverage leader
+  banked 144 of its 145 solves by t=196 s — the 30-minute tail was
+  nearly worthless even to the winners.
+
 ## Phase 9 — cut 0.22.0 (the swing meets its referee)
 
 The standing template — every board re-swept against the final
