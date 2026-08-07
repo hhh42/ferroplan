@@ -573,7 +573,7 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     match mode {
         Mode::Temporal => solve_temporal(&domain, &problem, threads),
         Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads, constrained),
-        Mode::Optimal => solve_optimal(&domain, &problem, threads),
+        Mode::Optimal => solve_optimal(&domain, &problem, threads, constrained),
         _ => solve_classic(
             &domain,
             &problem,
@@ -596,6 +596,9 @@ fn solve_optimal(
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
     threads: usize,
+    // The constraint gate compiled monitor machinery in: stay orbit-free
+    // (solve_classic's rule).
+    constrained: bool,
 ) -> Result<Solution, SolveError> {
     let stats0 = Statistics {
         threads,
@@ -638,7 +641,15 @@ fn solve_optimal(
     // best_g memo retains a full StateKey per stored node, which the
     // satisficing model never counted — see `opt_per_node_model_bytes`.
     let max_nodes = crate::search::opt_node_cap_for(&task);
-    let o = crate::optimal::solve(&task, cf, max_nodes);
+    // The 0.22 Phase 6 L1 consumer: orbit-canonical visited keys on the
+    // proof ladder (child-snack's factorial core is the constituency).
+    // The L2 gate inside detection bails any cost shape σ cannot fix.
+    let orbit = if constrained {
+        None
+    } else {
+        crate::orbits::detect_classical(domain, problem, &task)
+    };
+    let o = crate::optimal::solve(&task, cf, max_nodes, orbit.as_ref());
     let stats = Statistics {
         grounded_facts: task.fact_names.len(),
         grounded_actions: task.n_ops,

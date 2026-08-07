@@ -643,22 +643,36 @@ fn num_arm_root(task: &PackedTask, cf: Option<usize>) -> Option<f64> {
 /// sprint-then-LM-cut ladder under a wall (no margin, no resume).
 /// The numeric arm ([`num_arm_root`], 0.22 Phase 4) composes with every
 /// branch via max() and never touches the gate's h^max-vs-LM-cut verdict.
-pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutcome {
+///
+/// `orbit` (0.22 Phase 6 L1): canonical visited keys at the three
+/// astar sites — best_g seed, the pop's stale check, the successor
+/// lookup — via [`crate::orbits::OrbitMap::canonical_skey`]. Nodes stay
+/// CONCRETE (the temporal pattern: canonicalization touches keys only),
+/// so plan extraction and VAL are untouched; admissible h + the
+/// existing re-opening keep the first goal pop optimal, and the L2
+/// cost-uniformity gate at detection guarantees σ preserves plan cost.
+/// `None` (every caller but `api::solve_optimal`) is byte-identical.
+pub fn solve(
+    task: &PackedTask,
+    cf: Option<usize>,
+    max_nodes: usize,
+    orbit: Option<&crate::orbits::OrbitMap>,
+) -> OptOutcome {
     let wall = crate::search::wall_remaining_secs();
     let narm = num_arm_root(task, cf);
     let num = narm.is_some();
     if std::env::var("FF_NO_LMCUT").is_ok() {
-        return astar_wall_refill(task, cf, max_nodes, false, num, wall);
+        return astar_wall_refill(task, cf, max_nodes, false, num, wall, orbit);
     }
     if std::env::var("FF_NO_HMAX_SPRINT").is_ok() {
-        return astar_wall_refill(task, cf, max_nodes, true, num, wall);
+        return astar_wall_refill(task, cf, max_nodes, true, num, wall, orbit);
     }
     let Some(remaining) = wall else {
-        let o = astar(task, cf, (max_nodes / 4).max(2), false, num, None);
+        let o = astar(task, cf, (max_nodes / 4).max(2), false, num, None, orbit);
         if o.proven || o.reject.is_some() {
             return o;
         }
-        let mut full = astar(task, cf, max_nodes, true, num, None);
+        let mut full = astar(task, cf, max_nodes, true, num, None, orbit);
         full.expanded += o.expanded;
         full.evaluated += o.evaluated;
         return full;
@@ -707,7 +721,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
                 );
             }
             if !informative {
-                return astar_wall_refill(task, cf, max_nodes, false, num, Some(remaining));
+                return astar_wall_refill(task, cf, max_nodes, false, num, Some(remaining), orbit);
             }
         }
     }
@@ -719,7 +733,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
     if rootgate && std::env::var("FF_OPT_NO_RESUME").is_err() {
         // Lever 3: the resumable ladder. The sprint engine LIVES through
         // the LM-cut probe; nothing is re-expanded on resume.
-        let mut sprint = match AstarState::new(task, cf, false, num) {
+        let mut sprint = match AstarState::new(task, cf, false, num, orbit) {
             Ok(e) => e,
             Err(reject) => return reject,
         };
@@ -736,6 +750,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
             true,
             num,
             Some(probe_frac * probe_wall),
+            orbit,
         );
         if probe.proven || probe.reject.is_some() {
             probe.expanded += o.expanded;
@@ -784,6 +799,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
         false,
         num,
         Some(frac * remaining),
+        orbit,
     );
     if o.proven || o.reject.is_some() {
         return o;
@@ -795,6 +811,7 @@ pub fn solve(task: &PackedTask, cf: Option<usize>, max_nodes: usize) -> OptOutco
         true,
         num,
         crate::search::wall_remaining_secs(),
+        orbit,
     );
     full.expanded += o.expanded;
     full.evaluated += o.evaluated;
@@ -819,8 +836,9 @@ fn astar_wall_refill(
     use_lmcut: bool,
     num: bool,
     deadline: Option<f64>,
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> OptOutcome {
-    let mut out = astar(task, cf, max_nodes, use_lmcut, num, deadline);
+    let mut out = astar(task, cf, max_nodes, use_lmcut, num, deadline, orbit);
     if deadline.is_none() {
         return out;
     }
@@ -847,6 +865,7 @@ fn astar_wall_refill(
             use_lmcut,
             num,
             crate::search::wall_remaining_secs(),
+            orbit,
         );
         out = OptOutcome {
             expanded: out.expanded + o.expanded,
@@ -870,8 +889,9 @@ fn astar(
     use_lmcut: bool,
     num: bool,
     deadline: Option<f64>,
+    orbit: Option<&crate::orbits::OrbitMap>,
 ) -> OptOutcome {
-    match AstarState::new(task, cf, use_lmcut, num) {
+    match AstarState::new(task, cf, use_lmcut, num, orbit) {
         Ok(mut e) => e.run(max_nodes, deadline),
         Err(reject) => reject,
     }
@@ -931,6 +951,11 @@ struct AstarState<'t> {
     task: &'t PackedTask,
     use_lmcut: bool,
     num: bool,
+    /// 0.22 Phase 6 L1: canonical visited keys. Keys only — nodes,
+    /// parents, plan extraction and h evaluation stay on concrete
+    /// states, so a pruned π-sibling's plan is never emitted, only
+    /// its surviving representative's.
+    orbit: Option<&'t crate::orbits::OrbitMap>,
     hname: &'static str,
     costs: Vec<f64>,
     per_node: usize,
@@ -958,11 +983,19 @@ struct AstarState<'t> {
 }
 
 impl<'t> AstarState<'t> {
+    fn key_of(&self, s: &State) -> StateKey {
+        match self.orbit {
+            Some(om) => om.canonical_skey(self.task, s, None),
+            None => self.task.state_key(s),
+        }
+    }
+
     fn new(
         task: &'t PackedTask,
         cf: Option<usize>,
         use_lmcut: bool,
         num: bool,
+        orbit: Option<&'t crate::orbits::OrbitMap>,
     ) -> Result<Self, OptOutcome> {
         // The prover names itself in the PROVEN note; the numeric arm
         // rides along as "+numRPG" so the record names BOTH admissible
@@ -992,6 +1025,7 @@ impl<'t> AstarState<'t> {
             task,
             use_lmcut,
             num,
+            orbit,
             hname,
             costs,
             // The teardown reserve (0.22 Phase 2): dropping the arena is
@@ -1041,7 +1075,7 @@ impl<'t> AstarState<'t> {
             &mut self.numsc,
             &init,
         );
-        self.best_g.insert(self.task.state_key(&init), (0.0, h0));
+        self.best_g.insert(self.key_of(&init), (0.0, h0));
         self.nodes.push((init, usize::MAX, usize::MAX));
         self.evaluated = 1;
         if h0.is_finite() {
@@ -1067,7 +1101,7 @@ impl<'t> AstarState<'t> {
             }
             let succ = self.task.apply(oi, &self.nodes[ni].0);
             let sg = g + op_cost;
-            let skey = self.task.state_key(&succ);
+            let skey = self.key_of(&succ);
             let prev = self.best_g.get(&skey).copied();
             if prev.is_some_and(|(bg, _)| bg <= sg) {
                 continue;
@@ -1117,7 +1151,7 @@ impl<'t> AstarState<'t> {
         }
         while let Some(Reverse(K(_, _, ni))) = self.open.pop() {
             let g = self.g_of[ni];
-            let key = self.task.state_key(&self.nodes[ni].0);
+            let key = self.key_of(&self.nodes[ni].0);
             // stale entry: a cheaper route to this state was expanded already
             if self.best_g.get(&key).map_or(f64::INFINITY, |&(bg, _)| bg) < g {
                 continue;

@@ -77,7 +77,7 @@ fn cap_yields_inconclusive_not_a_plan() {
     )
     .unwrap();
     let task = ferroplan::ground::ground_task(&dom, &prb, 1).unwrap();
-    let o = ferroplan::optimal::solve(&task, None, 2); // room for init + one node
+    let o = ferroplan::optimal::solve(&task, None, 2, None); // room for init + one node
     assert!(!o.proven);
     assert!(o.ops.is_none(), "no uncertified plan is ever reported");
 }

@@ -408,3 +408,32 @@ fn bnb_key_appends_cost_after_canonicalization() {
         "equal orbit, different cost: distinct keys"
     );
 }
+
+// ---------------------------------------------------------------------
+// L1 — optimal-mode canonical keys (the hook commit's fixture).
+
+/// L1 on the mini child-snack: the same certified cost with and without
+/// the orbit, the plan replays to the goal, and the orbit run pays no
+/// more than a THIRD of the plain run's evaluations (the spec's bound).
+/// optimal is serial, so t1 == t8 holds by construction; determinism is
+/// pinned by running the orbit ladder twice.
+#[test]
+fn optimal_orbit_keys_certify_the_same_cost_at_a_third_the_evals() {
+    let (d, p, task) = task_of(SNACK_DOM, SNACK_PRB);
+    let om = orbits::detect_classical(&d, &p, &task).unwrap();
+    let cap = 4_000_000;
+    let plain = ferroplan::optimal::solve(&task, None, cap, None);
+    let orbit = ferroplan::optimal::solve(&task, None, cap, Some(&om));
+    assert!(plain.proven && orbit.proven, "both runs must certify");
+    assert_eq!(plain.cost, orbit.cost, "certified cost must agree");
+    assert!(replay_solves(&task, orbit.ops.as_ref().unwrap()));
+    assert!(
+        orbit.evaluated * 3 <= plain.evaluated,
+        "orbit A* must collapse the frontier: {} vs {}",
+        orbit.evaluated,
+        plain.evaluated
+    );
+    let again = ferroplan::optimal::solve(&task, None, cap, Some(&om));
+    assert_eq!(again.ops, orbit.ops, "orbit ladder is deterministic");
+    assert_eq!(again.evaluated, orbit.evaluated);
+}
