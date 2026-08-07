@@ -249,6 +249,15 @@ pub struct SearchCfg {
     /// think budget must bound memory without introducing wall-clock
     /// nondeterminism. `FF_SEARCH_NODE_CAP` still wins when set.
     pub node_bytes_target: Option<usize>,
+    /// Diversification-on-refill probe seed (0.22 Phase 5B, opt-in
+    /// `FF_REFILL_DIVERSIFY=1`; the data-network i12 receipt: an
+    /// ACCIDENTAL byte-cap restart was worth 6.5×). Nonzero ⇒ each
+    /// inserted successor's key gains a deterministic sub-g-step jitter
+    /// (hash of node index × seed, < one w_g unit), so a refill round
+    /// re-treads ties and near-ties in a genuinely different order.
+    /// 0 (default, and every round when the flag is off) ⇒ the jitter
+    /// term is exactly absent — key bit-identical.
+    pub tie_seed: u64,
 }
 
 impl Default for SearchCfg {
@@ -292,6 +301,7 @@ impl SearchCfg {
             w_lm: 0,
             w_res: 0,
             node_bytes_target: None,
+            tie_seed: 0,
         }
     }
 
@@ -892,6 +902,19 @@ pub fn search_from(
         t_exp += t_phase.elapsed_us();
 
         // SERIAL: dedup + insert (deterministic order, independent of threads).
+        // The diversify probe's jitter (see SearchCfg::tie_seed): a
+        // deterministic hash of (insertion index, seed) below one w_g
+        // unit — reorders ties/near-ties only, never the gradient.
+        let jitter = |idx: usize| -> i64 {
+            if cfg.tie_seed == 0 {
+                return 0;
+            }
+            use std::hash::Hasher;
+            let mut h = crate::hash::FxHasher::default();
+            h.write_u64(cfg.tie_seed);
+            h.write_usize(idx);
+            (h.finish() % WEIGHT_SCALE as u64) as i64
+        };
         let t_phase = crate::clock::Clock::now();
         for chunk in cand_chunks {
             for (pi, oi, s, k, ph) in chunk {
@@ -943,7 +966,8 @@ pub fn search_from(
                                 + cfg.w_lm * un
                                 + res_term
                                 + sat_pen
-                                + cost_term,
+                                + cost_term
+                                + jitter(idx),
                             idx,
                         )));
                         continue;
@@ -962,7 +986,8 @@ pub fn search_from(
                             + lm_term
                             + res_term
                             + sat_pen
-                            + cost_term,
+                            + cost_term
+                            + jitter(idx),
                         idx,
                     )));
                 }
@@ -1137,6 +1162,24 @@ pub fn plan_avoiding(
             };
         }
     }
+    // Probe hatch for the partitioned h-free DRIVER (0.22 Phase 5B): the
+    // FF_NOVELTY_ONLY pattern — whole wall (slice `None`), A/B eyes only.
+    if std::env::var("FF_NOVDRIVER_ONLY").is_ok() {
+        if let Some((ops, evaluated)) = crate::novelty::search_driver(
+            task,
+            cfg.max_eval,
+            forbidden,
+            None,
+            &crate::novelty::DriverCfg::from_env(),
+        ) {
+            return PlanOutcome {
+                ops: Some(ops),
+                evaluated,
+                ehc_fell_back: true,
+                capped: false,
+            };
+        }
+    }
     // The probe eyes again (0.21 Phase 5): the wall-slice receipts need
     // to name WHICH rung solved, so each rung's win is narrated on
     // stderr under the same flag. Never affects the search.
@@ -1223,16 +1266,42 @@ pub fn plan_avoiding(
             || (wall_remaining_frac().is_some() && std::env::var("FF_NO_NOVELTY").is_err());
         if novelty_on && rungs_affordable("novelty") {
             const NOVELTY_CAP: usize = 400_000;
-            if let Some((ops, evaluated)) = crate::novelty::search(
-                task,
-                threads,
-                NOVELTY_CAP.min(cfg.max_eval),
-                forbidden,
-                // The last bounded rung can afford the biggest slice
-                // (0.30): everything behind it is the fallback.
-                rung_slice("FF_NOV_WALL_FRAC", 0.30),
-            ) {
-                narrate_rung("novelty");
+            // 0.22 Phase 5B lever 3: the partitioned h-free DRIVER
+            // REPLACES the h-guided rung at this slot (post-LAMA,
+            // pre-fallback) — same cap, same slice, no per-pop
+            // `relaxed_helpful` (the parking receipt: 86 s of cumulative
+            // worker time building h at 100k evals). `FF_NOV_OLD=1`
+            // restores the 0.21 rung WHOLESALE (its code is untouched;
+            // the hatch swaps rungs). novelty-light stays ahead of LAMA
+            // — its +19 visit-all receipt is bankable and its slice
+            // proven.
+            let old_rung = std::env::var("FF_NOV_OLD").is_ok();
+            // The last bounded rung can afford the biggest slice (0.30):
+            // everything behind it is the fallback.
+            let slice = rung_slice("FF_NOV_WALL_FRAC", 0.30);
+            let solved = if old_rung {
+                crate::novelty::search(
+                    task,
+                    threads,
+                    NOVELTY_CAP.min(cfg.max_eval),
+                    forbidden,
+                    slice,
+                )
+            } else {
+                crate::novelty::search_driver(
+                    task,
+                    NOVELTY_CAP.min(cfg.max_eval),
+                    forbidden,
+                    slice,
+                    &crate::novelty::DriverCfg::from_env(),
+                )
+            };
+            if let Some((ops, evaluated)) = solved {
+                narrate_rung(if old_rung {
+                    "novelty"
+                } else {
+                    "novelty-driver"
+                });
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
@@ -1345,6 +1414,19 @@ pub fn plan_avoiding(
                     .saturating_mul(4)
                     .min((1e9 * WEIGHT_SCALE) as i64);
                 round_cfg.max_eval = round_cfg.max_eval.saturating_mul(4);
+                // The diversification-on-refill probe (0.22 Phase 5B,
+                // OPT-IN `FF_REFILL_DIVERSIFY=1`): a re-entry that only
+                // deepens re-treads the same order into the same wall —
+                // but data-network i12's ACCIDENTAL byte-cap restart was
+                // worth 6.5×, so a deliberate one varies the tie-break
+                // seed per round (see SearchCfg::tie_seed). Off ⇒ seed
+                // stays 0 ⇒ every round's key is bit-identical to today.
+                if std::env::var("FF_REFILL_DIVERSIFY").is_ok() {
+                    round_cfg.tie_seed = round as u64;
+                    if std::env::var("FF_WALL_DEBUG").is_ok() {
+                        eprintln!("wall: refill re-entry diversified (tie seed {round})");
+                    }
+                }
                 if node_capped
                     && cfg.node_bytes_target.is_none()
                     && node_raise < 4

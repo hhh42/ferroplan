@@ -742,6 +742,34 @@ pub fn helpful_needed_adders(
         .collect()
 }
 
+/// The R-partition read-out (0.22 Phase 5B lever 1): every fact the last
+/// extraction STAMPED as needed — the top-level goals, every selected
+/// op's positive precondition, every queued conditional-effect condition
+/// — paired with its RPG fact layer (the driver caps R lowest-layer-
+/// first). Valid immediately after a `relaxed_to`/`relaxed_helpful` call
+/// on the SAME state (the `helpful_needed_adders` contract: reads the
+/// current-generation stamps). Read-only — the ~20 lines the roadmap
+/// priced, no new bookkeeping.
+pub fn extraction_need_facts(sc: &Scratch) -> Vec<(u32, u32)> {
+    sc.need_fact
+        .iter()
+        .enumerate()
+        .filter(|&(_, &g)| g == sc.gen)
+        .map(|(f, _)| (f as u32, sc.fact_layer[f]))
+        .collect()
+}
+
+/// The numeric-feature rider's read-out (0.22 Phase 5B lever 4, the
+/// FF_NOV_NUMFEAT probe): clones of the numeric preconditions of every op
+/// the last extraction SELECTED — the same walk set the 0.21 charge
+/// prices. Same validity contract as [`extraction_need_facts`].
+pub fn extraction_selected_pre_num(task: &PackedTask, sc: &Scratch) -> Vec<NumPre> {
+    (0..task.n_ops)
+        .filter(|&oi| sc.selected[oi] == sc.gen)
+        .flat_map(|oi| task.pre_num.slice(oi).iter().cloned())
+        .collect()
+}
+
 /// Relaxed completion COST of a subgoal from this state: run the relaxed-plan
 /// extraction toward `goal_pos`/`goal_num`, then sum the SELECTED ops'
 /// `increase` effects on `cost_fluent`, each evaluated against this state's

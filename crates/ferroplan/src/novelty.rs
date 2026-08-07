@@ -492,6 +492,421 @@ pub fn search_light(
     None
 }
 
+// ---------------------------------------------------------------------------
+// The partitioned h-free DRIVER (0.22 Phase 5B — THE CENTERPIECE).
+// ---------------------------------------------------------------------------
+
+/// The driver's four levers (0.22 Phase 5B), each behind its own hatch —
+/// read once at rung entry by [`DriverCfg::from_env`], passed explicitly
+/// so the fixtures can pin every lever without process-global state.
+pub struct DriverCfg {
+    /// Lever 1, `FF_NOV_PART=0` hatches OFF: R-partition cells
+    /// (unachieved-goals, achieved-R count) + the |R|−r key term. Off ⇒
+    /// the 0.21 goal-count cells (second slot hardwired 0).
+    pub partition: bool,
+    /// Lever 2, `FF_NOV_W2=0` hatches OFF: width 2 — a state with no new
+    /// atom but a new R-PAIR ranks between novel-1 and non-novel.
+    pub width2: bool,
+    /// Lever 1's cap, `FF_NOV_R_CAP` (default 256): |R| bound, lowest
+    /// fact_layer first (256² pair bits = the 4 KB/cell table ceiling).
+    pub r_cap: usize,
+    /// Lever 4, `FF_NOV_NUMFEAT=1` (OPT-IN probe, numeric-task-gated):
+    /// per-subgoal quantized log2 gap buckets as extra novelty features —
+    /// the numeric plateau pool's lever, promoted only on a measured win.
+    pub numfeat: bool,
+}
+
+impl Default for DriverCfg {
+    fn default() -> Self {
+        DriverCfg {
+            partition: true,
+            width2: true,
+            r_cap: 256,
+            numfeat: false,
+        }
+    }
+}
+
+impl DriverCfg {
+    /// The hatch reads, exactly as the roadmap writes them: `FF_NOV_PART=0`
+    /// and `FF_NOV_W2=0` turn their levers OFF (unset ⇒ on); the rider is
+    /// opt-in; the cap is a knob with the pair-table ceiling as default.
+    pub fn from_env() -> Self {
+        let off = |var: &str| std::env::var(var).is_ok_and(|v| v.trim() == "0");
+        DriverCfg {
+            partition: !off("FF_NOV_PART"),
+            width2: !off("FF_NOV_W2"),
+            r_cap: std::env::var("FF_NOV_R_CAP")
+                .ok()
+                .and_then(|v| v.trim().parse::<usize>().ok())
+                .filter(|&c| c >= 1)
+                .unwrap_or(256)
+                .min(u16::MAX as usize),
+            numfeat: std::env::var("FF_NOV_NUMFEAT").is_ok(),
+        }
+    }
+}
+
+/// Build the driver's R feature set for (start, goal): goal facts ∪ the
+/// root extraction's need_fact stamps (heuristic.rs stamps them during
+/// extraction; [`crate::heuristic::extraction_need_facts`] reads them
+/// out), capped `r_cap` lowest-fact_layer-first. A relaxed dead end at
+/// the root degrades to the goal facts alone — the driver is h-free and
+/// keeps searching either way. Public so the sailing-band fixture can
+/// pin the extraction; the driver calls it at entry.
+pub fn r_partition_facts(
+    task: &PackedTask,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[crate::types::NumPre],
+    r_cap: usize,
+) -> Vec<u32> {
+    let mut sc = Scratch::new(task);
+    let mut stamped: Vec<(u32, u32)> = if crate::heuristic::relaxed_to(
+        task,
+        &mut sc,
+        &start.bits,
+        &start.fv,
+        &start.fdef,
+        goal_pos,
+        goal_num,
+    )
+    .is_some()
+    {
+        crate::heuristic::extraction_need_facts(&sc)
+    } else {
+        Vec::new()
+    };
+    if stamped.is_empty() {
+        stamped = goal_pos.iter().map(|&g| (g, 0)).collect();
+    }
+    stamped.sort_unstable_by_key(|&(f, l)| (l, f));
+    stamped.truncate(r_cap);
+    let mut r: Vec<u32> = stamped.into_iter().map(|(f, _)| f).collect();
+    r.sort_unstable();
+    r.dedup();
+    r
+}
+
+/// The path-monotone achieved-R accumulator — the lama.rs `accept_into`
+/// pattern verbatim: an R fact once true on the path stays counted.
+fn r_accept_into(acc: &mut [u64], r_facts: &[u32], state: &State) {
+    for (i, &f) in r_facts.iter().enumerate() {
+        if acc[i >> 6] & (1 << (i & 63)) == 0 && crate::bitset::test(&state.bits, f as usize) {
+            acc[i >> 6] |= 1 << (i & 63);
+        }
+    }
+}
+
+/// Triangle-packed unordered R-pair index (i < j), the 4 KB/cell layout:
+/// 256·255/2 bits at the default cap.
+#[inline]
+fn tri(i: usize, j: usize, r_len: usize) -> usize {
+    debug_assert!(i < j && j < r_len);
+    i * r_len - i * (i + 1) / 2 + (j - i - 1)
+}
+
+/// Lever 4's feature: the numeric subgoal's gap from satisfaction in this
+/// state, quantized by the state-key quantizer's 1e-6 (packed.rs — one
+/// quantizer everywhere), then bucketed by log2 so the feature space
+/// stays small and progress-shaped. Satisfied ⇒ −1; undefined ⇒ i32::MIN
+/// (its own bucket: definedness is progress too).
+fn log2_gap_bucket(np: &crate::types::NumPre, fv: &[f64], def: &[bool]) -> i32 {
+    use crate::types::CompOp;
+    let (Some(l), Some(r)) = (np.lhs.eval(fv, def), np.rhs.eval(fv, def)) else {
+        return i32::MIN;
+    };
+    let gap = match np.op {
+        CompOp::Ge | CompOp::Gt => r - l,
+        CompOp::Le | CompOp::Lt => l - r,
+        CompOp::Eq => (l - r).abs(),
+    };
+    let q = (gap * 1e6).round() as i64;
+    if q <= 0 {
+        -1
+    } else {
+        64 - q.leading_zeros() as i32
+    }
+}
+
+struct DNode {
+    state: State,
+    father: usize,
+    op: usize,
+    /// Achieved-R bitset over the R LIST index, path-monotone.
+    r_acc: Vec<u64>,
+}
+
+fn d_reconstruct(nodes: &[DNode], mut ni: usize) -> Vec<usize> {
+    let mut ops = Vec::new();
+    while nodes[ni].father != usize::MAX {
+        ops.push(nodes[ni].op);
+        ni = nodes[ni].father;
+    }
+    ops.reverse();
+    ops
+}
+
+/// The h-free driver rung (0.22 Phase 5B lever 3). The receipt is brutal:
+/// parking i1 spends 86 s of cumulative worker time building h per pop at
+/// 100k evals — so this rung drops per-pop `relaxed_helpful` ENTIRELY.
+/// One serial open list, key = (rank, unachieved goals, |R|−r_count) with
+/// rank novel-1 < novel-2 (new R-pair in cell) < non-novel; insertion
+/// order breaks ties. h stays OUT of the partition cell (the in-tree
+/// degeneracy receipt at the top of this file). Wall discipline: the
+/// caller's `slice` deadline is checked every 4096 pops, PLUS the ladder's
+/// hard checkpoint (`wall_hard_expired`) at the same cadence — the Wave-1
+/// idiom. `None` slice ⇒ unchecked ⇒ byte-identical.
+///
+/// One heuristic call TOTAL (the root extraction that builds R), then
+/// zero: a pop costs successor generation, a bitset OR, and ≤|R| bit
+/// tests per candidate — never n_facts².
+///
+/// Determinism: single serial loop, fixed key layout, insertion-order
+/// tie-break — identical plans at any thread count (threads unused).
+/// `FF_NOV_LAZYH` (h on novel-1 pops only) stays a named probe hatch,
+/// deliberately UNIMPLEMENTED this cycle — the roadmap prices it as a
+/// fallback if the tie-break proves too flat, and the pre-registered
+/// probes read the flat form first.
+pub fn search_driver(
+    task: &PackedTask,
+    max_eval: usize,
+    forbidden: &[bool],
+    slice: Option<(crate::clock::Clock, f64)>,
+    cfg: &DriverCfg,
+) -> Option<(Vec<usize>, usize)> {
+    let node_cap = crate::search::node_cap_for(task);
+    let init = task.initial();
+    let goal_pos = &task.goal_pos;
+    let goal_num = &task.goal_num;
+    if task.goal_met_with(&init, goal_pos, goal_num) {
+        return Some((Vec::new(), 0));
+    }
+    if std::env::var("FF_RES_DEBUG").is_ok() {
+        eprintln!("[novelty-driver] enter: cap {max_eval}, {} ops", task.n_ops);
+    }
+
+    // R is shared infrastructure: lever 1 keys cells with it, lever 2
+    // pairs over it — either lever alone still builds it.
+    let r_facts: Vec<u32> = if cfg.partition || cfg.width2 {
+        r_partition_facts(task, &init, goal_pos, goal_num, cfg.r_cap)
+    } else {
+        Vec::new()
+    };
+    let r_len = r_facts.len();
+    let r_words = r_len.div_ceil(64);
+    // Lever 4 (opt-in, numeric-task-gated like FF_NUMNOV): the subgoal
+    // list is the task's numeric goals plus the root extraction's
+    // selected-op numeric preconditions — the charge's walk set.
+    let num_feats: Vec<crate::types::NumPre> = if cfg.numfeat && !task.rel_fluents.is_empty() {
+        let mut sc = Scratch::new(task);
+        let mut feats: Vec<crate::types::NumPre> = goal_num.to_vec();
+        if crate::heuristic::relaxed_to(
+            task, &mut sc, &init.bits, &init.fv, &init.fdef, goal_pos, goal_num,
+        )
+        .is_some()
+        {
+            feats.extend(crate::heuristic::extraction_selected_pre_num(task, &sc));
+        }
+        feats.truncate(64);
+        feats
+    } else {
+        Vec::new()
+    };
+
+    let words = init.bits.len();
+    let numnov = numnov_on(task);
+    let mut seen = Seen::new(words, numnov);
+    // Per-cell R×R pair tables (lever 2), triangle-packed; lazily
+    // allocated per cell like the width-1 tables.
+    let pair_words = if cfg.width2 && r_len >= 2 {
+        (r_len * (r_len - 1) / 2).div_ceil(64)
+    } else {
+        0
+    };
+    let mut pairs: FxHashMap<(u16, u16), Vec<u64>> = FxHashMap::default();
+    // Per-cell seen (subgoal, log2-gap-bucket) features (lever 4).
+    let mut feats_seen: FxHashMap<(u16, u16), crate::hash::FxHashSet<(u16, i32)>> =
+        FxHashMap::default();
+
+    let mut root_acc = vec![0u64; r_words];
+    r_accept_into(&mut root_acc, &r_facts, &init);
+    let root_rc = root_acc.iter().map(|w| w.count_ones() as u16).sum::<u16>();
+    let g0 = unachieved(task, &init, goal_pos);
+    let root_cell = (g0, if cfg.partition { root_rc } else { 0 });
+    seen.novel_and_mark(root_cell, &init.bits, &qvals_of(task, &init, numnov));
+    // Seed the root's pair table: with no parent every true R fact is new
+    // (the marked-new×true induction's base case).
+    let mut r_true: Vec<u16> = Vec::new();
+    let mut r_new: Vec<u16> = Vec::new();
+    let mark_pairs = |cell: (u16, u16),
+                      r_true: &[u16],
+                      r_new: &[u16],
+                      pairs: &mut FxHashMap<(u16, u16), Vec<u64>>|
+     -> bool {
+        if pair_words == 0 || r_new.is_empty() {
+            return false;
+        }
+        let t = pairs.entry(cell).or_insert_with(|| vec![0u64; pair_words]);
+        let mut novel2 = false;
+        for &a in r_new {
+            for &b in r_true {
+                if a == b {
+                    continue;
+                }
+                let (i, j) = if a < b {
+                    (a as usize, b as usize)
+                } else {
+                    (b as usize, a as usize)
+                };
+                let idx = tri(i, j, r_len);
+                if t[idx >> 6] & (1 << (idx & 63)) == 0 {
+                    t[idx >> 6] |= 1 << (idx & 63);
+                    novel2 = true;
+                }
+            }
+        }
+        novel2
+    };
+    for (i, &f) in r_facts.iter().enumerate() {
+        if crate::bitset::test(&init.bits, f as usize) {
+            r_true.push(i as u16);
+            r_new.push(i as u16);
+        }
+    }
+    mark_pairs(root_cell, &r_true, &r_new, &mut pairs);
+    if !num_feats.is_empty() {
+        let set = feats_seen.entry(root_cell).or_default();
+        for (si, np) in num_feats.iter().enumerate() {
+            set.insert((si as u16, log2_gap_bucket(np, &init.fv, &init.fdef)));
+        }
+    }
+
+    let mut nodes = vec![DNode {
+        state: init.clone(),
+        father: usize::MAX,
+        op: usize::MAX,
+        r_acc: root_acc,
+    }];
+    let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
+    heap.push(Reverse((0, 0)));
+    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
+    visited.insert(task.state_key_hash(&init, None), vec![0]);
+    let mut evaluated = 0usize;
+
+    while let Some(Reverse((_, ni))) = heap.pop() {
+        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
+            return Some((d_reconstruct(&nodes, ni), evaluated));
+        }
+        evaluated += 1;
+        if evaluated > max_eval || nodes.len() > node_cap {
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!(
+                    "[novelty-driver] capped: {evaluated} pops (max {max_eval}), {} nodes",
+                    nodes.len()
+                );
+            }
+            return None;
+        }
+        // The wall deadline every 4096 pops + the ladder's hard checkpoint
+        // (the Wave-1 clock idiom, novelty-light's cadence).
+        if evaluated & 0xFFF == 0 {
+            if let Some((t0, s)) = &slice {
+                if t0.elapsed_secs() > *s {
+                    if std::env::var("FF_WALL_DEBUG").is_ok() {
+                        eprintln!(
+                            "wall: novelty-driver slice exhausted ({evaluated} pops in {:.2}s), handing down the ladder",
+                            t0.elapsed_secs()
+                        );
+                    }
+                    return None;
+                }
+            }
+            if crate::search::wall_hard_expired() {
+                return None;
+            }
+        }
+        for oi in 0..task.n_ops {
+            if forbidden.get(oi).copied().unwrap_or(false) {
+                continue;
+            }
+            if !task.op_applicable(oi, &nodes[ni].state) {
+                continue;
+            }
+            let ns = task.apply(oi, &nodes[ni].state);
+            let k = task.state_key_hash(&ns, None);
+            let bucket = visited.entry(k).or_default();
+            if bucket
+                .iter()
+                .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &ns, None))
+            {
+                continue;
+            }
+            bucket.push(nodes.len() as u32);
+            let mut acc = nodes[ni].r_acc.clone();
+            r_accept_into(&mut acc, &r_facts, &ns);
+            let r_count = acc.iter().map(|w| w.count_ones() as u16).sum::<u16>();
+            let g = unachieved(task, &ns, goal_pos);
+            let cell = (g, if cfg.partition { r_count } else { 0 });
+            let mut novel1 = seen.novel_and_mark(cell, &ns.bits, &qvals_of(task, &ns, numnov));
+            // Lever 2's pair scan, cost-bounded by construction: only
+            // (changed-to-true × true) R pairs are checked and marked —
+            // the unchanged×unchanged pairs are the parent's, already
+            // marked when the parent entered this cell (and a fresh cell
+            // re-marks through the new atoms that made the state enter
+            // it). Never n_facts².
+            r_true.clear();
+            r_new.clear();
+            if pair_words > 0 {
+                let pb = &nodes[ni].state.bits;
+                for (i, &f) in r_facts.iter().enumerate() {
+                    if crate::bitset::test(&ns.bits, f as usize) {
+                        r_true.push(i as u16);
+                        if !crate::bitset::test(pb, f as usize) {
+                            r_new.push(i as u16);
+                        }
+                    }
+                }
+            }
+            let novel2 = mark_pairs(cell, &r_true, &r_new, &mut pairs);
+            // Lever 4: a never-seen (subgoal, gap-bucket) feature in this
+            // cell is novelty — the numeric plateau's progress signal the
+            // bit tables are structurally blind to.
+            if !num_feats.is_empty() {
+                let set = feats_seen.entry(cell).or_default();
+                for (si, np) in num_feats.iter().enumerate() {
+                    if set.insert((si as u16, log2_gap_bucket(np, &ns.fv, &ns.fdef))) {
+                        novel1 = true;
+                    }
+                }
+            }
+            let rank: i64 = if novel1 {
+                0
+            } else if novel2 {
+                1
+            } else {
+                2
+            };
+            let key = rank * W_NOVEL + g as i64 * W_GOALS + (r_len as i64 - r_count as i64);
+            let idx = nodes.len();
+            nodes.push(DNode {
+                state: ns,
+                father: ni,
+                op: oi,
+                r_acc: acc,
+            });
+            heap.push(Reverse((key, idx)));
+        }
+    }
+    if std::env::var("FF_RES_DEBUG").is_ok() {
+        eprintln!(
+            "[novelty-driver] open list exhausted at {evaluated} pops, {} nodes",
+            nodes.len()
+        );
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     //! FF_NUMNOV smoke (0.21 Phase 3 probe rider b): the numeric envelope
@@ -539,5 +954,49 @@ mod tests {
         assert!(env.novel_and_mark(cell, &s1.bits, &qvals_of(&task, &s1, true)));
         // And re-seeing the same value is NOT novel (an envelope, not a set).
         assert!(!env.novel_and_mark(cell, &s1.bits, &qvals_of(&task, &s1, true)));
+    }
+
+    /// Lever 4's mechanism pin (0.22 Phase 5B, FF_NOV_NUMFEAT — the flag
+    /// lands with its mechanism pinned; promotion waits on a measured
+    /// numeric-board win): the log2 gap bucket is the state-key quantizer
+    /// (1e-6) then a power-of-two class — gaps in one octave share a
+    /// bucket, a halved gap changes it, satisfaction is its own bucket.
+    #[test]
+    fn log2_gap_buckets_pin() {
+        use crate::types::{CompOp, NExpr, NumPre};
+        let np = NumPre {
+            op: CompOp::Ge,
+            lhs: NExpr::Fluent(0),
+            rhs: NExpr::Num(8.0),
+        };
+        let def = [true];
+        let b = |x: f64| log2_gap_bucket(&np, &[x], &def);
+        assert_eq!(b(8.0), -1, "satisfied is its own bucket");
+        assert_eq!(b(3.0), b(3.5), "gaps 5 and 4.5 share an octave");
+        assert_ne!(b(7.0), b(3.0), "a halved gap changes bucket");
+        assert_ne!(b(0.0), b(7.0), "the far bucket differs from the near one");
+        // Undefined operand: its own bucket (definedness is progress too).
+        let b_undef = log2_gap_bucket(&np, &[0.0], &[false]);
+        assert_eq!(b_undef, i32::MIN);
+    }
+
+    /// The rider end-to-end: the driver with FF_NOV_NUMFEAT machinery on
+    /// still solves the numeric mini with a valid plan (the feature table
+    /// rides the same cells; nothing breaks the h-free loop).
+    #[test]
+    fn numfeat_driver_solves_the_numeric_mini() {
+        let task = numeric_task();
+        let cfg = DriverCfg {
+            numfeat: true,
+            ..DriverCfg::default()
+        };
+        let (ops, _) = search_driver(&task, 10_000, &[], None, &cfg)
+            .expect("numfeat driver solves the bump chain");
+        let mut s = task.initial();
+        for &oi in &ops {
+            assert!(task.op_applicable(oi, &s));
+            s = task.apply(oi, &s);
+        }
+        assert!(task.goal_met_with(&s, &task.goal_pos, &task.goal_num));
     }
 }
