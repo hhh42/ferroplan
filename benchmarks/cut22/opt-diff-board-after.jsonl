@@ -21,3 +21,12 @@
 {"board": "ipc-opt-2008-11.jsonl", "variant": "sokoban-sequential-optimal-strips", "instance": 15, "old": 76.0, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
 {"board": "ipc-opt-2008-11.jsonl", "variant": "sokoban-sequential-optimal-strips", "instance": 22, "old": 44.0, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
 {"board": "ipc-opt-2008-11.jsonl", "variant": "sokoban-sequential-optimal", "instance": 16, "old": 76.0, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "sokoban-sequential-optimal", "instance": 19, "old": 44.0, "new": 44.0, "time": 46.84, "note": "PROVEN OPTIMAL: cost 44 certified by A* + admissible h^max (2445597 expansions)", "verdict": "agree"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "peg-solitaire-sequential-optimal-strips", "instance": 26, "old": 9.0, "new": 9.0, "time": 50.98, "note": "PROVEN OPTIMAL: cost 9 certified by A* + admissible h^max (3447058 expansions)", "verdict": "agree"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "peg-solitaire-sequential-optimal", "instance": 16, "old": 9.0, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "tidybot-sequential-optimal", "instance": 5, "old": 38, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "tidybot-sequential-optimal", "instance": 11, "old": 29, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "parc-printer-sequential-optimal-strips", "instance": 14, "old": 1020512.0, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "parc-printer-sequential-optimal", "instance": 12, "old": 1020512.0, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
+{"board": "ipc-opt-2008-11.jsonl", "variant": "elevator-sequential-optimal", "instance": 12, "old": 53.0, "new": null, "time": null, "note": null, "verdict": "REGRESSION"}
+{"board": "ipc2014-opt.jsonl", "variant": "cave-diving-sequential-optimal", "instance": 18, "old": 131.0, "new": 131.0, "time": 16.84, "note": "PROVEN OPTIMAL: cost 131 certified by A* + admissible h^max (1258060 expansions)", "verdict": "agree"}

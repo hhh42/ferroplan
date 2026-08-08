@@ -10,7 +10,7 @@ read it:
   FF_MCV_THRESHOLD      (1e6)  arms the MCV join order per action
                                (byte-identical by construction — no audit
                                stake, reported for context only);
-  FF_FIXPOINT_THRESHOLD (1e8)  routes a PLAIN solve entry through the
+  FF_FIXPOINT_THRESHOLD (1e13)  routes a PLAIN solve entry through the
                                reached-restricted fixpoint enumeration,
                                which SHIFTS fact-id first-reference order.
 
@@ -23,8 +23,12 @@ This audit asserts exactly that, from the promoted 0.21 raws:
      BELOW the fixpoint threshold;
   2. the named Phase 7 gate instances sit ABOVE the bar that unblocks
      them: 2048 i8 above the MCV bar (its wall is static pos-at joins;
-     max per-action product 2.1e7), organic-synthesis i01/i11 and
-     caldera i4 above the fixpoint route bar (all-dynamic
+     max per-action product 2.1e7), organic-synthesis i01/i11 above the
+     fixpoint route bar. caldera i4 (6.4e10) sits BELOW the bar since it
+     rose to 1e13: this audit's own first sweep found currently-SOLVED
+     products up to 1.62e12 (data-network PROCESS), so no product bar
+     admits caldera without re-routing solved domains — caldera's pot
+     forfeits to a smarter gate (0.23), on the record (all-dynamic
      preconditions: 1.2e15 / 1.2e25 / 6.4e10);
   3. agricola i1 — 246,879 ops on the plain path, the named
      near-threshold case at 6.3e7 — stays BELOW the route bar (the
@@ -35,7 +39,7 @@ route never touches; their products are reported for MCV context only
 (sokoban-t's push is the receipt) and carry no assertion.
 
 Usage:
-  python3 benchmarks/ground-audit.py [--threshold 1e8] [--only SUBSTR]
+  python3 benchmarks/ground-audit.py [--threshold 1e13] [--only SUBSTR]
                                      [--raws DIR] [--full]
 
 Default scope: every solved row in --raws (benchmarks/air21) plus the
@@ -56,7 +60,7 @@ def arg(name, default):
     return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
 
 
-THRESHOLD = float(arg("--threshold", "1e8"))
+THRESHOLD = float(arg("--threshold", "1e13"))
 ONLY = arg("--only", None)
 RAWS = arg("--raws", os.path.join(ROOT, "benchmarks", "air21"))
 FULL = "--full" in sys.argv
@@ -264,7 +268,7 @@ BOARDS = {
 # 2048's wall is STATIC pos-at joins — the MCV bar (1e6) arms there and is
 # byte-identical by construction, no fixpoint route needed (max per-action
 # product 2.1e7); org-synth and caldera carry all-dynamic preconditions —
-# only the fixpoint route (1e8) gives their joins something to hold.
+# only the fixpoint route (1e13) gives their joins something to hold.
 # agricola is the near-threshold negative control: 6.3e7 sits under the
 # route bar (plain path, order untouched) and the number stays printed.
 MCV_BAR = 1e6
@@ -272,7 +276,9 @@ NAMED = [
     ("ipc-2026n", "2048-numeric-2026", 8, "above", MCV_BAR),
     ("ipc-2018", "organic-synthesis-sequential-satisficing", 1, "above", None),
     ("ipc-2018", "organic-synthesis-sequential-satisficing", 11, "above", None),
-    ("ipc-2018", "caldera-sequential-satisficing", 4, "above", None),
+    # caldera BELOW the risen bar — the 0.22 recorded negative; a future
+    # selectivity-aware gate re-referees it (see the docstring).
+    ("ipc-2018", "caldera-sequential-satisficing", 4, "below", None),
     ("ipc-2018", "agricola-sequential-satisficing", 1, "below", None),
 ]
 

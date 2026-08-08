@@ -277,7 +277,16 @@ smallest first, each with its own receipt:
   59 s LM-cut cert structurally cannot fit the probe — the pre-priced
   casualty class, and incremental LM-cut's live-candidate case.
   Every timing above was contention-heavy; the quiet-box gate batch
-  and the cut boards adjudicate.
+  adjudicated what it could:
+- **The gate batch, quiet box:** the board-budget differential on the
+  NEW binary reads **11 regressions → 6** — sprint-resume recovered
+  five of the named slice-losses; the six standing (peg-solitaire
+  i16, tidybot i5/i11, parc-printer ×2, elevator i12) include the
+  pre-priced probe-tax casualty class, incremental LM-cut's
+  live-candidate case. And the two b-flip proofs LANDED: city-car i8
+  **PROVEN cost 76** — v0.19's certificate to the digit — in 2.7 s at
+  37,741 expansions; tetris i5 PROVEN cost 30 in 27.3 s. The cut
+  boards remain the final referee.
 
 ## Phase 4 — the numeric-admissible bound (the proof boards learn numbers)
 
@@ -567,11 +576,28 @@ time is the wall).
   (onlycraft's 46 s transients, settlers-snp's "grounding" wall)
   had already dissolved or re-attributed before this phase touched
   them — both recorded by the audit's probes, not claimed.
-- The block-grouping factored-goal lever, org-synth route gate,
-  sokoban-t re-referee, and agricola control land with the gate
-  batch; the goal-factoring's optimal-mode interaction (a constant-m
-  synthetic suffix, argmin preserved, stripped from reported plans)
-  is noted in code with no live optimal domain carrying the shape.
+- **The gate batch landed the rest:** block-grouping i3 — the
+  4^21-balloon witness, field 20/20 — **SOLVES in 0.01 s, len 26**
+  under the factored goal-check (the 18-instance pot is live);
+  **2048 i9 solves in 0.04 s** — the family RAMPS once grounding
+  falls; org-synth i01 routes and SOLVES (len 2) while **i11 still
+  exhausts the wall** — the <30 s gate half-missed, so lever 3
+  (indexed hash-joins) carries i11 as its named gate into the
+  deferred list; caldera i4's forfeit behaves as designed (1.6 s
+  honest budget exit); and agricola, the CONTROL, solved at 60.3 s
+  solo — a borderline surprise recorded, not banked (the board's
+  60 s kill makes it a coin flip).
+- **The re-referee FAILED for sokoban-t, and the failure is a
+  finding:** i21 ran >10 minutes against a 30 s wall — the TEMPORAL
+  grounding entry is still unwalled (the Wave-1 exemption for
+  validation re-grounding covers the temporal SOLVE path too), and
+  MCV does not collapse push's joins there. Boards are protected by
+  the runner's external kill, so nothing corrupts — but sokoban-t's
+  34 stay walled, and "wall the temporal solve-side grounding" is a
+  named 0.23 item with this receipt. The goal-factoring's
+  optimal-mode interaction (a constant-m synthetic suffix, argmin
+  preserved, stripped from reported plans) stays noted in code with
+  no live optimal domain carrying the shape.
 
 ## Phase 8 — the denominator (the whole table on one box)
 
@@ -709,6 +735,13 @@ recorded, because that is what the column is for.
   three certificates within 1.7 s of the wall say the near-miss
   class exists; Phase 3's boards referee whether it is the dominant
   residue.
+- **The temporal solve-side grounding wall** — the sokoban-t gate
+  receipt (>10 min past a 30 s wall, solo): the honest-wall work
+  exempted every temporal grounding entry, including the solve path;
+  walling it correctly (validation re-grounding must stay exempt)
+  unlocks the sitting's re-attributed 34.
+- **Indexed hash-joins (grounding lever 3)** — org-synth i11 is the
+  named gate; i01 already routes and solves without it.
 - **The mco methodology sitting** (three boards, 840 instances,
   wall-clock per competition rule on heterogeneous cores).
 - **Per-node CoW leftovers; IPC-5 complex preferences; cross-mind

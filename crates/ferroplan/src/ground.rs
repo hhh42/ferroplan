@@ -1429,11 +1429,17 @@ fn ground_v(
     // Threshold-routed fixpoint (0.22 Phase 7 lever 2): the PLAIN solve
     // entry routes into the fixpoint enumeration below when any action's
     // post-restriction typed product exceeds `FF_FIXPOINT_THRESHOLD`
-    // (default 1e8) — organic-synthesis's and caldera's all-dynamic
-    // precondition predicates finally give the join something to hold
-    // (static pruning has nothing there; the 0.21 receipt stands: memory
-    // flat, time is the wall). Fact-id first-reference order shifts ONLY
-    // for tasks that today ground NOTHING inside the budget — vacuous —
+    // (default 1e13) — organic-synthesis's all-dynamic precondition
+    // predicates finally give the join something to hold (static
+    // pruning has nothing there; the 0.21 receipt stands: memory flat,
+    // time is the wall). 1e13, not the scoped 1e8: ground-audit.py's
+    // first sweep found currently-SOLVED products up to 1.62e12
+    // (data-network's PROCESS), so any lower bar re-routes solved
+    // domains — the recorded sokoban-t regression class — and caldera
+    // (6.4e10) therefore stays UNROUTED this cycle, its pot forfeited
+    // to a selectivity-aware gate. Fact-id first-reference order
+    // shifts ONLY for tasks that today ground NOTHING inside the
+    // budget — vacuous —
     // and benchmarks/ground-audit.py asserts every currently-solved
     // domain on all thirteen boards sits BELOW the threshold (agricola,
     // 246,879 plain-path ops, is the named near-threshold negative
@@ -1444,7 +1450,7 @@ fn ground_v(
         && !stratified
         && std::env::var("FF_NO_FIXPOINT_GROUND").is_err()
         && {
-            let thr = env_f64("FF_FIXPOINT_THRESHOLD", 1e8);
+            let thr = env_f64("FF_FIXPOINT_THRESHOLD", 1e13);
             let max_product = domain
                 .actions
                 .iter()
