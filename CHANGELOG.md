@@ -26,6 +26,37 @@ Full record:
   honest exit; 2048's 67-74 s enumeration zombies end by 60.6 s;
   partition mode finally narrates under `FF_WALL_DEBUG`. Notes say
   "stopped at the declared budget" — never "unsolvable".
+- **The optimal ladder's third lesson** (Phases 3+4): the root gate
+  gains a margin (city-car's six thin-ratio losses gate b-branch
+  again), the sprint slice scales down where landmark structure is
+  unambiguous (scanalyzer-08 i4: PROVEN at 6.0 s vs 23.2 s), LM-cut
+  runs as a bounded probe with h^max RESUMING its preserved open
+  list on failure — and the proof boards learn numbers: an
+  interval-RPG layer bound, admissible fail-closed behind a
+  reject-by-name audit, takes sailing-wind-opt i8 from 2.86M blind
+  expansions to 132k (+numRPG names itself in the PROVEN note). The
+  differential gained the board-budget mode that catches what 90 s
+  forgiveness hid — and promptly convicted 11 of the 12 named
+  slice-losses on the old binary.
+- **The partitioned driver takes the novelty slot** (Phase 5B): the
+  centerpiece — subgoal-feature partition, width-2 pair novelty, an
+  h-free driver queue (3.3× states per slice-second where the old
+  rung paid per-pop h), numeric gap-bucket features opt-in.
+  FF_NOV_OLD restores the 0.21 rung byte-identically; the cut's
+  old-binary column is the pre-registered referee.
+- **The symmetry engine** (Phase 6): orbit-canonical visited keys,
+  optimal and satisficing — child-snack-opt i1 goes from three
+  releases of node-cap walls to PROVEN OPTIMAL cost 21, VAL-valid;
+  a 20-certificate orbit-active sample re-certifies 20/20 at exact
+  costs; child-snack-sat i6 converts at 15.9 s. barman honestly
+  deflates to +0–4 (the goal pins most shots).
+- **Grounding scale** (Phase 7): MCV join ordering (byte-identical
+  by construction) and a threshold-routed fixpoint — 2048 i8 goes
+  from 74 s enumeration zombies to a 203-step solve inside the
+  wall; block-grouping's 4^21 or-goal balloon compiles factored.
+  The audit found solved products to 1.62e12, so the route bar rose
+  to 1e13 and caldera's pot is forfeited on the record rather than
+  risked.
 - **The wall is spent on a clock** (Phases 2+5A): time-based
   checkpoints in every rung, a teardown reserve so huge-arena runs
   report instead of dying mid-drop, progress-conditional LAMA slice

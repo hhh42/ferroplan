@@ -247,6 +247,38 @@ smallest first, each with its own receipt:
   running-and-near-missing as the dominant residue — the three
   near-wall certs say it is close.
 
+### Recorded — margin, allocation, resumption (quiet-box reads at the cut)
+
+- **The instrument first, and it convicted the baseline:** the
+  differential's --board-budget mode found 11 of the 12 named
+  slice-loss certificates REGRESSION at 60 s board conditions on the
+  Wave-1 binary (elevator i12 re-certifies 0.91 s from the kill) —
+  the blind spot repaired and immediately load-bearing.
+- **All three levers landed** (FF_OPT_GATE_MARGIN 1.4,
+  FF_OPT_SPRINT_FRAC_HI 0.1 at ratio ≥ 2, sprint-resume with a
+  bounded LM-cut probe at FF_OPT_LMCUT_PROBE_FRAC 0.33 and
+  FF_NO_OPT_RESUME's restore hatch beyond the spec's list). Receipts:
+  scanalyzer-08 i4 PROVEN cost 24 at 6.0 s vs the 23.2 s baseline;
+  rainbowttles-opt i21 narrates the full gate→probe→resume flow;
+  city-car i8 gates b-branch at ratio 1.36 exactly as the A/B priced
+  (its full quiet-box proof rides the gate batch).
+- **Phase 4 landed fail-closed:** the layer bound pinned at
+  GoalAt(60) EXACTLY on the pump fixture (61 would be inadmissible,
+  59 a silent weakening); the audit's teeth pinned (a scale-up shape
+  WOULD have certified PROVEN UNSOLVABLE if armed);
+  **sailing-wind-opt i8 PROVEN cost 15 by h^max+numRPG at 132,018
+  expansions vs 2.86M blind — 21.7× fewer, in 3.0 s**; onlycraft i3
+  the pre-priced honest zero (num root 6, still node-caps);
+  trader-cycle re-scoped mid-flight when its premise measured false —
+  the lap CERTIFIES cheaply, so the control now pins the certificate
+  UNBENT under the arm.
+- **The probe tax is real and named:** mid-class h^max certs land
+  ~18–30 s later under the 0.1-class sprint + probe; elevator i12's
+  59 s LM-cut cert structurally cannot fit the probe — the pre-priced
+  casualty class, and incremental LM-cut's live-candidate case.
+  Every timing above was contention-heavy; the quiet-box gate batch
+  and the cut boards adjudicate.
+
 ## Phase 4 — the numeric-admissible bound (the proof boards learn numbers)
 
 Mode::Optimal is numerically sound and numerically BLIND: onlycraft's
@@ -371,6 +403,35 @@ it is priced at +4–14 of 195, not at 195. Excluded up front and
 pinned as a negative-control fixture: child-snack (symmetry's, Phase
 6's) — referees stay undiluted.
 
+### Recorded — the driver takes the slot (old-binary column at the cut)
+
+- **All four levers + the diversify rider landed**, fixtures
+  RED-then-GREEN both banked (the pre-implementation RED lives as
+  commit b67aae6 AND as permanent hatched legs): combolock pins the
+  R-partition (86 vs 16,384 pops), pairlock pins width-2; the first
+  fixture draft (stagelock) was replaced after measurement and the
+  negative recorded.
+- **The in-vivo receipt for dropping per-pop h:** in the same ~8 s
+  tetris slice the old rung managed 21,135 h-evals, the driver
+  explored 69,632 pops — 3.3× states per slice-second.
+  FF_NOV_OLD=1 restores the 0.21 rung wholesale, pinned to
+  byte-identical plan and evals; no armed wall ⇒ byte-identical
+  ladder.
+- **Pre-registered solos run and recorded, not tuned on:**
+  transport/parking/snake unmoved at niced t1 (the pot is priced at
+  board scale, as scoped); folding solves both binaries; tetris i4
+  stays converted under the whole-wall probe (FF_NOVDRIVER_ONLY, len
+  134) — with the honest caveat that the niced-t1 full ladder never
+  reaches the novelty slot on EITHER binary (the 40% affordability
+  gate under E-core pre-search; a Wave-1 behavior, recorded).
+- **The diversify rider's pre-registered read came back null-armed:**
+  data-network i12 now solves in round 1 on this binary, so the
+  refill seed never fires (identical 473,488 evals both ways).
+  FF_REFILL_DIVERSIFY stays opt-in; promote/drop is the cut's call.
+- Driver plans run longer where both convert (tetris 134 vs 54 —
+  h-free has no length polish); quality rides the improvement pass
+  and the --score-against column. Suite 264/0 in-worktree.
+
 ## Phase 6 — the symmetry engine (the zero-traction unlock)
 
 Confirmed at 0.21, three engines deep on one box: child-snack 0/20
@@ -414,6 +475,34 @@ machinery, five levers, each sound before the next lands:
   headroom there and must keep it); t1≡t8 determinism pinned.
   Hatches: `FF_NO_ORBIT_CLASSICAL` isolates the new consumer.
 
+### Recorded — the engine exists, and child-snack falls (differential at the cut)
+
+- **The headline the cycle wanted:** child-snack-opt i1 — three
+  releases of node-cap walls — is **PROVEN OPTIMAL cost 21, VAL
+  "Plan valid"**, 324,276 expansions with orbits ON vs 769,092
+  expansions and NO certificate hatched off. The ~20-certificate
+  orbit-active sample: **20/20 exact-cost matches** (city-car 10/10
+  against the vendored board certs, cave-diving 5/5,
+  maintenance 5/5).
+- **All five levers landed;** the L2 gate went in CLASSICAL-ONLY
+  (detect_classical behind FF_NO_ORBIT_CLASSICAL; the temporal
+  consumer keeps 0.21 strictness byte-identical — a deliberate
+  narrowing of the spec's letter, recorded). The cost-asymmetry
+  negative fixture pins the REACHABLE bail (state-dependent cost);
+  constant per-member asymmetry is unreachable by construction and
+  the fixture says why.
+- **First sat deposits:** child-snack-sat i6 converts at 15.9 s
+  (0.21: died at 55.7 s); i1 matches the board; the sat pot rides L3
+  through the board path (the --mode partition route still merges
+  itself out of budget — 5B territory, not this phase's lever, the
+  L5 narration receipt notwithstanding).
+- **barman deflated exactly as pre-priced:** i1 still no-cert at a
+  1.71M-expansion cap with only [2,2] orbits — the +0–4 band is the
+  record. Canaries hold with headroom (barman-sat, GED). The L1 hook
+  was re-applied by hand onto the restructured AstarState at merge,
+  as pre-arranged; the full 354-certificate differential with orbits
+  ON is the cut's gate.
+
 ## Phase 7 — grounding scale (the walls that never reach search)
 
 The decode receipts are unambiguous: 2048 spends its ENTIRE budget
@@ -453,6 +542,36 @@ time is the wall).
   the 46 s transients died with Phase 6's fold era), settlers-snp
   (the wall is PARTITION-mode machinery, re-attributed to Phase 1's
   instrumentation), gear-car and line-exchange (search-bound).
+
+### Recorded — the walls that never reached search, reached
+
+- **2048 i8 SOLVES — len 203 inside the wall** — the domain that
+  spent 67–74 s of a 60 s budget enumerating 435M binding nodes now
+  grounds through MCV in milliseconds and solves. The family ramp
+  read rides the gate batch.
+- **The audit did exactly what it exists for, and the route bar
+  MOVED:** the first full sweep found currently-SOLVED products up
+  to 1.62e12 (data-network's PROCESS action) — far above caldera's
+  6.4e10 — so NO product threshold admits caldera without re-routing
+  solved domains into the recorded sokoban-t regression class.
+  FF_FIXPOINT_THRESHOLD rose 1e8 → 1e13: org-synth (1.2e15/1.2e25)
+  still routes; **caldera's pot is FORFEITED this cycle**, on the
+  record, to a selectivity-aware gate (0.23 candidate). The audit
+  asserts the new geometry and runs clean.
+- **The composition seams became fixtures:** Phase 7's own levers
+  dissolved two sibling phases' walls — the ground_wall or-goal bomb
+  now simply SOLVES under the factored goal-check (pinned as the
+  'factored' leg beside the budget legs, which hatch factoring off
+  to keep the backstop pinned), and ladder_wall's bindstorm legs
+  hatch MCV off for the same reason. Two 0.21-era receipts
+  (onlycraft's 46 s transients, settlers-snp's "grounding" wall)
+  had already dissolved or re-attributed before this phase touched
+  them — both recorded by the audit's probes, not claimed.
+- The block-grouping factored-goal lever, org-synth route gate,
+  sokoban-t re-referee, and agricola control land with the gate
+  batch; the goal-factoring's optimal-mode interaction (a constant-m
+  synthetic suffix, argmin preserved, stripped from reported plans)
+  is noted in code with no live optimal domain carrying the shape.
 
 ## Phase 8 — the denominator (the whole table on one box)
 
