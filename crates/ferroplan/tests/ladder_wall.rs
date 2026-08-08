@@ -285,9 +285,15 @@ fn ladder_rungs_pay_the_wall() {
                     deceptlawn(19, 60, 2000)
                 }
             }
-            "ground-wall" | "ground-wall-hatched" => {
-                bindstorm(if cfg!(debug_assertions) { 14 } else { 30 })
-            }
+            // Unlike lama-slice/no-rung-wallcap this one is NOT
+            // profile-scaled down for debug: n=14 (measured 0.22 Phase 9
+            // pre-flight) grounds and solves in well under the 1 s wall
+            // even with MCV off — n^5 candidate bindings for `heavy` is
+            // just not that much work either build profile, so a smaller
+            // debug fixture only recreated the false-pass, not a faster
+            // one. n=30 reliably overruns on both profiles (checkpoint
+            // fires 1.0-1.7 s in, every run).
+            "ground-wall" | "ground-wall-hatched" => bindstorm(30),
             other => panic!("unknown scenario {other}"),
         };
         let opts = ferroplan::Options {

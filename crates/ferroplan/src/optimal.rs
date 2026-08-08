@@ -641,7 +641,7 @@ fn num_arm_root(task: &PackedTask, cf: Option<usize>) -> Option<f64> {
 /// discriminator hatches keep their pure-rung meanings on every path.
 /// `FF_OPT_NO_ROOTGATE=1` restores the unconditional 0.21
 /// sprint-then-LM-cut ladder under a wall (no margin, no resume).
-/// The numeric arm ([`num_arm_root`], 0.22 Phase 4) composes with every
+/// The numeric arm (`num_arm_root`, 0.22 Phase 4) composes with every
 /// branch via max() and never touches the gate's h^max-vs-LM-cut verdict.
 ///
 /// `orbit` (0.22 Phase 6 L1): canonical visited keys at the three
@@ -898,7 +898,7 @@ fn astar(
 }
 
 /// Evaluate the admissible heuristic on one state: h^max or LM-cut, and —
-/// with the numeric arm ([`num_arm_root`], 0.22 Phase 4 L1) — max() with
+/// with the numeric arm (`num_arm_root`, 0.22 Phase 4 L1) — max() with
 /// the interval-RPG layer bound (max of admissible bounds is admissible).
 /// The propositional ∞ short-circuits: the state is already a safe prune,
 /// so the RPG tax is skipped there.
