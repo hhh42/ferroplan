@@ -224,12 +224,18 @@ fn run_child(scenario: &str) -> (String, String, f64) {
         "ground-wall" => {
             // 0.22 Phase 2 lever 1: grounding must exit HONESTLY at a
             // tiny armed wall — no partial task, no zombie enumeration.
-            cmd.env("FF_TIME_LIMIT", "1");
+            // Phase 7's MCV join order collapses bindstorm's late-static
+            // shape outright (its own battery pins that win), so this
+            // leg hatches MCV off: the wall check is the backstop for
+            // above-threshold shapes MCV cannot collapse.
+            cmd.env("FF_TIME_LIMIT", "1").env("FF_NO_MCV_JOIN", "1");
         }
         "ground-wall-hatched" => {
             // The permanent RED record: unchecked enumeration grinds far
             // past the wall, then "solves" — the 2048 receipt shape.
-            cmd.env("FF_TIME_LIMIT", "1").env("FF_NO_RUNG_WALLCAP", "1");
+            cmd.env("FF_TIME_LIMIT", "1")
+                .env("FF_NO_RUNG_WALLCAP", "1")
+                .env("FF_NO_MCV_JOIN", "1");
         }
         "light-whole-slice" => {
             // A LONG armed wall: the default 0.10 slice must hold the

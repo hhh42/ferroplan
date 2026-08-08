@@ -258,7 +258,7 @@ fn trader_cycle_negative_control_certificate_unbent() {
     ))
     .unwrap();
     let task = ferroplan::ground::ground_task(&dom, &prb, 1).unwrap();
-    let o = ferroplan::optimal::solve(&task, None, 50_000);
+    let o = ferroplan::optimal::solve(&task, None, 50_000, None);
     assert!(o.proven, "the lap certificate must not be lost");
     assert_eq!(
         o.ops.expect("proven plan").len(),

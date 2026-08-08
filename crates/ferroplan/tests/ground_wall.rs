@@ -50,11 +50,23 @@ fn run_child(scenario: &str) -> (String, f64) {
     ])
     .env("GROUND_WALL_CHILD", scenario);
     match scenario {
+        // The budget legs hatch OFF Phase 7's factored goal-check: the
+        // or-goal bomb below is exactly the shape the factoring converts
+        // (see the "factored" leg), and these legs pin the budget exit
+        // that remains the backstop for shapes factoring cannot take.
         "wall" => {
             cmd.env("FF_TIME_LIMIT", "2");
+            cmd.env("FF_NO_GOAL_FACTOR", "1");
         }
         "mem" => {
             cmd.env("FF_MEM_BUDGET_GB", "0.2");
+            cmd.env("FF_NO_GOAL_FACTOR", "1");
+        }
+        // Phase 7 composing with Phase 1, pinned where the balloon was
+        // born: the SAME bomb the budget legs stop honestly is simply
+        // SOLVED once the or-goals compile factored.
+        "factored" => {
+            cmd.env("FF_TIME_LIMIT", "30");
         }
         "control" => {
             cmd.env("FF_TIME_LIMIT", "30");
@@ -72,7 +84,7 @@ fn run_child(scenario: &str) -> (String, f64) {
 fn goal_dnf_respects_the_declared_budget() {
     if let Ok(scenario) = std::env::var("GROUND_WALL_CHILD") {
         let (dom, prb) = match scenario.as_str() {
-            "wall" | "mem" => orbomb(60),
+            "wall" | "mem" | "factored" => orbomb(60),
             "control" => orbomb(2),
             other => panic!("unknown scenario {other}"),
         };
@@ -90,6 +102,11 @@ fn goal_dnf_respects_the_declared_budget() {
     // named budget note, no "unsolvable" anywhere, and the exit is
     // prompt instead of i3's 76 s balloon (generous bound: the child
     // also pays process spawn and parse).
+    let (stdout, _secs) = run_child("factored");
+    assert!(
+        stdout.contains("CHILD-factored-SOLVED:true"),
+        "the factored compile must simply solve the bomb:\n{stdout}"
+    );
     let (stdout, secs) = run_child("wall");
     assert!(stdout.contains("CHILD-wall-SOLVED:false"), "{stdout}");
     assert!(

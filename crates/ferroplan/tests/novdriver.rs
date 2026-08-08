@@ -548,7 +548,7 @@ fn driver_ladder_pins() {
                 let (dom, prb) = deceptmini(8, 12);
                 let task = ground(&dom, &prb);
                 let cfg = ferroplan::search::SearchCfg::from_weights(1.0, 5.0, None);
-                let o = ferroplan::search::plan(&task, 1, cfg, true);
+                let o = ferroplan::search::plan(&task, 1, cfg, true, None);
                 let ops = o.ops.expect("rung leg must solve");
                 let rendered: Vec<String> = ops.iter().map(|o| o.to_string()).collect();
                 println!("CHILD-PLAN:{}", rendered.join(" "));
@@ -560,7 +560,7 @@ fn driver_ladder_pins() {
                 let (dom, prb) = deceptmini(8, 12);
                 let task = ground(&dom, &prb);
                 let cfg = ferroplan::search::SearchCfg::from_weights(1.0, 5.0, None);
-                let o = ferroplan::search::plan(&task, 1, cfg, true);
+                let o = ferroplan::search::plan(&task, 1, cfg, true, None);
                 let ops = o.ops.expect("no-wall leg must solve");
                 let rendered: Vec<String> = ops.iter().map(|o| o.to_string()).collect();
                 println!("CHILD-PLAN:{}", rendered.join(" "));
@@ -572,8 +572,8 @@ fn driver_ladder_pins() {
                 let (dom, prb) = deceptmini(8, 12);
                 let task = ground(&dom, &prb);
                 let cfg = ferroplan::search::SearchCfg::from_weights(1.0, 5.0, None);
-                let o1 = ferroplan::search::plan(&task, 1, cfg, true);
-                let o8 = ferroplan::search::plan(&task, 8, cfg, true);
+                let o1 = ferroplan::search::plan(&task, 1, cfg, true, None);
+                let o8 = ferroplan::search::plan(&task, 8, cfg, true, None);
                 assert_eq!(o1.ops, o8.ops, "t1 and t8 plans must be identical");
                 assert_eq!(o1.evaluated, o8.evaluated, "t1/t8 eval counts too");
                 println!("CHILD-THREADS-OK:{}", o1.ops.is_some());

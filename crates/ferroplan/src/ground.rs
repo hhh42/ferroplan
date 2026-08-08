@@ -721,7 +721,7 @@ fn mcv_order(
                 2
             };
             let key = (class, domains[p].len(), p);
-            if best.is_none_or(|b| key < b) {
+            if best.map_or(true, |b| key < b) {
                 best = Some(key);
             }
         }
