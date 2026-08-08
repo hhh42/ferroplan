@@ -156,23 +156,29 @@ fn run_child(scenario: &str) -> (String, String, f64) {
             cmd.env("FF_OPT_GATE_MARGIN", "1.0");
         }
         "resume" => {
-            // 30 s, not 10 (0.22 Phase 9 pre-flight): the fractions are
-            // proportional to the wall, so the forced-tiny-slice shape
-            // is unchanged (sprint 0.15 s, probe ~30 ms of the ~29.85 s
-            // remaining) — only the RESUMED search's absolute margin
-            // grows. Isolated, the resume completes deterministically
-            // in well under 1 s of real work (2523 expansions, cost 13,
-            // every time) — but this test always runs immediately after
-            // the `--include-ignored` release pass in the real
-            // pre-flight sequence, and this machine's own background
-            // noise is on the record elsewhere (cut22-sweeps.sh: "a
-            // browser, Spotlight, a Docker VM running CI, Time
-            // Machine"). At 10 s that was enough to flip
-            // CHILD-resume-SOLVED intermittently — the worst kind of
-            // failure (RELEASING.md), caught twice by this exact
-            // pre-flight and never once in 20+ isolated reruns.
+            // 0.22 Phase 9 pre-flight, root-caused (not a contention
+            // guess): this fixture's FULL h^max proof is only ~2521
+            // expansions — cheap enough that a release build finishes
+            // it in ~50-70 ms wall-clock, parse+ground included. The
+            // OLD sprint slice (0.005 x 10 s = 50 ms) was already
+            // marginal; raising the wall to 30 s without re-deriving
+            // the fraction (an earlier, wrong fix here) made it WORSE
+            // (150 ms slice) — release-mode sprint then reliably
+            // proves cost 13 solo, before ever reaching the LM-cut
+            // probe, so neither "LM-cut probe inconclusive" nor
+            // "resumes its open list" is ever printed. 100%
+            // reproducible on an idle box once the fixture and a FRESH
+            // release binary are lined up — this was never about
+            // background noise. 0.0002 (a ~6 ms slice of the 30 s
+            // wall) is release-mode-verified (40/40) to stay below
+            // what h^max needs; the probe fraction (0.001, ~30 ms) was
+            // already reliably too small for LM-cut's ~130-280
+            // expansions and is unchanged. The wall itself stays 30 s
+            // (not reverted to 10) purely to give the RESUMED search
+            // generous absolute margin to finish once it is properly
+            // forced to happen.
             cmd.env("FF_TIME_LIMIT", "30")
-                .env("FF_OPT_SPRINT_FRAC_HI", "0.005")
+                .env("FF_OPT_SPRINT_FRAC_HI", "0.0002")
                 .env("FF_OPT_LMCUT_PROBE_FRAC", "0.001");
         }
         "no-resume" => {
