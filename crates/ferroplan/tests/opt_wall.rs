@@ -156,12 +156,27 @@ fn run_child(scenario: &str) -> (String, String, f64) {
             cmd.env("FF_OPT_GATE_MARGIN", "1.0");
         }
         "resume" => {
-            cmd.env("FF_TIME_LIMIT", "10")
+            // 30 s, not 10 (0.22 Phase 9 pre-flight): the fractions are
+            // proportional to the wall, so the forced-tiny-slice shape
+            // is unchanged (sprint 0.15 s, probe ~30 ms of the ~29.85 s
+            // remaining) — only the RESUMED search's absolute margin
+            // grows. Isolated, the resume completes deterministically
+            // in well under 1 s of real work (2523 expansions, cost 13,
+            // every time) — but this test always runs immediately after
+            // the `--include-ignored` release pass in the real
+            // pre-flight sequence, and this machine's own background
+            // noise is on the record elsewhere (cut22-sweeps.sh: "a
+            // browser, Spotlight, a Docker VM running CI, Time
+            // Machine"). At 10 s that was enough to flip
+            // CHILD-resume-SOLVED intermittently — the worst kind of
+            // failure (RELEASING.md), caught twice by this exact
+            // pre-flight and never once in 20+ isolated reruns.
+            cmd.env("FF_TIME_LIMIT", "30")
                 .env("FF_OPT_SPRINT_FRAC_HI", "0.005")
                 .env("FF_OPT_LMCUT_PROBE_FRAC", "0.001");
         }
         "no-resume" => {
-            cmd.env("FF_TIME_LIMIT", "10")
+            cmd.env("FF_TIME_LIMIT", "30")
                 .env("FF_OPT_SPRINT_FRAC_HI", "0.005")
                 .env("FF_OPT_NO_RESUME", "1");
         }
