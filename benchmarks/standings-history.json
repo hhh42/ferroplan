@@ -175,6 +175,79 @@
      "total": 60
     }
    }
+  },
+  {
+   "version": "0.22.0",
+   "released": "2026-08-08",
+   "measured_on": "m5-air",
+   "measured_at": "2026-08-08",
+   "note": "",
+   "tracks": {
+    "propositional": {
+     "solved": 366,
+     "total": 450
+    },
+    "constraints": {
+     "solved": 5,
+     "total": 120
+    },
+    "seq-sat": {
+     "solved": 504,
+     "total": 580
+    },
+    "tempo-sat": {
+     "solved": 419,
+     "total": 630
+    },
+    "net-benefit": {
+     "solved": 248,
+     "total": 270
+    },
+    "2014 seq-sat": {
+     "solved": 147,
+     "total": 280
+    },
+    "2014 seq-agile": {
+     "solved": 141,
+     "total": 280
+    },
+    "2014 tempo-sat": {
+     "solved": 67,
+     "total": 200
+    },
+    "2018 seq-sat": {
+     "solved": 79,
+     "total": 240
+    },
+    "2023 classical": {
+     "solved": 36,
+     "total": 140
+    },
+    "2023 numeric": {
+     "solved": 251,
+     "total": 400
+    },
+    "2026 numeric (first board)": {
+     "solved": 179,
+     "total": 320
+    },
+    "2023 agile ENTRY (300s)": {
+     "solved": 52,
+     "total": 140
+    },
+    "seq-opt": {
+     "solved": 277,
+     "total": 550
+    },
+    "2014 seq-opt": {
+     "solved": 74,
+     "total": 256
+    },
+    "2026 numeric-opt": {
+     "solved": 22,
+     "total": 60
+    }
+   }
   }
  ]
 }

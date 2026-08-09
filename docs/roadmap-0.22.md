@@ -695,6 +695,64 @@ the top of its band — reads 58%. The floor — the centerpiece
 repeating 0.17's history — is caught by the backfill column and
 recorded, because that is what the column is for.
 
+### Recorded — the cut sweep, all sixteen boards, one clean pass
+
+Swept 2026-08-08/09 on `m5-air`, quiet-box discipline held throughout
+(every board's `contention.py` verdict reads `clean`; the driver
+finished in its first pass, zero contended re-runs across all
+sixteen boards — `benchmarks/air22/*.conditions.json` carries the
+receipt for every one, closing the 0.21 hygiene note that only 6 of
+13 boards had them). Two real pre-flight defects surfaced and were
+fixed before the sweep ran, both fixture/doc problems, neither an
+engine-behavior change: a public doc comment on `optimal::solve`
+intra-doc-linked to a private fn (`cargo doc -D warnings`), and
+`ladder_wall.rs`'s `ground-wall` fixture had drifted small enough
+that Phase 7's grounding speed now solves it inside its own 1 s test
+wall on either build profile — recalibrated, not loosened. A third
+apparent flake (`opt_wall.rs`'s sprint-resume completion) took two
+tries: the first fix (widen the wall) was diagnosed wrong and
+reverted in favor of the real cause — the forced sprint slice was
+wide enough that release-mode h^max could just solve the fixture
+solo, skipping the probe/resume path the test exists to exercise.
+
+**The thirteen comparable boards (same 4,076 denominator as 0.21):
+2,153 → 2,248, +95.** That is the low end of the +80–190 engine-phase
+band, not the stretch — the floor case named in the ambition above,
+not the collapse case the same paragraph also priced. Two boards
+went backward and are named rather than netted away: **2014
+seq-agile −1** (142→141) and **2014 tempo-sat −3** (70→67); every
+other comparable board held or gained, seq-opt's net **+2**
+(275→277) absorbing the gate batch's six standing differential
+regressions (peg-solitaire i16, tidybot i5/i11, parc-printer ×2,
+elevator i12 — pre-priced, adjudicated on the record already) against
+the b-flip proofs (city-car i8, tetris i5) and the sprint-resume
+recoveries that landed the same day. **2014 seq-opt +6.2 pts** (58→74)
+is the single biggest mover — Phase 3's ladder and Phase 4's numeric
+arm, compounding.
+
+**The three re-entered boards overshot "near their cloud-era rates"
+by a wide margin**: propositional 366/450 (81%), net-benefit 248/270
+(**92%**, this cut's strongest board by percentage), constraints
+5/120 (4% — the honest floor, mostly engine-reject on timed modal
+operators the parser declines by name, not a search failure).
+Folded in, the **sixteen-board headline lands at 58.3% (2,867/4,916,
+373 certified optima)** — the stretch case, hit almost exactly, but
+for a different reason than the ambition priced: not the engine
+phases running hot, but the re-entries running far hotter than
+"cloud-era" implied.
+
+**What this record does NOT do**: the ambition called for refereeing
+the centerpiece against old-binary columns (a fresh v0.19 and
+v0.21.0 backfill on this box). That backfill sweep was not run this
+session — STANDINGS.md's "vs previous" column (same-hardware 0.21.0
+comparison, generated automatically) is the only cross-version
+referee here. A v0.19/v0.21.0 backfill on `m5-air` stays open for
+whoever next needs that specific comparison.
+
+Full per-track detail, quality scoring, and failure classes:
+[`benchmarks/ipc-standings.md`](../benchmarks/ipc-standings.md).
+Rough field placement per year/track: [`docs/ipc-rankings.md`](ipc-rankings.md).
+
 ## Anti-pots, recorded so nobody reaches for them
 
 - **A 120 s classical tier:** of the 19 instances that fail at 60 s
