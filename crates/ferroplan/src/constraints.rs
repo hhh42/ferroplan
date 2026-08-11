@@ -29,7 +29,8 @@
 //! only ever see real steps. An `(at end φ)` hard constraint lowers to a
 //! transition-free ACC latch, which keeps the goal literal-only — the 0.8
 //! motivation verbatim, and mandatory here because the temporal grounding
-//! entry (`ground_stratified`) does not run the 0.22 factored-goal
+//! entries (`ground_stratified` and its 0.23 walled solve-side twin) do
+//! not run the 0.22 factored-goal
 //! compilation, so a goal-side disjunctive fold would re-open the
 //! REACH-GOAL DNF product this module's history warns about. Because the
 //! ε-repair may permute same-slot happenings AFTER the search certified the

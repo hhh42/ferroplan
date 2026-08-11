@@ -12,7 +12,7 @@
 //! because the RPG domain is single-agent with no `over all` invariants spanning
 //! contracts; anything needing cross-contract concurrency falls through to monolithic.
 
-use crate::ground::{ground_stratified, Outcome};
+use crate::ground::{ground_stratified_walled, Outcome};
 use crate::hash::FxHashSet;
 use crate::packed::PackedTask;
 use crate::partition::{interaction_partition, merge_at, merge_with_neighbor, Subgoal};
@@ -153,7 +153,11 @@ fn decompose_inner(
             .map(|p| monolithic_decomp("(constrained goal; solved monolithically)".into(), p));
     }
     let c = temporal::compile(domain, problem);
-    let task = match ground_stratified(&c.domain, &c.problem, threads) {
+    // The decomposer is a SOLVE path too (direct FF_TDECOMP calls and the
+    // ladder's last rung), so it pays the same wall (0.23 Phase 6) — a
+    // ladder that exits the monolithic rungs honestly must not hand the
+    // same bindstorm ten unwalled minutes here.
+    let task = match ground_stratified_walled(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
             let empty = TimedPlan {

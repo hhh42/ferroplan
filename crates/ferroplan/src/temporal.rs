@@ -680,7 +680,13 @@ fn solve_inner(
             Err(_) => return None,
         }
     }
-    let mut task = match ground_stratified(&c.domain, &c.problem, threads) {
+    // The WALLED solve entry (0.23 Phase 6): under an armed FF_TIME_LIMIT
+    // the snap enumeration pays the classical entry's honest budget exit
+    // (sokoban-t 2008 i21: >10 minutes of grounding against a 30 s wall).
+    // WallExhausted falls into the `None` arm — a budget miss, never a
+    // verdict. `validate` below stays on the unwalled entry: a plan
+    // already found must still be groundable after the wall.
+    let mut task = match crate::ground::ground_stratified_walled(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
             return Some(TimedPlan {

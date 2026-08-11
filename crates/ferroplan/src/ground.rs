@@ -40,10 +40,12 @@ pub enum Outcome {
     /// demanded it: block-grouping i3's 21 disjunctive coordinate-Eq
     /// goals DNF-multiply to 4^21 conjuncts (76 s past a 60 s wall, every
     /// stack sample inside `and_merge`); 2048 spent 67–74 s of a 60 s
-    /// budget in binding enumeration with no clock check at all. Raised
-    /// only on plain solve entries; the validator/session/temporal
-    /// entries never trip — a plan already found must still be
-    /// groundable for verification after the wall.
+    /// budget in binding enumeration with no clock check at all; sokoban-t
+    /// 2008 i21 ground >10 minutes of snap candidates against a 30 s wall
+    /// (0.23 Phase 6). Raised only on SOLVE entries — plain classical and
+    /// the walled temporal/stratified one; the validator/session entries
+    /// never trip — a plan already found must still be groundable for
+    /// verification after the wall.
     WallExhausted(String),
 }
 
@@ -677,6 +679,19 @@ fn mcv_order(
         return None;
     }
     let param_pos = |v: &Sym| params.iter().position(|(pv, _)| pv == v);
+    // FULL-COVER literals — every parameter appears — carry ZERO ordering
+    // information: under any permutation they bind only at the last level,
+    // yet in the connectivity classes they read every parameter as
+    // "connected" from the first pick, degrading the tie-break to domain
+    // size and drowning the partial literals' signal. The constituency is
+    // the stratified pass's RUNNING-* producer tokens (0.23 Phase 6):
+    // sokoban-t's PUSH-*-END carries MOVE-DIR statics that collapse the
+    // walk when they drive the order, but the 6-ary token pushed them five
+    // levels deep — the |d|·P·S·L² prefix that ground 2008 i21 for >10
+    // minutes against a 30 s wall (1.8 s with stratification hatched off).
+    // Excluded literals still PRUNE at their bound level (`levels_for` in
+    // the caller reads the full enum set); only the ORDER signal drops, so
+    // the survivor set — and the sorted-back emission — cannot move.
     let lit_vars: Vec<Vec<usize>> = enum_lits
         .iter()
         .map(|lit| {
@@ -692,7 +707,11 @@ fn mcv_order(
             }
             vars
         })
+        .filter(|vars| vars.len() < n)
         .collect();
+    if lit_vars.is_empty() {
+        return None;
+    }
     let mut chosen = vec![false; n];
     let mut order = Vec::with_capacity(n);
     for _ in 0..n {
@@ -1218,7 +1237,7 @@ fn intern_cond(intern: &mut Interner, rc: &RCondEff) -> (CondEff, CondAtoms) {
 /// an op-untouched fluent must stay live (the MCP world-edit contract,
 /// pinned by session.rs tests).
 pub fn ground(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
-    ground_v(domain, problem, threads, false, false, false, true)
+    ground_v(domain, problem, threads, false, false, false, true, true)
 }
 
 /// Like [`ground_stratified`] with reached-restricted FIXPOINT enumeration
@@ -1232,22 +1251,38 @@ pub fn ground(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
 /// game track) uses this entry, where the memory win is the point and no
 /// scoreboard baseline is disturbed. `FF_NO_FIXPOINT_GROUND=1` falls back.
 pub fn ground_fixpoint(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
-    ground_v(domain, problem, threads, false, true, true, false)
+    ground_v(domain, problem, threads, false, true, true, false, false)
 }
 
 /// Like [`ground`], with stratified Phase B (see the block in `ground_v`):
 /// actions gated on producer-known predicates ground join-restricted to the
 /// atoms stratum 1 produced. Same post-reachability op set and order; fact-id
 /// first-reference order may differ from [`ground`], so the classical path
-/// stays on the plain entry. The temporal snap path uses this.
+/// stays on the plain entry. This UNWALLED form is the temporal
+/// RE-GROUND-FOR-VERIFICATION entry (`temporal::validate`, plus the
+/// inspection probes): a plan already found must still be groundable after
+/// the wall. The temporal SOLVE paths use [`ground_stratified_walled`].
 pub fn ground_stratified(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
-    ground_v(domain, problem, threads, false, true, false, true)
+    ground_v(domain, problem, threads, false, true, false, true, false)
+}
+
+/// [`ground_stratified`] with the 0.22 grounding wall armed (0.23 Phase 6):
+/// the temporal SOLVE entry — temporal.rs's `solve_inner` and tresolve's
+/// decomposer — pays the same honest budget exit the plain classical entry
+/// does. The 0.22 finding that demanded it: sokoban-t 2008 i21 spent >10
+/// minutes in snap grounding against a 30 s wall, because the wall armed
+/// ONLY on the plain `ground` entry. The Phase 2 constraints gate composes:
+/// a monitor-compiled pair routes through this same entry, so a constrained
+/// bindstorm gets the same honest exit. Unarmed `FF_TIME_LIMIT` or
+/// `FF_NO_RUNG_WALLCAP=1` ⇒ byte-identical to [`ground_stratified`].
+pub fn ground_stratified_walled(domain: &Domain, problem: &Problem, threads: usize) -> Outcome {
+    ground_v(domain, problem, threads, false, true, false, true, true)
 }
 
 /// Always return the grounded Task (skips goal TRUE/FALSE/undefined verdicts);
 /// None only on a fatal empty-type error.
 pub fn ground_task(domain: &Domain, problem: &Problem, threads: usize) -> Option<PackedTask> {
-    match ground_v(domain, problem, threads, true, false, false, false) {
+    match ground_v(domain, problem, threads, true, false, false, false, false) {
         Outcome::Task(t) => Some(t),
         _ => None,
     }
@@ -1317,6 +1352,7 @@ fn ground_v(
     stratified: bool,
     fixpoint: bool,
     fold_fluents: bool,
+    walled: bool,
 ) -> Outcome {
     // ---- type system ----
     let objects_of_type = objects_by_type(domain, problem);
@@ -1411,21 +1447,23 @@ fn ground_v(
     // is why the classical path keeps this off — its exact fixtures pin
     // today's ids. `FF_NO_STRAT_GROUND=1` disables for A/B measurement.
     let n_actions = domain.actions.len();
-    // The grounding wall checkpoint (0.22 Phase 2 lever 1), armed ONLY
-    // on the plain solve entry (`ground`): the validator entry must
-    // still ground a found plan's task after the wall (a plan found is
-    // a plan, never discarded), and the temporal/session entries keep
-    // their own budget discipline (0.23's tier). Unarmed `FF_TIME_LIMIT`
-    // or `FF_NO_RUNG_WALLCAP=1` ⇒ `None` ⇒ byte-identical enumeration.
-    let gwall: Option<GroundWall> =
-        (!validate && !stratified && !fixpoint && crate::search::rung_wallcap_on())
-            .then(crate::search::wall_deadline)
-            .flatten()
-            .map(|(clock, total)| GroundWall {
-                clock,
-                total,
-                tripped: std::sync::atomic::AtomicBool::new(false),
-            });
+    // The grounding wall checkpoint (0.22 Phase 2 lever 1), armed on the
+    // SOLVE entries only — `walled`: the plain classical `ground` and,
+    // since 0.23 Phase 6, the temporal solve-side `ground_stratified_walled`
+    // (the sokoban-t 2008 i21 receipt: >10 minutes of snap grounding
+    // against a 30 s wall). The validator entry must still ground a found
+    // plan's task after the wall (a plan found is a plan, never
+    // discarded), and the session entry keeps its own budget discipline
+    // (0.23's tier). Unarmed `FF_TIME_LIMIT` or `FF_NO_RUNG_WALLCAP=1` ⇒
+    // `None` ⇒ byte-identical enumeration.
+    let gwall: Option<GroundWall> = (walled && crate::search::rung_wallcap_on())
+        .then(crate::search::wall_deadline)
+        .flatten()
+        .map(|(clock, total)| GroundWall {
+            clock,
+            total,
+            tripped: std::sync::atomic::AtomicBool::new(false),
+        });
     // Threshold-routed fixpoint (0.22 Phase 7 lever 2): the PLAIN solve
     // entry routes into the fixpoint enumeration below when any action's
     // post-restriction typed product exceeds `FF_FIXPOINT_THRESHOLD`

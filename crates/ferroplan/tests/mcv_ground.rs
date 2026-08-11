@@ -188,9 +188,11 @@ fn mcv_join_order_is_byte_identical_across_the_battery() {
 /// nothing to hold and the plain path enumerates the full 40*40*3 = 4,800
 /// product. Routed through the fixpoint, round 1 reaps nothing, round 2
 /// joins against the single reached TOK atom — with MCV active inside the
-/// enumeration (product 4,800 > the forced 100 threshold), and the MCV
-/// order is genuinely permuted (?c's key domain is smallest, so the
-/// greedy order opens with it) — the sort-back is exercised, not skipped.
+/// enumeration (product 4,800 > the forced 100 threshold). Since 0.23
+/// Phase 6 TOK, a FULL-COVER literal, is excluded from the ordering
+/// signal (it binds only at the last level under any order), so the walk
+/// runs in declaration order here; the genuinely-permuted sort-back is
+/// exercised by the golden battery above and the pushstorm pin below.
 const ROUTE_DOM: &str = "(define (domain fixroute) (:requirements :typing)
   (:types item key - object)
   (:predicates (tok ?a ?b - item ?c - key) (done ?a - item) (seeded))
@@ -309,4 +311,123 @@ fn fixpoint_route_composes_with_mcv() {
         !stderr.contains("fixpoint route"),
         "default thresholds must not route a 4.8e3 product:\n{stderr}"
     );
+}
+
+// ---- the stratum-2 ordering signal (0.23 Phase 6) ------------------------
+
+/// Sokoban-t's snap shape, distilled: a 6-parameter durative PUSH whose
+/// `over all` MOVE-DIR statics are the only real join structure. The snap
+/// compile conjoins them into BOTH endpoints, and the stratified pass gates
+/// PUSH-END on the producer-known RUNNING-PUSH token — a literal that names
+/// EVERY parameter. Full-cover literals carry zero ordering information
+/// (they bind at the last level under any permutation), but they used to
+/// flood `mcv_order`'s connectivity classes: every parameter reads
+/// "connected" from the first pick, the tie-break degrades to domain size,
+/// and the MOVE-DIR statics bind five levels deep — the |d|·P·S·L² prefix
+/// walk that ground sokoban-t 2008 i21 for >10 minutes against a 30 s wall
+/// while `FF_NO_STRAT_GROUND=1` ground the same instance in 1.8 s.
+///
+/// The MOVE-DIR line covers only FIVE locations, so the survivor set (and
+/// with it every post-enumeration phase) stays trivial: the defeated prefix
+/// walk is the ONLY cost in the fixture, exactly the attribution the
+/// receipts carry.
+fn pushstorm(agents: usize, crates_: usize, locs: usize) -> (String, String) {
+    let mut objs = String::new();
+    for i in 0..agents {
+        objs.push_str(&format!(" p{i}"));
+    }
+    objs.push_str(" - agent");
+    for i in 0..crates_ {
+        objs.push_str(&format!(" s{i}"));
+    }
+    objs.push_str(" - crate");
+    for i in 0..locs {
+        objs.push_str(&format!(" l{i}"));
+    }
+    objs.push_str(" - loc east west - dir");
+    let mut init = String::from(" (go)");
+    for i in 0..4.min(locs - 1) {
+        init.push_str(&format!(
+            " (move-dir l{i} l{} east) (move-dir l{} l{i} west)",
+            i + 1,
+            i + 1
+        ));
+    }
+    (
+        "(define (domain pushstorm)
+          (:requirements :typing :durative-actions)
+          (:types agent crate loc dir)
+          (:predicates (move-dir ?a ?b - loc ?d - dir) (go) (gw))
+          (:durative-action push
+            :parameters (?p - agent ?s - crate ?ppos ?from ?to - loc ?d - dir)
+            :duration (= ?duration 1)
+            :condition (and (over all (move-dir ?ppos ?from ?d))
+                            (over all (move-dir ?from ?to ?d)))
+            :effect (at end (gw)))
+          (:durative-action easy
+            :parameters ()
+            :duration (= ?duration 1)
+            :condition (at start (go))
+            :effect (at end (gw))))"
+            .into(),
+        format!(
+            "(define (problem ps) (:domain pushstorm) (:objects{objs}) \
+             (:init{init}) (:goal (gw)))"
+        ),
+    )
+}
+
+/// THE PIN: under an armed wall the stratified temporal grounding must
+/// SOLVE the pushstorm — the MCV order keyed off the MOVE-DIR statics
+/// collapses the walk regardless of the full-cover RUNNING token. RED
+/// before the `mcv_order` fix: the defeated order cannot finish inside the
+/// wall, and the (0.23 Phase 6) temporal grounding wall turns the grind
+/// into an honest solved:false. One child process (wall clock is global).
+#[test]
+fn stratified_gating_does_not_defeat_the_mcv_order() {
+    if std::env::var("MCV_STRAT_CHILD").is_ok() {
+        let (dom, prb) = if cfg!(debug_assertions) {
+            pushstorm(12, 12, 120)
+        } else {
+            pushstorm(20, 20, 250)
+        };
+        let opts = ferroplan::Options {
+            threads: 1,
+            ..Default::default()
+        };
+        let sol = ferroplan::solve(&dom, &prb, &opts).unwrap();
+        println!("CHILD-SOLVED:{}", sol.solved);
+        return;
+    }
+    let exe = std::env::current_exe().unwrap();
+    let mut cmd = Command::new(&exe);
+    cmd.args([
+        "--exact",
+        "stratified_gating_does_not_defeat_the_mcv_order",
+        "--nocapture",
+    ])
+    .env("MCV_STRAT_CHILD", "1")
+    .env(
+        "FF_TIME_LIMIT",
+        if cfg!(debug_assertions) { "20" } else { "5" },
+    );
+    for k in ["FF_MCV_THRESHOLD", "FF_NO_MCV_JOIN", "FF_NO_STRAT_GROUND"] {
+        cmd.env_remove(k);
+    }
+    let t0 = std::time::Instant::now();
+    let out = cmd.output().unwrap();
+    let secs = t0.elapsed().as_secs_f64();
+    assert!(out.status.success(), "child failed");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("CHILD-SOLVED:true"),
+        "the statics' MCV signal must survive the stratum-2 gating token \
+         (defeated order = honest wall exit = solved:false):\n{stdout}"
+    );
+    if !cfg!(debug_assertions) {
+        assert!(
+            secs < 5.0,
+            "the ordered walk must finish well inside the wall: {secs:.1} s"
+        );
+    }
 }
