@@ -156,6 +156,15 @@ fn run_child(scenario: &str) -> (String, String, f64) {
             cmd.env("FF_OPT_GATE_MARGIN", "1.0");
         }
         "resume" => {
+            // 0.23 Phase 5 note: this scenario pins the 0.22
+            // SPRINT-RESUME machinery, whose trigger is a FAILED LM-cut
+            // probe. Incremental LM-cut (0.23) made the probe ~10× more
+            // label-efficient — strong enough to certify inside the
+            // 30 ms slice this fixture starves it with — so the subject
+            // is held fixed under the new lever's restore hatch; the
+            // incremental machinery has its own battery
+            // (tests/inc_lmcut.rs).
+            cmd.env("FF_NO_INC_LMCUT", "1");
             // 0.22 Phase 9 pre-flight, root-caused (not a contention
             // guess): this fixture's FULL h^max proof is only ~2521
             // expansions — cheap enough that a release build finishes

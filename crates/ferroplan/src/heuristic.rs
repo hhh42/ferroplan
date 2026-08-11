@@ -1048,7 +1048,14 @@ fn select(task: &PackedTask, sc: &mut Scratch, oi: usize, reps: i32, count: &mut
 /// Fold a linear numeric expression into `Σ coeff·fluent + konst`,
 /// scaled by `scale`. `false` = not linear (fluent×fluent, fluent
 /// divisor) — the caller falls back to no charge, exactly as before.
-fn linearize(e: &NExpr, scale: f64, coeffs: &mut Vec<(u32, f64)>, konst: &mut f64) -> bool {
+/// `pub(crate)` since 0.23 Phase 5: the optimal mode's rep-folded
+/// numeric labels normalize their margins through the same fold.
+pub(crate) fn linearize(
+    e: &NExpr,
+    scale: f64,
+    coeffs: &mut Vec<(u32, f64)>,
+    konst: &mut f64,
+) -> bool {
     fn const_of(e: &NExpr) -> Option<f64> {
         match e {
             NExpr::Num(n) => Some(*n),

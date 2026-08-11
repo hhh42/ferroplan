@@ -246,9 +246,20 @@ impl Ord for HK {
 /// order guarantees it is the max). O(edges · log facts) per call — this
 /// is the hot loop (LM-cut re-labels once per round per state).
 /// `label[f]` is a lower bound on the cost to make fact `f` true from
-/// `s`; numeric preconditions are ignored (a relaxation — admissible).
-/// `f64::INFINITY` on any goal fact = relaxed-unreachable = safe prune.
-fn hmax_labels(g: &RelaxGraph, s: &State, w: &mut CutSpace) {
+/// `s`; numeric preconditions are ignored (a relaxation — admissible)
+/// UNLESS `use_floors` reads the achiever floors (0.23 Phase 5 rung 2,
+/// the rep-folded numeric labels): `w.floors[ai]` is an admissible lower
+/// bound on the steps before achiever `ai`'s numeric conditions can
+/// hold, so its firing label becomes `max(pre_max, floor) + cost` — only
+/// ever RAISING a lower bound with another lower bound, in the same
+/// unit-step currency (the fold arms only on length-currency tasks). An
+/// INFINITE floor (exhaustively-audited margin no op can move) never
+/// fires — the same safe prune as an unreachable precondition.
+/// `use_floors == false` is the historical pass, bit for bit; LM-cut's
+/// decremented-cost rounds always pass false (a step floor is not valid
+/// in residual-cost currency).
+fn hmax_labels(g: &RelaxGraph, s: &State, w: &mut CutSpace, use_floors: bool) {
+    w.labels_computed += 1;
     w.label.fill(f64::INFINITY);
     w.heap.clear();
     for (ai, a) in g.ach.iter().enumerate() {
@@ -265,7 +276,11 @@ fn hmax_labels(g: &RelaxGraph, s: &State, w: &mut CutSpace) {
     for i in 0..g.pre_free.len() {
         let ai = g.pre_free[i] as usize;
         let a = &g.ach[ai];
-        let val = w.cost[a.op as usize];
+        let fl = if use_floors { w.floors[ai] } else { 0.0 };
+        let val = w.cost[a.op as usize] + fl;
+        if val.is_infinite() {
+            continue;
+        }
         for &f in &a.add {
             if val < w.label[f as usize] {
                 w.label[f as usize] = val;
@@ -286,7 +301,15 @@ fn hmax_labels(g: &RelaxGraph, s: &State, w: &mut CutSpace) {
                 continue;
             }
             let a = &g.ach[ai as usize];
-            let val = w.cost[a.op as usize] + l;
+            let fl = if use_floors {
+                w.floors[ai as usize]
+            } else {
+                0.0
+            };
+            let val = w.cost[a.op as usize] + l.max(fl);
+            if val.is_infinite() {
+                continue;
+            }
             for &v in &a.add {
                 if val < w.label[v as usize] {
                     w.label[v as usize] = val;
@@ -301,7 +324,7 @@ fn hmax_labels(g: &RelaxGraph, s: &State, w: &mut CutSpace) {
 /// [`hmax_labels`] directly under its decremented per-round costs).
 fn hmax(task: &PackedTask, s: &State, g: &RelaxGraph, costs: &[f64], w: &mut CutSpace) -> f64 {
     w.cost.copy_from_slice(costs);
-    hmax_labels(g, s, w);
+    hmax_labels(g, s, w, false);
     let mut h = 0.0f64;
     for &gf in task.goal_pos.iter() {
         h = h.max(w.label[gf as usize]);
@@ -332,6 +355,16 @@ struct CutSpace {
     /// This round's virtual-init-rooted achievers (empty preconditions).
     init_rooted: Vec<u32>,
     in_cut: Vec<bool>,
+    /// Label-pass counter (0.23 Phase 5): one increment per
+    /// [`hmax_labels`] call on this workspace. Measurement only — the
+    /// incremental-LM-cut fixtures pin their savings on it through the
+    /// FF_WALL_DEBUG cert-diagnostics narration.
+    labels_computed: u64,
+    /// Rep-fold floors, PER ACHIEVER (0.23 Phase 5 rung 2): filled per
+    /// evaluation for the registered achievers only, reset through
+    /// `floored` so unregistered entries stay 0 forever.
+    floors: Vec<f64>,
+    floored: Vec<u32>,
 }
 
 impl CutSpace {
@@ -349,6 +382,9 @@ impl CutSpace {
             settled: vec![false; n_facts],
             init_rooted: Vec::new(),
             in_cut: vec![false; n_ops],
+            labels_computed: 0,
+            floors: vec![0.0; g.ach.len()],
+            floored: Vec::new(),
         }
     }
 }
@@ -368,12 +404,100 @@ impl CutSpace {
 /// re-opens on cheaper routes, which keeps the first goal pop optimal.
 fn lmcut(task: &PackedTask, s: &State, g: &RelaxGraph, costs: &[f64], w: &mut CutSpace) -> f64 {
     w.cost.copy_from_slice(costs);
+    lmcut_rounds(task, s, g, w, None)
+}
+
+/// Cap on cuts a node's inherited candidate list may carry (0.23 Phase
+/// 5): truncation only shortens a candidate list — never unsound, the
+/// child just re-discovers what fell off.
+const INC_CUT_CAP: usize = 96;
+
+/// Cap on a node's TOTAL encoded list length in u32 words (count alone
+/// does not bound memory — a big domain's crossing set can hold
+/// thousands of ops, and 96 such cuts would be KBs per stored node).
+/// 1024 words = 4 KB worst case, typically far less; oversize cuts are
+/// simply not carried forward.
+const INC_LIST_CAP: usize = 1024;
+
+/// Charge an INHERITED cut list against `w.cost` (already seeded with the
+/// base costs), append the kept cuts to `out`, and return the admissible
+/// sum of their charges. `parent` is the [len, ops...]* encoding built by
+/// [`lmcut_rounds`]; every cut containing `skip` (the op whose application
+/// produced this state) is dropped — the inheritance theorem needs it:
+///
+/// A disjunctive action landmark L of the delete relaxation from `s`
+/// remains one from `s' = res(s, o)` whenever `o ∉ L`: any relaxed plan
+/// π' from `s'` yields `o;π'` as a relaxed plan from `s` (the relaxed
+/// task reads positive preconditions only, and relaxed application from
+/// `s` reaches `s ∪ add(o) ⊇ s'`, so monotonicity carries π' through),
+/// π' must therefore hit L, and `o ∉ L` puts the hit inside π'.
+///
+/// The charge scheme is the standard LM-cut cost partitioning replayed
+/// over the inherited list in discovery order: each cut is charged the
+/// minimum RESIDUAL cost of its members, which is then decremented from
+/// them — so the sum of charges plus any LM-cut continuation under the
+/// residual costs stays below h⁺, exactly the multi-round argument with
+/// the discovery rounds replaced by inheritance. Zero-charge cuts stay
+/// on the list on purpose: charges depend only on list order and base
+/// costs, and dropping an earlier cut (the `skip` filter) can revive one.
+fn charge_cuts(w: &mut CutSpace, parent: &[u32], skip: u32, out: &mut Vec<u32>) -> f64 {
+    let mut total = 0.0f64;
+    let mut i = 0usize;
+    let mut kept = 0usize;
+    while i < parent.len() {
+        let len = parent[i] as usize;
+        let ops = &parent[i + 1..i + 1 + len];
+        i += 1 + len;
+        if ops.contains(&skip) {
+            continue;
+        }
+        let m = ops
+            .iter()
+            .map(|&op| w.cost[op as usize])
+            .fold(f64::INFINITY, f64::min);
+        if m > 0.0 && m.is_finite() {
+            total += m;
+            for &op in ops {
+                w.cost[op as usize] = (w.cost[op as usize] - m).max(0.0);
+            }
+        }
+        if kept < INC_CUT_CAP && out.len() + 1 + len <= INC_LIST_CAP {
+            out.push(len as u32);
+            out.extend_from_slice(ops);
+            kept += 1;
+        }
+    }
+    total
+}
+
+/// The LM-cut round loop over whatever `w.cost` currently holds (base
+/// costs from [`lmcut`], residual costs after [`charge_cuts`] on the
+/// incremental path). `rec` collects each discovered cut in the
+/// [len, sorted ops...]* encoding, bounded by [`INC_CUT_CAP`] entries
+/// and [`INC_LIST_CAP`] total words.
+fn lmcut_rounds(
+    task: &PackedTask,
+    s: &State,
+    g: &RelaxGraph,
+    w: &mut CutSpace,
+    mut rec: Option<&mut Vec<u32>>,
+) -> f64 {
+    // Cuts already encoded in the record (the inherited ones the caller
+    // kept) — counted once so the per-round cap check is O(1).
+    let mut n_rec = rec.as_deref().map_or(0, |out| {
+        let (mut n, mut i) = (0usize, 0usize);
+        while i < out.len() {
+            n += 1;
+            i += 1 + out[i] as usize;
+        }
+        n
+    });
     let mut total = 0.0f64;
     // Safety bound: each round zeroes ≥1 op, so n_ops+1 rounds cannot be
     // reached; the bound guards float-edge stalls (min cut cost rounding
     // to 0) from looping forever.
     for _ in 0..=task.n_ops {
-        hmax_labels(g, s, w);
+        hmax_labels(g, s, w, false);
         let mut hg = 0.0f64;
         let mut goal_support = u32::MAX;
         for &gf in task.goal_pos.iter() {
@@ -522,6 +646,16 @@ fn lmcut(task: &PackedTask, s: &State, g: &RelaxGraph, costs: &[f64], w: &mut Cu
             return total;
         }
         total += m;
+        if let Some(out) = rec.as_deref_mut() {
+            if n_rec < INC_CUT_CAP && out.len() + 1 + cut.len() <= INC_LIST_CAP {
+                // Sorted members make the child's `skip` check and the
+                // encoding deterministic.
+                cut.sort_unstable();
+                out.push(cut.len() as u32);
+                out.extend_from_slice(&cut);
+                n_rec += 1;
+            }
+        }
         for &op in &cut {
             w.cost[op as usize] -= m;
             if w.cost[op as usize] < 0.0 {
@@ -595,6 +729,333 @@ fn num_arm_root(task: &PackedTask, cf: Option<usize>) -> Option<f64> {
     }
 }
 
+/// One numeric condition normalized to a linear MARGIN
+/// `Σ coeff·fluent + konst ≥ 0` (`> 0` when `strict`), with the one-step
+/// move accounting the rep-folded labels charge against (0.23 Phase 5
+/// rung 2 — the 0.22 Phase 4 design's rep-fold lever, built to the same
+/// audit constraints and with NO current-rate shortcut: every bound
+/// divides by the maximum move ANY op can apply in ANY state, never by
+/// the rate the current state happens to hold).
+struct FoldMargin {
+    coeffs: Vec<(u32, f64)>,
+    konst: f64,
+    strict: bool,
+    /// Every effect touching a coeff fluent is a certified-CONSTANT
+    /// increase/decrease (static-read values evaluated against init, the
+    /// `op_costs` evidence bar) — the move accounting is then exhaustive:
+    /// `dmax` genuinely bounds any single step's move, and a positive gap
+    /// with no positive mover is PROVEN unreachable (∞). Any assign,
+    /// scale, or state-dependent value on a coeff fluent clears this
+    /// flag, and the margin fails closed to the 1-step floor below.
+    exhaustive: bool,
+    /// Max over ops of one application's move on the margin
+    /// (unconditional contributions summed exactly; conditional ones
+    /// added only when positive — an upper bound either way).
+    dmax: f64,
+    /// Ops with a positive move (exhaustive margins only) — the goal
+    /// bound's f_min strengthening reads their fire labels.
+    movers: Vec<u32>,
+}
+
+impl FoldMargin {
+    fn value(&self, fv: &[f64]) -> f64 {
+        self.konst
+            + self
+                .coeffs
+                .iter()
+                .map(|&(f, c)| c * fv[f as usize])
+                .sum::<f64>()
+    }
+
+    /// Admissible lower bound on the STEPS before this margin can hold
+    /// from `fv`. Satisfied ⇒ 0. Unsatisfied, non-exhaustive ⇒ 1 (some
+    /// step must still change a coeff fluent — always sound, never
+    /// more). Unsatisfied, exhaustive ⇒ ceil(gap / dmax) (each step
+    /// moves the margin at most `dmax`), ∞ when nothing moves it up.
+    fn reps(&self, fv: &[f64]) -> f64 {
+        let m = self.value(fv);
+        let sat = if self.strict { m > 0.0 } else { m >= 0.0 };
+        if sat {
+            return 0.0;
+        }
+        if !self.exhaustive {
+            return 1.0;
+        }
+        // Strictly-zero test, not an epsilon: claiming ∞ against a
+        // genuine (however tiny) positive mover would prove tasks
+        // unsolvable that merely need astronomically many steps; a
+        // tiny dmax instead yields an astronomically large FINITE
+        // bound, which stays a lower bound either way.
+        if self.dmax <= 0.0 {
+            return f64::INFINITY;
+        }
+        let gap = -m;
+        if self.strict {
+            // smallest k with k·dmax > gap
+            (gap / self.dmax).floor() + 1.0
+        } else {
+            (gap / self.dmax).ceil().max(1.0)
+        }
+    }
+}
+
+/// The rep-folded numeric bound (0.23 Phase 5 rung 2): everything the
+/// per-eval interval RPG was re-deriving at every node, precomputed once
+/// per solve. Armed only UNDER the 0.22 Phase 4 arm (`num_arm_root`
+/// passed: numeric task, LENGTH currency, audit Ok, informative root),
+/// and only when EVERY numeric goal conjunct folds to an exhaustive
+/// margin — otherwise `None`, and the engine keeps paying the RPG per
+/// eval exactly as at 0.22 (sailing-wind's assign shapes and
+/// pre_num-only tasks land here on purpose; fail closed, never weaker).
+/// `FF_OPT_NO_NUMFOLD=1` is the pure hatch.
+struct NumFold {
+    goals: Vec<FoldMargin>,
+    /// Per floored OP: its achiever indexes and its foldable pre_num
+    /// margins — the fill pass writes `max(reps)` into
+    /// `CutSpace::floors` for those achievers each evaluation.
+    floors: Vec<(Vec<u32>, Vec<FoldMargin>)>,
+    /// Unconditional achiever of each op (`u32::MAX` = none) — fire
+    /// labels for the goal bound's f_min strengthening.
+    ach_of_op: Vec<u32>,
+}
+
+/// Fold one numeric condition into a [`FoldMargin`]. `None` = a shape
+/// the fold cannot certify (non-linear, or a two-sided `=` — the fold
+/// fails closed rather than reasoning about overshoot).
+fn fold_margin(
+    task: &PackedTask,
+    np: &crate::types::NumPre,
+    written: &[bool],
+) -> Option<FoldMargin> {
+    use crate::types::CompOp;
+    let (scale, strict) = match np.op {
+        CompOp::Ge => (1.0, false),
+        CompOp::Gt => (1.0, true),
+        CompOp::Le => (-1.0, false),
+        CompOp::Lt => (-1.0, true),
+        CompOp::Eq => return None,
+    };
+    let mut coeffs: Vec<(u32, f64)> = Vec::new();
+    let mut konst = 0.0f64;
+    if !crate::heuristic::linearize(&np.lhs, scale, &mut coeffs, &mut konst)
+        || !crate::heuristic::linearize(&np.rhs, -scale, &mut coeffs, &mut konst)
+    {
+        return None;
+    }
+    coeffs.sort_unstable_by_key(|&(f, _)| f);
+    let mut merged: Vec<(u32, f64)> = Vec::new();
+    for (f, c) in coeffs {
+        match merged.last_mut() {
+            Some(last) if last.0 == f => last.1 += c,
+            _ => merged.push((f, c)),
+        }
+    }
+    // Only EXACT zeros drop (x − x cancellation): discarding a merely
+    // tiny coefficient would change the margin itself, and a tiny
+    // coefficient times a huge fluent is not tiny — the fold must
+    // evaluate the condition it folded, not an approximation of it.
+    merged.retain(|&(_, c)| c != 0.0);
+    // Certified-constant move of one effect on the margin: `None` = the
+    // effect touches a coeff fluent in a way no constant bounds.
+    let mut reads: Vec<u32> = Vec::new();
+    let eff_move =
+        |ne: &crate::types::NumEff, coeffs: &[(u32, f64)], reads: &mut Vec<u32>| -> Option<f64> {
+            let c = coeffs
+                .iter()
+                .find(|&&(f, _)| f == ne.target)
+                .map(|&(_, c)| c)
+                .unwrap_or(0.0);
+            if c == 0.0 {
+                return Some(0.0);
+            }
+            let sign = match ne.op {
+                AssignOp::Increase => 1.0,
+                AssignOp::Decrease => -1.0,
+                _ => return None, // assign/scale on a coeff fluent
+            };
+            reads.clear();
+            ne.value.collect_fluents(reads);
+            if !reads
+                .iter()
+                .all(|&f| !written[f as usize] && task.fdef0[f as usize])
+            {
+                return None; // state-dependent value
+            }
+            let v = ne.value.eval(&task.fv0, &task.fdef0)?;
+            Some(sign * c * v)
+        };
+    let mut exhaustive = true;
+    let mut dmax = 0.0f64;
+    let mut movers: Vec<u32> = Vec::new();
+    'ops: for oi in 0..task.n_ops {
+        let mut mv = 0.0f64;
+        for ne in task.num_eff.slice(oi) {
+            match eff_move(ne, &merged, &mut reads) {
+                Some(d) => mv += d,
+                None => {
+                    exhaustive = false;
+                    movers.clear();
+                    break 'ops;
+                }
+            }
+        }
+        for ce in task.cond.slice(oi) {
+            for ne in &ce.num {
+                match eff_move(ne, &merged, &mut reads) {
+                    // Conditional: fired-or-not, count only upward.
+                    Some(d) => mv += d.max(0.0),
+                    None => {
+                        exhaustive = false;
+                        movers.clear();
+                        break 'ops;
+                    }
+                }
+            }
+        }
+        if mv > 0.0 {
+            movers.push(oi as u32);
+            if mv > dmax {
+                dmax = mv;
+            }
+        }
+    }
+    Some(FoldMargin {
+        coeffs: merged,
+        konst,
+        strict,
+        exhaustive,
+        dmax,
+        movers,
+    })
+}
+
+/// Build the fold for this solve, or decline. See [`NumFold`].
+fn num_fold_prep(task: &PackedTask, g: &RelaxGraph) -> Option<NumFold> {
+    if std::env::var("FF_OPT_NO_NUMFOLD").is_ok() || task.goal_num.is_empty() {
+        return None;
+    }
+    let mut written = vec![false; task.fv0.len()];
+    for oi in 0..task.n_ops {
+        for ne in task.num_eff.slice(oi) {
+            written[ne.target as usize] = true;
+        }
+        for ce in task.cond.slice(oi) {
+            for ne in &ce.num {
+                written[ne.target as usize] = true;
+            }
+        }
+    }
+    // Every goal conjunct must fold EXHAUSTIVELY or the fold declines —
+    // a weaker-than-RPG goal bound must never ship silently.
+    let mut goals = Vec::new();
+    for np in task.goal_num.iter() {
+        let fm = fold_margin(task, np, &written)?;
+        if !fm.exhaustive {
+            return None;
+        }
+        goals.push(fm);
+    }
+    let mut ach_of_op = vec![u32::MAX; task.n_ops];
+    let mut ach_by_op: Vec<Vec<u32>> = vec![Vec::new(); task.n_ops];
+    for (ai, a) in g.ach.iter().enumerate() {
+        if ach_of_op[a.op as usize] == u32::MAX {
+            ach_of_op[a.op as usize] = ai as u32;
+        }
+        ach_by_op[a.op as usize].push(ai as u32);
+    }
+    // Precondition floors are best-effort per op: any foldable margin
+    // helps (non-exhaustive ones still carry their sound 1-step floor);
+    // unfoldable ones simply contribute nothing.
+    let mut floors = Vec::new();
+    for (oi, achs) in ach_by_op.iter().enumerate() {
+        if task.pre_num.slice(oi).is_empty() {
+            continue;
+        }
+        let margins: Vec<FoldMargin> = task
+            .pre_num
+            .slice(oi)
+            .iter()
+            .filter_map(|np| fold_margin(task, np, &written))
+            .collect();
+        if !margins.is_empty() {
+            floors.push((achs.clone(), margins));
+        }
+    }
+    Some(NumFold {
+        goals,
+        floors,
+        ach_of_op,
+    })
+}
+
+/// Per-evaluation floor fill: reset last eval's registered achievers,
+/// then write `max(reps)` for every floored op's achievers.
+fn fold_fill_floors(fold: &NumFold, fv: &[f64], w: &mut CutSpace) {
+    for i in 0..w.floored.len() {
+        w.floors[w.floored[i] as usize] = 0.0;
+    }
+    w.floored.clear();
+    for (achs, margins) in &fold.floors {
+        let mut fl = 0.0f64;
+        for m in margins {
+            fl = fl.max(m.reps(fv));
+        }
+        if fl > 0.0 {
+            for &ai in achs {
+                w.floors[ai as usize] = fl;
+                w.floored.push(ai);
+            }
+        }
+    }
+}
+
+/// The fold's numeric goal bound: max over goal margins of an admissible
+/// step count. With `fmin` (the h^max path, floors filled and labels
+/// fresh) an unsatisfied margin needing `k` mover applications is
+/// strengthened to `f_min + k`: every plan's k mover steps are distinct
+/// and none begins before the earliest mover can fire (max of its
+/// propositional pre labels and its own floor — both step lower bounds
+/// in the fold's unit-length currency). ∞ when a margin is exhaustively
+/// unreachable, or every mover's firing is — the same safe prune the
+/// RPG's Fixpoint gave.
+fn fold_goal_bound(fold: &NumFold, g: &RelaxGraph, fv: &[f64], w: &CutSpace, fmin: bool) -> f64 {
+    let mut h = 0.0f64;
+    for m in &fold.goals {
+        let k = m.reps(fv);
+        if k == 0.0 {
+            continue;
+        }
+        let mut b = k;
+        if k.is_finite() && fmin {
+            let mut f_min = f64::INFINITY;
+            for &op in &m.movers {
+                let ai = fold.ach_of_op[op as usize];
+                if ai == u32::MAX {
+                    continue;
+                }
+                let a = &g.ach[ai as usize];
+                let mut fire = w.floors[ai as usize];
+                for &p in &a.pre {
+                    fire = fire.max(w.label[p as usize]);
+                    if fire.is_infinite() {
+                        break;
+                    }
+                }
+                f_min = f_min.min(fire);
+                if f_min == 0.0 {
+                    break;
+                }
+            }
+            b = f_min + k;
+        }
+        if b.is_infinite() {
+            return f64::INFINITY;
+        }
+        h = h.max(b);
+    }
+    h
+}
+
 /// The optimal LADDER (0.20; wall-denominated 0.21 Phase 4; allocation
 /// repriced + resumption 0.22 Phase 3): an h^max SPRINT, then LM-cut,
 /// then — new this cycle — h^max RESUMED. The differential priced both
@@ -636,13 +1097,26 @@ fn num_arm_root(task: &PackedTask, cf: Option<usize>) -> Option<f64> {
 ///   the 0.21 throw-away handover (sprint dropped, LM-cut gets the whole
 ///   remainder with the refill).
 ///
+/// - INCREMENTAL LM-CUT (0.23 Phase 5, the counted 7-row case): the
+///   probe engine persists cut lists parent→child ([`charge_cuts`] — a
+///   landmark not containing the applied op survives the step, the
+///   proof rides that function) so each eval pays only the top-up
+///   rounds, and the probe itself RESUMES a round 2 with the raised
+///   node budget when h^max's resumed slice node-caps with wall left —
+///   round 1's evaluations, open list and cut lists all carried
+///   forward, symmetric to what sprint-resume did for h^max.
+///   `FF_NO_INC_LMCUT=1` restores the 0.22 one-shot probe exactly.
+///
 /// `FF_NO_LMCUT=1` = h^max only (full budget); `FF_NO_HMAX_SPRINT=1`
 /// = LM-cut only (the gate never resurrects the sprint) — the two
 /// discriminator hatches keep their pure-rung meanings on every path.
 /// `FF_OPT_NO_ROOTGATE=1` restores the unconditional 0.21
 /// sprint-then-LM-cut ladder under a wall (no margin, no resume).
 /// The numeric arm (`num_arm_root`, 0.22 Phase 4) composes with every
-/// branch via max() and never touches the gate's h^max-vs-LM-cut verdict.
+/// branch via max() and never touches the gate's h^max-vs-LM-cut
+/// verdict; since 0.23 Phase 5 its per-eval interval-RPG tax is
+/// replaced by the rep-folded labels ([`NumFold`]) wherever the fold's
+/// own audit arms — `FF_OPT_NO_NUMFOLD=1` restores the per-eval RPG.
 ///
 /// `orbit` (0.22 Phase 6 L1): canonical visited keys at the three
 /// astar sites — best_g seed, the pop's stale check, the successor
@@ -732,8 +1206,13 @@ pub fn solve(
     };
     if rootgate && std::env::var("FF_OPT_NO_RESUME").is_err() {
         // Lever 3: the resumable ladder. The sprint engine LIVES through
-        // the LM-cut probe; nothing is re-expanded on resume.
-        let mut sprint = match AstarState::new(task, cf, false, num, orbit) {
+        // the LM-cut probe; nothing is re-expanded on resume. Since 0.23
+        // Phase 5 the PROBE lives too: it evaluates incrementally
+        // (parent cut lists, [`charge_cuts`]) and — when h^max's resumed
+        // slice node-caps with wall still standing — RESUMES a round 2
+        // with the full raised budget instead of forfeiting round 1's
+        // work. `FF_NO_INC_LMCUT=1` restores the 0.22 one-shot probe.
+        let mut sprint = match AstarState::new(task, cf, false, num, orbit, false) {
             Ok(e) => e,
             Err(reject) => return reject,
         };
@@ -743,6 +1222,81 @@ pub fn solve(
         }
         let probe_frac = frac_env("FF_OPT_LMCUT_PROBE_FRAC", 0.33);
         let probe_wall = crate::search::wall_remaining_secs().unwrap_or(0.0);
+        let wall_debug = std::env::var("FF_WALL_DEBUG").is_ok();
+        if std::env::var("FF_NO_INC_LMCUT").is_err() {
+            let mut probe_eng = match AstarState::new(task, cf, true, num, orbit, true) {
+                Ok(e) => e,
+                Err(reject) => return reject,
+            };
+            let probe = probe_eng.run((max_nodes / 2).max(2), Some(probe_frac * probe_wall));
+            if probe.proven || probe.reject.is_some() {
+                let mut probe = probe;
+                probe.expanded += o.expanded;
+                probe.evaluated += o.evaluated;
+                return probe;
+            }
+            if wall_debug {
+                eprintln!(
+                    "wall: LM-cut probe inconclusive — h^max resumes its open list \
+                     ({:.1}s remaining)",
+                    crate::search::wall_remaining_secs().unwrap_or(0.0)
+                );
+            }
+            let mut out = sprint.run(max_nodes, crate::search::wall_remaining_secs());
+            if !out.proven
+                && out.reject.is_none()
+                && !out.clock_tripped
+                && std::env::var("FF_NO_NODECAP_REFILL").is_err()
+                && crate::search::wall_remaining_frac().is_some_and(|f| f > 0.10)
+            {
+                if wall_debug {
+                    eprintln!(
+                        "wall: optimal node cap raised x2 in place ({:.1}s remaining)",
+                        crate::search::wall_remaining_secs().unwrap_or(0.0)
+                    );
+                }
+                out = sprint.run(
+                    max_nodes.saturating_mul(2),
+                    crate::search::wall_remaining_secs(),
+                );
+            }
+            // Round 2 (0.23 Phase 5): h^max spent its budget without a
+            // verdict and wall is still standing (a node-cap exit, never
+            // a clock trip — the teardown reserve stays honored) — the
+            // probe engine continues where round 1 tripped, its open
+            // list, memo and cut lists intact.
+            let mut probe_last = probe;
+            if !out.proven
+                && out.reject.is_none()
+                && !out.clock_tripped
+                && crate::search::wall_remaining_frac().is_some_and(|f| f > 0.10)
+            {
+                if wall_debug {
+                    eprintln!(
+                        "wall: inc-lmcut probe resumes round 2 ({} label passes banked, \
+                         {:.1}s remaining)",
+                        probe_eng.labels(),
+                        crate::search::wall_remaining_secs().unwrap_or(0.0)
+                    );
+                }
+                probe_last = probe_eng.run(
+                    max_nodes.saturating_mul(2),
+                    crate::search::wall_remaining_secs(),
+                );
+            }
+            // One merge at the end: both engines report CUMULATIVE
+            // counters, so each side is added exactly once.
+            if probe_last.proven || probe_last.reject.is_some() {
+                let mut r = probe_last;
+                r.expanded += out.expanded;
+                r.evaluated += out.evaluated;
+                return r;
+            }
+            out.expanded += probe_last.expanded;
+            out.evaluated += probe_last.evaluated;
+            return out;
+        }
+        // FF_NO_INC_LMCUT: the 0.22 one-shot probe, byte-identical.
         let mut probe = astar(
             task,
             cf,
@@ -757,7 +1311,7 @@ pub fn solve(
             probe.evaluated += o.evaluated;
             return probe;
         }
-        if std::env::var("FF_WALL_DEBUG").is_ok() {
+        if wall_debug {
             eprintln!(
                 "wall: LM-cut probe inconclusive — h^max resumes its open list \
                  ({:.1}s remaining)",
@@ -775,7 +1329,7 @@ pub fn solve(
             && std::env::var("FF_NO_NODECAP_REFILL").is_err()
             && crate::search::wall_remaining_frac().is_some_and(|f| f > 0.10)
         {
-            if std::env::var("FF_WALL_DEBUG").is_ok() {
+            if wall_debug {
                 eprintln!(
                     "wall: optimal node cap raised x2 in place ({:.1}s remaining)",
                     crate::search::wall_remaining_secs().unwrap_or(0.0)
@@ -891,42 +1445,10 @@ fn astar(
     deadline: Option<f64>,
     orbit: Option<&crate::orbits::OrbitMap>,
 ) -> OptOutcome {
-    match AstarState::new(task, cf, use_lmcut, num, orbit) {
+    match AstarState::new(task, cf, use_lmcut, num, orbit, false) {
         Ok(mut e) => e.run(max_nodes, deadline),
         Err(reject) => reject,
     }
-}
-
-/// Evaluate the admissible heuristic on one state: h^max or LM-cut, and —
-/// with the numeric arm (`num_arm_root`, 0.22 Phase 4 L1) — max() with
-/// the interval-RPG layer bound (max of admissible bounds is admissible).
-/// The propositional ∞ short-circuits: the state is already a safe prune,
-/// so the RPG tax is skipped there.
-#[allow(clippy::too_many_arguments)]
-fn eval_state(
-    task: &PackedTask,
-    use_lmcut: bool,
-    graph: &RelaxGraph,
-    costs: &[f64],
-    w: &mut CutSpace,
-    numsc: &mut Option<crate::heuristic::Scratch>,
-    s: &State,
-) -> f64 {
-    let ph = if use_lmcut {
-        lmcut(task, s, graph, costs, w)
-    } else {
-        hmax(task, s, graph, costs, w)
-    };
-    let Some(sc) = numsc else { return ph };
-    if ph.is_infinite() {
-        return ph;
-    }
-    let nh = match crate::heuristic::admissible_goal_layers(task, sc, &s.bits, &s.fv, &s.fdef) {
-        RpgExit::GoalAt(l) => l as f64,
-        RpgExit::Fixpoint => f64::INFINITY,
-        RpgExit::Cap => crate::heuristic::LAYER_CAP as f64,
-    };
-    ph.max(nh)
 }
 
 /// The resumable A* engine (0.22 Phase 3 lever 3). One `run` is exactly
@@ -951,6 +1473,12 @@ struct AstarState<'t> {
     task: &'t PackedTask,
     use_lmcut: bool,
     num: bool,
+    /// Incremental LM-cut (0.23 Phase 5): per-node cut lists inherited
+    /// parent→child with cheap revalidation (the `skip` filter in
+    /// [`charge_cuts`]). Set only on the ladder's PROBE engine —
+    /// `FF_NO_INC_LMCUT=1` and every other path keep 0.22's from-zero
+    /// evaluation, bit for bit.
+    inc: bool,
     /// 0.22 Phase 6 L1: canonical visited keys. Keys only — nodes,
     /// parents, plan extraction and h evaluation stay on concrete
     /// states, so a pruned π-sibling's plan is never emitted, only
@@ -966,17 +1494,29 @@ struct AstarState<'t> {
     graph: Option<RelaxGraph>,
     cutspace: Option<CutSpace>,
     numsc: Option<crate::heuristic::Scratch>,
+    /// The rep-folded numeric bound (0.23 Phase 5 rung 2), primed with
+    /// the graph; `None` = the 0.22 per-eval RPG (`numsc`) or no numeric
+    /// arm at all.
+    fold: Option<NumFold>,
     /// (state, parent index, op from parent)
     nodes: Vec<(State, usize, usize)>,
+    /// `inc` only: node-aligned [len, ops...]* cut lists (empty for
+    /// memo-hit re-stores — their children just recompute from zero).
+    cutlists: Vec<Box<[u32]>>,
+    cutbuf: Vec<u32>,
     /// Per stored state: best g AND its h (0.21 Phase 4 rider). h is a
-    /// pure function of the state, so a cheaper route to a known state —
-    /// an open-list decrease or a genuine re-open — reuses the memo
-    /// instead of re-paying eval_state.
+    /// pure function of the state under the from-zero evaluation; under
+    /// `inc` it is SOME admissible value for the state (whichever
+    /// parent's list priced it first) — reuse stays sound because σ- and
+    /// route-independent admissibility is all the A* needs.
     best_g: FxHashMap<StateKey, (f64, f64)>,
     open: BinaryHeap<Reverse<K>>,
     g_of: Vec<f64>,
     expanded: usize,
     evaluated: usize,
+    /// Interval-RPG evaluations paid (the fold's tax meter; narrated in
+    /// the FF_WALL_DEBUG cert diagnostics).
+    rpg_evals: usize,
     /// A popped node whose successor loop was interrupted by a trip;
     /// the next run() re-drives it before popping anything.
     pending: Option<usize>,
@@ -996,15 +1536,21 @@ impl<'t> AstarState<'t> {
         use_lmcut: bool,
         num: bool,
         orbit: Option<&'t crate::orbits::OrbitMap>,
+        inc: bool,
     ) -> Result<Self, OptOutcome> {
         // The prover names itself in the PROVEN note; the numeric arm
-        // rides along as "+numRPG" so the record names BOTH admissible
-        // components (0.22 Phase 4 L1).
-        let hname: &'static str = match (use_lmcut, num) {
-            (true, true) => "LM-cut+numRPG",
-            (true, false) => "LM-cut",
-            (false, true) => "h^max+numRPG",
-            (false, false) => "h^max",
+        // rides along as "+numRPG" (0.22 Phase 4 L1) and the canonical
+        // visited keys as "+orbits" (0.23 Phase 5 rider) so the record
+        // names EVERY component without archaeology.
+        let hname: &'static str = match (use_lmcut, num, orbit.is_some()) {
+            (true, true, true) => "LM-cut+numRPG+orbits",
+            (true, true, false) => "LM-cut+numRPG",
+            (true, false, true) => "LM-cut+orbits",
+            (true, false, false) => "LM-cut",
+            (false, true, true) => "h^max+numRPG+orbits",
+            (false, true, false) => "h^max+numRPG",
+            (false, false, true) => "h^max+orbits",
+            (false, false, false) => "h^max",
         };
         let costs = match op_costs(task, cf) {
             Ok(c) => c,
@@ -1025,6 +1571,7 @@ impl<'t> AstarState<'t> {
             task,
             use_lmcut,
             num,
+            inc,
             orbit,
             hname,
             costs,
@@ -1041,14 +1588,75 @@ impl<'t> AstarState<'t> {
             graph: None,
             cutspace: None,
             numsc: None,
+            fold: None,
             nodes: Vec::new(),
+            cutlists: Vec::new(),
+            cutbuf: Vec::new(),
             best_g: FxHashMap::default(),
             open: BinaryHeap::new(),
             g_of: Vec::new(),
             expanded: 0,
             evaluated: 0,
+            rpg_evals: 0,
             pending: None,
         })
+    }
+
+    /// Evaluate one state: the propositional admissible component (h^max
+    /// or LM-cut — the latter optionally seeded from the parent's
+    /// inherited cut list under `inc`), max()ed with the numeric one
+    /// (the rep fold when armed, the 0.22 interval RPG otherwise; max of
+    /// admissible bounds is admissible). The propositional ∞
+    /// short-circuits: the state is already a safe prune. `parent` is
+    /// `(parent node index, applied op)` on the `inc` path; `out_cuts`
+    /// receives the state's own cut list there.
+    fn eval(&mut self, s: &State, parent: Option<(usize, usize)>, out_cuts: &mut Vec<u32>) -> f64 {
+        let graph = self.graph.as_ref().unwrap();
+        let w = self.cutspace.as_mut().unwrap();
+        out_cuts.clear();
+        let ph = if self.use_lmcut && self.inc {
+            w.cost.copy_from_slice(&self.costs);
+            let charged = match parent {
+                Some((pi, oi)) => charge_cuts(w, &self.cutlists[pi], oi as u32, out_cuts),
+                None => 0.0,
+            };
+            charged + lmcut_rounds(self.task, s, graph, w, Some(out_cuts))
+        } else if self.use_lmcut {
+            lmcut(self.task, s, graph, &self.costs, w)
+        } else if let Some(fold) = self.fold.as_ref() {
+            // Rep-folded labels (0.23 Phase 5 rung 2): floors fill from
+            // the state's fluent values, ride the label pass, and the
+            // goal bound reads the fresh labels for its f_min.
+            w.cost.copy_from_slice(&self.costs);
+            fold_fill_floors(fold, &s.fv, w);
+            hmax_labels(graph, s, w, true);
+            let mut h = 0.0f64;
+            for &gf in self.task.goal_pos.iter() {
+                h = h.max(w.label[gf as usize]);
+            }
+            h
+        } else {
+            hmax(self.task, s, graph, &self.costs, w)
+        };
+        if ph.is_infinite() {
+            return ph;
+        }
+        if let Some(fold) = self.fold.as_ref() {
+            let w = self.cutspace.as_ref().unwrap();
+            return ph.max(fold_goal_bound(fold, graph, &s.fv, w, !self.use_lmcut));
+        }
+        let Some(sc) = self.numsc.as_mut() else {
+            return ph;
+        };
+        self.rpg_evals += 1;
+        let nh = match crate::heuristic::admissible_goal_layers(
+            self.task, sc, &s.bits, &s.fv, &s.fdef,
+        ) {
+            RpgExit::GoalAt(l) => l as f64,
+            RpgExit::Fixpoint => f64::INFINITY,
+            RpgExit::Cap => crate::heuristic::LAYER_CAP as f64,
+        };
+        ph.max(nh)
     }
 
     fn prime(&mut self) {
@@ -1061,27 +1669,44 @@ impl<'t> AstarState<'t> {
             self.task.n_ops,
             &graph,
         ));
-        self.graph = Some(graph);
         if self.num {
-            self.numsc = Some(crate::heuristic::Scratch::new(self.task));
+            self.fold = num_fold_prep(self.task, &graph);
+            if self.fold.is_none() {
+                self.numsc = Some(crate::heuristic::Scratch::new(self.task));
+            }
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                match self.fold.as_ref() {
+                    Some(f) => eprintln!(
+                        "wall: numfold armed ({} goal margins, {} floored ops)",
+                        f.goals.len(),
+                        f.floors.len()
+                    ),
+                    None => eprintln!("wall: numfold declined — per-eval interval RPG stays"),
+                }
+            }
         }
+        self.graph = Some(graph);
         let init = self.task.initial();
-        let h0 = eval_state(
-            self.task,
-            self.use_lmcut,
-            self.graph.as_ref().unwrap(),
-            &self.costs,
-            self.cutspace.as_mut().unwrap(),
-            &mut self.numsc,
-            &init,
-        );
+        let mut buf = std::mem::take(&mut self.cutbuf);
+        let h0 = self.eval(&init, None, &mut buf);
         self.best_g.insert(self.key_of(&init), (0.0, h0));
         self.nodes.push((init, usize::MAX, usize::MAX));
+        if self.inc {
+            self.cutlists.push(buf.as_slice().into());
+        }
+        buf.clear();
+        self.cutbuf = buf;
         self.evaluated = 1;
         if h0.is_finite() {
             self.open.push(Reverse(K(h0, h0, 0)));
         }
         self.g_of.push(0.0);
+    }
+
+    /// Label passes paid so far (the incremental-LM-cut round-2
+    /// narration reads it to bank round 1's work on the record).
+    fn labels(&self) -> u64 {
+        self.cutspace.as_ref().map_or(0, |w| w.labels_computed)
     }
 
     fn tripped(&self) -> OptOutcome {
@@ -1110,19 +1735,16 @@ impl<'t> AstarState<'t> {
                 self.pending = Some(ni);
                 return Some(inconclusive(self.expanded, self.evaluated, self.hname));
             }
-            let h = match prev {
-                Some((_, ph)) => ph,
+            let (h, cuts) = match prev {
+                Some((_, ph)) => (ph, None),
                 None => {
                     self.evaluated += 1;
-                    eval_state(
-                        self.task,
-                        self.use_lmcut,
-                        self.graph.as_ref().unwrap(),
-                        &self.costs,
-                        self.cutspace.as_mut().unwrap(),
-                        &mut self.numsc,
-                        &succ,
-                    )
+                    let mut buf = std::mem::take(&mut self.cutbuf);
+                    let h = self.eval(&succ, Some((ni, oi)), &mut buf);
+                    let cuts: Option<Box<[u32]>> = self.inc.then(|| buf.as_slice().into());
+                    buf.clear();
+                    self.cutbuf = buf;
+                    (h, cuts)
                 }
             };
             if h.is_infinite() {
@@ -1130,6 +1752,13 @@ impl<'t> AstarState<'t> {
             }
             self.best_g.insert(skey, (sg, h));
             self.nodes.push((succ, ni, oi));
+            if self.inc {
+                // Memo-hit re-stores carry an empty list: their children
+                // recompute from zero, which is only ever slower, never
+                // unsound.
+                self.cutlists
+                    .push(cuts.unwrap_or_else(|| Vec::new().into_boxed_slice()));
+            }
             self.g_of.push(sg);
             self.open.push(Reverse(K(sg + h, h, self.nodes.len() - 1)));
         }
@@ -1158,6 +1787,17 @@ impl<'t> AstarState<'t> {
             }
             if self.task.goal_met(&self.nodes[ni].0) {
                 // admissible h + re-opening ⇒ the first goal POP is optimal
+                if std::env::var("FF_WALL_DEBUG").is_ok() {
+                    // The 0.23 Phase 5 counters, on the record at every
+                    // certificate: label passes pin the incremental
+                    // LM-cut savings, rpg evals pin the fold's tax cut.
+                    eprintln!(
+                        "wall: opt cert diagnostics: {} label passes, {} rpg evals, {} evaluated",
+                        self.labels(),
+                        self.rpg_evals,
+                        self.evaluated
+                    );
+                }
                 let mut ops = Vec::new();
                 let mut cur = ni;
                 while self.nodes[cur].1 != usize::MAX {
@@ -1330,6 +1970,198 @@ mod tests {
             "(define (problem c) (:domain ch) (:init (p)) (:goal (g)))",
         );
         assert_eq!(num_arm_root(&task, cf), None);
+    }
+
+    /// Incremental LM-cut's inheritance theorem, pinned at the unit
+    /// level (0.23 Phase 5): on the two-flip task the root discovers two
+    /// unit landmarks {a1} and {a2} (h = 2, three label passes — two
+    /// discovery rounds and the closing one). The child after applying
+    /// a1 drops {a1} through the skip filter, charges the inherited
+    /// {a2} WITHOUT a label pass, and pays exactly ONE closing pass to
+    /// confirm hg = 0 — same value as LM-cut from zero, a third of the
+    /// labels.
+    #[test]
+    fn inherited_cuts_charge_admissibly_and_drop_the_applied_op() {
+        let dom = "(define (domain par)
+          (:predicates (g1) (g2))
+          (:action a1 :parameters () :precondition (and) :effect (g1))
+          (:action a2 :parameters () :precondition (and) :effect (g2)))";
+        let prb = "(define (problem p) (:domain par) (:init) (:goal (and (g1) (g2))))";
+        let (task, cf) = task_of(dom, prb);
+        let costs = op_costs(&task, cf).unwrap();
+        let g = RelaxGraph::new(&task);
+        let s = task.initial();
+        let mut w = CutSpace::new(task.fact_names.len(), task.n_ops, &g);
+        let mut rec: Vec<u32> = Vec::new();
+        w.cost.copy_from_slice(&costs);
+        let l0 = w.labels_computed;
+        let h_root = lmcut_rounds(&task, &s, &g, &mut w, Some(&mut rec));
+        assert_eq!(h_root, 2.0);
+        assert_eq!(w.labels_computed - l0, 3, "two discovery rounds + close");
+        let mut n_cuts = 0;
+        let mut i = 0;
+        while i < rec.len() {
+            n_cuts += 1;
+            i += 1 + rec[i] as usize;
+        }
+        assert_eq!(n_cuts, 2, "both unit landmarks recorded: {rec:?}");
+        let a1 = (0..task.n_ops)
+            .find(|&oi| task.op_display[oi].to_ascii_lowercase().contains("a1"))
+            .unwrap();
+        let child = task.apply(a1, &s);
+        // Inherited path: charge {a2} (1.0), one closing label pass.
+        let mut rec2: Vec<u32> = Vec::new();
+        w.cost.copy_from_slice(&costs);
+        let charged = charge_cuts(&mut w, &rec, a1 as u32, &mut rec2);
+        let l1 = w.labels_computed;
+        let cont = lmcut_rounds(&task, &child, &g, &mut w, Some(&mut rec2));
+        assert_eq!(charged, 1.0, "the surviving landmark carries the value");
+        assert_eq!(cont, 0.0);
+        assert_eq!(
+            w.labels_computed - l1,
+            1,
+            "one closing pass, no re-discovery"
+        );
+        // From-zero comparator: same admissible value, more labels.
+        let l2 = w.labels_computed;
+        assert_eq!(lmcut(&task, &child, &g, &costs, &mut w), 1.0);
+        assert_eq!(w.labels_computed - l2, 2);
+    }
+
+    /// The rep fold's gating table (0.23 Phase 5 rung 2), pinned at the
+    /// unit level — the audit-reject discipline extends to the fold:
+    /// every shape it cannot certify DECLINES (and the engine keeps the
+    /// 0.22 per-eval RPG), never weakens.
+    #[test]
+    fn num_fold_gates_fail_closed_and_prices_p04_exactly() {
+        // p04: one exhaustive margin, dmax 1, reps(init) = 60 — the
+        // GoalAt(60) off-by-one convention extends to the fold verbatim.
+        let (task, _) = task_of(
+            include_str!("../../../benchmarks/bench/numopt-pump-domain.pddl"),
+            include_str!("../../../benchmarks/bench/numopt-p04.pddl"),
+        );
+        let g = RelaxGraph::new(&task);
+        let fold = num_fold_prep(&task, &g).expect("p04 folds");
+        assert_eq!(fold.goals.len(), 1);
+        assert!(fold.goals[0].exhaustive);
+        assert_eq!(fold.goals[0].dmax, 1.0);
+        assert_eq!(fold.goals[0].movers.len(), 1, "only pump moves the margin");
+        let init = task.initial();
+        assert_eq!(fold.goals[0].reps(&init.fv), 60.0);
+        // Two-sided Eq goal: fold declines outright.
+        let (task, _) = task_of(
+            "(define (domain eqg) (:requirements :numeric-fluents)
+              (:functions (x))
+              (:action up :parameters () :precondition (and)
+                :effect (increase (x) 1)))",
+            "(define (problem p) (:domain eqg)
+              (:init (= (x) 0)) (:goal (= (x) 5)))",
+        );
+        let g = RelaxGraph::new(&task);
+        assert!(num_fold_prep(&task, &g).is_none(), "Eq is two-sided");
+        // Assign on a goal fluent: the sailing-wind witness class — the
+        // margin is not exhaustive, the fold declines.
+        let (task, _) = task_of(
+            "(define (domain asg) (:requirements :numeric-fluents)
+              (:functions (x))
+              (:action up :parameters () :precondition (and)
+                :effect (increase (x) 1))
+              (:action jump :parameters () :precondition (and)
+                :effect (assign (x) 3)))",
+            "(define (problem p) (:domain asg)
+              (:init (= (x) 0)) (:goal (>= (x) 5)))",
+        );
+        let g = RelaxGraph::new(&task);
+        assert!(
+            num_fold_prep(&task, &g).is_none(),
+            "assign breaks the bound"
+        );
+        // State-dependent delta (rate written by ops): NO current-rate
+        // shortcut — the fold declines rather than divide by rate-now.
+        let (task, _) = task_of(
+            "(define (domain rated) (:requirements :numeric-fluents)
+              (:functions (x) (rate))
+              (:action up :parameters () :precondition (and)
+                :effect (increase (x) (rate)))
+              (:action faster :parameters () :precondition (and)
+                :effect (increase (rate) 1)))",
+            "(define (problem p) (:domain rated)
+              (:init (= (x) 0) (= (rate) 1)) (:goal (>= (x) 5)))",
+        );
+        let g = RelaxGraph::new(&task);
+        assert!(
+            num_fold_prep(&task, &g).is_none(),
+            "written rate = state-dependent delta"
+        );
+        // STATIC-read delta certifies against init (the op_costs bar).
+        let (task, _) = task_of(
+            "(define (domain srd) (:requirements :numeric-fluents)
+              (:functions (x) (rate))
+              (:action up :parameters () :precondition (and)
+                :effect (increase (x) (rate))))",
+            "(define (problem p) (:domain srd)
+              (:init (= (x) 0) (= (rate) 2)) (:goal (>= (x) 5)))",
+        );
+        let g = RelaxGraph::new(&task);
+        let fold = num_fold_prep(&task, &g).expect("static rate certifies");
+        assert_eq!(fold.goals[0].dmax, 2.0);
+        assert_eq!(fold.goals[0].reps(&task.initial().fv), 3.0, "ceil(5/2)");
+        // pre_num-only tasks (the sailing-band shape): no numeric goal —
+        // the fold declines and the per-eval RPG stays, exactly 0.22.
+        let (task, _) = task_of(
+            include_str!("../../../benchmarks/bench/sailing-band-domain.pddl"),
+            include_str!("../../../benchmarks/bench/sailing-band-i1.pddl"),
+        );
+        let g = RelaxGraph::new(&task);
+        assert!(
+            num_fold_prep(&task, &g).is_none(),
+            "no numeric goal to fold"
+        );
+    }
+
+    /// Rung 1 (0.23 Phase 5): orbit × numRPG compose under canonical
+    /// keys, and the PROVEN prover names BOTH — "+numRPG+orbits" — so
+    /// the prover ledger reads the symmetry engine's contribution
+    /// without archaeology. Two interchangeable tanks (unary goals, L4
+    /// SOLO1 units), each needing three +1 pumps behind a numeric band:
+    /// certified optimum 8 with and without the orbit, same cost.
+    #[test]
+    fn orbit_and_numrpg_compose_and_stamp_the_prover() {
+        let dom = "(define (domain pumppair)
+          (:requirements :typing :numeric-fluents)
+          (:types tank)
+          (:predicates (full ?t - tank))
+          (:functions (level ?t - tank))
+          (:action pump :parameters (?t - tank)
+            :precondition (and)
+            :effect (increase (level ?t) 1))
+          (:action cap :parameters (?t - tank)
+            :precondition (>= (level ?t) 3)
+            :effect (full ?t)))";
+        let prb = "(define (problem pp) (:domain pumppair)
+          (:objects t1 t2 - tank)
+          (:init (= (level t1) 0) (= (level t2) 0))
+          (:goal (and (full t1) (full t2))))";
+        let d = crate::parser::parse_domain(dom).unwrap();
+        let p = crate::parser::parse_problem(prb).unwrap();
+        let task = match crate::ground::ground(&d, &p, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("grounding failed"),
+        };
+        assert_eq!(
+            num_arm_root(&task, None),
+            Some(3.0),
+            "the arm reads the band"
+        );
+        let om = crate::orbits::detect_classical(&d, &p, &task).expect("tanks detect");
+        let o = solve(&task, None, 1 << 20, Some(&om));
+        assert!(o.proven, "orbit-armed proof lands");
+        assert_eq!(o.cost, 8.0);
+        assert_eq!(o.heuristic, "h^max+numRPG+orbits");
+        let o2 = solve(&task, None, 1 << 20, None);
+        assert!(o2.proven);
+        assert_eq!(o2.cost, 8.0, "same certificate without the orbit");
+        assert_eq!(o2.heuristic, "h^max+numRPG");
     }
 
     /// The 0.20 admissibility-repair witness at the heuristic level: the

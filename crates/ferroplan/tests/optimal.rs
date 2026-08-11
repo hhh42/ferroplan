@@ -102,6 +102,38 @@ fn exhaustion_proves_unsolvable_past_the_relaxation() {
     );
 }
 
+/// Rung 1's end-to-end note stamp (0.23 Phase 5): on the pumppair shape
+/// (two interchangeable tanks behind numeric bands) the api detects the
+/// orbit, the numeric arm rides along, and the PROVEN note names BOTH —
+/// "+numRPG+orbits" — so the prover ledger reads the symmetry engine's
+/// contribution without archaeology.
+#[test]
+fn proven_note_stamps_numrpg_and_orbits() {
+    let dom = "(define (domain pumppair)
+      (:requirements :typing :numeric-fluents)
+      (:types tank)
+      (:predicates (full ?t - tank))
+      (:functions (level ?t - tank))
+      (:action pump :parameters (?t - tank)
+        :precondition (and)
+        :effect (increase (level ?t) 1))
+      (:action cap :parameters (?t - tank)
+        :precondition (>= (level ?t) 3)
+        :effect (full ?t)))";
+    let prb = "(define (problem pp) (:domain pumppair)
+      (:objects t1 t2 - tank)
+      (:init (= (level t1) 0) (= (level t2) 0))
+      (:goal (and (full t1) (full t2))))";
+    let sol = solve(dom, prb, &opts()).unwrap();
+    assert!(sol.solved);
+    assert_eq!(sol.plan.unwrap().length, 8);
+    assert!(
+        sol.notes.iter().any(|n| n.contains("h^max+numRPG+orbits")),
+        "the note must name every prover component: {:?}",
+        sol.notes
+    );
+}
+
 /// Out-of-scope shapes are rejected with a named note, never mis-certified.
 #[test]
 fn temporal_problems_are_rejected_by_name() {
