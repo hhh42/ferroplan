@@ -284,6 +284,14 @@ def val_check(val, domain, problem, steps, temporal=False):
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         blob = (r.stdout or "") + (r.stderr or "")
+        if r.returncode not in (0, 1) and not blob.strip():
+            # VAL CRASHED (0.23 Phase 2 finding: deterministic SIGBUS/SEGV
+            # judging — and sometimes merely ingesting — several
+            # storage-time-constraints plans, exit -10/-11 with zero
+            # output). A validator that dies before rendering a verdict has
+            # not rejected the plan: None, same class as the ingest
+            # refusals below, and the same 0.20/0.21 lesson a third time.
+            return None
         if any(sig in blob for sig in VAL_UNAVAILABLE_SIGNATURES):
             # VAL could not INGEST the domain/problem, independent of the plan.
             # Validation is UNAVAILABLE, which is NOT the verdict "plan

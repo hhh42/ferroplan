@@ -4465,7 +4465,7 @@ mod tests {
                 .collect(),
             makespan: 2.0,
         };
-        epsilon_separate(&task, &inv, plan, false)
+        epsilon_separate(&task, &inv, plan, false, None)
     }
 
     /// THE ε-CAP PIN, at-the-cap side (0.23 Phase 3): 1000 steps = 2000
