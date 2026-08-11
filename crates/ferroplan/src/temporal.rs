@@ -3256,10 +3256,25 @@ fn epsilon_separate(
         }
     }
     let n = hs.len();
-    if n == 0 || n > 2000 {
+    if n == 0 {
+        return plan; // nothing to do
+    }
+    if n > 2000 {
         // (2000 happenings ≈ 1000 steps; the elevator tails exceeded the old
-        // 600 cap and shipped UNseparated plans VAL would reject)
-        return plan; // nothing to do, or too large to schedule cheaply
+        // 600 cap and shipped UNseparated plans VAL would reject.) Too large
+        // to schedule cheaply — but NEVER silently (0.23 Phase 3): the raw
+        // plan coincides mutex happenings, VAL rejects those, and a silent
+        // exit here books that board row as an unexplained VAL-RED. The 60 s
+        // temporal tier is exactly where >1000-step plans start arriving,
+        // so the escape names itself, unconditionally — not behind
+        // FF_RES_DEBUG like the mappability/consistency escapes, which fire
+        // on plan SHAPES; this one fires on plan SIZE, a budget-tier smell
+        // the sweep log must surface.
+        eprintln!(
+            "[eps] {n} happenings exceed the 2000-happening separation cap -> \
+             plan shipped UNSEPARATED (VAL will reject coincident mutex happenings)"
+        );
+        return plan;
     }
     // execution order: by time, ends before starts at equal time
     let mut order: Vec<usize> = (0..n).collect();
@@ -3762,6 +3777,126 @@ mod tests {
             mend.time + 2.5,
             light.time,
             light.time + 5.0
+        );
+    }
+
+    /// THE ε-CAP FIXTURE (0.23 Phase 3, the sitting's opener): a GENERATED
+    /// battery of `steps` independent zero-ary durative actions, all
+    /// search-scheduled at t=0 — the cheapest plan whose happening count
+    /// (2 per step) walks the pass right up to its size cap. Zero-ary
+    /// actions ground 1:1 (the laddertax lesson), so a 1001-action task
+    /// parses, grounds and schedules in milliseconds either build profile.
+    fn epscap(steps: usize) -> (String, String) {
+        let mut preds = String::new();
+        let mut acts = String::new();
+        let mut goal = String::new();
+        for i in 0..steps {
+            preds.push_str(&format!(" (g{i})"));
+            goal.push_str(&format!(" (g{i})"));
+            acts.push_str(&format!(
+                "(:durative-action do{i} :parameters () :duration (= ?duration 2) \
+                 :condition (and) :effect (and (at end (g{i}))))\n"
+            ));
+        }
+        (
+            format!(
+                "(define (domain epscap) (:requirements :durative-actions) \
+                 (:predicates{preds}) {acts})"
+            ),
+            format!("(define (problem ec) (:domain epscap) (:init) (:goal (and{goal})))"),
+        )
+    }
+
+    fn epscap_separated(steps: usize) -> TimedPlan {
+        let (dom, prb) = epscap(steps);
+        let d = crate::parser::parse_domain(&dom).unwrap();
+        let p = crate::parser::parse_problem(&prb).unwrap();
+        let c = compile(&d, &p);
+        let task = match crate::ground::ground_stratified(&c.domain, &c.problem, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("ground"),
+        };
+        let (_kinds, _dur, inv) = build_kind(&task, &c);
+        let plan = TimedPlan {
+            steps: (0..steps)
+                .map(|i| TimedStep {
+                    time: 0.0,
+                    action: format!("DO{i}"),
+                    duration: Some(2.0),
+                })
+                .collect(),
+            makespan: 2.0,
+        };
+        epsilon_separate(&task, &inv, plan, false)
+    }
+
+    /// THE ε-CAP PIN, at-the-cap side (0.23 Phase 3): 1000 steps = 2000
+    /// happenings sits exactly AT the cap (`n > 2000` is the overflow
+    /// test), and the pass must still separate — every start lands on its
+    /// own ε slot. Longer plans arrive with the 60 s temporal tier, and
+    /// this boundary is where they either keep VAL-validity or start
+    /// shipping raw; both sides are pinned, this one and the two below.
+    #[test]
+    fn eps_separates_to_the_2000_happening_cap() {
+        let out = epscap_separated(1000);
+        let mut times: Vec<f64> = out.steps.iter().map(|s| s.time).collect();
+        times.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        for w in times.windows(2) {
+            assert!(
+                w[1] - w[0] >= EPS - 1e-9,
+                "at the cap every start must hold its own ε slot: gap {} between {} and {}",
+                w[1] - w[0],
+                w[0],
+                w[1]
+            );
+        }
+    }
+
+    /// The overflow side: 1001 steps = 2002 happenings crosses the cap and
+    /// the pass ships the plan RAW — byte-identical zero-spread times, the
+    /// recorded escape (the old 600 cap shipped elevator tails exactly so,
+    /// and VAL rejected them). The loudness of this shipping is pinned by
+    /// the child leg below; this test is also that leg's child body.
+    #[test]
+    fn eps_cap_overflow_ships_the_raw_plan() {
+        let out = epscap_separated(1001);
+        assert!(
+            out.steps.iter().all(|s| s.time == 0.0),
+            "above the cap the plan must ship with its raw times untouched"
+        );
+        assert_eq!(out.makespan, 2.0, "raw makespan must survive the cap exit");
+    }
+
+    /// The LOUD pin (the ladder_wall.rs child convention, adapted to a
+    /// unit-test binary): a capped exit ships a plan VAL will reject, and
+    /// a sweep runner reading a silent stderr books that as an unexplained
+    /// VAL-RED — the failure must name itself. The overflow child's stderr
+    /// carries the cap line; the at-cap child's must NOT (a warning that
+    /// fires on healthy plans is noise, not narration).
+    #[test]
+    fn eps_cap_overflow_is_loud_and_the_cap_is_quiet() {
+        let exe = std::env::current_exe().unwrap();
+        let run = |name: &str| {
+            let out = std::process::Command::new(&exe)
+                .args([
+                    "--exact",
+                    &format!("temporal::tests::{name}"),
+                    "--nocapture",
+                ])
+                .output()
+                .unwrap();
+            assert!(out.status.success(), "child {name} failed");
+            String::from_utf8_lossy(&out.stderr).into_owned()
+        };
+        let loud = run("eps_cap_overflow_ships_the_raw_plan");
+        assert!(
+            loud.contains("exceed the 2000-happening separation cap"),
+            "the cap exit must name itself on stderr:\n{loud}"
+        );
+        let quiet = run("eps_separates_to_the_2000_happening_cap");
+        assert!(
+            !quiet.contains("separation cap"),
+            "an at-cap (separated) plan must not warn:\n{quiet}"
         );
     }
 }
