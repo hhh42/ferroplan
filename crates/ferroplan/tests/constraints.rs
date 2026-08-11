@@ -5,7 +5,9 @@
 //! and are ENFORCED on the classical path — hard constraints as goal
 //! conjuncts (Phase 1), soft `(preference name ...)` constraints priced
 //! through the PDDL3 metric machinery (Phase 2) — while the timed operators,
-//! the temporal path (Phase 3), and `Session` keep NAMED rejections. Each
+//! soft constraints on durative domains, and `Session` keep NAMED rejections
+//! (hard untimed constraints on durative domains are enforced since 0.23
+//! Phase 2 — see tests/temporal_constraints.rs). Each
 //! operator gets a bite/no-bite pair on a hand-checkable switch domain, and
 //! every solved plan is cross-checked through the independent verifier
 //! (`verify::verify` folds the ORIGINAL constraint semantics over its

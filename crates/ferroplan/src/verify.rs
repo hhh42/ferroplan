@@ -51,11 +51,22 @@ fn eval_expr(task: &PackedTask, s: &State, e: &Expr) -> Option<f64> {
     Some(match e {
         Expr::Num(n) => *n,
         Expr::Fluent(name, args) => {
-            let id = task.fluent_id(&disp(name, args))?;
-            if s.fdef[id] {
-                s.fv[id]
-            } else {
-                return None;
+            // Two-source lookup (0.21 Phase 6 / 0.23 Phase 2): dynamic (and
+            // retained) fluents live in the state; DEFINED statics the fluent
+            // compaction dropped resolve from the task-side name table —
+            // without the fallback, a constraint body reading a compacted
+            // static (tpp's `(request goods1)`) folds as undefined and the
+            // verdict is wrong.
+            let d = disp(name, args);
+            match task.fluent_id(&d) {
+                Some(id) => {
+                    if s.fdef[id] {
+                        s.fv[id]
+                    } else {
+                        return None;
+                    }
+                }
+                None => task.static_fluent(&d)?,
             }
         }
         Expr::Add(a, b) => eval_expr(task, s, a)? + eval_expr(task, s, b)?,
@@ -66,8 +77,10 @@ fn eval_expr(task: &PackedTask, s: &State, e: &Expr) -> Option<f64> {
     })
 }
 
-/// Evaluate a ground formula in a concrete state.
-fn eval_formula(task: &PackedTask, s: &State, f: &Formula) -> bool {
+/// Evaluate a ground formula in a concrete state. Shared with the temporal
+/// validator's constraint fold (0.23 Phase 2) — one evaluator, one
+/// semantics, both replays.
+pub(crate) fn eval_formula(task: &PackedTask, s: &State, f: &Formula) -> bool {
     match f {
         Formula::True => true,
         Formula::False => false,

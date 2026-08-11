@@ -138,6 +138,20 @@ fn decompose_inner(
     tier: crate::features::DemandMode,
     monolithic_fallback: bool,
 ) -> Option<Decomp> {
+    // Constrained temporal tasks are not partitioned (0.23 Phase 2): the
+    // monitor compile's acceptance facts are not independent contracts (a
+    // TRAJ-ENDED "contract" would freeze every sibling), and contract plans
+    // strip the synthetic TRAJ-END step, so a partitioned replay could never
+    // certify acceptance anyway. Direct callers get the monolithic solve —
+    // whose search runs the monitor audit — as a single-contract decomp; the
+    // ladder rung (which has already run that exact search) gets `None`.
+    if !domain.constraints.is_empty() || !problem.constraints.is_empty() {
+        if !monolithic_fallback {
+            return None;
+        }
+        return temporal::solve(domain, problem, threads)
+            .map(|p| monolithic_decomp("(constrained goal; solved monolithically)".into(), p));
+    }
     let c = temporal::compile(domain, problem);
     let task = match ground_stratified(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,

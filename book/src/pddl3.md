@@ -81,8 +81,13 @@ ONE instance, violated at most once — the PDDL3 instance boundary.
   (quadratic `forall` constraints over static relations stay tractable);
   `FF_PREF_NO_STATIC=1` restores the blind expansion.
 
-The timed operators (`within`, `always-within`, `hold-during`,
-`hold-after`) and constraints on durative-action domains are **rejected by
+Since 0.23, hard untimed constraints are enforced on **durative-action
+(temporal) domains** too: the same monitor compile rides the snap-compiled
+task, the emitted (ε-separated) schedule is re-audited against the monitors
+before a constrained plan is returned, and the temporal validator folds the
+original constraint semantics over its replay. The timed operators
+(`within`, `always-within`, `hold-during`, `hold-after`) and soft
+`(preference ...)` constraints on durative domains are **rejected by
 name** — never silently dropped. `FF_CONSTRAINTS_REJECT=1` restores the
 pre-0.7 blanket rejection. Measured results on the IPC-5
 qualitative-preferences track:

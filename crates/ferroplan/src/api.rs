@@ -709,10 +709,12 @@ pub fn decompose(
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
     let (domain, problem) =
         crate::derived::compile(&domain, &problem).map_err(SolveError::Derived)?;
-    // 0.7 gate: decompose targets temporal goals, where trajectory
-    // constraints stay rejected (Phase 3) — the gate names that. A CLASSICAL
-    // constrained input still passes through (falling back to one contract),
-    // so `constrained` drives the TRAJ-END step strip below.
+    // The constraints gate: timed operators and soft-on-temporal keep NAMED
+    // rejections; hard untimed constraints pass — classical inputs compiled
+    // here, temporal inputs vetted and compiled post-snap inside the
+    // temporal pipeline (0.23 Phase 2; the decomposer solves them
+    // monolithically). `constrained` drives the classical TRAJ-END step
+    // strip below — temporal plans never carry the step at all.
     let (domain, problem, constrained) = match crate::constraints::gate(&domain, &problem) {
         Ok(Some((d, p))) => (d, p, true),
         Ok(None) => (domain, problem, false),

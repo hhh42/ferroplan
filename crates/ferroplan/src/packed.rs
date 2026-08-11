@@ -205,9 +205,11 @@ impl PackedTask {
             }
     }
 
-    /// Does conditional effect `ce` fire in source state `s`?
+    /// Does conditional effect `ce` fire in source state `s`? Shared with
+    /// the temporal monitor context's pending-violation check (0.23
+    /// Phase 2), which asks it about the SHARED monitor transitions.
     #[inline]
-    fn cond_holds(&self, ce: &CondEff, s: &State) -> bool {
+    pub(crate) fn cond_holds(&self, ce: &CondEff, s: &State) -> bool {
         ce.cond_pos
             .iter()
             .all(|&f| bitset::test(&s.bits, f as usize))

@@ -11,6 +11,15 @@
 //! STRIPS, so they are kept in a side table ([`SnapInfo`]) that the decision-epoch
 //! temporal search (T3) consumes: it only lets `A-END` fire `duration` after the
 //! matching `A-START`, and checks the invariant holds across the interval.
+//!
+//! Untimed PDDL3 trajectory constraints (0.23 Phase 2): the solve path runs
+//! `constraints::compile` over THIS module's snap-compiled classical output
+//! (`solve_inner`), so monitor `When`s ride every happening op and the
+//! `TRAJ-END` acceptance latch is an ordinary classical op the search fires
+//! last. Plan reconstruction strips it; the emitted (ε-separated) schedule
+//! is re-audited monitor-side before a constrained plan is returned; and
+//! [`validate`] folds the ORIGINAL constraints over its replay, independent
+//! of the compiled monitors (the verify.rs convention).
 
 use crate::types::{
     eval_numpre, Action, AssignOp, CompOp, Domain, Duration, Effect, Expr, Formula, NExpr, NumEff,
@@ -621,7 +630,12 @@ pub(crate) fn solve_monolithic(
     // full crew — one job per worker, resources permitting — to minimise makespan.
     // Validated + only-if-shorter inside `reschedule`, so it can only improve things;
     // if the reduction finds nothing we fall through to a normal solve.
-    if crate::features::tconc() {
+    // Constrained tasks skip the phase (0.23 Phase 2): a repack REORDERS
+    // happenings, and only the solve path's monitor audit referees monitor
+    // observations against a reordered schedule — reschedule's validate does
+    // not run over the monitor-compiled task.
+    let constrained = !domain.constraints.is_empty() || !problem.constraints.is_empty();
+    if crate::features::tconc() && !constrained {
         // ≥2 actors ⇒ the reduction is a *super-worker* (all skills), so its plan is
         // only valid for `problem` once reassigned to real skilled workers; <2 ⇒ the
         // reduction is `problem` itself, so its plan is valid as-is.
@@ -648,7 +662,24 @@ fn solve_inner(
     threads: usize,
     tier: DemandMode,
 ) -> Option<TimedPlan> {
-    let c = compile(domain, problem);
+    let mut c = compile(domain, problem);
+    // Untimed trajectory constraints on the temporal path (0.23 Phase 2):
+    // the classical monitor compile rides the snap-compiled task — monitor
+    // `When`s on every happening op (starts, ends, TIL appliers), the
+    // TRAJ-END acceptance latch as an ordinary classical op. gate() vetted
+    // the block (timed operators and soft constraints already rejected by
+    // name); an Err here is defensive, for direct library callers that
+    // bypassed the gate — a miss, never a silently unconstrained solve.
+    let constrained = !c.domain.constraints.is_empty() || !c.problem.constraints.is_empty();
+    if constrained {
+        match crate::constraints::compile(&c.domain, &c.problem) {
+            Ok((d2, p2)) => {
+                c.domain = d2;
+                c.problem = p2;
+            }
+            Err(_) => return None,
+        }
+    }
     let mut task = match ground_stratified(&c.domain, &c.problem, threads) {
         Outcome::Task(t) => t,
         Outcome::GoalTrue => {
@@ -678,7 +709,67 @@ fn solve_inner(
 
     // Object-symmetry orbits (0.14 ext Phase 10): detected against the COMPILED
     // lifted pair (op displays are snap-action names). None = no usable symmetry.
-    let orbit = crate::orbits::detect(&c.domain, &c.problem, &task);
+    // Constrained tasks stay orbit-free — the classical rule (api.rs): a
+    // trajectory constraint can distinguish members over time in ways the
+    // compiled artifacts alone are not re-audited for.
+    let orbit = if constrained {
+        None
+    } else {
+        crate::orbits::detect(&c.domain, &c.problem, &task)
+    };
+    // The monitor context (0.23 Phase 2): the TRAJ-END op the plan
+    // reconstruction strips and the emitted-order audit re-applies, plus
+    // the hard-VIOL facts the search prunes on. `None` when nothing was
+    // compiled (or every instance was statically proven — then there is
+    // nothing to audit or prune either). The VIOL scan keys on the RESERVED
+    // fact namespace, which `reject_reserved_names` fences off from user
+    // predicates whenever a (:constraints ...) block exists.
+    let mctx = if constrained {
+        task.op_display
+            .iter()
+            .position(|d| d == crate::constraints::END_ACTION)
+            .map(|end_op| {
+                let viol: Vec<u32> = (0..task.n_facts)
+                    .filter(|&f| {
+                        task.fact_names[f]
+                            .strip_prefix("(TRAJ")
+                            .and_then(|r| r.strip_suffix("-VIOL)"))
+                            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+                    })
+                    .map(|f| f as u32)
+                    .collect();
+                let pending: Vec<crate::packed::CondEff> = task
+                    .shared_cond
+                    .iter()
+                    .filter(|ce| ce.add.iter().any(|f| viol.contains(f)))
+                    .cloned()
+                    .collect();
+                let watch: Vec<Vec<u32>> = task
+                    .shared_cond
+                    .iter()
+                    .map(|ce| {
+                        let mut v: Vec<u32> = ce
+                            .cond_pos
+                            .iter()
+                            .chain(ce.cond_neg.iter())
+                            .copied()
+                            .collect();
+                        v.sort_unstable();
+                        v.dedup();
+                        v
+                    })
+                    .filter(|v| !v.is_empty())
+                    .collect();
+                MonitorCtx {
+                    end_op,
+                    viol,
+                    pending,
+                    watch,
+                }
+            })
+    } else {
+        None
+    };
 
     // FF_TEVAL_BUDGET caps search evaluations — the deterministic measuring
     // stick for A/B probes (eval budgets, never wall clock). Default unlimited.
@@ -687,7 +778,7 @@ fn solve_inner(
         .and_then(|s| s.parse().ok())
         .unwrap_or(usize::MAX);
     let mut budget = cap;
-    let r = solve_from_seeded_orbit(
+    let r = solve_from_seeded_orbit_audited(
         &task,
         &kind,
         &dur_exprs,
@@ -703,6 +794,7 @@ fn solve_inner(
         crate::search::retained_bytes_budget(),
         false,
         orbit.as_ref(),
+        mctx.as_ref(),
     );
     if std::env::var("FF_ORBIT_DEBUG").is_ok() {
         eprintln!(
@@ -1319,6 +1411,85 @@ pub(crate) fn solve_from_seeded_orbit(
     seed_til_h: bool,
     orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Option<TimedPlan> {
+    solve_from_seeded_orbit_audited(
+        task, kind, dur_exprs, inv, start, goal_pos, goal_num, forbidden, til_events, threads,
+        tier, budget, node_bytes, seed_til_h, orbit, None,
+    )
+}
+
+/// Monitor-compile context for the temporal search (0.23 Phase 2), built by
+/// `solve_inner` when the task went through `constraints::compile`.
+pub(crate) struct MonitorCtx {
+    /// The grounded `TRAJ-END` op: stripped from reconstructed plans,
+    /// re-applied by the emitted-order audit.
+    pub(crate) end_op: usize,
+    /// Grounded HARD-monitor `TRAJ{i}-VIOL` fact ids. A VIOL fact has no
+    /// deleter, and every hard acceptance requires its absence — a state
+    /// carrying one is a dead end BY CONSTRUCTION. The search prunes such
+    /// successors at birth, because the delete relaxation cannot see it:
+    /// the ACC latch's `¬VIOL` is a cond_neg the relaxed exploration is
+    /// optimistic about, so violated states read h=1 forever and their
+    /// start-spam class floods the complete pass (the tsafe fixture drowned
+    /// at the 400k node cap exactly this way while the compliant branch
+    /// starved at h=2). Sound for HARD monitors only — the premise holds on
+    /// the temporal path because `constraints::gate` rejects soft
+    /// constraints on durative domains (revisit when the
+    /// complex-preferences unlock lands soft VIOL facts here).
+    pub(crate) viol: Vec<u32>,
+    /// The shared monitor transitions that ADD one of those VIOL facts —
+    /// the PENDING-violation conditions. Source-state observation runs one
+    /// happening late, so a state where such a condition already holds is
+    /// a ZOMBIE the VIOL check cannot see yet: every monitored successor
+    /// flips VIOL on its next observation, and ending the plan there fails
+    /// the acceptance's S_n side (each VIOL-carrying operator's acceptance
+    /// conjoins exactly ¬condition over S_n) — doomed either way. Without
+    /// this the deployed-before-tested class of tord sat at h=1 spawning
+    /// start-copies forever while the compliant branch starved at h=2.
+    pub(crate) pending: Vec<crate::packed::CondEff>,
+    /// Per shared monitor transition: the FACT atoms its condition reads
+    /// (cond_pos ∪ cond_neg). The audit-red re-emission hands these to
+    /// ε-separation as same-slot ordering edges — a start and an end whose
+    /// unconditional effects both touch one transition's read set keep the
+    /// start first, the direction the ends-first tie-break cannot reach
+    /// (epsmon: B-START's `q` must land before C-END's delete of `p`, or
+    /// the emitted slot exposes `¬p ∧ ¬q` the search never observed).
+    pub(crate) watch: Vec<Vec<u32>>,
+}
+
+impl MonitorCtx {
+    fn doomed_state(&self, task: &PackedTask, state: &State) -> bool {
+        self.viol
+            .iter()
+            .any(|&f| crate::bitset::test(&state.bits, f as usize))
+            || self.pending.iter().any(|ce| task.cond_holds(ce, state))
+    }
+}
+
+/// [`solve_from_seeded_orbit`] with the monitor context armed (0.23
+/// Phase 2): hard-VIOL states prune at generation, and every goal pop's
+/// EMITTED (ε-separated) schedule is replayed monitor-side before it is
+/// returned — a red replay keeps searching instead of shipping a plan whose
+/// emission order broke a constraint the search order satisfied. `None` =
+/// byte-identical to [`solve_from_seeded_orbit`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn solve_from_seeded_orbit_audited(
+    task: &PackedTask,
+    kind: &[Kind],
+    dur_exprs: &[NExpr],
+    inv: &InvMap,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+    til_events: &[(f64, usize)],
+    threads: usize,
+    tier: DemandMode,
+    budget: &mut usize,
+    node_bytes: usize,
+    seed_til_h: bool,
+    orbit: Option<&crate::orbits::OrbitMap>,
+    mctx: Option<&MonitorCtx>,
+) -> Option<TimedPlan> {
     // Fail fast on statically unproducible goals — nothing any pass could reach.
     if statically_unsolvable(task, start, goal_pos, goal_num) {
         return None;
@@ -1414,6 +1585,7 @@ pub(crate) fn solve_from_seeded_orbit(
             node_bytes,
             seed_til_h,
             orbit,
+            mctx,
         )
     };
     go(&sound, true, false)
@@ -1842,6 +2014,7 @@ fn enqueue_evaluated(
     lms: &[u32],
     demand: &Demand,
     prune: bool,
+    gkey: bool,
     relative: bool,
     n: TNode,
     h: i32,
@@ -1850,7 +2023,7 @@ fn enqueue_evaluated(
     let k = tkey(task, &n, relative, orbit);
     if visited.insert(k) {
         enqueue_committed(
-            task, nodes, heap, landmarks, lms, demand, prune, n, h, helpful,
+            task, nodes, heap, landmarks, lms, demand, prune, gkey, n, h, helpful,
         );
     }
 }
@@ -1867,6 +2040,7 @@ fn enqueue_committed(
     lms: &[u32],
     demand: &Demand,
     prune: bool,
+    gkey: bool,
     mut n: TNode,
     h: i32,
     helpful: Vec<u32>,
@@ -1931,11 +2105,22 @@ fn enqueue_committed(
         // an ordering term de-prioritizes interval hoarding WITHOUT
         // losing completeness (ordering, never pruning). The recorded
         // AGENDA_W=0 verdict was for the PRUNED pass's key.
+        //
+        // MONITOR-COMPILED tasks (`gkey`, 0.23 Phase 2) add the pruned
+        // pass's g-term: the relaxation is monitor-blind, so the doomed
+        // class the VIOL/pending prune keeps beheading regrows as an
+        // INFINITE flat-h start-copy plateau (tord: every RUNNING-DEPLOY
+        // spam node read h=2 while the only compliant branch read h=3 —
+        // pure-h FIFO never reached it). Ordering only, never pruning:
+        // completeness is untouched, and unconstrained tasks keep the
+        // historical pure-h key byte-for-byte.
         let wa = std::env::var("FF_TAGENDA_W")
             .ok()
             .and_then(|v| v.parse::<i64>().ok())
             .unwrap_or(0);
-        h as i64 + wa * n.agenda.len() as i64
+        let wg = if gkey { W_G } else { 0 };
+        let wh = if gkey { W_H } else { 1 };
+        wg * n.g as i64 + wh * h as i64 + wa * n.agenda.len() as i64
     };
     let idx = nodes.len();
     nodes.push(n);
@@ -2083,6 +2268,12 @@ struct TStats {
     dead_end: u64,
     b_blocked: u64,
     tie_rescue: u64,
+    /// Goal pops whose EMITTED schedule failed the monitor audit (0.23
+    /// Phase 2) — the search kept going instead of shipping them.
+    audit_red: u64,
+    /// Successors carrying a hard-monitor VIOL fact, pruned at birth (0.23
+    /// Phase 2) — dead by construction, invisible to the delete relaxation.
+    viol_dead: u64,
     best_h: i32,
 }
 
@@ -2162,6 +2353,7 @@ fn push_node(
     kind: &[Kind],
     inv: &InvMap,
     touch: &InvTouch,
+    mctx: Option<&MonitorCtx>,
     stats: &mut TStats,
     sc: &mut Scratch,
     nodes: &mut Vec<TNode>,
@@ -2177,6 +2369,14 @@ fn push_node(
     seed_til_h: bool,
     n: TNode,
 ) {
+    // Hard-monitor VIOL states die at birth (0.23 Phase 2): permanently
+    // violated, hence unsolvable — and the relaxation cannot see it (the
+    // acceptance's ¬VIOL is a cond_neg it is optimistic about), so without
+    // this the violated class reads h=1 forever and floods the pass.
+    if mctx.is_some_and(|m| m.doomed_state(task, &n.state)) {
+        stats.viol_dead += 1;
+        return;
+    }
     if doomed(task, inv, touch, &n) {
         stats.doomed += 1;
         return;
@@ -2211,14 +2411,15 @@ fn push_node(
     }
     if let Some((h, helpful)) = ev {
         stats.best_h = stats.best_h.min(h);
+        let gkey = mctx.is_some();
         if orbit.is_some() {
             enqueue_committed(
-                task, nodes, heap, landmarks, lms, demand, prune, n, h, helpful,
+                task, nodes, heap, landmarks, lms, demand, prune, gkey, n, h, helpful,
             );
         } else {
             enqueue_evaluated(
-                orbit, task, nodes, heap, visited, landmarks, lms, demand, prune, relative, n, h,
-                helpful,
+                orbit, task, nodes, heap, visited, landmarks, lms, demand, prune, gkey, relative,
+                n, h, helpful,
             );
         }
     }
@@ -2276,6 +2477,7 @@ fn temporal_search(
     node_bytes: usize,
     seed_til_h: bool,
     orbit: Option<&crate::orbits::OrbitMap>,
+    mctx: Option<&MonitorCtx>,
 ) -> Option<TimedPlan> {
     // The TLAMA rung is a BOUNDED bet, like the classical ladder's 400k-eval
     // LAMA cap: a failed rung must cost seconds, not the wall — unbounded it
@@ -2329,6 +2531,12 @@ fn temporal_search(
     let init = start.clone();
     let mut sc = Scratch::new(task);
 
+    // A statically violated S_0 (a hard monitor's VIOL fact true in init —
+    // e.g. sometime-before's φ(S_0)) can never reach acceptance: honest
+    // unsolvable, before any expansion.
+    if mctx.is_some_and(|m| m.doomed_state(task, &init)) {
+        return None;
+    }
     let root_seed = til_seeded_state(task, kind, til_events, &init, seed_til_h);
     let (_h0, hf0) = eval_node(
         task,
@@ -2348,7 +2556,22 @@ fn temporal_search(
         // represents the class; simultaneous ends fire in op-id order (one valid
         // serialization — symmetric ends touch different tokens and commute).
         // `FF_NO_TSYMM=1` restores arrival order.
-    let symm = std::env::var("FF_NO_TSYMM").is_err();
+        //
+        // MONITOR-COMPILED tasks force arrival order (0.23 Phase 2): the
+        // canonical (time, op-id) agenda makes the search fire equal-epoch
+        // ends in op-id order, while ε-emission's rigidity pins ends to
+        // their STARTS' chain order — so the search can certify monitors on
+        // an end order the emission cannot reproduce (tord: the search saw
+        // TEST-END before DEPLOY-END, the emitted schedule ran them
+        // inverted, the audit went red — and under canonical agendas the
+        // green ordering is a dedup DUPLICATE of the red one, so the audit
+        // had nowhere to retry: honest None, lost coverage). Arrival order
+        // makes the fired order the started order — search observations and
+        // emitted observations agree — and distinct orders get distinct
+        // visited keys, so the audit's continue has real alternatives. The
+        // symmetry-class cost returns only on constrained tasks, where
+        // correctness buys it.
+    let symm = std::env::var("FF_NO_TSYMM").is_err() && mctx.is_none();
     let mut root_agenda: Vec<(f64, usize)> = til_events.to_vec();
     root_agenda.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     // Shift-invariant dedup (see tkey): sound only when no TIL pins the clock.
@@ -2399,8 +2622,55 @@ fn temporal_search(
             .iter()
             .any(|&(_, op)| !matches!(kind[op], Kind::Til));
         if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) && !ends_pending {
-            let plan = reconstruct(task, &nodes, ni, kind, dur_exprs);
-            return Some(epsilon_separate(task, inv, plan, !til_events.is_empty()));
+            let raw = reconstruct(task, &nodes, ni, kind, dur_exprs, mctx.map(|m| m.end_op));
+            match mctx {
+                None => {
+                    return Some(epsilon_separate(
+                        task,
+                        inv,
+                        raw,
+                        !til_events.is_empty(),
+                        None,
+                    ))
+                }
+                // The monitor audit (0.23 Phase 2): the ε-repair may permute
+                // same-slot happenings AFTER the search certified the
+                // monitors on ITS order, and a monitor's violation flip is
+                // condition-read interference no footprint guard in the
+                // repair models. Replay the EMITTED schedule over the
+                // monitor-compiled task (TRAJ-END re-applied last, observing
+                // the true final state). Red ⇒ RE-emit once with the
+                // monitor-read edges armed and re-audit — the alternative
+                // interleavings all converge to this node's visited state,
+                // so "keep searching" alone cannot recover (epsmon). Still
+                // red ⇒ keep searching; shipping a VAL-red constrained plan
+                // is the one forbidden move.
+                Some(m) => {
+                    let plan =
+                        epsilon_separate(task, inv, raw.clone(), !til_events.is_empty(), None);
+                    if monitor_audit(task, kind, til_events, m.end_op, goal_pos, goal_num, &plan) {
+                        return Some(plan);
+                    }
+                    // Canonical emission red: count it, then try the repair.
+                    stats.audit_red += 1;
+                    let plan =
+                        epsilon_separate(task, inv, raw, !til_events.is_empty(), Some(&m.watch));
+                    if monitor_audit(task, kind, til_events, m.end_op, goal_pos, goal_num, &plan) {
+                        if dbg {
+                            eprintln!(
+                                "[tsearch] monitor audit RED on the canonical emission — \
+                                 monitor-edged re-emission audited green"
+                            );
+                        }
+                        return Some(plan);
+                    }
+                    if dbg {
+                        eprintln!(
+                            "[tsearch] monitor audit RED at goal pop (both emissions) — continuing"
+                        );
+                    }
+                }
+            }
         }
         if dbg && nodes.len() >= next_dump {
             next_dump += 25_000;
@@ -2444,9 +2714,10 @@ fn temporal_search(
                     t0.elapsed_ms()
                 );
                 eprintln!(
-                    "[tsearch] stats: doomed {} deduped {} evaluated {} dead_end {} b_blocked {} tie_rescue {} best_h {}",
+                    "[tsearch] stats: doomed {} deduped {} evaluated {} dead_end {} b_blocked {} tie_rescue {} audit_red {} viol_dead {} best_h {}",
                     stats.doomed, stats.deduped, stats.evaluated, stats.dead_end,
-                    stats.b_blocked, stats.tie_rescue, stats.best_h
+                    stats.b_blocked, stats.tie_rescue, stats.audit_red, stats.viol_dead,
+                    stats.best_h
                 );
             }
             break;
@@ -2658,6 +2929,7 @@ fn temporal_search(
                     kind,
                     inv,
                     &touch,
+                    mctx,
                     &mut stats,
                     &mut sc,
                     &mut nodes,
@@ -2675,9 +2947,14 @@ fn temporal_search(
                 );
             }
         } else {
-            // Same order as the serial path: doomed nodes die first (no
-            // eval, no visited entry), then the orbit pre-dedup.
+            // Same order as the serial path: VIOL-dead and doomed nodes die
+            // first (no eval, no visited entry), then the orbit pre-dedup.
             let mut protos = protos;
+            if let Some(m) = mctx {
+                let before = protos.len();
+                protos.retain(|n| !m.doomed_state(task, &n.state));
+                stats.viol_dead += (before - protos.len()) as u64;
+            }
             let before = protos.len();
             protos.retain(|n| !doomed(task, inv, &touch, n));
             stats.doomed += (before - protos.len()) as u64;
@@ -2720,10 +2997,11 @@ fn temporal_search(
                 }
                 if let Some((h, helpful)) = ev {
                     stats.best_h = stats.best_h.min(h);
+                    let gkey = mctx.is_some();
                     if orbit.is_some() {
                         enqueue_committed(
-                            task, &mut nodes, &mut heap, landmarks, &lms, demand, prune, n, h,
-                            helpful,
+                            task, &mut nodes, &mut heap, landmarks, &lms, demand, prune, gkey, n,
+                            h, helpful,
                         );
                     } else {
                         enqueue_evaluated(
@@ -2736,6 +3014,7 @@ fn temporal_search(
                             &lms,
                             demand,
                             prune,
+                            gkey,
                             relative,
                             n,
                             h,
@@ -2802,6 +3081,7 @@ fn temporal_search(
                         kind,
                         inv,
                         &touch,
+                        mctx,
                         &mut stats,
                         &mut sc,
                         &mut nodes,
@@ -2844,13 +3124,18 @@ fn temporal_search(
 
 /// Walk the father chain into a timed plan: each START becomes a durative step
 /// with its duration (the END is implied); END events are dropped; classical
-/// actions appear instantaneously.
+/// actions appear instantaneously. `strip` is the synthetic `TRAJ-END` op on a
+/// monitor-compiled task (0.23 Phase 2): pure bookkeeping (it latches monitor
+/// acceptance and touches no real fact), dropped HERE so ε-separation,
+/// duration reconciliation, every internal replay, and every reporting
+/// surface only ever see real steps — the monitor audit re-applies it.
 fn reconstruct(
     task: &PackedTask,
     nodes: &[TNode],
     goal: usize,
     kind: &[Kind],
     dur_exprs: &[NExpr],
+    strip: Option<usize>,
 ) -> TimedPlan {
     // (op, time, source-node) — the source state resolves state-dependent
     // durations exactly as the expansion did.
@@ -2865,6 +3150,12 @@ fn reconstruct(
     let mut steps = Vec::new();
     let mut makespan = 0.0f64;
     for (op, t, src) in events {
+        if Some(op) == strip {
+            // TRAJ-END fires at the final decision epoch, which the real
+            // happenings there already stamp into the makespan.
+            makespan = makespan.max(t);
+            continue;
+        }
         let disp = &task.op_display[op];
         let head = disp.split_whitespace().next().unwrap_or("");
         let args = disp
@@ -2911,6 +3202,117 @@ fn reconstruct(
     TimedPlan { steps, makespan }
 }
 
+/// The emitted-order monitor audit (0.23 Phase 2). The search certifies the
+/// compiled monitors on ITS happening order (the father chain); ε-separation
+/// then re-times — and its same-slot topological repair may re-ORDER —
+/// happenings on footprint guards that model precondition and invariant
+/// interference, not conditional-effect condition reads. A monitor's
+/// violation flip is exactly such a read: a permuted slot exposes an
+/// intermediate state the search never observed, and VAL replays the emitted
+/// order. So replay the EMITTED schedule over the monitor-compiled task
+/// (validate's happening semantics: ε-grid slots, ends before starts, TILs
+/// up to the horizon, TILs exempt from the applicability check exactly as
+/// the search fires them), re-apply the stripped `TRAJ-END` last so its
+/// acceptance latches read the true final state, and check the compiled
+/// goal. `false` ⇒ the caller keeps searching; a constrained plan that
+/// would fail its own constraints is never returned.
+fn monitor_audit(
+    task: &PackedTask,
+    kind: &[Kind],
+    til_events: &[(f64, usize)],
+    end_op: usize,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    plan: &TimedPlan,
+) -> bool {
+    let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
+    struct H {
+        time: f64,
+        op: usize,
+        is_start: bool,
+    }
+    let mut hs: Vec<H> = Vec::new();
+    for step in &plan.steps {
+        let mut it = step.action.splitn(2, ' ');
+        let head = it.next().unwrap_or("");
+        let rest = it.next();
+        let with = |suffix: &str| match rest {
+            Some(r) => format!("{head}{suffix} {r}"),
+            None => format!("{head}{suffix}"),
+        };
+        match step.duration {
+            Some(dur) => {
+                let (Some(so), Some(eo)) = (find(&with("-START")), find(&with("-END"))) else {
+                    return false; // unmappable step: nothing to certify
+                };
+                hs.push(H {
+                    time: step.time,
+                    op: so,
+                    is_start: true,
+                });
+                hs.push(H {
+                    time: step.time + dur,
+                    op: eo,
+                    is_start: false,
+                });
+            }
+            None => {
+                let Some(op) = find(&step.action) else {
+                    return false;
+                };
+                hs.push(H {
+                    time: step.time,
+                    op,
+                    is_start: true,
+                });
+            }
+        }
+    }
+    let horizon = hs.iter().map(|h| h.time).fold(0.0f64, f64::max);
+    for &(t, op) in til_events {
+        if t <= horizon + EPS {
+            hs.push(H {
+                time: t,
+                op,
+                is_start: false,
+            });
+        }
+    }
+    hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let mut s = task.initial();
+    for h in &hs {
+        if !matches!(kind[h.op], Kind::Til) && !task.op_applicable(h.op, &s) {
+            if dbg {
+                eprintln!(
+                    "[audit] inapplicable `{}` at t={:.3}",
+                    task.op_display[h.op], h.time
+                );
+            }
+            return false;
+        }
+        s = task.apply(h.op, &s);
+    }
+    if !task.op_applicable(end_op, &s) {
+        if dbg {
+            eprintln!("[audit] TRAJ-END inapplicable at the horizon");
+        }
+        return false;
+    }
+    s = task.apply(end_op, &s);
+    let ok = task.goal_met_with(&s, goal_pos, goal_num);
+    if dbg && !ok {
+        eprintln!(
+            "[audit] goal unmet after emitted replay of {:?}",
+            plan.steps
+                .iter()
+                .map(|st| format!("{:.3}:{}[{:?}]", st.time, st.action, st.duration))
+                .collect::<Vec<_>>()
+        );
+    }
+    ok
+}
+
 // ---------------------------------------------------------------------------
 // Temporal plan validation (independent of the search).
 // ---------------------------------------------------------------------------
@@ -2924,15 +3326,49 @@ fn reconstruct(
 /// finally that the goal holds. Returns `Ok(())` if executable and goal-reaching,
 /// else a human-readable reason. A cross-check on the search (and on any
 /// externally-supplied plan).
+///
+/// Since 0.23 Phase 2 the pair's `(:constraints ...)` block is refereed too:
+/// the ORIGINAL untimed constraints fold over the replayed state trajectory
+/// (S_0 included) exactly as `verify.rs` does classically — the oracle stays
+/// independent of the compiled monitors, and the snap task grounded here
+/// carries none. The timed operators make expansion (and so validation)
+/// fail by name: a plan for a problem this validator cannot check is never
+/// `Ok`. Soft `(preference ...)` constraints are scoring, not validity, and
+/// do not participate. On ε-separated plans (every happening its own
+/// instant) the fold's per-happening states match VAL's trajectory exactly.
 pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<(), String> {
+    let expanded =
+        crate::constraints::expand(domain, problem).map_err(|e| format!("constraints: {e}"))?;
     let c = compile(domain, problem);
     let task = match ground_stratified(&c.domain, &c.problem, 1) {
         Outcome::Task(t) => t,
-        Outcome::GoalTrue => {
+        Outcome::GoalTrue if plan.steps.is_empty() || expanded.hard.is_empty() => {
             return if plan.steps.is_empty() {
+                // Trajectory = [S_0]: fold each hard instance over init alone.
+                for t in &expanded.hard {
+                    let mut f = crate::constraints::Fold::new(t);
+                    f.step(&mut |phi| crate::constraints::eval_static(phi, problem));
+                    if !f.accepted() {
+                        return Err(format!(
+                            "trajectory constraint ({}) violated by the empty plan",
+                            f.op_name()
+                        ));
+                    }
+                }
                 Ok(())
             } else {
                 Err("goal is already true but the plan is non-empty".into())
+            };
+        }
+        Outcome::GoalTrue => {
+            // A trivial goal with HARD constraints and a non-empty plan:
+            // the objective lives in the (:constraints ...) block —
+            // storage-time-constraints ships `(:goal (and))` — so force the
+            // task (the validator grounding entry skips goal verdicts) and
+            // replay for the fold below.
+            match crate::ground::ground_task(&c.domain, &c.problem, 1) {
+                Some(t) => t,
+                None => return Err("grounding failed (empty type)".into()),
             }
         }
         _ => return Err("problem grounds to unsolvable".into()),
@@ -3063,6 +3499,15 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
     // even when composition offsets introduce sub-ε float noise.
     happenings.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
     let mut state = init.clone();
+    // Constraint folds observe S_0, then every post-happening state.
+    let mut folds: Vec<crate::constraints::Fold> = expanded
+        .hard
+        .iter()
+        .map(crate::constraints::Fold::new)
+        .collect();
+    for f in &mut folds {
+        f.step(&mut |phi| crate::verify::eval_formula(&task, &state, phi));
+    }
     for h in &happenings {
         if let Some((dur, snap, args, disp)) = &h.dur_check {
             let (lo, hi) = eval_duration_bounds(snap, args, &task, &state);
@@ -3088,9 +3533,18 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
             ));
         }
         state = task.apply(h.op, &state);
+        for f in &mut folds {
+            f.step(&mut |phi| crate::verify::eval_formula(&task, &state, phi));
+        }
     }
     if !task.goal_met(&state) {
         return Err("the plan does not achieve the goal".into());
+    }
+    if let Some(f) = folds.iter().find(|f| !f.accepted()) {
+        return Err(format!(
+            "trajectory constraint ({}) violated over the plan's state trajectory",
+            f.op_name()
+        ));
     }
     Ok(())
 }
@@ -3185,11 +3639,20 @@ pub(crate) const EPS: f64 = 0.001;
 /// execution order, pin each end at start+duration, force ε between mutex pairs —
 /// and solve the earliest-time schedule by longest paths (Bellman–Ford). On any
 /// inconsistency or for very large plans the original plan is returned unchanged.
+/// `monitor_watch` (0.23 Phase 2, audit-red RE-emission only — `None` on
+/// every first emission, constrained or not): per monitor transition, the
+/// fact atoms its condition reads. Same-slot pairs where a START's and an
+/// END's unconditional effects both touch one transition's read set gain a
+/// start-before-end edge — the repair direction the ends-first tie-break
+/// cannot produce. Wrong extra edges degrade safely: a cycle keeps today's
+/// order and the STN veto keeps the raw schedule, both of which the caller
+/// re-audits.
 fn epsilon_separate(
     task: &PackedTask,
     inv: &InvMap,
     plan: TimedPlan,
     floor_to_search: bool,
+    monitor_watch: Option<&[Vec<u32>]>,
 ) -> TimedPlan {
     // happening: (owning step index, is_start, end-op id for ends). The end
     // op id came back in 0.18: same-slot END groups must be ordered by the
@@ -3364,12 +3827,27 @@ fn epsilon_separate(
                 // inside the reader's interval; after: the precondition is
                 // already deleted), so it keeps today's order for the
                 // validator to referee instead of dragging the whole group
-                // into a cycle fallback.
+                // into a cycle fallback. On an audit-red re-emission
+                // (`monitor_watch`), a start and an end that both touch one
+                // monitor transition's condition reads ALSO order
+                // start-first — the provider-before-breaker direction for
+                // monitor observations (0.23 Phase 2).
                 (None, Some(sa), Some(be), _) => {
-                    task.del
+                    (task
+                        .del
                         .slice(be)
                         .iter()
                         .any(|f| task.pre_pos.slice(sa).contains(f))
+                        || monitor_watch.is_some_and(|ws| {
+                            let touches = |op: usize, w: &[u32]| {
+                                task.add
+                                    .slice(op)
+                                    .iter()
+                                    .chain(task.del.slice(op))
+                                    .any(|f| w.contains(f))
+                            };
+                            ws.iter().any(|w| touches(sa, w) && touches(be, w))
+                        }))
                         && !step_end[ha.step].is_some_and(|ase| breaks_inv(ase, be))
                 }
                 // end -> end: b's effects break a's invariant -> a first (0.18).
@@ -3543,6 +4021,103 @@ fn epsilon_separate(
 mod tests {
     use super::*;
 
+    /// The 0.23 Phase 2 pin, unit half (integration half:
+    /// tests/temporal_constraints.rs): a monitor's violation flip is
+    /// conditional-effect condition-read interference the ε-repair's
+    /// footprint guards do not model. C-END deletes (p) on the same ε-slot
+    /// where B-START adds (q); the search order (B before C's end) holds
+    /// `always (or p q)`, the plain ends-first emission inverts it and
+    /// exposes an intermediate state with neither. The audit must reject
+    /// the inverted schedule and accept the compliant one — that refusal is
+    /// what keeps a constrained plan from shipping VAL-red.
+    #[test]
+    fn monitor_audit_refuses_the_emitted_order_flip() {
+        let dom = "(define (domain epsmon)
+          (:requirements :strips :durative-actions :constraints)
+          (:predicates (p) (q) (g1) (g2) (g3))
+          (:durative-action acta
+            :parameters ()
+            :duration (= ?duration 2)
+            :condition (at start (p))
+            :effect (at end (g1)))
+          (:durative-action actb
+            :parameters ()
+            :duration (= ?duration 1)
+            :condition (at start (g1))
+            :effect (and (at start (q)) (at end (g2))))
+          (:durative-action actc
+            :parameters ()
+            :duration (= ?duration 2)
+            :condition (at start (p))
+            :effect (and (at end (not (p))) (at end (g3)))))";
+        let prb = "(define (problem pe) (:domain epsmon)
+          (:init (p)) (:goal (and (g1) (g2) (g3)))
+          (:constraints (always (or (p) (q)))))";
+        let d = crate::parser::parse_domain(dom).unwrap();
+        let p = crate::parser::parse_problem(prb).unwrap();
+        let c = compile(&d, &p);
+        let (cd, cp) = crate::constraints::compile(&c.domain, &c.problem).expect("monitor compile");
+        let task = match crate::ground::ground_stratified(&cd, &cp, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("ground"),
+        };
+        let (kinds, _dur, _inv) = build_kind(&task, &c);
+        let end_op = task
+            .op_display
+            .iter()
+            .position(|x| x == crate::constraints::END_ACTION)
+            .expect("TRAJ-END grounded");
+        let step = |t: f64, a: &str, dur: f64| TimedStep {
+            time: t,
+            action: a.into(),
+            duration: Some(dur),
+        };
+        // The search-certified schedule whose EMISSION breaks the monitor:
+        // slot 2 replays A-END, C-END (¬p, q not yet), then B-START.
+        let red = TimedPlan {
+            steps: vec![
+                step(0.0, "ACTA", 2.0),
+                step(0.0, "ACTC", 2.0),
+                step(2.0, "ACTB", 1.0),
+            ],
+            makespan: 3.0,
+        };
+        assert!(
+            !monitor_audit(
+                &task,
+                &kinds,
+                &[],
+                end_op,
+                &task.goal_pos,
+                &task.goal_num,
+                &red
+            ),
+            "audit must refuse the ends-first inversion that exposes (not (or p q))"
+        );
+        // The compliant schedule: C starts after B's q exists, so C-END's
+        // delete of p lands in a q-true state.
+        let green = TimedPlan {
+            steps: vec![
+                step(0.0, "ACTA", 2.0),
+                step(2.0, "ACTB", 1.0),
+                step(2.0, "ACTC", 2.0),
+            ],
+            makespan: 4.0,
+        };
+        assert!(
+            monitor_audit(
+                &task,
+                &kinds,
+                &[],
+                end_op,
+                &task.goal_pos,
+                &task.goal_num,
+                &green
+            ),
+            "audit must accept the schedule whose emitted order holds the constraint"
+        );
+    }
+
     /// The 0.18 Phase 1 pin: same-slot END pairs must emit in the
     /// invariant-respecting order. A mend that internally ends on the same
     /// epoch as its light's end (the 2014 match-cellar shape) must NOT be
@@ -3591,7 +4166,7 @@ mod tests {
             ],
             makespan: 3.0,
         };
-        let out = epsilon_separate(&task, &inv, plan, false);
+        let out = epsilon_separate(&task, &inv, plan, false, None);
         let traverse = &out.steps[0];
         let clearjunction = &out.steps[1];
         assert!(
@@ -3648,7 +4223,7 @@ mod tests {
             ],
             makespan: 3.0,
         };
-        let out = epsilon_separate(&task, &inv, plan, false);
+        let out = epsilon_separate(&task, &inv, plan, false, None);
         let occupy = &out.steps[0];
         let build = &out.steps[1];
         assert!(
@@ -3714,7 +4289,7 @@ mod tests {
             ],
             makespan: 3.0,
         };
-        let out = epsilon_separate(&task, &inv, plan, false);
+        let out = epsilon_separate(&task, &inv, plan, false, None);
         let occupy1 = &out.steps[0];
         let build = &out.steps[2];
         assert!(
@@ -3767,7 +4342,7 @@ mod tests {
             ],
             makespan: 7.0,
         };
-        let out = epsilon_separate(&task, &inv, plan, false);
+        let out = epsilon_separate(&task, &inv, plan, false, None);
         let light = &out.steps[0];
         let mend = &out.steps[1];
         assert!(

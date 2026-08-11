@@ -11,9 +11,31 @@
 //! `(preference name ...)` constraint (Phase 2) becomes a goal-side
 //! `(preference name <acceptance>)`, priced by the PDDL3 metric machinery
 //! like any native goal preference. Anything this build cannot enforce (the
-//! timed operators; any constraint on a temporal domain) keeps a rejection
-//! that NAMES the operator — the "never silently ignore" contract is
-//! narrowed, never deleted.
+//! timed operators; a soft constraint on a temporal domain) keeps a
+//! rejection that NAMES the operator — the "never silently ignore" contract
+//! is narrowed, never deleted.
+//!
+//! THE TEMPORAL PATH (0.23 Phase 2, docs/roadmap-0.23.md): hard untimed
+//! constraints on a durative-action domain are enforced by the SAME compile,
+//! applied to the snap-compiled classical task instead of the lifted
+//! durative one — [`gate`] vets and passes the pair through, and the
+//! temporal solve path calls [`compile`] after `temporal::compile` splits
+//! every durative action into snap actions. Monitor `When`s then ride every
+//! happening (start snaps, end snaps, TIL appliers), so the source-state
+//! observation ladder below covers the decision-epoch trajectory exactly;
+//! `TRAJ-END` grounds as an ordinary instantaneous classical op the search
+//! fires last (every real op requires `TRAJ-PLANNING`), and the plan
+//! reconstruction drops it — ε-separation and every downstream consumer
+//! only ever see real steps. An `(at end φ)` hard constraint lowers to a
+//! transition-free ACC latch, which keeps the goal literal-only — the 0.8
+//! motivation verbatim, and mandatory here because the temporal grounding
+//! entry (`ground_stratified`) does not run the 0.22 factored-goal
+//! compilation, so a goal-side disjunctive fold would re-open the
+//! REACH-GOAL DNF product this module's history warns about. Because the
+//! ε-repair may permute same-slot happenings AFTER the search certified the
+//! monitors on ITS order, the emitted schedule is re-audited monitor-side
+//! before a constrained plan is returned (`temporal`'s monitor audit;
+//! red ⇒ the search continues instead of shipping a VAL-red plan).
 //!
 //! THE OBSERVATION OFFSET (load-bearing): `PackedTask::apply` evaluates
 //! conditional-effect conditions against the SOURCE state, so a monitor
@@ -528,12 +550,17 @@ pub(crate) fn strip_end(task: &crate::packed::PackedTask, ops: &mut Vec<usize>) 
 
 /// The 0.7 entrypoint gate, shared by `solve`/`decompose`/`run_planner`/
 /// `run_ff` so no gate can silently diverge: `Ok(None)` = no constraints
-/// (byte-identical no-op path), `Ok(Some(pair))` = untimed constraints (hard
-/// AND soft since Phase 2) compiled into the rewritten task, `Err(msg)` = a
-/// NAMED rejection — the timed operators, any constraint on a
-/// durative-action domain (Phase 3), or the `FF_CONSTRAINTS_REJECT=1`
-/// hatch, which restores the 0.4.1 blanket rejection byte-for-byte (it
-/// restores *rejection*, never ignoring).
+/// (byte-identical no-op path), `Ok(Some(pair))` = untimed constraints
+/// accepted — on a CLASSICAL domain compiled into the rewritten task (hard
+/// AND soft since Phase 2); on a DURATIVE domain vetted here and passed
+/// through UNCHANGED, because the monitor compile rides the snap-compiled
+/// classical task inside the temporal pipeline (0.23 Phase 2 — see
+/// [`crate::temporal`]'s solve path). `Err(msg)` = a NAMED rejection — the
+/// timed operators (`within` / `always-within` / `hold-during` /
+/// `hold-after`, both paths), a soft `(preference ...)` constraint on a
+/// durative domain, or the `FF_CONSTRAINTS_REJECT=1` hatch, which restores
+/// the 0.4.1 blanket rejection byte-for-byte (it restores *rejection*,
+/// never ignoring).
 pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Problem)>, String> {
     if domain.constraints.is_empty() && problem.constraints.is_empty() {
         return Ok(None);
@@ -543,14 +570,44 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
             .unwrap_or_else(|| "trajectory constraints rejected (hatch)".into()));
     }
     if crate::temporal::is_temporal(domain) {
+        // 0.23 Phase 2: the untimed operators are enforced on the temporal
+        // path too. The gate VETS (reserved names, no timed operators, no
+        // soft constraints) and passes the pair through unchanged — the
+        // compile has to ride the snap-compiled classical task, which does
+        // not exist yet at this altitude.
+        vet_temporal(domain, problem)?;
+        return Ok(Some((domain.clone(), problem.clone())));
+    }
+    compile(domain, problem).map(Some)
+}
+
+/// Vet a durative-action task's `(:constraints ...)` block for the temporal
+/// monitor compile (0.23 Phase 2): reserved-name fences (including the
+/// durative action list, which [`reject_reserved_names`] cannot see),
+/// expansion (which rejects the timed operators BY NAME), and the soft
+/// fence — `(preference ...)`-wrapped constraints need the PDDL3 metric
+/// machinery on the temporal path (the complex-preferences unlock, named in
+/// docs/roadmap-0.23.md) and are still rejected.
+fn vet_temporal(domain: &Domain, problem: &Problem) -> Result<(), String> {
+    reject_reserved_names(domain, problem)?;
+    if domain.durative_actions.iter().any(|a| a.name == END_ACTION) {
+        return Err(format!(
+            "durative action `{END_ACTION}` collides with ferroplan's reserved \
+             trajectory end-action name used to compile (:constraints ...); \
+             rename the action"
+        ));
+    }
+    let exp = expand(domain, problem)?;
+    if !exp.soft.is_empty() {
         return Err(
-            "trajectory constraints on durative-action (temporal) domains are \
-             not yet enforced (the untimed classical path is); remove the \
-             (:constraints ...) block or the durative actions"
+            "PDDL3 preference (soft) trajectory constraints on durative-action \
+             (temporal) domains are not yet enforced (hard untimed constraints \
+             are, and the classical path enforces both); remove the preference \
+             wrapper or the durative actions"
                 .into(),
         );
     }
-    compile(domain, problem).map(Some)
+    Ok(())
 }
 
 /// Compile the untimed constraints into the domain/problem: monitor
@@ -818,9 +875,10 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
 }
 
 /// Evaluate an (assumed ground) formula against the raw init atom set —
-/// S_0 for the monitor initialization. Numeric comparisons evaluate against
-/// init fluents; unknown fluents make the comparison false.
-fn eval_static(f: &Formula, p: &Problem) -> bool {
+/// S_0 for the monitor initialization, and the temporal validator's
+/// empty-plan trajectory (0.23 Phase 2). Numeric comparisons evaluate
+/// against init fluents; unknown fluents make the comparison false.
+pub(crate) fn eval_static(f: &Formula, p: &Problem) -> bool {
     match f {
         Formula::True => true,
         Formula::False => false,
