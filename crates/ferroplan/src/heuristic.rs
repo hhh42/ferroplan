@@ -875,16 +875,11 @@ pub fn extraction_need_facts(sc: &Scratch) -> Vec<(u32, u32)> {
         .collect()
 }
 
-/// The numeric-feature rider's read-out (0.22 Phase 5B lever 4, the
-/// FF_NOV_NUMFEAT probe): clones of the numeric preconditions of every op
-/// the last extraction SELECTED — the same walk set the 0.21 charge
-/// prices. Same validity contract as [`extraction_need_facts`].
-pub fn extraction_selected_pre_num(task: &PackedTask, sc: &Scratch) -> Vec<NumPre> {
-    (0..task.n_ops)
-        .filter(|&oi| sc.selected[oi] == sc.gen)
-        .flat_map(|oi| task.pre_num.slice(oi).iter().cloned())
-        .collect()
-}
+// ARCHAEOLOGY (0.23 Phase 1): `extraction_selected_pre_num` — the
+// FF_NOV_NUMFEAT rider's read-out (0.22 Phase 5B lever 4) — lived here
+// and left with the rider: the flag was opt-in, no sweep ever armed it,
+// and the fresh solo evidence read null. House law: an opt-in flag that
+// no sweep arms produces no evidence, and no evidence means no pitch.
 
 /// Relaxed completion COST of a subgoal from this state: run the relaxed-plan
 /// extraction toward `goal_pos`/`goal_num`, then sum the SELECTED ops'

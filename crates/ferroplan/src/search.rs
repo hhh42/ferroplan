@@ -249,16 +249,18 @@ pub struct SearchCfg {
     /// think budget must bound memory without introducing wall-clock
     /// nondeterminism. `FF_SEARCH_NODE_CAP` still wins when set.
     pub node_bytes_target: Option<usize>,
-    /// Diversification-on-refill probe seed (0.22 Phase 5B, opt-in
-    /// `FF_REFILL_DIVERSIFY=1`; the data-network i12 receipt: an
-    /// ACCIDENTAL byte-cap restart was worth 6.5×). Nonzero ⇒ each
-    /// inserted successor's key gains a deterministic sub-g-step jitter
-    /// (hash of node index × seed, < one w_g unit), so a refill round
-    /// re-treads ties and near-ties in a genuinely different order.
-    /// 0 (default, and every round when the flag is off) ⇒ the jitter
-    /// term is exactly absent — key bit-identical.
-    pub tie_seed: u64,
 }
+
+// ARCHAEOLOGY (0.23 Phase 1): `tie_seed` — the diversification-on-refill
+// probe's ordering jitter (0.22 Phase 5B, opt-in `FF_REFILL_DIVERSIFY=1`)
+// — lived here and was REMOVED with its null-armed receipt filed: the one
+// motivating receipt (data-network i12's accidental byte-cap restart,
+// worth 6.5×) read NULL on the 0.22 binary — i12 solves in round 1, the
+// refill seed never fires, identical 473,488 evals both ways — and the
+// flag was opt-in, so no sweep ever armed it. House law, so it is never
+// pitched again: an opt-in flag that no sweep arms produces no evidence,
+// and no evidence means no pitch — a probe either rides a sweep or
+// leaves the tree.
 
 impl Default for SearchCfg {
     fn default() -> Self {
@@ -301,7 +303,6 @@ impl SearchCfg {
             w_lm: 0,
             w_res: 0,
             node_bytes_target: None,
-            tie_seed: 0,
         }
     }
 
@@ -921,19 +922,6 @@ pub fn search_from(
         t_exp += t_phase.elapsed_us();
 
         // SERIAL: dedup + insert (deterministic order, independent of threads).
-        // The diversify probe's jitter (see SearchCfg::tie_seed): a
-        // deterministic hash of (insertion index, seed) below one w_g
-        // unit — reorders ties/near-ties only, never the gradient.
-        let jitter = |idx: usize| -> i64 {
-            if cfg.tie_seed == 0 {
-                return 0;
-            }
-            use std::hash::Hasher;
-            let mut h = crate::hash::FxHasher::default();
-            h.write_u64(cfg.tie_seed);
-            h.write_usize(idx);
-            (h.finish() % WEIGHT_SCALE as u64) as i64
-        };
         let t_phase = crate::clock::Clock::now();
         for chunk in cand_chunks {
             for (pi, oi, s, k, ph) in chunk {
@@ -996,8 +984,7 @@ pub fn search_from(
                                 + cfg.w_lm * un
                                 + res_term
                                 + sat_pen
-                                + cost_term
-                                + jitter(idx),
+                                + cost_term,
                             idx,
                         )));
                         continue;
@@ -1016,8 +1003,7 @@ pub fn search_from(
                             + lm_term
                             + res_term
                             + sat_pen
-                            + cost_term
-                            + jitter(idx),
+                            + cost_term,
                         idx,
                     )));
                 }
@@ -1458,19 +1444,15 @@ pub fn plan_avoiding(
                     .saturating_mul(4)
                     .min((1e9 * WEIGHT_SCALE) as i64);
                 round_cfg.max_eval = round_cfg.max_eval.saturating_mul(4);
-                // The diversification-on-refill probe (0.22 Phase 5B,
-                // OPT-IN `FF_REFILL_DIVERSIFY=1`): a re-entry that only
-                // deepens re-treads the same order into the same wall —
-                // but data-network i12's ACCIDENTAL byte-cap restart was
-                // worth 6.5×, so a deliberate one varies the tie-break
-                // seed per round (see SearchCfg::tie_seed). Off ⇒ seed
-                // stays 0 ⇒ every round's key is bit-identical to today.
-                if std::env::var("FF_REFILL_DIVERSIFY").is_ok() {
-                    round_cfg.tie_seed = round as u64;
-                    if std::env::var("FF_WALL_DEBUG").is_ok() {
-                        eprintln!("wall: refill re-entry diversified (tie seed {round})");
-                    }
-                }
+                // ARCHAEOLOGY (0.23 Phase 1): the diversification-on-refill
+                // probe (`FF_REFILL_DIVERSIFY=1`, 0.22 Phase 5B) hooked in
+                // here, seeding a per-round tie-break jitter. Removed with
+                // its null-armed receipt: data-network i12 — its one
+                // motivating case — solves in round 1 on the 0.22 binary,
+                // so the seed never fired (identical 473,488 evals both
+                // ways), and no sweep ever armed the opt-in flag. House
+                // law: no sweep armed means no evidence, no evidence means
+                // no pitch.
                 if node_capped
                     && cfg.node_bytes_target.is_none()
                     && node_raise < 4

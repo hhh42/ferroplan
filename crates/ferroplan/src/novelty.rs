@@ -496,9 +496,17 @@ pub fn search_light(
 // The partitioned h-free DRIVER (0.22 Phase 5B — THE CENTERPIECE).
 // ---------------------------------------------------------------------------
 
-/// The driver's four levers (0.22 Phase 5B), each behind its own hatch —
+/// The driver's levers (0.22 Phase 5B), each behind its own hatch —
 /// read once at rung entry by [`DriverCfg::from_env`], passed explicitly
 /// so the fixtures can pin every lever without process-global state.
+///
+/// ARCHAEOLOGY (0.23 Phase 1): lever 4 — `FF_NOV_NUMFEAT=1`, per-subgoal
+/// quantized log2 gap buckets as extra novelty features — lived here and
+/// was REMOVED with its null-armed receipt filed: opt-in, so no sweep
+/// ever armed it, and the fresh 0.23-scoping solo evidence read null.
+/// House law, so it is never pitched again: an opt-in flag that no sweep
+/// arms produces no evidence, and no evidence means no pitch — a probe
+/// either rides a sweep or leaves the tree.
 pub struct DriverCfg {
     /// Lever 1, `FF_NOV_PART=0` hatches OFF: R-partition cells
     /// (unachieved-goals, achieved-R count) + the |R|−r key term. Off ⇒
@@ -510,10 +518,6 @@ pub struct DriverCfg {
     /// Lever 1's cap, `FF_NOV_R_CAP` (default 256): |R| bound, lowest
     /// fact_layer first (256² pair bits = the 4 KB/cell table ceiling).
     pub r_cap: usize,
-    /// Lever 4, `FF_NOV_NUMFEAT=1` (OPT-IN probe, numeric-task-gated):
-    /// per-subgoal quantized log2 gap buckets as extra novelty features —
-    /// the numeric plateau pool's lever, promoted only on a measured win.
-    pub numfeat: bool,
 }
 
 impl Default for DriverCfg {
@@ -522,15 +526,14 @@ impl Default for DriverCfg {
             partition: true,
             width2: true,
             r_cap: 256,
-            numfeat: false,
         }
     }
 }
 
 impl DriverCfg {
     /// The hatch reads, exactly as the roadmap writes them: `FF_NOV_PART=0`
-    /// and `FF_NOV_W2=0` turn their levers OFF (unset ⇒ on); the rider is
-    /// opt-in; the cap is a knob with the pair-table ceiling as default.
+    /// and `FF_NOV_W2=0` turn their levers OFF (unset ⇒ on); the cap is a
+    /// knob with the pair-table ceiling as default.
     pub fn from_env() -> Self {
         let off = |var: &str| std::env::var(var).is_ok_and(|v| v.trim() == "0");
         DriverCfg {
@@ -542,7 +545,6 @@ impl DriverCfg {
                 .filter(|&c| c >= 1)
                 .unwrap_or(256)
                 .min(u16::MAX as usize),
-            numfeat: std::env::var("FF_NOV_NUMFEAT").is_ok(),
         }
     }
 }
@@ -604,29 +606,6 @@ fn r_accept_into(acc: &mut [u64], r_facts: &[u32], state: &State) {
 fn tri(i: usize, j: usize, r_len: usize) -> usize {
     debug_assert!(i < j && j < r_len);
     i * r_len - i * (i + 1) / 2 + (j - i - 1)
-}
-
-/// Lever 4's feature: the numeric subgoal's gap from satisfaction in this
-/// state, quantized by the state-key quantizer's 1e-6 (packed.rs — one
-/// quantizer everywhere), then bucketed by log2 so the feature space
-/// stays small and progress-shaped. Satisfied ⇒ −1; undefined ⇒ i32::MIN
-/// (its own bucket: definedness is progress too).
-fn log2_gap_bucket(np: &crate::types::NumPre, fv: &[f64], def: &[bool]) -> i32 {
-    use crate::types::CompOp;
-    let (Some(l), Some(r)) = (np.lhs.eval(fv, def), np.rhs.eval(fv, def)) else {
-        return i32::MIN;
-    };
-    let gap = match np.op {
-        CompOp::Ge | CompOp::Gt => r - l,
-        CompOp::Le | CompOp::Lt => l - r,
-        CompOp::Eq => (l - r).abs(),
-    };
-    let q = (gap * 1e6).round() as i64;
-    if q <= 0 {
-        -1
-    } else {
-        64 - q.leading_zeros() as i32
-    }
 }
 
 struct DNode {
@@ -695,25 +674,6 @@ pub fn search_driver(
     };
     let r_len = r_facts.len();
     let r_words = r_len.div_ceil(64);
-    // Lever 4 (opt-in, numeric-task-gated like FF_NUMNOV): the subgoal
-    // list is the task's numeric goals plus the root extraction's
-    // selected-op numeric preconditions — the charge's walk set.
-    let num_feats: Vec<crate::types::NumPre> = if cfg.numfeat && !task.rel_fluents.is_empty() {
-        let mut sc = Scratch::new(task);
-        let mut feats: Vec<crate::types::NumPre> = goal_num.to_vec();
-        if crate::heuristic::relaxed_to(
-            task, &mut sc, &init.bits, &init.fv, &init.fdef, goal_pos, goal_num,
-        )
-        .is_some()
-        {
-            feats.extend(crate::heuristic::extraction_selected_pre_num(task, &sc));
-        }
-        feats.truncate(64);
-        feats
-    } else {
-        Vec::new()
-    };
-
     let words = init.bits.len();
     let numnov = numnov_on(task);
     let mut seen = Seen::new(words, numnov);
@@ -725,9 +685,6 @@ pub fn search_driver(
         0
     };
     let mut pairs: FxHashMap<(u16, u16), Vec<u64>> = FxHashMap::default();
-    // Per-cell seen (subgoal, log2-gap-bucket) features (lever 4).
-    let mut feats_seen: FxHashMap<(u16, u16), crate::hash::FxHashSet<(u16, i32)>> =
-        FxHashMap::default();
 
     let mut root_acc = vec![0u64; r_words];
     r_accept_into(&mut root_acc, &r_facts, &init);
@@ -775,12 +732,6 @@ pub fn search_driver(
         }
     }
     mark_pairs(root_cell, &r_true, &r_new, &mut pairs);
-    if !num_feats.is_empty() {
-        let set = feats_seen.entry(root_cell).or_default();
-        for (si, np) in num_feats.iter().enumerate() {
-            set.insert((si as u16, log2_gap_bucket(np, &init.fv, &init.fdef)));
-        }
-    }
 
     let mut nodes = vec![DNode {
         state: init.clone(),
@@ -848,7 +799,7 @@ pub fn search_driver(
             let r_count = acc.iter().map(|w| w.count_ones() as u16).sum::<u16>();
             let g = unachieved(task, &ns, goal_pos);
             let cell = (g, if cfg.partition { r_count } else { 0 });
-            let mut novel1 = seen.novel_and_mark(cell, &ns.bits, &qvals_of(task, &ns, numnov));
+            let novel1 = seen.novel_and_mark(cell, &ns.bits, &qvals_of(task, &ns, numnov));
             // Lever 2's pair scan, cost-bounded by construction: only
             // (changed-to-true × true) R pairs are checked and marked —
             // the unchanged×unchanged pairs are the parent's, already
@@ -869,17 +820,6 @@ pub fn search_driver(
                 }
             }
             let novel2 = mark_pairs(cell, &r_true, &r_new, &mut pairs);
-            // Lever 4: a never-seen (subgoal, gap-bucket) feature in this
-            // cell is novelty — the numeric plateau's progress signal the
-            // bit tables are structurally blind to.
-            if !num_feats.is_empty() {
-                let set = feats_seen.entry(cell).or_default();
-                for (si, np) in num_feats.iter().enumerate() {
-                    if set.insert((si as u16, log2_gap_bucket(np, &ns.fv, &ns.fdef))) {
-                        novel1 = true;
-                    }
-                }
-            }
             let rank: i64 = if novel1 {
                 0
             } else if novel2 {
@@ -956,42 +896,16 @@ mod tests {
         assert!(!env.novel_and_mark(cell, &s1.bits, &qvals_of(&task, &s1, true)));
     }
 
-    /// Lever 4's mechanism pin (0.22 Phase 5B, FF_NOV_NUMFEAT — the flag
-    /// lands with its mechanism pinned; promotion waits on a measured
-    /// numeric-board win): the log2 gap bucket is the state-key quantizer
-    /// (1e-6) then a power-of-two class — gaps in one octave share a
-    /// bucket, a halved gap changes it, satisfaction is its own bucket.
+    /// The mechanism pin that SURVIVES the FF_NOV_NUMFEAT removal (0.23
+    /// Phase 1 archaeology — lever 4's log2-gap-bucket tables left the
+    /// tree with their null-armed receipt; see [`DriverCfg`]): the driver
+    /// still solves the numeric mini with a valid plan on the surviving
+    /// levers alone, i.e. the numeric task never depended on the rider.
     #[test]
-    fn log2_gap_buckets_pin() {
-        use crate::types::{CompOp, NExpr, NumPre};
-        let np = NumPre {
-            op: CompOp::Ge,
-            lhs: NExpr::Fluent(0),
-            rhs: NExpr::Num(8.0),
-        };
-        let def = [true];
-        let b = |x: f64| log2_gap_bucket(&np, &[x], &def);
-        assert_eq!(b(8.0), -1, "satisfied is its own bucket");
-        assert_eq!(b(3.0), b(3.5), "gaps 5 and 4.5 share an octave");
-        assert_ne!(b(7.0), b(3.0), "a halved gap changes bucket");
-        assert_ne!(b(0.0), b(7.0), "the far bucket differs from the near one");
-        // Undefined operand: its own bucket (definedness is progress too).
-        let b_undef = log2_gap_bucket(&np, &[0.0], &[false]);
-        assert_eq!(b_undef, i32::MIN);
-    }
-
-    /// The rider end-to-end: the driver with FF_NOV_NUMFEAT machinery on
-    /// still solves the numeric mini with a valid plan (the feature table
-    /// rides the same cells; nothing breaks the h-free loop).
-    #[test]
-    fn numfeat_driver_solves_the_numeric_mini() {
+    fn driver_solves_the_numeric_mini_without_the_numfeat_rider() {
         let task = numeric_task();
-        let cfg = DriverCfg {
-            numfeat: true,
-            ..DriverCfg::default()
-        };
-        let (ops, _) = search_driver(&task, 10_000, &[], None, &cfg)
-            .expect("numfeat driver solves the bump chain");
+        let (ops, _) = search_driver(&task, 10_000, &[], None, &DriverCfg::default())
+            .expect("driver solves the bump chain");
         let mut s = task.initial();
         for &oi in &ops {
             assert!(task.op_applicable(oi, &s));

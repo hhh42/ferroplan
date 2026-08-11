@@ -335,9 +335,10 @@ fn width2_pair_conjunction() {
 /// Sailing's shape is the INSTRUCTIVE edge: `crewed` is static (grounding
 /// prunes it from preconditions), so the whole approach machinery is
 /// numeric and R collapses to exactly the goal — the bit-partition has
-/// nothing to hold there, which is precisely why lever 4 (the numeric
-/// gap-bucket rider) exists. The rider's read-out sees save_person's
-/// four band preconditions, verbatim.
+/// nothing to hold there. (This edge is exactly the gap the
+/// FF_NOV_NUMFEAT rider was pitched at; the rider left the tree at 0.23
+/// null-armed — see DriverCfg's archaeology note — and the edge is
+/// pinned here so the record of WHY stays executable.)
 #[test]
 fn r_extraction_pin_on_sailing_band() {
     let dom = include_str!("../../../benchmarks/bench/sailing-band-domain.pddl");
@@ -350,25 +351,6 @@ fn r_extraction_pin_on_sailing_band() {
     assert_eq!(
         r, goals,
         "sailing-band's R is exactly the goal: statics pruned, progress numeric"
-    );
-    // Lever 4's read-out rides the same extraction: save_person's four
-    // band preconditions are the charge's walk set, verbatim.
-    let mut sc = ferroplan::heuristic::Scratch::new(&task);
-    ferroplan::heuristic::relaxed_to(
-        &task,
-        &mut sc,
-        &init.bits,
-        &init.fv,
-        &init.fdef,
-        &task.goal_pos,
-        &task.goal_num,
-    )
-    .expect("sailing-band init is no relaxed dead end");
-    let feats = ferroplan::heuristic::extraction_selected_pre_num(&task, &sc);
-    assert_eq!(
-        feats.len(),
-        4,
-        "save_person's four band preconditions are the feature set"
     );
 }
 
@@ -430,12 +412,16 @@ fn driver_is_deterministic_across_runs() {
     assert!(a.is_some());
 }
 
-/// The diversify probe's mechanics (0.22 Phase 5B, `FF_REFILL_DIVERSIFY`):
-/// seed 0 is exactly the historical key (two runs byte-identical); a
-/// nonzero seed still solves with a VALID plan (ordering-only jitter,
-/// completeness untouched).
+/// ARCHAEOLOGY (0.23 Phase 1): this test pinned the diversify probe's
+/// tie-seed mechanics (`FF_REFILL_DIVERSIFY`, 0.22 Phase 5B). The probe
+/// left the tree null-armed — data-network i12, its one motivating
+/// receipt, solves in round 1 on the 0.22 binary (identical 473,488
+/// evals both ways), so the seed never fired and no sweep ever armed
+/// the opt-in flag. What SURVIVES is the law the seed-0 leg pinned and
+/// the removal makes unconditional: the best-first key carries no
+/// jitter term, so two identical runs are byte-identical.
 #[test]
-fn refill_diversify_tie_seed_mechanics() {
+fn best_first_key_is_jitter_free_and_deterministic() {
     let (dom, prb) = combolock(5, 6);
     let task = ground(&dom, &prb);
     let cfg0 = ferroplan::search::SearchCfg::from_weights(1.0, 5.0, Some(200_000));
@@ -445,13 +431,8 @@ fn refill_diversify_tie_seed_mechanics() {
         ferroplan::search::PlanResult::Plan { ops, .. } => ops.clone(),
         _ => panic!("combolock(5,6) should solve"),
     };
-    assert_eq!(plan_of(&r1), plan_of(&r2), "seed 0 is byte-identical");
-    let seeded = ferroplan::search::SearchCfg {
-        tie_seed: 3,
-        ..cfg0
-    };
-    let r3 = ferroplan::search::search(&task, 1, seeded);
-    assert_valid(&task, &plan_of(&r3));
+    assert_eq!(plan_of(&r1), plan_of(&r2), "two runs are byte-identical");
+    assert_valid(&task, &plan_of(&r1));
 }
 
 // ---------------------------------------------------------------------------
