@@ -2621,8 +2621,45 @@ fn temporal_search(
             .agenda
             .iter()
             .any(|&(_, op)| !matches!(kind[op], Kind::Til));
-        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) && !ends_pending {
-            let raw = reconstruct(task, &nodes, ni, kind, dur_exprs, mctx.map(|m| m.end_op));
+        // The goal-isomorphism arm (0.23 Phase 4 probe 1): with an iso
+        // map armed, a state serving SOME σ-image of the goal completes
+        // too — the witness σ then remaps the reconstructed plan so the
+        // emitted plan serves the ORIGINAL goal (round-trip fixture).
+        // Concrete first: a concretely-met goal emits exactly as 0.22.
+        // Monitor-compiled tasks are orbit-free at every consumer (the
+        // Phase 2 rule), so the witness arm and the monitor audit below
+        // never co-fire — asserted, not assumed.
+        let concrete = task.goal_met_with(&nodes[ni].state, goal_pos, goal_num);
+        let witness = if concrete || ends_pending {
+            None
+        } else {
+            orbit.and_then(|om| om.iso_goal_witness(task, &nodes[ni].state, goal_pos, goal_num))
+        };
+        if (concrete || witness.is_some()) && !ends_pending {
+            if std::env::var("FF_ORBIT_DEBUG").is_ok() {
+                eprintln!(
+                    "orbit: goal at evaluated {} visited {} witness {}",
+                    stats.evaluated,
+                    visited.len(),
+                    if concrete { "identity" } else { "remap" }
+                );
+            }
+            debug_assert!(
+                witness.is_none() || mctx.is_none(),
+                "monitor-compiled tasks are orbit-free by the Phase 2 rule"
+            );
+            let remap = witness
+                .as_ref()
+                .and_then(|w| orbit.map(|om| (om, w.as_slice())));
+            let raw = reconstruct(
+                task,
+                &nodes,
+                ni,
+                kind,
+                dur_exprs,
+                mctx.map(|m| m.end_op),
+                remap,
+            );
             match mctx {
                 None => {
                     return Some(epsilon_separate(
@@ -3119,6 +3156,18 @@ fn temporal_search(
             }
         }
     }
+    // The probe eyes for the 0.23 Phase 4 pre-registered reads
+    // (eval-denominated, FF_TEVAL_BUDGET-capped): distinct visited
+    // CLASSES and the best_h floor at pass end, orbit on or off, so the
+    // collapse factor and the re-level read off two lines.
+    if std::env::var("FF_ORBIT_DEBUG").is_ok() {
+        eprintln!(
+            "orbit: pass end evaluated {} visited {} best_h {}",
+            stats.evaluated,
+            visited.len(),
+            stats.best_h
+        );
+    }
     None
 }
 
@@ -3129,6 +3178,16 @@ fn temporal_search(
 /// acceptance and touches no real fact), dropped HERE so ε-separation,
 /// duration reconciliation, every internal replay, and every reporting
 /// surface only ever see real steps — the monitor audit re-applies it.
+///
+/// `remap` (0.23 Phase 4 probe 1): the goal-isomorphism witness — each
+/// step RENDERS as its σ-image op so the emitted plan serves the
+/// ORIGINAL goal. Times and durations stay on the concrete trajectory:
+/// σ is a task automorphism, so the σ-image op's duration at the
+/// mirrored state equals the concrete op's here (state-dependent
+/// durations must evaluate against the SOURCE state exactly as the
+/// expansion did — remapping the eval would read the wrong member's
+/// fluents). Never co-fires with `strip` (monitor-compiled tasks are
+/// orbit-free).
 fn reconstruct(
     task: &PackedTask,
     nodes: &[TNode],
@@ -3136,6 +3195,7 @@ fn reconstruct(
     kind: &[Kind],
     dur_exprs: &[NExpr],
     strip: Option<usize>,
+    remap: Option<(&crate::orbits::OrbitMap, &[Vec<u16>])>,
 ) -> TimedPlan {
     // (op, time, source-node) — the source state resolves state-dependent
     // durations exactly as the expansion did.
@@ -3156,7 +3216,10 @@ fn reconstruct(
             makespan = makespan.max(t);
             continue;
         }
-        let disp = &task.op_display[op];
+        let disp = &task.op_display[match remap {
+            Some((om, sigma)) => om.iso_remap_op(sigma, op),
+            None => op,
+        }];
         let head = disp.split_whitespace().next().unwrap_or("");
         let args = disp
             .split_whitespace()

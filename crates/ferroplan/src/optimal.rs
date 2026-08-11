@@ -1484,6 +1484,14 @@ struct AstarState<'t> {
     /// states, so a pruned π-sibling's plan is never emitted, only
     /// its surviving representative's.
     orbit: Option<&'t crate::orbits::OrbitMap>,
+    /// The goal-isomorphism arm's heuristic task (0.23 Phase 4 probe 1):
+    /// with an iso map, h must stay admissible for EVERY σ-image of the
+    /// goal (the relaxed test accepts any of them, and the first-goal-pop
+    /// certificate rides on h never overestimating the distance to the
+    /// nearest accepted state) — so h evaluates against a clone whose
+    /// goal is the σ-INVARIANT part only. `None` on every non-iso path:
+    /// byte-identical evaluation.
+    htask: Option<PackedTask>,
     hname: &'static str,
     costs: Vec<f64>,
     per_node: usize,
@@ -1567,12 +1575,21 @@ impl<'t> AstarState<'t> {
                 })
             }
         };
+        let htask = orbit
+            .filter(|om| om.iso_active())
+            .and_then(|om| om.iso_untouched_goal())
+            .map(|g| {
+                let mut t = task.clone();
+                t.goal_pos = g.to_vec();
+                t
+            });
         Ok(AstarState {
             task,
             use_lmcut,
             num,
             inc,
             orbit,
+            htask,
             hname,
             costs,
             // The teardown reserve (0.22 Phase 2): dropping the arena is
@@ -1611,6 +1628,11 @@ impl<'t> AstarState<'t> {
     /// `(parent node index, applied op)` on the `inc` path; `out_cuts`
     /// receives the state's own cut list there.
     fn eval(&mut self, s: &State, parent: Option<(usize, usize)>, out_cuts: &mut Vec<u32>) -> f64 {
+        // The goal-iso probe (0.23 Phase 4) evaluates h on the
+        // designation-relaxed task when armed; the graph was built over
+        // the same task, so every branch below reads `task`, never
+        // `self.task`.
+        let task = self.htask.as_ref().unwrap_or(self.task);
         let graph = self.graph.as_ref().unwrap();
         let w = self.cutspace.as_mut().unwrap();
         out_cuts.clear();
@@ -1620,9 +1642,9 @@ impl<'t> AstarState<'t> {
                 Some((pi, oi)) => charge_cuts(w, &self.cutlists[pi], oi as u32, out_cuts),
                 None => 0.0,
             };
-            charged + lmcut_rounds(self.task, s, graph, w, Some(out_cuts))
+            charged + lmcut_rounds(task, s, graph, w, Some(out_cuts))
         } else if self.use_lmcut {
-            lmcut(self.task, s, graph, &self.costs, w)
+            lmcut(task, s, graph, &self.costs, w)
         } else if let Some(fold) = self.fold.as_ref() {
             // Rep-folded labels (0.23 Phase 5 rung 2): floors fill from
             // the state's fluent values, ride the label pass, and the
@@ -1631,12 +1653,12 @@ impl<'t> AstarState<'t> {
             fold_fill_floors(fold, &s.fv, w);
             hmax_labels(graph, s, w, true);
             let mut h = 0.0f64;
-            for &gf in self.task.goal_pos.iter() {
+            for &gf in task.goal_pos.iter() {
                 h = h.max(w.label[gf as usize]);
             }
             h
         } else {
-            hmax(self.task, s, graph, &self.costs, w)
+            hmax(task, s, graph, &self.costs, w)
         };
         if ph.is_infinite() {
             return ph;
@@ -1785,7 +1807,26 @@ impl<'t> AstarState<'t> {
             if self.best_g.get(&key).map_or(f64::INFINITY, |&(bg, _)| bg) < g {
                 continue;
             }
-            if self.task.goal_met(&self.nodes[ni].0) {
+            // The goal-isomorphism arm (0.23 Phase 4 probe 1): under an
+            // iso map a state serving SOME σ-image of the goal is a goal
+            // pop too — h (weakened to the σ-invariant part) is
+            // admissible for every image, so the first pop still carries
+            // the certificate, and the extracted plan remaps through the
+            // witness so the emitted ops serve the ORIGINAL goal.
+            let concrete = self.task.goal_met(&self.nodes[ni].0);
+            let witness = if concrete {
+                None
+            } else {
+                self.orbit.and_then(|om| {
+                    om.iso_goal_witness(
+                        self.task,
+                        &self.nodes[ni].0,
+                        &self.task.goal_pos,
+                        &self.task.goal_num,
+                    )
+                })
+            };
+            if concrete || witness.is_some() {
                 // admissible h + re-opening ⇒ the first goal POP is optimal
                 if std::env::var("FF_WALL_DEBUG").is_ok() {
                     // The 0.23 Phase 5 counters, on the record at every
@@ -1805,6 +1846,11 @@ impl<'t> AstarState<'t> {
                     cur = self.nodes[cur].1;
                 }
                 ops.reverse();
+                if let (Some(sigma), Some(om)) = (witness.as_ref(), self.orbit) {
+                    for op in ops.iter_mut() {
+                        *op = om.iso_remap_op(sigma, *op);
+                    }
+                }
                 return OptOutcome {
                     ops: Some(ops),
                     cost: g,

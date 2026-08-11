@@ -53,10 +53,46 @@
 //! `FF_NO_ORBIT=1` disables detection entirely;
 //! `FF_NO_ORBIT_CLASSICAL=1` kills only the classical consumer
 //! ([`detect_classical`]) while the temporal one keeps its orbit.
+//!
+//! **The goal-isomorphism arm (0.23 Phase 4 probe 1, `FF_ORBIT_ISO=1`,
+//! default OFF):** detection extends from goal-σ-INVARIANCE to
+//! goal-ISOMORPHISM — units form GOAL-BLIND (type + init profile only,
+//! the goal never splits an orbit), and each goal atom touching an orbit
+//! becomes a DESIGNATION (family + member coords) instead of an
+//! invariance obligation. σ then acts jointly on objects and goal atoms:
+//! canonicalization merges states across the full goal-blind group, and
+//! the goal test relaxes to "some σ maps this state onto the goal"
+//! ([`OrbitMap::iso_goal_witness`], an exact designation-matching search
+//! that returns the WITNESS permutation). Consumers wired for the arm
+//! (the temporal search, optimal A*) apply the witness to the emitted
+//! plan through the op family tables ([`OrbitMap::iso_remap_op`]), so
+//! the plan that reaches σ(goal) is emitted as its σ-image serving the
+//! ORIGINAL goal — sound because equal init profiles force σ(init) =
+//! init (see the round-trip fixtures). Pruning stays complete because a
+//! merged state's every reachable goal image is still recognized by the
+//! relaxed test; optimal mode keeps its certificate by weakening h to
+//! the σ-invariant goal part (admissible for every σ-image). Consumers
+//! NOT wired for the relaxed test never receive an iso map
+//! ([`detect_classical`] stays strict by construction).
+//!
+//! Probe verdict, recorded at the probe (the 0.23 roadmap's
+//! pre-registered reads): TMS-2011 i1 FAILED both halves — the
+//! goal-blind orbits form exactly as designed ([10, 15, 25] pieces, 25
+//! designations live) but the distinct-visited-class collapse reads
+//! 1.27× at the 60k eval budget (11,114 → 8,780; ≥10× pre-registered)
+//! and best_h sits at the 110 stock floor at 15k/30k/60k, BOTH arms —
+//! the 0.14 pair orbits had already banked the group's cheap coset, and
+//! the plateau is start-epoch choreography, exactly what the 0.22
+//! agenda-doom receipts predicted. The TEMPORAL constituency records
+//! DEAD; the arm is CLASSICAL-ONLY (opt-in, default-off), refereed on
+//! the goal-paired classical shapes — child-snack stays INERT by
+//! construction (uniform unary designations are σ-invariant already,
+//! so its residue is out of this lever's reach and its optimal h is
+//! untouched).
 
-use crate::hash::FxHashMap;
+use crate::hash::{FxHashMap, FxHashSet};
 use crate::packed::{PackedTask, State};
-use crate::types::{AssignOp, Domain, Expr, Formula, Problem, Sym, Term};
+use crate::types::{AssignOp, Domain, Expr, Formula, NumPre, Problem, Sym, Term};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// One orbit: `k` interchangeable member units. Per member, the SAME
@@ -371,9 +407,35 @@ fn const_op_costs(task: &PackedTask, cf: usize) -> Vec<Option<f64>> {
         .collect()
 }
 
+/// The goal-isomorphism designation tables (0.23 Phase 4 probe 1): which
+/// goal atoms the goal-blind orbits must SERVE, as family cells. Present
+/// only on maps detected through an iso entry with at least one
+/// designated goal atom; its mere presence obligates the consumer to the
+/// relaxed goal test + witness plan remap, which is why strict entries
+/// never produce it.
+#[derive(Clone)]
+pub struct IsoGoal {
+    /// One designated goal atom per entry: (fact-family index, member
+    /// coords). Every designated (orbit, member) coordinate is distinct
+    /// across entries (detection bails otherwise), so a witness σ is a
+    /// consistent permutation by construction.
+    desig: Vec<(u32, Vec<u16>)>,
+    /// The σ-fixed goal part, tested concretely: facts no orbit touches,
+    /// plus whole-diagonal goal facts (σ permutes the diagonal SET onto
+    /// itself, so concrete all-true is σ-image truth verbatim).
+    untouched: Vec<u32>,
+    /// Snapshot of `task.goal_pos`: the relaxed test arms ONLY on this
+    /// exact goal (a subgoal solve must never inherit it).
+    goal: Vec<u32>,
+}
+
 #[derive(Clone)]
 pub struct OrbitMap {
     pub orbits: Vec<Orbit>,
+    /// `Some` = this map was detected under the goal-isomorphism arm and
+    /// carries designations; consumers must goal-test through
+    /// [`Self::iso_goal_witness`] and remap emitted plans.
+    pub iso: Option<IsoGoal>,
     /// op id -> (orbit, member, template) for per-member agenda signatures.
     pub op_owner: FxHashMap<usize, (usize, usize, usize)>,
     /// Per orbit: some goal fact's family touches it (the whole-diagonal
@@ -398,9 +460,25 @@ pub struct OrbitMap {
 /// This entry keeps the TEMPORAL consumer's 0.21 strictness — a
 /// non-total-time metric bails; the classical L2 cost carve-out lives
 /// only behind [`detect_classical`], so temporal behavior is
-/// byte-identical this cycle by construction.
+/// byte-identical this cycle by construction. Under `FF_ORBIT_ISO=1`
+/// (0.23 Phase 4 probe 1) the goal-isomorphism arm arms — safe here
+/// because the temporal search is wired for the relaxed goal test.
 pub fn detect(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<OrbitMap> {
-    detect_gated(domain, problem, task, false)
+    detect_gated(domain, problem, task, false, iso_armed())
+}
+
+/// The `FF_ORBIT_ISO` opt-in (0.23 Phase 4 probe 1): default OFF, and
+/// with it off every detection entry is byte-identical to 0.22.
+fn iso_armed() -> bool {
+    std::env::var("FF_ORBIT_ISO").is_ok()
+}
+
+/// The goal-isomorphism arm, UNCONDITIONALLY armed — the fixture/probe
+/// entry, so tests exercise the arm without touching process-global env.
+/// Production call sites go through [`detect`] / [`detect_classical_iso`],
+/// which arm it only under `FF_ORBIT_ISO=1`.
+pub fn detect_iso(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<OrbitMap> {
+    detect_gated(domain, problem, task, true, true)
 }
 
 fn detect_gated(
@@ -408,6 +486,7 @@ fn detect_gated(
     problem: &Problem,
     task: &PackedTask,
     allow_cost_metric: bool,
+    iso: bool,
 ) -> Option<OrbitMap> {
     if std::env::var("FF_NO_ORBIT").is_ok() {
         return None;
@@ -594,60 +673,82 @@ fn detect_gated(
     }
     let mut units: Vec<Unit> = Vec::new();
     let mut in_unit: BTreeSet<String> = BTreeSet::new();
-    for (pred, args) in &goal_atoms {
-        if args.len() == 2
-            && args[0] != args[1]
-            && args.iter().all(|a| {
-                goal_count.get(a.as_str()) == Some(&1)
-                    && !named.contains(a)
-                    && ty.contains_key(a.as_str())
-            })
-        {
-            let sig = format!(
-                "PAIR {pred} {} {} {} {}",
-                ty[args[0].as_str()],
-                ty[args[1].as_str()],
-                profile(&args[0]),
-                profile(&args[1])
-            );
+    // The goal-isomorphism arm forms units GOAL-BLIND: every typed,
+    // non-action-named object is a 1-object unit keyed by type + init
+    // profile alone — the goal never splits an orbit; which goal atom a
+    // member serves becomes a DESIGNATION below instead of a grouping
+    // constraint (TMS: all same-type pieces join ONE orbit whether their
+    // goal partner is a type-2, a type-3, or nobody).
+    if iso {
+        for (o, t) in problem.objects.iter() {
+            let up = o.to_ascii_uppercase();
+            if named.contains(&up) || in_unit.contains(&up) {
+                continue;
+            }
             units.push(Unit {
-                objs: args.clone(),
-                key: sig,
+                key: format!("ISO {t} {}", profile(o)),
+                objs: vec![up.clone()],
             });
-            in_unit.extend(args.iter().cloned());
+            in_unit.insert(up);
         }
     }
-    // Unary-goal SOLO units (0.22 Phase 6 L4): an object whose ONLY goal
-    // appearance is one UNARY atom (cave-diving's four identical divers,
-    // child-snack's children). The key carries the goal predicate, so
-    // members group only with same-goal-shape peers; the grounded
-    // goal-invariance check below still verifies every member's diagonal
-    // goal fact is present before the orbit is trusted.
-    for (pred, args) in &goal_atoms {
-        if let [a] = args.as_slice() {
-            if goal_count.get(a.as_str()) == Some(&1)
-                && !in_unit.contains(a)
-                && !named.contains(a)
-                && ty.contains_key(a.as_str())
+    if !iso {
+        for (pred, args) in &goal_atoms {
+            if args.len() == 2
+                && args[0] != args[1]
+                && args.iter().all(|a| {
+                    goal_count.get(a.as_str()) == Some(&1)
+                        && !named.contains(a)
+                        && ty.contains_key(a.as_str())
+                })
             {
+                let sig = format!(
+                    "PAIR {pred} {} {} {} {}",
+                    ty[args[0].as_str()],
+                    ty[args[1].as_str()],
+                    profile(&args[0]),
+                    profile(&args[1])
+                );
                 units.push(Unit {
-                    key: format!("SOLO1 {pred} {} {}", ty[a.as_str()], profile(a)),
-                    objs: vec![a.clone()],
+                    objs: args.clone(),
+                    key: sig,
                 });
-                in_unit.insert(a.clone());
+                in_unit.extend(args.iter().cloned());
             }
         }
-    }
-    for (o, t) in problem.objects.iter() {
-        let up = o.to_ascii_uppercase();
-        if goal_count.contains_key(up.as_str()) || in_unit.contains(&up) || named.contains(&up) {
-            continue;
+        // Unary-goal SOLO units (0.22 Phase 6 L4): an object whose ONLY goal
+        // appearance is one UNARY atom (cave-diving's four identical divers,
+        // child-snack's children). The key carries the goal predicate, so
+        // members group only with same-goal-shape peers; the grounded
+        // goal-invariance check below still verifies every member's diagonal
+        // goal fact is present before the orbit is trusted.
+        for (pred, args) in &goal_atoms {
+            if let [a] = args.as_slice() {
+                if goal_count.get(a.as_str()) == Some(&1)
+                    && !in_unit.contains(a)
+                    && !named.contains(a)
+                    && ty.contains_key(a.as_str())
+                {
+                    units.push(Unit {
+                        key: format!("SOLO1 {pred} {} {}", ty[a.as_str()], profile(a)),
+                        objs: vec![a.clone()],
+                    });
+                    in_unit.insert(a.clone());
+                }
+            }
         }
-        units.push(Unit {
-            key: format!("SOLO {t} {}", profile(o)),
-            objs: vec![up.clone()],
-        });
-        in_unit.insert(up);
+        for (o, t) in problem.objects.iter() {
+            let up = o.to_ascii_uppercase();
+            if goal_count.contains_key(up.as_str()) || in_unit.contains(&up) || named.contains(&up)
+            {
+                continue;
+            }
+            units.push(Unit {
+                key: format!("SOLO {t} {}", profile(o)),
+                objs: vec![up.clone()],
+            });
+            in_unit.insert(up);
+        }
     }
 
     // Group units into candidate orbits (same key, ≥2 members). This runs
@@ -880,6 +981,14 @@ fn detect_gated(
     // fluent bail. Orbits touched by goal facts are recorded as
     // GOAL-BOUND: sound for the whole goal, frozen by
     // [`OrbitMap::goal_free_view`] for subgoal-subset searches.
+    //
+    // The ISO arm replaces the invariance OBLIGATION with a designation
+    // TABLE: each goal fact touching an orbit is recorded as (family,
+    // coords) for the relaxed goal test, and every designated (orbit,
+    // member) coordinate must be distinct across the whole goal — a
+    // member designated twice would need one server to satisfy two atoms
+    // at once, a consistency constraint this probe arm does not carry
+    // (recorded narrowing: `(on a b) (on b c)` chains bail).
     let mut goal_bound = vec![false; n_orbits];
     let goal_set: std::collections::HashSet<u32> = task.goal_pos.iter().copied().collect();
     let fact_of: FxHashMap<u32, (u32, &Vec<u16>)> = facts
@@ -887,26 +996,78 @@ fn detect_gated(
         .iter()
         .map(|(id, fam, c)| (*id, (*fam, c)))
         .collect();
-    for &g in task.goal_pos.iter() {
-        if let Some(&(famix, coords)) = fact_of.get(&g) {
-            let fam = &facts.fams[famix as usize];
-            let (Some(o), true) = (single_orbit(fam), coords.iter().all(|&c| c == coords[0]))
-            else {
-                odbg(|| format!("cross-member goal fact {}", task.fact_names[g as usize]));
-                return None;
+    let mut iso_desig: Vec<(u32, Vec<u16>)> = Vec::new();
+    let mut iso_untouched: Vec<u32> = Vec::new();
+    if iso {
+        let mut designated: FxHashSet<(u16, u16)> = FxHashSet::default();
+        for &g in task.goal_pos.iter() {
+            let Some(&(famix, coords)) = fact_of.get(&g) else {
+                iso_untouched.push(g);
+                continue;
             };
-            for m in 0..k[o] {
-                if !goal_set.contains(&diagonal(fam, m as u16)) {
+            let fam = &facts.fams[famix as usize];
+            // The σ-INVARIANT shape (whole diagonal in the goal — the
+            // strict arm's own soundness case) joins the concrete-check
+            // bucket instead of the designation table: every σ fixes the
+            // SET, so "all diagonal bits true" is σ-image truth verbatim,
+            // and keeping it out of `desig` keeps h intact and the whole
+            // arm INERT on shapes where iso ≡ strict (child-snack's
+            // uniform `served` goals — the classical read's control).
+            if let (Some(o), true) = (single_orbit(fam), coords.iter().all(|&c| c == coords[0])) {
+                if (0..k[o]).all(|m| goal_set.contains(&diagonal(fam, m as u16))) {
+                    iso_untouched.push(g);
+                    goal_bound[o] = true;
+                    continue;
+                }
+            }
+            // Distinctness across atoms; repeats WITHIN one atom are the
+            // same coordinate and stay consistent by construction.
+            let mut here: Vec<(u16, u16)> = fam
+                .axes
+                .iter()
+                .copied()
+                .zip(coords.iter().copied())
+                .collect();
+            here.sort_unstable();
+            here.dedup();
+            for oc in here {
+                if !designated.insert(oc) {
                     odbg(|| {
                         format!(
-                            "goal fact {} not orbit-uniform",
+                            "iso: member designated by two goal atoms, e.g. {}",
                             task.fact_names[g as usize]
                         )
                     });
                     return None;
                 }
             }
-            goal_bound[o] = true;
+            for &a in fam.axes.iter() {
+                goal_bound[a as usize] = true;
+            }
+            iso_desig.push((famix, coords.clone()));
+        }
+    } else {
+        for &g in task.goal_pos.iter() {
+            if let Some(&(famix, coords)) = fact_of.get(&g) {
+                let fam = &facts.fams[famix as usize];
+                let (Some(o), true) = (single_orbit(fam), coords.iter().all(|&c| c == coords[0]))
+                else {
+                    odbg(|| format!("cross-member goal fact {}", task.fact_names[g as usize]));
+                    return None;
+                };
+                for m in 0..k[o] {
+                    if !goal_set.contains(&diagonal(fam, m as u16)) {
+                        odbg(|| {
+                            format!(
+                                "goal fact {} not orbit-uniform",
+                                task.fact_names[g as usize]
+                            )
+                        });
+                        return None;
+                    }
+                }
+                goal_bound[o] = true;
+            }
         }
     }
     let mut goal_fluents: Vec<u32> = Vec::new();
@@ -921,8 +1082,28 @@ fn detect_gated(
         return None;
     }
 
+    // With no designated atom the iso arm collapses to strict semantics
+    // (the whole goal is σ-fixed) — no relaxed test, no remap obligation,
+    // so the map carries no IsoGoal and consumers behave exactly as 0.22.
+    let iso_goal = (iso && !iso_desig.is_empty()).then(|| IsoGoal {
+        desig: iso_desig,
+        untouched: iso_untouched,
+        goal: task.goal_pos.to_vec(),
+    });
+    if iso {
+        odbg(|| match &iso_goal {
+            Some(ig) => format!(
+                "iso: {} designations, {} sigma-fixed goal facts",
+                ig.desig.len(),
+                ig.untouched.len()
+            ),
+            None => "iso: no designations (arm inert, strict semantics)".into(),
+        });
+    }
+
     Some(OrbitMap {
         orbits,
+        iso: iso_goal,
         op_owner,
         frozen: vec![false; goal_bound.len()],
         goal_bound,
@@ -942,12 +1123,31 @@ fn detect_gated(
 /// The classical consumer's detection entry (0.22 Phase 6):
 /// [`detect`] behind the consumer-scoped hatch — `FF_NO_ORBIT_CLASSICAL=1`
 /// kills ONLY the classical canonical keys/dedup while the temporal
-/// consumer keeps its orbit; `FF_NO_ORBIT=1` still kills both.
+/// consumer keeps its orbit; `FF_NO_ORBIT=1` still kills both. STRICT by
+/// construction, `FF_ORBIT_ISO` notwithstanding: its maps flow to the
+/// satisficing dedup, the partition passdown, and the B&B sweep — none
+/// of which carry the relaxed goal test an iso map obligates.
 pub fn detect_classical(domain: &Domain, problem: &Problem, task: &PackedTask) -> Option<OrbitMap> {
     if std::env::var("FF_NO_ORBIT_CLASSICAL").is_ok() {
         return None;
     }
-    detect_gated(domain, problem, task, true)
+    detect_gated(domain, problem, task, true, false)
+}
+
+/// [`detect_classical`] with the goal-isomorphism arm armed under
+/// `FF_ORBIT_ISO=1` (0.23 Phase 4 probe 1) — the entry for the ONE
+/// classical consumer wired for the relaxed goal test + witness remap:
+/// optimal A* (`api::solve_optimal`). Flag off ⇒ byte-identical to
+/// [`detect_classical`].
+pub fn detect_classical_iso(
+    domain: &Domain,
+    problem: &Problem,
+    task: &PackedTask,
+) -> Option<OrbitMap> {
+    if std::env::var("FF_NO_ORBIT_CLASSICAL").is_ok() {
+        return None;
+    }
+    detect_gated(domain, problem, task, true, iso_armed())
 }
 
 impl OrbitMap {
@@ -1018,6 +1218,195 @@ impl OrbitMap {
         }
         let canon = self.rewrite_state(state, &sigma);
         task.state_key_hash(&canon, cost_fluent)
+    }
+
+    /// Does this map carry goal-isomorphism designations? `true` obligates
+    /// the consumer to [`Self::iso_goal_witness`] + the emission remap.
+    pub fn iso_active(&self) -> bool {
+        self.iso.is_some()
+    }
+
+    /// The σ-invariant goal part (goal facts no orbit touches) — the
+    /// admissible heuristic target for optimal mode under the iso arm:
+    /// it is a subset of EVERY σ-image of the goal, so h against it
+    /// never overestimates the distance to the nearest accepted state.
+    pub fn iso_untouched_goal(&self) -> Option<&[u32]> {
+        self.iso.as_ref().map(|i| i.untouched.as_slice())
+    }
+
+    /// The relaxed goal test (0.23 Phase 4 probe 1): does SOME σ in the
+    /// goal-blind group map `state` onto the goal? Arms only when
+    /// `goal_pos` is exactly the detection-time goal (a subgoal solve
+    /// must never inherit designations), the σ-fixed goal part holds
+    /// concretely (untouched facts + numeric conjuncts), and an exact
+    /// designation matching exists: per designated goal atom, a
+    /// TRUE-in-`state` cell of the same family and equality pattern,
+    /// all chosen cells member-disjoint. Returns the WITNESS σ (per
+    /// orbit, member → destination), completed bijectively on
+    /// undesignated members — σ(state) ⊇ goal by construction, and the
+    /// emitted plan remapped through [`Self::iso_remap_op`] serves the
+    /// ORIGINAL goal (the round-trip fixture is the referee).
+    ///
+    /// Deterministic: candidates enumerate in family-table order and the
+    /// backtracking visits designations fewest-candidates-first with a
+    /// stable tiebreak, so t1 ≡ t8 holds. The matcher is EXACT within a
+    /// step budget; a blown budget reads as "not a goal" — recorded
+    /// probe caveat, never observed on the fixture shapes.
+    pub fn iso_goal_witness(
+        &self,
+        task: &PackedTask,
+        state: &State,
+        goal_pos: &[u32],
+        goal_num: &[NumPre],
+    ) -> Option<Vec<Vec<u16>>> {
+        let iso = self.iso.as_ref()?;
+        if goal_pos != iso.goal.as_slice() || !task.goal_met_with(state, &iso.untouched, goal_num) {
+            return None;
+        }
+        // Candidate cells per designation, then the exact backtracking.
+        let mut cands: Vec<Vec<Vec<u16>>> = Vec::with_capacity(iso.desig.len());
+        for (famix, dcoords) in &iso.desig {
+            let fam = &self.fact_fams[*famix as usize];
+            let n = fam.axes.len();
+            let pattern_ok = |coords: &[u16]| -> bool {
+                for d in 0..n {
+                    for e in 0..d {
+                        if fam.axes[e] == fam.axes[d]
+                            && (coords[e] == coords[d]) != (dcoords[e] == dcoords[d])
+                        {
+                            return false;
+                        }
+                    }
+                }
+                true
+            };
+            let mut cells: Vec<Vec<u16>> = Vec::new();
+            let mut coords = vec![0u16; n];
+            'odo: loop {
+                let id = fam.table[fam.flat(&coords)];
+                if id != u32::MAX
+                    && crate::bitset::test(&state.bits, id as usize)
+                    && pattern_ok(&coords)
+                {
+                    cells.push(coords.clone());
+                }
+                let mut d = n;
+                loop {
+                    if d == 0 {
+                        break 'odo;
+                    }
+                    d -= 1;
+                    coords[d] += 1;
+                    if (coords[d] as u32) < fam.dims[d] {
+                        break;
+                    }
+                    coords[d] = 0;
+                }
+            }
+            if cells.is_empty() {
+                return None; // some designation has no server at all
+            }
+            cands.push(cells);
+        }
+        let mut order: Vec<usize> = (0..cands.len()).collect();
+        order.sort_by_key(|&i| (cands[i].len(), i));
+        let mut used: Vec<Vec<bool>> = self
+            .orbits
+            .iter()
+            .map(|o| vec![false; o.facts.len()])
+            .collect();
+        let mut chosen: Vec<usize> = vec![usize::MAX; cands.len()];
+        let mut budget = 1usize << 20;
+        if !self.iso_bt(iso, &cands, &order, 0, &mut used, &mut chosen, &mut budget) {
+            if budget == 0 {
+                odbg(|| "iso: witness matcher budget exhausted (state read as non-goal)".into());
+            }
+            return None;
+        }
+        // Build σ: chosen servers → designated coordinates, leftovers →
+        // leftover destinations ascending (any completion is sound; a
+        // FIXED one keeps the emitted plan a pure function of the state).
+        let mut sigma: Vec<Vec<u16>> = self
+            .orbits
+            .iter()
+            .map(|o| vec![u16::MAX; o.facts.len()])
+            .collect();
+        let mut dst_taken: Vec<Vec<bool>> = self
+            .orbits
+            .iter()
+            .map(|o| vec![false; o.facts.len()])
+            .collect();
+        for (di, (famix, dcoords)) in iso.desig.iter().enumerate() {
+            let fam = &self.fact_fams[*famix as usize];
+            let cell = &cands[di][chosen[di]];
+            for (d, (&m, &c)) in cell.iter().zip(dcoords.iter()).enumerate() {
+                let o = fam.axes[d] as usize;
+                sigma[o][m as usize] = c;
+                dst_taken[o][c as usize] = true;
+            }
+        }
+        for (o, s) in sigma.iter_mut().enumerate() {
+            let mut free = (0..s.len() as u16).filter(|&c| !dst_taken[o][c as usize]);
+            for dst in s.iter_mut() {
+                if *dst == u16::MAX {
+                    *dst = free.next().expect("iso witness completion is bijective");
+                }
+            }
+        }
+        Some(sigma)
+    }
+
+    /// Exact designation matching, depth-first over `order` with
+    /// member-disjointness pruning. `true` fills `chosen` for every
+    /// designation; `budget` bounds total candidate trials.
+    #[allow(clippy::too_many_arguments)]
+    fn iso_bt(
+        &self,
+        iso: &IsoGoal,
+        cands: &[Vec<Vec<u16>>],
+        order: &[usize],
+        pos: usize,
+        used: &mut [Vec<bool>],
+        chosen: &mut [usize],
+        budget: &mut usize,
+    ) -> bool {
+        if pos == order.len() {
+            return true;
+        }
+        let di = order[pos];
+        let fam = &self.fact_fams[iso.desig[di].0 as usize];
+        'cand: for (ci, cell) in cands[di].iter().enumerate() {
+            if *budget == 0 {
+                return false;
+            }
+            *budget -= 1;
+            for (d, &m) in cell.iter().enumerate() {
+                if used[fam.axes[d] as usize][m as usize] {
+                    continue 'cand;
+                }
+            }
+            for (d, &m) in cell.iter().enumerate() {
+                used[fam.axes[d] as usize][m as usize] = true;
+            }
+            chosen[di] = ci;
+            if self.iso_bt(iso, cands, order, pos + 1, used, chosen, budget) {
+                return true;
+            }
+            for (d, &m) in cell.iter().enumerate() {
+                used[fam.axes[d] as usize][m as usize] = false;
+            }
+        }
+        false
+    }
+
+    /// Apply the witness to one emitted-plan op through the op family
+    /// tables: the σ-image op serving the ORIGINAL goal. Ops outside
+    /// every family are σ-fixed and pass through.
+    pub fn iso_remap_op(&self, sigma: &[Vec<u16>], op: usize) -> usize {
+        match self.op_touch.get(&op) {
+            Some((fam, coords)) => self.op_fams[*fam as usize].map(coords, sigma) as usize,
+            None => op,
+        }
     }
 
     /// The L5 passdown view (0.22 Phase 6): goal-BOUND orbits freeze to

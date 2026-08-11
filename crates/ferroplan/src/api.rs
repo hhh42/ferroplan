@@ -644,10 +644,14 @@ fn solve_optimal(
     // The 0.22 Phase 6 L1 consumer: orbit-canonical visited keys on the
     // proof ladder (child-snack's factorial core is the constituency).
     // The L2 gate inside detection bails any cost shape σ cannot fix.
+    // The iso-aware entry (0.23 Phase 4 probe 1): optimal A* is the one
+    // classical consumer wired for the relaxed goal test, so it alone
+    // may receive designations under FF_ORBIT_ISO=1; flag off this is
+    // detect_classical byte-for-byte.
     let orbit = if constrained {
         None
     } else {
-        crate::orbits::detect_classical(domain, problem, &task)
+        crate::orbits::detect_classical_iso(domain, problem, &task)
     };
     let o = crate::optimal::solve(&task, cf, max_nodes, orbit.as_ref());
     let stats = Statistics {
