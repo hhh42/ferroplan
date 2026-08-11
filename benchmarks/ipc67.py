@@ -384,8 +384,15 @@ def run_instance(val, n, d, p):
         def _limit():
             cap = int(MEMGB * (1 << 30))
             resource.setrlimit(resource.RLIMIT_AS, (cap, cap))
+    # `budget` stamps the row with the wall it was measured under (0.23
+    # Phase 3, the tier-move mechanism): standings.py's timeout class is
+    # denominated in the budget, and a registry-side budget is a LIE the
+    # moment one board's raws span two tiers (the 30 s temporal raws vs
+    # their 60 s re-sweeps). A row that carries its own budget classifies
+    # right whichever registry value is standing; rows that predate the
+    # stamp fall back to the registry.
     rec = {"instance": n, "solved": False, "time": None, "metric": None,
-           "length": None, "val": None, "notes": None}
+           "length": None, "val": None, "notes": None, "budget": TIMEOUT}
     t = time.perf_counter()
     try:
         # One retry after a breather on spawn failure: a memory-bloated
