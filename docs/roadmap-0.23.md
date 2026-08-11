@@ -102,6 +102,35 @@ P6 L3 dedup, probe unresolved). The casualty docket opens the cycle.
   Both leave the tree or stay as documented archaeology; neither is
   ever pitched again.
 
+### Recorded — the dockets close honest (Phase 1)
+
+- **The ramp tax: ACQUITTED engine-side.** v0.21.0 (tag rebuild) and
+  v0.22 binaries, interleaved paired reps on openstacks-2014 i3/i7:
+  wall-identical per rep and EVAL-IDENTICAL (41,241; 45,038). The
+  board's −3 was environmental; the "12 EHC-direct rows" canary dent
+  was contention, and the hypothesized cheap fix already existed
+  in-tree (detect_classical short-circuits before the parse — the
+  odbg receipt of it firing is in the record).
+- **The damping bill's honest negative branch:** the 3 rows fail
+  under EVERY arm INCLUDING full NODAMP at achievable idle — the
+  "NODAMP-recoverable" scoping read was wall-margin churn, so no
+  conditioning exists to land and none was. The bill stays OPEN
+  against the backfill column plus one true-quiet solo per row. And
+  a sharper attribution fell out: fo-sailing's +7 is the SUM half
+  ALONE (NOSKIP byte-identical; NOSUM dead at 3.5M evals) — pinned.
+- **Flag archaeology done** (−190/+62 across four files), the house
+  law written into the rustdoc at both graves.
+- **Casualties pre-probed:** org-synth-split i15 CONFIRMED driver
+  casualty (FF_NOV_OLD solves 53.3 s); nurikabe i12 is NOT the
+  driver — it is a 5A design smell now named (the LAMA
+  progress-conditional slice extends on "progress 0.00 s ago" until
+  remaining hits zero — a loop that likely bills rows beyond i12);
+  hiking-agile i11 quiet-owed. Probe record:
+  benchmarks/metrics/dockets-0.23.md.
+- **Hygiene:** the board-budget differential regenerated against
+  0.22.0 — the six standing regressions reproduce EXACTLY and every
+  boards-contradicting flag now agrees.
+
 ## Phase 2 — the constraints gate opens (a feature phase with a coverage referee)
 
 The one place on the table where 100 instances sit behind a single
@@ -136,6 +165,37 @@ The one place on the table where 100 instances sit behind a single
   on the scored subset), engine-reject class → near-zero, VAL green
   on every new solve. Band: +25–45 from stages a+b alone.
 
+### Recorded — the gate opens: stages a+b landed (board at the cut)
+
+- **Twelve fixtures, all RED at the blanket gate first.** Stage a
+  lands as a transition-free TRAJ-END acceptance latch (a literal
+  goal-side fold would reopen the 0.7 REACH-GOAL DNF class — the
+  deviation is argued in the record); stage b extends the monitor
+  compile to the snap-compiled task with four gated search-behavior
+  changes (violation pruning at birth, arrival-ordered agendas, the
+  g-term on complete passes, and a monitor AUDIT on the emitted
+  schedule with one monitor-edged re-emission as the repair) — all
+  monitor-context-gated, unconstrained paths byte-identical.
+- **Solo receipts:** storage-time-constraints i1–i7 ALL SOLVE (0.0 s
+  to 10.4 s), VAL green on four — and the other three exposed a **VAL
+  BUG**: deterministic SIGBUS/SEGV with zero output judging (and
+  sometimes merely ingesting) storage-time-constraints plans. The
+  internal fold-oracle validates all three; the runner now books a
+  nonzero-exit, zero-output Validate as validation UNAVAILABLE — the
+  0.20/0.21 lesson a third time, landed before the sweep could be
+  under-credited. tpp's monitor rows attempt honestly (real
+  searches, honest walls); `within` rejects BY NAME only.
+- **The referee arithmetic, pending the sweep:** engine-reject on
+  the gated 100 drops to the 40 timed rows; +30 attempts; 7 solves
+  banked solo.
+- **The stage-c sizing memo, receipts attached:** constituency is
+  70 timed rows and `hold-during`/`hold-after` appear NOWHERE in the
+  2006 corpus (grepped whole) — board-scoped stage c is `within` +
+  `always-within` only, encoded as a search-maintained clock fluent
+  lowering timed operators to ordinary monitor transitions with
+  numeric conditions. Phase-shaped, not cycle-shaped; the gate to
+  take it stays "a+b clean at the cut."
+
 ## Phase 3 — the sitting (one budget currency, no ghost boards)
 
 The measurement agenda, designed and priced at 0.22 scoping, taken
@@ -168,6 +228,51 @@ whole:
   the desk work (pin, scoring path, driver registry, budget-guard)
   is 2–3 days. After this phase the denominator is ~6,366 and every
   row of it is comparable.
+
+### Recorded — the desk half, delivered whole (Phase 3)
+
+- ε-cap pin RED (silent cap) → GREEN (the escape names itself,
+  unconditionally — a budget-tier smell the sweep log must surface).
+- Makespan quality scores against the vendored archive (computed
+  per .soln from timed steps — the `; MakeSpan` headers are empty on
+  exactly the planner that dominates the tracks; MS_TIE one ε-slot
+  at the archive's coarsest granularity, pinned), rendering ONLY on
+  rows that carry a makespan — pre-0.22 raws stay coverage-only.
+- **The tier-move mechanism is a per-row budget stamp:** ipc67.py
+  stamps `budget` into every row from 0.23 on and the classifier
+  prefers the row's own stamp — so the 60 s raws classify right the
+  moment they land while the registry lags harmlessly, and
+  promote-air23.sh HARD-REFUSES promotion until the registry flip
+  is hand-made (both legs of the gate tested against fabricated
+  staging). The mco methodology is written where it renders:
+  wall-clock per the competition rule, one instance at a time, t8
+  oversubscribed-by-construction on 4P+6E and recorded as such.
+- Drivers verified end to end: 22 boards enumerate (time 130,
+  metric-time 200, mco 1,120), conditions machinery wholesale,
+  old-binary-at-new-budget stanzas in the header.
+
+### Recorded — probe 1: temporal DEAD, the arm ships classical-only
+
+- **Both pre-registered TMS reads FAILED, cleanly:** visited-class
+  collapse 1.27× against the 10× bar (orbits [10,15,25], 25 live
+  designations — the machinery WORKED; the state space simply is
+  not σ-collapsible at the visited level); best_h flat at the 110
+  stock floor, both arms, 15k/30k/60k — the 0.22 record's number
+  reproduced exactly. The NINTH mechanism-precise negative on the
+  TMS wall, and the cleanest: the choreography reading wins.
+- The arm ships CLASSICAL-ONLY behind FF_ORBIT_ISO (default off;
+  only solve_optimal's iso detection arms it), with the exact
+  backtracking witness matcher (~330 LOC over the ~250 estimate —
+  soundness-by-construction outranked the LOC guess, recorded), the
+  round-trip fixture RED-proven by live inverse-breaking, and the
+  child-snack inertness control (the arm must never weaken optimal
+  h where designations do not exist).
+- parc-printer-t: ZERO candidate groups (sheet profiles distinguish
+  every sheet) — the family stays field-SAT territory, now with a
+  receipt instead of a suspicion.
+- Consequence, per the pre-registered gate: **TRPG-lite is IN** —
+  probe 2 runs with its own reads, and the tenth negative gets
+  written without flinching if that is what the numbers say.
 
 ## Phase 4 — the structural probe pair (pre-registered two cycles ago)
 
@@ -226,6 +331,30 @@ Order fixed by cost and cleanliness of the negative:
 - **Cheap rider:** the PROVEN note gains '+orbits' so the next
   prover ledger reads the symmetry engine's contribution without
   archaeology.
+
+### Recorded — the follow-through pays (Phase 5; boards at the cut)
+
+- **Incremental LM-cut converts its counted case where the wall
+  allows:** no-mystery i15 PROVEN 23 in 10.6 s (air21's certificate
+  to the digit; 6,114 expansions, 4.0 label-passes per probe eval)
+  vs 0.22's node-cap miss at 59.6 s; child-snack i4 PROVEN 23 by
+  **LM-cut+orbits** inside probe round 1 at 2.3× — the first
+  certificate the two engines earn TOGETHER. elevator-11 i16/i12
+  honestly did not convert (their certs need more wall than
+  probe+leftover provides; the rebalance that would feed them
+  trades against the five recovered h^max certs — the cut boards
+  own that call).
+- **The fold kills the tax it was built to kill:** onlycraft i2 —
+  the 10.9×-tax witness — PROVEN 13 in 0.43 s vs 17.4 s (~40×
+  time-to-cert; rpg evals per node: zero). sailing-wind i8
+  byte-identical by design (the fold DECLINES on assign shapes and
+  says so — the residue is named, not hidden).
+- **Soundness:** 41/41 orbit-active + numeric certificate slices,
+  zero cost mismatches; the full 373-cert differential is the
+  cut's. One protocol finding worth the house note: differential
+  REPLAYS run UN-NICED — `nice -n 15` E-core-demotes wall-refereed
+  solves on this silicon and manufactures false regressions; builds
+  and probes stay niced, replays match board conditions.
 
 ## Phase 6 — grounding follow-through (walls, then the re-referee)
 

@@ -4,6 +4,44 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+Accumulating toward 0.23.0 — the temporal cycle, and the whole table
+on one box. Board claims land with the cut sweep. Full record:
+[`docs/roadmap-0.23.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.23.md).
+
+- **The constraints gate opens** (Phase 2, stages a+b): at-end
+  trajectory constraints fold as a TRAJ-END acceptance latch and the
+  untimed monitors (always/sometime/at-most-once/sometime-before)
+  ride the snap-compiled temporal path with a monitor AUDIT on the
+  emitted schedule — storage-time-constraints i1–i7 solve solo where
+  every one was an engine-reject; `within` now rejects by name only.
+  Found on the way: a deterministic VAL crash class (SIGBUS, zero
+  output) — the runner books it validation-unavailable, not
+  plan-rejected.
+- **The dockets close honest** (Phase 1): the openstacks ramp tax is
+  ACQUITTED engine-side (interleaved v0.21/v0.22 binaries are
+  eval-identical — the −3 was environmental); the damping bill's 3
+  rows fail under every arm including NODAMP (the scoping's
+  "recoverable" read was churn; bill stays open against the backfill
+  column); fo-sailing's +7 pinned to the SUM half alone; the two
+  dead flags leave the tree with the house law in their rustdoc.
+- **Probe 1: goal-isomorphism symmetry — temporal DEAD** by both
+  pre-registered reads (visited-class collapse 1.27× vs the 10× bar;
+  best_h flat at the 110 floor): the ninth TMS negative and the
+  cleanest. The arm ships classical-only behind `FF_ORBIT_ISO` with
+  the round-trip fixture; TRPG-lite's gate opens per the
+  pre-registration.
+- **The optimal follow-through** (Phase 5): incremental LM-cut
+  resumes failed probes (no-mystery i15 PROVEN 23 — the old
+  certificate to the digit; child-snack i4 PROVEN by LM-cut+orbits,
+  the engines' first joint certificate); the rep-folded numeric
+  labels kill the per-eval tax (onlycraft i2: 17.4 s → 0.43 s to the
+  same cost). 41/41 certificate slices, zero mismatches.
+- **The sitting's desk half** (Phase 3): the ε-cap fails loud; the
+  makespan quality column scores against the vendored IPC-5 archive;
+  the tier move rides a per-row budget stamp with a promote-time
+  registry gate; cut23-sweeps.sh carries all 22 boards with the mco
+  methodology written where it renders.
+
 ## [0.22.0] - 2026-08-08 — The coverage cycle, and the re-entries that ran hot
 
 The cycle scoped as "think big" on solving coverage: a fresh
