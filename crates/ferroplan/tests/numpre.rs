@@ -135,3 +135,50 @@ fn ff_numnov_smoke_still_solves() {
     std::env::remove_var("FF_NUMNOV");
     assert!(sol.solved, "numeric novelty is additive, never breaking");
 }
+
+// ---------------------------------------------------------------------------
+// The do-not-give-back fixture (0.23 Phase 1, the damping docket) —
+// fo-sailing i8 VERBATIM from IPC-2023 numeric (Scala & Ramirez's
+// first-order sailing extension; 429-byte instance, vendored whole).
+// The 0.22 SUM damping turned this row from a 55.7 s 0.21 timeout into a
+// 0.01 s solve, and the 0.23 attribution probe split the halves: with the
+// SUM half alone (FF_NUMPRE_NOSKIP=1) the solve is byte-identical at 287
+// evals — the mover-skip half is inert here — while first-wins
+// (FF_NUMPRE_NOSUM=1, and full NODAMP) grinds 3.5M/4.5M evals into the
+// 60 s wall. Any future conditioning of the damping must keep BOTH tests
+// green: this pair is the give-back detector for fo-sailing's +7.
+// ---------------------------------------------------------------------------
+
+const FOSAIL_DOM: &str = include_str!("../../../benchmarks/bench/fo-sailing-domain.pddl");
+const FOSAIL_I8: &str = include_str!("../../../benchmarks/bench/fo-sailing-i8.pddl");
+
+/// GREEN guard: the summed charge solves fo-sailing i8 inside a cap two
+/// orders under the first-wins grind (287 evals measured solo; 10k cap
+/// leaves headroom without admitting the plateau).
+#[test]
+fn fo_sailing_i8_fast_solve_must_survive() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let sol = ferroplan::solve(FOSAIL_DOM, FOSAIL_I8, &capped(10_000)).unwrap();
+    assert!(sol.solved, "fo-sailing i8's 0.01 s solve must survive");
+    assert!(
+        sol.statistics.evaluated_states < 2_000,
+        "the summed charge walks, never grinds: {} evals",
+        sol.statistics.evaluated_states
+    );
+}
+
+/// The RED twin that names the load-bearing half: first-wins pricing
+/// (FF_NUMPRE_NOSUM=1) loses the gradient and the same cap must fail —
+/// if this ever solves, the fixture above stopped guarding anything and
+/// the damping docket needs re-reading.
+#[test]
+fn fo_sailing_i8_dies_first_wins() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::set_var("FF_NUMPRE_NOSUM", "1");
+    let sol = ferroplan::solve(FOSAIL_DOM, FOSAIL_I8, &capped(10_000)).unwrap();
+    std::env::remove_var("FF_NUMPRE_NOSUM");
+    assert!(
+        !sol.solved,
+        "first-wins was expected to grind past the cap (the RED shape)"
+    );
+}

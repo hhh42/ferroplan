@@ -633,21 +633,32 @@ fn relaxed_extract(
         //     gradient: nothing selected there moves the band fluents.
         //
         // `FF_NUMPRE_NODAMP=1` restores the 0.21 charge exactly.
+        //
+        // The 0.23 Phase 1 attribution hatches split the two corrections
+        // so a bill row can name WHICH half it pays (the 0.22 damping
+        // opened a 3-row bill — ext-plant i10/i16, sugar i18 — all
+        // NODAMP-recoverable, and recovery needs the guilty half named
+        // before any conditioning is designed): `FF_NUMPRE_NOSKIP=1`
+        // charges even mover-covered preconditions (correction 2 off);
+        // `FF_NUMPRE_NOSUM=1` selects first-wins instead of accumulating
+        // (correction 1 off). Both together ≡ NODAMP.
         let damp = std::env::var("FF_NUMPRE_NODAMP").is_err();
+        let skip_half = damp && std::env::var("FF_NUMPRE_NOSKIP").is_err();
+        let sum_half = damp && std::env::var("FF_NUMPRE_NOSUM").is_err();
         let mut charges: Vec<(usize, i32)> = Vec::new();
         for oi in &selected_ops {
             for np in task.pre_num.slice(*oi) {
                 if eval_numpre(np, fv, def).unwrap_or(false) {
                     continue;
                 }
-                if damp && selected_mover_exists(task, &selected_ops, np, fv, def) {
+                if skip_half && selected_mover_exists(task, &selected_ops, np, fv, def) {
                     continue;
                 }
                 let Some((ai, reps)) = numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen)
                 else {
                     continue;
                 };
-                if damp {
+                if sum_half {
                     match charges.iter_mut().find(|(a, _)| *a == ai) {
                         Some((_, r)) => *r = r.saturating_add(reps),
                         None => charges.push((ai, reps)),
@@ -1415,6 +1426,27 @@ mod tests {
         let pair = water_h_pair();
         std::env::remove_var("FF_NUMPRE_NODAMP");
         assert_eq!(pair, (3, 10), "(h_init, h_after_right): the jump");
+    }
+
+    /// The 0.23 attribution hatches disable exactly ONE half each, pinned
+    /// on the mini where the OTHER half is inert (no selected op moves the
+    /// position combos, and `carrying ≥ 1` is satisfied, so the mover-skip
+    /// never fires here): `FF_NUMPRE_NOSUM=1` alone restores the first-wins
+    /// jump (≡ the NODAMP pair), and `FF_NUMPRE_NOSKIP=1` alone leaves the
+    /// summed pricing untouched (≡ the damped pair). The halves' live
+    /// receipts are fo-sailing i8's fixture pair in tests/numpre.rs — the
+    /// SUM half is load-bearing there and the skip half is byte-inert.
+    #[test]
+    fn split_hatches_disable_exactly_one_half_each() {
+        let _g = DAMP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("FF_NUMPRE_NOSUM", "1");
+        let nosum = water_h_pair();
+        std::env::remove_var("FF_NUMPRE_NOSUM");
+        assert_eq!(nosum, (3, 10), "NOSUM alone is first-wins on this mini");
+        std::env::set_var("FF_NUMPRE_NOSKIP", "1");
+        let noskip = water_h_pair();
+        std::env::remove_var("FF_NUMPRE_NOSKIP");
+        assert_eq!(noskip, (12, 10), "NOSKIP alone keeps the summed pricing");
     }
 
     // ---- 0.22 Phase 4 L0: the numeric-admissible layer bound + audit ----
