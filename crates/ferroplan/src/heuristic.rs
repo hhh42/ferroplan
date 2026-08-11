@@ -48,6 +48,67 @@ pub static T_RESET: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64:
 pub static T_BUILD: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 pub static T_EXTRACT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
+/// Slack for the TRPG window comparisons — refusal needs a REAL overrun,
+/// never a float hair (the temporal emission's own ε is 0.001; a millionth
+/// stays well under it).
+const TRPG_EPS: f64 = 1e-6;
+
+/// One over-all-invariant window an END op's relaxed payout is gated on
+/// (TRPG-lite, 0.23 Phase 4 probe 2, opt-in `FF_TRPG=1`). Two shapes, each
+/// with its own sound comparison:
+///
+/// - **Envelope** (`providers` non-empty): every adder of `fact` is a rigid
+///   durative START whose own paired END withdraws it — TMS's `(ready ?k)`,
+///   match-cellar's `(light ?m)`. The window can be RE-OPENED at any later
+///   time by refiring a provider, so absolute clocks prove nothing here;
+///   what no delay can change is the WIDTH. The gate compares the gated
+///   END's own duration against the widest APPLIED provider's duration —
+///   a 15-long bake can never fit an 8-long kiln window, whenever it fires.
+/// - **Static** (`providers` empty, `close` finite): `fact` is closed by a
+///   TIL — an exogenous, mandatory delete at an absolute time. With no
+///   adders at all the FIRST delete is final (`close` = min); with only
+///   TIL adders the last window's close is the optimistic bound (`close` =
+///   max). The gate compares the END's earliest fire time against `close`.
+///
+/// Mixed shapes (classical adders, conditional adds, state-dependent
+/// provider durations, `fact` initially true alongside providers) build NO
+/// window — the relaxation stays time-blind for them, the optimistic side.
+#[derive(Clone, Debug)]
+pub struct TrpgWindow {
+    /// The grounded over-all invariant fact this window guards.
+    pub fact: u32,
+    /// Envelope providers: (START op id, rigid duration). Empty = static.
+    pub providers: Vec<(u32, f64)>,
+    /// Absolute close time for provider-free (TIL-closed) windows;
+    /// `f64::INFINITY` when `providers` carry the width instead.
+    pub close: f64,
+}
+
+/// TRPG-lite tables (0.23 Phase 4 probe 2, opt-in `FF_TRPG=1`): the
+/// time-stamped relaxation's per-task constants, built ONCE per temporal
+/// task by `temporal::trpg_info` from the snap pairing (`Kind`), the
+/// grounded interval invariants (`InvMap`), and the TIL agenda. Armed by
+/// PRESENCE on the task (`PackedTask::trpg`, the `pair_end` precedent) and
+/// consumed only by the timed variant `relaxed_helpful` selects — the
+/// classical groundings never build the table, so the flag is provably
+/// inert there, and the temporal COMPLETE passes keep the time-blind
+/// heuristic (they enter through `relaxed_to`), so completeness never
+/// rests on the gate's approximations.
+pub struct TrpgInfo {
+    /// op id -> paired START op for END snaps with a RIGID duration;
+    /// `u32::MAX` otherwise. An END's fire time anchors at the start's
+    /// fire time plus `lag` (the end cannot land before start + duration).
+    pub start_of: Vec<u32>,
+    /// op id -> the rigid duration for anchored END ops; 0.0 otherwise.
+    pub lag: Vec<f64>,
+    /// op id -> absolute fire floor for TIL applier ops; 0.0 otherwise
+    /// (a positive TIL's add is not available before its wall time).
+    pub floor: Vec<f64>,
+    /// op id -> the windows gating this END's relaxed payout (empty for
+    /// non-END ops and ends whose invariants match no supported shape).
+    pub windows: Vec<Vec<TrpgWindow>>,
+}
+
 /// Reusable per-worker working memory for `relaxed`.
 pub struct Scratch {
     reached: Vec<bool>,
@@ -72,6 +133,14 @@ pub struct Scratch {
     /// FF helpful actions: relaxed-plan ops applicable in the current state
     /// (op_layer 0). Populated during extraction; read by EHC.
     helpful: Vec<u32>,
+    /// TRPG-lite time column (0.23 Phase 4 probe 2): earliest-achievable
+    /// time per fact, valid only where `reached` and only on TIMED builds
+    /// (`task.trpg` armed through `relaxed_helpful`). Empty and untouched
+    /// on every other path — the flag-off byte-identity is structural.
+    fact_time: Vec<f64>,
+    /// Per-op fire time on timed builds (stamp-gated like `op_layer`:
+    /// valid iff `op_stamp == gen`). END fires anchor at start + lag.
+    op_time: Vec<f64>,
 }
 
 impl Scratch {
@@ -92,10 +161,12 @@ impl Scratch {
             num_applied: Vec::with_capacity(task.n_ops),
             cond_ops: Vec::new(),
             helpful: Vec::new(),
+            fact_time: Vec::new(),
+            op_time: Vec::new(),
         }
     }
 
-    fn reset(&mut self, task: &PackedTask, bits: &[u64], fv: &[f64]) {
+    fn reset(&mut self, task: &PackedTask, bits: &[u64], fv: &[f64], timed: bool) {
         for f in 0..task.n_facts {
             self.reached[f] = bitset::test(bits, f);
         }
@@ -119,6 +190,15 @@ impl Scratch {
         self.num_applied.clear();
         self.cond_ops.clear();
         self.helpful.clear();
+        // The TRPG time column: dense re-zero only on TIMED builds (facts
+        // true in this state fire at 0.0; later reaches overwrite before
+        // any read). `op_time` needs no clearing — every read is
+        // stamp-gated, exactly like `op_layer`.
+        if timed {
+            self.fact_time.clear();
+            self.fact_time.resize(task.n_facts, 0.0);
+            self.op_time.resize(task.n_ops, 0.0);
+        }
     }
 }
 
@@ -264,7 +344,14 @@ fn build_rpg(
     goal_num: &[NumPre],
     def: &[bool],
     to_fixpoint: bool,
+    timed: bool,
 ) -> RpgExit {
+    // TRPG-lite (0.23 Phase 4 probe 2): the time column is a SECOND FIELD
+    // on this same fused loop, never a second pass — `trpg` is Some only
+    // on timed builds of a temporal task whose tables were armed, and
+    // every timed line below keys on it, so the flag-off path (and every
+    // classical task) runs the historical bytes.
+    let trpg = if timed { task.trpg.as_deref() } else { None };
     // ---- build the relaxed planning graph (two-phase, incremental) ----
     // Only UNAPPLIED ops are re-scanned each layer; applied ops never lose
     // applicability (delete-relaxed), so they are skipped — except those with
@@ -308,11 +395,23 @@ fn build_rpg(
                     .iter()
                     .all(|np| num_sat(np, &sc.lb, &sc.ub, def));
                 if pos_ok && num_ok {
+                    // Timed: a conditional add lands no earlier than the op's
+                    // own fire time and its condition facts' times.
+                    let ct = trpg.map(|_| {
+                        let mut t = sc.op_time[oi];
+                        for &c in &ce.cond_pos {
+                            t = t.max(sc.fact_time[c as usize]);
+                        }
+                        t
+                    });
                     for &f in &ce.add {
                         let f = f as usize;
                         if !sc.reached[f] {
                             sc.reached[f] = true;
                             sc.fact_layer[f] = layer + 1;
+                            if let Some(t) = ct {
+                                sc.fact_time[f] = t;
+                            }
                             changed = true;
                         }
                     }
@@ -342,6 +441,16 @@ fn build_rpg(
                     .iter()
                     .all(|np| num_sat(np, &sc.lb, &sc.ub, def));
             if ok {
+                if let Some(tp) = trpg {
+                    // Time-stamp the fire and gate the END payout. A refusal
+                    // leaves the op UNAPPLIED — it is re-scanned next layer
+                    // (a wider provider may yet arrive), and a stable refusal
+                    // simply never delivers its adds.
+                    match trpg_admit(tp, task, sc, oi) {
+                        Some(t) => sc.op_time[oi] = t,
+                        None => continue,
+                    }
+                }
                 sc.op_stamp[oi] = sc.gen;
                 sc.op_layer[oi] = layer;
                 sc.applicable.push(oi as u32);
@@ -357,6 +466,9 @@ fn build_rpg(
                 if !sc.reached[f] {
                     sc.reached[f] = true;
                     sc.fact_layer[f] = layer + 1;
+                    if trpg.is_some() {
+                        sc.fact_time[f] = sc.op_time[oi];
+                    }
                     changed = true;
                 }
             }
@@ -387,6 +499,60 @@ fn build_rpg(
     }
 }
 
+/// Time-stamp one newly relaxed-applicable op and gate its payout on the
+/// TRPG windows (0.23 Phase 4 probe 2). Returns the op's fire time, or
+/// None when a window refuses it: the op is not applied this layer.
+///
+/// Fire time = max of the op's precondition fact times, its TIL floor,
+/// and — for anchored ENDs — the paired start's fire plus the duration.
+/// These are FIRST-REACH times: an alternative achiever discovered at a
+/// later layer with an earlier time does not lower a stamp, so a static-
+/// window refusal can in principle over-fire where a slower-layer path is
+/// time-cheaper (recorded lite caveat). The envelope comparison dodges the
+/// whole clock: providers can always refire later, so only WIDTH decides —
+/// the END's own duration against the widest applied provider's — and
+/// refused ops are re-scanned every layer, so a wider provider arriving
+/// later un-refuses. Completeness never leans on any of this: the temporal
+/// complete passes evaluate time-blind (`relaxed_to`).
+fn trpg_admit(tp: &TrpgInfo, task: &PackedTask, sc: &Scratch, oi: usize) -> Option<f64> {
+    let mut fire = tp.floor[oi];
+    for &f in task.pre_pos.slice(oi) {
+        let t = sc.fact_time[f as usize];
+        if t > fire {
+            fire = t;
+        }
+    }
+    let s = tp.start_of[oi];
+    if s != u32::MAX && sc.op_stamp[s as usize] == sc.gen {
+        let anchored = sc.op_time[s as usize] + tp.lag[oi];
+        if anchored > fire {
+            fire = anchored;
+        }
+    }
+    for w in &tp.windows[oi] {
+        if w.providers.is_empty() {
+            // Static (TIL-closed): the fact dies at an absolute wall time.
+            if fire > w.close + TRPG_EPS {
+                return None;
+            }
+        } else {
+            // Envelope: width against width. No applied provider yet means
+            // the invariant fact arrived some other way this build — stay
+            // optimistic and let the payout through.
+            let mut width = f64::NEG_INFINITY;
+            for &(sp, d) in &w.providers {
+                if sc.op_stamp[sp as usize] == sc.gen && d > width {
+                    width = d;
+                }
+            }
+            if width > f64::NEG_INFINITY && tp.lag[oi] > width + TRPG_EPS {
+                return None;
+            }
+        }
+    }
+    Some(fire)
+}
+
 /// The numeric-admissible LENGTH bound (0.22 Phase 4 L0): reset `sc` on the
 /// given state, build the RPG toward the task's own goal, and return the
 /// exit reason — `GoalAt(k)` lower-bounds plan length from this state (see
@@ -404,8 +570,8 @@ pub(crate) fn admissible_goal_layers(
     fv: &[f64],
     def: &[bool],
 ) -> RpgExit {
-    sc.reset(task, bits, fv);
-    build_rpg(task, sc, &task.goal_pos, &task.goal_num, def, false)
+    sc.reset(task, bits, fv, false);
+    build_rpg(task, sc, &task.goal_pos, &task.goal_num, def, false, false)
 }
 
 /// The containment audit (0.22 Phase 4 L0): rejects BY NAME the shapes
@@ -484,8 +650,8 @@ pub fn reachability_layers(
     fv: &[f64],
     def: &[bool],
 ) -> (Vec<u32>, Vec<u32>) {
-    sc.reset(task, bits, fv);
-    build_rpg(task, sc, &[], &[], def, true);
+    sc.reset(task, bits, fv, false);
+    build_rpg(task, sc, &[], &[], def, true, false);
     let op_layer: Vec<u32> = (0..task.n_ops)
         .map(|oi| {
             if sc.op_stamp[oi] == sc.gen {
@@ -500,7 +666,10 @@ pub fn reachability_layers(
 
 /// Relaxed-plan heuristic toward an ARBITRARY (sub)goal, using reusable `sc`.
 /// None == dead end. This is the subplanner heuristic SGPlan-style partitioning
-/// drives with per-subproblem goals.
+/// drives with per-subproblem goals. Always TIME-BLIND — the TRPG-lite
+/// variant enters only through [`relaxed_helpful`] (the temporal pruned
+/// pass's door), so the complete passes and every classical/subplanner
+/// caller keep the historical heuristic byte-for-byte.
 pub fn relaxed_to(
     task: &PackedTask,
     sc: &mut Scratch,
@@ -510,13 +679,27 @@ pub fn relaxed_to(
     goal_pos: &[u32],
     goal_num: &[NumPre],
 ) -> Option<i32> {
+    relaxed_to_inner(task, sc, bits, fv, def, goal_pos, goal_num, false)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn relaxed_to_inner(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    timed: bool,
+) -> Option<i32> {
     use std::sync::atomic::Ordering::Relaxed;
     let t0 = crate::clock::Clock::now();
-    sc.reset(task, bits, fv);
+    sc.reset(task, bits, fv, timed);
     T_RESET.fetch_add(t0.elapsed_us() as u64, Relaxed);
 
     let t0 = crate::clock::Clock::now();
-    build_rpg(task, sc, goal_pos, goal_num, def, false);
+    build_rpg(task, sc, goal_pos, goal_num, def, false, timed);
     T_BUILD.fetch_add(t0.elapsed_us() as u64, Relaxed);
 
     if !goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
@@ -746,7 +929,21 @@ pub fn relaxed_helpful(
     goal_pos: &[u32],
     goal_num: &[NumPre],
 ) -> Option<(i32, Vec<u32>)> {
-    let h = relaxed_to(task, sc, bits, fv, def, goal_pos, goal_num)?;
+    // TRPG-lite arming (0.23 Phase 4 probe 2): PRESENCE of the table picks
+    // the time-gated build — never the env (the `pair_end` rule). Only the
+    // temporal solve path builds the table (under FF_TRPG), and only its
+    // PRUNED pass evaluates through here, so the complete passes stay
+    // time-blind and completeness never rests on the gate.
+    let h = relaxed_to_inner(
+        task,
+        sc,
+        bits,
+        fv,
+        def,
+        goal_pos,
+        goal_num,
+        task.trpg.is_some(),
+    )?;
     // really applicable in THIS state (op_layer 0 is only relaxed-applicable —
     // numeric interval bounds are optimistic, so re-check exactly).
     let applicable = |oi: usize| {

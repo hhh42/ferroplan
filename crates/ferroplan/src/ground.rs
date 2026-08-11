@@ -2887,6 +2887,9 @@ fn ground_v(
         // The end-gate pair table is a TEMPORAL think-time overlay
         // (temporal.rs `endgate_pairs`, 0.21 Phase 8) — never grounded in.
         pair_end: None,
+        // Same rule for the TRPG-lite tables (temporal.rs `trpg_info`,
+        // 0.23 Phase 4 probe 2) — a temporal solve-time overlay.
+        trpg: None,
         fact_names: fact_names_packed.into(),
         fluent_names: fluent_names.into(),
         static_fluents: static_fluents.into(),

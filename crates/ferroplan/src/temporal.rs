@@ -707,6 +707,20 @@ fn solve_inner(
         .filter_map(|(t, name)| by_display.get(name.as_str()).map(|&oi| (*t, oi)))
         .collect();
 
+    // TRPG-lite (0.23 Phase 4 probe 2, opt-in `FF_TRPG=1`): arm the
+    // time-stamped relaxation's tables on the task. The env is read HERE
+    // and only here — the heuristic keys on the table's presence (the
+    // `pair_end` rule), so flag-off is byte-identical by construction and
+    // the classical groundings can never enter the timed build.
+    if std::env::var("FF_TRPG").is_ok() {
+        task.trpg = Some(std::sync::Arc::new(trpg_info(
+            &task,
+            &kind,
+            &inv,
+            &til_events,
+        )));
+    }
+
     // Object-symmetry orbits (0.14 ext Phase 10): detected against the COMPILED
     // lifted pair (op displays are snap-action names). None = no usable symmetry.
     // Constrained tasks stay orbit-free — the classical rule (api.rs): a
@@ -984,6 +998,125 @@ pub(crate) fn endgate_pairs(kind: &[Kind]) -> Option<Vec<u32>> {
             })
             .collect()
     })
+}
+
+/// TRPG-lite tables (0.23 Phase 4 probe 2, opt-in `FF_TRPG=1` at the call
+/// site): per-op END fire anchors and TIL floors from the snap pairing,
+/// plus the over-all-invariant WINDOWS each END's relaxed payout is gated
+/// on — built once per task from `build_kind`'s classification, the
+/// [`InvMap`], and the TIL agenda. Two window shapes are recognized, each
+/// with a sound comparison (heuristic.rs `TrpgWindow` carries the full
+/// argument):
+///
+/// - **Envelope**: every adder of the invariant fact is a rigid START that
+///   unconditionally adds it and whose own paired END deletes it (TMS's
+///   `(ready ?k)`, match-cellar's `(light ?m)`) — width vs width.
+/// - **Static**: the fact's only exogenous fate is a TIL delete (no adders
+///   at all, or only TIL adders) — an absolute close time.
+///
+/// Anything else (classical adders, conditional adds, state-dependent
+/// provider durations, init-true alongside providers) builds no window:
+/// the relaxation stays optimistic there, never wrong-side.
+pub(crate) fn trpg_info(
+    task: &PackedTask,
+    kind: &[Kind],
+    inv: &InvMap,
+    til_events: &[(f64, usize)],
+) -> crate::heuristic::TrpgInfo {
+    use crate::heuristic::{TrpgInfo, TrpgWindow};
+    let n = task.n_ops;
+    let mut start_of = vec![u32::MAX; n];
+    let mut lag = vec![0.0f64; n];
+    let mut floor = vec![0.0f64; n];
+    for (oi, k) in kind.iter().enumerate() {
+        if let Kind::Start { dur, end_op, dexp } = *k {
+            // Rigid durations only; a state-dependent END stays un-anchored
+            // (time-blind for that pair — the optimistic side). The min
+            // guard is defensive: grounded START/END names pair 1:1 today.
+            if dexp == u32::MAX && (start_of[end_op] == u32::MAX || dur < lag[end_op]) {
+                start_of[end_op] = oi as u32;
+                lag[end_op] = dur;
+            }
+        }
+    }
+    for &(t, oi) in til_events {
+        if t > floor[oi] {
+            floor[oi] = t;
+        }
+    }
+    let mut windows: Vec<Vec<TrpgWindow>> = vec![Vec::new(); n];
+    for (&end_op, (pos, _neg, _num)) in inv.iter() {
+        let mut wins: Vec<TrpgWindow> = Vec::new();
+        for &p in pos {
+            let mut adders: Vec<usize> = task
+                .add_by_fact
+                .slice(p as usize)
+                .iter()
+                .map(|&o| o as usize)
+                .collect();
+            adders.sort_unstable();
+            adders.dedup();
+            let init_true = crate::bitset::test(&task.init_bits, p as usize);
+            let envelope = !init_true
+                && !adders.is_empty()
+                && adders.iter().all(|&a| match kind[a] {
+                    Kind::Start {
+                        end_op: ae, dexp, ..
+                    } => {
+                        dexp == u32::MAX
+                            && task.add.slice(a).contains(&p)
+                            && task.del.slice(ae).contains(&p)
+                    }
+                    _ => false,
+                });
+            if envelope {
+                let providers: Vec<(u32, f64)> = adders
+                    .iter()
+                    .filter_map(|&a| match kind[a] {
+                        Kind::Start { dur, .. } => Some((a as u32, dur)),
+                        _ => None,
+                    })
+                    .collect();
+                wins.push(TrpgWindow {
+                    fact: p,
+                    providers,
+                    close: f64::INFINITY,
+                });
+                continue;
+            }
+            let all_til = adders.iter().all(|&a| matches!(kind[a], Kind::Til));
+            if adders.is_empty() || all_til {
+                let dels: Vec<f64> = til_events
+                    .iter()
+                    .filter(|&&(_, o)| task.del.slice(o).contains(&p))
+                    .map(|&(t, _)| t)
+                    .collect();
+                if !dels.is_empty() {
+                    // No adders: the FIRST delete is final. TIL re-adds:
+                    // the LAST window's close is the optimistic bound.
+                    let close = if adders.is_empty() {
+                        dels.iter().cloned().fold(f64::INFINITY, f64::min)
+                    } else {
+                        dels.iter().cloned().fold(f64::NEG_INFINITY, f64::max)
+                    };
+                    wins.push(TrpgWindow {
+                        fact: p,
+                        providers: Vec::new(),
+                        close,
+                    });
+                }
+            }
+        }
+        // Deterministic window order regardless of InvMap iteration.
+        wins.sort_by_key(|w| w.fact);
+        windows[end_op] = wins;
+    }
+    TrpgInfo {
+        start_of,
+        lag,
+        floor,
+        windows,
+    }
 }
 
 /// Classify every grounded op as a durative Start (with resolved duration + paired
@@ -4536,5 +4669,189 @@ mod tests {
             !quiet.contains("separation cap"),
             "an at-cap (separated) plan must not warn:\n{quiet}"
         );
+    }
+
+    // ---- TRPG-lite (0.23 Phase 4 probe 2): tables + gate pins ----
+
+    /// Ground a durative pair straight through the snap compiler and hand
+    /// back everything the TRPG pins read.
+    fn trpg_setup(dom: &str, prb: &str) -> (PackedTask, Vec<Kind>, InvMap, Vec<(f64, usize)>) {
+        let d = crate::parser::parse_domain(dom).unwrap();
+        let p = crate::parser::parse_problem(prb).unwrap();
+        let c = compile(&d, &p);
+        let task = match crate::ground::ground_stratified(&c.domain, &c.problem, 1) {
+            crate::ground::Outcome::Task(t) => t,
+            _ => panic!("trpg fixture must ground"),
+        };
+        let (kind, _dur, inv) = build_kind(&task, &c);
+        let by_display: HashMap<&str, usize> = task
+            .op_display
+            .iter()
+            .enumerate()
+            .map(|(i, d)| (d.as_str(), i))
+            .collect();
+        let til_events: Vec<(f64, usize)> = c
+            .til_ops
+            .iter()
+            .filter_map(|(t, name)| by_display.get(name.as_str()).map(|&oi| (*t, oi)))
+            .collect();
+        (task, kind, inv, til_events)
+    }
+
+    fn op_id(task: &PackedTask, needle: &str) -> usize {
+        (0..task.n_ops)
+            .find(|&oi| task.op_display[oi] == needle)
+            .unwrap_or_else(|| panic!("op {needle} must ground"))
+    }
+
+    /// h toward one named goal fact, timed (through `relaxed_helpful`, the
+    /// pruned pass's door — the only entry that arms the tables).
+    fn h_timed(task: &PackedTask, goal: &[u32]) -> Option<i32> {
+        let init = task.initial();
+        let mut sc = crate::heuristic::Scratch::new(task);
+        crate::heuristic::relaxed_helpful(
+            task,
+            &mut sc,
+            &init.bits,
+            &init.fv,
+            &init.fdef,
+            goal,
+            &[],
+        )
+        .map(|(h, _)| h)
+    }
+
+    /// h toward one named goal fact, TIME-BLIND (through `relaxed_to`, the
+    /// complete passes' door — never timed, table armed or not).
+    fn h_blind(task: &PackedTask, goal: &[u32]) -> Option<i32> {
+        let init = task.initial();
+        let mut sc = crate::heuristic::Scratch::new(task);
+        crate::heuristic::relaxed_to(task, &mut sc, &init.bits, &init.fv, &init.fdef, goal, &[])
+    }
+
+    /// The WINDOW fixture (envelope shape, the TMS `(ready ?k)` relation):
+    /// FIRE (8) provides (hot) at start and withdraws it at its own end;
+    /// BAKE-OK (5) fits the window, BAKE-OVER (15) cannot — in any real
+    /// plan, at any firing time. The tables must pin the envelope
+    /// providers, and the gate must refuse exactly the overrun: time-blind
+    /// h credits both (the RED half, the 110-floor mechanism), the timed
+    /// build pays the fit and refuses the overrun (GREEN).
+    #[test]
+    fn trpg_envelope_window_refuses_the_overrun_and_pays_the_fit() {
+        let dom = "(define (domain trpgkiln)
+          (:requirements :strips :durative-actions)
+          (:predicates (energy) (hot) (done-ok) (done-over))
+          (:durative-action fire
+            :parameters ()
+            :duration (= ?duration 8)
+            :condition (over all (energy))
+            :effect (and (at start (hot)) (at end (not (hot)))))
+          (:durative-action bake-ok
+            :parameters ()
+            :duration (= ?duration 5)
+            :condition (over all (hot))
+            :effect (at end (done-ok)))
+          (:durative-action bake-over
+            :parameters ()
+            :duration (= ?duration 15)
+            :condition (over all (hot))
+            :effect (at end (done-over))))";
+        let prb = "(define (problem pk) (:domain trpgkiln)
+          (:init (energy)) (:goal (and (done-ok) (done-over))))";
+        let (mut task, kind, inv, tils) = trpg_setup(dom, prb);
+        let info = trpg_info(&task, &kind, &inv, &tils);
+
+        let fire_start = op_id(&task, "FIRE-START");
+        let ok_end = op_id(&task, "BAKE-OK-END");
+        let over_end = op_id(&task, "BAKE-OVER-END");
+        assert_eq!(info.start_of[ok_end], op_id(&task, "BAKE-OK-START") as u32);
+        assert_eq!(info.lag[ok_end], 5.0);
+        assert_eq!(info.lag[over_end], 15.0);
+        for &e in &[ok_end, over_end] {
+            let w = &info.windows[e];
+            assert_eq!(w.len(), 1, "one (hot) window on each bake END");
+            assert_eq!(w[0].providers, vec![(fire_start as u32, 8.0)]);
+            assert!(
+                w[0].close.is_infinite(),
+                "envelope carries width, not clock"
+            );
+        }
+        // FIRE-END's own (energy) invariant: init-true, no adders, no TIL
+        // deleter — no window, the optimistic side.
+        assert!(info.windows[op_id(&task, "FIRE-END")].is_empty());
+
+        let done_ok = task.fact_id("(DONE-OK)").expect("fact") as u32;
+        let done_over = task.fact_id("(DONE-OVER)").expect("fact") as u32;
+        // RED half (time-blind, the shipped heuristic): both bakes credit.
+        assert_eq!(
+            h_blind(&task, &[done_over]),
+            Some(3),
+            "blind: fire+start+end"
+        );
+        // GREEN half: armed, the fit pays and the overrun refuses.
+        task.trpg = Some(std::sync::Arc::new(info));
+        assert_eq!(h_timed(&task, &[done_ok]), Some(3), "5 fits the 8 window");
+        assert_eq!(
+            h_timed(&task, &[done_over]),
+            None,
+            "15 can never fit an 8-wide window — the payout must refuse"
+        );
+        // The time-blind door stays blind even with the table armed (the
+        // complete passes' completeness rests on this).
+        assert_eq!(h_blind(&task, &[done_over]), Some(3));
+    }
+
+    /// The CHAIN fixture (static shape): A's end (4) enables B (5) whose
+    /// over-all (window) is closed by a TIL delete at t=6 — earliest B-END
+    /// is 4+5=9, the window is gone at 6, and no plan can delay the TIL.
+    /// The time-blind RPG credits B (RED half); the time-stamped one
+    /// refuses (GREEN). The solvable twin (close 12) must keep its credit
+    /// — the do-no-harm side of the same arithmetic.
+    #[test]
+    fn trpg_chain_refuses_past_the_static_til_close() {
+        let dom = "(define (domain trpgchain)
+          (:requirements :strips :durative-actions :timed-initial-literals)
+          (:predicates (window) (enabled) (done))
+          (:durative-action acta
+            :parameters ()
+            :duration (= ?duration 4)
+            :effect (at end (enabled)))
+          (:durative-action actb
+            :parameters ()
+            :duration (= ?duration 5)
+            :condition (and (at start (enabled)) (over all (window)))
+            :effect (at end (done))))";
+        let prb_at = |t: u32| {
+            format!(
+                "(define (problem pc) (:domain trpgchain)
+                  (:init (window) (at {t} (not (window))))
+                  (:goal (done)))"
+            )
+        };
+        let (mut task, kind, inv, tils) = trpg_setup(dom, &prb_at(6));
+        let info = trpg_info(&task, &kind, &inv, &tils);
+        let b_end = op_id(&task, "ACTB-END");
+        let w = &info.windows[b_end];
+        assert_eq!(w.len(), 1, "one (window) window on B's END");
+        assert!(w[0].providers.is_empty(), "TIL-closed: static");
+        assert_eq!(w[0].close, 6.0, "first delete is final — no adders");
+        let done = task.fact_id("(DONE)").expect("fact") as u32;
+        assert_eq!(
+            h_blind(&task, &[done]),
+            Some(4),
+            "RED: the blind RPG credits B"
+        );
+        task.trpg = Some(std::sync::Arc::new(info));
+        assert_eq!(
+            h_timed(&task, &[done]),
+            None,
+            "GREEN: earliest B-END is 9, the window died at 6"
+        );
+
+        // The solvable twin: close 12 clears 9 — armed h must equal blind h.
+        let (mut twin, kind, inv, tils) = trpg_setup(dom, &prb_at(12));
+        twin.trpg = Some(std::sync::Arc::new(trpg_info(&twin, &kind, &inv, &tils)));
+        let done = twin.fact_id("(DONE)").expect("fact") as u32;
+        assert_eq!(h_timed(&twin, &[done]), Some(4), "9 fits a 12 close");
     }
 }

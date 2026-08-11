@@ -145,6 +145,16 @@ pub struct PackedTask {
     /// classical heuristic provably never enters the end-gate discount.
     pub pair_end: Option<Vec<u32>>,
 
+    /// TRPG-lite tables (0.23 Phase 4 probe 2, opt-in `FF_TRPG=1`): the
+    /// time-stamped relaxation's per-task constants — END fire anchors,
+    /// TIL floors, and the over-all-invariant windows the END payout is
+    /// gated on. Populated ONLY by the temporal solve path (from
+    /// `build_kind`'s classification + the `InvMap` + the TIL agenda) and
+    /// only under the flag; `None` everywhere else, so the classical
+    /// heuristic provably never enters the timed build (the `pair_end`
+    /// rule). Arc'd: the table is search-lifetime read-only.
+    pub trpg: Option<Arc<crate::heuristic::TrpgInfo>>,
+
     pub fact_names: Arc<[String]>,
     /// fluent id -> display string `(NAME ARGS)` (for metric/cost-fluent lookup).
     pub fluent_names: Arc<[String]>,
