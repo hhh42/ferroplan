@@ -308,6 +308,33 @@ Order fixed by cost and cleanliness of the negative:
   no lever is promised against storage-t or model-train this cycle,
   and the roadmap says so in the same breath as the probes.
 
+### Recorded — probe 2: the tenth negative, and the sharpest mechanism yet
+
+- **TRPG-lite is probe-negative by its first pre-registered read** —
+  TMS-2011 i1 best_h flat at 110 under FF_TRPG, byte-identical to
+  flag-off to the row — while reads 2 and 3 passed clean (kiln-pack
+  EVAL-IDENTICAL near-linearity, now 29→335 for N=2..12, improved
+  from the 0.15 receipt's 29→539; match-cellar byte-identical plan
+  and wall). Every constituency read flat: floor-tile-t 8,
+  driver-log 12, sokoban-t solves both sides.
+- **The mechanism, and it closes a five-cycle question:** the two
+  temporally-expressive feasibility facts a delete relaxation CAN be
+  taught soundly — envelope width and TIL close — are provably not
+  where the plateaus live. TMS types its single kiln as BOTH kilns,
+  giving every window width 20 against max-15 bakes: nothing ever
+  overruns, so the 110 plateau is CHOREOGRAPHY, confirming the
+  agenda-doom receipts from the other side. floor-tile-t and
+  driver-log carry no windows at all — the gate is inert there by
+  construction, not by weakness. The residual is
+  choreography/serialization, which no per-state relaxation payout
+  can price. Ten negatives, and this one says why the other nine
+  had to fail.
+- The ~620 lines stay behind FF_TRPG (flag-off byte-identical by
+  construction, pinned), the chain/window fixtures keep the
+  mechanism honest, and the temporal-bet ledger CLOSES for this
+  codebase's current machinery: what remains on those walls needs
+  different search, not better relaxation.
+
 ## Phase 5 — the optimal follow-through (counted cases only)
 
 - **Incremental LM-cut** (~150–250 LOC in optimal.rs, 2–3 days):
@@ -374,6 +401,46 @@ Order fixed by cost and cleanliness of the negative:
   pathwaysmetric, 38 rows, mechanism genuinely unknown — never in
   any pot map). Findings feed 0.24; the standing protocol
   (`FF_NO_ESCALATE=1`, eval-denominated ladders) applies.
+
+### Recorded — the wall arms, MCV's defeat confesses, the gate stands
+
+- **The entry split shipped** (ground_stratified_walled arms the
+  0.22 GroundWall on temporal solve + decompose; validate/session
+  re-grounding exempt), fixtures RED→GREEN, classical legs green.
+- **The MCV defeat was one token class:** the stratified pass's
+  full-cover RUNNING-* producer tokens read as connectivity signal,
+  so every parameter looked connected from pick 1 and the tie-break
+  degraded to domain size. Six lines: sokoban-t 2008 i21's grounding
+  falls **>65 s → 4.2 s**, i8 5.6 → 1.0 s; the byte-identity battery
+  pins that no op stream can move.
+- **The re-referee re-attributes the family a second time:**
+  grounding now takes seconds and sokoban-t is SEARCH-bound — and
+  the probe found why the wall still leaks there: **the temporal
+  decision-epoch search has no wall checkpoints** (eval-budget
+  denominated only). Search-side temporal wall discipline is the
+  named 0.24 item, with this receipt. 2008 i8 still solves, more
+  headroom. Second instrument finding, for the desk notes: the CLI
+  TEXT path never arms the wall clock (boards unaffected — they run
+  --json).
+- **Lever 3 REFUSED on honest sizing, and the refusal got
+  stronger:** org-synth i11 exits honestly at 32.4 s; the
+  perfect-index simulation (round-1 embeddings of every hot action,
+  per-action caps making it a LOWER bound) still misses the gate —
+  indexed hash-joins do not clear it, and the honest sizing can only
+  get worse. The gate stands as 0.24's problem with better receipts.
+  Agricola's coin-flip class stands (61.5 s niced, no lever).
+- **The last sittings landed their tables**
+  (benchmarks/metrics/temporal-attribution-0.23.md,
+  numeric-twins-0.23.md): transport-t PLATEAU with a fuel-visibility
+  signature recorded-not-diagnosed; parc-printer PLATEAU, lever
+  none-known (field-SAT territory, now with rungs); rtam a
+  DECELERATING GRIND; satellite MIXED (the 0.22 PENDING row closed);
+  driver-log MIXED confirmed at full ladder. markettrader: PLATEAU,
+  gradient-free at full throughput — w_h 5→320 changes NOTHING
+  across 5.1M evals; pathwaysmetric MIXED, and the twins-moved-0
+  verification is on the record (0.22's +8 was block-grouping's).
+  b_blocked = 0 on all 34 probes — the BLOCKED class is empty
+  everywhere anyone has ever looked, two sittings running.
 
 ## Phase 7 — cut 0.23.0 (the complete table)
 

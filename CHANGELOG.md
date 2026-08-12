@@ -36,6 +36,24 @@ on one box. Board claims land with the cut sweep. Full record:
   the engines' first joint certificate); the rep-folded numeric
   labels kill the per-eval tax (onlycraft i2: 17.4 s → 0.43 s to the
   same cost). 41/41 certificate slices, zero mismatches.
+- **Probe 2: TRPG-lite — the tenth temporal negative, with the
+  mechanism** (Phase 4): time-stamped relaxation lands behind
+  `FF_TRPG`, reads clean on kiln-pack/match-cellar, and the
+  pre-registered TMS read fails byte-identically — because the
+  window facts a relaxation can soundly learn are provably not where
+  the plateaus live (TMS's windows are never overrun; floor-tile and
+  driver-log carry none). The temporal-bet ledger closes: those
+  walls need different search, not better relaxation.
+- **The temporal grounding wall, and MCV's confession** (Phase 6):
+  the solve-path grounding arms the honest budget exit; the
+  six-line mcv_order fix (full-cover producer tokens drowning the
+  connectivity signal) drops sokoban-t i21's grounding from >65 s to
+  4.2 s — the family re-attributes to search-side wall discipline
+  (the temporal search has no wall checkpoints; named for 0.24).
+  Indexed hash-joins REFUSED on a lower-bound simulation that still
+  misses the gate. The last attribution sittings close satellite's
+  pending row and pin markettrader as gradient-free (w_h 5→320
+  changes nothing).
 - **The sitting's desk half** (Phase 3): the ε-cap fails loud; the
   makespan quality column scores against the vendored IPC-5 archive;
   the tier move rides a per-row budget stamp with a promote-time
