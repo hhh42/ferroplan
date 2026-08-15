@@ -2451,6 +2451,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ferroplan-sat"
+version = "0.23.0"
+
+[[package]]
 name = "ferroplan-wasm"
 version = "0.23.0"
 dependencies = [

@@ -1,0 +1,9 @@
+c satdiff: chain-forced-sat.cnf
+c expect: SAT
+c unique-model: 1 2 3 4
+c unit-propagated implication chain, unique model
+p cnf 4 4
+1 0
+-1 2 0
+-2 3 0
+-3 4 0

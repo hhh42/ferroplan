@@ -1,0 +1,6 @@
+c satdiff: empty-clause-unsat.cnf
+c expect: UNSAT
+c the empty clause is present
+p cnf 2 2
+1 2 0
+0

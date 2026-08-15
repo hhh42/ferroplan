@@ -1,0 +1,8 @@
+c satdiff: chain-break-unsat.cnf
+c expect: UNSAT
+c implication chain with the far end forced false
+p cnf 3 4
+1 0
+-1 2 0
+-2 3 0
+-3 0

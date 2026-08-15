@@ -1,0 +1,8 @@
+c satdiff: xor-pair-unsat.cnf
+c expect: UNSAT
+c x1 xor x2 asserted both 1 and 0
+p cnf 2 4
+1 2 0
+-1 -2 0
+1 -2 0
+-1 2 0

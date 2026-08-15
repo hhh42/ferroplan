@@ -1,0 +1,8 @@
+c satdiff: taut-mix-sat.cnf
+c expect: SAT
+c duplicate literals and a tautological clause must be tolerated
+p cnf 3 4
+1 1 2 0
+3 -3 1 0
+-1 -2 2 -2 0
+-2 3 0

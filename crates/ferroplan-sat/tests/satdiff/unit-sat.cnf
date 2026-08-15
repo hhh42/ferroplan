@@ -1,0 +1,6 @@
+c satdiff: unit-sat.cnf
+c expect: SAT
+c unique-model: 1
+c a single unit clause
+p cnf 1 1
+1 0

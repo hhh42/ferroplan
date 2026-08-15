@@ -1,0 +1,19 @@
+[package]
+name = "ferroplan-sat"
+description = "ferroplan's in-tree CDCL SAT solver — absorbed from varisat 0.2.2 and carried forward as ferroplan code"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords = ["sat", "cdcl", "solver", "planning", "cnf"]
+categories = ["science", "algorithms"]
+
+# The absorption gate: zero external dependencies, dev included. The
+# differential battery in tests/satdiff.rs is the only referee this
+# crate answers to.
+[dependencies]
+
+[dev-dependencies]

@@ -1,0 +1,7 @@
+c satdiff: php-2-1.cnf
+c expect: UNSAT
+c pigeonhole: 2 pigeons, 1 holes — no injection exists
+p cnf 2 3
+1 0
+2 0
+-1 -2 0
