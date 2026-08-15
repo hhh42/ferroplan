@@ -66,6 +66,7 @@ impl Vsids {
     }
 
     /// Change the decay factor.
+    #[cfg(test)]
     pub fn set_decay(&mut self, decay: f32) {
         assert!(decay < 1.0);
         assert!(decay > 1.0 / 16.0);

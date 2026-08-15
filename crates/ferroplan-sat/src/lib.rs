@@ -23,7 +23,6 @@
 //! [varisat]: https://github.com/jix/varisat
 
 pub mod cnf;
-pub mod config;
 pub mod dimacs;
 pub mod lit;
 pub mod solver;
@@ -33,6 +32,7 @@ mod assumptions;
 mod binary;
 mod cdcl;
 mod clause;
+mod config;
 mod context;
 mod decision;
 mod glue;
@@ -46,6 +46,5 @@ mod unit_simplify;
 mod variables;
 
 pub use cnf::{CnfFormula, ExtendFormula};
-pub use config::SolverConfig;
 pub use lit::{Lit, Var};
 pub use solver::{Solver, SolverError};

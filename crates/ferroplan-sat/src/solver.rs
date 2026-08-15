@@ -15,8 +15,7 @@ use std::fmt;
 use crate::{
     assumptions::set_assumptions,
     cnf::{CnfFormula, ExtendFormula},
-    config::SolverConfig,
-    context::{config_changed, Context},
+    context::Context,
     lit::{Lit, Var},
     load::load_clause,
     schedule::schedule_step,
@@ -60,12 +59,6 @@ impl Solver {
     /// Create a new solver.
     pub fn new() -> Solver {
         Solver::default()
-    }
-
-    /// Change the solver configuration.
-    pub fn set_config(&mut self, config: SolverConfig) {
-        self.ctx.solver_config = config;
-        config_changed(&mut self.ctx);
     }
 
     /// Add a formula to the solver.
@@ -179,20 +172,5 @@ mod tests {
         assert_eq!(solver.solve().ok(), Some(false));
         assert_eq!(solver.model(), None);
         assert_eq!(solver.failed_core(), Some(&[][..]));
-    }
-
-    #[test]
-    fn tiny_config_change_applies() {
-        let mut solver = Solver::new();
-        let config = SolverConfig {
-            reduce_locals_interval: 150,
-            reduce_mids_interval: 100,
-            ..SolverConfig::default()
-        };
-        solver.set_config(config);
-
-        solver.add_clause(&lits(&[1, 2]));
-        solver.add_clause(&lits(&[-1, 2]));
-        assert_eq!(solver.solve().ok(), Some(true));
     }
 }

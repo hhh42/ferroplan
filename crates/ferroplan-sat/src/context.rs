@@ -65,10 +65,3 @@ pub fn set_var_count(ctx: &mut Context, count: usize) {
     ctx.vsids.set_var_count(count);
     ctx.watchlists.set_var_count(count);
 }
-
-/// The solver configuration has changed.
-pub fn config_changed(ctx: &mut Context) {
-    ctx.vsids.set_decay(ctx.solver_config.vsids_decay);
-    ctx.clause_activity
-        .set_decay(ctx.solver_config.clause_activity_decay);
-}
