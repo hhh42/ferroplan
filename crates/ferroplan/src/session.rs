@@ -205,7 +205,7 @@ pub struct Session {
     running: Vec<(f64, usize)>,
     /// The lifted (post-`derived::compile`) domain/problem this session
     /// was grounded from — CLASSICAL sessions only, retained for the
-    /// per-think orbit re-detection (0.24 Phase 5, [`Session::orbit_now`]).
+    /// per-think orbit re-detection (0.24 Phase 5, `Session::orbit_now`).
     /// Temporal sessions retain nothing: their appended TIL-setter ops sit
     /// outside any σ family certification, so they stay orbit-free by the
     /// 0.14 decision. `Arc`-shared by forks like every other immutable
@@ -1771,7 +1771,7 @@ impl Session {
     ///
     /// Classical thinks are also ORBIT-AWARE: object-symmetry detection
     /// re-runs against the CURRENT world and goal on every call (see
-    /// [`Session::orbit_now`]'s contract) and the canonical visited keys
+    /// `Session::orbit_now`'s contract) and the canonical visited keys
     /// ride the best-first fallback. `replan`/`replan_budgeted` keep their
     /// standing orbit-free behavior byte-for-byte — the think is the new
     /// contract, not a rewrite of the old one.

@@ -179,6 +179,46 @@ as a dependency bump:
   territory). Wing total **+16–50**, on walls where every other
   lever in this codebase has a recorded death.
 
+### Recorded — the wing flies: the zero block has its first nonzero row
+
+- **TMS-2011 i2: SOLVED.** Mode::Sat, horizon 16, 242 steps,
+  makespan 40.031, ONE STN refutation, internal oracle green, VAL
+  "Plan valid", ~1 second — **the first temporal-machine-shop solve
+  in this planner's history**, on the family where every non-SAT
+  entrant ever fielded scored 0 valid. Ten negatives said the walls
+  needed different machinery; the machinery arrived and the wall
+  moved on its second instance.
+- **And the smoke face drew blood too:** slitherlink p01 SOLVED by
+  the classical ∃-step encoder (horizon 16, replay-verified, VAL
+  green) — the puzzle constituency's first row, from the face
+  priced at ~0.
+- **The honest no-solves, exactly as the discipline demands:** TMS
+  i1 exhausts honestly at 46 s (h1–8 PROVEN UNSAT, the >100-
+  refutation thrash bail firing per the pre-registered read — 404
+  refutations, cores cut from 150+ events to 4–18 by the
+  duration-endpoint reduction); storage-t i1 proves UNSAT through
+  h32 and walls honestly; parc-printer i12 exhausts at h128. The
+  CEGAR loop's layer-specific refutations are the named 0.25
+  residue, alongside planning-specific branching and ITSAT-style
+  in-CNF timing.
+- **The fixtures carried the phase:** the required-concurrency
+  micro-task RED on every pre-wing mode and GREEN only via SAT+STN
+  (the expressiveness proof, pinned forever under FF_NO_SAT); the
+  round-trip fixture RED before Mode::Sat existed; the loud ramp,
+  the honest decline, the no-plan-within-horizon wording, the TIL
+  decline — all pinned. A real bug caught RED by the final batch:
+  dual-typed IPC objects ground TWIN ops that broke the pairing
+  decode (TMS's own kiln0, again) — fixed, pinned.
+- **For the sweep owner:** the detector promotes SAT on
+  match-cellar-family rows and burns 2–13 s thrash-bailing before
+  the ladder solves (canaries green at wall 60, receipts recorded)
+  — watch match-cellar 40/40 at the cut; FF_NO_SAT restores
+  byte-identity per row if it regresses. Integration caught the
+  same cost in miniature: the wing's wall spend ate tground_wall's
+  1 s pre-expiry margin, and the battery now hatches FF_NO_SAT off
+  exactly as it hatches MCV — orthogonal machinery that merely
+  SPENDS the wall stays out of a timing fixture's frame.
+
 ## Phase 4 — stage c (the timed operators, the last locked door)
 
 Per the 0.23 sizing memo, receipts attached: constituency 70 rows
@@ -254,6 +294,29 @@ contest cycles built rather than building anew:
   direction question (a full game cycle) is on the record from this
   scoping's Q&A and gets decided at the 0.24 cut with this phase's
   receipts in hand.
+
+### Recorded — the game phase: what five contest cycles built, on the wire
+
+- Budget-stamped thinks with the capped-vs-proven honesty verbatim
+  on the MCP wire (protocol-pinned); orbit-aware thinks inside the
+  session contract (the standing_replans_stay_orbit_free pin
+  documents the safe boundary); the Mode::Sat seam turned out to be
+  ALREADY WIRED by construction — the typed options schema gained
+  the "sat" variant the moment the enum did, no new tool, no new
+  field.
+- **The village re-measure, and a receipt worth the phase alone:**
+  the pair contract at 200k/500k evals now returns HONEST CAPPED
+  verdicts (never "unplannable"); 1M sails as before — and the tick
+  loop runs byte-identical events and think evals (1,510,921) at
+  **15.61 s → 10.57 s wall**. The bazaar tables: every
+  eval-denominated cell identical, think milliseconds roughly
+  HALVED (k=11 max-B 495.6 → 280.9 ms). Three cycles of engine work
+  reached the game surface without moving a single eval.
+- Provenance honesty: the inherited work was audited against the
+  spec, transplanted, and squashed to one phase commit (the WIP
+  branch preserved for diffing); the fixtures that arrived with the
+  feature are marked as pins, not RED-first — said plainly in their
+  doc comments.
 
 ## Phase 6 — the follow-through basket (every item carries its receipt)
 

@@ -332,7 +332,7 @@ fn hmax(task: &PackedTask, s: &State, g: &RelaxGraph, costs: &[f64], w: &mut Cut
     h
 }
 
-/// Reusable per-solve buffers for [`lmcut`] (one A* evaluates thousands of
+/// Reusable per-solve buffers for `lmcut` (one A* evaluates thousands of
 /// states; the workspace keeps the per-state cost to allocations-free).
 /// `by_add` (which achievers add fact f — static across a solve) makes the
 /// goal-zone walk O(incident edges); `by_pcf` (which achievers this
@@ -471,7 +471,7 @@ fn charge_cuts(w: &mut CutSpace, parent: &[u32], skip: u32, out: &mut Vec<u32>) 
 }
 
 /// The LM-cut round loop over whatever `w.cost` currently holds (base
-/// costs from [`lmcut`], residual costs after [`charge_cuts`] on the
+/// costs from `lmcut`, residual costs after `charge_cuts` on the
 /// incremental path). `rec` collects each discovered cut in the
 /// [len, sorted ops...]* encoding, bounded by [`INC_CUT_CAP`] entries
 /// and [`INC_LIST_CAP`] total words.
@@ -929,7 +929,7 @@ fn fold_margin(
     })
 }
 
-/// Build the fold for this solve, or decline. See [`NumFold`].
+/// Build the fold for this solve, or decline. See `NumFold`.
 fn num_fold_prep(task: &PackedTask, g: &RelaxGraph) -> Option<NumFold> {
     if std::env::var("FF_OPT_NO_NUMFOLD").is_ok() || task.goal_num.is_empty() {
         return None;
@@ -1098,7 +1098,7 @@ fn fold_goal_bound(fold: &NumFold, g: &RelaxGraph, fv: &[f64], w: &CutSpace, fmi
 ///   remainder with the refill).
 ///
 /// - INCREMENTAL LM-CUT (0.23 Phase 5, the counted 7-row case): the
-///   probe engine persists cut lists parent→child ([`charge_cuts`] — a
+///   probe engine persists cut lists parent→child (`charge_cuts` — a
 ///   landmark not containing the applied op survives the step, the
 ///   proof rides that function) so each eval pays only the top-up
 ///   rounds, and the probe itself RESUMES a round 2 with the raised
@@ -1115,7 +1115,7 @@ fn fold_goal_bound(fold: &NumFold, g: &RelaxGraph, fv: &[f64], w: &CutSpace, fmi
 /// The numeric arm (`num_arm_root`, 0.22 Phase 4) composes with every
 /// branch via max() and never touches the gate's h^max-vs-LM-cut
 /// verdict; since 0.23 Phase 5 its per-eval interval-RPG tax is
-/// replaced by the rep-folded labels ([`NumFold`]) wherever the fold's
+/// replaced by the rep-folded labels (`NumFold`) wherever the fold's
 /// own audit arms — `FF_OPT_NO_NUMFOLD=1` restores the per-eval RPG.
 ///
 /// `orbit` (0.22 Phase 6 L1): canonical visited keys at the three
@@ -1208,7 +1208,7 @@ pub fn solve(
         // Lever 3: the resumable ladder. The sprint engine LIVES through
         // the LM-cut probe; nothing is re-expanded on resume. Since 0.23
         // Phase 5 the PROBE lives too: it evaluates incrementally
-        // (parent cut lists, [`charge_cuts`]) and — when h^max's resumed
+        // (parent cut lists, `charge_cuts`) and — when h^max's resumed
         // slice node-caps with wall still standing — RESUMES a round 2
         // with the full raised budget instead of forfeiting round 1's
         // work. `FF_NO_INC_LMCUT=1` restores the 0.22 one-shot probe.
@@ -1475,7 +1475,7 @@ struct AstarState<'t> {
     num: bool,
     /// Incremental LM-cut (0.23 Phase 5): per-node cut lists inherited
     /// parent→child with cheap revalidation (the `skip` filter in
-    /// [`charge_cuts`]). Set only on the ladder's PROBE engine —
+    /// `charge_cuts`). Set only on the ladder's PROBE engine —
     /// `FF_NO_INC_LMCUT=1` and every other path keep 0.22's from-zero
     /// evaluation, bit for bit.
     inc: bool,

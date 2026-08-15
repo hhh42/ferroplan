@@ -4,6 +4,40 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+Accumulating toward 0.24.0 — the SAT wing. Board claims land with
+the cut sweep. Full record:
+[`docs/roadmap-0.24.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.24.md).
+
+- **THE HEADLINE: temporal-machine-shop falls.** TMS-2011 i2 —
+  SOLVED, VAL-valid, ~1 s (Mode::Sat, horizon 16, one STN
+  refutation): the first TMS solve in this planner's history, on
+  the family where every non-SAT entrant ever fielded scored zero.
+  The zero block has its first nonzero row. slitherlink p01 falls
+  to the classical face for a second first.
+- **ferroplan-sat**: varisat absorbed and owned — 5,012 lines, zero
+  external dependencies, attribution preserved, a differential
+  battery that proved itself RED against a lying stub and never
+  trusts the solver's own models. One addition (conflict budgets);
+  one named not-taken (planning-specific branching).
+- **The wing**: ∃-step bounded-layer encoding with disabling
+  chains, snap-event pairing for the temporal face, the existing
+  STN scheduler as CEGAR teacher with a pre-registered thrash
+  bail, a required-concurrency detector for early promotion, and
+  honesty pinned at every exit (declines, horizons, budgets —
+  never "unsolvable" without a proof).
+- **Stage c**: `within`/`always-within` lowered onto a
+  search-stamped clock — the 2006 constraints gate names nothing
+  unenforced; six timed solves banked oracle-green.
+- **The basket**: the temporal search pays the wall (sokoban-t's
+  honest exits); the a2 chain converts pathwaysmetric i2 at 173
+  evals; the hash-join candidate lists clear the slitherlink gate
+  (p03 grounding >60 s → 1.3 s); the 5A convergence fix recorded
+  as a measured negative (nurikabe and spider are irreconcilable).
+- **The game phase**: budget-stamped thinks with capped-vs-proven
+  honesty on the MCP wire; the village tick loop 15.6 → 10.6 s at
+  byte-identical evals; bazaar think latency halved. Mode::Sat
+  reaches the wire by construction.
+
 Accumulating toward 0.23.0 — the temporal cycle, and the whole table
 on one box. Board claims land with the cut sweep. Full record:
 [`docs/roadmap-0.23.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.23.md).

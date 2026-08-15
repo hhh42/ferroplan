@@ -59,7 +59,14 @@ fn run_child(scenario: &str) -> (String, String, f64) {
         // path too (it is entry-independent — the sokoban-t 2008 i8 +1
         // receipt); every leg hatches it off so the wall check stays the
         // pinned backstop for shapes MCV cannot collapse.
-        .env("FF_NO_MCV_JOIN", "1");
+        .env("FF_NO_MCV_JOIN", "1")
+        // The SAT wing (0.24) spends the same armed wall these legs
+        // measure in — its scan/promotion cost eats the exempt leg's
+        // 1 s pre-expiry margin. Same rule as MCV above: this battery
+        // pins the grounding-wall/validate contract, and orthogonal
+        // machinery that merely SPENDS the wall hatches off. The wing's
+        // own promotion cost is a named sweep-watch item in its record.
+        .env("FF_NO_SAT", "1");
     match scenario {
         "twall" => {
             // THE PIN: the temporal solve entry must exit HONESTLY at a
