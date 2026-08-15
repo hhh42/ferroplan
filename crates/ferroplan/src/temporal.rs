@@ -594,6 +594,41 @@ fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &Sta
 /// invariant transition guard (a delete + re-add between the endpoints
 /// used to slip through — the kiln-gap fixture pins the fix).
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    // The SAT rung's arming policy (0.24 Phase 3), per the house law (no
+    // sweep arms = no evidence): `FF_NO_SAT` is the byte-identity restore
+    // — with it set this function IS `solve_ladder`, byte for byte. The
+    // required-concurrency detector promotes the rung EARLY on families
+    // where decision-epoch search is structurally hopeless (fire-kiln /
+    // match-cellar shapes); everywhere else the rung arms only at ladder
+    // exhaustion with wall remaining (the 486 solved temporal rows are
+    // protected structurally — they solve inside the ladder and never
+    // reach the arming point), and the encoder's self-pricing is the size
+    // check that keeps a hopeless CNF a milliseconds-decline.
+    let sat_armed = std::env::var("FF_NO_SAT").is_err();
+    let promoted = sat_armed && crate::sat::requires_concurrency(domain, problem);
+    if promoted {
+        if let Some(plan) = crate::sat::plan_temporal(domain, problem, threads) {
+            return Some(plan);
+        }
+        // Promotion must never LOSE a solve: fall through to the ladder.
+    }
+    if let Some(plan) = solve_ladder(domain, problem, threads) {
+        return Some(plan);
+    }
+    if sat_armed
+        && !promoted
+        && crate::search::rung_wallcap_on()
+        && crate::search::wall_remaining_secs().is_some_and(|s| s > 1.0)
+    {
+        return crate::sat::plan_temporal(domain, problem, threads);
+    }
+    None
+}
+
+/// The pre-wing solve: the monolithic search plus its on-failure
+/// escalation ladder — exactly what `solve` was before the SAT rung, and
+/// exactly what `FF_NO_SAT` restores.
+fn solve_ladder(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
     let ambient = crate::features::demand_mode();
     if let Some(plan) = solve_monolithic(domain, problem, threads, ambient) {
         return Some(plan);
@@ -987,6 +1022,23 @@ fn reconcile_durations(task: &PackedTask, c: &TemporalCompiled, plan: TimedPlan)
             .fold(0.0f64, f64::max);
     }
     original // did not converge in 4 rounds — never emit a half-corrected plan
+}
+
+/// The SAT wing's emission seam (0.24 Phase 3): run a decoded, freshly
+/// STN-scheduled raw plan through the SAME rite a search goal pop gets —
+/// the 0.22 topological ε-separation over this task's interval invariants,
+/// then post-emission duration reconciliation. `epsilon_separate` and
+/// `reconcile_durations` stay private; the wing takes the whole rite or
+/// nothing. `floor_to_search` is false by construction: the wing declines
+/// TIL tasks, so from-zero re-timing is exactly the search-plan rule.
+pub(crate) fn emit_scheduled(
+    task: &PackedTask,
+    c: &TemporalCompiled,
+    inv: &InvMap,
+    plan: TimedPlan,
+) -> TimedPlan {
+    let separated = epsilon_separate(task, inv, plan, false, None);
+    reconcile_durations(task, c, separated)
 }
 
 /// Grounded `over all` invariant facts per END op id: (positive, negative)

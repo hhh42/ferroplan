@@ -167,6 +167,10 @@ enum ModeArg {
     Portfolio,
     /// Sequential-optimal: A* + admissible h^max, proof-or-nothing (0.19).
     Optimal,
+    /// Bounded-layer SAT compilation (0.24): ∃-step encoding + horizon
+    /// ramp; temporal tasks via snap events + STN-taught CEGAR. Declines
+    /// tasks outside its STRIPS/temporal slice with a named note.
+    Sat,
 }
 
 impl From<ModeArg> for Mode {
@@ -179,6 +183,7 @@ impl From<ModeArg> for Mode {
             ModeArg::Pddl3 => Mode::Pddl3,
             ModeArg::Temporal => Mode::Temporal,
             ModeArg::Optimal => Mode::Optimal,
+            ModeArg::Sat => Mode::Sat,
         }
     }
 }

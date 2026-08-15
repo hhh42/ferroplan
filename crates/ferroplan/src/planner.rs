@@ -18,6 +18,13 @@ pub fn run_planner(
     opts: &crate::Options,
     ipc: bool,
 ) -> (String, i32) {
+    // `--mode sat` (0.24, the wing): the SAT compilation owns its own text
+    // rendering — the capped/declined honesty lives in the notes, and the
+    // no-plan line never says "unsolvable" (a bounded-horizon verdict is
+    // not a proof).
+    if opts.mode == crate::Mode::Sat {
+        return run_sat_text(domain_src, problem_src, opts);
+    }
     let threads = if opts.threads == 0 {
         crate::par::num_threads()
     } else {
@@ -92,6 +99,17 @@ pub fn run_planner(
                 return (out, 1);
             }
         }
+    }
+
+    // FF_SAT_CLASSICAL (0.24 Phase 2): the same smoke opt-in as the library
+    // auto router — text and JSON must agree on where the flag routes. A
+    // decline inside falls back to the classic path (api's rule), so this
+    // can only re-render solves, never lose them.
+    if opts.mode == crate::Mode::Auto
+        && std::env::var("FF_SAT_CLASSICAL").is_ok()
+        && !pddl3::has_preferences(&problem)
+    {
+        return run_sat_text(domain_src, problem_src, opts);
     }
 
     // PDDL3.0: soft-goal preferences / metric -> compile + anytime B&B optimize.
@@ -183,6 +201,73 @@ pub fn run_planner(
         Solved::Unsolvable { capped } => {
             out.push_str(unsolvable_line(capped));
             (out, 0)
+        }
+    }
+}
+
+/// The `--mode sat` text renderer (0.24, the wing): plan (timed IPC lines
+/// for the temporal face, classic step lines for the classical face) plus
+/// the wing's notes verbatim — the ramp trail, decline reasons, and cap
+/// notices ARE the honesty surface, in text exactly as in JSON.
+fn run_sat_text(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (String, i32) {
+    let mut out = String::new();
+    let sol = match crate::solve(domain_src, problem_src, opts) {
+        Ok(s) => s,
+        Err(e) => {
+            out.push_str(&format!("\nff: {}\n", e));
+            return (out, 1);
+        }
+    };
+    match (&sol.plan, sol.solved) {
+        (Some(plan), true) => {
+            out.push_str("\nff: found legal plan as follows\n");
+            if sol.plan.as_ref().is_some_and(|p| p.makespan.is_some()) {
+                for st in &plan.steps {
+                    let args = if st.args.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" {}", st.args.join(" ").to_lowercase())
+                    };
+                    match st.duration {
+                        Some(d) => out.push_str(&format!(
+                            "{:.3}: ({}{}) [{:.3}]\n",
+                            st.time.unwrap_or(0.0),
+                            st.action.to_lowercase(),
+                            args,
+                            d
+                        )),
+                        None => out.push_str(&format!(
+                            "{:.3}: ({}{})\n",
+                            st.time.unwrap_or(0.0),
+                            st.action.to_lowercase(),
+                            args
+                        )),
+                    }
+                }
+                if let Some(ms) = plan.makespan {
+                    out.push_str(&format!("\nplan makespan: {:.3}\n", ms));
+                }
+            } else {
+                for st in &plan.steps {
+                    let args = if st.args.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" {}", st.args.join(" "))
+                    };
+                    out.push_str(&format!("step {:>4}: {}{}\n", st.index, st.action, args));
+                }
+            }
+            for n in &sol.notes {
+                out.push_str(&format!("note: {n}\n"));
+            }
+            (out, 0)
+        }
+        _ => {
+            out.push_str("\n\nno plan found by the SAT rung (see notes).\n\n");
+            for n in &sol.notes {
+                out.push_str(&format!("note: {n}\n"));
+            }
+            (out, 1)
         }
     }
 }

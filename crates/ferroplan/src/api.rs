@@ -44,6 +44,17 @@ pub enum Mode {
     /// satisficing). Classical tasks with constant action costs;
     /// everything else is rejected with a named note.
     Optimal,
+    /// Bounded-layer SAT compilation over the in-tree CDCL solver (0.24,
+    /// the wing): ∃-step encoding + horizon ramp for pure-STRIPS slices;
+    /// snap events + pairing clauses + STN-taught CEGAR for temporal
+    /// tasks. The encoder prices itself and DECLINES tasks outside its
+    /// slice with a named note (numeric, conditional effects, TILs,
+    /// constraints) — a decline or a budget cap is never "unsolvable".
+    /// `auto` routes classical problems here only under the
+    /// `FF_SAT_CLASSICAL` smoke opt-in (falling back to the classic path
+    /// when SAT declines); temporal `auto` arms the rung on the ladder
+    /// per [`crate::temporal::solve`]'s policy (`FF_NO_SAT` restores).
+    Sat,
 }
 
 /// Which search strategy to use within a mode.
@@ -543,12 +554,19 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
         opts.threads
     };
 
+    // FF_SAT_CLASSICAL (0.24 Phase 2): the classical/puzzle face of the
+    // SAT wing on the auto router, as the smoke test it is — band
+    // honestly ~0. Only classical problems reroute; a decline inside
+    // solve_sat falls back to the classic path with the note kept.
+    let sat_smoke = std::env::var("FF_SAT_CLASSICAL").is_ok();
     let mode = match opts.mode {
         Mode::Auto => {
             if crate::temporal::is_temporal(&domain) {
                 Mode::Temporal
             } else if pddl3::has_preferences(&problem) {
                 Mode::Pddl3
+            } else if sat_smoke {
+                Mode::Sat
             } else {
                 Mode::Ff
             }
@@ -574,6 +592,16 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
         Mode::Temporal => solve_temporal(&domain, &problem, threads),
         Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads, constrained),
         Mode::Optimal => solve_optimal(&domain, &problem, threads, constrained),
+        Mode::Sat => solve_sat(
+            &domain,
+            &problem,
+            opts,
+            threads,
+            constrained,
+            // From-auto smoke routing keeps auto's contract: a decline or
+            // cap falls back to the classic path (notes preserved).
+            opts.mode == Mode::Auto,
+        ),
         _ => solve_classic(
             &domain,
             &problem,
@@ -583,6 +611,117 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
             Vec::new(),
             constrained,
         ),
+    }
+}
+
+/// `Mode::Sat` (0.24, the wing): the bounded-layer SAT compilation. The
+/// temporal face runs snap events + pairing + STN-taught CEGAR
+/// ([`crate::sat::solve_temporal`]); the classical face runs the ∃-step
+/// encoder + horizon ramp over the grounded task. Every exit keeps the
+/// capped/declined honesty: a decline names its mechanism, a budget trip
+/// says "no plan within horizon H", and only budget-intact UNSAT sweeps
+/// claim per-horizon proofs — the word "unsolvable" appears exactly for
+/// grounding-time proofs, as everywhere else.
+fn solve_sat(
+    domain: &crate::types::Domain,
+    problem: &crate::types::Problem,
+    opts: &Options,
+    threads: usize,
+    constrained: bool,
+    from_auto: bool,
+) -> Result<Solution, SolveError> {
+    let cfg = crate::sat::SatCfg::from_env();
+    if crate::temporal::is_temporal(domain) {
+        let o = crate::sat::solve_temporal(domain, problem, threads, &cfg);
+        let stats = Statistics {
+            grounded_facts: o.grounded_facts,
+            grounded_actions: o.grounded_actions,
+            evaluated_states: 0,
+            threads,
+        };
+        return Ok(match o.plan {
+            Some(tp) => {
+                let steps = timed_steps(&tp);
+                Solution {
+                    solved: true,
+                    mode: Mode::Sat,
+                    plan: Some(Plan {
+                        length: steps.len(),
+                        steps,
+                        metric: None,
+                        makespan: Some(tp.makespan),
+                    }),
+                    statistics: stats,
+                    notes: o.notes,
+                }
+            }
+            None => unsolved(Mode::Sat, stats, o.notes),
+        });
+    }
+    if pddl3::has_preferences(problem) {
+        let notes = vec![
+            "SAT encoder declined: PDDL3 preferences (the wing is STRIPS/temporal only)"
+                .to_string(),
+        ];
+        return Ok(unsolved(
+            Mode::Sat,
+            Statistics {
+                threads,
+                ..Default::default()
+            },
+            notes,
+        ));
+    }
+    let task = match do_ground(domain, problem, threads)? {
+        Grounded::Task(t) => t,
+        Grounded::Trivial => return Ok(trivial(Mode::Sat, threads)),
+        Grounded::Unsolvable(why) => {
+            return Ok(unsolved(
+                Mode::Sat,
+                Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                vec![format!("unsolvable at grounding: {why}")],
+            ));
+        }
+        Grounded::Budget(why) => {
+            return Ok(unsolved(
+                Mode::Sat,
+                Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                vec![format!("grounding stopped at the declared budget: {why}")],
+            ));
+        }
+    };
+    let groups = crate::invariants::synthesize(domain, &task);
+    let o = crate::sat::solve_classical(&task, &groups, &cfg);
+    match o.plan {
+        Some(ops) => {
+            let steps = steps_of(&task, &ops, None);
+            Ok(Solution {
+                solved: true,
+                mode: Mode::Sat,
+                plan: Some(Plan {
+                    length: steps.len(),
+                    steps,
+                    metric: None,
+                    makespan: None,
+                }),
+                statistics: stats(&task, 0, threads),
+                notes: o.notes,
+            })
+        }
+        None if from_auto => {
+            // The smoke opt-in must not cost auto a solve: fall back to
+            // the classic route, notes carried.
+            let mut notes = o.notes;
+            notes.push("FF_SAT_CLASSICAL: SAT found no plan; fell back to the classic path".into());
+            solve_classic(domain, problem, opts, threads, Mode::Ff, notes, constrained)
+        }
+        None => Ok(unsolved(Mode::Sat, stats(&task, 0, threads), o.notes)),
     }
 }
 

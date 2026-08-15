@@ -2407,6 +2407,7 @@ name = "ferroplan"
 version = "0.23.0"
 dependencies = [
  "criterion",
+ "ferroplan-sat",
  "schemars",
  "serde",
  "serde_json",

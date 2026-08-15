@@ -77,6 +77,7 @@ pub mod plan;
 pub mod portfolio;
 pub mod report;
 pub mod resolve;
+pub mod sat;
 pub mod selection;
 pub mod temporal;
 pub mod trace;
