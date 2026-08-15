@@ -67,10 +67,8 @@ fn load_fixtures() -> Vec<Fixture> {
                 }
             }
 
-            let formula =
-                dimacs::parse_dimacs_str(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
-            let expect_sat =
-                expect_sat.unwrap_or_else(|| panic!("{name}: no `c expect:` header"));
+            let formula = dimacs::parse_dimacs_str(&text).unwrap_or_else(|e| panic!("{name}: {e}"));
+            let expect_sat = expect_sat.unwrap_or_else(|| panic!("{name}: no `c expect:` header"));
             Fixture {
                 name,
                 expect_sat,
@@ -112,7 +110,10 @@ fn solve_formula(formula: &CnfFormula) -> (bool, Option<Vec<Lit>>) {
     let model = if verdict {
         Some(solver.model().expect("SAT verdict must produce a model"))
     } else {
-        assert!(solver.model().is_none(), "UNSAT verdict must not carry a model");
+        assert!(
+            solver.model().is_none(),
+            "UNSAT verdict must not carry a model"
+        );
         None
     };
     (verdict, model)
@@ -148,8 +149,14 @@ fn satdiff_small_battery() {
     }
 
     // The battery must exercise both verdicts substantially.
-    assert!(sat_count >= 6, "battery carries too few SAT cases: {sat_count}");
-    assert!(unsat_count >= 6, "battery carries too few UNSAT cases: {unsat_count}");
+    assert!(
+        sat_count >= 6,
+        "battery carries too few SAT cases: {sat_count}"
+    );
+    assert!(
+        unsat_count >= 6,
+        "battery carries too few UNSAT cases: {unsat_count}"
+    );
 }
 
 #[test]

@@ -1,19 +1,35 @@
-//! Boolean satisfiability solver facade.
-//!
-//! FIXTURES-FIRST STUB: this commit carries the satdiff battery and the
-//! public API surface only. `solve` answers UNSAT for everything, `model`
-//! and `failed_core` answer nothing — the battery must be RED against
-//! this stub and turn GREEN only when the absorbed varisat core lands.
+// Absorbed from varisat 0.2.2 (https://github.com/jix/varisat, master
+// @ 33e87693, file varisat/src/solver.rs); the proof-writing/self-check
+// surface (write_proof, close_proof, enable_self_checking,
+// add_proof_processor, ProofFormat, the error plumbing they needed) went
+// with the proof seam, `add_dimacs_cnf` with the unabsorbed dimacs crate
+// — use `dimacs::parse_dimacs` + `add_formula`. A per-solve conflict
+// budget was added for the wing's horizon ramp.
+// Copyright (c) 2017-2019 Jannis Harder, MIT OR Apache-2.0 — ferroplan's
+// exact dual license. Ferroplan code from the absorption commit onward;
+// see ATTRIBUTION.md.
 
+//! Boolean satisfiability solver.
 use std::fmt;
 
-use crate::{CnfFormula, ExtendFormula, Lit, Var};
+use crate::{
+    assumptions::set_assumptions,
+    cnf::{CnfFormula, ExtendFormula},
+    config::SolverConfig,
+    context::{config_changed, Context},
+    lit::{Lit, Var},
+    load::load_clause,
+    schedule::schedule_step,
+    state::SatState,
+    variables,
+};
 
 /// Possible errors while solving a formula.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum SolverError {
-    /// The solver was interrupted (conflict budget exhausted).
+    /// The solver was interrupted: the conflict budget set via
+    /// [`Solver::set_conflict_limit`] was exhausted before a verdict.
     Interrupted,
 }
 
@@ -37,7 +53,7 @@ impl SolverError {
 /// A boolean satisfiability solver.
 #[derive(Default)]
 pub struct Solver {
-    var_count: usize,
+    ctx: Box<Context>,
 }
 
 impl Solver {
@@ -46,49 +62,175 @@ impl Solver {
         Solver::default()
     }
 
+    /// Change the solver configuration.
+    pub fn set_config(&mut self, config: SolverConfig) {
+        self.ctx.solver_config = config;
+        config_changed(&mut self.ctx);
+    }
+
     /// Add a formula to the solver.
     pub fn add_formula(&mut self, formula: &CnfFormula) {
         for clause in formula.iter() {
-            self.add_clause(clause);
+            load_clause(&mut self.ctx, clause);
         }
     }
 
     /// Limit the number of conflicts per `solve` call; `None` removes the limit.
-    pub fn set_conflict_limit(&mut self, _limit: Option<u64>) {}
+    ///
+    /// When the budget is exhausted before a verdict, [`Solver::solve`] returns
+    /// `Err(SolverError::Interrupted)`. The interrupt is recoverable: raise or
+    /// clear the limit and call `solve` again to continue where it stopped.
+    pub fn set_conflict_limit(&mut self, limit: Option<u64>) {
+        self.ctx.schedule.conflict_limit = limit;
+    }
 
     /// Check the satisfiability of the current formula.
     pub fn solve(&mut self) -> Result<bool, SolverError> {
-        Ok(false) // stub: the battery must catch this lie
+        self.ctx.schedule.conflicts_this_solve = 0;
+
+        while schedule_step(&mut self.ctx) {}
+
+        match self.ctx.solver_state.sat_state {
+            SatState::Unknown => Err(SolverError::Interrupted),
+            SatState::Sat => Ok(true),
+            SatState::Unsat | SatState::UnsatUnderAssumptions => Ok(false),
+        }
     }
 
     /// Assume given literals for future calls to solve.
     ///
     /// This replaces the current set of assumed literals.
-    pub fn assume(&mut self, _assumptions: &[Lit]) {}
+    pub fn assume(&mut self, assumptions: &[Lit]) {
+        set_assumptions(&mut self.ctx, assumptions);
+    }
 
     /// Set of literals that satisfy the formula.
     pub fn model(&self) -> Option<Vec<Lit>> {
-        None
+        if self.ctx.solver_state.sat_state == SatState::Sat {
+            let variables = &self.ctx.variables;
+            let model = &self.ctx.model;
+            Some(
+                variables
+                    .user_var_iter()
+                    .flat_map(|user_var| {
+                        let global_var = variables
+                            .global_from_user()
+                            .get(user_var)
+                            .expect("no existing global var for user var");
+                        model.assignment()[global_var.index()].map(|value| user_var.lit(value))
+                    })
+                    .collect(),
+            )
+        } else {
+            None
+        }
     }
 
     /// Subset of the assumptions that made the formula unsatisfiable.
     ///
     /// This is not guaranteed to be minimal and may just return all assumptions every time.
     pub fn failed_core(&self) -> Option<&[Lit]> {
-        None
+        match self.ctx.solver_state.sat_state {
+            SatState::UnsatUnderAssumptions => Some(self.ctx.assumptions.user_failed_core()),
+            SatState::Unsat => Some(&[]),
+            SatState::Unknown | SatState::Sat => None,
+        }
+    }
+
+    /// Sets the "witness" sampling mode for a variable.
+    ///
+    /// A witness variable will always have a defined value in a model, but constraining it is an
+    /// error.
+    pub fn witness_var(&mut self, var: Var) {
+        let global = variables::global_from_user(&mut self.ctx, var, false);
+        variables::set_sampling_mode(
+            &mut self.ctx,
+            global,
+            variables::data::SamplingMode::Witness,
+        );
+    }
+
+    /// Sets the "sample" sampling mode for a variable.
+    pub fn sample_var(&mut self, var: Var) {
+        let global = variables::global_from_user(&mut self.ctx, var, false);
+        variables::set_sampling_mode(&mut self.ctx, global, variables::data::SamplingMode::Sample);
+    }
+
+    /// Hide a variable.
+    ///
+    /// Turns a free variable into an existentially quantified variable. If the passed `Var` is used
+    /// again after this call, it refers to a new variable not the previously hidden variable.
+    pub fn hide_var(&mut self, var: Var) {
+        let global = variables::global_from_user(&mut self.ctx, var, false);
+        variables::set_sampling_mode(&mut self.ctx, global, variables::data::SamplingMode::Hide);
+    }
+
+    /// Observe solver internal variables.
+    ///
+    /// This turns solver internal variables into witness variables. There is no guarantee that the
+    /// newly visible variables correspond to previously hidden variables.
+    ///
+    /// Returns a list of newly visible variables.
+    pub fn observe_internal_vars(&mut self) -> Vec<Var> {
+        variables::observe_internal_vars(&mut self.ctx)
     }
 }
 
 impl ExtendFormula for Solver {
+    /// Add a clause to the solver.
     fn add_clause(&mut self, clause: &[Lit]) {
-        for lit in clause {
-            self.var_count = self.var_count.max(lit.index() + 1);
-        }
+        load_clause(&mut self.ctx, clause);
     }
 
+    /// Add a new variable to the solver.
     fn new_var(&mut self) -> Var {
-        let var = Var::from_index(self.var_count);
-        self.var_count += 1;
-        var
+        variables::new_user_var(&mut self.ctx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lits(lits: &[isize]) -> Vec<Lit> {
+        lits.iter().map(|&l| Lit::from_dimacs(l)).collect()
+    }
+
+    #[test]
+    fn sat_then_unsat_incremental() {
+        let mut solver = Solver::new();
+
+        solver.add_clause(&lits(&[1, 2, 3]));
+        solver.add_clause(&lits(&[-1, -2]));
+        assert_eq!(solver.solve().ok(), Some(true));
+
+        let model = solver.model().unwrap();
+        assert!(
+            model.contains(&Lit::from_dimacs(1))
+                || model.contains(&Lit::from_dimacs(2))
+                || model.contains(&Lit::from_dimacs(3))
+        );
+
+        solver.add_clause(&lits(&[-1]));
+        solver.add_clause(&lits(&[-2]));
+        solver.add_clause(&lits(&[-3]));
+        assert_eq!(solver.solve().ok(), Some(false));
+        assert_eq!(solver.model(), None);
+        assert_eq!(solver.failed_core(), Some(&[][..]));
+    }
+
+    #[test]
+    fn tiny_config_change_applies() {
+        let mut solver = Solver::new();
+        let config = SolverConfig {
+            reduce_locals_interval: 150,
+            reduce_mids_interval: 100,
+            ..SolverConfig::default()
+        };
+        solver.set_config(config);
+
+        solver.add_clause(&lits(&[1, 2]));
+        solver.add_clause(&lits(&[-1, 2]));
+        assert_eq!(solver.solve().ok(), Some(true));
     }
 }
