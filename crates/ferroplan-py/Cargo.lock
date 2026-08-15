@@ -4,20 +4,25 @@ version = 3
 
 [[package]]
 name = "ferroplan"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
+ "ferroplan-sat",
  "serde",
  "thiserror",
 ]
 
 [[package]]
 name = "ferroplan-py"
-version = "0.23.0"
+version = "0.24.0"
 dependencies = [
  "ferroplan",
  "pyo3",
  "serde_json",
 ]
+
+[[package]]
+name = "ferroplan-sat"
+version = "0.24.0"
 
 [[package]]
 name = "heck"
