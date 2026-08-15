@@ -98,6 +98,31 @@ as a dependency bump:
   core) rather than the 0.25–0.35 hand-roll — the calendar saved is
   what pays for stage c and the game phase riding.
 
+### Recorded — the absorption (varisat is ours now)
+
+- **crates/ferroplan-sat exists**: 5,012 lines absorbed from
+  upstream's 7,414 (core + lit/cnf), ZERO external dependencies
+  dev-deps included (upstream pulled ten crates; the strip and two
+  small rewrites removed every one). Attribution in every file
+  header; root ATTRIBUTION.md created; the dual license carries
+  through unchanged.
+- **The differential came first and never trusted the solver:** 22
+  fixture CNFs (pigeonhole, coloring, planning-shaped layered
+  chains — including the pre-goal-horizon UNSAT shape) plus three
+  ~100k-clause in-code mediums; every SAT model verified by DIRECT
+  CLAUSE EVALUATION. The battery went RED against a deliberately
+  lying always-UNSAT stub before it ever went green against the
+  real core, and re-green after every strip commit.
+- **Kept**: the assumptions interface (~200 clean lines; the CEGAR
+  loop may want failed cores). **Added, one thing only**: a
+  per-solve conflict budget (Interrupted as an honest third
+  verdict) — the horizon ramp's requirement, pinned. **Named
+  not-taken**: planning-specific branching — the wing proves out on
+  stock heuristics so the solver's contribution stays separable.
+- Battery timing on the loaded sweep box: 100k-clause instances
+  decide in 8–38 ms — the constituency's 0.3–5M-clause estimates
+  are comfortably inside a 60 s wall's budget.
+
 ## Phase 2 — the classical core (encoder, decoder, round trip)
 
 - **∃-step bounded-layer encoding** over the existing grounded task:
@@ -166,6 +191,50 @@ operator, VAL the oracle, the constraints board the referee
 lands a+b's board column). The complex-preferences unlock rides the
 same lowering; the rankings doc's two "last of 3" rows are the
 long-game referee.
+
+### Recorded — stage c lands; the 2006 gate names nothing (board at the cut)
+
+- **Six timed solves banked solo, oracle-green:**
+  trucks-time-constraints i1–i3 (0.1–0.8 s) and
+  storage-time-constraints i11–i13 — i13's VAL SIGBUS booked
+  unavailable exactly as the 0.23 runner fix intends, fold-oracle
+  green. The negative control has teeth: a hand-shifted late drop
+  is REJECTED by name ("trajectory constraint (within) violated").
+- The lowering is the sizing memo's clock made real: within +
+  always-within become monitor transitions with numeric conditions
+  on a search-stamped clock; the 0.23 fixture
+  timed_operators_stay_rejected_by_name pivots to hold_* (the
+  contract survives, the constituency moved); a degenerate class
+  (negative bounds) rejects by name in one place.
+- One honest flag from the receipts, carried to the basket's wall
+  item: an always-within probe ran ~116 s past a 60 s limit on the
+  monitor-compiled path — the same eval-denominated-search gap the
+  basket's P6.1 closes; verified covered at integration.
+- Provisional band +20–45 re-prices at the sweep; the
+  complex-preferences composition is one paragraph in the phase
+  report, entry scoped for 0.25.
+
+### Recorded — the basket: five landed, one measured negative (Phase 6)
+
+- **The temporal search pays the wall** (P6.1): sokoban-t's third
+  re-referee — 2008 i21/i2 and 2011 i8 all exit honestly at ~30.1 s
+  (first pass trips at ~29 s, the resume pass in milliseconds).
+- **The 5A convergence fix is a MEASURED NEGATIVE for a default
+  flip** (P6.2): nurikabe's drip and spider's wall-edge conversion
+  are locally irreconcilable — every rule that frees one amputates
+  the other. Both traces recorded; the loop keeps its 0.23 name.
+- **The a2 chain converts its RED fixture** (P6.3): pathwaysmetric
+  i2 — 948,388 evals dead → 54 steps at 173 evals in 0.08 s.
+- **The hash-join gate CLEARS where the 0.23 refusal predicted it
+  might** (P6.4): slitherlink p03 grounding >60 s → 1.3–2.2 s under
+  per-predicate candidate lists, and p01 now SOLVES whole (0.54 s).
+  folding p01 honestly not cleared (a different mechanism — the
+  or-aware hoist is sized, not taken); org-synth not chased.
+- P6.5: the 2023-legit compiled formulation is what the engine
+  ALREADY runs (verified at the op level) — recorded, no work
+  owed. P6.6 took two lines (engine narration + runner suffix,
+  because a SIGKILLed child leaves no JSON). P6.7's h-economy read
+  is delivered as a report section for the deferred list.
 
 ## Phase 5 — the game phase (small, and finally)
 
