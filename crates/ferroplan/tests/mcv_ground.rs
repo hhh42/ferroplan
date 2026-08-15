@@ -154,6 +154,13 @@ fn mcv_join_order_is_byte_identical_across_the_battery() {
         std::env::set_var("FF_MCV_THRESHOLD", "1");
         let forced = ground_fp(dom, prb);
 
+        // the candidate-list lever pulled alone (0.24 Phase 6): forced
+        // MCV with FF_NO_JOIN_INDEX must STILL be byte-identical — the
+        // index may only ever skip values the level check rejects
+        std::env::set_var("FF_NO_JOIN_INDEX", "1");
+        let no_index = ground_fp(dom, prb);
+        std::env::remove_var("FF_NO_JOIN_INDEX");
+
         // the hatch pulls the lever back out, threshold notwithstanding
         std::env::set_var("FF_NO_MCV_JOIN", "1");
         let hatched = ground_fp(dom, prb);
@@ -162,6 +169,10 @@ fn mcv_join_order_is_byte_identical_across_the_battery() {
         assert!(
             plain == forced,
             "{name}: forced MCV must reproduce the plain grounding byte-for-byte"
+        );
+        assert!(
+            plain == no_index,
+            "{name}: the candidate-list lever must change nothing but the walk"
         );
         assert!(
             plain == hatched,

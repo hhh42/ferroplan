@@ -772,7 +772,8 @@ fn relaxed_extract(
     // goal behind a numeric band (sailing's save_person) read h=1 across
     // the whole approach. Walk each already-selected op's `pre_num` against
     // THIS state and charge ONE level through the same achievers (charged
-    // achievers' own `pre_num` is not recursed — lever a2, not taken). The
+    // achievers' own `pre_num` recurses depth-capped since 0.24 Phase 6 —
+    // lever a2, the chained block below). The
     // snapshot keeps the walk one-level by construction; a task with no
     // numeric preconditions never enters, so classical extraction is
     // byte-identical, and the temporal groundings clear `charge_pre_num`
@@ -861,6 +862,64 @@ fn relaxed_extract(
                         select(task, sc, o2, 1, &mut count);
                         queue_cond_for(task, sc, o2, f);
                     }
+                }
+            }
+        }
+        // The a2 CHAINED charge (0.24 Phase 6; designed at 0.21 Phase 3,
+        // "only if pathwaysmetric stays flat" — i1 moved on a1 alone, i2's
+        // chain did not): a charged achiever's OWN unsatisfied `pre_num`
+        // contributed zero, so a supply chain deeper than one level keeps
+        // the plateau a1 removed at level one (the chained-band fixture:
+        // finish←stock-c←stock-b←stock-a reads h=5 under a1, flat across
+        // the whole approach). Recurse the charged achievers' `pre_num`
+        // through a worklist, DEPTH-CAPPED (`FF_NUMPRE_DEPTH`, default 4
+        // levels — pathwaysmetric's reaction DAG shape; the cap bounds
+        // mis-charge against current-state fv on long chains, the damping
+        // the 0.21 design note demanded), inheriting BOTH damping halves:
+        // chained gaps accumulate into the same per-achiever SUM map
+        // (first-wins never chains — `FF_NUMPRE_NOSUM`/`FF_NUMPRE_NODAMP`
+        // keep their historical shapes exactly), and mover-covered
+        // preconditions skip against the SAME selection snapshot as a1
+        // (deterministic; the walk never sees its own additions). Each
+        // achiever's `pre_num` is walked at most once; achievers that are
+        // also SELECTED ops were walked by a1 already and are skipped.
+        // `FF_NO_NUMPRE_CHAIN=1` restores the one-level charge; the
+        // do-not-give-back pins are fo-sailing i8's fixture pair
+        // (tests/numpre.rs) and the sailing/watering unit pins here.
+        if sum_half && std::env::var("FF_NO_NUMPRE_CHAIN").is_err() {
+            let depth_cap: usize = std::env::var("FF_NUMPRE_DEPTH")
+                .ok()
+                .and_then(|v| v.trim().parse().ok())
+                .filter(|&n| n > 0)
+                .unwrap_or(4);
+            let mut chained: Vec<usize> = Vec::new();
+            let mut frontier: Vec<(usize, usize)> =
+                charges.iter().map(|&(ai, _)| (ai, 1)).collect();
+            let mut fi = 0;
+            while fi < frontier.len() {
+                let (ai, depth) = frontier[fi];
+                fi += 1;
+                if depth >= depth_cap || chained.contains(&ai) || sc.selected[ai] == sc.gen {
+                    continue;
+                }
+                chained.push(ai);
+                for np in task.pre_num.slice(ai) {
+                    if eval_numpre(np, fv, def).unwrap_or(false) {
+                        continue;
+                    }
+                    if skip_half && selected_mover_exists(task, &selected_ops, np, fv, def) {
+                        continue;
+                    }
+                    let Some((aj, reps)) =
+                        numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen)
+                    else {
+                        continue;
+                    };
+                    match charges.iter_mut().find(|(a, _)| *a == aj) {
+                        Some((_, r)) => *r = r.saturating_add(reps),
+                        None => charges.push((aj, reps)),
+                    }
+                    frontier.push((aj, depth + 1));
                 }
             }
         }
@@ -1542,6 +1601,64 @@ mod tests {
             include_str!("../../../benchmarks/bench/sailing-band-i1.pddl"),
         );
         assert_eq!(h_init(&task), Some(21), "1 + ceil(30/3) + ceil(30/3)");
+    }
+
+    /// The a2 chained-charge pin (0.24 Phase 6): the three-deep supply
+    /// chain prices the WHOLE chain — h(init) = 1 (finish) + ceil(12/3)
+    /// (make-c) + ceil(10/2) (make-b) + 12 (make-a) = 22, the exact
+    /// optimum — and the first make-a step DESCENDS to 21. Under
+    /// `FF_NO_NUMPRE_CHAIN=1` the 0.21 one-level charge reads (5, 5):
+    /// flat across the whole approach, the pathwaysmetric-i2 shape.
+    #[test]
+    fn chained_band_h_prices_the_whole_chain() {
+        let _g = DAMP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let task = task_of(
+            include_str!("../../../benchmarks/bench/chained-band-domain.pddl"),
+            include_str!("../../../benchmarks/bench/chained-band-i1.pddl"),
+        );
+        let ma = (0..task.n_ops)
+            .find(|&oi| task.op_display[oi].to_uppercase().contains("MAKE-A"))
+            .expect("make-a grounds");
+        let init = task.initial();
+        let stepped = task.apply(ma, &init);
+        let mut sc = Scratch::new(&task);
+        let pair = (
+            relaxed(&task, &mut sc, &init.bits, &init.fv, &init.fdef).unwrap(),
+            relaxed(&task, &mut sc, &stepped.bits, &stepped.fv, &stepped.fdef).unwrap(),
+        );
+        assert_eq!(
+            pair,
+            (22, 21),
+            "(h_init, h_after_make_a): the chained gradient"
+        );
+        std::env::set_var("FF_NO_NUMPRE_CHAIN", "1");
+        let mut sc = Scratch::new(&task);
+        let hatched = (
+            relaxed(&task, &mut sc, &init.bits, &init.fv, &init.fdef).unwrap(),
+            relaxed(&task, &mut sc, &stepped.bits, &stepped.fv, &stepped.fdef).unwrap(),
+        );
+        std::env::remove_var("FF_NO_NUMPRE_CHAIN");
+        assert_eq!(hatched, (5, 5), "the hatch restores the one-level plateau");
+    }
+
+    /// The depth cap bounds the chain: at `FF_NUMPRE_DEPTH=2` only the
+    /// a1 level plus ONE chained level price (1 + 4 + 5 = 10) — the knob
+    /// that keeps long-DAG mis-charge bounded is real, not decorative.
+    #[test]
+    fn chained_band_depth_cap_bounds_the_walk() {
+        let _g = DAMP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let task = task_of(
+            include_str!("../../../benchmarks/bench/chained-band-domain.pddl"),
+            include_str!("../../../benchmarks/bench/chained-band-i1.pddl"),
+        );
+        std::env::set_var("FF_NUMPRE_DEPTH", "2");
+        let h = h_init(&task);
+        std::env::remove_var("FF_NUMPRE_DEPTH");
+        assert_eq!(
+            h,
+            Some(10),
+            "1 + ceil(12/3) + ceil(10/2), the a-leg unpriced"
+        );
     }
 
     /// The NEGATIVE control (markettrader shape): a cyclic resource flow —

@@ -490,8 +490,23 @@ pub(crate) fn wall_expired_reserving(retained_bytes: usize) -> bool {
     if !rung_wallcap_on() {
         return false;
     }
+    wall_deadline().is_some_and(|d| deadline_expired_reserving(d, retained_bytes))
+}
+
+/// [`wall_expired_reserving`] against a CACHED deadline copy — for hot
+/// loops that hold `wall_deadline()` once at entry (the grounding
+/// enumeration idiom) instead of paying OnceLock + env traffic per
+/// check. The caller owns the hatch read; this is just the arithmetic:
+/// expired iff remaining wall ≤ the teardown/report reserve for
+/// `retained_bytes` (see [`wall_expired_reserving`]'s rustdoc for the
+/// reserve's receipts).
+pub(crate) fn deadline_expired_reserving(
+    deadline: (crate::clock::Clock, f64),
+    retained_bytes: usize,
+) -> bool {
+    let (start, total) = deadline;
     let reserve = (retained_bytes as f64 / 4e8).min(15.0);
-    wall_remaining_secs().is_some_and(|s| s <= reserve)
+    (total - start.elapsed_ms() as f64 / 1000.0).max(0.0) <= reserve
 }
 
 /// Seconds of the wall budget remaining, `None` if no limit is set. The
@@ -1461,9 +1476,16 @@ pub fn plan_avoiding(
                     node_raise *= 2;
                     round_cfg.node_bytes_target =
                         Some(retained_bytes_budget().saturating_mul(node_raise));
-                    if std::env::var("FF_WALL_DEBUG").is_ok() {
-                        eprintln!("wall: node byte target raised x{node_raise} for the re-entry");
-                    }
+                    // Narrated UNGATED, not behind FF_WALL_DEBUG (0.24
+                    // Phase 6 label hygiene): the raise deliberately
+                    // overshoots the declared byte model into "watchdog
+                    // territory", and when the runner's RSS watchdog
+                    // SIGKILLs the overshoot there is no JSON — this
+                    // stderr line is the only trace by which the board's
+                    // mem-cap can name itself SELF-INFLICTED (ipc67.py
+                    // reads it into the note). At most two lines per run
+                    // (x2, x4), armed-wall refill rounds only.
+                    eprintln!("wall: node byte target raised x{node_raise} for the re-entry");
                 }
                 if std::env::var("FF_WALL_DEBUG").is_ok() {
                     eprintln!(

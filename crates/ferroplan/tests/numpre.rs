@@ -96,6 +96,50 @@ fn capped_text_says_cap_not_proof() {
     assert!(!out.contains("proven unsolvable"), "no false proof:\n{out}");
 }
 
+// ---------------------------------------------------------------------------
+// The a2 CHAINED charge (0.24 Phase 6) — the pathwaysmetric-i2 shape: a
+// supply chain deeper than one level. a1 prices exactly finish's c-gap
+// (h=5, flat across the whole 17-step approach) and the three drift
+// dimensions blow the plateau ball past a small cap; the chained charge
+// prices the full chain (h(init)=22, the optimum) and descends per step.
+// Unit pins with the exact h arithmetic live in heuristic.rs.
+// ---------------------------------------------------------------------------
+
+const CHAIN_DOM: &str = include_str!("../../../benchmarks/bench/chained-band-domain.pddl");
+const CHAIN_PRB: &str = include_str!("../../../benchmarks/bench/chained-band-i1.pddl");
+
+/// GREEN: mode AUTO walks the chained gradient inside a cap two orders
+/// under the plateau ball.
+#[test]
+fn chained_band_mode_auto_solves_on_the_chained_gradient() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let (out, code) = ferroplan::run_planner(CHAIN_DOM, CHAIN_PRB, &capped(4_000), false);
+    assert_eq!(code, 0, "clean exit:\n{out}");
+    assert!(out.contains("found legal plan"), "must solve:\n{out}");
+
+    let sol = ferroplan::solve(CHAIN_DOM, CHAIN_PRB, &capped(4_000)).unwrap();
+    assert!(sol.solved, "library mode-auto solves too");
+    assert!(
+        sol.statistics.evaluated_states < 500,
+        "the chained charge walks, never crawls: {} evals",
+        sol.statistics.evaluated_states
+    );
+}
+
+/// The RED twin (the permanent record of the hole a2 closes): one-level
+/// pricing leaves the approach flat and the same cap must fail.
+#[test]
+fn chained_band_dies_one_level() {
+    let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    std::env::set_var("FF_NO_NUMPRE_CHAIN", "1");
+    let sol = ferroplan::solve(CHAIN_DOM, CHAIN_PRB, &capped(4_000)).unwrap();
+    std::env::remove_var("FF_NO_NUMPRE_CHAIN");
+    assert!(
+        !sol.solved,
+        "the one-level charge was expected to strand the chain (the RED shape)"
+    );
+}
+
 const WATER_DOM: &str = include_str!("../../../benchmarks/bench/watering-line-domain.pddl");
 const WATER_PRB: &str = include_str!("../../../benchmarks/bench/watering-line-i1.pddl");
 

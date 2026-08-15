@@ -147,16 +147,58 @@ pub fn search_subgoal(
     // each other — hiking-2014 i6's board solve is 43 s of STEADY
     // landmark progress inside LAMA (no fraction of a 60 s wall covers
     // it), while tetris i4's board loss is 400k evals of NO progress
-    // eating the clock. So: a rung that lowered its best h or accepted
-    // a new landmark within the last half-tranche is CONVERGING and
-    // earns another half-tranche; a stalled rung hands down at its
-    // deadline. The ladder's hard wall checkpoint still backstops the
-    // extensions.
+    // eating the clock. The ladder's hard wall checkpoint still
+    // backstops the extensions.
+    //
+    // The ARRIVAL test (0.24 Phase 6, OPT-IN `FF_LAMA_EXT_ARRIVAL=1`;
+    // the default stays 0.22's recency rule — the honest negative,
+    // receipts below): the 0.22 shape extends whenever SOME improvement
+    // landed within the last half-tranche — and a running minimum in a
+    // fresh search improves almost every batch, so a descending-but-
+    // never-arriving h reads as perpetual progress ("progress 0.00 s
+    // ago", nurikabe i12: the slice ate the wall to remaining 0.0 and
+    // the novelty slot was SKIPPED). The 0.24 sitting measured both
+    // named shapes solo and the whole drop-TREND family died on the
+    // receipts: nurikabe drips STEADILY (window key-drops 128 → 34 →
+    // 26 → … , six recency extensions to wall zero, never arriving)
+    // while spider p01 COLLAPSES (268 → 74 → 58 → 46) and then
+    // CONVERTS — any trend rule that keeps the canary keeps the
+    // wall-eater more. The one local discriminator is ARRIVAL — extend
+    // only while the demonstrated pace can still reach key zero inside
+    // the remaining wall (the heap's own W_FF·h + W_LM·lm currency,
+    // EXT_OPTIMISM slack) — and under it nurikabe hands down at ~23 s
+    // with the ladder's wall intact (the 0.23 casualty class re-opened)
+    // and hiking i6 still solves in-slice. But spider p01's conversion
+    // NEEDS the wall-eating shape: it arrives on a cliff after ~5
+    // windows of drip, demanding optimism ≥ 5.4 at its window four,
+    // while nurikabe re-extends at ≥ 5.67 one window earlier — the
+    // constants CROSS, no factor separates them to conversion, and the
+    // roadmap's canary ("the fix must discriminate, not amputate")
+    // outranks the fix. So: DEFAULT recency (byte-identical to 0.22,
+    // spider keeps its solve), arrival behind the flag with fixtures
+    // on both sides, and the swap's true price (a freed ladder on the
+    // nurikabe class vs the spider class's conversions) is a
+    // board-scale question only a sweep A/B can answer.
     let mut deadline = slice.map(|(_, s)| s);
     let tranche = slice.map_or(0.0, |(_, s)| s);
     let (mut best_ph, mut best_hlm) = (i64::MAX, i64::MAX);
     let mut last_improve_s = 0.0f64;
     let mut improved = false;
+    let arrival = std::env::var("FF_LAMA_EXT_ARRIVAL").is_ok();
+    // Window baselines form at each signal's FIRST finite value (not at
+    // slice start — i64::MAX is not a drop), then advance per extension.
+    let (mut win_ph, mut win_lm) = (i64::MAX, i64::MAX);
+    // The key level over whichever signals are finite (the snapshot and
+    // the running best share finiteness by construction — the snapshot
+    // fills the moment a signal turns finite).
+    let key_of = |ph: i64, lm: i64| -> Option<i64> {
+        match (ph != i64::MAX, lm != i64::MAX) {
+            (true, true) => Some(W_FF * ph + W_LM * lm),
+            (true, false) => Some(W_FF * ph),
+            (false, true) => Some(W_LM * lm),
+            (false, false) => None,
+        }
+    };
 
     loop {
         // Deterministic mixed batch: boosted share from the preferred heap,
@@ -231,23 +273,51 @@ pub fn search_subgoal(
                 last_improve_s = now;
                 improved = false;
             }
+            // Baselines form at the first finite reading of each signal
+            // (see the tracker docs above) so window one measures a real
+            // drop, not a descent from i64::MAX.
+            if win_ph == i64::MAX {
+                win_ph = best_ph;
+            }
+            if win_lm == i64::MAX {
+                win_lm = best_hlm;
+            }
             if let Some(d) = deadline.as_mut() {
                 if now > *d {
-                    if now - last_improve_s < 0.5 * tranche {
-                        // Converging (see the tracker docs above): earn
-                        // another half-tranche instead of handing down.
+                    let key_now = key_of(best_ph, best_hlm);
+                    let key_drop = match (key_of(win_ph, win_lm), key_now) {
+                        (Some(prev), Some(cur)) => Some(prev - cur),
+                        _ => None,
+                    };
+                    // Half-tranches the process wall can still afford —
+                    // the arrival horizon the demonstrated pace must fit.
+                    let affordable = (crate::search::wall_remaining_secs().unwrap_or(f64::INFINITY)
+                        / (0.5 * tranche).max(1e-9))
+                    .min(1e6) as i64;
+                    let extend = if arrival {
+                        extend_window(key_now, key_drop, affordable)
+                    } else {
+                        // The 0.22 recency rule — the standing default.
+                        now - last_improve_s < 0.5 * tranche
+                    };
+                    let rule = if arrival { "arrival" } else { "recency" };
+                    if extend {
+                        // Still earning: another half-tranche instead of
+                        // handing down, and the window advances.
                         *d = now + 0.5 * tranche;
+                        (win_ph, win_lm) = (best_ph, best_hlm);
                         if std::env::var("FF_WALL_DEBUG").is_ok() {
                             eprintln!(
-                                "wall: LAMA slice extended to {:.2}s (progress {:.2}s ago)",
-                                *d,
-                                now - last_improve_s
+                                "wall: LAMA slice extended to {:.2}s ({rule}; key {key_now:?} drop {key_drop:?} affordable {affordable})",
+                                *d
                             );
                         }
                     } else {
                         if std::env::var("FF_WALL_DEBUG").is_ok() {
                             eprintln!(
-                                "wall: LAMA slice exhausted ({evaluated} evals in {now:.2}s), handing down the ladder"
+                                "wall: LAMA slice exhausted ({rule} refused: key {key_now:?} \
+                                 drop {key_drop:?} affordable {affordable}; {evaluated} evals in \
+                                 {now:.2}s), handing down the ladder"
                             );
                         }
                         return best_plan.map(|p| (p, evaluated));
@@ -338,4 +408,93 @@ fn reconstruct(nodes: &[Node], mut ni: usize) -> Vec<usize> {
     }
     ops.reverse();
     ops
+}
+
+/// The arrival test's optimism factor: descent accelerates near the
+/// goal, so the demonstrated pace under-forecasts. Priced on the two
+/// measured window-two shapes — spider p01 (key 584, drop 58,
+/// affordable 4) demands ≥ 2.52 to keep that extension; nurikabe i12
+/// (key 496, drop 20, affordable 4) tolerates anything < 6.2 before
+/// the wall-eater extends again. 4 separates the early windows with
+/// margin both ways — but the LATER windows cross (spider's fourth
+/// needs ≥ 5.4 while nurikabe's third re-extends at ≥ 5.67), which is
+/// exactly why the arrival rule is opt-in rather than the default:
+/// no constant carries spider all the way to its conversion without
+/// re-feeding the wall-eater.
+const EXT_OPTIMISM: i64 = 4;
+
+/// The 5A extension verdict (0.24 Phase 6, the ARRIVAL test): extend
+/// only while the pace this window demonstrated can still reach key
+/// zero inside the wall that remains — `key_now ≤ EXT_OPTIMISM ·
+/// key_drop · affordable_windows`. A stalled or regressing window
+/// (`key_drop ≤ 0`) never extends, whatever the wall; a drip against a
+/// key an order of magnitude above its pace hands down with the wall
+/// still worth spending (nurikabe i12's measured shape); a collapsing
+/// drop over a commensurate key keeps earning (spider p01's measured
+/// shape — the do-not-give-back canary). `key_now = None` (no finite
+/// signal after a full window) refuses.
+fn extend_window(key_now: Option<i64>, key_drop: Option<i64>, affordable_windows: i64) -> bool {
+    match (key_now, key_drop) {
+        (Some(k), Some(d)) if d > 0 => {
+            k <= d
+                .saturating_mul(affordable_windows.max(0))
+                .saturating_mul(EXT_OPTIMISM)
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extend_window;
+
+    /// The RED shape, pinned at the MEASURED numbers (nurikabe i12's
+    /// window two: key 496, drop 20, affordable 4): the drip cannot
+    /// arrive and hands down with the wall still worth spending; the
+    /// recency rule extended it six times to remaining 0.0 and the
+    /// novelty slot was SKIPPED (the 0.23 docket receipt, reproduced
+    /// solo during this build).
+    #[test]
+    fn drip_that_cannot_arrive_hands_down() {
+        assert!(
+            !extend_window(Some(496), Some(20), 4),
+            "nurikabe's window-two shape is a wall-eater and must refuse"
+        );
+        assert!(
+            !extend_window(Some(100), Some(0), 50),
+            "stall never extends"
+        );
+        assert!(
+            !extend_window(Some(100), Some(-8), 50),
+            "regression never extends"
+        );
+        assert!(
+            !extend_window(None, None, 50),
+            "no finite signal, no verdict"
+        );
+        assert!(
+            !extend_window(Some(100), Some(30), 0),
+            "no affordable window left: the extension would not even fit"
+        );
+    }
+
+    /// The GREEN side, pinned at the MEASURED numbers (spider p01's
+    /// window two: key 584, drop 58, affordable 4): a collapsing drop
+    /// over a commensurate key still fits its arrival and keeps the
+    /// extension the conversion rides on.
+    #[test]
+    fn pace_that_fits_keeps_extending() {
+        assert!(
+            extend_window(Some(584), Some(58), 4),
+            "spider's window-two shape must keep its extension"
+        );
+        assert!(
+            extend_window(Some(100), Some(20), 3),
+            "a drip that fits the horizon is convergence, not churn"
+        );
+        assert!(
+            extend_window(Some(0), Some(1), 1),
+            "key zero is arrival by definition"
+        );
+    }
 }

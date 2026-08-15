@@ -779,6 +779,126 @@ fn mcv_order(
 /// (fact-id first-reference order shifted) is structurally impossible,
 /// and tests/mcv_ground.rs pins it.
 ///
+/// One MCV level's candidate index (0.24 Phase 6, the hash-join lever):
+/// for the level's chosen literal, `map` sends the values at the
+/// literal's BOUND positions (term order, constants inline) to the
+/// sorted domain-index list of this level's parameter values the atom
+/// set admits. `self_pos[ti]` marks the term positions the level's own
+/// parameter occupies (excluded from the key; a repeated parameter must
+/// read the same value at every such position to produce a candidate).
+struct LevelIndex {
+    lit: usize,
+    self_pos: Vec<bool>,
+    map: FxHashMap<Vec<Sym>, Vec<u32>>,
+}
+
+/// Build the per-level candidate indexes for the MCV recursion. Levels
+/// with no fully-bound literal get `None` (plain domain walk). Cost: ONE
+/// grouped scan of the atom set (fixpoint-mode reached sets are large)
+/// plus per-level index fills over each chosen predicate's own atoms —
+/// paid only where `mcv` armed (typed product above the threshold, where
+/// the enumeration itself dwarfs it).
+fn build_level_index(
+    params: &[(Sym, Sym)],
+    domains: &[Vec<Sym>],
+    order: &[usize],
+    lits_at: &[Vec<&(Sym, Vec<Term>)>],
+    init_atom_set: &HashSet<(Sym, Vec<Sym>)>,
+) -> Vec<Option<LevelIndex>> {
+    let param_pos = |v: &Sym| params.iter().position(|(pv, _)| pv == v);
+    // One scan of the atom set, grouped by the predicates the indexed
+    // levels actually name — fixpoint-mode reached sets are large and
+    // per-level scans would multiply the cost by the level count.
+    let wanted: HashSet<&Sym> = lits_at
+        .iter()
+        .filter_map(|lits| lits.first().map(|lit| &lit.0))
+        .collect();
+    let mut by_pred: FxHashMap<&Sym, Vec<&Vec<Sym>>> = FxHashMap::default();
+    if !wanted.is_empty() {
+        for (pred, args) in init_atom_set {
+            if wanted.contains(pred) {
+                by_pred.entry(pred).or_default().push(args);
+            }
+        }
+    }
+    order
+        .iter()
+        .enumerate()
+        .map(|(j, &p)| {
+            // The level's literal: the first one that becomes fully bound
+            // here (they all contain p by the lits_at construction; ties
+            // are rare and the remaining literals still filter per
+            // candidate below).
+            let (li, lit) = lits_at[j].iter().enumerate().next()?;
+            let self_pos: Vec<bool> = lit
+                .1
+                .iter()
+                .map(|t| matches!(t, Term::Var(v) if param_pos(v) == Some(p)))
+                .collect();
+            if !self_pos.iter().any(|&b| b) {
+                return None; // defensive: the literal must name p
+            }
+            let val_di: FxHashMap<&Sym, u32> = domains[p]
+                .iter()
+                .enumerate()
+                .map(|(di, o)| (o, di as u32))
+                .collect();
+            let mut map: FxHashMap<Vec<Sym>, Vec<u32>> = FxHashMap::default();
+            for &args in by_pred.get(&lit.0).map(Vec::as_slice).unwrap_or(&[]) {
+                if args.len() != lit.1.len() {
+                    continue;
+                }
+                // The candidate value: the atom's value at every self
+                // position (all must agree), and it must be in p's
+                // (possibly restricted) domain.
+                let mut cand: Option<&Sym> = None;
+                let mut consistent = true;
+                for (ti, is_self) in self_pos.iter().enumerate() {
+                    if *is_self {
+                        match cand {
+                            None => cand = Some(&args[ti]),
+                            Some(c) if c == &args[ti] => {}
+                            Some(_) => {
+                                consistent = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+                let Some(cand) = cand else { continue };
+                if !consistent {
+                    continue;
+                }
+                let Some(&di) = val_di.get(cand) else {
+                    continue;
+                };
+                let key: Vec<Sym> = lit
+                    .1
+                    .iter()
+                    .enumerate()
+                    .filter(|(ti, _)| !self_pos[*ti])
+                    .map(|(ti, _)| args[ti].clone())
+                    .collect();
+                let bucket = map.entry(key).or_default();
+                if !bucket.contains(&di) {
+                    bucket.push(di);
+                }
+            }
+            // Sorted candidate walks keep the recursion's visit order a
+            // subsequence of the plain domain walk's (order is already
+            // free under the sort-back; sorted keeps it deterministic).
+            for v in map.values_mut() {
+                v.sort_unstable();
+            }
+            Some(LevelIndex {
+                lit: li,
+                self_pos,
+                map,
+            })
+        })
+        .collect()
+}
+
 /// `tick`: the wall checkpoint handle — a tripped wall abandons the
 /// remaining subtree (the partial output is discarded wholesale by the
 /// caller, so the abort point never shapes a task).
@@ -844,6 +964,30 @@ fn for_each_binding(
     if mcv {
         if let Some(order) = mcv_order(params, domains, &enum_lits) {
             let lits_at = levels_for(&order);
+            // Per-level CANDIDATE LISTS (0.24 Phase 6 — the hash-join
+            // lever, landed on the blockers decode's cheaper gates after
+            // the 0.23 org-synth refusal): at a level where a literal
+            // becomes fully bound, the values of this level's parameter
+            // that can satisfy that literal are exactly the atom set's
+            // values at the parameter's positions, keyed by the bound
+            // positions — so the recursion iterates candidates instead of
+            // the whole domain. The all-large-domain literal shape this
+            // collapses is slitherlink's `CELL-EDGE ?c1 ?c2 ?n1 ?n2`
+            // (nodes²·cells² product, ~one edge per node pair) and
+            // folding's coordinate statics — literals MCV ordering alone
+            // cannot help, because every variable is big and the literal
+            // only binds at the leaf. Sound and BYTE-IDENTICAL by
+            // construction: a candidate list only skips values this
+            // level's own membership check would reject, the survivor set
+            // is unchanged, and the sort-back below already fixes
+            // emission order (the same argument that makes MCV itself
+            // byte-safe; tests/mcv_ground.rs carries the battery).
+            // `FF_NO_JOIN_INDEX=1` restores the plain domain walk.
+            let jindex = if std::env::var("FF_NO_JOIN_INDEX").is_err() {
+                build_level_index(params, domains, &order, &lits_at, init_atom_set)
+            } else {
+                Vec::new()
+            };
             // Survivors as DECLARATION-ORDER domain-index tuples; the
             // recursion itself walks the permuted order.
             #[allow(clippy::too_many_arguments)]
@@ -853,6 +997,7 @@ fn for_each_binding(
                 params: &[(Sym, Sym)],
                 domains: &[Vec<Sym>],
                 lits_at: &[Vec<&(Sym, Vec<Term>)>],
+                jindex: &[Option<LevelIndex>],
                 init: &HashSet<(Sym, Vec<Sym>)>,
                 binding: &mut HashMap<Sym, Sym>,
                 idx: &mut [u32],
@@ -868,6 +1013,49 @@ fn for_each_binding(
                 }
                 let p = order[j];
                 let var = &params[p].0;
+                if let Some(li) = jindex.get(j).and_then(|x| x.as_ref()) {
+                    // Candidate walk: only values the indexed literal
+                    // admits under the current bound-position key. The
+                    // full lits_at check still runs per candidate (other
+                    // same-level literals must hold too).
+                    let lit = lits_at[j][li.lit];
+                    let mut key: Vec<Sym> = Vec::with_capacity(lit.1.len());
+                    for (ti, t) in lit.1.iter().enumerate() {
+                        if li.self_pos[ti] {
+                            continue;
+                        }
+                        key.push(match t {
+                            Term::Var(v) => binding[v].clone(),
+                            Term::Const(c) => c.clone(),
+                        });
+                    }
+                    for &di in li.map.get(&key).map(Vec::as_slice).unwrap_or(&[]) {
+                        binding.insert(var.clone(), domains[p][di as usize].clone());
+                        idx[p] = di;
+                        let ok = lits_at[j].iter().all(|lit| {
+                            init.contains(&(lit.0.clone(), subst_args(&lit.1, binding)))
+                        });
+                        if ok
+                            && !mrec(
+                                j + 1,
+                                order,
+                                params,
+                                domains,
+                                lits_at,
+                                jindex,
+                                init,
+                                binding,
+                                idx,
+                                tick,
+                                out,
+                            )
+                        {
+                            return false;
+                        }
+                    }
+                    binding.remove(var);
+                    return true;
+                }
                 for (di, o) in domains[p].iter().enumerate() {
                     binding.insert(var.clone(), o.clone());
                     idx[p] = di as u32;
@@ -881,6 +1069,7 @@ fn for_each_binding(
                             params,
                             domains,
                             lits_at,
+                            jindex,
                             init,
                             binding,
                             idx,
@@ -903,6 +1092,7 @@ fn for_each_binding(
                 params,
                 domains,
                 &lits_at,
+                &jindex,
                 init_atom_set,
                 &mut binding,
                 &mut idx,

@@ -2605,14 +2605,24 @@ fn temporal_node_cap(task: &PackedTask, til_len: usize, bytes: usize) -> usize {
             return if n == 0 { usize::MAX } else { n };
         }
     }
+    (bytes / temporal_per_node_bytes(task, til_len)).min(MAX_NODES)
+}
+
+/// The temporal node arena's per-node byte model — the cap's denominator
+/// above, and the retained-bytes estimate the search-side wall checkpoint
+/// (0.24 Phase 6) feeds the teardown/report reserve: a multi-GB TNode
+/// arena is paid for at drop, and a verdict that misses the runner's wire
+/// because teardown ate the last seconds is the zombie shape the 0.22
+/// reserve exists to prevent.
+fn temporal_per_node_bytes(task: &PackedTask, til_len: usize) -> usize {
     let agenda_est = til_len + 8;
-    let per_node = 2 * task.words * 8
+    (2 * task.words * 8
         + task.fv0.len() * 8
         + task.fdef0.len()
         + task.rel_fluents.len() * 8
         + 2 * agenda_est * 16
-        + 160;
-    (bytes / per_node.max(1)).min(MAX_NODES)
+        + 160)
+        .max(1)
 }
 
 /// One decision-epoch search pass. `prune` restricts block-(a) expansion to the
@@ -2657,6 +2667,35 @@ fn temporal_search(
     let orbit_gen = std::env::var("FF_ORBIT_GEN").is_ok();
     let lifo = std::env::var("FF_TLIFO").is_ok();
     let tb_free_g = std::env::var("FF_TB_FREE_G").is_ok();
+    // The SEARCH-side wall checkpoint (0.24 Phase 6): the caps above are
+    // eval/node-denominated on purpose (deterministic, thread-count
+    // independent), and until 0.24 they were the ONLY exits — the 0.23
+    // re-referee's receipt is sokoban-t grounding in seconds (post-MCV)
+    // and then searching past a 60 s wall with zero clock reads. The 0.22
+    // Phase 2 idiom lands here: the armed deadline is cached ONCE per
+    // pass (the grounding-enumeration idiom — no OnceLock/env traffic in
+    // the loop), read once per pop (each pop pays h evaluations orders of
+    // magnitude heavier than a clock read — astar's every-pop precedent),
+    // against the teardown/report reserve for the live arena estimate.
+    // A trip breaks to the same honest cap exit below; plans already
+    // found are returned by the goal check before any pop is spent.
+    // Unarmed `FF_TIME_LIMIT` or `FF_NO_RUNG_WALLCAP=1` ⇒ `None` ⇒
+    // byte-identical search.
+    let wall = if crate::search::rung_wallcap_on() {
+        crate::search::wall_deadline()
+    } else {
+        None
+    };
+    let per_node = temporal_per_node_bytes(task, til_events.len());
+    // A pass entered after the wall has already expired exits before its
+    // root evaluation — the ladder above runs up to four passes, and an
+    // expired ladder must not pay four root h builds to learn the time.
+    if wall.is_some_and(|d| crate::search::deadline_expired_reserving(d, 0)) {
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!("wall: temporal search checkpoint expired (pass entry refused)");
+        }
+        return None;
+    }
     let t0 = crate::clock::Clock::now();
     if dbg {
         eprintln!(
@@ -2914,7 +2953,22 @@ fn temporal_search(
                 head.join(", ")
             );
         }
-        if nodes.len() > max_nodes || *budget == 0 {
+        // The wall checkpoint (0.24 Phase 6, see the pass-start docs): one
+        // clock read per pop against the cached deadline, reserving the
+        // arena's teardown. Same honest break as the caps — the pass ends,
+        // the ladder's next pass refuses at entry, the caller reports.
+        let wall_hit = wall.is_some_and(|d| {
+            crate::search::deadline_expired_reserving(d, nodes.len().saturating_mul(per_node))
+        });
+        if wall_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: temporal search checkpoint expired (nodes {}, evaluated {}) at {}ms",
+                nodes.len(),
+                stats.evaluated,
+                t0.elapsed_ms()
+            );
+        }
+        if nodes.len() > max_nodes || *budget == 0 || wall_hit {
             if dbg {
                 eprintln!(
                     "[tsearch] cap hit (nodes {} / max {max_nodes}, budget left {budget}) at {}ms",
