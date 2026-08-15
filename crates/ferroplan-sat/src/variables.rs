@@ -1,6 +1,13 @@
 // Absorbed from varisat 0.2.2 (https://github.com/jix/varisat, master
 // @ 33e87693, file varisat/src/variables.rs); `rustc-hash` was replaced
-// by std's `HashSet`, the proof steps went with the proof seam.
+// by std's `HashSet`, the proof steps went with the proof seam, and the
+// sampling-mode surface (set_sampling_mode, observe_internal_vars, the
+// hide/witness freelists, the require_sampling threading) was stripped —
+// user variables are never hidden here, so the user↔global mapping stays
+// the identity and globals are never deleted. The three-level
+// user/global/solver mapping itself is KEPT: unit_simplify recycles
+// solver variables through it (a real solver feature, not proof
+// residue).
 // Copyright (c) 2017-2019 Jannis Harder, MIT OR Apache-2.0 — ferroplan's
 // exact dual license. Ferroplan code from the absorption commit onward;
 // see ATTRIBUTION.md.
@@ -17,7 +24,7 @@ use crate::{
 pub mod data;
 pub mod var_map;
 
-use data::{SamplingMode, VarData};
+use data::VarData;
 use var_map::{VarBiMap, VarBiMapMut, VarMap};
 
 /// Variable mapping and metadata.
@@ -25,17 +32,13 @@ use var_map::{VarBiMap, VarBiMapMut, VarMap};
 pub struct Variables {
     /// Bidirectional mapping from user variables to global variables.
     ///
-    /// Initially this is the identity mapping. This ensures that in the non-assumptions setting the
-    /// map from used user variables to global variables is the identity.
+    /// Always the identity mapping (nothing removes user variables anymore); kept bidirectional so
+    /// the shape survives for a future ferroplan-side use.
     global_from_user: VarBiMap,
     /// Bidirectional mapping from global variables to solver variables.
     ///
     /// This starts with the empty mapping, so only used variables are allocated.
     solver_from_global: VarBiMap,
-    /// User variables that were explicitly hidden by the user.
-    user_freelist: HashSet<Var>,
-    /// Global variables that can be recycled without increasing the global_watermark.
-    global_freelist: HashSet<Var>,
     /// Solver variables that are unused and can be recycled.
     solver_freelist: HashSet<Var>,
 
@@ -101,11 +104,6 @@ impl Variables {
         self.global_from_user.bwd()
     }
 
-    /// Mutable global to user mapping.
-    pub fn user_from_global_mut(&mut self) -> VarBiMapMut<'_> {
-        self.global_from_user.bwd_mut()
-    }
-
     /// The solver to global mapping.
     pub fn global_from_solver(&self) -> &VarMap {
         self.solver_from_global.bwd()
@@ -154,15 +152,6 @@ impl Variables {
         self.global_from_solver().get(solver).is_some()
     }
 
-    /// Get an unmapped global variable.
-    pub fn next_unmapped_global(&self) -> Var {
-        self.global_freelist
-            .iter()
-            .next()
-            .cloned()
-            .unwrap_or_else(|| Var::from_index(self.global_watermark()))
-    }
-
     /// Get an unmapped solver variable.
     pub fn next_unmapped_solver(&self) -> Var {
         self.solver_freelist
@@ -174,50 +163,33 @@ impl Variables {
 
     /// Get an unmapped user variable.
     pub fn next_unmapped_user(&self) -> Var {
-        self.user_freelist
-            .iter()
-            .next()
-            .cloned()
-            .unwrap_or_else(|| Var::from_index(self.user_watermark()))
+        Var::from_index(self.user_watermark())
     }
 }
 
 /// Maps a user variable into a global variable.
 ///
 /// If no matching global variable exists a new global variable is allocated.
-pub fn global_from_user(ctx: &mut Context, user: Var, require_sampling: bool) -> Var {
+pub fn global_from_user(ctx: &mut Context, user: Var) -> Var {
     let variables = &mut ctx.variables;
 
     if user.index() > variables.user_watermark() {
         for index in variables.user_watermark()..user.index() {
-            global_from_user(ctx, Var::from_index(index), false);
+            global_from_user(ctx, Var::from_index(index));
         }
     }
 
     let variables = &mut ctx.variables;
 
     match variables.global_from_user().get(user) {
-        Some(global) => {
-            if require_sampling
-                && variables.var_data[global.index()].sampling_mode != SamplingMode::Sample
-            {
-                panic!("witness variables cannot be constrained");
-            }
-            global
-        }
+        Some(global) => global,
         None => {
-            // Can we add an identity mapping?
-            let global = match variables.var_data.get(user.index()) {
-                Some(var_data) if var_data.deleted => user,
-                None => user,
-                _ => variables.next_unmapped_global(),
-            };
+            // Nothing ever removes user variables, so the mapping is the identity.
+            let global = user;
 
             *variables.var_data_global_mut(global) = VarData::user_default();
 
             variables.global_from_user_mut().insert(global, user);
-            variables.global_freelist.remove(&global);
-            variables.user_freelist.remove(&user);
 
             global
         }
@@ -258,91 +230,25 @@ pub fn solver_from_global(ctx: &mut Context, global: Var) -> Var {
 /// Maps a user variable to a solver variable.
 ///
 /// Allocates global and solver variables as required.
-pub fn solver_from_user(ctx: &mut Context, user: Var, require_sampling: bool) -> Var {
-    let global = global_from_user(ctx, user, require_sampling);
+pub fn solver_from_user(ctx: &mut Context, user: Var) -> Var {
+    let global = global_from_user(ctx, user);
     solver_from_global(ctx, global)
 }
 
 /// Allocates a currently unused user variable.
-///
-/// This is either a user variable above any user variable used so far, or a user variable that was
-/// previously hidden by the user.
 pub fn new_user_var(ctx: &mut Context) -> Var {
     let user_var = ctx.variables.next_unmapped_user();
-    global_from_user(ctx, user_var, false);
+    global_from_user(ctx, user_var);
     user_var
 }
 
 /// Maps a slice of user lits to solver lits using [`solver_from_user`].
-pub fn solver_from_user_lits(
-    ctx: &mut Context,
-    solver_lits: &mut Vec<Lit>,
-    user_lits: &[Lit],
-    require_sampling: bool,
-) {
+pub fn solver_from_user_lits(ctx: &mut Context, solver_lits: &mut Vec<Lit>, user_lits: &[Lit]) {
     solver_lits.clear();
     for user_lit in user_lits {
-        let solver_var = solver_from_user(ctx, user_lit.var(), require_sampling);
+        let solver_var = solver_from_user(ctx, user_lit.var());
         solver_lits.push(user_lit.map_var(|_| solver_var));
     }
-}
-
-/// Changes the sampling mode of a global variable.
-///
-/// If the mode is changed to hidden, an existing user mapping is automatically removed.
-///
-/// If the mode is changed from hidden, a new user mapping is allocated and the user variable is
-/// returned.
-pub fn set_sampling_mode(ctx: &mut Context, global: Var, mode: SamplingMode) -> Option<Var> {
-    let variables = &mut ctx.variables;
-
-    let var_data = &mut variables.var_data[global.index()];
-
-    assert!(!var_data.deleted);
-
-    if var_data.assumed {
-        panic!("cannot change sampling mode of assumption variable")
-    }
-
-    let previous_mode = var_data.sampling_mode;
-
-    if previous_mode == mode {
-        return None;
-    }
-
-    var_data.sampling_mode = mode;
-
-    let mut result = None;
-
-    if previous_mode == SamplingMode::Hide {
-        let user = variables.next_unmapped_user();
-        variables.user_from_global_mut().insert(user, global);
-        variables.user_freelist.remove(&user);
-
-        result = Some(user);
-    } else if mode == SamplingMode::Hide {
-        if let Some(user) = variables.user_from_global_mut().remove(global) {
-            variables.user_freelist.insert(user);
-        }
-
-        delete_global_if_unused(ctx, global);
-    }
-
-    result
-}
-
-/// Turns all hidden vars into witness vars and returns them.
-pub fn observe_internal_vars(ctx: &mut Context) -> Vec<Var> {
-    let mut result = vec![];
-    for global_index in 0..ctx.variables.global_watermark() {
-        let global = Var::from_index(global_index);
-        let var_data = &ctx.variables.var_data[global.index()];
-        if !var_data.deleted && var_data.sampling_mode == SamplingMode::Hide {
-            let user = set_sampling_mode(ctx, global, SamplingMode::Witness).unwrap();
-            result.push(user);
-        }
-    }
-    result
 }
 
 /// Initialize a newly allocated solver variable
@@ -372,43 +278,17 @@ pub fn initialize_solver_var(ctx: &mut Context, solver: Var, global: Var) {
 
 /// Remove a solver var.
 ///
-/// If the variable is isolated and hidden, the global variable is also removed.
+/// The global variable (and with it the user mapping and the remembered unit value) stays; only
+/// the solver-side slot is recycled.
 pub fn remove_solver_var(ctx: &mut Context, solver: Var) {
     ctx.vsids.make_unavailable(solver);
 
     let variables = &mut ctx.variables;
 
-    let global = variables
+    variables
         .global_from_solver_mut()
         .remove(solver)
         .expect("no existing global var for solver var");
 
     variables.solver_freelist.insert(solver);
-
-    delete_global_if_unused(ctx, global);
-}
-
-/// Delete a global variable if it is unused
-fn delete_global_if_unused(ctx: &mut Context, global: Var) {
-    let variables = &mut ctx.variables;
-
-    if variables.user_from_global().get(global).is_some() {
-        return;
-    }
-
-    if variables.solver_from_global().get(global).is_some() {
-        return;
-    }
-
-    let data = &mut variables.var_data[global.index()];
-
-    assert!(data.sampling_mode == SamplingMode::Hide);
-
-    if !data.isolated {
-        return;
-    }
-
-    data.deleted = true;
-
-    variables.global_freelist.insert(global);
 }

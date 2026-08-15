@@ -43,7 +43,7 @@ pub fn load_clause(ctx: &mut Context, user_lits: &[Lit]) {
     let mut lits = take(&mut ctx.tmp_data.lits);
     let mut false_lits = take(&mut ctx.tmp_data.lits_2);
 
-    variables::solver_from_user_lits(ctx, &mut lits, user_lits, true);
+    variables::solver_from_user_lits(ctx, &mut lits, user_lits);
 
     lits.sort_unstable();
     lits.dedup();

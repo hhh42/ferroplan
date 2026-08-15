@@ -136,44 +136,6 @@ impl Solver {
             SatState::Unknown | SatState::Sat => None,
         }
     }
-
-    /// Sets the "witness" sampling mode for a variable.
-    ///
-    /// A witness variable will always have a defined value in a model, but constraining it is an
-    /// error.
-    pub fn witness_var(&mut self, var: Var) {
-        let global = variables::global_from_user(&mut self.ctx, var, false);
-        variables::set_sampling_mode(
-            &mut self.ctx,
-            global,
-            variables::data::SamplingMode::Witness,
-        );
-    }
-
-    /// Sets the "sample" sampling mode for a variable.
-    pub fn sample_var(&mut self, var: Var) {
-        let global = variables::global_from_user(&mut self.ctx, var, false);
-        variables::set_sampling_mode(&mut self.ctx, global, variables::data::SamplingMode::Sample);
-    }
-
-    /// Hide a variable.
-    ///
-    /// Turns a free variable into an existentially quantified variable. If the passed `Var` is used
-    /// again after this call, it refers to a new variable not the previously hidden variable.
-    pub fn hide_var(&mut self, var: Var) {
-        let global = variables::global_from_user(&mut self.ctx, var, false);
-        variables::set_sampling_mode(&mut self.ctx, global, variables::data::SamplingMode::Hide);
-    }
-
-    /// Observe solver internal variables.
-    ///
-    /// This turns solver internal variables into witness variables. There is no guarantee that the
-    /// newly visible variables correspond to previously hidden variables.
-    ///
-    /// Returns a list of newly visible variables.
-    pub fn observe_internal_vars(&mut self) -> Vec<Var> {
-        variables::observe_internal_vars(&mut self.ctx)
-    }
 }
 
 impl ExtendFormula for Solver {

@@ -74,7 +74,7 @@ pub fn set_assumptions(ctx: &mut Context, user_assumptions: &[Lit]) {
         ctx.variables.var_data_solver_mut(lit.var()).assumed = false;
     }
 
-    variables::solver_from_user_lits(ctx, &mut assumptions, user_assumptions, true);
+    variables::solver_from_user_lits(ctx, &mut assumptions, user_assumptions);
 
     for lit in assumptions.iter() {
         ctx.variables.var_data_solver_mut(lit.var()).assumed = true;
