@@ -38,7 +38,16 @@
 //! [`Session::fork`] clones a mind over the SAME grounded world — one
 //! grounding, N small state views. And a mind is scopeable (0.14):
 //! [`Session::restrict_ops`] confines its plans to its own actions, the
-//! many-minds correctness primitive.
+//! many-minds correctness primitive. Since 0.24 a think can be
+//! BUDGET-STAMPED ([`Session::think`]): evals, wall milliseconds and
+//! memory in, `{capped, spent_ms, spent_evals, verdict}` out — the
+//! capped-vs-proven honesty typed into the verdict — and classical
+//! thinks are orbit-aware (detection re-run per think on the CURRENT
+//! world, never cached across world edits). The wing's seam is NAMED
+//! here and not taken: when 0.24 Wave 2 lands `Mode::Sat` (see
+//! [`crate::Mode`]'s rustdoc), a think over a constraint-shaped world
+//! stamps that mode in its `Solution` — same wire, new solver, nothing
+//! for a caller to migrate.
 //!
 //! **Why static facts are rejected.** Grounding enumerates operator parameters
 //! restricted by *static* predicates read from `:init` — a static fact flipped
@@ -72,6 +81,65 @@ fn atom_head(display: &str) -> &str {
         }
         return head;
     }
+}
+
+/// A think's explicit budget (0.24 Phase 5) — every axis optional: a missing
+/// `max_evaluated` means the session's configured default, a missing
+/// `wall_ms` means no wall, a missing `memory_mb` means the deterministic
+/// default byte model.
+///
+/// `max_evaluated` stays the DETERMINISTIC unit (identical budgets give
+/// identical plans at any thread count). `wall_ms` is the honest-wall
+/// machinery (0.21/0.22: clock checkpoints at batch cadence, the
+/// teardown/report reserve) exposed as a per-think contract on the
+/// classical path; the temporal ladder checks it at PASS boundaries only
+/// — the in-loop temporal checkpoints (0.24 Phase 6) ride the PROCESS
+/// wall (`FF_TIME_LIMIT`), and folding a think's own wall into that
+/// cached deadline is a named seam for the wing integration. A wall
+/// budget is inherently machine-dependent — pair it with an eval budget
+/// when replay matters.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ThinkBudget {
+    /// Cap on evaluated states — the deterministic unit.
+    pub max_evaluated: Option<usize>,
+    /// Wall budget for THIS think, in milliseconds.
+    pub wall_ms: Option<u64>,
+    /// Retained-memory bound in MiB (the deterministic per-node byte model).
+    pub memory_mb: Option<usize>,
+}
+
+/// How a [`Think`] ended — the capped-vs-proven honesty (the 0.21 Phase 3
+/// rider) as a typed verdict: a capped think NEVER reads as unsolvable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ThinkVerdict {
+    /// A plan came back within the budget.
+    Solved,
+    /// No plan, and a cap MAY have truncated the search (evals, wall,
+    /// memory — or the temporal ladder's own bounds): the goal was NOT
+    /// proven unreachable.
+    Capped,
+    /// No plan, and the classical complete search genuinely exhausted: the
+    /// goal is unreachable from the current state within this mind's
+    /// allowed ops. Temporal thinks never report this — the bounded
+    /// decision-epoch ladder proves nothing by failing.
+    Exhausted,
+}
+
+/// A budget-stamped think report ([`Session::think`]).
+#[derive(Debug, Clone)]
+pub struct Think {
+    /// The ordinary structured solution; the verdict notes ride in
+    /// `solution.notes`.
+    pub solution: Solution,
+    /// `true` iff the verdict is budget-shaped ([`ThinkVerdict::Capped`]).
+    pub capped: bool,
+    /// Wall clock actually spent, in milliseconds.
+    pub spent_ms: u64,
+    /// States actually evaluated.
+    pub spent_evals: usize,
+    /// The typed verdict.
+    pub verdict: ThinkVerdict,
 }
 
 /// A grounded, replannable world. See the module docs.
@@ -135,6 +203,18 @@ pub struct Session {
     /// [`Session::elapse`] fires the due ends, retiring the
     /// mirror-the-end-effects idiom.
     running: Vec<(f64, usize)>,
+    /// The lifted (post-`derived::compile`) domain/problem this session
+    /// was grounded from — CLASSICAL sessions only, retained for the
+    /// per-think orbit re-detection (0.24 Phase 5, [`Session::orbit_now`]).
+    /// Temporal sessions retain nothing: their appended TIL-setter ops sit
+    /// outside any σ family certification, so they stay orbit-free by the
+    /// 0.14 decision. `Arc`-shared by forks like every other immutable
+    /// payload.
+    lifted: Option<Arc<(crate::types::Domain, crate::types::Problem)>>,
+    /// The CURRENT goal in lifted form — the problem's goal at birth,
+    /// replaced by every successful [`Session::set_goal`] — so orbit
+    /// re-detection certifies σ-invariance of what the mind wants NOW.
+    goal_formula: Formula,
 }
 
 /// Extend a freshly grounded TEMPORAL task with scheduled-event setter ops
@@ -345,6 +425,14 @@ impl Session {
             .enumerate()
             .map(|(i, d)| (d.clone(), i))
             .collect();
+        // The lifted pair rides only on CLASSICAL sessions (see the field
+        // docs); the goal formula rides on both so a temporal retarget
+        // stays cheap if the record ever changes.
+        let goal_formula = problem.goal.clone();
+        let lifted = match &temporal_c {
+            None => Some(Arc::new((domain, problem))),
+            Some(_) => None,
+        };
         Ok(Session {
             task,
             threads,
@@ -364,6 +452,8 @@ impl Session {
             timed: Vec::new(),
             til_setters: Arc::new(til_setters),
             running: Vec::new(),
+            lifted,
+            goal_formula,
         })
     }
 
@@ -504,6 +594,8 @@ impl Session {
             timed: self.timed.clone(),
             til_setters: Arc::clone(&self.til_setters),
             running: self.running.clone(),
+            lifted: self.lifted.clone(),
+            goal_formula: self.goal_formula.clone(),
         }
     }
 
@@ -519,6 +611,7 @@ impl Session {
         c: &crate::temporal::TemporalCompiled,
         budget_evals: Option<usize>,
         memory_mb: Option<usize>,
+        deadline: Option<(crate::clock::Clock, f64)>,
     ) -> Solution {
         let start = self.task.initial();
         // A running interval's end could still UNMEET the goal — only an
@@ -569,7 +662,7 @@ impl Session {
                 .unwrap_or(std::cmp::Ordering::Equal)
                 .then(a.1.cmp(&b.1))
         });
-        let tp = crate::temporal::solve_from_seeded(
+        let tp = crate::temporal::solve_from_seeded_deadline(
             task,
             &kind,
             &dur_exprs,
@@ -584,6 +677,7 @@ impl Session {
             &mut remaining,
             node_bytes,
             true, // pending events seed h: waits through repaired outages
+            deadline,
         );
         let evaluated = total.saturating_sub(remaining);
         match tp {
@@ -996,6 +1090,10 @@ impl Session {
 
         self.task.goal_pos = pos;
         self.task.goal_num = num;
+        // The lifted mirror of the retarget (0.24 Phase 5): orbit
+        // re-detection must certify the goal the mind wants NOW, and
+        // failed retargets above returned before reaching here.
+        self.goal_formula = f;
         Ok(())
     }
 
@@ -1603,7 +1701,7 @@ impl Session {
 
     fn replan_inner(&self, budget_evals: Option<usize>, memory_mb: Option<usize>) -> Solution {
         if let Some(c) = &self.temporal {
-            return self.replan_temporal(c, budget_evals, memory_mb);
+            return self.replan_temporal(c, budget_evals, memory_mb, None);
         }
         if self.task.goal_met(&self.task.initial()) {
             return Solution {
@@ -1661,6 +1759,267 @@ impl Session {
                 notes,
             },
         }
+    }
+
+    /// The budget-stamped think (0.24 Phase 5): [`Session::replan_budgeted`]
+    /// with the honest-wall contract attached. Returns a [`Think`] — the
+    /// solution plus `{capped, spent_ms, spent_evals, verdict}` — and the
+    /// capped-search honesty holds verbatim: a think that ran out of budget
+    /// reports [`ThinkVerdict::Capped`], never a claim of unsolvability;
+    /// only a genuinely exhausted classical search reports
+    /// [`ThinkVerdict::Exhausted`].
+    ///
+    /// Classical thinks are also ORBIT-AWARE: object-symmetry detection
+    /// re-runs against the CURRENT world and goal on every call (see
+    /// [`Session::orbit_now`]'s contract) and the canonical visited keys
+    /// ride the best-first fallback. `replan`/`replan_budgeted` keep their
+    /// standing orbit-free behavior byte-for-byte — the think is the new
+    /// contract, not a rewrite of the old one.
+    pub fn think(&self, budget: &ThinkBudget) -> Think {
+        let t0 = crate::clock::Clock::now();
+        let deadline = budget.wall_ms.map(|ms| (t0, ms as f64 / 1000.0));
+        if let Some(c) = &self.temporal {
+            let c = Arc::clone(c);
+            return self.think_temporal(&c, budget, deadline, t0);
+        }
+        if self.task.goal_met(&self.task.initial()) {
+            return Think {
+                solution: Solution {
+                    solved: true,
+                    mode: Mode::Ff,
+                    plan: Some(Plan {
+                        steps: Vec::new(),
+                        length: 0,
+                        metric: None,
+                        makespan: None,
+                    }),
+                    statistics: stats(&self.task, 0, self.threads),
+                    notes: vec!["goal already satisfied; the empty plan solves it".into()],
+                },
+                capped: false,
+                spent_ms: t0.elapsed_ms() as u64,
+                spent_evals: 0,
+                verdict: ThinkVerdict::Solved,
+            };
+        }
+        let mut cfg = crate::search::SearchCfg::from_weights(
+            self.weight_g,
+            self.weight_h,
+            budget.max_evaluated.or(self.max_evaluated),
+        );
+        cfg.node_bytes_target = budget.memory_mb.map(|mb| mb.saturating_mul(1 << 20));
+        cfg.deadline = deadline;
+        let orbit = self.orbit_now();
+        let o = search::plan_avoiding(
+            &self.task,
+            self.threads,
+            cfg,
+            self.ehc_first,
+            &self.forbidden,
+            orbit.as_ref(),
+        );
+        let mut notes = Vec::new();
+        if orbit.is_some() {
+            notes.push(
+                "orbit canonicalization armed for this think (re-detected on the \
+                 current world)"
+                    .into(),
+            );
+        }
+        if o.ehc_fell_back && o.ops.is_some() {
+            notes.push("EHC found no improving state; used weighted best-first".into());
+        }
+        let spent_ms = t0.elapsed_ms() as u64;
+        match o.ops {
+            Some(ops) => {
+                let steps = steps_of(&self.task, &ops, None);
+                Think {
+                    solution: Solution {
+                        solved: true,
+                        mode: Mode::Ff,
+                        plan: Some(Plan {
+                            length: steps.len(),
+                            steps,
+                            metric: None,
+                            makespan: None,
+                        }),
+                        statistics: stats(&self.task, o.evaluated, self.threads),
+                        notes,
+                    },
+                    capped: false,
+                    spent_ms,
+                    spent_evals: o.evaluated,
+                    verdict: ThinkVerdict::Solved,
+                }
+            }
+            None => {
+                let (verdict, capped) = if o.capped {
+                    (ThinkVerdict::Capped, true)
+                } else {
+                    (ThinkVerdict::Exhausted, false)
+                };
+                notes.push(match verdict {
+                    ThinkVerdict::Capped => format!(
+                        "think capped at {} evals / {} ms: no plan within budget; \
+                         the goal was NOT proven unreachable",
+                        o.evaluated, spent_ms
+                    ),
+                    _ => "search exhausted: no plan exists from the current state \
+                          within this mind's allowed ops"
+                        .into(),
+                });
+                Think {
+                    solution: Solution {
+                        solved: false,
+                        mode: Mode::Ff,
+                        plan: None,
+                        statistics: stats(&self.task, o.evaluated, self.threads),
+                        notes,
+                    },
+                    capped,
+                    spent_ms,
+                    spent_evals: o.evaluated,
+                    verdict,
+                }
+            }
+        }
+    }
+
+    /// The temporal arm of [`Session::think`]: the plain bounded ladder plus
+    /// the pass-boundary wall check, stamped. An unsolved temporal think is
+    /// ALWAYS [`ThinkVerdict::Capped`] — between the eval budget, the node
+    /// cap, and the decision-epoch ladder's incompleteness on
+    /// required-concurrency shapes, a failed ladder proves nothing.
+    fn think_temporal(
+        &self,
+        c: &crate::temporal::TemporalCompiled,
+        budget: &ThinkBudget,
+        deadline: Option<(crate::clock::Clock, f64)>,
+        t0: crate::clock::Clock,
+    ) -> Think {
+        let sol = self.replan_temporal(c, budget.max_evaluated, budget.memory_mb, deadline);
+        let spent_ms = t0.elapsed_ms() as u64;
+        let spent_evals = sol.statistics.evaluated_states;
+        if sol.solved {
+            return Think {
+                solution: sol,
+                capped: false,
+                spent_ms,
+                spent_evals,
+                verdict: ThinkVerdict::Solved,
+            };
+        }
+        let mut sol = sol;
+        sol.notes.push(format!(
+            "temporal think found no plan within {spent_evals} evals / {spent_ms} ms: \
+             the bounded decision-epoch ladder proves nothing by failing — the goal \
+             may still be reachable"
+        ));
+        if deadline.is_some() {
+            sol.notes.push(
+                "wall checks on temporal thinks are pass-boundary coarse this cycle \
+                 (the in-loop temporal checkpoints, 0.24 Phase 6, ride the process \
+                 wall — not this think's)"
+                    .into(),
+            );
+        }
+        Think {
+            solution: sol,
+            capped: true,
+            spent_ms,
+            spent_evals,
+            verdict: ThinkVerdict::Capped,
+        }
+    }
+
+    /// Per-think orbit gate (0.24 Phase 5): classical, UNRESTRICTED minds
+    /// only, and detection RE-RUNS against the CURRENT world and goal on
+    /// every call — never cached across `set_fact` / `set_fluent` /
+    /// `set_goal`. The 0.14 decision stands (orbits.rs module docs): a
+    /// session's drifting init and caller-shaped masks are not σ-checked,
+    /// so nothing certified at construction survives the next world edit.
+    /// The narrow sound subset is exactly this: rebuild the lifted problem
+    /// from the live state — statics verbatim (`set_fact` fences them),
+    /// dynamic facts and fluents from the current tables (full fluent
+    /// tables are the 0.21 fold's session exemption), the goal from the
+    /// current retarget — and pay detection again. Temporal sessions
+    /// return `None` structurally (their TIL-setter ops are appended AFTER
+    /// grounding, outside any σ family certification, and the running
+    /// agenda/schedule are caller-shaped); restricted minds return `None`
+    /// here to save the detection cost — `search_from`'s forbidden-mask
+    /// guard remains the single enforcement point either way.
+    fn orbit_now(&self) -> Option<crate::orbits::OrbitMap> {
+        let lifted = self.lifted.as_ref()?;
+        if self.forbidden.iter().any(|&b| b) {
+            return None;
+        }
+        let (domain, base) = &**lifted;
+        let mut problem = base.clone();
+        let disp_of = |head: &str, args: &[String]| {
+            let mut d = String::from("(");
+            d.push_str(&head.to_ascii_uppercase());
+            for a in args {
+                d.push(' ');
+                d.push_str(&a.to_ascii_uppercase());
+            }
+            d.push(')');
+            d
+        };
+        // Statics keep their :init atoms verbatim; every DYNAMIC interned
+        // fact is re-read from the current bits (mirror facts are grounding
+        // artifacts — the base fact carries the information).
+        problem
+            .init_atoms
+            .retain(|(p, args)| match self.fact_ids.get(&disp_of(p, args)) {
+                Some(&id) => !self.dynamic[id as usize],
+                None => true,
+            });
+        for id in 0..self.task.n_facts {
+            if !self.dynamic[id] {
+                continue;
+            }
+            if self.task.init_bits[id / 64] >> (id % 64) & 1 == 0 {
+                continue;
+            }
+            let name = &self.task.fact_names[id];
+            let inner = name.strip_prefix('(').and_then(|r| r.strip_suffix(')'))?;
+            if inner.starts_with("NOT ") {
+                continue;
+            }
+            let mut it = inner.split_whitespace();
+            let head = it.next()?.to_string();
+            problem
+                .init_atoms
+                .push((head, it.map(str::to_string).collect()));
+        }
+        // Fluents: current values for everything the grounding interned;
+        // original entries stand for anything it never did.
+        for ((f, args), v) in problem.init_fluents.iter_mut() {
+            if let Some(&id) = self.fluent_ids.get(&disp_of(f, args)) {
+                *v = self.task.fv0[id as usize];
+            }
+        }
+        for id in 0..self.task.fluent_names.len() {
+            if !self.task.fdef0[id] {
+                continue;
+            }
+            let name = &self.task.fluent_names[id];
+            if problem
+                .init_fluents
+                .iter()
+                .any(|((f, args), _)| &disp_of(f, args) == name)
+            {
+                continue;
+            }
+            let inner = name.strip_prefix('(').and_then(|r| r.strip_suffix(')'))?;
+            let mut it = inner.split_whitespace();
+            let head = it.next()?.to_string();
+            problem
+                .init_fluents
+                .push(((head, it.map(str::to_string).collect()), self.task.fv0[id]));
+        }
+        problem.goal = self.goal_formula.clone();
+        crate::orbits::detect_classical(domain, &problem, &self.task)
     }
 }
 
@@ -2875,6 +3234,288 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(steps(&t1), steps(&t8));
+    }
+
+    // ---- 0.24 Phase 5: the budget-stamped think contract -------------------
+
+    #[test]
+    fn think_is_budget_stamped_and_a_cap_never_reads_unsolvable() {
+        let s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        let starved = s.think(&ThinkBudget {
+            max_evaluated: Some(1),
+            memory_mb: Some(1),
+            ..Default::default()
+        });
+        assert!(!starved.solution.solved);
+        assert!(starved.capped);
+        assert_eq!(starved.verdict, ThinkVerdict::Capped);
+        assert!(
+            starved
+                .solution
+                .notes
+                .iter()
+                .any(|n| n.contains("NOT proven unreachable")),
+            "{:?}",
+            starved.solution.notes
+        );
+        assert!(
+            starved
+                .solution
+                .notes
+                .iter()
+                .all(|n| !n.to_lowercase().contains("unsolvable")),
+            "the capped honesty must hold verbatim: {:?}",
+            starved.solution.notes
+        );
+        let fed = s.think(&ThinkBudget {
+            max_evaluated: Some(10_000),
+            memory_mb: Some(64),
+            ..Default::default()
+        });
+        assert!(fed.solution.solved && !fed.capped);
+        assert_eq!(fed.verdict, ThinkVerdict::Solved);
+        assert_eq!(fed.spent_evals, fed.solution.statistics.evaluated_states);
+        // The eval-budgeted think and the standing replan agree on the plan.
+        let plain = s.replan_budgeted(10_000, Some(64));
+        let key = |sol: &Solution| {
+            sol.plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(key(&fed.solution), key(&plain));
+    }
+
+    #[test]
+    fn think_proven_exhaustion_names_itself() {
+        // Every op forbidden: the complete search exhausts honestly — the
+        // one verdict allowed to claim a proof.
+        let mut s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        s.restrict_ops(|_| false);
+        let t = s.think(&ThinkBudget {
+            max_evaluated: Some(10_000),
+            memory_mb: Some(64),
+            ..Default::default()
+        });
+        assert!(!t.solution.solved);
+        assert!(!t.capped, "genuine exhaustion is not a cap");
+        assert_eq!(t.verdict, ThinkVerdict::Exhausted);
+        assert!(
+            t.solution
+                .notes
+                .iter()
+                .any(|n| n.contains("no plan exists")),
+            "{:?}",
+            t.solution.notes
+        );
+    }
+
+    #[test]
+    fn think_wall_budget_is_enforced_at_the_checkpoints() {
+        let s = Session::new(DOM, PRB, &Options::default()).expect("session");
+        // A spent wall (0 ms) trips every checkpoint on entry: the think
+        // comes back promptly and CAPPED, whatever the eval allowance.
+        let t = s.think(&ThinkBudget {
+            max_evaluated: Some(usize::MAX >> 1),
+            wall_ms: Some(0),
+            memory_mb: Some(64),
+        });
+        assert!(!t.solution.solved);
+        assert!(t.capped);
+        assert_eq!(t.verdict, ThinkVerdict::Capped);
+        assert!(t.spent_evals < 50_000, "a dead wall must not run far");
+        // A generous wall changes nothing about solvability.
+        let t = s.think(&ThinkBudget {
+            max_evaluated: Some(10_000),
+            wall_ms: Some(60_000),
+            memory_mb: Some(64),
+        });
+        assert!(t.solution.solved);
+        assert_eq!(t.verdict, ThinkVerdict::Solved);
+    }
+
+    #[test]
+    fn temporal_think_never_claims_a_proof() {
+        let mut s = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        // Nobody is idle: no build can start and the ladder fails — but a
+        // temporal think may only report CAPPED, never a proof.
+        s.set_fact("(idle w1)", false).unwrap();
+        s.set_fact("(idle w2)", false).unwrap();
+        let t = s.think(&ThinkBudget {
+            max_evaluated: Some(50_000),
+            wall_ms: Some(60_000),
+            memory_mb: Some(128),
+        });
+        assert!(!t.solution.solved);
+        assert!(t.capped);
+        assert_eq!(t.verdict, ThinkVerdict::Capped);
+        assert!(
+            t.solution
+                .notes
+                .iter()
+                .any(|n| n.contains("proves nothing")),
+            "{:?}",
+            t.solution.notes
+        );
+        assert!(
+            t.solution.notes.iter().any(|n| n.contains("pass-boundary")),
+            "the Phase 6 seam must be named when a wall was given: {:?}",
+            t.solution.notes
+        );
+        // A solvable temporal think stamps Solved.
+        let s2 = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        let t = s2.think(&ThinkBudget {
+            max_evaluated: Some(50_000),
+            memory_mb: Some(128),
+            ..Default::default()
+        });
+        assert!(t.solution.solved);
+        assert_eq!(t.verdict, ThinkVerdict::Solved);
+    }
+
+    // ---- 0.24 Phase 5: orbit-aware thinks ----------------------------------
+
+    // The unary-goal SOLO1 shape (cave-diving's divers, child-snack's
+    // children): each ball's goal names exactly that ball, so the strict
+    // arm's unit grammar groups them.
+    const ORB_DOM: &str = "
+    (define (domain rollers) (:requirements :strips :typing)
+      (:types ball room)
+      (:predicates (at ?b - ball ?r - room) (link ?x ?y - room)
+                   (goal-room ?r - room) (home ?b - ball))
+      (:action roll :parameters (?b - ball ?from ?to - room)
+        :precondition (and (at ?b ?from) (link ?from ?to))
+        :effect (and (not (at ?b ?from)) (at ?b ?to)))
+      (:action park :parameters (?b - ball ?r - room)
+        :precondition (and (at ?b ?r) (goal-room ?r))
+        :effect (home ?b)))";
+    const ORB_PRB: &str = "
+    (define (problem p) (:domain rollers)
+      (:objects b1 b2 - ball ra rb - room)
+      (:init (at b1 ra) (at b2 ra) (link ra rb) (link rb ra) (goal-room rb))
+      (:goal (and (home b1) (home b2))))";
+
+    #[test]
+    fn orbit_aware_thinks_redetect_on_the_current_world_never_cache() {
+        let mut s = Session::new(ORB_DOM, ORB_PRB, &Options::default()).expect("session");
+        assert!(
+            s.orbit_now().is_some(),
+            "two interchangeable balls must detect"
+        );
+        let t = s.think(&ThinkBudget {
+            max_evaluated: Some(10_000),
+            memory_mb: Some(64),
+            ..Default::default()
+        });
+        assert!(t.solution.solved);
+        assert!(
+            t.solution.notes.iter().any(|n| n.contains("orbit")),
+            "{:?}",
+            t.solution.notes
+        );
+        assert!(s.plan_still_valid(t.solution.plan.as_ref().unwrap(), 0));
+
+        // Drift breaks the symmetry: b1 already rolled over. Detection must
+        // RE-RUN on the current world — a cached construction-time orbit
+        // would still merge b1 with b2.
+        s.set_fact("(at b1 ra)", false).unwrap();
+        s.set_fact("(at b1 rb)", true).unwrap();
+        assert!(
+            s.orbit_now().is_none(),
+            "asymmetric CURRENT world must not keep the construction orbit"
+        );
+        let t = s.think(&ThinkBudget {
+            max_evaluated: Some(10_000),
+            memory_mb: Some(64),
+            ..Default::default()
+        });
+        assert!(t.solution.solved);
+        assert_eq!(
+            t.solution.plan.as_ref().unwrap().length,
+            3,
+            "park b1; roll + park b2"
+        );
+        assert!(s.plan_still_valid(t.solution.plan.as_ref().unwrap(), 0));
+
+        // Symmetry restored, but the goal retargeted onto ONE member:
+        // detection answers for the CURRENT goal.
+        s.set_fact("(at b1 rb)", false).unwrap();
+        s.set_fact("(at b1 ra)", true).unwrap();
+        assert!(s.orbit_now().is_some(), "symmetric again");
+        s.set_goal("(home b1)").unwrap();
+        assert!(
+            s.orbit_now().is_none(),
+            "a single-member goal distinguishes the members"
+        );
+
+        // A restricted mind skips detection (the mask is not σ-checked;
+        // search_from's guard is the enforcement point).
+        s.set_goal("(and (home b1) (home b2))").unwrap();
+        assert!(s.orbit_now().is_some());
+        s.restrict_ops(|d| !d.contains(" B1 "));
+        assert!(s.orbit_now().is_none(), "masked minds stay orbit-free");
+
+        // Temporal sessions are orbit-free structurally (their TIL-setter
+        // ops are appended after grounding, outside any σ family).
+        let ts = Session::new(TDOM, TPRB, &Options::default()).expect("session");
+        assert!(ts.orbit_now().is_none());
+    }
+
+    #[test]
+    fn orbit_aware_thinks_stay_deterministic_across_threads() {
+        let run = |threads: usize| {
+            let o = Options {
+                threads,
+                ..Options::default()
+            };
+            let s = Session::new(ORB_DOM, ORB_PRB, &o).expect("session");
+            s.think(&ThinkBudget {
+                max_evaluated: Some(10_000),
+                memory_mb: Some(64),
+                ..Default::default()
+            })
+        };
+        let (t1, t8) = (run(1), run(8));
+        assert!(t1.solution.solved && t8.solution.solved);
+        let key = |t: &Think| {
+            t.solution
+                .plan
+                .as_ref()
+                .unwrap()
+                .steps
+                .iter()
+                .map(|st| (st.action.clone(), st.args.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            key(&t1),
+            key(&t8),
+            "orbit-aware think differs across threads"
+        );
+    }
+
+    /// A pin, not a fix (so no RED to record): `replan`/`replan_budgeted`
+    /// keep their standing orbit-FREE shape — the think is the new
+    /// contract, not a rewrite of the old one. If a future edit routes the
+    /// old entries through detection, this fixture is the tripwire.
+    #[test]
+    fn standing_replans_stay_orbit_free() {
+        let s = Session::new(ORB_DOM, ORB_PRB, &Options::default()).expect("session");
+        assert!(
+            s.orbit_now().is_some(),
+            "the world must be detectable for the pin to mean anything"
+        );
+        for sol in [s.replan_budgeted(10_000, Some(64)), s.replan()] {
+            assert!(sol.solved);
+            assert!(
+                sol.notes.iter().all(|n| !n.contains("orbit")),
+                "standing replans must not narrate (or run) detection: {:?}",
+                sol.notes
+            );
+        }
     }
 
     #[test]

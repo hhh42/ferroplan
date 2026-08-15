@@ -863,6 +863,9 @@ fn solve_inner(
         false,
         orbit.as_ref(),
         mctx.as_ref(),
+        // solve-side: no per-call deadline — the process wall (FF_TIME_LIMIT)
+        // owns this entry, exactly as before 0.24.
+        None,
     );
     if std::env::var("FF_ORBIT_DEBUG").is_ok() {
         eprintln!(
@@ -1617,7 +1620,38 @@ pub(crate) fn solve_from_seeded_orbit(
 ) -> Option<TimedPlan> {
     solve_from_seeded_orbit_audited(
         task, kind, dur_exprs, inv, start, goal_pos, goal_num, forbidden, til_events, threads,
-        tier, budget, node_bytes, seed_til_h, orbit, None,
+        tier, budget, node_bytes, seed_til_h, orbit, None, None,
+    )
+}
+
+/// [`solve_from_seeded`] with a per-call WALL deadline checked at the pass-
+/// ladder boundaries (0.24 Phase 5, the session's budget-stamped think).
+/// Coarse by design: a pass already in flight is never interrupted by THIS
+/// deadline — the in-loop temporal checkpoints (0.24 Phase 6) ride the
+/// process wall (`FF_TIME_LIMIT`), and folding the per-think deadline into
+/// that cached copy is a named seam left for the wing integration.
+/// `deadline: None` is byte-identical to [`solve_from_seeded`].
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn solve_from_seeded_deadline(
+    task: &PackedTask,
+    kind: &[Kind],
+    dur_exprs: &[NExpr],
+    inv: &InvMap,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+    til_events: &[(f64, usize)],
+    threads: usize,
+    tier: DemandMode,
+    budget: &mut usize,
+    node_bytes: usize,
+    seed_til_h: bool,
+    deadline: Option<(crate::clock::Clock, f64)>,
+) -> Option<TimedPlan> {
+    solve_from_seeded_orbit_audited(
+        task, kind, dur_exprs, inv, start, goal_pos, goal_num, forbidden, til_events, threads,
+        tier, budget, node_bytes, seed_til_h, None, None, deadline,
     )
 }
 
@@ -1703,6 +1737,7 @@ pub(crate) fn solve_from_seeded_orbit_audited(
     seed_til_h: bool,
     orbit: Option<&crate::orbits::OrbitMap>,
     mctx: Option<&MonitorCtx>,
+    deadline: Option<(crate::clock::Clock, f64)>,
 ) -> Option<TimedPlan> {
     // Fail fast on statically unproducible goals — nothing any pass could reach.
     if statically_unsolvable(task, start, goal_pos, goal_num) {
@@ -1779,6 +1814,18 @@ pub(crate) fn solve_from_seeded_orbit_audited(
     // RefCell keeps the closure's reborrow simple in serial control flow.
     let budget = std::cell::RefCell::new(budget);
     let go = |rel: &[bool], prune: bool, tlama: bool| {
+        // The per-call deadline (0.24 Phase 5): checked at PASS entry only
+        // — a spent wall stops the ladder from opening another pass, and a
+        // pass in flight is never interrupted by THIS deadline (the
+        // in-loop checkpoints inside temporal_search, 0.24 Phase 6, read
+        // the cached PROCESS wall; folding the per-think deadline into
+        // that copy is the named seam, deliberately not taken here).
+        if deadline
+            .as_ref()
+            .is_some_and(|(t0, total)| t0.elapsed_secs() >= *total)
+        {
+            return None;
+        }
         temporal_search(
             task,
             kind,

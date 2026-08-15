@@ -249,6 +249,16 @@ pub struct SearchCfg {
     /// think budget must bound memory without introducing wall-clock
     /// nondeterminism. `FF_SEARCH_NODE_CAP` still wins when set.
     pub node_bytes_target: Option<usize>,
+    /// Per-SEARCH wall deadline (0.24 Phase 5, the budget-stamped think):
+    /// `(start clock, total seconds)` for THIS call, independent of the
+    /// process-global `FF_TIME_LIMIT`. Checked at the same cadences the
+    /// 0.21/0.22 machinery established — the best-first batch boundary
+    /// (with the teardown/report reserve), EHC's per-evaluation slice, and
+    /// the bounded rungs' slice deadlines — and NOT subject to
+    /// `FF_NO_RUNG_WALLCAP` (this deadline never existed before 0.24, so
+    /// there is no prior shape to restore). `None` (the default
+    /// everywhere) is byte-identical to the pre-0.24 behavior.
+    pub deadline: Option<(crate::clock::Clock, f64)>,
 }
 
 // ARCHAEOLOGY (0.23 Phase 1): `tie_seed` — the diversification-on-refill
@@ -303,6 +313,7 @@ impl SearchCfg {
             w_lm: 0,
             w_res: 0,
             node_bytes_target: None,
+            deadline: None,
         }
     }
 
@@ -507,6 +518,28 @@ pub(crate) fn deadline_expired_reserving(
     let (start, total) = deadline;
     let reserve = (retained_bytes as f64 / 4e8).min(15.0);
     (total - start.elapsed_ms() as f64 / 1000.0).max(0.0) <= reserve
+}
+
+/// Remaining seconds of a per-call `(start, total)` deadline, `None` when
+/// unarmed (0.24 Phase 5 — the budget-stamped think's own wall).
+pub(crate) fn deadline_remaining_secs(d: &Option<(crate::clock::Clock, f64)>) -> Option<f64> {
+    d.as_ref()
+        .map(|(t0, total)| (total - t0.elapsed_secs()).max(0.0))
+}
+
+/// Earliest-expiring of two optional `(start, total)` deadlines — how the
+/// bounded rungs fold a think's own wall (0.24 Phase 5) into the slice
+/// argument they already take from the global-wall machinery.
+pub(crate) fn sooner_deadline(
+    a: Option<(crate::clock::Clock, f64)>,
+    b: Option<(crate::clock::Clock, f64)>,
+) -> Option<(crate::clock::Clock, f64)> {
+    let rem = |d: &(crate::clock::Clock, f64)| (d.1 - d.0.elapsed_secs()).max(0.0);
+    match (a, b) {
+        (Some(x), Some(y)) => Some(if rem(&x) <= rem(&y) { x } else { y }),
+        (x, None) => x,
+        (None, y) => y,
+    }
 }
 
 /// Seconds of the wall budget remaining, `None` if no limit is set. The
@@ -852,7 +885,11 @@ pub fn search_from(
         // any other, so the refill loop (which re-checks the wall itself)
         // winds down and the caller reports honestly. Unarmed or
         // `FF_NO_RUNG_WALLCAP=1` ⇒ never trips.
-        let wall_hit = wall_expired_reserving(nodes.len() * per_node_model_bytes(task));
+        let retained = nodes.len() * per_node_model_bytes(task);
+        let wall_hit = wall_expired_reserving(retained)
+            || cfg
+                .deadline
+                .is_some_and(|d| deadline_expired_reserving(d, retained));
         if wall_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!("wall: best-first checkpoint expired at {evaluated} evals (capped return)");
         }
@@ -1233,7 +1270,7 @@ pub fn plan_avoiding(
         }
     };
     if ehc_first {
-        if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval) {
+        if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval, cfg.deadline) {
             narrate_rung("EHC");
             return PlanOutcome {
                 ops: Some(ops),
@@ -1284,7 +1321,7 @@ pub fn plan_avoiding(
                 threads,
                 LAMA_CAP.min(cfg.max_eval),
                 forbidden,
-                rung_slice("FF_LAMA_WALL_FRAC", 0.25),
+                sooner_deadline(rung_slice("FF_LAMA_WALL_FRAC", 0.25), cfg.deadline),
             ) {
                 narrate_rung("LAMA");
                 return PlanOutcome {
@@ -1322,7 +1359,7 @@ pub fn plan_avoiding(
             let old_rung = std::env::var("FF_NOV_OLD").is_ok();
             // The last bounded rung can afford the biggest slice (0.30):
             // everything behind it is the fallback.
-            let slice = rung_slice("FF_NOV_WALL_FRAC", 0.30);
+            let slice = sooner_deadline(rung_slice("FF_NOV_WALL_FRAC", 0.30), cfg.deadline);
             let solved = if old_rung {
                 crate::novelty::search(
                     task,
@@ -1439,7 +1476,8 @@ pub fn plan_avoiding(
             }
             PlanResult::Unsolvable { evaluated, capped } => {
                 total_evaluated += evaluated;
-                let wall_ok = wall_remaining_frac().is_some_and(|f| f > 0.10);
+                let wall_ok = wall_remaining_frac().is_some_and(|f| f > 0.10)
+                    && deadline_remaining_secs(&cfg.deadline).map_or(true, |s| s > 0.0);
                 if !(capped && refill_armed && wall_ok && round < REFILL_MAX_ROUNDS) {
                     return PlanOutcome {
                         ops: None,
@@ -1505,7 +1543,12 @@ pub fn plan_avoiding(
 /// lower-h state is found, then jump to it and repeat. Returns the plan + states
 /// evaluated, or None if it gets stuck / hits a dead end (caller falls back to
 /// best-first, which is complete). Single-threaded and deterministic.
-fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<usize>, usize)> {
+fn ehc(
+    task: &PackedTask,
+    forbidden: &[bool],
+    max_eval: usize,
+    deadline: Option<(crate::clock::Clock, f64)>,
+) -> Option<(Vec<usize>, usize)> {
     // The ladder tax (0.21 Phase 5, lever 2): under an ARMED wall budget
     // the op-scaled eval budget below is joined by a wall-denominated
     // deadline — `FF_EHC_WALL_FRAC` (default 0.25) of the REMAINING wall
@@ -1516,7 +1559,9 @@ fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<us
     // across tasks, so the slice is a DEADLINE checked per evaluation in
     // the lookahead (where the wall is actually spent), not a
     // pre-converted eval count. No armed budget ⇒ `None` ⇒ byte-identical;
-    // `FF_NO_EHC_WALLCAP=1` restores op-scaled-only.
+    // `FF_NO_EHC_WALLCAP=1` restores op-scaled-only. A per-call deadline
+    // (0.24 Phase 5, the budget-stamped think) folds in as the
+    // earliest-expiring of the two — it is not subject to the hatch.
     let slice = if std::env::var("FF_NO_EHC_WALLCAP").is_err() {
         wall_remaining_secs().map(|rem| {
             (
@@ -1527,6 +1572,7 @@ fn ehc(task: &PackedTask, forbidden: &[bool], max_eval: usize) -> Option<(Vec<us
     } else {
         None
     };
+    let slice = sooner_deadline(slice, deadline);
     let init = task.initial();
     let mut sc = Scratch::new(task);
     let (mut cur_h, _) = relaxed_helpful(

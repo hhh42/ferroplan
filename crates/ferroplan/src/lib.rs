@@ -96,6 +96,6 @@ pub use api::{
     ParseReport, Plan, ProblemSummary, Search, Solution, SolveError, Statistics, Step,
 };
 pub use planner::{run_ff, run_planner};
-pub use session::Session;
+pub use session::{Session, Think, ThinkBudget, ThinkVerdict};
 pub use trace::{trace, StateSnapshot};
 pub use types::ParseError;

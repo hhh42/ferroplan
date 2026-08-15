@@ -18,6 +18,15 @@ use crate::resolve::{self, Solved};
 use crate::search;
 
 /// Which planning strategy to use.
+///
+/// **The named seam (0.24 Phase 5, NOT yet a variant):** `Mode::Sat` —
+/// bounded-horizon CNF over the absorbed solver core (`ferroplan-sat`) —
+/// arrives with the 0.24 Wave 2 wing. It will serialize as `"sat"`, ride
+/// `Solution::mode` on the session/MCP wire like every mode here, and
+/// serve exactly the constraint-shaped tasks game puzzles are (a village
+/// lock, a logistics riddle: bounded-horizon, small, SAT-trivial). Until
+/// the encoder lands there is deliberately no variant to claim it — a
+/// mode that cannot solve must not be nameable on the wire.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[cfg_attr(feature = "schema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]

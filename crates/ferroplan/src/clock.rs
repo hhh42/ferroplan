@@ -7,7 +7,7 @@
 //! `search_from`'s phase-attribution timer).
 
 /// A monotonic timestamp that is a no-op on wasm.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Clock {
     #[cfg(not(target_arch = "wasm32"))]
     t0: std::time::Instant,

@@ -137,6 +137,12 @@ pub struct SessionReplanArgs {
     /// Memory bound in MiB for the budgeted think.
     #[serde(default)]
     pub memory_mb: Option<usize>,
+    /// Wall budget in MILLISECONDS for this think (0.24): the search checks
+    /// the clock at its checkpoint cadence and returns what it found —
+    /// stamped `capped`, never a claim of unsolvability. Machine-dependent
+    /// by nature; pair with `max_evaluated` when replay matters.
+    #[serde(default)]
+    pub wall_ms: Option<u64>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -543,9 +549,12 @@ impl Ferroplan {
     #[tool(
         name = "session_replan",
         description = "Rethink from the session's CURRENT state and return the structured \
-            Solution. Optionally budgeted (max_evaluated / memory_mb) — a budgeted think is \
-            a contract: it returns what it found within the budget rather than running to \
-            exhaustion. solved:false is a normal answer."
+            Solution, BUDGET-STAMPED (0.24): capped, spent_ms, spent_evals and verdict ride \
+            alongside the usual fields. Optionally budgeted (max_evaluated / memory_mb / \
+            wall_ms) — a budgeted think is a contract: it returns what it found within the \
+            budget rather than running to exhaustion, and a capped think NEVER means \
+            unsolvable (verdict `capped`; only the classical proof reads `exhausted`). \
+            solved:false is a normal answer."
     )]
     async fn session_replan(
         &self,
@@ -553,7 +562,11 @@ impl Ferroplan {
     ) -> Result<CallToolResult, ErrorData> {
         let sessions = self.sessions.clone();
         let id = a.session_id.clone();
-        let (cap, mem) = (a.max_evaluated, a.memory_mb);
+        let budget = ferroplan::ThinkBudget {
+            max_evaluated: a.max_evaluated,
+            wall_ms: a.wall_ms,
+            memory_mb: a.memory_mb,
+        };
         // Search is the long pole: fork the mind, drop the lock, think off the
         // runtime. A replan must never hold the map while it runs, or one deep
         // search freezes every other session on the server.
@@ -569,13 +582,23 @@ impl Ferroplan {
         let Some(mind) = mind else {
             return Ok(fail(format!("no such session `{}`", a.session_id)));
         };
-        let sol = tokio::task::spawn_blocking(move || match cap {
-            Some(c) => mind.replan_budgeted(c, mem),
-            None => mind.replan(),
-        })
-        .await
-        .map_err(|e| ErrorData::internal_error(format!("replan task failed: {e}"), None))?;
-        ok_json(&sol)
+        let think = tokio::task::spawn_blocking(move || mind.think(&budget))
+            .await
+            .map_err(|e| ErrorData::internal_error(format!("replan task failed: {e}"), None))?;
+        // The stamp is ADDITIVE: the Solution's own fields stay exactly as
+        // they serialized before 0.24, so standing agent prompts keep
+        // reading, and the budget verdict rides alongside. The wing's seam
+        // is named, not taken: when 0.24 Wave 2 lands `Mode::Sat`, `mode`
+        // in this same payload reads `"sat"` — no new tool, no new field.
+        let mut v = match serde_json::to_value(&think.solution) {
+            Ok(v) => v,
+            Err(e) => return Ok(fail(format!("could not serialize result: {e}"))),
+        };
+        v["capped"] = json!(think.capped);
+        v["spent_ms"] = json!(think.spent_ms);
+        v["spent_evals"] = json!(think.spent_evals);
+        v["verdict"] = json!(think.verdict);
+        ok_json(&v)
     }
 
     #[tool(

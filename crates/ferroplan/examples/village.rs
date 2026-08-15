@@ -11,7 +11,7 @@
 //!   cargo run --release -p ferroplan --example village
 
 use ferroplan::session::Session;
-use ferroplan::Options;
+use ferroplan::{Options, ThinkBudget, ThinkVerdict};
 
 const DOM: &str = include_str!("../../../benchmarks/village/domain.pddl");
 const PRB: &str = include_str!("../../../benchmarks/village/pair.pddl");
@@ -21,19 +21,51 @@ const PRB: &str = include_str!("../../../benchmarks/village/pair.pddl");
 // firing, so gather-spam floods the pruned pass — the same mechanism as
 // the TMS wall, docs/roadmap-0.15.md, now with a game-shaped witness).
 // 1M evals rides past it; the h-surgery fence is the real fix.
+//
+// 0.24 Phase 5 re-measure knob: `THINK_EVALS=<n>` overrides the budget so
+// the pair contract can be re-priced per engine (the 0.21 read: 1M sails,
+// 200k dies — and the 200k death is a CAPPED verdict, which is why `hire`
+// rides the budget-stamped think below instead of calling a starved
+// contract "unplannable". The 0.24 re-measure receipts ride the phase's
+// commit record; the tick-loop numbers live in benchmarks/village-live.md).
 const THINK_EVALS: usize = 1_000_000;
 const THINK_MB: usize = 512;
 
+fn think_evals() -> usize {
+    std::env::var("THINK_EVALS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(THINK_EVALS)
+}
+
 fn hire(name: &str, s: &mut Session, contract: &str) -> Result<usize, String> {
     s.set_goal(contract)?;
-    let think = s.replan_budgeted(THINK_EVALS, Some(THINK_MB));
-    let plan = match (&think.plan, think.solved) {
+    // The budget-stamped think (0.24 Phase 5): the verdict tells the game
+    // loop the TRUTH about a failed hire — a capped think is a budget
+    // problem, not an impossible contract.
+    let think = s.think(&ThinkBudget {
+        max_evaluated: Some(think_evals()),
+        memory_mb: Some(THINK_MB),
+        ..Default::default()
+    });
+    let plan = match (&think.solution.plan, think.solution.solved) {
         (Some(p), true) => p.clone(),
-        _ => return Err(format!("{name}: contract {contract} unplannable")),
+        _ => {
+            return Err(match think.verdict {
+                ThinkVerdict::Capped => format!(
+                    "{name}: contract {contract} CAPPED at {} evals / {} ms — \
+                     not proven unreachable; raise THINK_EVALS",
+                    think.spent_evals, think.spent_ms
+                ),
+                _ => format!("{name}: contract {contract} unplannable (search exhausted)"),
+            })
+        }
     };
     println!(
-        "hired {name} on `{contract}` -> {} steps:",
-        plan.steps.len()
+        "hired {name} on `{contract}` -> {} steps ({} evals, {} ms):",
+        plan.steps.len(),
+        think.spent_evals,
+        think.spent_ms
     );
     for st in &plan.steps {
         println!(
