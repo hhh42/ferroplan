@@ -347,14 +347,368 @@ fn emitted_order_monitor_flip_is_audited_never_shipped() {
     assert_eq!(plan.steps.len(), 3, "three actions: {:?}", steps(&plan));
 }
 
+// ---- stage c: the timed operators (0.24 Phase 4) ---------------------------
+//
+// RED, recorded before the change (this worktree at adcb673): every `within`
+// / `always-within` problem below died at the gate with the 0.23 blanket
+// "time-bounded and not yet enforced" rejection, exit path
+// SolveError::Unsupported — the named rejection stage b left in place. GREEN:
+// a search-maintained clock fluent (`TRAJ-CLOCK`, stamped at every decision
+// epoch) lowers both operators to ordinary monitor transitions with numeric
+// conditions on the stage a+b machinery. `hold-during` / `hold-after` keep
+// the named rejection (grepped absent from the whole 2006 corpus), and the
+// classical path keeps rejecting all four by name.
+
+/// Both flag achievers exist; only the quick one lands inside the deadline.
+const WITHIN_DOM: &str = "(define (domain twin)
+  (:requirements :strips :durative-actions :constraints)
+  (:predicates (home) (done) (flag))
+  (:durative-action work
+    :parameters ()
+    :duration (= ?duration 2)
+    :condition (at start (home))
+    :effect (at end (done)))
+  (:durative-action quick-flag
+    :parameters ()
+    :duration (= ?duration 1)
+    :condition (at start (home))
+    :effect (at end (flag)))
+  (:durative-action slow-flag
+    :parameters ()
+    :duration (= ?duration 6)
+    :condition (at start (home))
+    :effect (at end (flag))))";
+
+#[test]
+fn within_bites_and_forces_the_quick_achiever() {
+    // goal needs only WORK; (within 2 (flag)) forces a flag by t=2 — only
+    // QUICK-FLAG (end t=1) can land it. SLOW-FLAG's t=6 flag is too late.
+    let p = "(define (problem pw) (:domain twin)
+      (:init (home)) (:goal (done))
+      (:constraints (within 2 (flag))))";
+    let plan = solve_green(WITHIN_DOM, p);
+    let s = steps(&plan);
+    assert!(
+        s.iter().any(|x| x == "QUICK-FLAG"),
+        "within must bite — the quick achiever is forced: {s:?}"
+    );
+}
+
+/// φ only reachable late: the deadline has passed before any achiever can
+/// land, so the VIOL branch is every branch — honest unsolvable. Both ops
+/// consume a one-shot token: an unsolvable verdict must come from a FINITE
+/// exhaustion, not a node-cap march — on monitored tasks the identical-
+/// interval reduction is off (the arrival-order rule), so a freely
+/// restartable interval stacks agenda copies all the way to the cap.
+#[test]
+fn within_red_when_phi_only_arrives_late() {
+    let d = "(define (domain twlate)
+      (:requirements :strips :durative-actions :constraints)
+      (:predicates (idle) (fresh) (done) (flag))
+      (:durative-action work
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (at start (idle))
+        :effect (and (at start (not (idle))) (at end (done))))
+      (:durative-action slow-flag
+        :parameters ()
+        :duration (= ?duration 6)
+        :condition (at start (and (done) (fresh)))
+        :effect (and (at start (not (fresh))) (at end (flag)))))";
+    // flag's earliest state is t=8 (work 0->2, slow-flag 2->8): within 3 is
+    // unmeetable; within 9 is the no-bite twin on the SAME shape.
+    let red = "(define (problem pwl) (:domain twlate)
+      (:init (idle) (fresh)) (:goal (and (done) (flag)))
+      (:constraints (within 3 (flag))))";
+    unsolvable(d, red);
+    let green = "(define (problem pwg) (:domain twlate)
+      (:init (idle) (fresh)) (:goal (and (done) (flag)))
+      (:constraints (within 9 (flag))))";
+    let plan = solve_green(d, green);
+    assert!(steps(&plan).iter().any(|x| x == "SLOW-FLAG"));
+}
+
+#[test]
+fn within_no_bite_when_phi_lands_inside_the_deadline() {
+    // The goal route itself satisfies the constraint: no extra machinery.
+    let p = "(define (problem pwn) (:domain twin)
+      (:init (home)) (:goal (done))
+      (:constraints (within 5 (done))))";
+    let plan = solve_green(WITHIN_DOM, p);
+    assert_eq!(steps(&plan), vec!["WORK"], "no bite: {:?}", steps(&plan));
+}
+
+/// The response-deadline shape: whenever φ (the alarm) appears, ψ (the
+/// handler) must appear within t.
+const RESPOND_DOM: &str = "(define (domain tresp)
+  (:requirements :strips :durative-actions :constraints)
+  (:predicates (idle) (alarm) (handled) (done))
+  (:durative-action work
+    :parameters ()
+    :duration (= ?duration 2)
+    :condition (at start (idle))
+    :effect (and (at start (not (idle))) (at start (alarm)) (at end (done))))
+  (:durative-action quiet-work
+    :parameters ()
+    :duration (= ?duration 2)
+    :condition (at start (idle))
+    :effect (and (at start (not (idle))) (at end (done))))
+  (:durative-action respond
+    :parameters ()
+    :duration (= ?duration 1)
+    :condition (at start (alarm))
+    :effect (at end (handled))))";
+
+#[test]
+fn always_within_forces_the_response() {
+    // The only route to the goal trips the alarm at t=0, so RESPOND
+    // (handled at t=1 <= 0+2) is forced into the plan by the constraint —
+    // without it the plan is WORK alone.
+    let d = "(define (domain trbite)
+      (:requirements :strips :durative-actions :constraints)
+      (:predicates (idle) (alarm) (handled) (done))
+      (:durative-action work
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (at start (idle))
+        :effect (and (at start (not (idle))) (at start (alarm)) (at end (done))))
+      (:durative-action respond
+        :parameters ()
+        :duration (= ?duration 1)
+        :condition (at start (alarm))
+        :effect (at end (handled))))";
+    let p = "(define (problem pr) (:domain trbite)
+      (:init (idle)) (:goal (done))
+      (:constraints (always-within 2 (alarm) (handled))))";
+    let plan = solve_green(d, p);
+    let s = steps(&plan);
+    assert!(
+        s.iter().any(|x| x == "RESPOND"),
+        "always-within must bite — the responder is forced: {s:?}"
+    );
+    // no-constraint twin: the responder is NOT in the natural plan.
+    let p0 = "(define (problem pr0) (:domain trbite)
+      (:init (idle)) (:goal (done)))";
+    let sol = solve1(d, p0);
+    let s0 = steps(&sol.plan.expect("plain twin solves"));
+    assert!(!s0.iter().any(|x| x == "RESPOND"), "twin: {s0:?}");
+}
+
+#[test]
+fn always_within_red_when_the_response_cannot_land() {
+    // The only responder takes 5 > the 2-unit window: any plan through the
+    // alarm is doomed, and the alarm is the only route to the goal. The
+    // responder consumes a one-shot token (same finite-exhaustion rule as
+    // the within RED fixture above).
+    let d = "(define (domain trlate)
+      (:requirements :strips :durative-actions :constraints)
+      (:predicates (idle) (ready) (alarm) (handled) (done))
+      (:durative-action work
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (at start (idle))
+        :effect (and (at start (not (idle))) (at start (alarm)) (at end (done))))
+      (:durative-action respond
+        :parameters ()
+        :duration (= ?duration 5)
+        :condition (at start (and (alarm) (ready)))
+        :effect (and (at start (not (ready))) (at end (handled)))))";
+    let p = "(define (problem prl) (:domain trlate)
+      (:init (idle) (ready)) (:goal (done))
+      (:constraints (always-within 2 (alarm) (handled))))";
+    unsolvable(d, p);
+}
+
+#[test]
+fn always_within_no_bite_when_never_triggered() {
+    // QUIET-WORK reaches the goal without ever tripping the alarm.
+    let p = "(define (problem prn) (:domain tresp)
+      (:init (idle)) (:goal (done))
+      (:constraints (always-within 2 (alarm) (handled))))";
+    let plan = solve_green(RESPOND_DOM, p);
+    let s = steps(&plan);
+    assert!(
+        !s.iter().any(|x| x == "RESPOND"),
+        "no trigger, no response owed: {s:?}"
+    );
+}
+
+/// The ε-boundary pin (the 0.23 emission-audit idiom, now with a clock):
+/// two intervals end on the SAME ε-slot as the deadline. ε-separation
+/// chains same-slot happenings ε apart, so whichever achiever is emitted
+/// second lands at t+ε — PAST a deadline of exactly t. The monitor audit
+/// replays the EMITTED schedule with emitted-time clock stamps and refuses
+/// the pushed ordering; the search's arrival-ordered agenda holds the
+/// alternative as a distinct state, and the shipped plan holds (ga) at
+/// exactly t=2. `validate`'s timed fold (emitted times) is the referee.
+#[test]
+fn within_deadline_on_an_epsilon_chain_boundary_is_pinned() {
+    let d = "(define (domain tedge)
+      (:requirements :strips :durative-actions :constraints)
+      (:predicates (idle) (ga) (gb))
+      (:durative-action worka
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (at start (idle))
+        :effect (at end (ga)))
+      (:durative-action workb
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (at start (idle))
+        :effect (at end (gb))))";
+    let p = "(define (problem pe2) (:domain tedge)
+      (:init (idle)) (:goal (and (ga) (gb)))
+      (:constraints (within 2 (ga))))";
+    let plan = solve_green(d, p);
+    assert_eq!(plan.steps.len(), 2, "both intervals: {:?}", steps(&plan));
+}
+
+// ---- the timed fold is the oracle's half (temporal::validate) --------------
+
+#[test]
+fn validate_rejects_a_late_within_plan() {
+    // Hand-built plan: flag lands at t=8, deadline 3 — the fold must say no,
+    // independent of the compiled monitors.
+    let d = "(define (domain twlate)
+      (:requirements :strips :durative-actions :constraints)
+      (:predicates (idle) (done) (flag))
+      (:durative-action work
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (at start (idle))
+        :effect (and (at start (not (idle))) (at end (done))))
+      (:durative-action slow-flag
+        :parameters ()
+        :duration (= ?duration 6)
+        :condition (at start (done))
+        :effect (at end (flag))))";
+    let p = "(define (problem pvl) (:domain twlate)
+      (:init (idle)) (:goal (and (done) (flag)))
+      (:constraints (within 3 (flag))))";
+    let dom = ferroplan::parser::parse_domain(d).expect("domain");
+    let prb = ferroplan::parser::parse_problem(p).expect("problem");
+    let plan = TimedPlan {
+        steps: vec![
+            TimedStep {
+                time: 0.0,
+                action: "WORK".into(),
+                duration: Some(2.0),
+            },
+            TimedStep {
+                time: 2.0,
+                action: "SLOW-FLAG".into(),
+                duration: Some(6.0),
+            },
+        ],
+        makespan: 8.0,
+    };
+    let e = ferroplan::temporal::validate(&dom, &prb, &plan).expect_err("late flag must fold red");
+    // The FOLD verdict, not a rejection: the oracle judged the trajectory.
+    assert!(
+        e.contains("within") && e.contains("violated"),
+        "must be the fold's verdict, naming the operator: {e}"
+    );
+}
+
+#[test]
+fn validate_rejects_a_late_response_plan() {
+    // Alarm at t=0, handler at t=5, window 2: executable, goal-reaching,
+    // and constraint-red — only the timed fold can catch it.
+    let d = "(define (domain trlate)
+      (:requirements :strips :durative-actions :constraints)
+      (:predicates (idle) (alarm) (handled) (done))
+      (:durative-action work
+        :parameters ()
+        :duration (= ?duration 2)
+        :condition (at start (idle))
+        :effect (and (at start (not (idle))) (at start (alarm)) (at end (done))))
+      (:durative-action respond
+        :parameters ()
+        :duration (= ?duration 5)
+        :condition (at start (alarm))
+        :effect (at end (handled))))";
+    let p = "(define (problem pvr) (:domain trlate)
+      (:init (idle)) (:goal (done))
+      (:constraints (always-within 2 (alarm) (handled))))";
+    let dom = ferroplan::parser::parse_domain(d).expect("domain");
+    let prb = ferroplan::parser::parse_problem(p).expect("problem");
+    let plan = TimedPlan {
+        steps: vec![
+            TimedStep {
+                time: 0.0,
+                action: "WORK".into(),
+                duration: Some(2.0),
+            },
+            TimedStep {
+                time: 0.001,
+                action: "RESPOND".into(),
+                duration: Some(5.0),
+            },
+        ],
+        makespan: 5.001,
+    };
+    let e =
+        ferroplan::temporal::validate(&dom, &prb, &plan).expect_err("late response must fold red");
+    // The FOLD verdict, not a rejection: the oracle judged the trajectory.
+    assert!(
+        e.contains("always-within") && e.contains("violated"),
+        "must be the fold's verdict, naming the operator: {e}"
+    );
+}
+
 // ---- what is still rejected, by name ---------------------------------------
 
 #[test]
-fn timed_operators_stay_rejected_by_name() {
-    let p = atend_prob("(within 5 (flag))");
-    match solve(ATEND_DOM, &p, &Options::default()) {
+fn hold_operators_stay_rejected_by_name() {
+    // hold-during / hold-after: grepped absent from the whole 2006 corpus
+    // (docs/roadmap-0.23.md, the stage-c sizing memo) — named rejection at
+    // zero board cost, exactly as `within` was before this phase.
+    for (block, op) in [
+        ("(hold-during 1 2 (flag))", "hold-during"),
+        ("(hold-after 1 (flag))", "hold-after"),
+    ] {
+        let p = atend_prob(block);
+        match solve(ATEND_DOM, &p, &Options::default()) {
+            Err(SolveError::Unsupported(msg)) => {
+                assert!(msg.contains(op), "must name the operator: {msg}");
+            }
+            Err(e) => panic!("expected an Unsupported rejection, got {e:?}"),
+            Ok(_) => panic!("expected a named rejection, got a solution"),
+        }
+    }
+}
+
+#[test]
+fn within_on_a_classical_domain_stays_rejected_by_name() {
+    // The clock is the SEARCH's decision-epoch time — a sequential task has
+    // no such clock, so the classical path keeps the named rejection.
+    let d = "(define (domain cwin)
+      (:requirements :strips :constraints)
+      (:predicates (a) (b))
+      (:action step :parameters () :precondition (a) :effect (b)))";
+    let p = "(define (problem pc) (:domain cwin)
+      (:init (a)) (:goal (b))
+      (:constraints (within 5 (b))))";
+    match solve(d, p, &Options::default()) {
         Err(SolveError::Unsupported(msg)) => {
             assert!(msg.contains("within"), "must name the operator: {msg}");
+        }
+        Err(e) => panic!("expected an Unsupported rejection, got {e:?}"),
+        Ok(_) => panic!("expected a named rejection, got a solution"),
+    }
+}
+
+#[test]
+fn preference_bodied_timed_constraints_stay_rejected() {
+    // The complex-preferences unlock is 0.25's: a soft `within` still gets
+    // the temporal soft fence, by name — never a silently ignored wrapper.
+    let p = atend_prob("(preference deadline (within 5 (flag)))");
+    match solve(ATEND_DOM, &p, &Options::default()) {
+        Err(SolveError::Unsupported(msg)) => {
+            assert!(
+                msg.contains("preference"),
+                "must name the soft fence: {msg}"
+            );
         }
         Err(e) => panic!("expected an Unsupported rejection, got {e:?}"),
         Ok(_) => panic!("expected a named rejection, got a solution"),

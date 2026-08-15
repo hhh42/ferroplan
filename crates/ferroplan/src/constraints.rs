@@ -10,10 +10,30 @@
 //! A HARD constraint's acceptance is conjoined into the goal; a SOFT
 //! `(preference name ...)` constraint (Phase 2) becomes a goal-side
 //! `(preference name <acceptance>)`, priced by the PDDL3 metric machinery
-//! like any native goal preference. Anything this build cannot enforce (the
-//! timed operators; a soft constraint on a temporal domain) keeps a
-//! rejection that NAMES the operator — the "never silently ignore" contract
-//! is narrowed, never deleted.
+//! like any native goal preference. Anything this build cannot enforce
+//! (`hold-during` / `hold-after`; timed operators on a clockless CLASSICAL
+//! domain; a soft constraint on a temporal domain) keeps a rejection that
+//! NAMES the operator — the "never silently ignore" contract is narrowed,
+//! never deleted.
+//!
+//! THE TIMED OPERATORS (0.24 Phase 4 — stage c, docs/roadmap-0.24.md):
+//! `within t φ` and `always-within t φ ψ` lower to the SAME monitor shapes
+//! via one new ingredient — the search-maintained clock fluent
+//! `CLOCK_FLUENT`, stamped with the decision-epoch time into every state
+//! the temporal search creates. A state's clock is the time it BEGAN, and a
+//! monitor `When` reads its SOURCE state, so `(<= (TRAJ-CLOCK) t)` inside a
+//! transition condition tests exactly "the observed state sits inside the
+//! deadline". `within` is `sometime` with the SEEN transition
+//! deadline-gated plus a VIOL transition when the window closes unseen;
+//! `always-within` is `sometime-after` with a per-monitor `TRAJ{i}-DUE`
+//! fluent assigned `clock + t` at each trigger (a conditional numeric
+//! effect — machinery the grounder already owns) and a VIOL transition when
+//! the clock passes DUE while the obligation is open. Both VIOL facts are
+//! permanent by construction (the clock never decreases), so the 0.23
+//! birth-prune and zombie checks apply unchanged. Only `compile_timed`
+//! (the temporal path) accepts them: emitted-schedule ε-shifts are refereed
+//! by `temporal`'s monitor audit, which re-stamps the clock from EMITTED
+//! times — the times VAL reads.
 //!
 //! THE TEMPORAL PATH (0.23 Phase 2, docs/roadmap-0.23.md): hard untimed
 //! constraints on a durative-action domain are enforced by the SAME compile,
@@ -80,7 +100,9 @@
 use std::collections::HashMap;
 
 use crate::pddl3::{combos, subst_formula};
-use crate::types::{Action, Constraint, Domain, Effect, Formula, Problem, Sym};
+use crate::types::{
+    Action, AssignOp, CompOp, Constraint, Domain, Effect, Expr, Formula, Problem, Sym,
+};
 
 /// Display name of the forced-terminal acceptance action (0.8 END
 /// construction). Callers that ran [`gate`] strip ops with this display
@@ -88,7 +110,21 @@ use crate::types::{Action, Constraint, Domain, Effect, Formula, Problem, Sym};
 /// reserved-name check whenever a `(:constraints ...)` block exists.
 pub const END_ACTION: &str = "TRAJ-END";
 
-/// One ground untimed trajectory-constraint instance.
+/// The search-maintained decision-epoch clock fluent (0.24 Phase 4 — stage
+/// c, docs/roadmap-0.24.md). `compile_timed` declares it 0-ary with init
+/// 0 whenever a timed operator survives static simplification; the temporal
+/// search stamps the epoch time into every state it creates (the audit
+/// re-stamps from EMITTED times), so a timed monitor transition's numeric
+/// condition `(<= (TRAJ-CLOCK) t)` reads the SOURCE state's epoch — exactly
+/// the trajectory time PDDL3's timed operators are defined over. Facts and
+/// fluents intern separately, so only the FUNCTION namespace needs fencing.
+pub(crate) const CLOCK_FLUENT: &str = "TRAJ-CLOCK";
+
+/// One ground trajectory-constraint instance: the untimed six (0.7) plus
+/// the two timed operators the 2006 corpus actually uses (0.24 Phase 4 —
+/// `hold-during` / `hold-after` appear NOWHERE in it and stay rejected by
+/// name). Timed deadlines are non-negative by construction ([`expand`]
+/// rejects a negative bound as unsatisfiable-as-written).
 #[derive(Clone, Debug)]
 pub enum Traj {
     Always(Formula),
@@ -97,6 +133,11 @@ pub enum Traj {
     SometimeAfter(Formula, Formula),
     SometimeBefore(Formula, Formula),
     AtEnd(Formula),
+    /// `(within t φ)`: φ must hold in some state at trajectory time ≤ t.
+    Within(f64, Formula),
+    /// `(always-within t φ ψ)`: every φ-state at time t_i owes a ψ-state at
+    /// some t_j with t_i ≤ t_j ≤ t_i + t (ψ in the φ-state itself counts).
+    AlwaysWithin(f64, Formula, Formula),
 }
 
 /// The expanded constraint sets of a task: `Forall` quantifiers grounded,
@@ -168,9 +209,42 @@ pub(crate) fn expand_quantifiers(f: &Formula, objs: &HashMap<Sym, Vec<Sym>>) -> 
 fn timed_err(op: &str) -> String {
     format!(
         "PDDL3 trajectory constraint `{op}` is time-bounded and not yet \
-         enforced (untimed operators — always / sometime / at-most-once / \
-         sometime-after / sometime-before / at-end — are). Remove it, or \
-         model the requirement without a clock."
+         enforced (`within` / `always-within` are, on durative-action \
+         domains; the untimed operators everywhere). Remove it, or model \
+         the window with `within` / `always-within`."
+    )
+}
+
+fn neg_bound_err(op: &str) -> String {
+    format!(
+        "PDDL3 trajectory constraint `{op}` has a negative time bound — no \
+         trajectory state can precede time 0, so the constraint is \
+         unsatisfiable as written; fix the bound"
+    )
+}
+
+/// The operator name of the first TIMED member, `None` when every member is
+/// untimed. The classical [`compile`] and the classical verifier reject on
+/// a hit: the clock lowering is only sound under a search that stamps
+/// `CLOCK_FLUENT` at every decision epoch, which only the temporal path
+/// does — a sequential task's states carry no timestamps at all.
+pub(crate) fn first_timed(exp: &Expanded) -> Option<&'static str> {
+    exp.hard
+        .iter()
+        .chain(exp.soft.iter().flat_map(|(_, ms)| ms.iter()))
+        .find_map(|t| match t {
+            Traj::Within(_, _) => Some("within"),
+            Traj::AlwaysWithin(_, _, _) => Some("always-within"),
+            _ => None,
+        })
+}
+
+fn classical_timed_err(op: &str) -> String {
+    format!(
+        "PDDL3 trajectory constraint `{op}` is enforced on durative-action \
+         (temporal) domains only — a sequential task's states carry no \
+         timestamps for the deadline to read. Remove it, or make the domain \
+         temporal."
     )
 }
 
@@ -252,8 +326,18 @@ fn walk_members(
         Constraint::SometimeAfter(a, b) => members.push(Traj::SometimeAfter(sub(a), sub(b))),
         Constraint::SometimeBefore(a, b) => members.push(Traj::SometimeBefore(sub(a), sub(b))),
         Constraint::AtEnd(f) => members.push(Traj::AtEnd(sub(f))),
-        Constraint::Within(_, _) => return Err(timed_err("within")),
-        Constraint::AlwaysWithin(_, _, _) => return Err(timed_err("always-within")),
+        Constraint::Within(t, f) => {
+            if *t < 0.0 {
+                return Err(neg_bound_err("within"));
+            }
+            members.push(Traj::Within(*t, sub(f)));
+        }
+        Constraint::AlwaysWithin(t, a, b) => {
+            if *t < 0.0 {
+                return Err(neg_bound_err("always-within"));
+            }
+            members.push(Traj::AlwaysWithin(*t, sub(a), sub(b)));
+        }
         Constraint::HoldDuring(_, _, _) => return Err(timed_err("hold-during")),
         Constraint::HoldAfter(_, _) => return Err(timed_err("hold-after")),
     }
@@ -262,17 +346,23 @@ fn walk_members(
 
 /// Incremental trajectory fold for ONE constraint instance — the verifier's
 /// independent semantics (never the compiled monitors). Feed every state of
-/// the replay in order (S_0 first), then ask [`Fold::accepted`].
+/// the replay in order (S_0 first), then ask [`Fold::accepted`]. The timed
+/// operators fold over STATE TIMES (each replayed state is stamped with the
+/// happening time that created it, S_0 at 0) — feed them via [`Fold::step_at`];
+/// the classical verifier's untimed [`Fold::step`] rejects them upstream
+/// (`first_timed`).
 pub struct Fold<'a> {
     traj: &'a Traj,
     ok: bool,
-    seen: bool,    // sometime: φ seen; at-most-once: an episode has closed
+    seen: bool, // sometime/within: φ seen (within: inside the deadline);
+    // at-most-once: an episode has closed
     holding: bool, // at-most-once: currently inside a φ episode
-    pending: bool, // sometime-after: φ seen, ψ still owed
+    pending: bool, // sometime-after/always-within: φ seen, ψ still owed
     safe: bool,    // sometime-before: ψ seen strictly earlier (the
     // strictly-earlier semantics is step()'s ORDER: φ is
     // tested against `safe` BEFORE ψ is recorded into it)
     last: bool, // at-end: φ in the most recent state
+    due: f64,   // always-within: the open (earliest) obligation's deadline
 }
 
 impl<'a> Fold<'a> {
@@ -285,11 +375,25 @@ impl<'a> Fold<'a> {
             pending: false,
             safe: false,
             last: false,
+            due: 0.0,
         }
     }
 
-    /// Observe the next state of the trajectory via a formula evaluator.
+    /// Observe the next state of an UNTIMED trajectory — the classical
+    /// verifier's replay, whose states carry no times. Timed members never
+    /// reach it: `verify` rejects them by name first (`first_timed`).
     pub fn step(&mut self, holds: &mut dyn FnMut(&Formula) -> bool) {
+        debug_assert!(
+            !matches!(self.traj, Traj::Within(..) | Traj::AlwaysWithin(..)),
+            "timed folds need step_at (a state time)"
+        );
+        self.step_at(0.0, holds)
+    }
+
+    /// Observe the next state of the trajectory at its plan time — the
+    /// timed operators read it, the untimed six ignore it. Times must be
+    /// non-decreasing (a replay in happening order).
+    pub fn step_at(&mut self, time: f64, holds: &mut dyn FnMut(&Formula) -> bool) {
         match self.traj {
             Traj::Always(f) => {
                 if !holds(f) {
@@ -331,6 +435,32 @@ impl<'a> Fold<'a> {
             Traj::AtEnd(f) => {
                 self.last = holds(f);
             }
+            Traj::Within(t, f) => {
+                if time <= *t && holds(f) {
+                    self.seen = true;
+                }
+            }
+            Traj::AlwaysWithin(t, a, b) => {
+                let fb = holds(b);
+                if self.pending {
+                    if time > self.due {
+                        // The earliest open obligation's window closed
+                        // before this state — a same-state ψ is too late.
+                        self.ok = false;
+                    } else if fb {
+                        self.pending = false; // discharged on time
+                    }
+                }
+                // A fresh trigger arms the deadline; ψ in the trigger state
+                // discharges same-state (t_j = t_i ≤ t_i + t), so no
+                // obligation opens. While one is open the EARLIEST deadline
+                // binds: no ψ-state intervened, so any ψ meeting the open
+                // deadline also meets every later trigger's window.
+                if !self.pending && !fb && holds(a) {
+                    self.pending = true;
+                    self.due = time + t;
+                }
+            }
         }
     }
 
@@ -343,6 +473,11 @@ impl<'a> Fold<'a> {
             Traj::SometimeAfter(_, _) => !self.pending,
             Traj::SometimeBefore(_, _) => self.ok,
             Traj::AtEnd(_) => self.last,
+            Traj::Within(_, _) => self.seen,
+            // an obligation still open when the trajectory ends is missed —
+            // the plan is over, no later ψ-state exists (sometime-after's
+            // rule, deadline or not).
+            Traj::AlwaysWithin(_, _, _) => self.ok && !self.pending,
         }
     }
 
@@ -355,6 +490,8 @@ impl<'a> Fold<'a> {
             Traj::SometimeAfter(_, _) => "sometime-after",
             Traj::SometimeBefore(_, _) => "sometime-before",
             Traj::AtEnd(_) => "at-end",
+            Traj::Within(_, _) => "within",
+            Traj::AlwaysWithin(_, _, _) => "always-within",
         }
     }
 }
@@ -424,6 +561,22 @@ fn simplify_static(exp: &mut Expanded, domain: &Domain, problem: &Problem) {
                 f if t(&f) => None,
                 f => Some(Traj::AtEnd(f)),
             },
+            // φ static-true: S_0 (time 0) is inside any non-negative
+            // deadline (expand rejects negative bounds).
+            Traj::Within(dl, f) => match peval(f) {
+                f if t(&f) => None,
+                f => Some(Traj::Within(*dl, f)),
+            },
+            // φ in no state: never triggered; ψ in every state: each trigger
+            // discharges same-state (0 ≤ dl). Statically accepted either way.
+            Traj::AlwaysWithin(dl, a, b) => {
+                let (a, b) = (peval(a), peval(b));
+                if fa(&a) || t(&b) {
+                    None
+                } else {
+                    Some(Traj::AlwaysWithin(*dl, a, b))
+                }
+            }
         }
     };
     let h0 = exp.hard.len();
@@ -483,6 +636,31 @@ fn reject_reserved_names(domain: &Domain, problem: &Problem) -> Result<(), Strin
                 "predicate `{n}` collides with ferroplan's reserved trajectory-monitor \
                  namespace (TRAJ{{n}}-VIOL/SEEN/HOLD/PEND/SAFE/ACC, TRAJ-PLANNING, \
                  TRAJ-ENDED) used to compile (:constraints ...); rename the predicate"
+            ));
+        }
+    }
+    // The timed lowering's FLUENT namespace (0.24 Phase 4): the clock and
+    // the per-monitor deadline. A user function interning to the same
+    // grounded fluent could overwrite a deadline (or shadow the clock) and
+    // silently un-violate a hard constraint — the same failure class as the
+    // fact fence above.
+    let monitor_fluent = |n: &str| -> bool {
+        if n == CLOCK_FLUENT {
+            return true;
+        }
+        let Some(rest) = n.strip_prefix("TRAJ") else {
+            return false;
+        };
+        let mut it = rest.splitn(2, '-');
+        let (num, suf) = (it.next().unwrap_or(""), it.next().unwrap_or(""));
+        !num.is_empty() && num.bytes().all(|b| b.is_ascii_digit()) && suf == "DUE"
+    };
+    for (n, _) in &domain.functions {
+        if monitor_fluent(n) {
+            return Err(format!(
+                "function `{n}` collides with ferroplan's reserved trajectory-monitor \
+                 fluent namespace (TRAJ-CLOCK, TRAJ{{n}}-DUE) used to compile timed \
+                 (:constraints ...); rename the function"
             ));
         }
     }
@@ -551,17 +729,20 @@ pub(crate) fn strip_end(task: &crate::packed::PackedTask, ops: &mut Vec<usize>) 
 
 /// The 0.7 entrypoint gate, shared by `solve`/`decompose`/`run_planner`/
 /// `run_ff` so no gate can silently diverge: `Ok(None)` = no constraints
-/// (byte-identical no-op path), `Ok(Some(pair))` = untimed constraints
-/// accepted — on a CLASSICAL domain compiled into the rewritten task (hard
-/// AND soft since Phase 2); on a DURATIVE domain vetted here and passed
-/// through UNCHANGED, because the monitor compile rides the snap-compiled
-/// classical task inside the temporal pipeline (0.23 Phase 2 — see
-/// [`crate::temporal`]'s solve path). `Err(msg)` = a NAMED rejection — the
-/// timed operators (`within` / `always-within` / `hold-during` /
-/// `hold-after`, both paths), a soft `(preference ...)` constraint on a
-/// durative domain, or the `FF_CONSTRAINTS_REJECT=1` hatch, which restores
-/// the 0.4.1 blanket rejection byte-for-byte (it restores *rejection*,
-/// never ignoring).
+/// (byte-identical no-op path), `Ok(Some(pair))` = constraints accepted —
+/// on a CLASSICAL domain the untimed operators, compiled into the rewritten
+/// task (hard AND soft since Phase 2); on a DURATIVE domain the untimed
+/// operators PLUS `within` / `always-within` (0.24 Phase 4 — stage c),
+/// vetted here and passed through UNCHANGED, because the monitor compile
+/// rides the snap-compiled classical task inside the temporal pipeline
+/// (0.23 Phase 2 — see [`crate::temporal`]'s solve path). `Err(msg)` = a
+/// NAMED rejection — `hold-during` / `hold-after` (both paths; grepped
+/// absent from the whole 2006 corpus), `within` / `always-within` on a
+/// CLASSICAL domain (no clock to read — zero 2006 rows live there), a soft
+/// `(preference ...)` constraint on a durative domain (the 0.25
+/// complex-preferences entry), or the `FF_CONSTRAINTS_REJECT=1` hatch,
+/// which restores the 0.4.1 blanket rejection byte-for-byte (it restores
+/// *rejection*, never ignoring).
 pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Problem)>, String> {
     if domain.constraints.is_empty() && problem.constraints.is_empty() {
         return Ok(None);
@@ -583,12 +764,13 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
 }
 
 /// Vet a durative-action task's `(:constraints ...)` block for the temporal
-/// monitor compile (0.23 Phase 2): reserved-name fences (including the
-/// durative action list, which [`reject_reserved_names`] cannot see),
-/// expansion (which rejects the timed operators BY NAME), and the soft
-/// fence — `(preference ...)`-wrapped constraints need the PDDL3 metric
-/// machinery on the temporal path (the complex-preferences unlock, named in
-/// docs/roadmap-0.23.md) and are still rejected.
+/// monitor compile (0.23 Phase 2; timed operators since 0.24 Phase 4):
+/// reserved-name fences (including the durative action list, which
+/// [`reject_reserved_names`] cannot see), expansion (which rejects
+/// `hold-during` / `hold-after` BY NAME and accepts the rest), and the soft
+/// fence — `(preference ...)`-wrapped constraints, timed bodies included,
+/// need the PDDL3 metric machinery on the temporal path (the
+/// complex-preferences unlock, 0.25's entry) and are still rejected.
 fn vet_temporal(domain: &Domain, problem: &Problem) -> Result<(), String> {
     reject_reserved_names(domain, problem)?;
     if domain.durative_actions.iter().any(|a| a.name == END_ACTION) {
@@ -611,21 +793,53 @@ fn vet_temporal(domain: &Domain, problem: &Problem) -> Result<(), String> {
     Ok(())
 }
 
-/// Compile the untimed constraints into the domain/problem: monitor
-/// predicates + per-action `When` transitions, per the module-level table.
-/// A HARD constraint's acceptance rides the forced-terminal `TRAJ-END`
-/// action's conditional latches, leaving the hard goal literal-only (the
-/// 0.8 END construction; `FF_NO_TRAJ_END=1` restores the 0.7 goal-side
+/// Compile the constraints into the domain/problem: monitor predicates +
+/// per-action `When` transitions, per the module-level table. A HARD
+/// constraint's acceptance rides the forced-terminal `TRAJ-END` action's
+/// conditional latches, leaving the hard goal literal-only (the 0.8 END
+/// construction; `FF_NO_TRAJ_END=1` restores the 0.7 goal-side
 /// conjunction). A SOFT (`preference`-wrapped) constraint's acceptance
 /// becomes a goal-side `(preference name <acceptance>)` — the PDDL3 metric
 /// machinery (`pddl3::compile`'s collect/forgo pricing, the closure
 /// optimizer, the selection layer) then scores it exactly like a native
 /// goal preference, because a monitor's final-state acceptance formula is
 /// true iff the constraint held over the whole trajectory. Returns the
-/// rewritten pair. Errors on timed operators (naming them).
+/// rewritten pair.
+///
+/// THE CLASSICAL ENTRY: rejects the timed operators by name — the timed
+/// lowering (`compile_timed`) reads a clock only the temporal search
+/// maintains, and a sequential task's states carry no timestamps at all.
 pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), String> {
+    compile_inner(domain, problem, false)
+}
+
+/// The temporal-path entry (0.24 Phase 4 — stage c): identical to
+/// [`compile`] except the timed operators are ACCEPTED and lowered onto the
+/// search-maintained clock — `within` / `always-within` become ordinary
+/// monitor transitions with numeric conditions over `CLOCK_FLUENT`, which
+/// the decision-epoch search stamps into every state it creates (and the
+/// emitted-order audit re-stamps from emitted times). ONLY sound under that
+/// stamping contract, hence `pub(crate)` and called from `temporal`'s
+/// `solve_inner` alone.
+pub(crate) fn compile_timed(
+    domain: &Domain,
+    problem: &Problem,
+) -> Result<(Domain, Problem), String> {
+    compile_inner(domain, problem, true)
+}
+
+fn compile_inner(
+    domain: &Domain,
+    problem: &Problem,
+    timed: bool,
+) -> Result<(Domain, Problem), String> {
     reject_reserved_names(domain, problem)?;
     let mut exp = expand(domain, problem)?;
+    if !timed {
+        if let Some(op) = first_timed(&exp) {
+            return Err(classical_timed_err(op));
+        }
+    }
     simplify_static(&mut exp, domain, problem);
 
     let mut d = domain.clone();
@@ -637,6 +851,21 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
         d.constraints.clear();
         p.constraints.clear();
         return Ok((d, p));
+    }
+
+    // The clock, declared ONCE when any timed member survived static
+    // simplification (0.24 Phase 4). Init 0 = S_0's trajectory time; no op
+    // ever writes it — the temporal search stamps it at every decision
+    // epoch, so every monitor `When` reads its SOURCE state's epoch.
+    let any_timed = exp
+        .hard
+        .iter()
+        .chain(exp.soft.iter().flat_map(|(_, ms)| ms.iter()))
+        .any(|t| matches!(t, Traj::Within(..) | Traj::AlwaysWithin(..)));
+    if any_timed {
+        d.functions.push((CLOCK_FLUENT.to_string(), vec![]));
+        p.init_fluents
+            .push(((CLOCK_FLUENT.to_string(), vec![]), 0.0));
     }
 
     let mut goal_conj: Vec<Formula> = vec![p.goal.clone()];
@@ -757,6 +986,104 @@ pub fn compile(domain: &Domain, problem: &Problem) -> Result<(Domain, Problem), 
             }
             Traj::AtEnd(f) => {
                 acc.push(f.clone());
+            }
+            Traj::Within(dl, f) => {
+                // The deadline is non-negative (expand rejects negative
+                // bounds), so S_0 at time 0 is inside it: SEEN seeds from
+                // init exactly like `sometime`.
+                let seen = format!("TRAJ{i}-SEEN");
+                let viol = format!("TRAJ{i}-VIOL");
+                declare(d, p, &seen, init_holds(f));
+                declare(d, p, &viol, false);
+                let clock = || Expr::Fluent(CLOCK_FLUENT.to_string(), vec![]);
+                let inside = Formula::Comp(CompOp::Le, clock(), Expr::Num(*dl));
+                let past = Formula::Comp(CompOp::Gt, clock(), Expr::Num(*dl));
+                // φ observed while the clock is inside the deadline.
+                transitions.push(Effect::When(
+                    Formula::And(vec![f.clone(), inside.clone()]),
+                    Box::new(add(&seen)),
+                ));
+                // The deadline passed unseen: permanently violated — the
+                // clock never decreases, so SEEN's own condition can never
+                // fire again. The VIOL fact feeds the birth prune and the
+                // zombie check like every other hard monitor (acceptance ⇒
+                // ¬(¬SEEN ∧ clock > t), the zombie premise).
+                transitions.push(Effect::When(
+                    Formula::And(vec![Formula::Not(Box::new(atom(&seen))), past]),
+                    Box::new(add(&viol)),
+                ));
+                acc.push(Formula::Not(Box::new(atom(&viol))));
+                acc.push(Formula::Or(vec![
+                    atom(&seen),
+                    Formula::And(vec![f.clone(), inside]),
+                ]));
+            }
+            Traj::AlwaysWithin(dl, a, b) => {
+                // The response-deadline automaton: PEND is the open
+                // obligation, DUE its absolute deadline (armed from the
+                // clock at trigger time), VIOL the closed window. ψ at the
+                // trigger state discharges same-state (PDDL3: t_j = t_i),
+                // so the trigger transition requires ¬ψ; a discharge must
+                // land at or before DUE — a late ψ discharges nothing.
+                // While PEND is open the EARLIEST deadline binds: no
+                // ψ-state intervened (else PEND would have cleared), so a ψ
+                // meeting the open deadline meets every later trigger's
+                // window too.
+                let pend = format!("TRAJ{i}-PEND");
+                let viol = format!("TRAJ{i}-VIOL");
+                let due = format!("TRAJ{i}-DUE");
+                declare(d, p, &pend, init_holds(a) && !init_holds(b));
+                declare(d, p, &viol, false);
+                d.functions.push((due.clone(), vec![]));
+                // A trigger at S_0 owes ψ by 0 + dl; otherwise the value is
+                // inert until the first trigger assigns it — but it must be
+                // DEFINED, because an undefined fluent makes every numeric
+                // condition false and the transitions would never fire.
+                p.init_fluents.push(((due.clone(), vec![]), *dl));
+                let clock = || Expr::Fluent(CLOCK_FLUENT.to_string(), vec![]);
+                let on_time = Formula::Comp(CompOp::Le, clock(), Expr::Fluent(due.clone(), vec![]));
+                let late = Formula::Comp(CompOp::Gt, clock(), Expr::Fluent(due.clone(), vec![]));
+                // discharge — on time only.
+                transitions.push(Effect::When(
+                    Formula::And(vec![b.clone(), atom(&pend), on_time.clone()]),
+                    Box::new(del(&pend)),
+                ));
+                // fresh trigger arms the deadline (¬PEND keeps this
+                // mutually exclusive with the discharge on the PEND bit,
+                // and single-writer on DUE).
+                transitions.push(Effect::When(
+                    Formula::And(vec![
+                        a.clone(),
+                        Formula::Not(Box::new(b.clone())),
+                        Formula::Not(Box::new(atom(&pend))),
+                    ]),
+                    Box::new(Effect::And(vec![
+                        add(&pend),
+                        Effect::Num(
+                            AssignOp::Assign,
+                            due.clone(),
+                            vec![],
+                            Expr::Add(Box::new(clock()), Box::new(Expr::Num(*dl))),
+                        ),
+                    ])),
+                ));
+                // the window closed while the obligation was open —
+                // permanent (future ψ-states are later still), so VIOL
+                // feeds the birth prune; acceptance ⇒ ¬(PEND ∧ clock > DUE),
+                // the zombie premise.
+                transitions.push(Effect::When(
+                    Formula::And(vec![atom(&pend), late]),
+                    Box::new(add(&viol)),
+                ));
+                acc.push(Formula::Not(Box::new(atom(&viol))));
+                acc.push(Formula::Or(vec![
+                    Formula::Not(Box::new(atom(&pend))),
+                    Formula::And(vec![b.clone(), on_time]),
+                ]));
+                acc.push(Formula::Or(vec![
+                    Formula::Not(Box::new(a.clone())),
+                    b.clone(),
+                ]));
             }
         }
         acc

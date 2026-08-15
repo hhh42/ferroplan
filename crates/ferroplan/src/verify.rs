@@ -140,12 +140,23 @@ pub fn verify(
         None => return Err("grounding failed (empty type)".into()),
     };
 
-    // 0.7: expand the ORIGINAL trajectory constraints (errors on the timed
-    // operators — a plan for a problem verify cannot check is never Valid)
-    // and fold their semantics incrementally over the replay, S_0 included.
-    // HARD instances decide `constraints_met`; SOFT (preference-wrapped)
-    // instances are scored into the metric below, weighted like goal prefs.
+    // 0.7: expand the ORIGINAL trajectory constraints and fold their
+    // semantics incrementally over the replay, S_0 included. HARD instances
+    // decide `constraints_met`; SOFT (preference-wrapped) instances are
+    // scored into the metric below, weighted like goal prefs. The timed
+    // operators are rejected BY NAME (0.24 Phase 4: expand now accepts
+    // `within` / `always-within` for the temporal path, but this replay is
+    // SEQUENTIAL — its states carry no times to fold a deadline over;
+    // `temporal::validate` is the timed referee). A plan for a problem
+    // verify cannot check is never Valid.
     let expanded = crate::constraints::expand(&domain, &problem)?;
+    if let Some(op) = crate::constraints::first_timed(&expanded) {
+        return Err(format!(
+            "trajectory constraint `{op}` is time-bounded — the sequential replay \
+             has no state times to fold it over (temporal::validate referees \
+             timed constraints on durative domains)"
+        ));
+    }
     let mut folds: Vec<crate::constraints::Fold> = expanded
         .hard
         .iter()

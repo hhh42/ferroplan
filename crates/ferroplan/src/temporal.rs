@@ -12,14 +12,19 @@
 //! temporal search (T3) consumes: it only lets `A-END` fire `duration` after the
 //! matching `A-START`, and checks the invariant holds across the interval.
 //!
-//! Untimed PDDL3 trajectory constraints (0.23 Phase 2): the solve path runs
-//! `constraints::compile` over THIS module's snap-compiled classical output
-//! (`solve_inner`), so monitor `When`s ride every happening op and the
-//! `TRAJ-END` acceptance latch is an ordinary classical op the search fires
-//! last. Plan reconstruction strips it; the emitted (ε-separated) schedule
-//! is re-audited monitor-side before a constrained plan is returned; and
-//! [`validate`] folds the ORIGINAL constraints over its replay, independent
-//! of the compiled monitors (the verify.rs convention).
+//! PDDL3 trajectory constraints (0.23 Phase 2; timed operators 0.24 Phase
+//! 4): the solve path runs `constraints::compile_timed` over THIS module's
+//! snap-compiled classical output (`solve_inner`), so monitor `When`s ride
+//! every happening op and the `TRAJ-END` acceptance latch is an ordinary
+//! classical op the search fires last. `within` / `always-within` lower
+//! onto the `TRAJ-CLOCK` fluent the decision-epoch search stamps into every
+//! state it creates (block (b)'s time advance), so their deadlines are
+//! ordinary numeric conditions over the SOURCE state's epoch. Plan
+//! reconstruction strips `TRAJ-END`; the emitted (ε-separated) schedule is
+//! re-audited monitor-side — clock re-stamped from EMITTED times — before a
+//! constrained plan is returned; and [`validate`] folds the ORIGINAL
+//! constraints (timed included, over the plan's own timestamps) over its
+//! replay, independent of the compiled monitors (the verify.rs convention).
 
 use crate::types::{
     eval_numpre, Action, AssignOp, CompOp, Domain, Duration, Effect, Expr, Formula, NExpr, NumEff,
@@ -663,16 +668,18 @@ fn solve_inner(
     tier: DemandMode,
 ) -> Option<TimedPlan> {
     let mut c = compile(domain, problem);
-    // Untimed trajectory constraints on the temporal path (0.23 Phase 2):
-    // the classical monitor compile rides the snap-compiled task — monitor
-    // `When`s on every happening op (starts, ends, TIL appliers), the
-    // TRAJ-END acceptance latch as an ordinary classical op. gate() vetted
-    // the block (timed operators and soft constraints already rejected by
-    // name); an Err here is defensive, for direct library callers that
-    // bypassed the gate — a miss, never a silently unconstrained solve.
+    // Trajectory constraints on the temporal path (0.23 Phase 2; timed
+    // operators since 0.24 Phase 4): the classical monitor compile rides
+    // the snap-compiled task — monitor `When`s on every happening op
+    // (starts, ends, TIL appliers), the TRAJ-END acceptance latch as an
+    // ordinary classical op, and `within` / `always-within` lowered onto
+    // the TRAJ-CLOCK fluent this search stamps below. gate() vetted the
+    // block (hold-* and soft constraints already rejected by name); an Err
+    // here is defensive, for direct library callers that bypassed the gate
+    // — a miss, never a silently unconstrained solve.
     let constrained = !c.domain.constraints.is_empty() || !c.problem.constraints.is_empty();
     if constrained {
-        match crate::constraints::compile(&c.domain, &c.problem) {
+        match crate::constraints::compile_timed(&c.domain, &c.problem) {
             Ok((d2, p2)) => {
                 c.domain = d2;
                 c.problem = p2;
@@ -780,11 +787,17 @@ fn solve_inner(
                     })
                     .filter(|v| !v.is_empty())
                     .collect();
+                // The clock fluent (0.24 Phase 4): present iff a timed
+                // operator survived static simplification. The search
+                // stamps it at every time advance below; the audit
+                // re-stamps it from EMITTED times.
+                let clock = task.fluent_id(&format!("({})", crate::constraints::CLOCK_FLUENT));
                 MonitorCtx {
                     end_op,
                     viol,
                     pending,
                     watch,
+                    clock,
                 }
             })
     } else {
@@ -1593,6 +1606,16 @@ pub(crate) struct MonitorCtx {
     /// (epsmon: B-START's `q` must land before C-END's delete of `p`, or
     /// the emitted slot exposes `¬p ∧ ¬q` the search never observed).
     pub(crate) watch: Vec<Vec<u32>>,
+    /// The grounded `TRAJ-CLOCK` fluent id (0.24 Phase 4 — stage c), when
+    /// any timed operator survived static simplification. The search stamps
+    /// the decision-epoch time into every state block (b) creates (block
+    /// (a) successors inherit their parent's epoch with the state), so
+    /// every state carries the time it BEGAN and a timed monitor's numeric
+    /// condition reads its SOURCE state's epoch. Armed, it also floors
+    /// ε-emission to search times (the TIL rule's argument: the search
+    /// placed every happening at a deadline-feasible instant) and makes the
+    /// audit re-stamp the replay from EMITTED times — the times VAL reads.
+    pub(crate) clock: Option<usize>,
 }
 
 impl MonitorCtx {
@@ -2822,16 +2845,25 @@ fn temporal_search(
                 // red ⇒ keep searching; shipping a VAL-red constrained plan
                 // is the one forbidden move.
                 Some(m) => {
-                    let plan =
-                        epsilon_separate(task, inv, raw.clone(), !til_events.is_empty(), None);
-                    if monitor_audit(task, kind, til_events, m.end_op, goal_pos, goal_num, &plan) {
+                    // With a clock armed, floor emission to search times
+                    // (the TIL rule's argument, 0.24 Phase 4): the search
+                    // placed every happening at a deadline-feasible
+                    // instant, and a from-zero re-timing could stretch a
+                    // trigger→response gap past its window for makespan the
+                    // audit would only have to refuse.
+                    let floor = !til_events.is_empty() || m.clock.is_some();
+                    let plan = epsilon_separate(task, inv, raw.clone(), floor, None);
+                    if monitor_audit(
+                        task, kind, til_events, m.end_op, m.clock, goal_pos, goal_num, &plan,
+                    ) {
                         return Some(plan);
                     }
                     // Canonical emission red: count it, then try the repair.
                     stats.audit_red += 1;
-                    let plan =
-                        epsilon_separate(task, inv, raw, !til_events.is_empty(), Some(&m.watch));
-                    if monitor_audit(task, kind, til_events, m.end_op, goal_pos, goal_num, &plan) {
+                    let plan = epsilon_separate(task, inv, raw, floor, Some(&m.watch));
+                    if monitor_audit(
+                        task, kind, til_events, m.end_op, m.clock, goal_pos, goal_num, &plan,
+                    ) {
                         if dbg {
                             eprintln!(
                                 "[tsearch] monitor audit RED on the canonical emission — \
@@ -3231,7 +3263,17 @@ fn temporal_search(
                     {
                         continue;
                     }
-                    let ns = task.apply(eop, &nodes[ni].state);
+                    let mut ns = task.apply(eop, &nodes[ni].state);
+                    // The clock stamp (0.24 Phase 4): time advanced to tj,
+                    // so the successor state BEGINS at tj — a timed
+                    // monitor's numeric conditions read this via the SOURCE
+                    // state at the next happening. Block (a) successors
+                    // stay at the parent's epoch and inherit its stamp with
+                    // the state; the root carries init's 0.
+                    if let Some(clk) = mctx.and_then(|m| m.clock) {
+                        ns.fv[clk] = tj;
+                        ns.fdef[clk] = true;
+                    }
                     if !inv_ok(
                         inv,
                         &touch,
@@ -3416,13 +3458,19 @@ fn reconstruct(
 /// up to the horizon, TILs exempt from the applicability check exactly as
 /// the search fires them), re-apply the stripped `TRAJ-END` last so its
 /// acceptance latches read the true final state, and check the compiled
-/// goal. `false` ⇒ the caller keeps searching; a constrained plan that
-/// would fail its own constraints is never returned.
+/// goal. With a `clock` armed (0.24 Phase 4 — timed operators), the replay
+/// re-stamps `TRAJ-CLOCK` from the EMITTED happening times — the times VAL
+/// reads — so an ε-shift that pushes a deadline-boundary observation past
+/// its window goes honestly red here instead of shipping. `false` ⇒ the
+/// caller keeps searching; a constrained plan that would fail its own
+/// constraints is never returned.
+#[allow(clippy::too_many_arguments)]
 fn monitor_audit(
     task: &PackedTask,
     kind: &[Kind],
     til_events: &[(f64, usize)],
     end_op: usize,
+    clock: Option<usize>,
     goal_pos: &[u32],
     goal_num: &[NumPre],
     plan: &TimedPlan,
@@ -3494,6 +3542,13 @@ fn monitor_audit(
             return false;
         }
         s = task.apply(h.op, &s);
+        // Emitted-time clock stamp (0.24 Phase 4): the post-happening state
+        // BEGINS at this happening's emitted time, exactly as the search
+        // stamped its own epochs — but on the times VAL will read.
+        if let Some(clk) = clock {
+            s.fv[clk] = h.time;
+            s.fdef[clk] = true;
+        }
     }
     if !task.op_applicable(end_op, &s) {
         if dbg {
@@ -3530,14 +3585,18 @@ fn monitor_audit(
 /// externally-supplied plan).
 ///
 /// Since 0.23 Phase 2 the pair's `(:constraints ...)` block is refereed too:
-/// the ORIGINAL untimed constraints fold over the replayed state trajectory
-/// (S_0 included) exactly as `verify.rs` does classically — the oracle stays
+/// the ORIGINAL constraints fold over the replayed state trajectory (S_0
+/// included) exactly as `verify.rs` does classically — the oracle stays
 /// independent of the compiled monitors, and the snap task grounded here
-/// carries none. The timed operators make expansion (and so validation)
-/// fail by name: a plan for a problem this validator cannot check is never
-/// `Ok`. Soft `(preference ...)` constraints are scoring, not validity, and
-/// do not participate. On ε-separated plans (every happening its own
-/// instant) the fold's per-happening states match VAL's trajectory exactly.
+/// carries none. Since 0.24 Phase 4 the fold is TIMED: each replayed state
+/// carries the happening time that created it (S_0 at 0), and `within` /
+/// `always-within` fold over those times — the plan's own timestamps, the
+/// same trajectory VAL judges. `hold-during` / `hold-after` still make
+/// expansion (and so validation) fail by name: a plan for a problem this
+/// validator cannot check is never `Ok`. Soft `(preference ...)`
+/// constraints are scoring, not validity, and do not participate. On
+/// ε-separated plans (every happening its own instant) the fold's
+/// per-happening states match VAL's trajectory exactly.
 pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<(), String> {
     let expanded =
         crate::constraints::expand(domain, problem).map_err(|e| format!("constraints: {e}"))?;
@@ -3546,10 +3605,13 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         Outcome::Task(t) => t,
         Outcome::GoalTrue if plan.steps.is_empty() || expanded.hard.is_empty() => {
             return if plan.steps.is_empty() {
-                // Trajectory = [S_0]: fold each hard instance over init alone.
+                // Trajectory = [S_0] at time 0: fold each hard instance
+                // over init alone.
                 for t in &expanded.hard {
                     let mut f = crate::constraints::Fold::new(t);
-                    f.step(&mut |phi| crate::constraints::eval_static(phi, problem));
+                    f.step_at(0.0, &mut |phi| {
+                        crate::constraints::eval_static(phi, problem)
+                    });
                     if !f.accepted() {
                         return Err(format!(
                             "trajectory constraint ({}) violated by the empty plan",
@@ -3701,14 +3763,18 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
     // even when composition offsets introduce sub-ε float noise.
     happenings.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
     let mut state = init.clone();
-    // Constraint folds observe S_0, then every post-happening state.
+    // Constraint folds observe S_0 (time 0), then every post-happening
+    // state AT ITS HAPPENING TIME — the timed operators (0.24 Phase 4)
+    // fold over the plan's own timestamps, the trajectory VAL judges.
     let mut folds: Vec<crate::constraints::Fold> = expanded
         .hard
         .iter()
         .map(crate::constraints::Fold::new)
         .collect();
     for f in &mut folds {
-        f.step(&mut |phi| crate::verify::eval_formula(&task, &state, phi));
+        f.step_at(0.0, &mut |phi| {
+            crate::verify::eval_formula(&task, &state, phi)
+        });
     }
     for h in &happenings {
         if let Some((dur, snap, args, disp)) = &h.dur_check {
@@ -3736,7 +3802,9 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         }
         state = task.apply(h.op, &state);
         for f in &mut folds {
-            f.step(&mut |phi| crate::verify::eval_formula(&task, &state, phi));
+            f.step_at(h.time, &mut |phi| {
+                crate::verify::eval_formula(&task, &state, phi)
+            });
         }
     }
     if !task.goal_met(&state) {
@@ -4290,6 +4358,7 @@ mod tests {
                 &kinds,
                 &[],
                 end_op,
+                None,
                 &task.goal_pos,
                 &task.goal_num,
                 &red
@@ -4312,6 +4381,7 @@ mod tests {
                 &kinds,
                 &[],
                 end_op,
+                None,
                 &task.goal_pos,
                 &task.goal_num,
                 &green
