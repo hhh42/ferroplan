@@ -1,0 +1,140 @@
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 1, "solved": true, "time": 99.17, "metric": 10.0, "length": 146, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 2, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 3, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 4, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 5, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 6, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 7, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 8, "solved": true, "time": 200.52, "metric": 10.0, "length": 150, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 9, "solved": false, "time": 245.79, "metric": null, "length": null, "val": null, "notes": "mem-cap", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 10, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 11, "solved": false, "time": 13.15, "metric": null, "length": null, "val": null, "notes": "mem-cap", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 12, "solved": false, "time": 12.92, "metric": null, "length": null, "val": null, "notes": "mem-cap", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 13, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 14, "solved": true, "time": 209.66, "metric": 7.0, "length": 114, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 15, "solved": false, "time": 212.94, "metric": null, "length": null, "val": null, "notes": "mem-cap", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 16, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 17, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 18, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 19, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 20, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 1, "solved": true, "time": 288.28, "metric": 10.0, "length": 19, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 2, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 3, "solved": true, "time": 134.65, "metric": 11.0, "length": 24, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "anytime cost sweep improved plan cost 14 -> 11"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 4, "solved": true, "time": 220.78, "metric": 10.0, "length": 19, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 5, "solved": true, "time": 187.42, "metric": 13.0, "length": 19, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 6, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 7, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 8, "solved": true, "time": 194.72, "metric": 12.0, "length": 23, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 9, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 10, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 11, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 12, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 13, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 14, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 15, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 16, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 17, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 18, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 19, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "labyrinth-agile", "instance": 20, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 1, "solved": true, "time": 0.43, "metric": null, "length": 58, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 2, "solved": true, "time": 0.79, "metric": null, "length": 38, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 3, "solved": true, "time": 1.11, "metric": null, "length": 65, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 4, "solved": true, "time": 1.24, "metric": null, "length": 78, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 5, "solved": true, "time": 1.17, "metric": null, "length": 95, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 6, "solved": true, "time": 2.22, "metric": null, "length": 123, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 7, "solved": true, "time": 0.05, "metric": null, "length": 31, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 8, "solved": true, "time": 0.38, "metric": null, "length": 60, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 9, "solved": true, "time": 0.46, "metric": null, "length": 49, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 10, "solved": true, "time": 27.96, "metric": null, "length": 55, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 11, "solved": true, "time": 0.78, "metric": null, "length": 96, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 12, "solved": true, "time": 7.43, "metric": null, "length": 87, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 13, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 14, "solved": true, "time": 0.16, "metric": null, "length": 22, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 15, "solved": true, "time": 0.44, "metric": null, "length": 38, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 16, "solved": true, "time": 1.44, "metric": null, "length": 32, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 17, "solved": true, "time": 1.6, "metric": null, "length": 64, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 18, "solved": true, "time": 2.47, "metric": null, "length": 73, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 19, "solved": true, "time": 2.06, "metric": null, "length": 87, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "quantum-layout-agile", "instance": 20, "solved": true, "time": 4.0, "metric": null, "length": 129, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 1, "solved": true, "time": 35.25, "metric": 19.0, "length": 19, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 2, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 3, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 4, "solved": true, "time": 225.94, "metric": 21.0, "length": 21, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 5, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 6, "solved": true, "time": 1.73, "metric": 8.0, "length": 11, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "plan cost proven optimal"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 7, "solved": true, "time": 255.99, "metric": 27.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 8, "solved": true, "time": 94.95, "metric": 15.0, "length": 24, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 9, "solved": true, "time": 6.87, "metric": 5.0, "length": 8, "val": true, "notes": ["anytime cost sweep improved plan cost 7 -> 5"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 10, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 11, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 12, "solved": true, "time": 64.98, "metric": 11.0, "length": 19, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 13, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 14, "solved": true, "time": 87.8, "metric": 9.0, "length": 12, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 15, "solved": true, "time": 258.32, "metric": 16.0, "length": 21, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 16, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 17, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 18, "solved": false, "time": 44.27, "metric": null, "length": null, "val": null, "notes": "mem-cap", "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 19, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "recharging-robots-agile", "instance": 20, "solved": false, "time": 73.63, "metric": null, "length": null, "val": null, "notes": "mem-cap", "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 1, "solved": true, "time": 189.03, "metric": 15.0, "length": 80, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 2, "solved": true, "time": 255.15, "metric": 17.0, "length": 98, "val": true, "notes": ["EHC found no improving state; used weighted best-first", "anytime cost sweep improved plan cost 18 -> 17"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 3, "solved": true, "time": 206.02, "metric": 17.0, "length": 97, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 4, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 5, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 6, "solved": true, "time": 77.65, "metric": 26.0, "length": 181, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 7, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 8, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 9, "solved": true, "time": 48.78, "metric": 24.0, "length": 150, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 10, "solved": true, "time": 48.97, "metric": 24.0, "length": 150, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 11, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 12, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 13, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 14, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 15, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 16, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 17, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 18, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 19, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "ricochet-robots-agile", "instance": 20, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 1, "solved": true, "time": 0.03, "metric": null, "length": 3, "val": true, "notes": null, "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 2, "solved": true, "time": 1.37, "metric": null, "length": 2, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 3, "solved": true, "time": 1.42, "metric": null, "length": 3, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 4, "solved": true, "time": 1.41, "metric": null, "length": 4, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 5, "solved": true, "time": 32.09, "metric": null, "length": 5, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 6, "solved": true, "time": 173.04, "metric": null, "length": 6, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 7, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 8, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 9, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 10, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 11, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 12, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 13, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 14, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 15, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 16, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 17, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 18, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 19, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "rubiks-cube-agile", "instance": 20, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 1, "solved": true, "time": 1.68, "metric": null, "length": 24, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 2, "solved": true, "time": 10.84, "metric": null, "length": 34, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 3, "solved": true, "time": 86.75, "metric": null, "length": 40, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 4, "solved": true, "time": 99.47, "metric": null, "length": 40, "val": true, "notes": ["EHC found no improving state; used weighted best-first"], "budget": 300, "makespan": null}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 5, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 6, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 7, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 8, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 9, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 10, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 11, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 12, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 13, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 14, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 15, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 16, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 17, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 18, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 19, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}
+{"ipc": "ipc-2023", "variant": "slitherlink-agile", "instance": 20, "solved": false, "time": 300, "metric": null, "length": null, "val": null, "notes": null, "budget": 300}

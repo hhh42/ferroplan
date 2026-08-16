@@ -1,0 +1,20 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode optimal
+using external binary: /Users/harold/ferroplan-backfill-0.21.0/target/release/ff
+ipc-2014/barman-sequential-optimal: 0/14 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2014/cave-diving-sequential-optimal: 5/20 solved, cost 508, 56.1s solve-time, val 5/5
+ipc-2014/child-snack-sequential-optimal: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2014/city-car-sequential-optimal: 10/20 solved, cost 556, 16.2s solve-time, val 10/10
+ipc-2014/floor-tile-sequential-optimal: 2/20 solved, cost 112, 38.8s solve-time, val 2/2
+ipc-2014/genome-edit-distances-sequential-optimal: 15/20 solved, cost 47, 98.9s solve-time, val 15/15
+ipc-2014/hiking-sequential-optimal: 8/20 solved, cost 172, 22.9s solve-time, val 8/8
+ipc-2014/maintenance-sequential-optimal: 5/5 solved, cost 37, 32.9s solve-time, val 5/5
+ipc-2014/openstacks-sequential-optimal: 1/20 solved, cost 6, 4.2s solve-time, val 1/1
+ipc-2014/parking-sequential-optimal: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2014/tetris-sequential-optimal: 3/17 solved, cost 40, 4.3s solve-time, val 3/3
+ipc-2014/tidybot-sequential-optimal: 2/20 solved, cost 49, 40.2s solve-time, val 2/2
+ipc-2014/transport-sequential-optimal: 4/20 solved, cost 1900, 9.1s solve-time, val 4/4
+ipc-2014/visit-all-sequential-optimal: 2/20 solved, cost 45, 20.4s solve-time, val 2/2
+
+wrote benchmarks/air-0.21.0/ipc2014-opt.md (raw: benchmarks/air-0.21.0/ipc2014-opt.jsonl) — total coverage 57/256

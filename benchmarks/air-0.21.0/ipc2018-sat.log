@@ -1,0 +1,18 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-backfill-0.21.0/target/release/ff
+ipc-2018/agricola-sequential-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2018/caldera-sequential-satisficing: 2/20 solved, cost 22, 31.1s solve-time, val 2/2
+ipc-2018/caldera-split-sequential-satisficing: 3/20 solved, cost 246, 8.4s solve-time, val 3/3
+ipc-2018/data-network-sequential-satisficing: 9/20 solved, cost 6106, 133.9s solve-time, val 0/0
+ipc-2018/flashfill-sequential-satisficing: 12/20 solved, cost 4998, 276.2s solve-time, val 12/12
+ipc-2018/nurikabe-sequential-satisficing: 12/20 solved, cost 1058, 91.7s solve-time, val 12/12
+ipc-2018/organic-synthesis-sequential-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2018/organic-synthesis-split-sequential-satisficing: 7/20 solved, cost 2054, 104.4s solve-time, val 7/7
+ipc-2018/settlers-sequential-satisficing: 9/20 solved, cost 6495, 181.9s solve-time, val 9/9
+ipc-2018/snake-sequential-satisficing: 5/20 solved, cost 370, 59.3s solve-time, val 5/5
+ipc-2018/spider-sequential-satisficing: 3/20 solved, cost 91, 117.1s solve-time, val 3/3
+ipc-2018/termes-sequential-satisficing: 7/20 solved, cost 1911, 14.5s solve-time, val 7/7
+
+wrote benchmarks/air-0.21.0/ipc2018-sat.md (raw: benchmarks/air-0.21.0/ipc2018-sat.jsonl) — total coverage 69/240

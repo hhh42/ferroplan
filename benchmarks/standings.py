@@ -110,7 +110,7 @@ SWEEPS = {
     # promote-air23.sh promotes the 60 s boards (it checks the stamps and
     # reminds you), so the fallback and the budget prose in write_summary
     # ("30 s temporal") stay truthful for pre-stamp archaeology.
-    "ipc67-temporal.jsonl": ("tempo-sat", "ipc67", 30),
+    "ipc67-temporal.jsonl": ("tempo-sat", "ipc67", 60),
     "ipc67-netben.jsonl": ("net-benefit", "ipc67", 60),
     # The mco methodology (0.16, re-affirmed for the 0.23 re-entry): 60 s
     # WALL-CLOCK per the competition rule — the track scores wall time on
@@ -123,9 +123,7 @@ SWEEPS = {
     # The modern corpora (0.17 frontier cycle).
     "ipc2014-sat.jsonl": ("2014 seq-sat", "modern", 60),
     "ipc2014-agile.jsonl": ("2014 seq-agile", "modern", 60),
-    # 30 -> 60 DEFERRED TO PROMOTE TIME — see the tier-move comment on
-    # ipc67-temporal.jsonl above; flip both together.
-    "ipc2014-tempo.jsonl": ("2014 tempo-sat", "modern", 30),
+    "ipc2014-tempo.jsonl": ("2014 tempo-sat", "modern", 60),
     "ipc2014-mco-t4.jsonl": ("2014 seq-mco t4", "modern", 60),
     "ipc2018-sat.jsonl": ("2018 seq-sat", "modern", 60),
     "ipc2023-agile.jsonl": ("2023 classical", "modern", 60),
@@ -505,7 +503,7 @@ def write_summary(data):
 
     L += ["## How to read this", "",
           "- **coverage** is solved/total at that track's official-ish budget "
-          "(60 s satisficing, 30 s temporal, 300 s where marked an entry).",
+          "(60 s satisficing, 60 s temporal, 300 s where marked an entry).",
           "- **⚖️ marks a proof track**: coverage is the share of instances "
           "PROVEN optimal, a far harder bar than finding some plan.",
           "- **vs previous** compares only against a release measured on the same "

@@ -9,10 +9,10 @@ for scoring semantics and the failure-class definitions.
 
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
-| propositional | yes | 366/450 | len vs best-of-field: 50W/41T/179L, mean quality 0.89 (270 scored) | 84 timeout |
-| time | cloud-era board, NOT re-baselined — see git history | — | — | — |
-| metric-time | cloud-era board, NOT re-baselined — see git history | — | — | — |
-| constraints | yes | 5/120 | coverage-only (timed modal ops rejected by name) | 100 engine-reject/error, 15 timeout |
+| propositional | yes | 366/450 | len vs best-of-field: 49W/42T/179L, mean quality 0.90 (270 scored) | 84 timeout |
+| time | yes | 77/130 | makespan vs best-of-field: 27W/3T/47L, mean quality 0.80 (77 scored) | 53 timeout |
+| metric-time | yes | 54/200 | makespan vs best-of-field: 43W/1T/10L, mean quality 0.94 (54 scored) | 17 early-exit, 129 timeout |
+| constraints | yes | 12/120 | coverage-only (timed modal ops rejected by name) | 4 early-exit, 70 engine-reject/error, 34 timeout |
 | simple-preferences | yes | see board | reference-scored — [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |
 | qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won outright) | — |
 | complex-preferences | no (modal operators rejected by name) | — | — | feature gap, on the deferred list |
@@ -22,8 +22,8 @@ for scoring semantics and the failure-class definitions.
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
 | seq-sat | yes | 284/300 | coverage + VAL (no official per-instance archive vendored) | 16 timeout |
-| tempo-sat | yes | 298/390 | coverage + VAL (no official per-instance archive vendored) | 1 mem-cap, 91 timeout |
-| net-benefit | yes | 248/270 | coverage + VAL (no official per-instance archive vendored) | 22 timeout |
+| tempo-sat | yes | 307/390 | coverage + VAL (no official per-instance archive vendored) | 1 early-exit, 4 mem-cap, 78 timeout |
+| net-benefit | yes | 246/270 | coverage + VAL (no official per-instance archive vendored) | 1 mem-cap, 23 timeout |
 | seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 150/270 | coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 120 timeout |
 | tempo-opt | out of scope by design (satisficing temporal path) | — | — | — |
 
@@ -31,28 +31,28 @@ for scoring semantics and the failure-class definitions.
 
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
-| seq-sat | yes | 220/280 | coverage + VAL | 60 timeout |
-| tempo-sat | yes | 121/240 | coverage + VAL | 3 mem-cap, 116 timeout |
-| seq-mco t2 | cloud-era board, NOT re-baselined — see git history | — | wall-clock per competition rule (4-core box; t8 oversubscribed) | — |
-| seq-mco t4 | cloud-era board, NOT re-baselined — see git history | — | wall-clock per competition rule (4-core box; t8 oversubscribed) | — |
-| seq-mco t8 | cloud-era board, NOT re-baselined — see git history | — | wall-clock per competition rule (4-core box; t8 oversubscribed) | — |
-| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 127/280 | coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 153 timeout |
+| seq-sat | yes | 219/280 | coverage + VAL | 61 timeout |
+| tempo-sat | yes | 129/240 | coverage + VAL | 5 mem-cap, 106 timeout |
+| seq-mco t2 | yes (first entry, 0.16) | 230/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 50 timeout |
+| seq-mco t4 | yes (first entry, 0.16) | 237/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 43 timeout |
+| seq-mco t8 | yes (first entry, 0.16) | 240/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 1 mem-cap, 39 timeout |
+| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 131/280 | coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 149 timeout |
 
 ## The modern corpora (IPC 2014 / 2018 / 2023 — first entered 0.17)
 
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
-| 2014 seq-sat | yes (first entry, 0.17) | 147/280 | coverage + VAL | 133 timeout |
-| 2014 seq-agile | yes (first entry, 0.17) | 141/280 | coverage + VAL | 139 timeout |
-| 2014 tempo-sat | yes (first entry, 0.17) | 67/200 | coverage + VAL | 1 mem-cap, 132 timeout |
-| 2014 seq-mco t4 | cloud-era board, NOT re-baselined — see git history | — | — | — |
-| 2014 seq-opt | yes (first entry, 0.19) | 74/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 182 timeout |
-| 2018 seq-sat | yes (first entry, 0.17) | 79/240 | vs best-known bounds: 0W/1T/28L, mean quality 0.77 (29 scored) | 2 mem-cap, 159 timeout |
-| 2023 classical | yes (first entry, 0.17) | 36/140 | vs best-known bounds: 0W/11T/25L, mean quality 0.78 (36 scored) | 2 mem-cap, 102 timeout |
-| 2023 agile ENTRY (300s) | yes (OFFICIAL-BUDGET entry, 0.19) | 52/140 | OFFICIAL 300 s budget — a competition-methodology ENTRY, not a baseline | 2 engine-reject/error, 13 mem-cap, 73 timeout |
-| 2023 numeric | yes (first entry, 0.17) | 251/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 1 engine-reject/error, 7 mem-cap, 141 timeout |
-| 2026 numeric (first board) | yes (FIRST ENTRY, 0.20 — new corpus) | 179/320 | coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all swept satisficing-style on this first board | 141 timeout |
-| 2026 numeric-opt | yes (FIRST ENTRY, 0.21 — the -opt pairs, ⚖️) | 22/60 | coverage = PROOF RATE (Mode::Optimal over the three -opt pairs; LENGTH optima — the vendored corpus carries no active :metric; every certificate VAL-checked) | 38 timeout |
+| 2014 seq-sat | yes (first entry, 0.17) | 151/280 | coverage + VAL | 3 mem-cap, 126 timeout |
+| 2014 seq-agile | yes (first entry, 0.17) | 147/280 | coverage + VAL | 133 timeout |
+| 2014 tempo-sat | yes (first entry, 0.17) | 74/200 | coverage + VAL | 2 mem-cap, 124 timeout |
+| 2014 seq-mco t4 | yes (first entry, 0.17) | 164/280 | wall-clock per competition rule (--threads 4, one instance at a time; 4P+6E box) | 2 early-exit, 1 mem-cap, 113 timeout |
+| 2014 seq-opt | yes (first entry, 0.19) | 78/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 178 timeout |
+| 2018 seq-sat | yes (first entry, 0.17) | 80/240 | vs best-known bounds: 0W/1T/28L, mean quality 0.77 (29 scored) | 1 mem-cap, 159 timeout |
+| 2023 classical | yes (first entry, 0.17) | 36/140 | vs best-known bounds: 0W/11T/25L, mean quality 0.78 (36 scored) | 104 timeout |
+| 2023 agile ENTRY (300s) | yes (OFFICIAL-BUDGET entry, 0.19) | 51/140 | OFFICIAL 300 s budget — a competition-methodology ENTRY, not a baseline | 3 engine-reject/error, 5 mem-cap, 81 timeout |
+| 2023 numeric | yes (first entry, 0.17) | 251/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 1 engine-reject/error, 6 mem-cap, 142 timeout |
+| 2026 numeric (first board) | yes (FIRST ENTRY, 0.20 — new corpus) | 180/320 | coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all swept satisficing-style on this first board | 2 mem-cap, 138 timeout |
+| 2026 numeric-opt | yes (FIRST ENTRY, 0.21 — the -opt pairs, ⚖️) | 22/60 | coverage = PROOF RATE (Mode::Optimal over the three -opt pairs; LENGTH optima — the vendored corpus carries no active :metric; every certificate VAL-checked) | 9 early-exit, 29 timeout |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).
 

@@ -1,0 +1,22 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-backfill-0.21.0/target/release/ff
+ipc-2026n/2048-numeric-2026: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2026n/coins-numeric-2026: 17/20 solved, cost 54850, 6.9s solve-time, val 17/17
+ipc-2026n/expedition-numeric-2026: 5/20 solved, cost 298, 0.2s solve-time, val 5/5
+ipc-2026n/factory-robot-numeric-2026: 11/20 solved, cost 622, 150.2s solve-time, val 0/0
+ipc-2026n/forestfire-numeric-2026: 20/20 solved, cost 6977, 25.2s solve-time, val 20/20
+ipc-2026n/gear-car-numeric-2026: 6/20 solved, cost 7163384, 48.6s solve-time, val 6/6
+ipc-2026n/line-exchange-snp-numeric-2026: 9/20 solved, cost 1759, 129.4s solve-time, val 9/9
+ipc-2026n/onlycraft-opt-numeric-2026: 6/20 solved, cost 158, 101.3s solve-time, val 6/6
+ipc-2026n/onlycraft-sat-numeric-2026: 6/20 solved, cost 158, 101.2s solve-time, val 6/6
+ipc-2026n/petri-net-numeric-2026: 14/20 solved, cost 574, 85.8s solve-time, val 14/14
+ipc-2026n/rainbowttles-opt-numeric-2026: 20/20 solved, cost 302, 0.9s solve-time, val 20/20
+ipc-2026n/rainbowttles-sat-numeric-2026: 20/20 solved, cost 765, 60.5s solve-time, val 20/20
+ipc-2026n/sailing-wind-opt-numeric-2026: 20/20 solved, cost 421, 6.0s solve-time, val 20/20
+ipc-2026n/sailing-wind-sat-numeric-2026: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2026n/settlers-snp-numeric-2026: 1/20 solved, cost 29, 3.7s solve-time, val 1/1
+ipc-2026n/ztalloc-sum-numeric-2026: 11/20 solved, cost 266, 33.2s solve-time, val 11/11
+
+wrote benchmarks/air-0.21.0/ipc2026-numeric.md (raw: benchmarks/air-0.21.0/ipc2026-numeric.jsonl) — total coverage 166/320

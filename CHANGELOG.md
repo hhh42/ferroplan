@@ -38,9 +38,80 @@ the cut sweep. Full record:
   byte-identical evals; bazaar think latency halved. Mode::Sat
   reaches the wire by construction.
 
-Accumulating toward 0.23.0 — the temporal cycle, and the whole table
-on one box. Board claims land with the cut sweep. Full record:
+## [0.23.0] - 2026-08-16 — The temporal cycle, and the whole table on one box
+
+The cycle that moved the temporal boards to their honest 60 s tier
+with the budget/engine split proven per instance, opened the
+constraints gate, re-entered the last six ghost boards — and for the
+first time in this project's history, **every number in the table
+shares one box.** The "Not re-baselined" section is deleted. Full
+record:
 [`docs/roadmap-0.23.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.23.md).
+
+### Where this leaves the standings
+
+**62% coverage across 22 IPC boards** (3,916/6,366), of which **381
+are certified optima**. On the sixteen comparable boards: **+47**
+(55 gains, 8 losses, every one named in the record); the six
+re-entries add 1,002/1,450. At-a-glance:
+[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md).
+
+- **The tier move, refereed exactly as the rule demands:** the
+  v0.22.0 binary at 60 s gains +16 — dead center of the projection —
+  and 0.23 banks 15 of those plus 9 engine gains (+24 across the two
+  temporal boards, zero losses). The turn-and-open churn class
+  retired as pre-registered. The budget caveat on every temporal
+  placement halves (30× now, was 60×).
+- **The constraints gate's first board:** 5/120 → 12/120, exactly
+  the seven storage solves banked solo pre-sweep; the engine-reject
+  class drops 100 → 70, leaving precisely the timed constituency
+  that 0.24's stage c has since built.
+- **The makespan quality columns debut** (the first temporal quality
+  currency): time mean 0.80 (27W/3T/47L vs the official archive),
+  metric-time **0.94** (43W/1T/10L; both openstacks variants sweep
+  40W/0L at 1.00).
+- **The mco sitting lands its four boards** (230/237/240/164 at
+  t2/t4/t8/2014-t4) with its caveats carried loudly: t4 and t8
+  banked under DEGRADED conditions verdicts (t8 can never read
+  clean — eight own threads on ten cores — and a real half-core
+  competitor ran all board long) and with VAL unavailable; t2 and
+  2014-t4 fully VAL-green. Contention only ever depresses coverage.
+- **The bills, read against the v0.21.0 backfill column:**
+  org-synth-split i15 and hiking-agile i11 PAID (both return on the
+  board itself); onlycraft's −6 is confirmed REAL engine cost
+  (all six solve under the v0.21.0 tag on this box) and STANDS as
+  0.24's open docket; the damping three stand engine-side;
+  floor-tile-2011 i11 carried; nurikabe closed against 0.24's
+  measured negative; the openstacks-2014 acquittal corroborated —
+  the 0.21 board's 12/20 was itself the outlier.
+
+## Movement — all 22 boards, 0.22 promoted vs 0.23 promoted
+
+| board | track | 0.22 | 0.23 | delta | what moved |
+|---|---|---|---|---|---|
+| ipc67-temporal | tempo-sat 08+11 (60 s, was 30) | 419/630 | 436/630 | +17 | 9 budget + 8 engine (5 sokoban-t = Phase 6 MCV; 3 elevator-t = memory); 0 losses |
+| ipc2014-tempo | 2014 tempo-sat (60 s, was 30) | 67/200 | 74/200 | +7 | 6 budget (turn-and-open i3/i4/i6 churn class retired) + 1 engine (satellite i15) |
+| ipc5-constraints | constraints (60 s both cuts) | 5/120 | 12/120 | +7 | Phase 2 a+b: storage-time-constraints i1–i7; engine-reject 100→70 |
+| ipc2014-agile | 2014 seq-agile | 141/280 | 147/280 | +6 | +hiking i11, +parking i2/i3/i5, +tetris i8/i12/i14; −parking i14 (wall) |
+| ipc-opt-2008-11 (proof) | seq-opt | 277/550 | 281/550 | +4 | +5 LM-cut certs (elevator-11 i16, no-mystery-11 i5/i15, tidybot-11 i5/i11); −peg-solitaire-11 i16 |
+| ipc2014-opt (proof) | 2014 seq-opt | 74/256 | 78/256 | +4 | hiking i17 (h^max+orbits), tidybot i8/i11, visit-all i16 |
+| ipc2014-sat | 2014 seq-sat | 147/280 | 151/280 | +4 | openstacks i5, parking i5, tetris i8/i14 |
+| ipc2018-sat | 2018 seq-sat | 79/240 | 80/240 | +1 | org-synth-split i15 (0.22 driver casualty returns, 59.99 s) |
+| ipc2026-numeric | 2026 numeric | 179/320 | 180/320 | +1 | line-exchange-snp i5_5_90_10 |
+| ipc2023-agile | 2023 classical (60 s baseline) | 36/140 | 36/140 | = | zero churn |
+| ipc2023-numeric | 2023 numeric | 251/400 | 251/400 | = | zero churn; all 5 watchlist rows held |
+| ipc2026-opt (proof) | 2026 numeric-opt | 22/60 | 22/60 | = | onlycraft i2 cert 16.07→1.0 s (fold) |
+| ipc5-prop | propositional | 366/450 | 366/450 | = | quality 0.89→0.90 |
+| ipc2023-agile-300s | 2023 agile ENTRY | 52/140 | 51/140 | −1 | +folding i8, +labyrinth i1; −recharging i17/−ricochet i7/−rubiks i6 (300 s wall churn) |
+| ipc67-results | seq-sat 08+11 | 504/580 | 503/580 | −1 | −parking-2011 i15 (59.82→timeout 59.81) |
+| ipc67-netben | net-benefit | 248/270 | 246/270 | −2 | −crew-planning i23 (wall), −woodworking i20 (mem-cap 33.9 s) |
+| ipc5-time | time (NEW) | — (cloud 76/130, 0.16, incomparable) | 77/130 | new | makespan debut 27W/3T/47L, 0.80 |
+| ipc5-metric-time | metric-time (NEW) | — (cloud 54/200, 0.19, incomparable) | 54/200 | new | makespan debut 43W/1T/10L, 0.94 |
+| ipc7-mco-t2 | seq-mco t2 (NEW) | — (cloud 193/280, 0.16, incomparable) | 230/280 | new | wall-clock rule; VAL 230/230; clean |
+| ipc7-mco-t4 | seq-mco t4 (NEW) | — (cloud 189/280, 0.16, incomparable) | 237/280 | new | DEGRADED verdict hand-banked; VAL unavailable |
+| ipc7-mco-t8 | seq-mco t8 (NEW) | — (cloud 193/280, 0.16, incomparable) | 240/280 | new | oversubscribed by construction; DEGRADED (spotlight 52%); VAL unavailable |
+| ipc2014-mco-t4 | 2014 seq-mco t4 (NEW) | — (cloud 107/280, 0.17, incomparable) | 164/280 | new | clean; VAL 164/164 |
+| **TOTAL** | | **2,867/4,916 (58%)** | **3,916/6,366 (62%)** | **+47 comparable, +1,002 re-entry** | optima 373 → 381 |
 
 - **The constraints gate opens** (Phase 2, stages a+b): at-end
   trajectory constraints fold as a TRAJ-END acceptance latch and the
@@ -197,109 +268,6 @@ comparable board held or gained; 2014 seq-opt's **+16** (58→74,
 The sweep itself: sixteen boards, one clean pass, zero contended
 re-runs — every board's measured conditions verdict reads `clean`.
 
-## [0.21.0] - 2026-08-04 — The numeric cycle, and the ladders that pay their own way
-
-The cycle that took the sailing wall down, closed a temporal debt
-carried since 0.18, and repaired the −26 coverage regression the v0.19
-backfill exposed in 0.20 — while keeping every win 0.20 had bought.
-Full record:
-[`docs/roadmap-0.21.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.21.md).
-
-### Where this leaves the standings
-
-**53% coverage across 13 IPC boards** (2,153/4,076), of which **354 are
-certified optima** — on the optimal tracks coverage IS proof rate.
-At-a-glance: [`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md);
-per-track detail: [`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md).
-
-Against 0.19.0 — re-measured on the SAME machine, so the comparison is
-engine-to-engine — the twelve comparable boards move **1,943 → 2,132,
-+189**:
-
-| board | 0.19 | 0.20 | **0.21** |
-|---|---|---|---|
-| 2026 numeric | 124 | 121 | **165** |
-| seq-opt (08/11) ⚖️ | 235 | 250 | **275** |
-| 2023 numeric | 193 | 194 | **229** |
-| 2014 seq-agile | 114 | 103 | **142** |
-| 2014 seq-sat | 115 | 110 | **138** |
-| seq-sat (08/11) | 472 | 473 | **486** |
-| 2018 seq-sat | 63 | 53 | **70** |
-| 2014 tempo-sat | 65 | 66 | **70** |
-| 2023 classical | 30 | 27 | **32** |
-| 2023 agile ENTRY (300 s) | 49 | 48 | **51** |
-| tempo-sat (08/11) | 419 | 419 | 416 |
-| 2014 seq-opt ⚖️ | 64 | 56 | 58 |
-
-Two boards remain behind 0.19 and are not netted away: **tempo-sat −3**
-(within the ±4 band re-measurement showed on this box) and **2014
-seq-opt −6**, which is entirely `city-car` — the one domain where the
-optimal root gate does not recover what 0.20's unconditional
-quarter-budget sprint cost. Both are 0.22 work.
-
-**Every board in this release was measured under recorded conditions.**
-This box is a laptop, and contention only ever depresses coverage — so
-it invents regressions and hides gains. Each board now carries a
-`conditions.json` (median idle, load, swap, and the competing processes
-by name); a board measured below 65% median idle is refused rather than
-banked, and the driver re-measures it at the next quiet window. All 13
-boards here are verdict `clean`, 67.8–74.2% median idle. Two apparent
-regressions in the first pass (tempo-sat −19, the 300 s entry −3)
-turned out to be contention and vanished on clean measurement.
-
-- **The numeric-precondition charge** (Phase 3): extraction now
-  charges a selected op's unsatisfied numeric preconditions through
-  the existing achiever machinery — sailing-numeric i1 goes from a
-  5,000,048-eval cap-out to a 174-step solve at 29,203 evals;
-  block-grouping i1 (a 0/20 domain) solves in 24 evals via the new
-  one-sided Eq charge. Hatch `FF_NO_NUMPRE`; numeric novelty lands
-  opt-in behind `FF_NUMNOV`; temporal groundings deliberately keep
-  0.20's heuristic. The capped-search text no longer claims "proven
-  unsolvable".
-- **The optimal ladder learns the clock** (Phase 4): under an armed
-  `FF_TIME_LIMIT`, a root informativeness gate decides whether LM-cut
-  earns the remaining wall or h^max keeps the full budget, and the
-  h^max sprint is time-boxed (`FF_OPT_SPRINT_FRAC`, default 0.4).
-  scanalyzer-08 i4: PROVEN cost 24 inside the wall vs 0.20's 60 s
-  kill mid-sprint. No armed wall ⇒ bit-identical to 0.20. Hatch
-  `FF_OPT_NO_ROOTGATE`; h-memo on re-opened states kept (−4.6%
-  evaluated, expansions identical).
-- **The static-fluent fold** (Phase 6): defined-static, irrelevant
-  fluents fold to constants and the fluent tables compact out of
-  every stored node — data-network i12 drops 3,683 → 209 bytes/node
-  (17.6×), tpp i12 24,418 → 4,672 (5.2×) — with plans, eval counts
-  and expansion order byte-identical (hatches `FF_NO_FLUENT_FOLD`,
-  `FF_NO_FLUENT_COMPACT`). The session `set_fluent` contract is
-  pinned with a fixture whose teeth are proven. `FF_MEM_BUDGET_GB`
-  tells the engine its byte budget on kernels without a workable
-  RLIMIT_AS (macOS), so the retained-state cap trips internally and
-  the refill loop spends the wall the RSS watchdog used to eat.
-- **The ladder tax** (Phase 5): under an armed budget, EHC and
-  novelty-light get wall-denominated slices (`FF_EHC_WALL_FRAC` 0.25,
-  `FF_NOVLIGHT_WALL_FRAC` 0.10) instead of op-scaled/fixed-pop
-  budgets — the repair for the −26 the v0.19 backfill exposed.
-  hiking-2014 i6: 55.5 s (half a second inside the kill line) →
-  20.3 s, same plan; openstacks i1 keeps its EHC-direct solve. No
-  armed budget ⇒ byte-identical. Hatch `FF_NO_EHC_WALLCAP`; rung
-  narration under `FF_WALL_DEBUG`.
-- **Temporal emission is sound on the witness** (Phase 7): the two
-  same-slot bubble repairs become one per-slot topological order
-  with cross-kind guard edges — map-analyzer's three VAL-RED rows
-  (the only temporal VAL failures on the twelve boards, 0.20's
-  honest negative) go GREEN: solo referee 13/13 VAL-valid.
-- **The h-surgery bet dies its pre-registered death** (Phase 8): the
-  end-gated interval credit probe landed, priced a snap pair as one
-  unit (pinned), and BOTH reads failed — the village stool contract
-  still dies at 200k evals, and TMS's best_h floor re-levels
-  110→174 without breaking. Fifth negative on this wall; the ledger
-  line dies with a sharper localization; the probe stays dormant
-  behind `FF_H_ENDGATE`.
-- **Harness**: the IPC-2026 -opt pairs get a proof-track board
-  (`ipc2026-opt`, cut21-sweeps.sh + promote-air21.sh); multipart
-  instance names keep their full identity in the JSONLs; the
-  early-exit class is closed (the classifier's timeout line moved to
-  the refill loop's 90% re-entry floor).
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (22 earlier releases, 0.1.0–0.20.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (23 earlier releases, 0.1.0–0.21.0).

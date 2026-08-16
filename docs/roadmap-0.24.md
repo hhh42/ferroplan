@@ -68,6 +68,49 @@ Not this build's to run; this roadmap's to absorb:
   columns and this file's bands get re-anchored — a half-day sitting,
   not a phase.
 
+### Recorded — the dependencies landed; the bills are read
+
+The 0.23 cut promoted (62% / 22 boards, the complete table) and the
+v0.21.0 backfill column staged — Phase 0's sitting is discharged:
+
+| bill | row | v0.19 | v0.21.0 (this box) | 0.22 | 0.23 fresh | verdict |
+|---|---|---|---|---|---|---|
+| onlycraft −6 | sat i4 / opt i4 | 19.3 / 19.8 s | 24.2 / 24.9 s | dead / dead | dead 58.7 s ×2 | **STANDS-ENGINE** |
+| onlycraft −6 | sat i5 / opt i5 | dead / dead | 19.4 / 20.2 s | dead / dead | dead 58.4 s ×2 | **STANDS-ENGINE** |
+| onlycraft −6 | sat i6 / opt i6 | dead / dead | 49.9 / 48.7 s | dead / dead | dead 58.0 s ×2 | **STANDS-ENGINE** |
+| damping | ext-plant i10 | 5.4 s | 58.4 s (1.6 s margin) | dead 59.0 s | dead 58.9 s | **STANDS-ENGINE** (wall-margin flag) |
+| damping | ext-plant i16 | 5.6 s | 52.8 s | dead 59.1 s | dead 59.0 s | **STANDS-ENGINE** |
+| damping | sugar i18 | 38.7 s | 47.0 s | dead 57.0 s | dead 57.0 s | **STANDS-ENGINE** |
+| casualty | org-synth-split i15 | 15.9 s | 20.4 s | dead | **SOLVED 59.99 s** m=882 VAL✓ | **PAID** (at the buzzer) |
+| casualty | hiking-agile i11 | 28.9 s | 36.0 s | dead | **SOLVED 34.54 s** VAL✓ | **PAID** |
+| casualty | floor-tile-2011 i11 | 7.0 s | 7.9 s m=170 | dead | dead 59.1 s | **STANDS-ENGINE** (carried) |
+| casualty | nurikabe i12 | 56.5 s | 46.9 s | dead | dead 60 s | **STANDS-ENGINE** (5A loop; 0.24 fix = measured negative) |
+| ramp | openstacks-2014 i11+i12 | dead both | dead both | dead both | dead both | **STANDS-ENVIRONMENTAL** (acquitted) |
+
+- **onlycraft's −6 is REAL and UNPAID:** all six rows solve under
+  the v0.21.0 tag on this box (19.4–49.9 s) and stay dead at 0.22
+  AND 0.23 — a genuine 0.22 reallocation cost that no hatch reaches.
+  It is now THE open engine docket of this cycle, with the column
+  receipt attached. (The fold's proof-side win on the same domain —
+  i2's cert 16.07 s → 1.00 s at board conditions — does not reach
+  these six coverage rows.)
+- **PAID:** org-synth-split i15 (on the board, 59.99 s — joins the
+  fragile watchlist) and hiking-agile i11 (34.5 s, clean).
+  **STANDS-ENGINE, carried:** floor-tile-2011 i11 (five releases of
+  solves, killed by the driver, guard declined); the damping three
+  (with i10's 1.6 s v0.21-margin flagged); nurikabe i12 (docket
+  CLOSED against P6.2's measured negative).
+  **STANDS-ENVIRONMENTAL, corroborated:** the openstacks-2014 ramp
+  — the v0.21.0 re-run reads 10/20 beside the promoted board's
+  receipt-less 12/20; the 0.21 board was the outlier.
+- **The trend line** on the 10-board subset every column supports:
+  v0.19 1,459 → v0.21 1,639 → 0.22 1,740 → 0.23 1,758 — and the
+  backfill validates the promoted 0.21 boards wholesale (within 8
+  rows on 3,186).
+- Every provisional band in this file is now re-anchored on the
+  0.23 numbers above; the constraints referee for stage c is the
+  70-row timed class the cut isolated.
+
 ## Phase 1 — the absorption (varisat becomes ferroplan-sat)
 
 The largest single decision of the cycle, executed as surgery, not
