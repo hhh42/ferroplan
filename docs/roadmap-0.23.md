@@ -460,6 +460,36 @@ publishes — plus this cycle's own:
   within 6 s of the wall) instead of letting churn read as
   mechanism.
 
+### Recorded — the complete table (cut 2026-08-16)
+
+- **62% / 22 boards (3,916/6,366), 381 certified optima; the
+  sixteen comparables +47 with all 8 losses named; the six
+  re-entries add 1,002/1,450 — and the "Not re-baselined" section
+  is DELETED.** Every stamp-gated raw passed promote-air23.sh; the
+  registry flip landed with the prose in one edit.
+- **The tier move's referee, per instance:** the
+  old-binary-at-new-budget columns read +16 for the v0.22.0 binary
+  at 60 s (the projection said 16–24); the cut banks 15 budget
+  conversions + 9 engine gains (sokoban-t ×5 = Phase 6's MCV fix;
+  elevator-t ×3 = memory-side, ledger +3/−1), zero losses vs
+  0.22@30. turn-and-open i3/i4/i6 return exactly as the
+  pre-registration priced.
+- **Constraints 5 → 12** (the seven solo-banked storage rows to the
+  digit); rejects 100 → 70 — the remaining 70 are stage c's counted
+  constituency, already built at 0.24. Makespan quality debuts:
+  time 0.80, metric-time 0.94. The mco caveats (t4/t8 DEGRADED +
+  VAL-unavailable) are in the board headers, not footnotes.
+- **Optima 373 → 381:** the counted LM-cut case converts 2 of 5 ON
+  THE BOARD — including elevator-11 i16, which the pre-cut memo
+  had honestly recorded as not converting; the first joint
+  LM-cut+orbits certificate (child-snack i4) and the fold's 16×
+  time-to-cert collapse (onlycraft i2) both show at board
+  conditions. Phase 5's numeric band MISSED its named constituency
+  (+0 on 2026-opt) and paid +8 on the classical proof boards
+  instead — the inversion recorded, not smoothed.
+- The fragile-gain watchlist held 5/5; 2023-numeric posts zero
+  churn in either direction.
+
 ## Anti-pots and dead flags, so nobody reaches
 
 - **A second classical driver swing:** the 0.22 residue

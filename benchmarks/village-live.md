@@ -20,4 +20,4 @@ contracts; theft at tick 17 breaks plans mid-flight.
 | bob | 2/2 | 3 | 19 | 1 | 47 |
 | mara | 1/1 | 1 | 13 | 0 | 32 |
 
-total think evals 1510921, wall 15.61s for the whole run
+total think evals 1510921, wall 10.57s for the whole run

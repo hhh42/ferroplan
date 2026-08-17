@@ -1,0 +1,29 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode optimal
+using external binary: /Users/harold/ferroplan-backfill-0.21.0/target/release/ff
+ipc-2008/elevator-sequential-optimal-strips: 12/30 solved, cost 618, 173.7s solve-time, val 12/12
+ipc-2008/openstacks-sequential-optimal-adl: 16/30 solved, cost 53, 89.2s solve-time, val 16/16
+ipc-2008/openstacks-sequential-optimal-strips: 16/30 solved, cost 53, 100.8s solve-time, val 16/16
+ipc-2008/parc-printer-sequential-optimal-strips: 21/30 solved, cost 21357201, 239.0s solve-time, val 21/21
+ipc-2008/peg-solitaire-sequential-optimal-strips: 26/30 solved, cost 167, 31.3s solve-time, val 26/26
+ipc-2008/scanalyzer-3d-sequential-optimal-strips: 13/30 solved, cost 365, 248.7s solve-time, val 13/13
+ipc-2008/sokoban-sequential-optimal-strips: 21/30 solved, cost 561, 99.8s solve-time, val 21/21
+ipc-2008/transport-sequential-optimal-strips: 11/30 solved, cost 4707, 14.5s solve-time, val 11/11
+ipc-2008/woodworking-sequential-optimal-strips: 12/30 solved, cost 2525, 148.9s solve-time, val 12/12
+ipc-2011/barman-sequential-optimal: 4/20 solved, cost 360, 38.2s solve-time, val 4/4
+ipc-2011/elevator-sequential-optimal: 10/20 solved, cost 550, 170.7s solve-time, val 10/10
+ipc-2011/floor-tile-sequential-optimal: 2/20 solved, cost 101, 38.0s solve-time, val 2/2
+ipc-2011/no-mystery-sequential-optimal: 9/20 solved, cost 142, 114.5s solve-time, val 9/9
+ipc-2011/openstacks-sequential-optimal: 11/20 solved, cost 40, 100.3s solve-time, val 11/11
+ipc-2011/parc-printer-sequential-optimal: 16/20 solved, cost 18373577, 214.6s solve-time, val 16/16
+ipc-2011/parking-sequential-optimal: 1/20 solved, cost 14, 34.9s solve-time, val 1/1
+ipc-2011/peg-solitaire-sequential-optimal: 16/20 solved, cost 127, 34.5s solve-time, val 16/16
+ipc-2011/scanalyzer-3d-sequential-optimal: 10/20 solved, cost 321, 247.7s solve-time, val 10/10
+ipc-2011/sokoban-sequential-optimal: 17/20 solved, cost 481, 84.8s solve-time, val 17/17
+ipc-2011/tidybot-sequential-optimal: 10/20 solved, cost 252, 130.5s solve-time, val 10/10
+ipc-2011/transport-sequential-optimal: 6/20 solved, cost 2956, 14.1s solve-time, val 6/6
+ipc-2011/visit-all-sequential-optimal: 9/20 solved, cost 109, 41.9s solve-time, val 9/9
+ipc-2011/woodworking-sequential-optimal: 7/20 solved, cost 1760, 152.9s solve-time, val 7/7
+
+wrote benchmarks/air-0.21.0/ipc-opt-2008-11.md (raw: benchmarks/air-0.21.0/ipc-opt-2008-11.jsonl) — total coverage 276/550

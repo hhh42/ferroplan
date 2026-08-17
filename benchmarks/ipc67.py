@@ -429,7 +429,14 @@ def run_instance(val, n, d, p):
         # Both are mem-cap, and the watchdog's verdict must be read before the
         # generic nonzero-exit branch below or it books as engine-exit--9.
         if mem_hit or (r.returncode != 0 and "allocation" in (r.stderr or "")):
-            rec["notes"] = "mem-cap"
+            # Label hygiene (0.24 Phase 6): a mem-cap row whose stderr
+            # carries the engine's node-raise narration died on a byte
+            # target the REFILL RE-ENTRY raised past the declared model —
+            # self-inflicted, and the note names the raise so the decode
+            # never re-derives it.
+            raised = "node byte target raised" in (r.stderr or "")
+            rec["notes"] = ("mem-cap (self-inflicted: node byte target raised)"
+                            if raised else "mem-cap")
         s = json.loads(r.stdout) if r.stdout.strip() else {}
         plan = s.get("plan") or {}
         if not s and r.returncode != 0 and rec["notes"] is None:
