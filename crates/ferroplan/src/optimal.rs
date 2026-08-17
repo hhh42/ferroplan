@@ -1098,7 +1098,7 @@ fn fold_goal_bound(fold: &NumFold, g: &RelaxGraph, fv: &[f64], w: &CutSpace, fmi
 ///   remainder with the refill).
 ///
 /// - INCREMENTAL LM-CUT (0.23 Phase 5, the counted 7-row case): the
-///   probe engine persists cut lists parent→child ([`charge_cuts`] — a
+///   probe engine persists cut lists parent→child (`charge_cuts` — a
 ///   landmark not containing the applied op survives the step, the
 ///   proof rides that function) so each eval pays only the top-up
 ///   rounds, and the probe itself RESUMES a round 2 with the raised
@@ -1115,7 +1115,7 @@ fn fold_goal_bound(fold: &NumFold, g: &RelaxGraph, fv: &[f64], w: &CutSpace, fmi
 /// The numeric arm (`num_arm_root`, 0.22 Phase 4) composes with every
 /// branch via max() and never touches the gate's h^max-vs-LM-cut
 /// verdict; since 0.23 Phase 5 its per-eval interval-RPG tax is
-/// replaced by the rep-folded labels ([`NumFold`]) wherever the fold's
+/// replaced by the rep-folded labels (`NumFold`) wherever the fold's
 /// own audit arms — `FF_OPT_NO_NUMFOLD=1` restores the per-eval RPG.
 ///
 /// `orbit` (0.22 Phase 6 L1): canonical visited keys at the three
