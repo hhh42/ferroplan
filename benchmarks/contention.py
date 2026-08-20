@@ -124,6 +124,8 @@ def summarize(idles, loads, comp_totals, swaps, therms, started):
         s = sorted(v)
         return round(s[min(len(s) - 1, int(len(s) * p))], 1)
     med = pct(idles, 0.5)
+    comp_total = (round(sum(comp_totals.values()) / max(len(idles), 1), 1)
+                  if idles else None)
     return {
         "started": started,
         "ended": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -137,9 +139,22 @@ def summarize(idles, loads, comp_totals, swaps, therms, started):
         "competitors_mean_pcpu": {k: round(v / max(len(idles), 1), 1)
                                   for k, v in sorted(comp_totals.items(),
                                                      key=lambda kv: -kv[1])[:TOP_N]},
+        "competitors_total_pcpu": comp_total,
         "swap_mb": {"max": round(max(swaps), 1) if swaps else None},
         "cpu_speed_limit": {"min": min(therms) if therms else None},
-        "verdict": ("clean" if med is not None and med >= 65
+        # 0.24: verdict moved OFF raw idle_pct onto named-competitor load.
+        # idle_pct is whole-machine and includes the board's OWN threads —
+        # a --threads 4/8 mco board burns 40-80% of this 10-core box by
+        # design, so a fixed idle floor (was >=65%) can never pass those
+        # boards even in an empty room (measured: mco-t8 read 38-40% idle
+        # with a combined 4-5% of real competing load). competitors_total
+        # already excludes the sweep's own process (SELF_HINTS), so it is
+        # the actual "who else is on this box" signal the module's own
+        # docstring says was the point. 25% clears every historical clean
+        # run on record (15-24% typical with Brave/Spotlight/etc. open) and
+        # still catches real contention (Brave+WindowServer 36%+, a pegged
+        # renderer at 100%, Spotlight mid-index at 40%).
+        "verdict": ("clean" if comp_total is not None and comp_total < 25.0
                     else "DEGRADED" if med is not None else "unknown"),
     }
 
