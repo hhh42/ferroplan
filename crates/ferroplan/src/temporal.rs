@@ -607,7 +607,19 @@ pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<Timed
     let sat_armed = std::env::var("FF_NO_SAT").is_err();
     let promoted = sat_armed && crate::sat::requires_concurrency(domain, problem);
     if promoted {
-        if let Some(plan) = crate::sat::plan_temporal(domain, problem, threads) {
+        // The promoted rung is a BOUNDED bet (the TLAMA / ladder-tax
+        // lesson, learned again at the 0.24 cut): it gets
+        // `FF_SAT_PROMO_WALL_FRAC` (default 0.5) of the REMAINING wall,
+        // never all of it. Without the slice, a horizon that grinds its
+        // conflict budget in pure SAT conflicts — no STN refutations, so
+        // the pre-registered thrash bail never fires (match-cellar's cut
+        // instances at h32) — eats the whole wall and the ladder below is
+        // refused at pass entry: promotion LOSES ladder solves, the exact
+        // outcome this fall-through exists to prevent. No armed wall ⇒ no
+        // slice (the no-wall contract stays byte-identical).
+        let slice_secs = crate::search::wall_remaining_secs()
+            .map(|rem| rem * crate::search::wall_frac_env("FF_SAT_PROMO_WALL_FRAC", 0.5));
+        if let Some(plan) = crate::sat::plan_temporal_within(domain, problem, threads, slice_secs) {
             return Some(plan);
         }
         // Promotion must never LOSE a solve: fall through to the ladder.

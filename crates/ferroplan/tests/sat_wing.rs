@@ -189,6 +189,41 @@ fn detector_fires_on_envelope_shape_only() {
     assert!(!ferroplan::sat::requires_concurrency(&d, &p));
 }
 
+/// The bounded-bet seam (the 0.24 cut regression: promoted SAT ground
+/// match-cellar's h32 conflict budget with ZERO STN refutations — the
+/// thrash bail never fired — and ate the whole wall, so the ladder that
+/// solves those rows in 0.02 s was refused at pass entry). The promoted
+/// router entry now hands the wing its own wall slice; a spent slice
+/// must decline before the first horizon with the honest note, and the
+/// `None` slice must stay byte-identical to [`ferroplan::sat::solve_temporal`].
+#[test]
+fn spent_promo_slice_declines_before_the_first_horizon() {
+    let d = ferroplan::parser::parse_domain(RC_DOMAIN).unwrap();
+    let p = ferroplan::parser::parse_problem(RC_PROBLEM).unwrap();
+    let cfg = ferroplan::sat::SatCfg::default();
+    let t0 = std::time::Instant::now();
+    let o = ferroplan::sat::solve_temporal_within(&d, &p, 1, &cfg, Some(0.0));
+    assert!(o.plan.is_none(), "a spent slice must not produce a plan");
+    assert!(
+        o.notes
+            .iter()
+            .any(|n| n.contains("promoted wall slice expired")),
+        "the honest slice note is the receipt: {:?}",
+        o.notes
+    );
+    assert!(
+        t0.elapsed().as_secs() < 10,
+        "a spent slice returns without solving"
+    );
+    assert!(
+        !o.proven_at_every_horizon,
+        "a slice expiry is a budget stop, never a proof"
+    );
+    // No slice = the plain entry, and the wing still solves the task.
+    let o = ferroplan::sat::solve_temporal_within(&d, &p, 1, &cfg, None);
+    assert!(o.plan.is_some(), "{:?}", o.notes);
+}
+
 // ---------------------------------------------------------------------------
 // The classical face (Phase 2): round trip + ramp honesty.
 // ---------------------------------------------------------------------------

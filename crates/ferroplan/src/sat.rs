@@ -642,36 +642,72 @@ enum RampStep<R> {
     Wall,
 }
 
+/// The promoted rung's own deadline (0.24 regression fix): the router's
+/// early promotion hands the wing a bounded SLICE of the wall, so a
+/// horizon that grinds its conflict budget in pure SAT conflicts (no STN
+/// refutations — the thrash bail never sees it; match-cellar's cut
+/// instances at h32) cannot starve the ladder fallback. `None` = no
+/// slice (the exhaustion-armed and `Mode::Sat` entries, and every
+/// no-wall path — all byte-identical to the pre-slice wing).
+type WallSlice = Option<(crate::clock::Clock, f64)>;
+
 /// Effective pricing cap: the configured cap, tightened by the remaining
-/// armed wall (a CNF we cannot build AND solve inside the wall is a
-/// decline, not a hang) — ~4M literals/second of build+solve throughput
-/// as the conservative conversion.
-fn price_cap(cfg: &SatCfg) -> u64 {
-    match crate::search::wall_remaining_secs() {
+/// armed wall — and by the promoted slice when one is armed (a CNF we
+/// cannot build AND solve inside the tighter of the two is a decline,
+/// not a hang) — ~4M literals/second of build+solve throughput as the
+/// conservative conversion.
+fn price_cap(cfg: &SatCfg, slice: WallSlice) -> u64 {
+    let rem = match (
+        crate::search::wall_remaining_secs(),
+        crate::search::deadline_remaining_secs(&slice),
+    ) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (a, None) => a,
+        (None, b) => b,
+    };
+    match rem {
         Some(s) if s > 0.0 => cfg.cap_lits.min((s * 4_000_000.0) as u64),
-        Some(_) => 1, // wall already spent: everything declines
+        Some(_) => 1, // wall (or slice) already spent: everything declines
         None => cfg.cap_lits,
     }
 }
 
-fn wall_expired() -> bool {
+fn wall_expired(slice: WallSlice) -> bool {
     crate::search::rung_wallcap_on()
-        && crate::search::wall_deadline()
+        && (crate::search::wall_deadline()
             .is_some_and(|d| crate::search::deadline_expired_reserving(d, 0))
+            || slice.is_some_and(|d| crate::search::deadline_expired_reserving(d, 0)))
+}
+
+/// Which clock ran out, for the honest note: the process wall, or the
+/// promoted rung's own slice.
+fn wall_story(slice: WallSlice) -> &'static str {
+    let global = crate::search::wall_deadline()
+        .is_some_and(|d| crate::search::deadline_expired_reserving(d, 0));
+    if !global && slice.is_some() {
+        "promoted wall slice"
+    } else {
+        "wall"
+    }
 }
 
 /// Run the solver at one horizon in conflict slices (wall checkpoints
 /// between slices). `on_model` either accepts a model (final payload) or
 /// returns `Err(Some(clause))` — a refutation to assert and re-solve
 /// inside the same horizon — or `Err(None)` to bail to the ramp.
-fn solve_horizon<R, F>(solver: &mut Solver, budget: u64, mut on_model: F) -> RampStep<R>
+fn solve_horizon<R, F>(
+    solver: &mut Solver,
+    budget: u64,
+    wall_slice: WallSlice,
+    mut on_model: F,
+) -> RampStep<R>
 where
     F: FnMut(&[Lit]) -> Result<R, Option<Vec<Lit>>>,
 {
     const SLICE: u64 = 4_096;
     let mut spent = 0u64;
     loop {
-        if wall_expired() {
+        if wall_expired(wall_slice) {
             return RampStep::Wall;
         }
         let slice = SLICE.min(budget - spent);
@@ -709,6 +745,7 @@ fn ramp<R, F>(
     cfg: &SatCfg,
     notes: &mut Vec<String>,
     proven_all: &mut bool,
+    wall_slice: WallSlice,
     mut on_model: F,
 ) -> Option<(R, usize)>
 where
@@ -719,17 +756,18 @@ where
     let mut h = 1usize;
     let mut last_h = 0usize;
     while h <= cfg.max_horizon {
-        if wall_expired() {
+        if wall_expired(wall_slice) {
             notes.push(format!(
-                "SAT: wall expired before horizon {h}; no plan within horizon {last_h} \
-                 (NOT a proof)"
+                "SAT: {} expired before horizon {h}; no plan within horizon {last_h} \
+                 (NOT a proof)",
+                wall_story(wall_slice)
             ));
             *proven_all = false;
             return None;
         }
         let (clauses, lits) = enc.price(h);
         let vars = enc.n_vars(h) as u64;
-        let cap = price_cap(cfg);
+        let cap = price_cap(cfg, wall_slice);
         if vars + lits > cap {
             notes.push(format!(
                 "SAT encoder declined at horizon {h}: ~{vars} vars + ~{lits} clause literals \
@@ -739,7 +777,7 @@ where
             return None;
         }
         let mut solver = enc.encode(h);
-        let step = solve_horizon(&mut solver, cfg.conflicts_per_horizon, |m| {
+        let step = solve_horizon(&mut solver, cfg.conflicts_per_horizon, wall_slice, |m| {
             on_model(enc, h, m)
         });
         match step {
@@ -764,8 +802,9 @@ where
             }
             RampStep::Wall => {
                 notes.push(format!(
-                    "SAT: wall expired inside horizon {h}; no plan within horizon {last_h} \
-                     (NOT a proof)"
+                    "SAT: {} expired inside horizon {h}; no plan within horizon {last_h} \
+                     (NOT a proof)",
+                    wall_story(wall_slice)
                 ));
                 *proven_all = false;
                 return None;
@@ -810,17 +849,24 @@ pub fn solve_classical(
     let enc = EncTask::build(task, ops, groups);
     let mut notes = Vec::new();
     let mut proven_all = false;
-    let solved = ramp(&enc, cfg, &mut notes, &mut proven_all, |enc, h, model| {
-        let seq = enc.decode(h, model);
-        if enc.replay(&seq).is_some() {
-            Ok(seq)
-        } else {
-            // The serialization argument failed — an encoder bug, refused
-            // loudly rather than shipped (never a panic in release).
-            debug_assert!(false, "SAT decode failed its serialization replay");
-            Err(None)
-        }
-    });
+    let solved = ramp(
+        &enc,
+        cfg,
+        &mut notes,
+        &mut proven_all,
+        None,
+        |enc, h, model| {
+            let seq = enc.decode(h, model);
+            if enc.replay(&seq).is_some() {
+                Ok(seq)
+            } else {
+                // The serialization argument failed — an encoder bug, refused
+                // loudly rather than shipped (never a panic in release).
+                debug_assert!(false, "SAT decode failed its serialization replay");
+                Err(None)
+            }
+        },
+    );
     match solved {
         Some((seq, h)) => {
             let layers = seq.iter().map(|&(_, t)| t + 1).max().unwrap_or(0);
@@ -1058,6 +1104,20 @@ pub(crate) fn plan_temporal(
     solve_temporal(domain, problem, threads, &SatCfg::from_env()).plan
 }
 
+/// The router-facing PROMOTED entry (0.24 regression fix): like
+/// [`plan_temporal`], but the attempt is bounded by its own wall slice of
+/// `budget_secs` — the promotion runs BEFORE the ladder, so an attempt
+/// that cannot bail (conflict grind, not STN thrash) must not spend the
+/// ladder's wall. `None` = unbounded (the no-wall contract).
+pub(crate) fn plan_temporal_within(
+    domain: &Domain,
+    problem: &Problem,
+    threads: usize,
+    budget_secs: Option<f64>,
+) -> Option<TimedPlan> {
+    solve_temporal_within(domain, problem, threads, &SatCfg::from_env(), budget_secs).plan
+}
+
 /// The temporal face, end to end: snap compile, ground, encode with
 /// pairing + interval invariants, ramp, decode, STN-schedule (CEGAR on
 /// negative cycles), emit through the house ε machinery, validate against
@@ -1069,7 +1129,27 @@ pub fn solve_temporal(
     threads: usize,
     cfg: &SatCfg,
 ) -> SatOutcome<TimedPlan> {
+    solve_temporal_within(domain, problem, threads, cfg, None)
+}
+
+/// [`solve_temporal`] under a wall slice: the attempt additionally stops
+/// (with the honest "promoted wall slice expired" note) once
+/// `budget_secs` of ITS OWN clock is spent — the promoted router entry's
+/// bounded-bet contract. `None` is byte-identical to [`solve_temporal`].
+pub fn solve_temporal_within(
+    domain: &Domain,
+    problem: &Problem,
+    threads: usize,
+    cfg: &SatCfg,
+    budget_secs: Option<f64>,
+) -> SatOutcome<TimedPlan> {
     use crate::ground::Outcome;
+    // The slice arms only while the 0.22 clock checkpoints do —
+    // `FF_NO_RUNG_WALLCAP=1` hatches it with them (pre-slice shapes stay
+    // pinnable), and pricing must not see a slice the checkpoints won't.
+    let slice: WallSlice = budget_secs
+        .filter(|_| crate::search::rung_wallcap_on())
+        .map(|s| (crate::clock::Clock::now(), s));
     if !domain.constraints.is_empty() || !problem.constraints.is_empty() {
         return SatOutcome::declined(
             "trajectory constraints (the temporal SAT face is unconstrained-only)".into(),
@@ -1159,8 +1239,13 @@ pub fn solve_temporal(
     let mut refutations_total = 0usize;
     let mut refutations_this_h = 0usize;
     let mut cur_h = 0usize;
-    let solved: Option<(TimedPlan, usize)> =
-        ramp(&enc, cfg, &mut notes, &mut proven_all, |enc, h, model| {
+    let solved: Option<(TimedPlan, usize)> = ramp(
+        &enc,
+        cfg,
+        &mut notes,
+        &mut proven_all,
+        slice,
+        |enc, h, model| {
             if h != cur_h {
                 cur_h = h;
                 refutations_this_h = 0;
@@ -1268,7 +1353,8 @@ pub fn solve_temporal(
                     Err(Some(clause))
                 }
             }
-        });
+        },
+    );
     if refutations_total > MAX_REFUTATIONS_PER_HORIZON {
         notes.push(format!(
             "SAT: STN-refutation thrash recorded ({refutations_total} refutations total; \

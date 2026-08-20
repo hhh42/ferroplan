@@ -262,6 +262,46 @@ as a dependency bump:
   exactly as it hatches MCV — orthogonal machinery that merely
   SPENDS the wall stays out of a timing fixture's frame.
 
+### Recorded — the cut regression: the bounded bet the promotion forgot
+
+- **The 0.24 cut sweep read match-cellar 0/20 (2014-tempo) and 7/20
+  (2011) against the 40/40 canary** — and the watch item above is
+  exactly what caught it. Diagnosis (timed under the sweep's own
+  conditions, FF_WALL_DEBUG receipts): the promoted wing ran against
+  the WHOLE wall — h1–16 proven UNSAT fast, then h32 ground its
+  200k-conflict budget in PURE SAT CONFLICTS, zero STN refutations,
+  so the pre-registered thrash bail (a refutation counter) never saw
+  a thing; the wall died inside h32/h64 and the ladder that solves
+  these rows in 0.02 s (FF_NO_SAT confirmed) was refused at pass
+  entry. The 2–13 s canary receipts were real but unrepresentative:
+  the canaries' time went into STN refutations, the cut instances'
+  into conflicts — a grind path with NO bounded bail. The board's
+  0.0 s column is the harness's no-solve placeholder, not a timing.
+- **The fix — the TLAMA / ladder-tax lesson, learned again:** the
+  promoted entry is a BOUNDED bet. It gets `FF_SAT_PROMO_WALL_FRAC`
+  (default 0.5) of the REMAINING wall as the wing's own slice
+  (`sat::plan_temporal_within`, the Phase 5 per-call-deadline
+  idiom), folded into the ramp's existing checkpoints AND the
+  encoder's pricing; expiry is the honest "promoted wall slice
+  expired … (NOT a proof)" note. `FF_NO_RUNG_WALLCAP=1` hatches the
+  slice with the other clock checkpoints; the exhaustion-armed
+  entry, `Mode::Sat`, and every no-wall path stay byte-identical.
+- **Measured:** mc-2014 i1/i2/i10/i20 solve at ~30.5–31 s each
+  (slice spent learning "no", ladder inherits the other half);
+  TMS-2011 i2 still solves at ~0.4 s — the flagship promoted win
+  untouched. Fixtures first: the spent-slice seam declines before
+  horizon 1 with the note (sat_wing.rs), and the child battery
+  (sat_promo_wall.rs) pins all four faces — win, bounded (RED
+  pre-fix: no slice existed to stop the wing), hatched,
+  ladder-inherits.
+- **Standing debt:** ipc2014-tempo and ipc67-temporal must be
+  RE-SWEPT with the fix before promote-air24.sh — their banked
+  boards carry the regressed rows. Residue for 0.25, named: the
+  wing still spends its whole slice to learn "no" on a grinding
+  horizon (a conflict-rate bail inside the slice would refund
+  ~15 s/row), alongside the CEGAR layer-specific-refutation
+  residue already recorded.
+
 ## Phase 4 — stage c (the timed operators, the last locked door)
 
 Per the 0.23 sizing memo, receipts attached: constituency 70 rows
