@@ -63,11 +63,29 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.23.0** — `ferroplan`, `ferroplan-cli` and `ferroplan-mcp` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.24.0** — `ferroplan`, `ferroplan-cli`, `ferroplan-mcp` and `ferroplan-sat` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
 <!-- WHATSNEW:BEGIN — newest first; trimmed by scripts/release-notes-roll.py -->
 
 
+
+> **What's new in 0.24.0 — the SAT wing: the zero block gets its
+> first nonzero row.** TMS-2011 i2 — SOLVED, VAL-valid, ~1 s: the
+> first temporal-machine-shop solve in this planner's history, on
+> the family where every non-SAT entrant ever fielded scored zero.
+> Absorbed a solver instead of hand-rolling one (`ferroplan-sat`,
+> from varisat, 5,012 lines, zero external dependencies, attribution
+> preserved) and built the ∃-step bounded-layer encoding + STN-taught
+> CEGAR on top of it. The cut's own canary caught a real regression
+> before it shipped — match-cellar read 0/20 and 7/20 against a
+> 40/40 expectation, the promoted SAT rung was starving the classical
+> ladder of any time to run — fixed
+> (`FF_SAT_PROMO_WALL_FRAC`, a bounded slice) and re-swept clean.
+> **63% coverage across 22 IPC boards** (3,981/6,366), 386 certified
+> optima, **+65** net over 0.23.0. The wing's board-level gain fell
+> well short of its own priced band, named plainly rather than
+> smoothed over. Full record:
+> [`docs/roadmap-0.24.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.24.md).
 
 > **What's new in 0.23.0 — the temporal cycle, and the whole table on
 > one box.** The temporal boards move to their honest 60 s tier with
@@ -79,23 +97,6 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > 22 IPC boards** (3,916/6,366), 381 certified optima. On the sixteen
 > comparable boards: **+47**. Full record:
 > [`docs/roadmap-0.23.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.23.md).
-
-> **What's new in 0.22.0 — the coverage cycle, and the re-entries that
-> ran hot.** **58% coverage across 16 IPC boards** (2,867/4,916), 373
-> certified optima — up from 53% across 13 boards last cycle. On the
-> thirteen boards comparable to 0.21, coverage moves **2,153 → 2,248
-> (+95)**, the floor of this cycle's own ambition band; three
-> long-dormant boards re-entered (propositional, net-benefit,
-> constraints) and overshot expectations by a wide margin —
-> **net-benefit reaches 92%**, the strongest board this cut. On the
-> IPC-6 (2008) boards, ferroplan's raw coverage now **clears the
-> official 2008 track winners outright**: 284/300 vs LAMA's 281/300
-> on seq-sat, 150/270 vs Gamer's 134/270 on seq-opt. Two boards moved
-> backward and are named, not netted away (2014 seq-agile −1, 2014
-> tempo-sat −3). New this cut: [`docs/ipc-rankings.md`](https://github.com/hhh42/ferroplan/blob/main/docs/ipc-rankings.md),
-> a rough per-year, per-track field placement against the actual IPC
-> competitions. Full record:
-> [`docs/roadmap-0.22.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.22.md).
 
 Earlier releases are summarised in the [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md) and its [archive](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG-ARCHIVE.md).
 <!-- WHATSNEW:END -->
