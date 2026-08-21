@@ -1,9 +1,10 @@
 #!/bin/sh
 # Fetch the full IPC benchmark corpora into benchmarks/.ipc-corpus/:
 #   - IPC-2006/2008/2011/2014 via a potassco/pddl-instances sparse checkout
-#   - IPC-2018 satisficing (official bitbucket) + cost bounds
-#   - IPC-2023 classical (official dataset: domains + reference plans +
-#     best-known bounds) and IPC-2023 numeric (official dataset + result CSVs)
+#   - IPC-2018 satisficing + optimal (official bitbucket) + cost bounds
+#   - IPC-2023 classical agile/sat/opt (official dataset: domains +
+#     reference plans + best-known bounds) and IPC-2023 numeric
+#     (official dataset + result CSVs)
 # 2018/2023 layouts are NORMALIZED into the potassco shape the runner
 # expects (domains/<variant>/{domain.pddl,instances/instance-N.pddl});
 # official reference artifacts (plans, bounds, CSVs) are kept beside them.
@@ -51,6 +52,30 @@ if [ ! -d .ipc-corpus/ipc-2018/domains ]; then
   rm -rf "$tmp"
 fi
 
+# --- IPC-2018 optimal (the same bitbucket dataset's opt/ half) ->
+#     ipc-2018/domains/<dom>-sequential-optimal. 0.25 Phase 1 (the table
+#     grows): the sat/ stanza above predates any optimal board, so the
+#     opt/ half was never vendored. Own guard — the ipc-2018/domains dir
+#     already exists on boxes that ran the old script.
+if [ ! -d .ipc-corpus/ipc-2018/domains/agricola-sequential-optimal ]; then
+  tmp=.ipc-corpus/.tmp-2018o
+  git clone -q --depth 1 https://bitbucket.org/ipc2018-classical/domains "$tmp"
+  for d in "$tmp"/opt/*/; do
+    name=$(basename "$d")
+    dest=.ipc-corpus/ipc-2018/domains/"$name"-sequential-optimal
+    mkdir -p "$dest"/instances
+    [ -f "$d"domain.pddl ] && cp "$d"domain.pddl "$dest"/
+    for p in "$d"p*.pddl; do
+      base=$(basename "$p" .pddl)
+      n=$(echo "$base" | sed 's/^p0*//')
+      cp "$p" "$dest"/instances/instance-"$n".pddl
+      [ -f "$d"domain-"$base".pddl ] && \
+        mkdir -p "$dest"/domains && cp "$d"domain-"$base".pddl "$dest"/domains/domain-"$n".pddl
+    done
+  done
+  rm -rf "$tmp"
+fi
+
 # --- IPC-2023 classical (github) -> ipc-2023/domains/<dom>-agile (+ ref plans/bounds)
 if [ ! -d .ipc-corpus/ipc-2023/domains ]; then
   tmp=.ipc-corpus/.tmp-2023
@@ -71,6 +96,39 @@ if [ ! -d .ipc-corpus/ipc-2023/domains ]; then
     cp "$d"p*.plan "$dest"/reference-plans/ 2>/dev/null || true
   done
   cp "$tmp"/bounds.json .ipc-corpus/ipc-2023/ 2>/dev/null || true
+  rm -rf "$tmp"
+fi
+
+# --- IPC-2023 classical sat/opt (the same dataset's other two halves) ->
+#     ipc-2023/domains/<dom>-satisficing / <dom>-optimal. 0.25 Phase 1
+#     (the table grows): the agl/ stanza above was the baseline-era
+#     fetch; these are the REAL satisficing and optimal tracks, retiring
+#     the "agile corpus swept as the classical board" asterisk. Same
+#     seven domains, distinct instance sets per track; the dataset's
+#     bounds.json (already vendored above) carries sat/ and opt/ keys
+#     alongside agl/. Own guard, same reason as the 2018 opt stanza.
+if [ ! -d .ipc-corpus/ipc-2023/domains/folding-satisficing ]; then
+  tmp=.ipc-corpus/.tmp-2023so
+  git clone -q --depth 1 https://github.com/ipc2023-classical/ipc2023-dataset "$tmp"
+  for pair in "sat -satisficing" "opt -optimal"; do
+    set -- $pair
+    src=$1; suf=$2
+    for d in "$tmp"/"$src"/*/; do
+      name=$(basename "$d")
+      dest=.ipc-corpus/ipc-2023/domains/"$name""$suf"
+      mkdir -p "$dest"/instances "$dest"/reference-plans
+      [ -f "$d"domain.pddl ] && cp "$d"domain.pddl "$dest"/
+      for p in "$d"p*.pddl; do
+        base=$(basename "$p" .pddl)
+        n=$(echo "$base" | sed 's/^p0*//')
+        cp "$p" "$dest"/instances/instance-"$n".pddl
+        # quantum-layout carries per-instance domain_pNN.pddl files
+        [ -f "$d"domain_"$base".pddl ] && \
+          mkdir -p "$dest"/domains && cp "$d"domain_"$base".pddl "$dest"/domains/domain-"$n".pddl
+      done
+      cp "$d"p*.plan "$dest"/reference-plans/ 2>/dev/null || true
+    done
+  done
   rm -rf "$tmp"
 fi
 
