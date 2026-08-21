@@ -192,6 +192,52 @@ lean on; the composition rides the same lowering.
   (`docs/ipc-rankings.md`) — any entry is instant placement, and
   the rankings row's leverage is marked high.
 
+### Recorded — the entry lands: three tiers, zero new search machinery
+
+The feature ships as ROUTING plus SCORING — the search itself never
+learned what a preference is:
+
+- **Preferences never gate validity.** The temporal router banks
+  coverage first (soft constraints dropped; goal preferences already
+  lower to trivially-true conjuncts at grounding — a fact that was
+  sitting in `ground.rs` all along), then CHASES QUALITY with every
+  preference hardened on the remaining wall. plans(hardened) ⊆
+  plans(banked), so the chase can never lose the banked row — the
+  0.24 promotion lesson applied from birth. A STATIC-LIVENESS middle
+  tier saves the satisfiable majority from one hopeless preference:
+  bodies `peval_static` proves dead (the fixture's
+  `never-obtainable`; grounding CANNOT see this class through the
+  monitor lowering — measured, three probes all read Task) drop out
+  and the live subset is chased. Search-level joint infeasibility
+  stays all-or-nothing — TRUE partial optimization is the named 0.26
+  residue.
+- **Scoring is post-hoc and search-independent**
+  (`temporal::score_soft`): the ORIGINAL soft constraints fold over
+  the plan's replayed, timestamped trajectory — the same `Fold`
+  machinery `validate` uses for hard constraints, so the scorer and
+  the oracle share one semantics — goal preferences evaluate in the
+  final state, and the `:metric` is computed with PDDL3
+  `(is-violated name)` instance counts (one per preference × outer
+  forall binding). The metric rides `Solution.plan.metric` with the
+  honest note ("N satisfied, M violated (names); metric X").
+- **First rows in this planner's history, canaried at a 10 s
+  throwaway budget, VAL green:** storage-complex i1 solved at
+  metric 6 ("6 satisfied, 1 violated (P6A)" — the middle tier's
+  partial win, not the naive bank); trucks i1/i2/i6 at **metric 0**
+  (perfect scores — the full chase); pathways 6/30 with graded
+  metrics 8–24. The 0.24-era "stay rejected" pins converted to
+  their scheduled 0.25 forms (scored, never silently ignored);
+  fixtures in `tests/complex_prefs.rs` (RED first against the old
+  fence). One bug caught by the middle tier's first run:
+  `static_predicates` scans classical actions only, so on a
+  durative pair every fluent read init-frozen and all three probes
+  died — the deadness scan now subtracts durative-effect predicates.
+- Board registered (`ipc5-complex-pref.jsonl`, 108 rows) with its
+  field cohort; NOT added to the running entries sweep's driver (a
+  bash script must not be edited mid-run) — sweep it when the
+  entries sweep finishes:
+  `python3 benchmarks/ipc67.py --track complex-pref-2006 --timeout 60 --jobs 2 --mem-gb 6 --out benchmarks/air25-entries/ipc5-complex-pref.md`
+
 ## Phase 3 — Wing II (the centerpiece, heavy)
 
 The wing's unclaimed +16–50, taken in diagnosis-first order. The

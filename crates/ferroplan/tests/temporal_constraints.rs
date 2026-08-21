@@ -699,33 +699,38 @@ fn within_on_a_classical_domain_stays_rejected_by_name() {
 }
 
 #[test]
-fn preference_bodied_timed_constraints_stay_rejected() {
-    // The complex-preferences unlock is 0.25's: a soft `within` still gets
-    // the temporal soft fence, by name — never a silently ignored wrapper.
+fn preference_bodied_timed_constraints_now_score() {
+    // The complex-preferences unlock landed (0.25 Phase 2): a soft
+    // `within` no longer gets the fence — it is SCORED, never silently
+    // ignored (the 0.24 pin's own comment scheduled this conversion).
+    // The quality chase hardens it, so the plan actually raises the
+    // flag inside the deadline and the note says satisfied.
     let p = atend_prob("(preference deadline (within 5 (flag)))");
-    match solve(ATEND_DOM, &p, &Options::default()) {
-        Err(SolveError::Unsupported(msg)) => {
-            assert!(
-                msg.contains("preference"),
-                "must name the soft fence: {msg}"
-            );
-        }
-        Err(e) => panic!("expected an Unsupported rejection, got {e:?}"),
-        Ok(_) => panic!("expected a named rejection, got a solution"),
-    }
+    let sol = solve(ATEND_DOM, &p, &Options::default()).expect("solves");
+    assert!(sol.solved, "{:?}", sol.notes);
+    let note = sol
+        .notes
+        .iter()
+        .find(|n| n.contains("scored post-hoc"))
+        .expect("the preference is scored, never ignored");
+    assert!(
+        note.contains("1 satisfied, 0 violated"),
+        "the chase satisfies the deadline: {note}"
+    );
 }
 
 #[test]
-fn soft_constraints_stay_rejected_on_temporal() {
+fn soft_constraints_score_on_temporal() {
     let p = atend_prob("(preference cautious (sometime (flag)))");
-    match solve(ATEND_DOM, &p, &Options::default()) {
-        Err(SolveError::Unsupported(msg)) => {
-            assert!(
-                msg.contains("preference"),
-                "must name the soft fence: {msg}"
-            );
-        }
-        Err(e) => panic!("expected an Unsupported rejection, got {e:?}"),
-        Ok(_) => panic!("expected a named rejection, got a solution"),
-    }
+    let sol = solve(ATEND_DOM, &p, &Options::default()).expect("solves");
+    assert!(sol.solved, "{:?}", sol.notes);
+    let note = sol
+        .notes
+        .iter()
+        .find(|n| n.contains("scored post-hoc"))
+        .expect("the preference is scored, never ignored");
+    assert!(
+        note.contains("1 satisfied, 0 violated"),
+        "the chase satisfies the soft sometime: {note}"
+    );
 }

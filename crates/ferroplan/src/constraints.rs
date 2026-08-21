@@ -97,7 +97,7 @@
 //! the ORIGINAL constraint semantics over its replay (see [`Fold`]), so the
 //! oracle stays independent of the compiled monitors.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::pddl3::{combos, subst_formula};
 use crate::types::{
@@ -237,6 +237,204 @@ pub(crate) fn first_timed(exp: &Expanded) -> Option<&'static str> {
             Traj::AlwaysWithin(_, _, _) => Some("always-within"),
             _ => None,
         })
+}
+
+/// Does the pair carry any soft (`preference`-wrapped) trajectory
+/// constraint? A cheap AST scan — the temporal router's tier question
+/// (0.25 Phase 2), asked before any expansion.
+pub(crate) fn has_soft_constraints(domain: &Domain, problem: &Problem) -> bool {
+    fn scan(c: &Constraint) -> bool {
+        match c {
+            Constraint::Pref(_, _) => true,
+            Constraint::And(v) => v.iter().any(scan),
+            Constraint::Forall(_, i) => scan(i),
+            _ => false,
+        }
+    }
+    domain
+        .constraints
+        .iter()
+        .chain(problem.constraints.iter())
+        .any(scan)
+}
+
+/// The preference-tier transform (0.25 Phase 2): walk the constraint
+/// AST in a stable DFS order, numbering each `preference` NODE with the
+/// shared counter; a kept node's body becomes a HARD constraint (the
+/// quality chase), a dropped node vanishes (soft never gates validity).
+/// `keep = |_| true` is the full chase, `|_| false` the coverage bank,
+/// and a liveness mask the middle tier. Node granularity is TEXTUAL —
+/// a forall-outside preference keeps or drops all its bindings together.
+pub(crate) fn map_soft_constraints(
+    v: &[Constraint],
+    ctr: &mut usize,
+    keep: &mut dyn FnMut(usize) -> bool,
+) -> Vec<Constraint> {
+    fn go(
+        c: &Constraint,
+        ctr: &mut usize,
+        keep: &mut dyn FnMut(usize) -> bool,
+    ) -> Option<Constraint> {
+        match c {
+            // Nested preferences are malformed (PDDL3 gives them no
+            // semantics) and expand() rejects them — the body is a plain
+            // modal tree, cloned as-is when kept.
+            Constraint::Pref(_, inner) => {
+                let i = *ctr;
+                *ctr += 1;
+                keep(i).then(|| (**inner).clone())
+            }
+            Constraint::And(v) => {
+                let kept: Vec<Constraint> = v.iter().filter_map(|x| go(x, ctr, keep)).collect();
+                (!kept.is_empty()).then_some(Constraint::And(kept))
+            }
+            Constraint::Forall(vars, inner) => {
+                go(inner, ctr, keep).map(|x| Constraint::Forall(vars.clone(), Box::new(x)))
+            }
+            other => Some(other.clone()),
+        }
+    }
+    v.iter().filter_map(|c| go(c, ctr, keep)).collect()
+}
+
+/// Per-NODE static deadness for the preference tiers' middle pass
+/// (0.25 Phase 2): same DFS numbering as [`map_soft_constraints`] (the
+/// router appends the goal's nodes after). A node is DEAD when some
+/// binding of some member is STATICALLY hopeless under `peval_static` —
+/// e.g. `sometime φ` where φ partial-evaluates to false (an undefined or
+/// init-absent static predicate: the fixture's `never-obtainable`, and
+/// the common real-corpus shape). Grounding cannot see this class — the
+/// monitor lowering makes relaxed reachability optimistic about it — so
+/// the check runs where `simplify_static` already runs, on the AST.
+/// Dynamic joint-infeasibility stays live here by design; the chase's
+/// own search answers it (all-or-nothing, the named 0.26 residue).
+pub(crate) fn statically_dead_soft_nodes(domain: &Domain, problem: &Problem) -> Vec<bool> {
+    let objs = crate::ground::objects_by_type(domain, problem);
+    // static_predicates scans CLASSICAL actions only; this runs on the
+    // ORIGINAL durative pair, so predicates any durative effect touches
+    // must leave the static set or every fluent fact reads init-frozen.
+    let mut statics = crate::pddl3::static_predicates(domain);
+    fn effect_preds(e: &Effect, out: &mut Vec<String>) {
+        match e {
+            Effect::Add(p, _) | Effect::Del(p, _) => out.push(p.to_ascii_uppercase()),
+            Effect::And(v) => v.iter().for_each(|x| effect_preds(x, out)),
+            Effect::When(_, i) | Effect::Forall(_, i) => effect_preds(i, out),
+            _ => {}
+        }
+    }
+    for da in &domain.durative_actions {
+        let mut touched = Vec::new();
+        for (_, e) in &da.effects {
+            effect_preds(e, &mut touched);
+        }
+        for p in touched {
+            statics.remove(&p);
+        }
+    }
+    let init: HashSet<(Sym, Vec<Sym>)> = problem.init_atoms.iter().cloned().collect();
+    let peval = |f: &Formula| crate::pddl3::peval_static(f, &statics, &init);
+    let t = |f: &Formula| matches!(f, Formula::True);
+    let fa = |f: &Formula| matches!(f, Formula::False);
+    let dead_member = |m: &Traj| -> bool {
+        match m {
+            // The body can never hold — the obligation is unmeetable.
+            Traj::Always(f) | Traj::Sometime(f) | Traj::AtEnd(f) | Traj::Within(_, f) => {
+                fa(&peval(f))
+            }
+            // The trigger always holds and the discharge never can.
+            Traj::SometimeAfter(a, b) | Traj::AlwaysWithin(_, a, b) => {
+                t(&peval(a)) && fa(&peval(b))
+            }
+            // φ holds from S_0 on; nothing is ever strictly earlier.
+            Traj::SometimeBefore(a, _) => t(&peval(a)),
+            // Holdable by never opening (or never closing) an episode.
+            Traj::AtMostOnce(_) => false,
+        }
+    };
+    fn go(
+        c: &Constraint,
+        objs: &HashMap<Sym, Vec<Sym>>,
+        binding: &HashMap<Sym, Sym>,
+        out: &mut Vec<bool>,
+        dead_member: &dyn Fn(&Traj) -> bool,
+    ) {
+        match c {
+            Constraint::Pref(_, inner) => {
+                // One TEXTUAL node; dead iff ANY binding's ANY member is.
+                let mut dead = false;
+                let mut members = Vec::new();
+                if walk_members(inner, objs, binding, &mut members).is_ok() {
+                    dead = members.iter().any(dead_member);
+                }
+                out.push(dead);
+            }
+            Constraint::And(v) => {
+                for x in v {
+                    go(x, objs, binding, out, dead_member);
+                }
+            }
+            Constraint::Forall(vars, inner) => {
+                // The node under this forall must be numbered ONCE, with
+                // deadness folded over every binding — mirror the single
+                // visit map_soft_constraints makes, not walk()'s per-combo
+                // expansion.
+                let mut worst: Vec<bool> = Vec::new();
+                for combo in crate::pddl3::combos(vars, objs) {
+                    let mut b = binding.clone();
+                    b.extend(combo);
+                    let mut here = Vec::new();
+                    go(inner, objs, &b, &mut here, dead_member);
+                    if worst.is_empty() {
+                        worst = here;
+                    } else {
+                        for (w, h) in worst.iter_mut().zip(here) {
+                            *w |= h;
+                        }
+                    }
+                }
+                if worst.is_empty() {
+                    // No bindings at all: number the nodes anyway (live).
+                    let mut here = Vec::new();
+                    go(inner, objs, binding, &mut here, dead_member);
+                    out.extend(here.iter().map(|_| false));
+                } else {
+                    out.extend(worst);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut out = Vec::new();
+    let empty = HashMap::new();
+    for c in domain.constraints.iter().chain(problem.constraints.iter()) {
+        go(c, &objs, &empty, &mut out, &dead_member);
+    }
+    // The goal's preference nodes, in map_goal_prefs order: dead iff the
+    // (quantifier-expanded) body partial-evaluates to false.
+    fn goal_go(
+        f: &Formula,
+        objs: &HashMap<Sym, Vec<Sym>>,
+        out: &mut Vec<bool>,
+        peval: &dyn Fn(&Formula) -> Formula,
+    ) {
+        match f {
+            Formula::Pref(_, body) => {
+                let expanded = expand_quantifiers(body, objs);
+                out.push(matches!(peval(&expanded), Formula::False));
+            }
+            Formula::And(v) | Formula::Or(v) => {
+                for x in v {
+                    goal_go(x, objs, out, peval);
+                }
+            }
+            Formula::Not(a) | Formula::Forall(_, a) | Formula::Exists(_, a) => {
+                goal_go(a, objs, out, peval)
+            }
+            _ => {}
+        }
+    }
+    goal_go(&problem.goal, &objs, &mut out, &peval);
+    out
 }
 
 fn classical_timed_err(op: &str) -> String {
@@ -780,16 +978,14 @@ fn vet_temporal(domain: &Domain, problem: &Problem) -> Result<(), String> {
              rename the action"
         ));
     }
-    let exp = expand(domain, problem)?;
-    if !exp.soft.is_empty() {
-        return Err(
-            "PDDL3 preference (soft) trajectory constraints on durative-action \
-             (temporal) domains are not yet enforced (hard untimed constraints \
-             are, and the classical path enforces both); remove the preference \
-             wrapper or the durative actions"
-                .into(),
-        );
-    }
+    expand(domain, problem)?;
+    // Soft (`preference`-wrapped) constraints pass the gate since 0.25
+    // Phase 2: the temporal router's preference tiers transform them
+    // BEFORE the monitor compile ever runs (coverage bank drops them,
+    // the quality chase hardens them — `crate::temporal::solve`), and
+    // scoring is post-hoc over the ORIGINAL block. `compile_inner`
+    // keeps a defensive reject should an untransformed soft pair ever
+    // reach the timed monitor compile directly.
     Ok(())
 }
 
@@ -839,6 +1035,17 @@ fn compile_inner(
         if let Some(op) = first_timed(&exp) {
             return Err(classical_timed_err(op));
         }
+    }
+    if timed && !exp.soft.is_empty() {
+        // Defensive: the temporal router's preference tiers (0.25 Phase
+        // 2) transform soft constraints away before this compile runs —
+        // a soft member arriving here means a caller bypassed the tiers.
+        return Err(
+            "internal: soft (preference) trajectory constraints reached the timed \
+             monitor compile — the temporal router's preference tiers should have \
+             transformed them first"
+                .into(),
+        );
     }
     simplify_static(&mut exp, domain, problem);
 

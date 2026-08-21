@@ -15,6 +15,7 @@ for scoring semantics and the failure-class definitions.
 | constraints | yes | 28/120 | coverage-only (timed modal ops rejected by name) | 18 early-exit, 74 timeout |
 | simple-preferences (full corpus) | sweep in flight / not yet run | — | — | — |
 | qualitative-preferences (full corpus) | sweep in flight / not yet run | — | — | — |
+| complex-preferences (full corpus) | sweep in flight / not yet run | — | — | — |
 | simple-preferences | yes | see board | reference-scored — [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |
 | qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won outright) | — |
 | complex-preferences | no (modal operators rejected by name) | — | — | feature gap, on the deferred list |

@@ -87,6 +87,7 @@ AIR_REBASELINED = {
     "2014 seq-mco t2", "2014 seq-mco t8", "2018 seq-opt", "2023 seq-sat",
     "2023 seq-opt", "2023 numeric-opt", "2026 numeric-opt FULL",
     "simple-preferences (full corpus)", "qualitative-preferences (full corpus)",
+    "complex-preferences (full corpus)",
 }
 CLOUD_ERA = "cloud-era board, NOT re-baselined — see git history"
 
@@ -172,6 +173,12 @@ SWEEPS = {
     # reference-scored role).
     "ipc5-simple-pref.jsonl": ("simple-preferences (full corpus)", "ipc5", 60),
     "ipc5-qual-pref.jsonl": ("qualitative-preferences (full corpus)", "ipc5", 60),
+    # 0.25 Phase 2: the complex-preferences ENTRY — the track ferroplan
+    # could never attempt ("last of 3, until the feature ships"). Soft
+    # trajectory constraints + goal preferences on temporal domains,
+    # scored post-hoc; the metric column carries the PDDL3 preference
+    # score. Swept once the entries sweep's driver picks it up.
+    "ipc5-complex-pref.jsonl": ("complex-preferences (full corpus)", "ipc5", 60),
 }
 
 # our 2006 variant name -> (archive domain dir, archive track dir prefix)
@@ -782,6 +789,9 @@ def main():
          "coverage = hard-goal solves; preference metric in the raw"),
         ("qualitative-preferences (full corpus)",
          "coverage = hard-goal solves; preference metric in the raw"),
+        ("complex-preferences (full corpus)",
+         "coverage = hard-goal solves; PDDL3 preference metric scored "
+         "post-hoc in the raw (0.25 Phase 2 entry)"),
     ]
     lines += [
         "| track | entered | coverage | quality | failure classes |",

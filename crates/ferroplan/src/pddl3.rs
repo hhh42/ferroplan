@@ -34,13 +34,47 @@ pub fn is_pddl3(problem: &Problem) -> bool {
     problem.metric.is_some() || goal_has_pref(&problem.goal)
 }
 
-fn goal_has_pref(f: &Formula) -> bool {
+pub(crate) fn goal_has_pref(f: &Formula) -> bool {
     match f {
         Formula::Pref(_, _) => true,
         Formula::And(v) | Formula::Or(v) => v.iter().any(goal_has_pref),
         Formula::Not(a) => goal_has_pref(a),
         Formula::Forall(_, a) | Formula::Exists(_, a) => goal_has_pref(a),
         _ => false,
+    }
+}
+
+/// The preference-tier goal transform (0.25 Phase 2, the temporal
+/// tiers' goal half — shares the constraint mapper's counter): a KEPT
+/// `(preference name φ)` becomes φ itself, a HARD conjunct the quality
+/// chase must achieve; a dropped one becomes `true` — exactly what
+/// grounding already does with a positive `Formula::Pref`, made
+/// explicit so probe pairs are self-describing.
+pub(crate) fn map_goal_prefs(
+    f: &Formula,
+    ctr: &mut usize,
+    keep: &mut dyn FnMut(usize) -> bool,
+) -> Formula {
+    match f {
+        Formula::Pref(_, body) => {
+            let i = *ctr;
+            *ctr += 1;
+            if keep(i) {
+                (**body).clone()
+            } else {
+                Formula::True
+            }
+        }
+        Formula::And(v) => Formula::And(v.iter().map(|x| map_goal_prefs(x, ctr, keep)).collect()),
+        Formula::Or(v) => Formula::Or(v.iter().map(|x| map_goal_prefs(x, ctr, keep)).collect()),
+        Formula::Not(a) => Formula::Not(Box::new(map_goal_prefs(a, ctr, keep))),
+        Formula::Forall(vars, a) => {
+            Formula::Forall(vars.clone(), Box::new(map_goal_prefs(a, ctr, keep)))
+        }
+        Formula::Exists(vars, a) => {
+            Formula::Exists(vars.clone(), Box::new(map_goal_prefs(a, ctr, keep)))
+        }
+        other => other.clone(),
     }
 }
 

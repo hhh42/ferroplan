@@ -425,6 +425,23 @@
       "field_size": 3,
       "note": "the official Overall Optimal 3-domain shared slice — matched corpus",
       "confidence": "medium-high"
+    },
+    "complex-preferences (full corpus)": {
+      "entrants": [
+        [
+          "SGPlan5",
+          105,
+          108
+        ],
+        [
+          "MIPS-XXL",
+          25,
+          108
+        ]
+      ],
+      "field_size": 3,
+      "note": "SGPlan5 swept all 5 domains (105 raw solves); our full-corpus board is 108 instances",
+      "confidence": "medium"
     }
   }
 }

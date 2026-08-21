@@ -1,0 +1,28 @@
+{
+ "started": "2026-08-21 11:07:34",
+ "ended": "2026-08-21 11:50:55",
+ "samples": 120,
+ "idle_pct": {
+  "median": 72.6,
+  "p25": 64.0,
+  "min": 40.7
+ },
+ "loadavg": {
+  "median": 4.05,
+  "max": 12.7
+ },
+ "competitors_mean_pcpu": {
+  "WindowServer": 18.4,
+  "Brave Browser Helper (Renderer)": 11.6,
+  "Claude Helper": 7.9,
+  "Claude Helper (Renderer)": 5.9
+ },
+ "competitors_total_pcpu": 66.4,
+ "swap_mb": {
+  "max": 10742.6
+ },
+ "cpu_speed_limit": {
+  "min": null
+ },
+ "verdict": "DEGRADED"
+}

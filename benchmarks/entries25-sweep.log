@@ -1,0 +1,17 @@
+    Finished `release` profile [optimized] target(s) in 24.61s
+binary: ff 0.25.0
+== pass 1 — remaining: ipc5-simple-pref ipc5-qual-pref ipc2023-sat ipc2023-opt ipc2018-opt ipc2023-numeric-opt ipc2026-opt-full ipc2014-mco-t2 ipc2014-mco-t8 ==
+    (load returned: 63% idle — waiting)
+RUN  ipc5-simple-pref (simple-pref-2006 60s jobs 2 ) 10:30:29
+DONE ipc5-simple-pref: total coverage: **91/130** 11:07:31 [idle 67.6% DEGRADED]
+!! ipc5-simple-pref measured under contention (median idle 67.6%; competing: Claude Helper (Renderer) 18%, WindowServer 17%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc5-qual-pref (qual-pref-2006 60s jobs 2 ) 11:07:34
+DONE ipc5-qual-pref: total coverage: **23/100** 11:50:55 [idle 72.6% DEGRADED]
+!! ipc5-qual-pref measured under contention (median idle 72.6%; competing: WindowServer 18%, Brave Browser Helper (Renderer) 12%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2023-sat (sat-2023 60s jobs 2 ) 11:50:58
+DONE ipc2023-sat: total coverage: **36/140** 12:48:05 [idle 69.7% DEGRADED]
+!! ipc2023-sat measured under contention (median idle 69.7%; competing: Brave Browser Helper (Renderer) 26%, WindowServer 11%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2023-opt (opt-2023 60s jobs 2 --mode optimal) 12:48:07

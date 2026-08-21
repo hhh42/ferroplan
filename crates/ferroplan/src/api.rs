@@ -947,6 +947,30 @@ fn solve_temporal(
     };
     match result {
         Some(tp) => {
+            // The complex-preferences entry (0.25 Phase 2): a temporal
+            // plan's PDDL3 preferences are scored post-hoc against the
+            // ORIGINAL pair — the metric and the violated-instance list
+            // ride the Solution; None means the pair carries none.
+            let score = crate::temporal::score_soft(domain, problem, &tp);
+            let mut notes = Vec::new();
+            if let Some(s) = &score {
+                let viol = if s.violated.is_empty() {
+                    String::new()
+                } else {
+                    format!(" ({})", s.violated.join(", "))
+                };
+                let m = match (s.metric, problem.metric.is_some()) {
+                    (Some(m), _) => format!("; metric {m}"),
+                    (None, true) => "; metric not evaluable by the scorer".into(),
+                    (None, false) => String::new(), // no :metric declared
+                };
+                notes.push(format!(
+                    "PDDL3 preferences scored post-hoc: {} satisfied, {} \
+                     violated{viol}{m}",
+                    s.satisfied,
+                    s.violated.len(),
+                ));
+            }
             let steps = timed_steps(&tp);
             Ok(Solution {
                 solved: true,
@@ -954,14 +978,14 @@ fn solve_temporal(
                 plan: Some(Plan {
                     length: steps.len(),
                     steps,
-                    metric: None,
+                    metric: score.as_ref().and_then(|s| s.metric),
                     makespan: Some(tp.makespan),
                 }),
                 statistics: Statistics {
                     threads,
                     ..Default::default()
                 },
-                notes: Vec::new(),
+                notes,
             })
         }
         None => Ok(unsolved(

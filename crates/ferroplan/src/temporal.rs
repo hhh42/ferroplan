@@ -594,6 +594,77 @@ fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &Sta
 /// invariant transition guard (a delete + re-add between the endpoints
 /// used to slip through — the kiln-gap fixture pins the fix).
 pub fn solve(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    // The complex-preferences tiers (0.25 Phase 2): preferences never
+    // gate validity, so the router BANKS COVERAGE FIRST (soft trajectory
+    // constraints dropped; goal preferences already lower to trivially-
+    // true conjuncts at grounding) and then CHASES QUALITY with every
+    // preference hardened on the remaining wall. plans(hardened) ⊆
+    // plans(banked), so the chase can never lose the banked row — the
+    // 0.24 promotion lesson, applied from birth this time. All-or-
+    // nothing: a chase plan satisfies EVERY preference; partial
+    // satisfaction is the named 0.26 residue. Scoring is post-hoc and
+    // search-independent ([`score_soft`], the validate-fold machinery).
+    let soft = crate::constraints::has_soft_constraints(domain, problem)
+        || crate::pddl3::goal_has_pref(&problem.goal);
+    if !soft {
+        return solve_prefless(domain, problem, threads);
+    }
+    let (d2, p2, n_prefs) = pref_variant(domain, problem, &mut |_| false);
+    let banked = solve_prefless(&d2, &p2, threads)?;
+    let (d1, p1, _) = pref_variant(domain, problem, &mut |_| true);
+    if let Some(plan) = solve_prefless(&d1, &p1, threads) {
+        return Some(plan);
+    }
+    // The static-liveness middle tier: the full chase failed, and one
+    // STATICALLY-dead preference (a body peval_static proves hopeless —
+    // grounding cannot see this class through the monitor lowering) must
+    // not drag every satisfiable one down with it. Chase the live subset
+    // when it is a strict, non-empty subset. Search-level joint
+    // infeasibility (every node individually plausible) stays
+    // all-or-nothing — TRUE partial optimization is the named 0.26
+    // residue.
+    if n_prefs >= 2 {
+        let dead = crate::constraints::statically_dead_soft_nodes(domain, problem);
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "[prefs] middle tier: {}/{} statically dead",
+                dead.iter().filter(|&&d| d).count(),
+                n_prefs
+            );
+        }
+        if dead.len() == n_prefs && dead.iter().any(|&d| d) && dead.iter().any(|&d| !d) {
+            let (dl, pl, _) = pref_variant(domain, problem, &mut |j| !dead[j]);
+            if let Some(plan) = solve_prefless(&dl, &pl, threads) {
+                return Some(plan);
+            }
+        }
+    }
+    Some(banked)
+}
+
+/// Build the preference-tier variant of a pair: `keep` decides each
+/// preference NODE's fate (kept = hardened, dropped = gone/true) across
+/// one shared counter — domain constraints, then problem constraints,
+/// then the goal, a stable order the probes rely on. Returns the node
+/// count alongside.
+fn pref_variant(
+    domain: &Domain,
+    problem: &Problem,
+    keep: &mut dyn FnMut(usize) -> bool,
+) -> (Domain, Problem, usize) {
+    let mut d = domain.clone();
+    let mut p = problem.clone();
+    let mut ctr = 0usize;
+    d.constraints = crate::constraints::map_soft_constraints(&d.constraints, &mut ctr, keep);
+    p.constraints = crate::constraints::map_soft_constraints(&p.constraints, &mut ctr, keep);
+    p.goal = crate::pddl3::map_goal_prefs(&p.goal, &mut ctr, keep);
+    (d, p, ctr)
+}
+
+/// The pre-tier temporal router: promoted SAT, the ladder, the
+/// exhaustion rung — exactly what `solve` was before the preference
+/// tiers, and what every preference-free task still runs unchanged.
+fn solve_prefless(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
     // The SAT rung's arming policy (0.24 Phase 3), per the house law (no
     // sweep arms = no evidence): `FF_NO_SAT` is the byte-identity restore
     // — with it set this function IS `solve_ladder`, byte for byte. The
@@ -3982,6 +4053,216 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         ));
     }
     Ok(())
+}
+
+/// The post-hoc preference score (0.25 Phase 2 — the complex-preferences
+/// entry): the plan's PDDL3 soft story, computed INDEPENDENTLY of the
+/// search. Soft trajectory constraints fold over the replayed, timestamped
+/// state trajectory exactly as `validate`'s hard fold does (same `Fold`
+/// machinery, same happening order, S_0 included); goal preferences
+/// evaluate in the final state; `(is-violated name)` is the PDDL3 count —
+/// one instance per (preference × outer forall binding), so a name
+/// appears in `violated` once per violated instance.
+#[derive(Debug)]
+pub struct SoftScore {
+    /// The problem's `:metric` evaluated with the plan's is-violated
+    /// counts, `total-time` = makespan, and any remaining fluents read
+    /// from the final replayed state. `None` when the metric reads
+    /// something this scorer cannot evaluate.
+    pub metric: Option<f64>,
+    /// Violated preference instances (PDDL3 counting — see above).
+    pub violated: Vec<String>,
+    /// Satisfied preference instances.
+    pub satisfied: usize,
+}
+
+/// Score a temporal plan's preferences against the ORIGINAL pair.
+/// `None` when the pair carries no preferences, when expansion fails, or
+/// when the plan does not replay (a plan this cannot score is a plan
+/// `validate` would reject — callers score validated plans).
+pub fn score_soft(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Option<SoftScore> {
+    let objs = crate::ground::objects_by_type(domain, problem);
+    let goal_prefs = crate::pddl3::preferences(&problem.goal, &objs);
+    let exp = crate::constraints::expand(domain, problem).ok()?;
+    if goal_prefs.is_empty() && exp.soft.is_empty() {
+        return None;
+    }
+    let c = compile(domain, problem);
+    let task = crate::ground::ground_task(&c.domain, &c.problem, 1)?;
+    let find = |disp: &str| task.op_display.iter().position(|d| d == disp);
+
+    struct H {
+        time: f64,
+        op: usize,
+        is_start: bool,
+    }
+    let mut hs: Vec<H> = Vec::new();
+    for step in &plan.steps {
+        let mut it = step.action.splitn(2, ' ');
+        let head = it.next().unwrap_or("");
+        let rest = it.next();
+        let with = |suffix: &str| match rest {
+            Some(r) => format!("{head}{suffix} {r}"),
+            None => format!("{head}{suffix}"),
+        };
+        match step.duration {
+            Some(dur) => {
+                hs.push(H {
+                    time: step.time,
+                    op: find(&with("-START"))?,
+                    is_start: true,
+                });
+                hs.push(H {
+                    time: step.time + dur,
+                    op: find(&with("-END"))?,
+                    is_start: false,
+                });
+            }
+            None => hs.push(H {
+                time: step.time,
+                op: find(&step.action)?,
+                is_start: true,
+            }),
+        }
+    }
+    // TILs replay as exogenous happenings up to the plan horizon, with
+    // ends at the same epoch — validate's rule, verbatim.
+    let horizon = hs.iter().map(|h| h.time).fold(0.0f64, f64::max);
+    for (t, name) in &c.til_ops {
+        if *t <= horizon + EPS {
+            hs.push(H {
+                time: *t,
+                op: find(name)?,
+                is_start: false,
+            });
+        }
+    }
+    hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+
+    let mut state = task.initial();
+    // One fold per soft-instance MEMBER, tagged with its instance index —
+    // an instance is violated iff ANY member's fold rejects.
+    let mut folds: Vec<(usize, crate::constraints::Fold)> = Vec::new();
+    for (i, (_, members)) in exp.soft.iter().enumerate() {
+        for t in members {
+            folds.push((i, crate::constraints::Fold::new(t)));
+        }
+    }
+    for (_, f) in &mut folds {
+        f.step_at(0.0, &mut |phi| {
+            crate::verify::eval_formula(&task, &state, phi)
+        });
+    }
+    for h in &hs {
+        if !task.op_applicable(h.op, &state) {
+            return None;
+        }
+        state = task.apply(h.op, &state);
+        for (_, f) in &mut folds {
+            f.step_at(h.time, &mut |phi| {
+                crate::verify::eval_formula(&task, &state, phi)
+            });
+        }
+    }
+
+    let mut inst_viol = vec![false; exp.soft.len()];
+    for (i, f) in &folds {
+        if !f.accepted() {
+            inst_viol[*i] = true;
+        }
+    }
+    let mut violated: Vec<String> = Vec::new();
+    let mut satisfied = 0usize;
+    let mut counts: HashMap<String, f64> = HashMap::new();
+    for (i, (name, _)) in exp.soft.iter().enumerate() {
+        if inst_viol[i] {
+            violated.push(name.clone());
+            *counts.entry(name.to_ascii_uppercase()).or_insert(0.0) += 1.0;
+        } else {
+            satisfied += 1;
+        }
+    }
+    for (name, phi) in &goal_prefs {
+        if crate::verify::eval_formula(&task, &state, phi) {
+            satisfied += 1;
+        } else {
+            violated.push(name.clone());
+            *counts.entry(name.to_ascii_uppercase()).or_insert(0.0) += 1.0;
+        }
+    }
+
+    let metric = problem
+        .metric
+        .as_ref()
+        .and_then(|(_, e)| eval_pref_metric(e, &counts, plan.makespan, &task, &state));
+    Some(SoftScore {
+        metric,
+        violated,
+        satisfied,
+    })
+}
+
+/// Evaluate a PDDL3 `:metric` expression under the scored plan:
+/// `(is-violated p)` reads the instance-violation count, `(total-time)`
+/// the makespan, and any other fluent the final replayed state (the
+/// two-source lookup `eval_expr` uses). `None` on anything unreadable —
+/// an honest no-score, never a guessed number.
+fn eval_pref_metric(
+    e: &Expr,
+    viol: &HashMap<String, f64>,
+    makespan: f64,
+    task: &PackedTask,
+    fin: &State,
+) -> Option<f64> {
+    match e {
+        Expr::Num(n) => Some(*n),
+        Expr::Fluent(name, terms) => {
+            if name.eq_ignore_ascii_case("is-violated") {
+                let arg = match terms.first() {
+                    Some(Term::Const(c)) => c.to_ascii_uppercase(),
+                    _ => return None,
+                };
+                return Some(*viol.get(&arg).unwrap_or(&0.0));
+            }
+            if name.eq_ignore_ascii_case("total-time") && terms.is_empty() {
+                return Some(makespan);
+            }
+            let mut disp = String::from("(");
+            disp.push_str(name);
+            for t in terms {
+                disp.push(' ');
+                match t {
+                    Term::Const(c) => disp.push_str(c),
+                    Term::Var(_) => return None,
+                }
+            }
+            disp.push(')');
+            match task.fluent_id(&disp) {
+                Some(id) => fin.fdef[id].then(|| fin.fv[id]),
+                None => task.static_fluent(&disp),
+            }
+        }
+        Expr::Add(a, b) => Some(
+            eval_pref_metric(a, viol, makespan, task, fin)?
+                + eval_pref_metric(b, viol, makespan, task, fin)?,
+        ),
+        Expr::Sub(a, b) => Some(
+            eval_pref_metric(a, viol, makespan, task, fin)?
+                - eval_pref_metric(b, viol, makespan, task, fin)?,
+        ),
+        Expr::Mul(a, b) => Some(
+            eval_pref_metric(a, viol, makespan, task, fin)?
+                * eval_pref_metric(b, viol, makespan, task, fin)?,
+        ),
+        Expr::Div(a, b) => {
+            let d = eval_pref_metric(b, viol, makespan, task, fin)?;
+            if d == 0.0 {
+                return None;
+            }
+            Some(eval_pref_metric(a, viol, makespan, task, fin)? / d)
+        }
+        Expr::Neg(a) => Some(-eval_pref_metric(a, viol, makespan, task, fin)?),
+    }
 }
 
 /// Replay a composed `TimedPlan` over `state` in global-time happening order (ends
