@@ -640,6 +640,11 @@ enum RampStep<R> {
     Capped,
     /// armed wall expired — stop the whole ramp.
     Wall,
+    /// conflict-rate bail (promoted slice only): the measured rate says
+    /// this horizon cannot finish its budget inside the remaining slice,
+    /// and every deeper horizon is bigger — stop the whole ramp and hand
+    /// the rest of the slice back to the ladder. NOT a proof.
+    Hopeless,
 }
 
 /// The promoted rung's own deadline (0.24 regression fix): the router's
@@ -705,10 +710,47 @@ where
     F: FnMut(&[Lit]) -> Result<R, Option<Vec<Lit>>>,
 {
     const SLICE: u64 = 4_096;
+    // The conflict-rate bail (0.25 Wing II, the residue the 0.24 cut
+    // record priced at ~15 s/row): a promoted bet's grinding horizon
+    // must not spend the WHOLE slice learning "no". Once the measured
+    // conflict rate says finishing this horizon's budget would eat more
+    // than RATE_BAIL_FRAC of the remaining slice, the verdict is already
+    // known — "no plan within budget at this horizon" — and every deeper
+    // horizon is strictly bigger, so the ramp is done either way; the
+    // only thing continuing buys is a bet on a mid-budget model, exactly
+    // the bet the 0.24 receipts price at zero on grinding horizons.
+    // Armed ONLY under a wall slice (the promoted entry) — Mode::Sat and
+    // the exhaustion rung have no ladder behind them to refund.
+    // `FF_NO_SAT_RATEBAIL=1` restores the 0.24 slice-spend shape.
+    const RATE_BAIL_FRAC: f64 = 0.8;
+    const RATE_MIN_CONFLICTS: u64 = 8_192;
+    const RATE_MIN_SECS: f64 = 1.0;
+    let rate_bail_armed = wall_slice.is_some() && std::env::var("FF_NO_SAT_RATEBAIL").is_err();
+    let t0 = crate::clock::Clock::now();
     let mut spent = 0u64;
     loop {
         if wall_expired(wall_slice) {
             return RampStep::Wall;
+        }
+        if rate_bail_armed && spent >= RATE_MIN_CONFLICTS {
+            let elapsed = t0.elapsed_secs();
+            if elapsed >= RATE_MIN_SECS {
+                let rate = spent as f64 / elapsed;
+                let est = (budget - spent) as f64 / rate.max(1.0);
+                let remaining =
+                    crate::search::deadline_remaining_secs(&wall_slice).unwrap_or(f64::INFINITY);
+                if est > remaining * RATE_BAIL_FRAC {
+                    if wall_debug() {
+                        eprintln!(
+                            "[sat] conflict-rate bail: {spent} conflicts in \
+                             {elapsed:.1}s (~{rate:.0}/s); finishing the \
+                             {budget} budget needs ~{est:.0}s of the \
+                             {remaining:.0}s slice left"
+                        );
+                    }
+                    return RampStep::Hopeless;
+                }
+            }
         }
         let slice = SLICE.min(budget - spent);
         solver.set_conflict_limit(Some(slice));
@@ -807,6 +849,19 @@ where
                     wall_story(wall_slice)
                 ));
                 *proven_all = false;
+                return None;
+            }
+            RampStep::Hopeless => {
+                notes.push(format!(
+                    "SAT: conflict-rate bail inside horizon {h} — the horizon cannot \
+                     finish its conflict budget inside the promoted slice; remainder \
+                     handed back to the ladder; no plan within horizon {last_h} \
+                     (NOT a proof)"
+                ));
+                *proven_all = false;
+                if wall_debug() {
+                    eprintln!("[sat] horizon {h} conflict-rate bail -> ramp abandoned");
+                }
                 return None;
             }
         }

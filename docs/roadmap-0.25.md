@@ -122,6 +122,36 @@ no bands — a new board is an honest row count, not a win.
   canary run per new track before the entries sweep; a regen test
   pinning the field column against a checked-in fixture CSV.
 
+### Recorded — the table grows: built, canaried, waiting only on the sweep
+
+- The two `get-ipc.sh` stanzas landed and fetched (2018-opt 12×20,
+  2023 sat/opt 7×20 each; the vendored 2023 bounds.json already
+  carries sat/ (140) and opt/ (137) keys — quality columns free).
+  Seven track patterns dry-checked variant-by-variant against the
+  corpus: opt-2018 240, sat/opt-2023 140+140, opt-2026-full exactly
+  the official 13-domain/260 (a `-sat`-excluding lookbehind),
+  simple/qual-pref 130/100 (the `$` anchors keep the -grounded
+  alternates out), complex-pref 108 waiting on Phase 2.
+- Nine boards in the `SWEEPS` registry rendering as honest "sweep in
+  flight" rows; totals untouched at 63%/3,981/6,366 until
+  `entries25-sweeps.sh` (written, same Air discipline as the cut
+  driver) runs.
+- Every track canaried end-to-end at a 5 s throwaway budget, VAL
+  green on each solve: simple-pref 5/20, qual-pref 2/20, sat-2023
+  quantum-layout 19/20 (!), opt-2023 8/20 proofs, opt-2018 petri-net
+  4/20 proofs, numeric-2023-opt and opt-2026-full nonzero.
+  complex-pref canaried 0/20 — the expected RED Phase 2 converts.
+- **The vs-field column is live in `STANDINGS.md`:**
+  `benchmarks/field-results.json` (the rankings-page numbers as
+  data, provenance in `_meta`) plus the vendored 2023n CSVs parsed
+  live (their own Total rows — summing the summary rows in triples
+  every count, caught at first render). Merged boards split by the
+  rows' own `ipc` stamp; sparse cohorts carry a conditional
+  `rank_floor` so thin data cannot flatter (2018 renders ≥13th of
+  25, below the field median; 2014 seq-sat ≥8th of 21). Spot-checked
+  row-by-row against ipc-rankings.md — all match; the rankings page
+  now carries the pointer note and keeps prose + provenance.
+
 ## Phase 2 — the complex-preferences entry (light-medium)
 
 Scoped for this cycle by the 0.24 record itself (Phase 4: "the
@@ -180,6 +210,61 @@ find:
   the budget gap is named now so the cut doesn't have to.
 - NOT taken this cycle: **ITSAT-style in-CNF timing** (the heaviest
   residue) — one wing bet at a time; it waits for 1–4's report.
+
+### Recorded — the arming audit REDIRECTS the centerpiece (step 1, no code)
+
+The one-day trace ran (`examples/sat_arming_probe.rs`, kept as the
+standing audit tool), and it answers the 0.24 shortfall's two
+hypotheses with a third the pricing missed:
+
+- **TMS and match-cellar: the detector fires exactly as designed**
+  (BAKING/READY and LIGHT are envelope-only). Working as built.
+- **storage-t (both years): detector quiet, and CORRECTLY so under
+  its own criterion** — the window is a TWO-ACTION envelope (LIFT's
+  start adds LIFTING, a different action DROP deletes it; every
+  other over-all fact is init-true). Widening to that shape is NOT
+  taken: the 0.24 in-phase receipt says armed SAT proves UNSAT
+  through h32 and walls on storage-t — promotion would spend half of
+  40 rows' walls on a face that cannot yet reach the solving
+  horizon. The blocker is ENCODING DEPTH, not arming.
+- **parc-printer-t: ZERO over-all predicates — the detector can
+  never fire there**, and it doesn't need to: i1 solves in 0.08 s
+  and i12 in 0.29 s via the ladder. The +4–12 band was mispriced
+  against a family the ladder already covers; the residual tail is a
+  measurement question, not an arming one.
+- **floor-tile-t: every over-all fact is init-true — quiet, and LPG-td's
+  20/20 already said this is not pure-SAT territory.**
+- **The exhaustion arm is starved from the other side:** storage-t
+  i1 under a 60 s wall shows ZERO [sat] lines — the ladder eats the
+  entire wall, so "exhaustion with >1 s remaining" never happens on
+  exactly the rows that need it. The obvious fix (cap the ladder at
+  ~85% of wall) is NOT free: 10 of the 511 temporal board solves
+  land past 85% of wall (turn-and-open ×5, sokoban ×3, elevator,
+  map-analyzer) — a blanket reserve risks real rows for speculative
+  gains. If taken later it must be conditional on the ladder already
+  failing/capped, which is real engineering, not a knob.
+- **Verdict: steps 3–5 (efficiency) come BEFORE any arming change,**
+  and the +10–25 band now rests on them plus a re-audit — the
+  diagnosis-first order caught the pricing error before it became a
+  second band-that-missed.
+
+### Recorded — the conflict-rate bail lands, and refunds more than it priced
+
+Step 3, taken immediately off the audit (`FF_NO_SAT_RATEBAIL=1`
+restores; armed only under a promoted slice — Mode::Sat and the
+exhaustion rung have no ladder behind them to refund):
+
+- Once the measured conflict rate says a horizon cannot finish its
+  budget inside RATE_BAIL_FRAC (0.8) of the remaining slice, the
+  RAMP is abandoned (every deeper horizon is strictly bigger) with
+  the honest "conflict-rate bail … (NOT a proof)" note, and the
+  ladder inherits the rest.
+- **Measured on the regression family the 0.24 fix left slow:**
+  match-cellar-2014 i1 30.7 s → **17.5 s** (bails 1.9 s into h32:
+  ~6.5k conflicts/s, est 29 s vs 13 s slice left), i2 31 s →
+  **1.2 s**, i20 30.4 s → **10.4 s**. The ~15 s/row pricing was
+  conservative. TMS-2011 i2 untouched at 0.54 s; both SAT batteries
+  and the full release suite green.
 
 ## Phase 4 — the design reads (light, NO code)
 
