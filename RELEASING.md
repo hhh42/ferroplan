@@ -1,9 +1,10 @@
 # Releasing ferroplan
 
-The workspace publishes **three** crates to crates.io: the library `ferroplan`,
-the CLI `ferroplan-cli` (the `ff` binary), and the MCP server `ferroplan-mcp` —
-the latter two depend on the library. They must be published **in that order**
-(library first).
+The workspace publishes **four** crates to crates.io: the in-tree SAT solver
+`ferroplan-sat` (since 0.24.0), the library `ferroplan` (which depends on it),
+the CLI `ferroplan-cli` (the `ff` binary), and the MCP server `ferroplan-mcp`
+(the latter two depend on the library). They must be published **in that
+order** (`ferroplan-sat` first, then the library, then the CLI/MCP).
 
 > **TL;DR:** after `cargo login <token>`, run [`./publish.sh`](publish.sh) from a
 > machine with crates.io access — it runs the full pre-flight below, then publishes
@@ -108,20 +109,26 @@ python3 scripts/release-notes-roll.py --check   # non-zero if a roll is due
 ## Publish (order matters)
 
 ```sh
-# 1. the library first — everything else depends on it
+# 1. ferroplan-sat first (since 0.24.0) — the library depends on it, and it
+#    has no unpublished path deps of its own, so it's the only crate here
+#    whose --dry-run is a real check against the index.
+cargo publish -p ferroplan-sat
+
+# 2. the library (now that `ferroplan-sat` is on the index)
 cargo publish -p ferroplan
 
-# 2. then the CLI (now that `ferroplan` is on the index)
+# 3. then the CLI (now that `ferroplan` is on the index)
 cargo publish -p ferroplan-cli
 
-# 3. then the MCP server (in the publish set since 0.14.0)
+# 4. then the MCP server (in the publish set since 0.14.0)
 cargo publish -p ferroplan-mcp
 ```
 
-> A `cargo publish --dry-run` for the CLI or MCP crate BEFORE the library is on
-> crates.io fails with `no matching package named 'ferroplan' found` — this is
-> expected, not a packaging bug. Verify them with
-> `cargo build -p ferroplan-cli -p ferroplan-mcp` instead, and publish only
+> A `cargo publish --dry-run` for `ferroplan` BEFORE `ferroplan-sat` is on
+> crates.io fails with `no matching package named 'ferroplan-sat' found`, and
+> likewise for the CLI/MCP crates before the library — this is expected, not a
+> packaging bug. Verify them with `cargo build -p ferroplan -p ferroplan-cli
+> -p ferroplan-mcp` instead, and publish only
 > after step 1 has landed.
 
 ## The Python wheel (staged, published separately)
