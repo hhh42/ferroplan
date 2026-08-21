@@ -83,6 +83,27 @@ Before anything new: the 0.24 record's own loose ends, adjudicated.
   should not also be the least attested.
 - Referee: the adjudication table in this phase's Recorded block.
 
+### Recorded (partial) — the 2014 bleed adjudicated: wall-margin churn, no docket
+
+The five lost rows, named from the 0.23-vs-0.24 board diffs (per-
+instance raws exist only for the opt board pre-0.24; the other three
+adjudicate at domain level plus the current raws' shape):
+
+| board | loss | verdict |
+|---|---|---|
+| ipc2014-sat −2 | tetris 11→9/20 | **STANDS-ENVIRONMENTAL** — the domain lives AT the wall: 0.24 still solves i4/i5/i12 at 59.4–59.6 s while its misses die at 59.4–60 s; ±1 s of churn flips rows |
+| ipc2014-agile −1 | tetris 11→10/20 | same shape (i14 solved 52.9 s; misses at 59.3–60 s) |
+| ipc2014-mco-t4 −1 | parking 9→8/20 | same shape (i10/i11 solved 58.7–58.8 s; misses ~59 s) |
+| ipc2014-opt −1 | hiking i17 | 0.23 solved at 59.0 s of a 60 s wall; 0.24 node-caps at 59.4 s — the SAME instance the opt-differential gate already flagged contention-borderline (solves ~46–48 s solo) |
+
+Both boards' conditions were CLEAN (median idle 69–75%), so this is
+not contamination either — it is the buzzer-beater class doing what
+the fragile watchlist says it does. No engine docket opens; tetris
+i4/i5/i12 and parking i4/i10/i11 are named as this cycle's watchlist
+cohort. Still open in this sitting: the onlycraft contended re-check
+and the val-0/0 attestation (both need the box, queued behind the
+entries sweep).
+
 ## Phase 1 — the table grows (medium, harness)
 
 The breadth half, chosen at "everything fetchable." Entries carry
