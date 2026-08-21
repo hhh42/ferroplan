@@ -7,6 +7,113 @@ everything before that lands here, newest first, verbatim and unedited.
 `publish.sh` reads release notes from BOTH files, so archiving a version
 never breaks `--release-only <old-version>`.
 
+## [0.22.0] - 2026-08-08 — The coverage cycle, and the re-entries that ran hot
+
+The cycle scoped as "think big" on solving coverage: a fresh
+per-domain decode of all thirteen 0.21 boards, four numbered pots
+(the 645-instance classical-satisficing centerpiece, 503 optimal-proof
+timeouts, 344 temporal failures, 318 numeric-satisficing timeouts),
+and one gate that outranked all of them — markettrader i3's VAL-RED,
+zeroed in Phase 1 before any coverage lever was pulled. Full record:
+[`docs/roadmap-0.22.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.22.md).
+
+- **The gate passed, and the boards' one VAL-RED is not ours**
+  (Phase 1): VAL type-check-refuses markettrader's instances before
+  reading any plan (undeclared fuel fluents from a commented-out
+  metric); the plan hand-replays valid. The harness knows both
+  typecheck signatures now; the VAL-RED class zeroes with no board
+  edits.
+- **The charge's -8 bill, paid** (Phase 1): per-achiever gap-SUM
+  damping (MAX built first, measured, recorded as the negative)
+  recovers ext-plant-watering i7/i13, delivery i18/i19, rover i19
+  while sailing/pathwaysmetric/tpp receipts stay byte-identical.
+  `FF_NUMPRE_NODAMP=1` restores 0.21 exactly. counters/zenotravel's
+  three re-attributed to the old-binary column.
+- **Grounding holds a budget** (Phases 1+2): block-grouping i3's
+  4^21-conjunct DNF balloon (76 s past a 60 s wall) becomes a 7.8 s
+  honest exit; 2048's 67-74 s enumeration zombies end by 60.6 s;
+  partition mode finally narrates under `FF_WALL_DEBUG`. Notes say
+  "stopped at the declared budget" — never "unsolvable".
+- **The optimal ladder's third lesson** (Phases 3+4): the root gate
+  gains a margin (city-car's six thin-ratio losses gate b-branch
+  again), the sprint slice scales down where landmark structure is
+  unambiguous (scanalyzer-08 i4: PROVEN at 6.0 s vs 23.2 s), LM-cut
+  runs as a bounded probe with h^max RESUMING its preserved open
+  list on failure — and the proof boards learn numbers: an
+  interval-RPG layer bound, admissible fail-closed behind a
+  reject-by-name audit, takes sailing-wind-opt i8 from 2.86M blind
+  expansions to 132k (+numRPG names itself in the PROVEN note). The
+  differential gained the board-budget mode that catches what 90 s
+  forgiveness hid — and promptly convicted 11 of the 12 named
+  slice-losses on the old binary.
+- **The partitioned driver takes the novelty slot** (Phase 5B): the
+  centerpiece — subgoal-feature partition, width-2 pair novelty, an
+  h-free driver queue (3.3× states per slice-second where the old
+  rung paid per-pop h), numeric gap-bucket features opt-in.
+  FF_NOV_OLD restores the 0.21 rung byte-identically; the cut's
+  old-binary column is the pre-registered referee.
+- **The symmetry engine** (Phase 6): orbit-canonical visited keys,
+  optimal and satisficing — child-snack-opt i1 goes from three
+  releases of node-cap walls to PROVEN OPTIMAL cost 21, VAL-valid;
+  a 20-certificate orbit-active sample re-certifies 20/20 at exact
+  costs; child-snack-sat i6 converts at 15.9 s. barman honestly
+  deflates to +0–4 (the goal pins most shots).
+- **Grounding scale** (Phase 7): MCV join ordering (byte-identical
+  by construction) and a threshold-routed fixpoint — 2048 i8 goes
+  from 74 s enumeration zombies to a 203-step solve inside the
+  wall; block-grouping's 4^21 or-goal balloon compiles factored.
+  The audit found solved products to 1.62e12, so the route bar rose
+  to 1e13 and caldera's pot is forfeited on the record rather than
+  risked.
+- **The wall is spent on a clock** (Phases 2+5A): time-based
+  checkpoints in every rung, a teardown reserve so huge-arena runs
+  report instead of dying mid-drop, progress-conditional LAMA slice
+  (0.25) + novelty slice (0.30) + per-rung-entry affordability.
+  gear-car i6 converts at 57.8 s; sailing-wind-opt's node-cap
+  early-exits end honestly (conversion negative recorded);
+  tidybot/openstacks casualties clean.
+- **The gate batch, adjudicated** (pre-cut): the board-budget
+  differential on the final binary read 11 slice-loss regressions
+  down to 6 (sprint-resume recovered five); the b-flip proofs landed
+  — city-car i8 PROVEN cost 76 (v0.19's certificate, to the digit)
+  and tetris i5 PROVEN cost 30. block-grouping i3 and 2048 i9 solve
+  in hundredths of a second; org-synth i01 routes and solves. The
+  fixpoint route's threshold moved 1e8 → 1e13 after the audit found
+  currently-solved products up to 1.62e12 — caldera's pot forfeits
+  on the record rather than risking the sokoban-t regression class.
+
+### Where this leaves the standings
+
+**58% coverage across 16 IPC boards** (2,867/4,916), of which **373
+are certified optima**. At-a-glance:
+[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md);
+per-track detail:
+[`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md);
+rough field placement per year/track (new this cut):
+[`docs/ipc-rankings.md`](https://github.com/hhh42/ferroplan/blob/main/docs/ipc-rankings.md).
+
+On the thirteen boards comparable to 0.21 (same 4,076-instance
+denominator), coverage moves **2,153 → 2,248 (+95)** — the floor of
+the cycle's own +80–190 ambition band, not the stretch. Three boards
+re-entered after being cloud-era/unbaselined for several cycles
+(propositional, net-benefit, constraints) and overshot expectations
+by a wide margin — net-benefit alone reaches **92%**, this cut's
+strongest board. Folded in, the sixteen-board headline lands at the
+cycle's *stretch* target (58%), for a different reason than priced:
+the re-entries running hot, not the engine phases running hot.
+
+Two boards moved backward and are named rather than netted away:
+2014 seq-agile −1 (142→141), 2014 tempo-sat −3 (70→67). Every other
+comparable board held or gained; 2014 seq-opt's **+16** (58→74,
++6.2 pts) is the cycle's single biggest mover.
+
+The sweep itself: sixteen boards, one clean pass, zero contended
+re-runs — every board's measured conditions verdict reads `clean`.
+
+---
+
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (23 earlier releases, 0.1.0–0.21.0).
+
 ## [0.21.0] - 2026-08-04 — The numeric cycle, and the ladders that pay their own way
 
 The cycle that took the sailing wall down, closed a temporal debt

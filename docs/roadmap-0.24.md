@@ -449,6 +449,51 @@ no ghosts — assuming Phase 0's dependency lands first), plus:
   the percentage — it is whether the zero block finally has a
   nonzero row in it.
 
+### Recorded — the cut: 63%/3,981/6,366, 386 optima, and a band that missed high
+
+The standing template, run clean after the regression Phase 3 already
+named and fixed: 22 boards, one box, match-cellar re-verified at 40/40.
+Full movement table in `CHANGELOG.md`; the boards themselves are the
+receipts.
+
+- **The zero block has its nonzero row, and it's real** — TMS-2011
+  i2, the qualitative headline, unaffected by the promotion-wall fix
+  (still 0.4 s). This is the cycle's own stated question and it
+  answers yes.
+- **The quantitative band missed, and by a lot.** The wing was priced
+  at +16-50 across the temporal boards; the measured net is
+  **ipc67-temporal +1, ipc2014-tempo +0** (match-cellar's 40/40 is
+  parity restored, not new gain — the fix's job was to stop losing,
+  not to win). The field-receipted storage-t/parc-printer-t/floor-tile-t
+  bands named in Phase 3 did not show up as board movement here. Two
+  live hypotheses, neither chased down this cycle: the
+  required-concurrency promotion criteria may be narrower than the
+  field constituency (fires on fire-kiln/match-cellar shapes
+  specifically, not the broader storage/parc-printer families), or
+  `FF_SAT_PROMO_WALL_FRAC`'s 50/50 split leaves too little slice for
+  those families' own SAT attempts to land inside. Named as a
+  measured shortfall, not papered over — the wing's real, singular
+  win stands on its own regardless.
+- **Stage c** continues past its own Phase 4 record: the 2006
+  constraints board moves 12/120 → 28/120 (+16), the low edge of its
+  own +20-45 provisional band, not clearly separable this cut from
+  the cross-cutting basket/game-phase work landing the same cycle.
+- **onlycraft's docket** (Phase 0's "REAL and UNPAID" −6) reads
+  paid and then some: both numeric-2026 variants (opt, sat) move
+  3/20 → 20/20, +34 of this cut's total +65. No commit in this cycle
+  targets onlycraft by name — measured, mechanism not chased down,
+  worth a contended re-check before calling it closed for good.
+- **The contention-verdict fix, discovered mid-sweep, not a wing
+  item but load-bearing for the record's honesty:** `contention.py`'s
+  verdict moved from whole-machine idle% (which counts a board's own
+  threads — an mco `--threads 8` board could never clear a fixed
+  65% floor even in an empty room) to named-competitor load. Caught
+  a run the old metric would have banked wrong: a stuck renderer
+  averaging 52% CPU across a 3h43m board, loadavg to 123, masked by
+  a still-passing median idle.
+- Optima: 381 → 386 (+5), entirely from the proof boards
+  (`ipc-opt-2008-11` +6, `ipc2014-opt` −1, `ipc2026-opt` =).
+
 ## Anti-pots, and the banked reads
 
 - **Classical PDBs: the read is banked, the centerpiece declined.**

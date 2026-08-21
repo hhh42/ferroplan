@@ -4,9 +4,20 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-Accumulating toward 0.24.0 — the SAT wing. Board claims land with
-the cut sweep. Full record:
+## [0.24.0] - 2026-08-20 — The SAT wing: the zero block gets its first nonzero row
+
+The cycle that absorbed a solver instead of hand-rolling one, built the
+first machinery in this planner's history that can crack the
+temporal-machine-shop family, and caught its own regression before it
+shipped. Full record:
 [`docs/roadmap-0.24.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.24.md).
+
+### Where this leaves the standings
+
+**63% coverage across 22 IPC boards** (3,981/6,366), of which **386
+are certified optima** — up from 62%/3,916/6,366/381 at 0.23.0.
++65 net across the (unchanged) board set. At-a-glance:
+[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md).
 
 - **THE HEADLINE: temporal-machine-shop falls.** TMS-2011 i2 —
   SOLVED, VAL-valid, ~1 s (Mode::Sat, horizon 16, one STN
@@ -14,6 +25,19 @@ the cut sweep. Full record:
   the family where every non-SAT entrant ever fielded scored zero.
   The zero block has its first nonzero row. slitherlink p01 falls
   to the classical face for a second first.
+- **The cut's own canary caught a real regression before it
+  shipped.** The 22-board sweep read match-cellar at 0/20
+  (2014-tempo) and 7/20 (2011) against a 40/40 expectation — the
+  promoted SAT rung was running against the WHOLE wall (h32
+  ground its conflict budget in pure SAT conflicts, zero STN
+  refutations, so the pre-registered thrash bail never saw
+  anything to bail on) and starving the 0.02 s classical ladder of
+  any time to run at all. Fixed: the promoted entry now gets
+  `FF_SAT_PROMO_WALL_FRAC` (default 0.5) of the remaining wall as
+  its own bounded slice, handing back cleanly on expiry so the
+  ladder always gets its turn. Re-swept clean: match-cellar back to
+  40/40 at 0.23's exact costs (750, 1060); TMS-2011 i2 unaffected
+  (still 0.4 s).
 - **ferroplan-sat**: varisat absorbed and owned — 5,012 lines, zero
   external dependencies, attribution preserved, a differential
   battery that proved itself RED against a lying stub and never
@@ -27,7 +51,14 @@ the cut sweep. Full record:
   never "unsolvable" without a proof).
 - **Stage c**: `within`/`always-within` lowered onto a
   search-stamped clock — the 2006 constraints gate names nothing
-  unenforced; six timed solves banked oracle-green.
+  unenforced; six timed solves banked oracle-green; the
+  constraints board itself moves 12/120 → 28/120.
+- **onlycraft's docket reads paid**: both numeric-2026 variants
+  (opt and sat) move 3/20 → 20/20, 34 of this board's 37-instance
+  gain — the roadmap's open engine docket from 0.22's reallocation.
+  Measured on this cut, mechanism not separately chased down this
+  cycle (no targeted commit touches it) — worth confirming it holds
+  under contention before calling it closed for good.
 - **The basket**: the temporal search pays the wall (sokoban-t's
   honest exits); the a2 chain converts pathwaysmetric i2 at 173
   evals; the hash-join candidate lists clear the slitherlink gate
@@ -37,6 +68,42 @@ the cut sweep. Full record:
   honesty on the MCP wire; the village tick loop 15.6 → 10.6 s at
   byte-identical evals; bazaar think latency halved. Mode::Sat
   reaches the wire by construction.
+- **The contention-verdict methodology moved off raw idle%.**
+  Whole-machine idle counts a board's OWN threads, so a fixed
+  floor could never pass an mco `--threads 8` board even in an
+  empty room (measured: 38-40% idle with <5% real competing load).
+  The verdict now keys off named-competitor load instead — and
+  caught a run the old metric missed (a stuck renderer process
+  averaging 52% CPU across a 3h43m board, loadavg spiking to 123,
+  masked by a still-above-floor median idle).
+
+## Movement — all 22 boards, 0.23 promoted vs 0.24 promoted
+
+| board | track | 0.23 | 0.24 | delta | what moved |
+|---|---|---|---|---|---|
+| ipc2026-numeric | 2026 numeric | 180/320 | 217/320 | +37 | onlycraft opt+sat 3/20→20/20 each (+34); settlers-snp +2; factory-robot +1 |
+| ipc5-constraints | constraints (60 s) | 12/120 | 28/120 | +16 | stage c's timed-operator lowering continues into the 2006 corpus |
+| ipc-opt-2008-11 (proof) | seq-opt | 281/550 | 287/550 | +6 | +6 certs |
+| ipc5-prop | propositional | 366/450 | 369/450 | +3 | quality 0.90 |
+| ipc67-netben | net-benefit | 246/270 | 248/270 | +2 | recovers both 0.23 wall losses |
+| ipc2018-sat | 2018 seq-sat | 80/240 | 82/240 | +2 | |
+| ipc67-temporal | tempo-sat 08+11 | 436/630 | 437/630 | +1 | match-cellar restored to parity (20/20) plus a net +1 elsewhere |
+| ipc67-results | seq-sat 08+11 | 503/580 | 504/580 | +1 | |
+| ipc2023-agile | 2023 classical | 36/140 | 37/140 | +1 | |
+| ipc2023-agile-300s | 2023 agile ENTRY | 51/140 | 52/140 | +1 | |
+| ipc5-time | time | 77/130 | 77/130 | = | |
+| ipc5-metric-time | metric-time | 54/200 | 54/200 | = | |
+| ipc2026-opt (proof) | 2026 numeric-opt | 22/60 | 22/60 | = | |
+| ipc2023-numeric | 2023 numeric | 251/400 | 251/400 | = | |
+| ipc2014-tempo | 2014 tempo-sat | 74/200 | 74/200 | = | match-cellar restored to parity (20/20); net board total unchanged |
+| ipc7-mco-t2 | seq-mco t2 | 230/280 | 230/280 | = | |
+| ipc7-mco-t4 | seq-mco t4 | 237/280 | 237/280 | = | |
+| ipc7-mco-t8 | seq-mco t8 | 240/280 | 240/280 | = | |
+| ipc2014-sat | 2014 seq-sat | 151/280 | 149/280 | −2 | |
+| ipc2014-agile | 2014 seq-agile | 147/280 | 146/280 | −1 | |
+| ipc2014-opt (proof) | 2014 seq-opt | 78/256 | 77/256 | −1 | |
+| ipc2014-mco-t4 | 2014 seq-mco t4 | 164/280 | 163/280 | −1 | |
+| **TOTAL** | | **3,916/6,366 (62%)** | **3,981/6,366 (63%)** | **+65** | optima 381 → 386 |
 
 ## [0.23.0] - 2026-08-16 — The temporal cycle, and the whole table on one box
 
@@ -165,109 +232,6 @@ re-entries add 1,002/1,450. At-a-glance:
   registry gate; cut23-sweeps.sh carries all 22 boards with the mco
   methodology written where it renders.
 
-## [0.22.0] - 2026-08-08 — The coverage cycle, and the re-entries that ran hot
-
-The cycle scoped as "think big" on solving coverage: a fresh
-per-domain decode of all thirteen 0.21 boards, four numbered pots
-(the 645-instance classical-satisficing centerpiece, 503 optimal-proof
-timeouts, 344 temporal failures, 318 numeric-satisficing timeouts),
-and one gate that outranked all of them — markettrader i3's VAL-RED,
-zeroed in Phase 1 before any coverage lever was pulled. Full record:
-[`docs/roadmap-0.22.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.22.md).
-
-- **The gate passed, and the boards' one VAL-RED is not ours**
-  (Phase 1): VAL type-check-refuses markettrader's instances before
-  reading any plan (undeclared fuel fluents from a commented-out
-  metric); the plan hand-replays valid. The harness knows both
-  typecheck signatures now; the VAL-RED class zeroes with no board
-  edits.
-- **The charge's -8 bill, paid** (Phase 1): per-achiever gap-SUM
-  damping (MAX built first, measured, recorded as the negative)
-  recovers ext-plant-watering i7/i13, delivery i18/i19, rover i19
-  while sailing/pathwaysmetric/tpp receipts stay byte-identical.
-  `FF_NUMPRE_NODAMP=1` restores 0.21 exactly. counters/zenotravel's
-  three re-attributed to the old-binary column.
-- **Grounding holds a budget** (Phases 1+2): block-grouping i3's
-  4^21-conjunct DNF balloon (76 s past a 60 s wall) becomes a 7.8 s
-  honest exit; 2048's 67-74 s enumeration zombies end by 60.6 s;
-  partition mode finally narrates under `FF_WALL_DEBUG`. Notes say
-  "stopped at the declared budget" — never "unsolvable".
-- **The optimal ladder's third lesson** (Phases 3+4): the root gate
-  gains a margin (city-car's six thin-ratio losses gate b-branch
-  again), the sprint slice scales down where landmark structure is
-  unambiguous (scanalyzer-08 i4: PROVEN at 6.0 s vs 23.2 s), LM-cut
-  runs as a bounded probe with h^max RESUMING its preserved open
-  list on failure — and the proof boards learn numbers: an
-  interval-RPG layer bound, admissible fail-closed behind a
-  reject-by-name audit, takes sailing-wind-opt i8 from 2.86M blind
-  expansions to 132k (+numRPG names itself in the PROVEN note). The
-  differential gained the board-budget mode that catches what 90 s
-  forgiveness hid — and promptly convicted 11 of the 12 named
-  slice-losses on the old binary.
-- **The partitioned driver takes the novelty slot** (Phase 5B): the
-  centerpiece — subgoal-feature partition, width-2 pair novelty, an
-  h-free driver queue (3.3× states per slice-second where the old
-  rung paid per-pop h), numeric gap-bucket features opt-in.
-  FF_NOV_OLD restores the 0.21 rung byte-identically; the cut's
-  old-binary column is the pre-registered referee.
-- **The symmetry engine** (Phase 6): orbit-canonical visited keys,
-  optimal and satisficing — child-snack-opt i1 goes from three
-  releases of node-cap walls to PROVEN OPTIMAL cost 21, VAL-valid;
-  a 20-certificate orbit-active sample re-certifies 20/20 at exact
-  costs; child-snack-sat i6 converts at 15.9 s. barman honestly
-  deflates to +0–4 (the goal pins most shots).
-- **Grounding scale** (Phase 7): MCV join ordering (byte-identical
-  by construction) and a threshold-routed fixpoint — 2048 i8 goes
-  from 74 s enumeration zombies to a 203-step solve inside the
-  wall; block-grouping's 4^21 or-goal balloon compiles factored.
-  The audit found solved products to 1.62e12, so the route bar rose
-  to 1e13 and caldera's pot is forfeited on the record rather than
-  risked.
-- **The wall is spent on a clock** (Phases 2+5A): time-based
-  checkpoints in every rung, a teardown reserve so huge-arena runs
-  report instead of dying mid-drop, progress-conditional LAMA slice
-  (0.25) + novelty slice (0.30) + per-rung-entry affordability.
-  gear-car i6 converts at 57.8 s; sailing-wind-opt's node-cap
-  early-exits end honestly (conversion negative recorded);
-  tidybot/openstacks casualties clean.
-- **The gate batch, adjudicated** (pre-cut): the board-budget
-  differential on the final binary read 11 slice-loss regressions
-  down to 6 (sprint-resume recovered five); the b-flip proofs landed
-  — city-car i8 PROVEN cost 76 (v0.19's certificate, to the digit)
-  and tetris i5 PROVEN cost 30. block-grouping i3 and 2048 i9 solve
-  in hundredths of a second; org-synth i01 routes and solves. The
-  fixpoint route's threshold moved 1e8 → 1e13 after the audit found
-  currently-solved products up to 1.62e12 — caldera's pot forfeits
-  on the record rather than risking the sokoban-t regression class.
-
-### Where this leaves the standings
-
-**58% coverage across 16 IPC boards** (2,867/4,916), of which **373
-are certified optima**. At-a-glance:
-[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md);
-per-track detail:
-[`benchmarks/ipc-standings.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc-standings.md);
-rough field placement per year/track (new this cut):
-[`docs/ipc-rankings.md`](https://github.com/hhh42/ferroplan/blob/main/docs/ipc-rankings.md).
-
-On the thirteen boards comparable to 0.21 (same 4,076-instance
-denominator), coverage moves **2,153 → 2,248 (+95)** — the floor of
-the cycle's own +80–190 ambition band, not the stretch. Three boards
-re-entered after being cloud-era/unbaselined for several cycles
-(propositional, net-benefit, constraints) and overshot expectations
-by a wide margin — net-benefit alone reaches **92%**, this cut's
-strongest board. Folded in, the sixteen-board headline lands at the
-cycle's *stretch* target (58%), for a different reason than priced:
-the re-entries running hot, not the engine phases running hot.
-
-Two boards moved backward and are named rather than netted away:
-2014 seq-agile −1 (142→141), 2014 tempo-sat −3 (70→67). Every other
-comparable board held or gained; 2014 seq-opt's **+16** (58→74,
-+6.2 pts) is the cycle's single biggest mover.
-
-The sweep itself: sixteen boards, one clean pass, zero contended
-re-runs — every board's measured conditions verdict reads `clean`.
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (23 earlier releases, 0.1.0–0.21.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (24 earlier releases, 0.1.0–0.22.0).
