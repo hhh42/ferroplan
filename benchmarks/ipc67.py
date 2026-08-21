@@ -139,6 +139,30 @@ TRACK_PATTERNS = {
     # -opt instance sets also appear satisficing-style on numeric-2026 —
     # same files, different question.
     "opt-2026": r"-opt-numeric-2026",
+    # 0.25 Phase 1 (the table grows).
+    # 2018's opt/ half and 2023's real sat/opt tracks (vendored by the
+    # matching get-ipc.sh stanzas; pair the *-opt-* tracks with
+    # `--mode optimal`).
+    "opt-2018": r"sequential-optimal",
+    "sat-2023": r"-satisficing$",
+    "opt-2023": r"-optimal$",
+    # The FULL 2026 Overall Optimal constituency: the official track is
+    # the 13-domain/260-instance slice — every variant EXCEPT the three
+    # -sat halves of the paired domains (the -opt halves carry those
+    # domains' optimal-track instance sets). The 3-pair opt-2026 board
+    # above stays as the like-for-like slice.
+    "opt-2026-full": r"(?<!-sat)-numeric-2026",
+    # The IPC-5 preference tracks, full-corpus at last (the curated
+    # 8-instance boards under benchmarks/ipc5-*.md predate this). The $
+    # anchors exclude the -grounded alternate formulations of the same
+    # domains (sweeping both would double-count).
+    "simple-pref-2006": r"preferences-simple$",
+    "qual-pref-2006": r"preferences-qualitative$",
+    # Complex preferences: the pattern exists so the Phase 2 entry has a
+    # track name waiting; today these rows reject on the preference-over-
+    # timed-body composition (the rankings row is precise: the operators
+    # PARSE) — a canary run before the entry lands is expected red.
+    "complex-pref-2006": r"preferences-complex$",
 }
 
 # Which competition directories each track lives in.
@@ -164,6 +188,14 @@ TRACK_IPCS = {
     "numeric-2023": ("ipc-2023n",),
     "numeric-2026": ("ipc-2026n",),
     "opt-2026": ("ipc-2026n",),
+    # 0.25 Phase 1 (the table grows).
+    "opt-2018": ("ipc-2018",),
+    "sat-2023": ("ipc-2023",),
+    "opt-2023": ("ipc-2023",),
+    "opt-2026-full": ("ipc-2026n",),
+    "simple-pref-2006": ("ipc-2006",),
+    "qual-pref-2006": ("ipc-2006",),
+    "complex-pref-2006": ("ipc-2006",),
 }
 
 

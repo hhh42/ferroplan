@@ -13,6 +13,8 @@ for scoring semantics and the failure-class definitions.
 | time | yes | 77/130 | makespan vs best-of-field: 27W/3T/47L, mean quality 0.80 (77 scored) | 53 timeout |
 | metric-time | yes | 54/200 | makespan vs best-of-field: 43W/1T/10L, mean quality 0.94 (54 scored) | 17 early-exit, 129 timeout |
 | constraints | yes | 28/120 | coverage-only (timed modal ops rejected by name) | 18 early-exit, 74 timeout |
+| simple-preferences (full corpus) | sweep in flight / not yet run | — | — | — |
+| qualitative-preferences (full corpus) | sweep in flight / not yet run | — | — | — |
 | simple-preferences | yes | see board | reference-scored — [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |
 | qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won outright) | — |
 | complex-preferences | no (modal operators rejected by name) | — | — | feature gap, on the deferred list |
@@ -45,14 +47,21 @@ for scoring semantics and the failure-class definitions.
 | 2014 seq-sat | yes (first entry, 0.17) | 149/280 | coverage + VAL | 2 mem-cap, 129 timeout |
 | 2014 seq-agile | yes (first entry, 0.17) | 146/280 | coverage + VAL | 1 mem-cap, 133 timeout |
 | 2014 tempo-sat | yes (first entry, 0.17) | 74/200 | coverage + VAL | 1 mem-cap, 125 timeout |
+| 2014 seq-mco t2 | sweep in flight / not yet run | — | — | — |
 | 2014 seq-mco t4 | yes (first entry, 0.17) | 163/280 | wall-clock per competition rule (--threads 4, one instance at a time; 4P+6E box) | 2 early-exit, 1 mem-cap, 114 timeout |
+| 2014 seq-mco t8 | sweep in flight / not yet run | — | — | — |
 | 2014 seq-opt | yes (first entry, 0.19) | 77/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 179 timeout |
 | 2018 seq-sat | yes (first entry, 0.17) | 82/240 | vs best-known bounds: 0W/1T/28L, mean quality 0.77 (29 scored) | 6 mem-cap, 152 timeout |
+| 2018 seq-opt | sweep in flight / not yet run | — | — | — |
 | 2023 classical | yes (first entry, 0.17) | 37/140 | vs best-known bounds: 0W/12T/25L, mean quality 0.79 (37 scored) | 1 mem-cap, 102 timeout |
+| 2023 seq-sat | sweep in flight / not yet run | — | — | — |
+| 2023 seq-opt | sweep in flight / not yet run | — | — | — |
 | 2023 agile ENTRY (300s) | yes (OFFICIAL-BUDGET entry, 0.19) | 52/140 | OFFICIAL 300 s budget — a competition-methodology ENTRY, not a baseline | 2 engine-reject/error, 13 mem-cap, 73 timeout |
 | 2023 numeric | yes (first entry, 0.17) | 251/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 6 early-exit, 1 engine-reject/error, 1 mem-cap, 141 timeout |
+| 2023 numeric-opt | sweep in flight / not yet run | — | — | — |
 | 2026 numeric (first board) | yes (FIRST ENTRY, 0.20 — new corpus) | 217/320 | coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all swept satisficing-style on this first board | 103 timeout |
 | 2026 numeric-opt | yes (FIRST ENTRY, 0.21 — the -opt pairs, ⚖️) | 22/60 | coverage = PROOF RATE (Mode::Optimal over the three -opt pairs; LENGTH optima — the vendored corpus carries no active :metric; every certificate VAL-checked) | 11 early-exit, 27 timeout |
+| 2026 numeric-opt FULL | sweep in flight / not yet run | — | — | — |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).
 

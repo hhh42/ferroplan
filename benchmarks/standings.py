@@ -82,6 +82,11 @@ AIR_REBASELINED = {
     "2014 seq-mco t4",
     # shared-sweep labels, split per competition at render time
     "seq-opt", "tempo-sat", "seq-sat",
+    # 0.25 Phase 1 entries: born on the Air — a missing raw means the
+    # entries sweep hasn't run yet, never a cloud-era ghost.
+    "2014 seq-mco t2", "2014 seq-mco t8", "2018 seq-opt", "2023 seq-sat",
+    "2023 seq-opt", "2023 numeric-opt", "2026 numeric-opt FULL",
+    "simple-preferences (full corpus)", "qualitative-preferences (full corpus)",
 }
 CLOUD_ERA = "cloud-era board, NOT re-baselined — see git history"
 
@@ -144,6 +149,29 @@ SWEEPS = {
     # (sailing-wind's is commented out; rainbowttles declares
     # :action-costs with zero total-cost effects).
     "ipc2026-opt.jsonl": ("2026 numeric-opt", "modern", 60),
+    # ------------------------------------------------------------------
+    # 0.25 Phase 1 — the table grows. New ENTRIES, first swept by
+    # entries25-sweeps.sh (a separate sweep from the standing 22 so the
+    # like-for-like table keeps its identity; the cut record carries two
+    # headlines by design). Every one is an entry, not a movement — no
+    # before/after exists until its second cut.
+    "ipc2014-mco-t2.jsonl": ("2014 seq-mco t2", "modern", 60),
+    "ipc2014-mco-t8.jsonl": ("2014 seq-mco t8", "modern", 60),
+    "ipc2018-opt.jsonl": ("2018 seq-opt", "optimal", 60),
+    "ipc2023-sat.jsonl": ("2023 seq-sat", "modern", 60),
+    "ipc2023-opt.jsonl": ("2023 seq-opt", "optimal", 60),
+    # The 2023 numeric corpus under Mode::Optimal — the track whose field
+    # receipts (ipc-2023n/results/opt.csv) were vendored with the corpus
+    # and never had a board to referee.
+    "ipc2023-numeric-opt.jsonl": ("2023 numeric-opt", "modern", 60),
+    # The FULL 2026 Overall Optimal constituency (13 domains / 260): the
+    # 3-pair ipc2026-opt board above stays as the like-for-like slice.
+    "ipc2026-opt-full.jsonl": ("2026 numeric-opt FULL", "modern", 60),
+    # The IPC-5 preference tracks at full corpus (the curated 8-instance
+    # boards under benchmarks/ipc5-*.md predate these and keep their
+    # reference-scored role).
+    "ipc5-simple-pref.jsonl": ("simple-preferences (full corpus)", "ipc5", 60),
+    "ipc5-qual-pref.jsonl": ("qualitative-preferences (full corpus)", "ipc5", 60),
 }
 
 # our 2006 variant name -> (archive domain dir, archive track dir prefix)
@@ -383,7 +411,10 @@ HISTORY = os.path.join(B, "standings-history.json")
 # Tracks where coverage IS proof rate: a solved row carries an optimality
 # certificate, so 45% there is a categorically different claim from 45% on a
 # satisficing board and must not be read as "worse".
-PROOF_TRACKS = {"seq-opt", "2014 seq-opt", "2026 numeric-opt"}
+PROOF_TRACKS = {"seq-opt", "2014 seq-opt", "2026 numeric-opt",
+                # 0.25 Phase 1 entries — proof boards from birth.
+                "2018 seq-opt", "2023 seq-opt", "2023 numeric-opt",
+                "2026 numeric-opt FULL"}
 
 
 def _history():
@@ -618,6 +649,12 @@ def main():
         ("metric-time",
          "coverage-only (raw predates the 0.22 makespan column)"),
         ("constraints", "coverage-only (timed modal ops rejected by name)"),
+        # 0.25 Phase 1: the preference tracks at full corpus (the curated
+        # 8-instance reference-scored boards keep their own files).
+        ("simple-preferences (full corpus)",
+         "coverage = hard-goal solves; preference metric in the raw"),
+        ("qualitative-preferences (full corpus)",
+         "coverage = hard-goal solves; preference metric in the raw"),
     ]
     lines += [
         "| track | entered | coverage | quality | failure classes |",
@@ -773,10 +810,14 @@ def main():
         best = {}
         p23 = os.path.join(corpus, "ipc-2023", "bounds.json")
         if os.path.exists(p23):
+            # agl/, sat/ and opt/ carry DIFFERENT instance sets under the
+            # same domain names (0.25: the sat/opt boards joined), so the
+            # key is track-scoped — "2023-agl" etc., never bare "2023".
             for path, (_, hi) in json.load(open(p23)).items():
-                m = re.match(r"agl/([\w-]+)/p(\d+)\.pddl", path)
+                m = re.match(r"(agl|sat|opt)/([\w-]+)/p(\d+)\.pddl", path)
                 if m and hi is not None:
-                    best[("2023", m.group(1), int(m.group(2)))] = float(hi)
+                    k = (f"2023-{m.group(1)}", m.group(2), int(m.group(3)))
+                    best[k] = float(hi)
         p18 = os.path.join(corpus, "ipc-2018", "cost_bounds.json")
         if os.path.exists(p18):
             for path, cost in json.load(open(p18)):
@@ -816,16 +857,22 @@ def main():
     ]
     MODERN_Q = {
         "2018 seq-sat": ("2018", "-sequential-satisficing"),
-        "2023 classical": ("2023", "-agile"),
+        "2023 classical": ("2023-agl", "-agile"),
+        # 0.25: the real 2023 satisficing track, scored against the same
+        # vendored bounds file's sat/ keys. The opt/ board is a PROOF
+        # board and takes the proof-rate note below instead.
+        "2023 seq-sat": ("2023-sat", "-satisficing"),
     }
     for label in ["2014 seq-sat", "2014 seq-agile", "2014 tempo-sat",
-                  "2014 seq-mco t4", "2014 seq-opt", "2018 seq-sat",
-                  "2023 classical", "2023 agile ENTRY (300s)",
-                  "2023 numeric",
+                  "2014 seq-mco t2", "2014 seq-mco t4", "2014 seq-mco t8",
+                  "2014 seq-opt", "2018 seq-sat", "2018 seq-opt",
+                  "2023 classical", "2023 seq-sat", "2023 seq-opt",
+                  "2023 agile ENTRY (300s)",
+                  "2023 numeric", "2023 numeric-opt",
                   # 0.20 cut prep added this board to SWEEPS but never to the
                   # render list, so it could never have appeared in the table.
                   "2026 numeric (first board)",
-                  "2026 numeric-opt"]:
+                  "2026 numeric-opt", "2026 numeric-opt FULL"]:
         d = data.get(label)
         if d is None:
             lines.append(f"| {label} | {absent(label)} | — | — | — |")
@@ -850,11 +897,27 @@ def main():
         elif label == "2014 seq-mco t4":
             q = ("wall-clock per competition rule (--threads 4, one "
                  "instance at a time; 4P+6E box)")
-        elif label == "2014 seq-opt":
+        elif label in ("2014 seq-opt", "2018 seq-opt", "2023 seq-opt"):
             q = ("coverage = PROOF RATE (Mode::Optimal, A* + admissible "
                  "LM-cut, h^max sprint first; every plan certified + VAL)")
+        elif label in ("2014 seq-mco t2", "2014 seq-mco t8"):
+            q = ("wall-clock per competition rule (one instance at a "
+                 "time; 4P+6E box" +
+                 (", t8 oversubscribed by construction)" if "t8" in label
+                  else ")"))
+        elif label == "2023 numeric-opt":
+            q = ("coverage = PROOF RATE over the numeric corpus; the "
+                 "track's official field CSV (ipc-2023n/results/opt.csv) "
+                 "is the vs-field referee")
+        elif label == "2026 numeric-opt FULL":
+            q = ("coverage = PROOF RATE over the official 13-domain/260 "
+                 "Overall Optimal constituency (the 3-pair board above "
+                 "is the like-for-like slice)")
         else:
             q = "coverage + VAL"
+        NEW_25 = ("2014 seq-mco t2", "2014 seq-mco t8", "2018 seq-opt",
+                  "2023 seq-sat", "2023 seq-opt", "2023 numeric-opt",
+                  "2026 numeric-opt FULL")
         entered = ("yes (first entry, 0.19)" if label == "2014 seq-opt"
                    else "yes (OFFICIAL-BUDGET entry, 0.19)" if label == "2023 agile ENTRY (300s)"
                    # The 2026 corpus was a blocked rider at 0.20 scoping (the
@@ -864,6 +927,9 @@ def main():
                    if label == "2026 numeric (first board)"
                    else "yes (FIRST ENTRY, 0.21 — the -opt pairs, ⚖️)"
                    if label == "2026 numeric-opt"
+                   # 0.25 Phase 1: the table grows — entries, not movement.
+                   else "yes (FIRST ENTRY, 0.25 — the table grows)"
+                   if label in NEW_25
                    else "yes (first entry, 0.17)")
         lines.append(f"| {label} | {entered} | {s}/{n} | {q} | {fails} |")
     lines += [
