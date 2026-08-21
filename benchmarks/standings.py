@@ -417,6 +417,123 @@ PROOF_TRACKS = {"seq-opt", "2014 seq-opt", "2026 numeric-opt",
                 "2026 numeric-opt FULL"}
 
 
+# --------------------------------------------------------------------------
+# The vs-field column (0.25 Phase 1): field placement as DATA, not a
+# hand-refreshed page. Cohorts come from benchmarks/field-results.json
+# (the ipc-rankings.md numbers, promoted to machine-readable with their
+# provenance) plus the vendored official IPC-2023 numeric CSVs, parsed
+# live. A cell is a rough coverage-rate placement under the standing
+# caveats (30x budget gap, hardware confound, coverage != IPC's quality
+# formula) — never a claimed result. docs/ipc-rankings.md stays the
+# prose companion.
+def load_field():
+    out = {}
+    p = os.path.join(B, "field-results.json")
+    if os.path.exists(p):
+        out.update(json.load(open(p)).get("cohorts", {}))
+    import csv as _csv
+    for label, fname in (("2023 numeric", "sat.csv"),
+                         ("2023 numeric-opt", "opt.csv")):
+        cp = os.path.join(B, ".ipc-corpus", "ipc-2023n", "results", fname)
+        if not os.path.exists(cp):
+            continue
+        with open(cp, encoding="utf-8-sig") as f:
+            rows = list(_csv.reader(f))
+        names = [n.strip() for n in rows[0][2:] if n.strip()]
+        tot = [0] * len(names)
+        doms = 0
+        total_row = None
+        for r in rows[1:]:
+            if len(r) < 3:
+                continue
+            # Domain rows carry a group tag in col 1 (SNP/LNP); the
+            # trailing summary rows ("Total", per-group) leave it empty —
+            # summing those in triples every count.
+            if not r[0].strip():
+                if r[1].strip() == "Total":
+                    total_row = r
+                continue
+            doms += 1
+            for i in range(len(names)):
+                try:
+                    tot[i] += int(r[2 + i])
+                except (ValueError, IndexError):
+                    pass
+        if total_row is not None:
+            # Prefer the official Total row verbatim over our own sum.
+            for i in range(len(names)):
+                try:
+                    tot[i] = int(total_row[2 + i])
+                except (ValueError, IndexError):
+                    pass
+        of = doms * 20
+        out[label] = {
+            "entrants": [[n, t, of] for n, t in zip(names, tot)],
+            "field_size": len(names),
+            "note": "official per-domain CSV (ipc-2023n/results), parsed live",
+            "confidence": "high",
+        }
+    return out
+
+
+def _ord(n):
+    if 10 <= n % 100 <= 20:
+        return "th"
+    return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+
+
+def _placement(cohort, s, n):
+    """Rank our s/n among a cohort's entrants by coverage RATE (the only
+    currency that survives mismatched denominators). '~' marks a field
+    with unlocated entrants — the rank is a floor on ignorance, and says
+    so by being approximate."""
+    ents = cohort.get("entrants") or []
+    if not ents or not n:
+        return None
+    ours = s / n
+    ahead = sum(1 for _, es, eo in ents if eo and es / eo > ours)
+    known = len(ents)
+    fs = cohort.get("field_size") or known
+    total = fs + 1  # the field plus us, the ipc-rankings.md convention
+    approx = "~" if fs > known else ""
+    lead = max(ents, key=lambda e: (e[1] / e[2]) if e[2] else 0.0)
+    r = ahead + 1
+    # A sparse entrant list makes strict-rank optimistic; a cohort that
+    # KNOWS more entrants sit ahead than it lists carries a rank_floor
+    # (e.g. "7 confirmed entrants span 163-198", "below the field
+    # median of 24"), and the cell says ≥ instead of pretending. The
+    # floor is CONDITIONAL on its justifying entrant still being ahead
+    # (rank_floor_if_behind names it) — a future cut that passes that
+    # mark must not inherit a stale pessimism either.
+    floor = cohort.get("rank_floor", 1)
+    justif = cohort.get("rank_floor_if_behind")
+    if justif is not None:
+        je = next((e for e in ents if e[0] == justif), None)
+        if not (je and je[2] and je[1] / je[2] > ours):
+            floor = 1
+    if floor > r:
+        r, approx = floor, "≥"
+    return (f"{approx}{r}{_ord(r)} of {total} by rate "
+            f"(leader {lead[0]} {lead[1]}/{lead[2]})")
+
+
+def field_cell(field, label, rows, s, n):
+    cohort = field.get(label)
+    if not cohort:
+        return "—"
+    if "splits" in cohort:
+        parts = []
+        for ipc, sub in sorted(cohort["splits"].items()):
+            rs = [r for r in rows if r.get("ipc") == ipc]
+            ss = sum(1 for r in rs if solved(r))
+            p = _placement(sub, ss, len(rs))
+            if p:
+                parts.append(f"{ipc[-4:]}: {p}")
+        return " · ".join(parts) if parts else "—"
+    p = _placement(cohort, s, n)
+    return p or "—"
+
+
 def _history():
     if not os.path.exists(HISTORY):
         return []
@@ -485,8 +602,9 @@ def write_summary(data):
         s, n, _ = coverage_line(rows, budget)
         if not n:
             continue
-        live.append((label, s, n, 100.0 * s / n))
+        live.append((label, s, n, 100.0 * s / n, rows))
     live.sort(key=lambda r: -r[3])
+    field = load_field()
 
     tot_s = sum(r[1] for r in live)
     tot_n = sum(r[2] for r in live)
@@ -508,15 +626,17 @@ def write_summary(data):
     bands = [("Strong", lambda p: p >= 60), ("Middle", lambda p: 25 <= p < 60),
              ("Weak", lambda p: p < 25)]
     for name, pred in bands:
-        rows = [r for r in live if pred(r[3])]
-        if not rows:
+        band_rows = [r for r in live if pred(r[3])]
+        if not band_rows:
             continue
         L += [f"## {name}", "",
-              "| track | coverage | | vs previous |", "|---|---|---|---|"]
-        for label, s, n, pct in rows:
+              "| track | coverage | | vs previous | vs field |",
+              "|---|---|---|---|---|"]
+        for label, s, n, pct, rows in band_rows:
             mark = " ⚖️" if label in PROOF_TRACKS else ""
             L.append(f"| {label}{mark} | {s}/{n} | `{_bar(pct)}` {pct:.0f}% "
-                     f"| {_delta(label, s, n, prev)} |")
+                     f"| {_delta(label, s, n, prev)} "
+                     f"| {field_cell(field, label, rows, s, n)} |")
         L += [""]
 
     if pending:
@@ -540,6 +660,13 @@ def write_summary(data):
           "- **vs previous** compares only against a release measured on the same "
           "hardware. A blank means no comparable predecessor exists yet, not zero "
           "movement.",
+          "- **vs field** is a rough coverage-RATE placement against that "
+          "competition's actual entrants (data: `benchmarks/field-results.json` "
+          "+ the vendored official IPC-2023n CSVs), under the standing caveats "
+          "— official budgets are ~30× ours, and coverage ≠ IPC's "
+          "quality-weighted scoring. `~` marks a field with unlocated "
+          "entrants; `—` means no per-entrant field data is held. Prose and "
+          "provenance: [`docs/ipc-rankings.md`](docs/ipc-rankings.md).",
           "- A board is only as honest as its conditions; those are recorded per "
           "cycle in `docs/roadmap-0.N.md`.", ""]
     with open(SUMMARY, "w") as f:
@@ -568,7 +695,7 @@ def _patch_readme(live, tot_s, tot_n, proofs, box):
         return
     head_end = text.find("-->", i) + 3
     top = [f"| track | coverage | |", "|---|---|---|"]
-    for label, s, n, pct in live[:5]:
+    for label, s, n, pct, _rows in live[:5]:
         mark = " ⚖️" if label in PROOF_TRACKS else ""
         top.append(f"| {label}{mark} | {s}/{n} | `{_bar(pct, 16)}` {pct:.0f}% |")
     block = [

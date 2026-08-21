@@ -1,0 +1,430 @@
+{
+  "_meta": {
+    "what": "Machine-readable field results — the per-entrant coverage numbers behind docs/ipc-rankings.md, promoted to data (0.25 Phase 1) so STANDINGS.md can carry a regenerating vs-field column instead of a hand-refreshed page that drifts cuts stale.",
+    "provenance": "Transcribed from docs/ipc-rankings.md (which cites official archives per row) and benchmarks/ipc2011-temporal-field.md. The IPC-2023 numeric cohorts are NOT duplicated here — standings.py parses the vendored official CSVs (.ipc-corpus/ipc-2023n/results/) directly.",
+    "caveats": "Official budgets are typically 1800 s vs our 60 s boards (30x, named per row in ipc-rankings.md); hardware/calendar confound; coverage != the quality-weighted IPC scoring formula. A vs-field cell is a rough placement, never a claimed result.",
+    "format": "cohorts.<SWEEPS label> -> {entrants: [[name, solved, of], ...], field_size: total entrants in the official field (null if unknown; > len(entrants) means only the located ones are listed), note, confidence}. Boards merging two competitions carry splits keyed by the rows' own ipc field."
+  },
+  "cohorts": {
+    "propositional": {
+      "entrants": [
+        [
+          "SGPlan5",
+          218,
+          220
+        ],
+        [
+          "Downward-reference",
+          178,
+          220
+        ],
+        [
+          "MIPS-XXL",
+          68,
+          220
+        ],
+        [
+          "YochanPS",
+          41,
+          220
+        ]
+      ],
+      "field_size": 4,
+      "note": "field counted on the official 220-instance typed corpus; our board is the larger 450 — rate comparison only",
+      "confidence": "medium"
+    },
+    "time": {
+      "entrants": [
+        [
+          "SGPlan5",
+          80,
+          130
+        ],
+        [
+          "YochanPS",
+          58,
+          130
+        ],
+        [
+          "MIPS-XXL",
+          32,
+          130
+        ],
+        [
+          "CPT2",
+          15,
+          130
+        ]
+      ],
+      "field_size": 5,
+      "note": "archive-counted on the exact 130-instance corpus",
+      "confidence": "medium-high"
+    },
+    "metric-time": {
+      "entrants": [
+        [
+          "SGPlan5",
+          151,
+          200
+        ],
+        [
+          "MIPS-XXL",
+          31,
+          200
+        ],
+        [
+          "YochanPS",
+          12,
+          200
+        ],
+        [
+          "CPT2",
+          6,
+          200
+        ]
+      ],
+      "field_size": 5,
+      "note": "archive-counted on the exact 200-instance corpus",
+      "confidence": "medium-high"
+    },
+    "constraints": {
+      "entrants": [
+        [
+          "SGPlan5",
+          47,
+          80
+        ],
+        [
+          "MIPS-XXL",
+          13,
+          80
+        ]
+      ],
+      "field_size": 3,
+      "note": "field counted on the officially-scored 80-instance subset; our board is the full 120",
+      "confidence": "low"
+    },
+    "qualitative-preferences (full corpus)": {
+      "entrants": [
+        [
+          "SGPlan5",
+          100,
+          100
+        ],
+        [
+          "HPlan-P",
+          70,
+          100
+        ]
+      ],
+      "field_size": null,
+      "note": "SGPlan5 swept all 5 domains; matched 100-instance corpus",
+      "confidence": "medium"
+    },
+    "seq-sat": {
+      "splits": {
+        "ipc-2008": {
+          "entrants": [
+            [
+              "LAMA",
+              281,
+              300
+            ],
+            [
+              "FF(h_sa)",
+              225,
+              270
+            ],
+            [
+              "Plan-A",
+              37,
+              180
+            ]
+          ],
+          "field_size": 10,
+          "note": "entrant denominators differ in the official record",
+          "confidence": "high"
+        },
+        "ipc-2011": {
+          "entrants": [
+            [
+              "LAMA-2011",
+              250,
+              280
+            ],
+            [
+              "FDSS-2",
+              233,
+              280
+            ],
+            [
+              "PROBE",
+              233,
+              280
+            ],
+            [
+              "FDSS-1",
+              232,
+              280
+            ],
+            [
+              "FD-AUTOTUNE-1",
+              223,
+              280
+            ],
+            [
+              "ROAMER",
+              213,
+              280
+            ],
+            [
+              "ACOPLAN",
+              20,
+              280
+            ]
+          ],
+          "field_size": 27,
+          "note": "27-entrant field; located spread listed",
+          "confidence": "high"
+        }
+      }
+    },
+    "seq-opt": {
+      "splits": {
+        "ipc-2008": {
+          "entrants": [
+            [
+              "Gamer",
+              134,
+              270
+            ],
+            [
+              "HSP*F",
+              132,
+              270
+            ],
+            [
+              "CFDP",
+              24,
+              240
+            ]
+          ],
+          "field_size": 8,
+          "confidence": "medium"
+        },
+        "ipc-2011": {
+          "entrants": [
+            [
+              "FDSS-1",
+              185,
+              280
+            ],
+            [
+              "IFORKINIT",
+              144,
+              280
+            ],
+            [
+              "CPT4",
+              44,
+              280
+            ]
+          ],
+          "field_size": 12,
+          "confidence": "high"
+        }
+      }
+    },
+    "tempo-sat": {
+      "splits": {
+        "ipc-2008": {
+          "entrants": [
+            [
+              "SGPlan6",
+              318,
+              390
+            ],
+            [
+              "Temporal Fast Downward",
+              257,
+              390
+            ],
+            [
+              "TLP-GP",
+              6,
+              120
+            ]
+          ],
+          "field_size": 6,
+          "confidence": "high"
+        },
+        "ipc-2011": {
+          "entrants": [
+            [
+              "YAHSP2-MT",
+              145,
+              240
+            ],
+            [
+              "YAHSP2",
+              137,
+              240
+            ],
+            [
+              "DAEYAHSP",
+              136,
+              240
+            ],
+            [
+              "POPF2",
+              119,
+              240
+            ],
+            [
+              "LMTD",
+              62,
+              240
+            ]
+          ],
+          "field_size": 8,
+          "note": "DAEYAHSP won by official score; raw-coverage order shown",
+          "confidence": "high"
+        }
+      }
+    },
+    "net-benefit": {
+      "entrants": [
+        [
+          "Gamer",
+          81,
+          210
+        ],
+        [
+          "Mips-XXL",
+          59,
+          210
+        ],
+        [
+          "HSP*P",
+          51,
+          210
+        ]
+      ],
+      "field_size": 3,
+      "note": "thin optimization-only field on a 210-instance corpus; our board is 270 — rate comparison only",
+      "confidence": "low-medium"
+    },
+    "2014 seq-sat": {
+      "entrants": [
+        [
+          "IBaCoP2",
+          198,
+          280
+        ],
+        [
+          "located band floor",
+          163,
+          280
+        ],
+        [
+          "quality-tier floor",
+          125,
+          280
+        ]
+      ],
+      "field_size": 20,
+      "rank_floor": 8,
+      "note": "winner plus the located coverage bands from a 20-entrant field; SEVEN confirmed entrants span 163-198 (the rank_floor), 9 entrants' true numbers unlocated",
+      "confidence": "medium",
+      "rank_floor_if_behind": "located band floor"
+    },
+    "2014 seq-opt": {
+      "entrants": [
+        [
+          "SymBA*-2",
+          151,
+          280
+        ],
+        [
+          "Gamer",
+          83,
+          280
+        ],
+        [
+          "Hpp",
+          14,
+          280
+        ]
+      ],
+      "field_size": 17,
+      "note": "our board denominator is 256 (two truncated domains) — rate comparison",
+      "confidence": "high"
+    },
+    "2018 seq-sat": {
+      "entrants": [
+        [
+          "field mean",
+          94,
+          240
+        ],
+        [
+          "field median",
+          91,
+          240
+        ],
+        [
+          "fs-sim",
+          70,
+          240
+        ],
+        [
+          "fs-blind",
+          60,
+          240
+        ],
+        [
+          "freelunch-madagascar",
+          23,
+          240
+        ],
+        [
+          "alien",
+          15,
+          240
+        ],
+        [
+          "Symple-1/2",
+          14,
+          240
+        ]
+      ],
+      "field_size": 24,
+      "rank_floor": 13,
+      "note": "winners (FDSS-2018/Remix, by score) hold no located raw counts; mean/median stand in for the upper field — any coverage below the median of a 24-entrant field ranks at best 13th (the rank_floor)",
+      "confidence": "medium",
+      "rank_floor_if_behind": "field median"
+    },
+    "2026 numeric-opt": {
+      "entrants": [
+        [
+          "Tyr-opt-ground",
+          22,
+          60
+        ],
+        [
+          "Tyr-opt-lift",
+          21,
+          60
+        ],
+        [
+          "A*(h^blind)",
+          16,
+          60
+        ]
+      ],
+      "field_size": 3,
+      "note": "the official Overall Optimal 3-domain shared slice — matched corpus",
+      "confidence": "medium-high"
+    }
+  }
+}

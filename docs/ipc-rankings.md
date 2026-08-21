@@ -1,5 +1,14 @@
 # Where ferroplan ranks — a rough field placement, per year and track
 
+> **0.25 note:** the placement NUMBERS on this page are now data —
+> [`benchmarks/field-results.json`](../benchmarks/field-results.json)
+> (plus the vendored official IPC-2023n CSVs) feeds a regenerating
+> **vs field** column in [`STANDINGS.md`](../STANDINGS.md), so the
+> current placements no longer wait for a hand refresh of this page.
+> This page remains the prose companion: provenance, per-row caveats,
+> and the confidence grades. Its ferroplan-column snapshots below are
+> dated (0.22.0) where they were last hand-refreshed.
+
 This is not a scoreboard — [`STANDINGS.md`](../STANDINGS.md) and
 [`benchmarks/ipc-standings.md`](../benchmarks/ipc-standings.md) are that, generated
 from measured runs, and remain the only authoritative numbers. This page answers a
