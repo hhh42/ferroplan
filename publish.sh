@@ -140,15 +140,18 @@ if [[ "${RUN_HEAVY:-0}" == 1 ]]; then
 else
   cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp
 fi
-# Build the tarballs and verify each compiles in isolation. ferroplan-sat has
-# no unpublished path deps of its own, so it packages AND dry-run-publishes
-# cleanly standalone — a real check, unlike ferroplan's (below).
+# ferroplan-sat has no unpublished path deps of its own, so it packages AND
+# dry-run-publishes cleanly standalone — a real check. ferroplan CANNOT: both
+# `cargo package` and `cargo publish --dry-run` resolve deps against the
+# index as if already published, and ferroplan-sat isn't there yet — so
+# ferroplan only gets a build check here; its own package/publish verification
+# happens for real inside `cargo publish -p ferroplan` below, once
+# ferroplan-sat is actually live.
 cargo package -p ferroplan-sat
 cargo publish -p ferroplan-sat --dry-run
-cargo package -p ferroplan
 
 if [[ "$DRY_RUN" == 1 ]]; then
-  echo "==> --dry-run: ferroplan-sat dry-run-published clean; ferroplan packages cleanly."
+  echo "==> --dry-run: ferroplan-sat dry-run-published clean."
   # ferroplan's own dry-run (and the CLI's) needs `ferroplan-sat`/`ferroplan`
   # ${VERSION} on the index; before they are published that fails by design,
   # so only build-check them here.
