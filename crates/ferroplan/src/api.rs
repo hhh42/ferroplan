@@ -988,14 +988,31 @@ fn solve_temporal(
                 notes,
             })
         }
-        None => Ok(unsolved(
-            Mode::Temporal,
-            Statistics {
-                threads,
-                ..Default::default()
-            },
-            Vec::new(),
-        )),
+        None => {
+            // The unsolved story (0.25 Phase 4 — the early-exit
+            // classification found 35 rows whose reason nobody recorded):
+            // one observable, wall-vs-budget, splits the two big classes
+            // — a ladder that stopped AT the wall vs one that exhausted
+            // its own budgets with wall still on the table (the refill
+            // hand-back / instant-exhaust shapes). The runner plumbs this
+            // into the raws' notes column, so the standings can classify
+            // without a decode next time.
+            let note = match crate::search::wall_remaining_secs() {
+                Some(rem) if rem > 1.0 => {
+                    format!("temporal ladder exhausted its budgets with {rem:.0} s of wall left")
+                }
+                Some(_) => "temporal ladder stopped at the wall".to_string(),
+                None => "temporal ladder exhausted its budgets (no wall armed)".to_string(),
+            };
+            Ok(unsolved(
+                Mode::Temporal,
+                Statistics {
+                    threads,
+                    ..Default::default()
+                },
+                vec![note],
+            ))
+        }
     }
 }
 

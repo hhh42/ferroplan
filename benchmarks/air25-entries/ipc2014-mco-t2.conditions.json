@@ -1,28 +1,28 @@
 {
  "started": "2026-08-21 18:59:19",
- "ended": "2026-08-21 19:25:22",
- "samples": 74,
+ "ended": "2026-08-21 19:49:43",
+ "samples": 142,
  "idle_pct": {
-  "median": 80.5,
-  "p25": 78.8,
-  "min": 57.8
+  "median": 79.1,
+  "p25": 69.8,
+  "min": 0.0
  },
  "loadavg": {
-  "median": 2.33,
-  "max": 3.85
+  "median": 2.72,
+  "max": 21.88
  },
  "competitors_mean_pcpu": {
-  "mediaanalysisd": 8.5,
-  "corespotlightd": 2.8,
-  "biomesyncd": 1.1,
-  "BackgroundShortcutRunner": 1.0
+  "rustc": 88.4,
+  "mediaanalysisd": 4.4,
+  "corespotlightd": 1.7,
+  "backupd": 1.1
  },
- "competitors_total_pcpu": 17.9,
+ "competitors_total_pcpu": 100.9,
  "swap_mb": {
   "max": 7166.4
  },
  "cpu_speed_limit": {
   "min": null
  },
- "verdict": "clean"
+ "verdict": "DEGRADED"
 }

@@ -509,8 +509,17 @@ fn tkey(
 /// snap-action. The action's parameters are bound positionally to the grounded
 /// args; fluents are read from the INITIAL state — IPC temporal durations depend
 /// on static fluents like `(= ?duration (/ (distance ?a ?b) (speed ?v)))`, which
-/// keep their init value. Returns None for a non-positive duration, an undefined
+/// keep their init value. Returns None for a NEGATIVE duration, an undefined
 /// fluent, or division by zero (the caller then skips the action).
+///
+/// ZERO is a legal duration (0.25 Phase 4 — the pathways decode): the
+/// IPC-2006 pathways family gates everything behind `(= ?duration 0)`
+/// actions, and the old `> 0.0` guard silently skipped them — thirty
+/// instances then "exhausted" an empty reachable space in milliseconds
+/// and booked false instant failures. A dur-0 END shares its START's
+/// epoch; the decision-epoch order still fires it after the start's
+/// effects, and the plan states 0 verbatim (both validators accept it
+/// against the domain's own `= 0` constraint).
 fn eval_duration(snap: &SnapInfo, args: &[&str], task: &PackedTask, init: &State) -> Option<f64> {
     let bind = duration_bind(snap, args);
     // Commit to the shortest feasible duration (the lower bound; the upper bound only
@@ -518,7 +527,7 @@ fn eval_duration(snap: &SnapInfo, args: &[&str], task: &PackedTask, init: &State
     // resolved duration the decision-epoch search can schedule — see `validate`, which
     // accepts the whole `[min, max]` range.
     let d = eval_expr(snap.duration.chosen()?, &bind, task, init)?;
-    if d.is_finite() && d > 0.0 {
+    if d.is_finite() && d >= 0.0 {
         Some(d)
     } else {
         None
@@ -1545,6 +1554,22 @@ fn relevant_op_mask(
         .iter()
         .filter_map(|np| as_threshold(np).map(|(t, _)| t))
         .collect();
+    // A goal this mask cannot READ must disarm it, never empty it (0.25
+    // Phase 4, the pathways decode): a purely numeric goal whose LHS is
+    // a SUM — `(>= (+ (available a) (available b)) k)` — matches no
+    // canonical threshold, both seed sets come up empty, and the closure
+    // below would mark NOTHING: every op pruned, the pass "exhausts" an
+    // empty space instantly. Seed every fluent such a goal reads instead
+    // — conservative (a superset is always sound), and the unreadable
+    // goal keeps a meaningful mask instead of a lying one.
+    if rel_fact.is_empty() && rel_res.is_empty() {
+        for np in goal_num {
+            let mut fs = Vec::new();
+            np.lhs.collect_fluents(&mut fs);
+            np.rhs.collect_fluents(&mut fs);
+            rel_res.extend(fs);
+        }
+    }
     // TIGHT mode: a resource is "produced" only by its single best-yield producer, so
     // marking (say) `planks` relevant pulls in `saw-planks` but NOT the alternative
     // producer `haul-cargo` — which would otherwise drag the whole logistics subsystem
@@ -3227,14 +3252,16 @@ fn temporal_search(
                 Kind::Start { dur, end_op, dexp } => {
                     if task.op_applicable(oi, &nodes[ni].state) {
                         // State-dependent duration: resolve against THIS node's
-                        // state; skip the start if unresolved or non-positive.
+                        // state; skip the start if unresolved or negative
+                        // (zero is legal — the pathways rule, see
+                        // `eval_duration`).
                         let dur = if dexp == u32::MAX {
                             dur
                         } else {
                             match dur_exprs[dexp as usize]
                                 .eval(&nodes[ni].state.fv, &nodes[ni].state.fdef)
                             {
-                                Some(v) if v.is_finite() && v > 0.0 => v,
+                                Some(v) if v.is_finite() && v >= 0.0 => v,
                                 _ => continue,
                             }
                         };

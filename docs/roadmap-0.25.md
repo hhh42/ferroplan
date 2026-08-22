@@ -412,6 +412,44 @@ The three biggest undiagnosed pots get attribution sittings in the
 - Output: named mechanisms or named negatives. A read that ends in
   "none-known" is a result, not a failure.
 
+### Recorded — the sitting decoded all three pots, and two of them were hiding bugs
+
+Full report: `benchmarks/metrics/attribution-0.25.md`. The headlines:
+
+- **transport:** the 0.23 "fuel-visibility" framing was a CATEGORY
+  ERROR (fuel exists only in the 2008 temporal variant). Real
+  mechanisms: the 2014 boards start past the wall (coverage is
+  monotone in package count; the engine's line is ~12–14 packages,
+  2014 carries 25 everywhere), capacity-blind h, cost-blind first
+  plans, LAMA degenerating to goal-count. Levers L1–L3 priced at
+  **+8–20 of 211, on 2008/2011/mco only** — the 2014 sequential
+  boards are explicitly NOT claimable, in writing, before any code.
+- **floor-tile:** plateau confirmed (the 0.22 measurements stand);
+  one NEW lever named with a no-code pricing probe — a sound
+  dead-end test for irreversible consumption (paint deletes `clear`
+  forever; the README's own dead ends are invisible to h⁺). The i11
+  casualty verdict stands; `FF_NOV_LAZYH` remains the fallback.
+- **metric-time: two bugs, fixed with fixtures, RED first.**
+  (1) Zero-duration durative actions were silently SKIPPED
+  (`eval_duration`'s `> 0.0` guard) — pathways-metric-time's thirty
+  "early exits" were FALSE INSTANT FAILURES on an empty reachable
+  space, pinned by `tests/zero_duration.rs`. (2) The relevance mask
+  pruned EVERY op on sum-goals it could not read ([TREL] 0/88
+  measured; 33/88 after the conservative fallback). Also landed: the
+  unsolved temporal path now names its story into the raws' notes —
+  this sitting's 35 unclassified early exits can never recur
+  unnamed. P2/P4 stay named probes.
+- **h-economy: DROPPED with the proof.** The lever is already
+  in-engine (GBFS/LAMA evaluate on pop since before this cycle);
+  the P6.7 report was never committed — the second lost deliverable
+  of 0.24, alongside the parking counted-case read. New house rule
+  earned twice over: **a design read is a committed artifact, never
+  a conversation.** landscape-2026 bet #4 corrected.
+- model-train / onlycraft / parking queue behind the entries sweep
+  in `benchmarks/post-entries25.sh`, which also carries the
+  sitting's named probes (transport L3, tpp empty-constraints, the
+  pathways 30-row re-measure).
+
 ## Phase 5 — the side-dishes (light, each with its own receipt)
 
 - **Parking's counted-case PDB** (+1–4 via the sprint slot, i2–i4
@@ -422,11 +460,11 @@ The three biggest undiagnosed pots get attribution sittings in the
   stamp, `standings.py`) is the template. Provisional +5–20,
   re-priced at the cut; the movement column marks the budget change
   so the rows stay honest.
-- **h-economy, pitch-or-drop:** retrieve the P6.7 deferred-list
-  report from the 0.24 phase commit, 0.17-history-proof it
-  (old-binary column mandatory), and either pitch it at the
-  2018/2023 residue (82/240, 37/140) or drop it with the proof on
-  record.
+- **h-economy, pitch-or-drop:** DROPPED (see Phase 4's record and
+  `benchmarks/metrics/attribution-0.25.md`) — the retrieval found
+  the report was never committed, and the archaeology found the
+  lever already in-engine; the old-binary rule prices any residual
+  out.
 - Any early-exit declines Phase 4 classified as trivial.
 
 ## Phase 6 — cut 0.25.0 (two headlines, by design)

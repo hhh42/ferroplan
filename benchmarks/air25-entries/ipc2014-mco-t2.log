@@ -4,3 +4,4 @@ timeout 60s, jobs 1, mode auto
 ipc-2014/barman-sequential-multi-core: 20/20 solved, cost 3034, 72.7s solve-time, val 20/20
 ipc-2014/cave-diving-sequential-multi-core: 5/20 solved, cost 558, 154.0s solve-time, val 5/5
 ipc-2014/child-snack-sequential-multi-core: 7/20 solved, cost 404, 61.0s solve-time, val 7/7
+ipc-2014/city-car-sequential-multi-core: 3/20 solved, cost 1302, 88.6s solve-time, val 3/3

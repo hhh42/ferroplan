@@ -95,10 +95,16 @@ heuristics are the village's heuristics.
    grounding within the current architecture) may capture most of
    the village's need.
 4. **Deferred evaluation + open-list alternation** (LAMA/FD
-   machinery). Evidence: two decades of FD satisficing. In-engine
-   cost: SMALL-MODERATE — evaluate-on-pop instead of on-generate
-   under a flag; alternation between h^FF and novelty queues pairs
-   naturally with bet #1. A supporting bet, not a headline.
+   machinery). ~~Evidence: two decades of FD satisficing.~~
+   **ALREADY IN-ENGINE** (0.25 Phase 5 archaeology, the h-economy
+   drop): the default GBFS and LAMA rungs evaluate on POP with
+   successors keyed on parent h (`search.rs` "the only evaluations";
+   `lama.rs` exact-LM + deferred-FF split), and the 0.22 novelty
+   driver removed per-pop `relaxed_helpful` besides. The only eager
+   evaluator left is EHC's hill-climb, where successor h is the
+   decision variable — deferring it there is a different search, not
+   this bet. Residual claims here need the old-binary referee
+   (roadmap-0.21's rule) and are priced accordingly.
 5. **Dynamic derived predicates** (axioms). Evidence: several
    modern domains lean on them; ferroplan grounds static/stratified
    only. In-engine cost: MODERATE and long-deferred; goes in only
