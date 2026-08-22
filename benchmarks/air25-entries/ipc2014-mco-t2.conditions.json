@@ -1,9 +1,9 @@
 {
  "started": "2026-08-21 18:59:19",
- "ended": "2026-08-21 19:49:43",
- "samples": 142,
+ "ended": "2026-08-21 19:50:04",
+ "samples": 143,
  "idle_pct": {
-  "median": 79.1,
+  "median": 78.8,
   "p25": 69.8,
   "min": 0.0
  },
@@ -12,12 +12,12 @@
   "max": 21.88
  },
  "competitors_mean_pcpu": {
-  "rustc": 88.4,
+  "rustc": 87.8,
   "mediaanalysisd": 4.4,
-  "corespotlightd": 1.7,
-  "backupd": 1.1
+  "corespotlightd": 1.6,
+  "backupd": 1.2
  },
- "competitors_total_pcpu": 100.9,
+ "competitors_total_pcpu": 100.5,
  "swap_mb": {
   "max": 7166.4
  },

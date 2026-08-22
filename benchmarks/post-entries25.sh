@@ -135,6 +135,17 @@ for i in $(seq 1 30); do
 done
 echo "  pathways-metric-time with the dur-0 fix: $pwn/30"
 
+# Parking counted-case baselines (the 0.24 read's body was never
+# committed — the re-derivation starts from receipts): parking-opt
+# i2-i4 solo at the board budget, expansion counts in the JSON notes.
+PK=benchmarks/.ipc-corpus/ipc-2014/domains/parking-sequential-optimal
+for i in 2 3 4; do
+  FF_TIME_LIMIT=60 /usr/bin/time -o "$ENT/parking-opt-i$i.time" \
+    ./target/release/ff -o "$PK/domain.pddl" -f "$PK/instances/instance-$i.pddl" \
+    --mode optimal --json >"$ENT/parking-opt-i$i.json" 2>/dev/null || true
+  echo "  parking-opt i$i: solved=$(python3 -c "import json;print(json.load(open('$ENT/parking-opt-i$i.json'))['solved'])" 2>/dev/null) $(head -1 "$ENT/parking-opt-i$i.time" | awk '{print $1}')s"
+done
+
 # ---- 4. tground_wall at idle -----------------------------------------------
 wait_quiet
 echo "tground_wall idle re-verify..."
