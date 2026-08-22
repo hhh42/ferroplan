@@ -15,3 +15,15 @@ DONE ipc2023-sat: total coverage: **36/140** 12:48:05 [idle 69.7% DEGRADED]
 !! ipc2023-sat measured under contention (median idle 69.7%; competing: Brave Browser Helper (Renderer) 26%, WindowServer 11%)
    NOT marking done — re-run this driver when the box is free.
 RUN  ipc2023-opt (opt-2023 60s jobs 2 --mode optimal) 12:48:07
+DONE ipc2023-opt: total coverage: **33/140** 13:45:22 [idle 65.2% DEGRADED]
+!! ipc2023-opt measured under contention (median idle 65.2%; competing: rustc 163%, mediaanalysisd 11%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2018-opt (opt-2018 60s jobs 2 --mode optimal) 13:45:25
+DONE ipc2018-opt: total coverage: **89/240** 15:07:23 [idle 72.7% DEGRADED]
+!! ipc2018-opt measured under contention (median idle 72.7%; competing: WindowServer 9%, Brave Browser Helper (Renderer) 8%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2023-numeric-opt (numeric-2023 60s jobs 2 --mode optimal) 15:07:26
+DONE ipc2023-numeric-opt: total coverage: **81/400** 17:24:39 [idle 72.0% DEGRADED]
+!! ipc2023-numeric-opt measured under contention (median idle 72.0%; competing: Brave Browser Helper (Renderer) 14%, WindowServer 7%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2026-opt-full (opt-2026-full 60s jobs 2 --mode optimal) 17:25:43

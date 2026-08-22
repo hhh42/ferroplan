@@ -50,10 +50,16 @@
 //! decoded event sequence goes to a simple temporal network — order edges
 //! ε apart, `end = start + duration` equalities — solved by longest-path
 //! Bellman–Ford. A positive cycle means the causal order cannot be
-//! scheduled: the cycle's events become a refutation clause (that exact
-//! event-order core, minimal-ish — the co-placement of the cycle's
-//! op@layer assignments is forbidden) and the solver re-solves inside the
-//! same horizon — CEGAR with the scheduler as teacher. Feasible times
+//! scheduled: the cycle's events become a refutation clause forbidding
+//! the co-placement of the core's op@layer assignments, PAIRING-GUARDED
+//! (0.25: positive literals release any model where an interposed
+//! same-op run re-pairs a core interval — the bare clause over-pruned,
+//! see `core_clause`), and the solver re-solves inside the same horizon —
+//! CEGAR with the scheduler as teacher. Reduced cores additionally
+//! GENERALIZE (0.25 Wing II step 4): re-asserted at every sound layer
+//! shift and re-emitted into every later horizon's solver, so the ramp
+//! stops re-deriving the same negative cycles (`FF_NO_SAT_LAYERGEN=1`
+//! restores observed-placement-only clauses). Feasible times
 //! then run the SAME emission rite as a search goal pop (the 0.22
 //! topological ε-separation + duration reconciliation, via
 //! `crate::temporal::emit_scheduled`) and the result is validated
@@ -587,6 +593,35 @@ impl<'a> EncTask<'a> {
                 s.add_clause(&[neg(self.fact_var(t, token)), neg(self.op_var(h, t, b))]);
             }
         }
+        // Planning-specific branching (0.25 Wing II step 5): OPT-IN
+        // probe knob after a MEASURED NEGATIVE for default-on. Seeding op
+        // vars above fact/chain vars, earliest layers first
+        // (`FF_SAT_BRANCH=fwd`), proved a real 1.8× on the deep
+        // UNSAT-proof stack (storage-t h1–32: 6.8 s → 3.7 s) — and
+        // KILLED the SAT side: the early-packed models it steers toward
+        // are schedule-infeasible, flooding the STN teacher (TMS-2011
+        // i2's h16: ONE refutation and a 0.6 s solve without seeding,
+        // 247 refutations and a capped budget with it). `back` measured
+        // 2× worse than off on the proofs; `uniform` (no layer
+        // gradient) worse on BOTH faces — the gradient is the proof-side
+        // win and the SAT-side poison at once. A CEGAR-aware seeding
+        // (proof-shaped horizons only) is the 0.26 residue; until then
+        // the wing runs stock heap order by default.
+        if let Ok(mode @ ("fwd" | "back" | "uniform")) = std::env::var("FF_SAT_BRANCH").as_deref() {
+            let hf = h.max(1) as f32;
+            let mut seeds: Vec<(usize, f32)> = Vec::with_capacity(h * self.ops.len());
+            for t in 0..h {
+                let act = match mode {
+                    "uniform" => 0.5,
+                    "back" => 0.1 + 0.8 * (t + 1) as f32 / hf,
+                    _ => 0.1 + 0.8 * (h - t) as f32 / hf,
+                };
+                for slot in 0..self.ops.len() as u32 {
+                    seeds.push((self.op_var(h, t, slot), act));
+                }
+            }
+            s.seed_activity(&seeds);
+        }
         s
     }
 
@@ -707,7 +742,7 @@ fn solve_horizon<R, F>(
     mut on_model: F,
 ) -> RampStep<R>
 where
-    F: FnMut(&[Lit]) -> Result<R, Option<Vec<Lit>>>,
+    F: FnMut(&[Lit]) -> Result<R, Option<Vec<Vec<Lit>>>>,
 {
     const SLICE: u64 = 4_096;
     // The conflict-rate bail (0.25 Wing II, the residue the 0.24 cut
@@ -759,7 +794,11 @@ where
                 let model = solver.model().unwrap_or_default();
                 match on_model(&model) {
                     Ok(r) => return RampStep::Done(r),
-                    Err(Some(refutation)) => solver.add_clause(&refutation),
+                    Err(Some(refutations)) => {
+                        for c in &refutations {
+                            solver.add_clause(c);
+                        }
+                    }
                     Err(None) => return RampStep::Capped,
                 }
             }
@@ -788,10 +827,14 @@ fn ramp<R, F>(
     notes: &mut Vec<String>,
     proven_all: &mut bool,
     wall_slice: WallSlice,
+    // Called after each horizon's encode, before solving — the temporal
+    // face re-asserts its learned refutation cores here (0.25 step 4);
+    // the classical face passes a no-op.
+    on_horizon: &mut dyn FnMut(&EncTask, usize, &mut Solver),
     mut on_model: F,
 ) -> Option<(R, usize)>
 where
-    F: FnMut(&EncTask, usize, &[Lit]) -> Result<R, Option<Vec<Lit>>>,
+    F: FnMut(&EncTask, usize, &[Lit]) -> Result<R, Option<Vec<Vec<Lit>>>>,
 {
     *proven_all = true;
     let mut trail = String::new();
@@ -819,6 +862,7 @@ where
             return None;
         }
         let mut solver = enc.encode(h);
+        on_horizon(enc, h, &mut solver);
         let step = solve_horizon(&mut solver, cfg.conflicts_per_horizon, wall_slice, |m| {
             on_model(enc, h, m)
         });
@@ -910,6 +954,7 @@ pub fn solve_classical(
         &mut notes,
         &mut proven_all,
         None,
+        &mut |_, _, _| {},
         |enc, h, model| {
             let seq = enc.decode(h, model);
             if enc.replay(&seq).is_some() {
@@ -955,10 +1000,82 @@ pub fn solve_classical(
 // The temporal face (Phase 3): pairing, STN, CEGAR.
 // ---------------------------------------------------------------------------
 
+/// A refutation core from the scheduler: the events witnessing a
+/// positive cycle, the duration-arc pairs ON that cycle (the pairing
+/// guards read them), and whether the duration-endpoint reduction
+/// applied — a reduced core's infeasibility is context-free (see
+/// [`stn_schedule`]) and therefore LAYER-SHIFT GENERALIZABLE (0.25 Wing
+/// II step 4); a full-cycle core's positivity leans on its exact ε-step
+/// count and stays an observed-placement-only clause.
+struct StnCore {
+    events: Vec<usize>,
+    /// (start event, end event) of each duration arc on the cycle,
+    /// canonical positive orientation.
+    pairs: Vec<(usize, usize)>,
+    reduced: bool,
+}
+
+/// A layer-anchored refutation core stored for re-emission (0.25 Wing
+/// II step 4 — the layer-specific-refutations residue): op SLOTS with
+/// their observed layers, plus the pairing-guard arcs. A REDUCED core is
+/// sound to re-assert at any uniform layer shift (relative order and
+/// guards shift with it, and its positivity never leaned on ε-step
+/// counts) and at every later horizon — the ramp stops re-deriving the
+/// same negative cycles from scratch.
+struct LearnedCore {
+    /// (slot, layer) per core event.
+    events: Vec<(u32, u32)>,
+    /// (start slot, start layer, end slot, end layer) per duration arc.
+    pairs: Vec<(u32, u32, u32, u32)>,
+}
+
+/// One refutation clause for `core` shifted by `delta` at horizon `h`;
+/// `None` when the shift pushes any event outside `[0, h)`.
+///
+/// THE PAIRING GUARD (a soundness fix, always on — found building step
+/// 4, present since the wing's birth): the core's infeasibility assumes
+/// each duration arc binds ITS OBSERVED pair, but a model can co-place
+/// the same events with an interposed same-op run between a pair's
+/// endpoints — the intervals re-pair and the schedule can become
+/// feasible, yet the bare co-placement clause forbade it (an over-prune
+/// that could fake "proven UNSAT at horizon"). In the TEACHER'S model no
+/// interposer can exist (no-self-overlap blocks a same-op start under an
+/// open token), so adding the interposer placements as POSITIVE literals
+/// keeps the clause violated there (CEGAR progress) while releasing
+/// every re-paired model the bare clause wrongly excluded.
+fn core_clause(enc: &EncTask, h: usize, core: &LearnedCore, delta: i64) -> Option<Vec<Lit>> {
+    let mut placed: HashSet<(u32, i64)> = HashSet::new();
+    for &(slot, l) in &core.events {
+        let nl = l as i64 + delta;
+        if !(0..h as i64).contains(&nl) {
+            return None;
+        }
+        placed.insert((slot, nl));
+    }
+    let mut lits: Vec<Lit> = core
+        .events
+        .iter()
+        .map(|&(slot, l)| Lit::from_index(enc.op_var(h, (l as i64 + delta) as usize, slot), false))
+        .collect();
+    let mut guard_vars: HashSet<usize> = HashSet::new();
+    for &(ss, ls, se, le) in &core.pairs {
+        let lo = ls.min(le) as i64 + delta;
+        let hi = ls.max(le) as i64 + delta;
+        for l in lo..=hi {
+            for s in [ss, se] {
+                if !placed.contains(&(s, l)) {
+                    guard_vars.insert(enc.op_var(h, l as usize, s));
+                }
+            }
+        }
+    }
+    lits.extend(guard_vars.into_iter().map(|v| Lit::from_index(v, true)));
+    Some(lits)
+}
+
 /// The scheduler-as-teacher: order edges ε apart along the decoded
 /// sequence, `end = start + dur` equalities per pair. Longest-path
-/// Bellman–Ford; `Err(core)` carries event indices witnessing a positive
-/// cycle (the refutation core, minimal-ish).
+/// Bellman–Ford; `Err(core)` carries the refutation core, minimal-ish.
 ///
 /// Core reduction: the raw predecessor cycle drags in every ε-order
 /// intermediate (150-event cores on TMS — a clause that never recurs and
@@ -970,7 +1087,7 @@ pub fn solve_classical(
 /// cycle regardless of which intermediates exist. `D < 0` (positivity
 /// financed by accumulated ε steps — a degenerate shape) keeps the full
 /// cycle as the core, exact as before.
-fn stn_schedule(n: usize, pairs: &[(usize, usize, f64)]) -> Result<Vec<f64>, Vec<usize>> {
+fn stn_schedule(n: usize, pairs: &[(usize, usize, f64)]) -> Result<Vec<f64>, StnCore> {
     let mut edges: Vec<(usize, usize, f64)> = Vec::with_capacity(n + 2 * pairs.len());
     for i in 1..n {
         edges.push((i - 1, i, EPS));
@@ -1017,20 +1134,33 @@ fn stn_schedule(n: usize, pairs: &[(usize, usize, f64)]) -> Result<Vec<f64>, Vec
     }
     let mut d_sum = 0.0f64;
     let mut endpoints: Vec<usize> = Vec::new();
+    let mut core_pairs: Vec<(usize, usize)> = Vec::new();
     for (i, &v) in cycle.iter().enumerate() {
         let u = cycle[(i + 1) % cycle.len()]; // pred order: u -> v
         if let Some(&w) = dur_arc.get(&(u, v)) {
             d_sum += w;
             endpoints.push(u);
             endpoints.push(v);
+            // Canonical (start, end): the positive-duration orientation.
+            core_pairs.push(if w >= 0.0 { (u, v) } else { (v, u) });
         }
     }
     endpoints.sort_unstable();
     endpoints.dedup();
+    core_pairs.sort_unstable();
+    core_pairs.dedup();
     if d_sum >= -1e-9 && !endpoints.is_empty() {
-        Err(endpoints)
+        Err(StnCore {
+            events: endpoints,
+            pairs: core_pairs,
+            reduced: true,
+        })
     } else {
-        Err(cycle)
+        Err(StnCore {
+            events: cycle,
+            pairs: core_pairs,
+            reduced: false,
+        })
     }
 }
 
@@ -1294,12 +1424,56 @@ pub fn solve_temporal_within(
     let mut refutations_total = 0usize;
     let mut refutations_this_h = 0usize;
     let mut cur_h = 0usize;
+    // The learned-core store (0.25 Wing II step 4): reduced cores persist
+    // across horizons and generalize across layer shifts —
+    // `FF_NO_SAT_LAYERGEN=1` restores observed-placement-only clauses
+    // (the pairing GUARD stays on either way: soundness is not a knob).
+    // The literal cap bounds the generalized extras; the observed clause
+    // is always emitted, so CEGAR progress never depends on the budget.
+    const GEN_LIT_CAP: u64 = 2_000_000;
+    let layergen = std::env::var("FF_NO_SAT_LAYERGEN").is_err();
+    let learned: std::cell::RefCell<Vec<LearnedCore>> = std::cell::RefCell::new(Vec::new());
+    let gen_lits = std::cell::Cell::new(0u64);
+    let shifted_clauses = |enc: &EncTask, h: usize, core: &LearnedCore, with_observed: bool| {
+        let mut out: Vec<Vec<Lit>> = Vec::new();
+        if with_observed {
+            if let Some(c) = core_clause(enc, h, core, 0) {
+                out.push(c);
+            }
+        }
+        if layergen {
+            let min_l = core.events.iter().map(|&(_, l)| l).min().unwrap_or(0) as i64;
+            let max_l = core.events.iter().map(|&(_, l)| l).max().unwrap_or(0) as i64;
+            for delta in (-min_l)..=(h as i64 - 1 - max_l) {
+                if delta == 0 {
+                    continue;
+                }
+                if gen_lits.get() >= GEN_LIT_CAP {
+                    break;
+                }
+                if let Some(c) = core_clause(enc, h, core, delta) {
+                    gen_lits.set(gen_lits.get() + c.len() as u64);
+                    out.push(c);
+                }
+            }
+        }
+        out
+    };
     let solved: Option<(TimedPlan, usize)> = ramp(
         &enc,
         cfg,
         &mut notes,
         &mut proven_all,
         slice,
+        // Re-assert every learned core into each new horizon's fresh
+        // solver — the ramp stops re-deriving the same negative cycles.
+        &mut |enc: &EncTask, h: usize, s: &mut Solver| {
+            for lc in learned.borrow().iter() {
+                for c in shifted_clauses(enc, h, lc, true) {
+                    s.add_clause(&c);
+                }
+            }
+        },
         |enc, h, model| {
             if h != cur_h {
                 cur_h = h;
@@ -1376,14 +1550,19 @@ pub fn solve_temporal_within(
                     steps.sort_by(|a, b| a.time.total_cmp(&b.time));
                     Ok(TimedPlan { steps, makespan })
                 }
-                Err(cycle) => {
+                Err(core) => {
                     refutations_this_h += 1;
                     refutations_total += 1;
                     if wall_debug() {
                         eprintln!(
                             "[sat] horizon {h}: STN refutation #{refutations_this_h} \
-                             ({} events on the cycle)",
-                            cycle.len()
+                             ({} events on the {} core)",
+                            core.events.len(),
+                            if core.reduced {
+                                "reduced"
+                            } else {
+                                "full-cycle"
+                            }
                         );
                     }
                     if refutations_this_h > MAX_REFUTATIONS_PER_HORIZON {
@@ -1395,17 +1574,36 @@ pub fn solve_temporal_within(
                         }
                         return Err(None);
                     }
-                    let clause: Vec<Lit> = cycle
-                        .iter()
-                        .map(|&i| {
-                            let (op, layer) = seq[i];
-                            Lit::from_index(
-                                enc.op_var(h, layer as usize, enc.slot_of[op as usize]),
-                                false,
-                            )
-                        })
-                        .collect();
-                    Err(Some(clause))
+                    // The layer-anchored core: slots + observed layers,
+                    // with the pairing-guard arcs (see `core_clause`).
+                    let lc = LearnedCore {
+                        events: core
+                            .events
+                            .iter()
+                            .map(|&i| {
+                                let (op, layer) = seq[i];
+                                (enc.slot_of[op as usize], layer)
+                            })
+                            .collect(),
+                        pairs: core
+                            .pairs
+                            .iter()
+                            .map(|&(s, e)| {
+                                let (so, sl) = seq[s];
+                                let (eo, el) = seq[e];
+                                (enc.slot_of[so as usize], sl, enc.slot_of[eo as usize], el)
+                            })
+                            .collect(),
+                    };
+                    let mut clauses =
+                        vec![core_clause(enc, h, &lc, 0).expect("observed core in bounds")];
+                    if core.reduced {
+                        clauses.extend(shifted_clauses(enc, h, &lc, false));
+                        if layergen {
+                            learned.borrow_mut().push(lc);
+                        }
+                    }
+                    Err(Some(clauses))
                 }
             }
         },

@@ -68,6 +68,28 @@ impl Solver {
         }
     }
 
+    /// Seed branching priorities: each `(variable index, activity)` raises
+    /// that variable's initial VSIDS activity (`Vsids::seed`, the
+    /// planning-specific branching hook — the reason this solver is
+    /// in-tree). Indices beyond the current variable count are ignored;
+    /// call after the formula is loaded.
+    pub fn seed_activity(&mut self, seeds: &[(usize, f32)]) {
+        // VSIDS runs on GLOBAL vars; seeds arrive as user indices —
+        // translate exactly as `model` does, skipping unmapped vars.
+        let Context {
+            variables, vsids, ..
+        } = &mut *self.ctx;
+        let n = vsids.var_count();
+        for &(idx, act) in seeds {
+            let user = Var::from_index(idx);
+            if let Some(global) = variables.global_from_user().get(user) {
+                if global.index() < n {
+                    vsids.seed(global, act);
+                }
+            }
+        }
+    }
+
     /// Limit the number of conflicts per `solve` call; `None` removes the limit.
     ///
     /// When the budget is exhausted before a verdict, [`Solver::solve`] returns

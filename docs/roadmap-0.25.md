@@ -333,6 +333,63 @@ exhaustion rung have no ladder behind them to refund):
   conservative. TMS-2011 i2 untouched at 0.54 s; both SAT batteries
   and the full release suite green.
 
+### Recorded — step 4: the layer clauses land, and surface a soundness hole older than they are
+
+Building the generalization forced the soundness question, and the
+answer indicts the 0.24 clause itself:
+
+- **THE PAIRING GUARD (a soundness fix, always on — not hatchable):**
+  the bare co-placement refutation clause assumed each duration arc
+  bound its OBSERVED pair — but a model can hold the same op@layer
+  placements with an interposed same-op run between a pair's
+  endpoints; the intervals re-pair and the schedule can become
+  feasible, yet the clause forbade it. An over-prune that could fake
+  "proven UNSAT at horizon" — the wing's strongest verdict — since
+  the wing's birth. The guard adds the interposer placements as
+  POSITIVE literals: the teacher's own model can never contain one
+  (no-self-overlap blocks a same-op start under an open token), so
+  CEGAR progress is untouched while every re-paired model goes free.
+  **storage-t i1 re-verified under the sound clause: h1–32 still
+  proven UNSAT** — the 0.24 verdict stands, and is now trustworthy.
+- **The generalization** (`FF_NO_SAT_LAYERGEN=1` restores): REDUCED
+  cores (duration-sum ≥ 0 — their infeasibility never leaned on
+  ε-step counts) re-assert at every sound uniform layer shift and
+  re-emit into every later horizon's fresh solver, capped at 2M
+  generalized literals; full-cycle cores stay observed-placement-
+  only (their positivity is ε-financed and context-dependent).
+- **The TMS i1 referee:** 377 refutations (was 404) and the ramp now
+  reaches h16/h32/h64 budget-capped instead of thrash-bailing at h8
+  — deeper progress, same honest no-solve. TMS i2 unaffected;
+  match-cellar unaffected; batteries and full suite green.
+
+### Recorded — step 5: branching is a MEASURED NEGATIVE for default-on; the hook stays
+
+The profiling read sanctioned the bet (the wing's sinks are
+conflicts-to-verdict — mc's 200k-conflict grind has zero
+refutations, storage's wall is deep-proof conflict counts), the
+in-tree solver gained the seam the absorption was FOR
+(`Vsids::seed` + `Solver::seed_activity`, user→global mapped), and
+the measurements killed the default:
+
+- **Forward layer-ordered op seeding (`FF_SAT_BRANCH=fwd`): a real
+  1.8× on the deep UNSAT-proof stack** — storage-t h1–32 proofs
+  6.8 s → 3.7 s, stable across reps — **and a disqualifying loss on
+  the SAT side**: TMS-2011 i2's h16, one STN refutation and a 0.6 s
+  solve unseeded, floods the teacher with 247 refutations and caps
+  its budget seeded. The early-packed models the gradient steers
+  toward are exactly the schedule-infeasible ones.
+- `back` measured 2× WORSE than off on the proofs; `uniform` (no
+  gradient) worse on BOTH faces — the gradient is the proof-side
+  win and the SAT-side poison at once, so no knob setting dominates.
+- **Shipped: the hook, opt-in** (`FF_SAT_BRANCH=fwd|back|uniform`,
+  default off — stock heap order). Phase saving already defaults
+  false, so the sparse-plan polarity was free all along. The 0.26
+  residue is named: CEGAR-aware seeding — arm the gradient only on
+  proof-shaped horizons, where it measured 1.8×.
+- Doc-gate note: the private-intra-doc-link class struck a THIRD
+  cycle running and was caught at authoring this time, exactly as
+  the 0.24 record asked.
+
 ## Phase 4 — the design reads (light, NO code)
 
 The three biggest undiagnosed pots get attribution sittings in the

@@ -1,0 +1,25 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode optimal
+ipc-2023n/block-grouping-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/counters-numeric-satisficing: 3/20 solved, cost 25, 0.0s solve-time, val 3/3
+ipc-2023n/delivery-numeric-satisficing: 2/20 solved, cost 56, 6.2s solve-time, val 2/2
+ipc-2023n/drone-numeric-satisficing: 3/20 solved, cost 37, 0.2s solve-time, val 0/0
+ipc-2023n/expedition-numeric-satisficing: 4/20 solved, cost 204, 21.3s solve-time, val 4/4
+ipc-2023n/ext-plant-watering-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/farmland-numeric-satisficing: 18/20 solved, cost 4746, 13.2s solve-time, val 18/18
+ipc-2023n/fo-counters-numeric-satisficing: 4/20 solved, cost 29, 0.5s solve-time, val 4/4
+ipc-2023n/fo-farmland-numeric-satisficing: 4/20 solved, cost 56, 17.2s solve-time, val 4/4
+ipc-2023n/fo-sailing-numeric-satisficing: 2/20 solved, cost 131, 45.2s solve-time, val 2/2
+ipc-2023n/hydropower-numeric-satisficing: 12/20 solved, cost 522, 33.2s solve-time, val 12/12
+ipc-2023n/markettrader-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/mprime-numeric-satisficing: 14/20 solved, cost 92, 130.6s solve-time, val 14/14
+ipc-2023n/pathwaysmetric-numeric-satisficing: 1/20 solved, cost 12, 3.1s solve-time, val 1/1
+ipc-2023n/rover-numeric-satisficing: 4/20 solved, cost 0, 8.4s solve-time, val 4/4
+ipc-2023n/sailing-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/settlersnumeric-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/sugar-numeric-satisficing: 2/20 solved, cost 22, 5.0s solve-time, val 2/2
+ipc-2023n/tpp-numeric-satisficing: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2023n/zenotravel-numeric-satisficing: 8/20 solved, cost 6027, 17.8s solve-time, val 8/8
+
+wrote benchmarks/air25-entries/ipc2023-numeric-opt.md (raw: benchmarks/air25-entries/ipc2023-numeric-opt.jsonl) — total coverage 81/400

@@ -60,6 +60,11 @@ impl Vsids {
         self.position.resize(count, None);
     }
 
+    /// The current variable count (the seeding hook's bounds check).
+    pub fn var_count(&self) -> usize {
+        self.activity.len()
+    }
+
     /// Rescale activities if any value exceeds this value.
     fn rescale_limit() -> f32 {
         f32::MAX / 16.0
@@ -71,6 +76,24 @@ impl Vsids {
         assert!(decay < 1.0);
         assert!(decay > 1.0 / 16.0);
         self.inv_decay = 1.0 / decay;
+    }
+
+    /// Seed a variable's initial activity — the planning-specific
+    /// branching hook (ferroplan 0.25 Wing II step 5; the reason this
+    /// solver was absorbed rather than vendored). Called before solving:
+    /// early decisions follow the caller's structural prior instead of
+    /// heap-insertion order, and once real conflict bumps accumulate the
+    /// prior washes out (seeds are small against the growing bump
+    /// scale). Only ever raises an activity — re-seeding is idempotent
+    /// and never demotes conflict-earned weight.
+    pub fn seed(&mut self, var: Var, activity: f32) {
+        let value = &mut self.activity[var.index()];
+        if activity > *value {
+            *value = activity;
+            if let Some(pos) = self.position[var.index()] {
+                self.sift_up(pos);
+            }
+        }
     }
 
     /// Bump a variable by increasing its activity.

@@ -1,0 +1,8 @@
+corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
+VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
+timeout 60s, jobs 2, mode optimal
+ipc-2026n/2048-numeric-2026: 20/20 solved, cost 9436, 62.6s solve-time, val 20/20
+ipc-2026n/coins-numeric-2026: 6/20 solved, cost 179, 18.7s solve-time, val 6/6
+ipc-2026n/expedition-numeric-2026: 4/20 solved, cost 204, 25.7s solve-time, val 4/4
+ipc-2026n/factory-robot-numeric-2026: 0/20 solved, cost 0, 0.0s solve-time, val 0/0
+ipc-2026n/forestfire-numeric-2026: 7/20 solved, cost 275, 25.2s solve-time, val 7/7
