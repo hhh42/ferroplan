@@ -79,11 +79,23 @@ run_board() { # name track timeout extra-args...
   case " $* " in *" --threads "*) jobs=1 ;; esac
   wait_quiet
   echo "RUN  $name ($track ${tmo}s jobs $jobs $*) $(date '+%H:%M:%S')"
+  # Per-instance resume (PER-INSTANCE-RETRY.md): a prior DEGRADED pass
+  # left a raw + a contention timeline; snapshot them (the runner
+  # truncates its raw at open) and let this pass REUSE every row whose
+  # wall-clock window sat in clean samples, re-running only the dirty
+  # stretch. First passes have no prior and behave exactly as before.
+  local resume=()
+  if [ -f "benchmarks/air25-entries/$name.jsonl" ] && [ -f "benchmarks/air25-entries/$name.conditions.json" ]; then
+    cp "benchmarks/air25-entries/$name.jsonl" "benchmarks/air25-entries/$name.prior.jsonl"
+    cp "benchmarks/air25-entries/$name.conditions.json" "benchmarks/air25-entries/$name.prior.conditions.json"
+    resume=(--resume-raw "benchmarks/air25-entries/$name.prior.jsonl"
+            --resume-conditions "benchmarks/air25-entries/$name.prior.conditions.json")
+  fi
   local cond="benchmarks/air25-entries/$name.conditions.json"
   python3 benchmarks/contention.py --out "$cond" --interval 20 &
   local watcher=$!
   python3 benchmarks/ipc67.py --track "$track" --timeout "$tmo" \
-    --jobs "$jobs" --mem-gb "$MEMGB" "$@" \
+    --jobs "$jobs" --mem-gb "$MEMGB" ${resume[@]+"${resume[@]}"} "$@" \
     --out "benchmarks/air25-entries/$name.md" \
     >"benchmarks/air25-entries/$name.log" 2>&1
   kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null

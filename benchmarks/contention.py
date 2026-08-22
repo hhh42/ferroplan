@@ -117,7 +117,8 @@ def thermal():
         return None
 
 
-def summarize(idles, loads, comp_totals, swaps, therms, started):
+def summarize(idles, loads, comp_totals, swaps, therms, started,
+              timeline=None, interval=None):
     def pct(v, p):
         if not v:
             return None
@@ -156,6 +157,16 @@ def summarize(idles, loads, comp_totals, swaps, therms, started):
         # renderer at 100%, Spotlight mid-index at 40%).
         "verdict": ("clean" if comp_total is not None and comp_total < 25.0
                     else "DEGRADED" if med is not None else "unknown"),
+        # The per-sample timeline (PER-INSTANCE-RETRY.md step 1): every
+        # sample as [epoch_ts, idle_pct, competitors_total_pcpu], so a
+        # later pass can intersect an instance's wall-clock window
+        # against the actual contention windows instead of throwing the
+        # whole board away over one bad stretch. ~360 samples on a
+        # 2-hour board at the default 20 s interval — trivial size. The
+        # rollup above stays the whole-board verdict; the timeline is
+        # the fine print a resume reads.
+        "interval": interval,
+        "timeline": timeline or [],
     }
 
 
@@ -167,6 +178,7 @@ def main():
     started = time.strftime("%Y-%m-%d %H:%M:%S")
     idles, loads, swaps, therms = [], [], [], []
     comp_totals = {}
+    timeline = []
     stop = {"now": False}
 
     def bye(*_):
@@ -187,13 +199,19 @@ def main():
         t = thermal()
         if t is not None:
             therms.append(t)
-        for k, v in competitors().items():
+        comp_now = competitors()
+        for k, v in comp_now.items():
             comp_totals[k] = comp_totals.get(k, 0.0) + v
+        timeline.append([
+            round(time.time(), 1),
+            round(i, 1) if i is not None else None,
+            round(sum(comp_now.values()), 1),
+        ])
         # Rewrite every sample so an interrupted board still has its record.
         if idles:
             with open(out, "w") as f:
                 json.dump(summarize(idles, loads, comp_totals, swaps, therms,
-                                    started), f, indent=1)
+                                    started, timeline, interval), f, indent=1)
                 f.write("\n")
         for _ in range(int(max(interval, 1))):
             if stop["now"]:

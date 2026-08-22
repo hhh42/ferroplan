@@ -49,3 +49,6 @@ benchmarks/air23/
 benchmarks/air24/
 benchmarks/cut24-sweep*.log
 benchmarks/cut24/opt-differential.log
+benchmarks/air25/
+benchmarks/air25-entries/
+benchmarks/entries25-sweep.log

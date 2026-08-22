@@ -52,11 +52,21 @@ wait_quiet() {
 if [ ! -f "$ENT/ipc5-complex-pref.done" ]; then
   wait_quiet
   echo "RUN  ipc5-complex-pref (complex-pref-2006 60s) $(date '+%H:%M:%S')"
+  # Per-instance resume (PER-INSTANCE-RETRY.md), same as the sweep
+  # drivers: a prior contended attempt's clean rows are reused.
+  resume=()
+  if [ -f "$ENT/ipc5-complex-pref.jsonl" ] && [ -f "$ENT/ipc5-complex-pref.conditions.json" ]; then
+    cp "$ENT/ipc5-complex-pref.jsonl" "$ENT/ipc5-complex-pref.prior.jsonl"
+    cp "$ENT/ipc5-complex-pref.conditions.json" "$ENT/ipc5-complex-pref.prior.conditions.json"
+    resume=(--resume-raw "$ENT/ipc5-complex-pref.prior.jsonl"
+            --resume-conditions "$ENT/ipc5-complex-pref.prior.conditions.json")
+  fi
   cond="$ENT/ipc5-complex-pref.conditions.json"
   python3 benchmarks/contention.py --out "$cond" --interval 20 &
   watcher=$!
   python3 benchmarks/ipc67.py --track complex-pref-2006 --timeout 60 \
-    --jobs 2 --mem-gb 6 --out "$ENT/ipc5-complex-pref.md" \
+    --jobs 2 --mem-gb 6 ${resume[@]+"${resume[@]}"} \
+    --out "$ENT/ipc5-complex-pref.md" \
     >"$ENT/ipc5-complex-pref.log" 2>&1
   kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
   verdict=$(python3 -c "import json;print(json.load(open('$cond'))['verdict'])" 2>/dev/null || echo unknown)

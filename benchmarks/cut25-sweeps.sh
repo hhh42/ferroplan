@@ -90,11 +90,23 @@ run_board() { # name track timeout extra-args...
   # process. This box is a laptop: a browser, Spotlight, a Docker VM running
   # CI, Time Machine. Contention only ever DEPRESSES coverage, so it invents
   # regressions and hides gains — a board must carry its own conditions.
+  # Per-instance resume (PER-INSTANCE-RETRY.md): a prior DEGRADED pass
+  # left a raw + a contention timeline; snapshot them (the runner
+  # truncates its raw at open) and let this pass REUSE every row whose
+  # wall-clock window sat in clean samples, re-running only the dirty
+  # stretch. First passes have no prior and behave exactly as before.
+  local resume=()
+  if [ -f "benchmarks/air25/$name.jsonl" ] && [ -f "benchmarks/air25/$name.conditions.json" ]; then
+    cp "benchmarks/air25/$name.jsonl" "benchmarks/air25/$name.prior.jsonl"
+    cp "benchmarks/air25/$name.conditions.json" "benchmarks/air25/$name.prior.conditions.json"
+    resume=(--resume-raw "benchmarks/air25/$name.prior.jsonl"
+            --resume-conditions "benchmarks/air25/$name.prior.conditions.json")
+  fi
   local cond="benchmarks/air25/$name.conditions.json"
   python3 benchmarks/contention.py --out "$cond" --interval 20 &
   local watcher=$!
   python3 benchmarks/ipc67.py --track "$track" --timeout "$tmo" \
-    --jobs "$jobs" --mem-gb "$MEMGB" "$@" \
+    --jobs "$jobs" --mem-gb "$MEMGB" ${resume[@]+"${resume[@]}"} "$@" \
     --out "benchmarks/air25/$name.md" >"benchmarks/air25/$name.log" 2>&1
   kill "$watcher" 2>/dev/null; wait "$watcher" 2>/dev/null
   local verdict med who
