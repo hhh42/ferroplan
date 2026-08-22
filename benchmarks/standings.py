@@ -409,6 +409,20 @@ def coverage_line(rows, budget):
     fails = ", ".join(
         f"{v} {k}" for k, v in sorted(cls.items()) if k != "solved" and v
     )
+    # The attestation gap, named per board (0.25 Phase 0): a solved row
+    # with val=None was judged by NO external referee — VAL could not
+    # ingest that domain (typechecker refusal) or crashed judging it
+    # (the storage-time-constraints SIGBUS class); ipc67.py records the
+    # distinction deliberately (None, never False). Every such row still
+    # passed the ENGINE'S own oracles (replay/emitted-order audit; the
+    # SAT wing and temporal paths additionally run `temporal::validate`),
+    # but the table must say which referee a row had — 71 quiet rows at
+    # the 0.24 audit is how this line got here.
+    unattested = sum(1 for r in rows if solved(r) and r.get("val") is None)
+    if unattested:
+        note = (f"{unattested} solved VAL-unavailable "
+                "(engine-oracle only; see benchmarks/val-availability.py)")
+        fails = f"{fails}, {note}" if fails else note
     return s, n, fails or "none"
 
 
