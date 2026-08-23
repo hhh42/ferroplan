@@ -100,9 +100,29 @@ Both boards' conditions were CLEAN (median idle 69–75%), so this is
 not contamination either — it is the buzzer-beater class doing what
 the fragile watchlist says it does. No engine docket opens; tetris
 i4/i5/i12 and parking i4/i10/i11 are named as this cycle's watchlist
-cohort. Still open in this sitting: the onlycraft contended re-check
-and the val-0/0 attestation (both need the box, queued behind the
-entries sweep).
+cohort. Still open in this sitting: the val-0/0 attestation (the
+onlycraft contended re-check closes below).
+
+### Recorded — the onlycraft contended re-check: sat's gain survives, opt is a real ceiling
+
+Re-run under `benchmarks/post-entries25.sh`'s solo/load legs (the
+docket's scoped six rows: sat + opt, i4–i6, the load leg under four
+`yes >/dev/null` spinners). First attempt shipped a real bug, not a
+contention read: `run_oc()` built instance paths as `instance-N.pddl`;
+the corpus names them `instance-N_sat.pddl` / `instance-N_opt.pddl`,
+so all 12 rows failed instantly (0.00 s, empty JSON). Fixed
+(`post-entries25.sh` line 88) and re-run under real `bash` — a
+second, unrelated false failure hit the first re-run attempt (typed
+interactively into a shell that turned out to be `zsh`, which does
+not word-split `$extra` the way `bash` does; the script itself is
+unaffected — `#!/usr/bin/env bash`, always invoked as `bash …`).
+
+Real result: **sat solves 6/6, solo and under load — unchanged.** opt
+stays unsolved 6/6 in both conditions, consistently hitting the
+node-expansion cap (8M–35M states depending on load) before a
+certificate — a genuine 60 s search-size ceiling, not something
+contention was hiding. The scoped docket closes: sat's win is not
+fragile; opt's non-win is not contention either.
 
 ## Phase 1 — the table grows (medium, harness)
 
@@ -173,6 +193,59 @@ no bands — a new board is an honest row count, not a win.
   row-by-row against ipc-rankings.md — all match; the rankings page
   now carries the pointer note and keeps prose + provenance.
 
+### Recorded — the entries sweep converges: nine boards banked
+
+`entries25-sweeps.sh` ran self-healing passes over ~37 hours of
+wall-clock, almost all of it waiting out contention rather than
+computing: macOS Spotlight re-indexing (`spotlightknowledged` /
+`corespotlightd`, the most persistent single culprit), Brave, and
+briefly concurrent `cargo build`/`test` from parallel engine work on
+the same box. Five passes to bank all nine; `ipc2023-numeric-opt`,
+`ipc2026-opt-full`, and `ipc2014-mco-t2` each needed four-plus
+whole-board retries before a clean read.
+
+That cost — hours re-measuring rows that were already clean, over a
+brief contention window inside a 2+ hour run — is exactly what
+`PER-INSTANCE-RETRY.md` (repo root) diagnosed and fixed mid-sweep:
+`contention.py` now persists a per-sample timeline, `ipc67.py` stamps
+each row's wall-clock window and supports `--resume-raw`/
+`--resume-conditions` to reuse clean-window rows instead of
+re-running a whole board. Landed but NOT wired into
+`entries25-sweeps.sh`'s own retry loop this cycle — editing a
+running script's retry logic mid-run is exactly the case the house
+rule exists to prevent. One manual resume was attempted by hand and
+lost the race to the sweep's own near-instant restart (`wait_quiet`
+clears in seconds once the box is already quiet). Wiring step 4 into
+the driver itself is the clear lever before cut25's own sweep runs
+this same gauntlet.
+
+One casualty of the same rule, the hard way: `entries25-sweeps.sh`
+itself crashed with a bash syntax error on its own final `ALL DONE`
+echo line at exit — the live process kept running correctly on its
+already-parsed functions throughout, but the file had changed
+underneath it by the time it reached a portion it hadn't buffered.
+No data was lost (every board had already banked its `.done`
+marker), but it's a sharper, reproduced version of the same
+"don't edit a running script" lesson.
+
+Final coverage, all clean:
+
+| board | coverage |
+|---|---|
+| ipc5-simple-pref | 90/130 |
+| ipc5-qual-pref | 23/100 |
+| ipc2023-sat | 36/140 |
+| ipc2023-opt | 33/140 |
+| ipc2018-opt | 89/240 |
+| ipc2023-numeric-opt | 81/400 |
+| ipc2026-opt-full | 80/260 |
+| ipc2014-mco-t8 | 164/280 |
+| ipc2014-mco-t2 | 157/280 |
+
+Not yet promoted into `STANDINGS.md` — `promote-air25.sh` requires
+BOTH this set and the standing 22-board cut sweep (`cut25-sweeps.sh`,
+not yet run) to be done before it will touch the table.
+
 ## Phase 2 — the complex-preferences entry (light-medium)
 
 Scoped for this cycle by the 0.24 record itself (Phase 4: "the
@@ -237,6 +310,12 @@ learned what a preference is:
   bash script must not be edited mid-run) — sweep it when the
   entries sweep finishes:
   `python3 benchmarks/ipc67.py --track complex-pref-2006 --timeout 60 --jobs 2 --mem-gb 6 --out benchmarks/air25-entries/ipc5-complex-pref.md`
+- **Swept: 9/108, clean conditions** (idle 77–79%, via
+  `benchmarks/post-entries25.sh`'s own resume-aware runner). First
+  measurement for this board — no "vs previous" comparison exists
+  yet; this number is the baseline the next cycle compares against.
+  Not yet promoted into `STANDINGS.md` (same cut25 gate as Phase 1's
+  nine).
 
 ## Phase 3 — Wing II (the centerpiece, heavy)
 
@@ -450,6 +529,37 @@ Full report: `benchmarks/metrics/attribution-0.25.md`. The headlines:
   sitting's named probes (transport L3, tpp empty-constraints, the
   pathways 30-row re-measure).
 
+### Recorded — the sitting's queued probes report in
+
+Run via `benchmarks/post-entries25.sh` once the entries sweep
+finished; receipts under `benchmarks/air25-entries/`. (onlycraft's
+result is Phase 0's docket item, recorded there; parking's
+counted-case baseline is Phase 5's.)
+
+- **model-train encoder probe: declines both instances** —
+  `state-dependent durations (the STN needs fixed interval lengths)`
+  on i1 and i2. The anti-pot's own exit clause fires exactly as
+  scoped: priced at 0, nothing built.
+- **transport L3 (rung-budget re-slice)**, `FF_NO_NOVLIGHT=1
+  FF_NO_LAMA=1`: i4 solved in 16.18 s, i6 solved in 58.98 s (against
+  the wall). Both solve — the reclaimed-wall hypothesis needs a
+  wider instance set before it prices as a lever, not just these two.
+- **tpp-empty-constraints i1: still unsolved, 14.2 s** (well under
+  the wall — not a timeout). The empty `(:constraints (and))` block
+  does not explain the 0/30-vs-3/40 gap by itself; the riddle stays
+  open for 0.26.
+- **pathways-metric-time re-measured at the board budget with the
+  dur-0 fix + sum-goal mask applied: 0/30.** None of the thirty
+  early-exit instances converted to real solves. The metric-time
+  bugs this sitting's first pass fixed (the zero-duration skip, the
+  [TREL] relevance-mask hole) were real and necessary — the fixtures
+  stay green — but they are not SUFFICIENT for this board; whatever
+  blocks pathways specifically is a separate, still-unnamed
+  mechanism.
+- **tground_wall idle re-verify: passes clean** (1 passed, 9.69 s) —
+  the "reads as a contention phantom under sweep load" question
+  closes; not a real regression.
+
 ## Phase 5 — the side-dishes (light, each with its own receipt)
 
 - **Parking's counted-case PDB** (+1–4 via the sprint slot, i2–i4
@@ -466,6 +576,15 @@ Full report: `benchmarks/metrics/attribution-0.25.md`. The headlines:
   lever already in-engine; the old-binary rule prices any residual
   out.
 - Any early-exit declines Phase 4 classified as trivial.
+
+### Recorded — parking-opt baseline receipts (the re-derivation's starting point)
+
+Solo, board budget, `--mode optimal`, via `post-entries25.sh`: i2
+unsolved (node-cap timeout, 59.30 s), i3 **solved** (23.24 s), i4
+unsolved (node-cap timeout, 59.29 s). The 0.24 counted-case report's
+body was never committed (Phase 4's h-economy finding names the same
+loss) — these three receipts are what the re-derivation starts from,
+not a repeat of the lost read.
 
 ## Phase 6 — cut 0.25.0 (two headlines, by design)
 

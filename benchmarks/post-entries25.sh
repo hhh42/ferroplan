@@ -85,7 +85,7 @@ run_oc() { # variant instance mode tag
   [ "$3" = "optimal" ] && extra="--mode optimal"
   # shellcheck disable=SC2086
   FF_TIME_LIMIT=60 /usr/bin/time -o "$RC/$4.time" \
-    ./target/release/ff -o "$d/domain.pddl" -f "$d/instances/instance-$2.pddl" \
+    ./target/release/ff -o "$d/domain.pddl" -f "$d/instances/instance-${2}_$1.pddl" \
     --json $extra >"$RC/$4.json" 2>/dev/null
   python3 -c "import json;d=json.load(open('$RC/$4.json'));print('  $4: solved', d['solved'])"
 }
