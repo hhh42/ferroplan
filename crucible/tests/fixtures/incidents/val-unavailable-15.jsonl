@@ -1,0 +1,15 @@
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 1, "solved": true, "time": 19.63, "metric": 680.0, "length": 67, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 2, "solved": true, "time": 9.19, "metric": 485.0, "length": 44, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 3, "solved": true, "time": 24.09, "metric": 407.0, "length": 49, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 4, "solved": true, "time": 44.58, "metric": 978.0, "length": 130, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 5, "solved": true, "time": 54.06, "metric": 898.0, "length": 107, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 11, "solved": true, "time": 4.48, "metric": 421.0, "length": 20, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2018", "variant": "data-network-sequential-satisficing", "instance": 13, "solved": true, "time": 25.84, "metric": 690.0, "length": 43, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 1, "solved": true, "time": 0.01, "metric": null, "length": 12, "val": false, "notes": null}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 2, "solved": true, "time": 0.01, "metric": null, "length": 12, "val": false, "notes": null}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 3, "solved": true, "time": 0.02, "metric": null, "length": 24, "val": false, "notes": null}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 4, "solved": true, "time": 0.02, "metric": null, "length": 30, "val": false, "notes": null}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 5, "solved": true, "time": 12.54, "metric": null, "length": 30, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 6, "solved": true, "time": 14.84, "metric": null, "length": 37, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 7, "solved": true, "time": 51.86, "metric": null, "length": 46, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2026n", "variant": "factory-robot-numeric-2026", "instance": 9, "solved": true, "time": 40.3, "metric": null, "length": 63, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}
