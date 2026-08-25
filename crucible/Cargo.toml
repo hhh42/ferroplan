@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = ["crates/crucible-publish", "crates/crucible-core", "crates/crucible"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+# Deliberately ahead of ferroplan's 1.74 MSRV. crucible is never published, so
+# it carries no compatibility debt -- the same argument crates/ferroplan-mcp
+# makes for its own 1.88 override.
+rust-version = "1.80"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+# arbitrary_precision keeps a JSON number's ORIGINAL TOKEN instead of an f64.
+# serde_json's fast float path is one ULP off on real values in this corpus:
+# "9189.980000000001" parses to 0x...70a where std::parse and Python both give
+# 0x...70b, so a round-tripped board silently rewrote a measured metric. The
+# Value path (which parse_rows uses) is exact under this feature.
+serde_json = { version = "1", features = ["arbitrary_precision"] }
+thiserror = "2"
+toml = "0.8"
+regex = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -53,3 +53,10 @@ benchmarks/air25/
 benchmarks/air25-entries/
 benchmarks/entries25-sweep.log
 benchmarks/post-entries25.log
+
+# crucible: build output, local state, and the regenerable differential ledger.
+# The fixtures under crucible/tests/fixtures/ are deliberately NOT ignored --
+# they are rescued incident evidence (see that directory's README).
+crucible/target/
+crucible/state/
+benchmarks/crucible-differential.jsonl
