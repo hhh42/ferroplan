@@ -4,6 +4,69 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-08-27 — The table grows to 32 boards — and the like-for-like 22 dips, and says so first
+
+Two headlines BY DESIGN (roadmap-0.25 Phase 6): the grown table and the
+like-for-like instrument, never blended. Full record:
+[`docs/roadmap-0.25.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.25.md).
+
+### Headline one — the grown table
+
+**56% coverage across 32 IPC boards** (4,705/8,444), of which **665 are
+certified optima** — the proof surface nearly doubles (386 → 665). Ten
+boards enter: 2014 mco t2 (157/280) and t8 (164/280), 2018-opt
+(89/240 ⚖️), 2023 sat (36/140) and 2023 opt (33/140 ⚖️), 2023
+numeric-opt (81/400 ⚖️), 2026-opt FULL (80/260 ⚖️), and the three 2006
+preference tracks on their full corpora — simple 90/130, qualitative
+23/100, complex 9/108 (the first complex-preferences rows in this
+planner's history; the Phase 2 entry). The denominator grows
+6,366 → 8,444 and the total percentage DROPS on entry day exactly as the
+roadmap said it would — a bigger honest table, not a regression.
+
+### Headline two — the like-for-like 22: down 38, and the record names where
+
+3,943/6,366 (61.9%) vs 3,981/6,366 (62.5%) at 0.24.0 — **−38 net**,
+concentrated: **net-benefit 248→224 (−24)** and **propositional 369→358
+(−11)** own −35 of it; 2023-numeric −8 (251→243) is third. Gains:
+**metric-time 54→64 (+10)** and **time 77→79 (+2)** — BOTH under the
+Phase 5 tier move (their boards moved 30 s → 60 s this cycle), so their
+movement column carries budget-plus-engine, never engine alone; the
+engine half of metric-time's +10 includes the two 0.25 bug fixes (the
+zero-duration durative skip and the [TREL] relevance-mask hole).
+seq-sat +3 (504→507); small ±1–3 elsewhere at the 60 s wall.
+
+**Adjudications owed, hypotheses named (the 0.24 rule — never papered
+over):** the prime suspect for net-benefit's −24 is the Phase 2
+preference-tier ROUTER, a global change — the sweep header itself said
+"the router change is global — watch for parity" before it ran.
+Propositional's −11 sits entirely in near-wall timeouts (92 vs 81, zero
+mem-caps), where borderline flips and the same router suspect both
+apply. Both boards' final numbers came from CLEAN re-runs (~74% idle) —
+contention does not explain them. Neither is root-caused in this
+record; both are named for 0.26.
+
+### The cycle's engine story
+
+- **Wing II (Phase 3):** the conflict-rate bail is the refund that
+  shipped (match-cellar i1 30.7→17.5 s, i2 31→1.2 s;
+  `FF_NO_SAT_RATEBAIL` restores); the CEGAR pairing GUARD (a soundness
+  fix, no hatch by design), layer-shift generalization
+  (`FF_NO_SAT_LAYERGEN`); planning branching MEASURED NEGATIVE for
+  default-on and shipped opt-in (`FF_SAT_BRANCH`). The wing's step-5
+  verdict stands recorded: no board moved.
+- **The metric-time decode (Phase 4)** found and fixed two real bugs,
+  fixtures first; pathways stays 0/30 and its riddle carries to 0.26
+  sharpened.
+- **match-cellar canary: 40/40** at 0.23's exact costs — clean.
+
+### The sweep, on the record
+
+Three passes, 2026-08-26 → 08-27, on `m5-air`. Nine boards measured
+under contention in pass 1 (Docker Desktop's VM, Steam, a wrangler
+burst, a Gradle daemon — each named in the log) were refused WHOLE and
+re-banked clean in passes 2–3 at ~74–77% idle. Nothing dirty was
+promoted. Snapshot banked (`standings-history.json`, 7th snapshot).
+
 ## [0.24.0] - 2026-08-20 — The SAT wing: the zero block gets its first nonzero row
 
 The cycle that absorbed a solver instead of hand-rolling one, built the

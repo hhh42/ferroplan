@@ -606,6 +606,27 @@ The standing template, plus the shape this cycle forces:
   named; under-delivery, if it happens, gets the 0.24 treatment —
   measured shortfall, hypotheses named, never papered over.
 
+### The cut, recorded (2026-08-27)
+
+Swept in three passes 2026-08-26 → 08-27; nine pass-1 boards refused
+under contention (each competitor named in `benchmarks/cut25-sweep.log`)
+and re-banked clean at ~74–77% idle. Promoted whole: the standing 22
+plus the ten entries — **56% across 32 boards (4,705/8,444), 665
+certified optima**. The two headlines, per this phase's design:
+
+- Grown table: 4,705/8,444, proof surface 386 → 665.
+- Like-for-like 22: 3,943/6,366 (61.9%) vs 3,981 (62.5%) — **−38 net**,
+  owned by net-benefit −24 and propositional −11 (adjudications owed;
+  prime suspect the Phase 2 preference router, a global change — both
+  measured on clean re-runs, so contention is excluded); metric-time
+  +10 and time +2 ride the tier move and are budget-plus-engine by
+  construction (registry flipped at promote, proven by the stamp gate).
+- match-cellar canary 40/40 at 0.23's exact costs; snapshot banked.
+
+Full movement narrative: `CHANGELOG.md` `[0.25.0]`. The 0.26 cycle
+opened the same day carrying the two adjudications and the field-gaps
+expansion (`docs/roadmap-0.26.md`).
+
 ## Anti-pots — priced at zero, standing
 
 - **Code at the transport / floor-tile / metric-time walls before

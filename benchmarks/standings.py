@@ -99,8 +99,8 @@ def absent(label, pending="sweep in flight / not yet run"):
 # sweep jsonl -> (label, competition, budget seconds)
 SWEEPS = {
     "ipc5-prop.jsonl": ("propositional", "ipc5", 60),
-    "ipc5-time.jsonl": ("time", "ipc5", 30),
-    "ipc5-metric-time.jsonl": ("metric-time", "ipc5", 30),
+    "ipc5-time.jsonl": ("time", "ipc5", 60),
+    "ipc5-metric-time.jsonl": ("metric-time", "ipc5", 60),
     "ipc5-constraints.jsonl": ("constraints", "ipc5", 60),
     "ipc67-default.jsonl": ("seq-sat", "ipc67", 60),
     # >>> TIER MOVE 30 -> 60 (0.23 Phase 3), DEFERRED TO PROMOTE TIME <<<

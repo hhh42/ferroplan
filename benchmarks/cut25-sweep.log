@@ -1,0 +1,132 @@
+== waiting for the certificate gate 2026-08-25 16:18:55
+REFUSING: the gate found REGRESSION(s) -- stop the phase, do not sweep
+DIFFERENTIAL DONE (board-budget 60s): 386 agree, 0 mismatch, 0 REGRESSION, 0 inconclusive (of 386 certified rows)
+
+== the refusal above was a BUG in this chain, not a gate failure: an
+== unanchored grep matched the summary's own "0 REGRESSION". Verified
+== 386 agree / 0 lines matching ^REGRESSION. Grep anchored; relaunching.
+== 2026-08-25 16:37:31
+    Finished `release` profile [optimized] target(s) in 0.15s
+binary: ff 0.25.0
+RUN  ipc5-time (time-2006 60s jobs 2 ) 16:37:34
+DONE ipc5-time: total coverage: **79/130** 17:05:43 [idle 78.7% clean]
+RUN  ipc5-metric-time (metric-time-2006 60s jobs 2 ) 17:05:45
+DONE ipc5-metric-time: total coverage: **64/200** 18:17:51 [idle 78.4% clean]
+RUN  ipc5-constraints (constraints-2006 60s jobs 2 ) 18:17:54
+DONE ipc5-constraints: total coverage: **28/120** 18:58:03 [idle 78.7% clean]
+RUN  ipc2026-opt (opt-2026 60s jobs 2 --mode optimal) 18:58:06
+DONE ipc2026-opt: total coverage: **22/60** 19:17:27 [idle 60.2% clean]
+RUN  ipc67-netben (net-benefit 60s jobs 2 ) 19:17:30
+DONE ipc67-netben: total coverage: **213/270** 20:26:37 [idle 58.2% clean]
+RUN  ipc5-prop (prop-2006 60s jobs 2 ) 20:26:41
+DONE ipc5-prop: total coverage: **353/450** 21:31:17 [idle 75.5% DEGRADED]
+!! ipc5-prop measured under contention (median idle 75.5%; competing: signpost_reporter 16%, WindowServer 6%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2023-agile (agile-2023 60s jobs 2 ) 21:31:19
+DONE ipc2023-agile: total coverage: **37/140** 22:23:57 [idle 78.3% clean]
+RUN  ipc2014-tempo (tempo-sat-2014 60s jobs 2 ) 22:23:59
+DONE ipc2014-tempo: total coverage: **76/200** 23:32:46 [idle 78.7% clean]
+RUN  ipc2018-sat (sat-2018 60s jobs 2 ) 23:32:48
+DONE ipc2018-sat: total coverage: **82/240** 01:03:23 [idle 78.5% clean]
+RUN  ipc2014-sat (seq-sat-2014 60s jobs 2 ) 01:03:25
+DONE ipc2014-sat: total coverage: **150/280** 02:17:03 [idle 78.6% clean]
+RUN  ipc2014-agile (seq-agile-2014 60s jobs 2 ) 02:17:05
+DONE ipc2014-agile: total coverage: **147/280** 03:32:50 [idle 69.3% DEGRADED]
+!! ipc2014-agile measured under contention (median idle 69.3%; competing: spotlightknowledged 53%, corespotlightd 2%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2014-opt (seq-opt-2014 60s jobs 2 --mode optimal) 03:32:53
+DONE ipc2014-opt: total coverage: **76/256** 05:07:35 [idle 78.6% clean]
+RUN  ipc2026-numeric (numeric-2026 60s jobs 2 ) 05:07:37
+DONE ipc2026-numeric: total coverage: **217/320** 06:05:44 [idle 78.3% clean]
+RUN  ipc2023-numeric (numeric-2023 60s jobs 2 ) 06:05:47
+DONE ipc2023-numeric: total coverage: **243/400** 07:35:13 [idle 60.3% DEGRADED]
+!! ipc2023-numeric measured under contention (median idle 60.3%; competing: Steam Helper 12%, WindowServer 8%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc-opt-2008-11 (seq-opt 60s jobs 2 --mode optimal) 07:35:16
+DONE ipc-opt-2008-11: total coverage: **275/550** 10:09:15 [idle 72.3% DEGRADED]
+!! ipc-opt-2008-11 measured under contention (median idle 72.3%; competing: Steam Helper 15%, WindowServer 11%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc67-temporal (tempo-sat 60s jobs 2 ) 10:10:21
+DONE ipc67-temporal: total coverage: **422/630** 12:08:20 [idle 70.4% DEGRADED]
+!! ipc67-temporal measured under contention (median idle 70.4%; competing: WindowServer 4%, Steam Helper 4%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc67-results (seq-sat 60s jobs 2 ) 12:09:25
+DONE ipc67-results: total coverage: **503/580** 13:28:48 [idle 68.6% DEGRADED]
+!! ipc67-results measured under contention (median idle 68.6%; competing: com.apple.Virtualization.VirtualMachine 15%, mediaanalysisd 13%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc7-mco-t2 (seq-mco 60s jobs 1 --threads 2) 13:28:51
+DONE ipc7-mco-t2: total coverage: **231/280** 14:55:13 [idle 75.2% DEGRADED]
+!! ipc7-mco-t2 measured under contention (median idle 75.2%; competing: node 10%, npm exec wrangler d1 execute bandade-db --re 2%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc7-mco-t4 (seq-mco 60s jobs 1 --threads 4) 14:55:15
+DONE ipc7-mco-t4: total coverage: **235/280** 16:15:44 [idle 61.3% clean]
+RUN  ipc7-mco-t8 (seq-mco 60s jobs 1 --threads 8) 16:15:47
+DONE ipc7-mco-t8: total coverage: **237/280** 17:32:26 [idle 36.9% DEGRADED]
+!! ipc7-mco-t8 measured under contention (median idle 36.9%; competing: java 6%, corespotlightd 4%)
+   NOT marking done — re-run this driver when the box is free.
+RUN  ipc2014-mco-t4 (seq-mco-2014 60s jobs 1 --threads 4) 17:32:28
+DONE ipc2014-mco-t4: total coverage: **161/280** 19:58:59 [idle 64.9% clean]
+RUN  ipc2023-agile-300s (agile-2023 300s jobs 2 ) 19:59:01
+DONE ipc2023-agile-300s: total coverage: **50/140** 00:10:22 [idle 74.2% clean]
+== pass 2 — retrying contended boards: ipc67-netben ipc5-prop ipc2014-agile ipc2023-numeric ipc-opt-2008-11 ipc67-temporal ipc67-results ipc7-mco-t2 ipc7-mco-t8
+SKIP ipc5-time (done)
+SKIP ipc5-metric-time (done)
+SKIP ipc5-constraints (done)
+SKIP ipc2026-opt (done)
+RUN  ipc67-netben (net-benefit 60s jobs 2 ) 00:10:25
+DONE ipc67-netben: total coverage: **224/270** 00:18:58 [idle 73.2% clean]
+RUN  ipc5-prop (prop-2006 60s jobs 2 ) 00:19:01
+DONE ipc5-prop: total coverage: **358/450** 00:50:17 [idle 73.1% clean]
+SKIP ipc2023-agile (done)
+SKIP ipc2014-tempo (done)
+SKIP ipc2018-sat (done)
+SKIP ipc2014-sat (done)
+RUN  ipc2014-agile (seq-agile-2014 60s jobs 2 ) 00:50:19
+DONE ipc2014-agile: total coverage: **147/280** 01:42:04 [idle 74.3% clean]
+SKIP ipc2014-opt (done)
+SKIP ipc2026-numeric (done)
+RUN  ipc2023-numeric (numeric-2023 60s jobs 2 ) 01:42:06
+DONE ipc2023-numeric: total coverage: **243/400** 02:07:52 [idle 73.3% clean]
+RUN  ipc-opt-2008-11 (seq-opt 60s jobs 2 --mode optimal) 02:07:55
+DONE ipc-opt-2008-11: total coverage: **284/550** 03:27:39 [idle 75.0% clean]
+RUN  ipc67-temporal (tempo-sat 60s jobs 2 ) 03:27:42
+DONE ipc67-temporal: total coverage: **434/630** 04:29:26 [idle 74.6% clean]
+RUN  ipc67-results (seq-sat 60s jobs 2 ) 04:29:28
+DONE ipc67-results: total coverage: **507/580** 05:30:53 [idle 75.2% clean]
+RUN  ipc7-mco-t2 (seq-mco 60s jobs 1 --threads 2) 05:30:56
+DONE ipc7-mco-t2: total coverage: **231/280** 06:36:19 [idle 76.9% clean]
+SKIP ipc7-mco-t4 (done)
+RUN  ipc7-mco-t8 (seq-mco 60s jobs 1 --threads 8) 06:36:22
+DONE ipc7-mco-t8: total coverage: **238/280** 07:24:42 [idle 35.9% DEGRADED]
+!! ipc7-mco-t8 measured under contention (median idle 35.9%; competing: com.apple.Virtualization.VirtualMachine 9%, syspolicyd 1%)
+   NOT marking done — re-run this driver when the box is free.
+SKIP ipc2014-mco-t4 (done)
+SKIP ipc2023-agile-300s (done)
+== pass 3 — retrying contended boards: ipc7-mco-t8
+SKIP ipc5-time (done)
+SKIP ipc5-metric-time (done)
+SKIP ipc5-constraints (done)
+SKIP ipc2026-opt (done)
+SKIP ipc67-netben (done)
+SKIP ipc5-prop (done)
+SKIP ipc2023-agile (done)
+SKIP ipc2014-tempo (done)
+SKIP ipc2018-sat (done)
+SKIP ipc2014-sat (done)
+SKIP ipc2014-agile (done)
+SKIP ipc2014-opt (done)
+SKIP ipc2026-numeric (done)
+SKIP ipc2023-numeric (done)
+SKIP ipc-opt-2008-11 (done)
+SKIP ipc67-temporal (done)
+SKIP ipc67-results (done)
+SKIP ipc7-mco-t2 (done)
+SKIP ipc7-mco-t4 (done)
+RUN  ipc7-mco-t8 (seq-mco 60s jobs 1 --threads 8) 07:24:45
+DONE ipc7-mco-t8: total coverage: **238/280** 07:53:16 [idle 24.8% clean]
+SKIP ipc2014-mco-t4 (done)
+SKIP ipc2023-agile-300s (done)
+0.25 CUT SWEEP ALL DONE 2026-08-27 07:53:16 (passes: 3)
+next: read match-cellar coverage on ipc67-temporal / ipc2014-tempo
+      against the 40/40 canary, then benchmarks/promote-air25.sh
+      (already written this cycle — it carries the tier-move registry flip).
