@@ -38,6 +38,17 @@ trail is part of the record:
   (Phase 5) and its one remaining gap is the one that matters — the
   premise it was built for.
 
+**Addendum, 2026-08-26 — the cycle goes big.** The field-gaps memo
+(`docs/field-gaps-0.26.md` — drafted as a 0.27 candidate, adopted whole by
+decision the day after scoping) folds into this cycle: the SGPlan ledger,
+the modern-satisficing ladder, and the cross-cutting engine gaps, every
+gate intact. The expansion phases are recorded below ("The field-gaps
+expansion"), the executable specs land in
+`docs/field-gaps-execution-0.26.md`, and the 0.26 cut sweep runs on
+crucible (F6). Phase 0 keeps its primacy — the proof gap is still read
+first — and the expansion sequences behind the 0.25 cut sweep now in
+flight: no builds, no probes, while it owns the box.
+
 ## Phase 0 — the proof-gap sitting (light, NO code)
 
 A design read, in the 0.25 Phase 4 mould, and under the house rule that
@@ -453,6 +464,67 @@ the worktree-naming rule already exist with tests; nothing drives them),
 and arming the Linux cross-check that keeps `trait Platform` honest
 (`rustup target add x86_64-unknown-linux-gnu`).
 
+## The field-gaps expansion (adopted 2026-08-26)
+
+The program: `docs/field-gaps-0.26.md`, verified before adoption — every
+per-domain number re-derived from the raws, the anti-pot ledger re-read
+against every item, feasibility checked against source (the draft's 2014
+"+16" died in that verification; what survived is what is priced here).
+Specs: `docs/field-gaps-execution-0.26.md`. Order of operations: nothing
+below touches the box until the 0.25 cut sweep completes and promotes.
+
+- **F0 — the decode sittings** (committed reports, exit clauses, fixed
+  probe budgets): (a) trucks/storage-time — one unnamed mechanism carries
+  −49 gross across three SGPlan tracks and +4 flips ipc5-time;
+  temporal-relaxation exits pre-excluded (that ledger is closed). (b) the
+  cliff decode that must precede any forgetting/multi-heuristic rung
+  (rubiks, floor-tile-class, the 2018/2023 residue) — the rung builds only
+  on its number, per the standing width rule. (c) metric-time widened to
+  rovers i3/i5 — rides Phase 3's sitting. (d) the transport probe
+  widening — rides Phase 4; prices the 2008 share of the +8–20 aggregate.
+- Specs for every phase below: `docs/field-gaps-execution-0.26.md`
+  (assembled + house-law-verified 2026-08-26; its Amendments section is
+  binding — including the finding that the transport-L3 receipts are
+  ipc-2011 rows, so the 2008 overtake rides entirely on F0(d)'s widening).
+- **F1 — fallback enrichment** (ungated): preferred operators + `FF_CLM`
+  into the bare wBFS fallback that does most of the solving; RED fixture,
+  named `FF_NO_*` restore, old-binary referee; bands +10–17 (ipc5-prop
+  tails) and +9-to-median (2018).
+- **F2 — YAHSP-style relaxed-plan lookahead** (ungated; never tried in
+  this engine): opt-in hatch first; parking-2014's four 59.5–59.9 s
+  solves are the fixture class.
+- **F3 — the gated builds**, opened only by F0's decodes: the
+  `charge_pre_num` temporal hatch (the 0.22 charge-on-temporal negative
+  declared; the workshop-economy fixture mandatory; `FF_H_ENDGATE`/`FF_TRPG`
+  co-fire declared untested), AIBR/subgoaling numeric h, transport L1–L3,
+  the forgetting/multi-heuristic rung.
+- **F4 — quality + memory**: quantum-layout anytime polish (existing
+  boards only, coverage-neutrality refereed — no new tiers), the
+  folding/elevator memory sitting (+3–10 across boards), the storage-tc
+  i8–10 fold probe, the floor-tile no-code pricing probe, and the
+  model-train plan-then-schedule feasibility read — **executed
+  2026-08-26, exit clause FIRED**: the pre-state duration core has existed
+  since v0.10; the item is closed and its mass re-routes to F3's
+  `charge_pre_num` gate (dossier §3.7).
+- **F5 — 2014 config reconciliation**: the hiking agile-ordering
+  diagnosis, then the +6-oracle config schedule, old-binary refereed and
+  priced after the referee (the true sat∪agile union is 155/280).
+- **F6 — crucible sweeps the cut**: Phase 5's named gap closes first (the
+  DB wiring — resumption survives a killed PROCESS, the premise), then
+  `crucible backfill` and the Linux cross-check; the 0.26 cut sweep runs
+  on crucible gated on the byte-parity preconditions (`standings --check`,
+  the 314-board classifier agreement, the 6,366-instance enumeration),
+  with `standings.py` alongside as the differential oracle, and the
+  mem-cap classification fix landing as its own commit AFTER parity is
+  proven, carrying the −7/+7 movement in the cut record.
+
+Standing correction already landed with the adoption (2026-08-26):
+`docs/ipc-rankings.md`'s constraints row refreshed from the committed raws
+— the "12/120, 70 rows rejected" text was two cycles stale; the row now
+records 28/120, zero rejects, storage-tc won outright, 2nd-of-3 on the
+official subset. Every fence in the memo's §4 carries into this cycle's
+anti-pot list by reference.
+
 ## Phase 6 — cut 0.26.0
 
 The standing template. What this cycle forces on top:
@@ -465,6 +537,8 @@ The standing template. What this cycle forces on top:
   three cycles running; 0.25 finally caught it at authoring. Keep it there.
 - Pre-flight is the four-crate order (ferroplan-sat → ferroplan →
   ferroplan-cli → ferroplan-mcp).
+- The sweep itself runs on crucible (F6) — the shell drivers stay
+  runnable as the fallback, and `standings.py` referees byte-parity.
 - If Phase 0 refused the centerpiece, the cut record says so in its first
   paragraph, not its last.
 
@@ -486,6 +560,13 @@ Added this cycle:
 - **Code at the pathways or tpp walls before Phase 3's decode.** Same
   rule that governed transport, for the same reason, on the same
   evidence.
+
+- **The field-gaps §4 fences, incorporated by reference** (added
+  2026-08-26): no code at the pathways/tpp walls pre-decode (rovers
+  treated the same by this cycle's own extension), no temporal
+  delete-relaxation ever, no STN-shaped model-train revival, no
+  2014-transport claims from L1–L3, no un-decoded novelty promotion, no
+  anytime-for-coverage, no new tiers.
 
 ## Deferred, on the record (carried forward)
 
