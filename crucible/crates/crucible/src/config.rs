@@ -23,6 +23,24 @@ pub struct Config {
     pub quiet_hours: QuietHours,
     pub contention: Contention,
     pub ui: Ui,
+    pub db: Db,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Db {
+    /// Where the database and its directory lock live. Beside the worktrees,
+    /// not in the repo: the repo's committed raws are the durable record and
+    /// this is a cache and a work queue, rebuildable from them.
+    pub dir: PathBuf,
+}
+
+impl Default for Db {
+    fn default() -> Self {
+        Self {
+            dir: dirs_home().join(".crucible/db"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

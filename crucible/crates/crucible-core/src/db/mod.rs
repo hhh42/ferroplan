@@ -78,7 +78,9 @@ pub use model::{
     TimingQuality, ValReason, VariantKey,
 };
 pub use read::Reader;
-pub use rebuild::{export, export_to, rebuild_from_artifacts, RebuiltBoard};
+pub use rebuild::{
+    board_facts, board_key_from_manifest, export, export_to, rebuild_from_artifacts, RebuiltBoard,
+};
 pub use writer::{Writer, WriterHandle};
 
 use std::path::{Path, PathBuf};

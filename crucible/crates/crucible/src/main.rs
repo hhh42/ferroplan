@@ -78,6 +78,12 @@ enum Cmd {
         /// and a resident harness should go on waiting.
         #[arg(long)]
         max_passes: Option<u32>,
+        /// Run without the database: rows held in memory, cleanliness judged
+        /// from a before/after sample pair, no engine stamp on the rows. The
+        /// pre-DB behaviour, bit for bit, kept as the restore hatch. Env twin:
+        /// CRUCIBLE_NO_DB=1.
+        #[arg(long)]
+        no_db: bool,
     },
     /// Regenerate (or check) the standings documents.
     Standings {
@@ -142,6 +148,7 @@ fn real_main() -> anyhow::Result<()> {
             quiet_only,
             dry_run,
             max_passes,
+            no_db,
         } => sweep::run(
             &repo_root,
             &cfg,
@@ -151,6 +158,7 @@ fn real_main() -> anyhow::Result<()> {
                 quiet_only,
                 dry_run,
                 max_passes,
+                no_db: no_db || std::env::var_os("CRUCIBLE_NO_DB").is_some_and(|v| v == "1"),
             },
         ),
         Cmd::Standings { doc, check, write } => standings(&repo_root, &cfg, &doc, check, write),

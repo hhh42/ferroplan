@@ -326,6 +326,15 @@ pub fn write_row(r: &RawRow, out: &mut String) {
         key("resumed_clean", out);
         out.push_str(if r.resumed_clean { "true" } else { "false" });
     }
+    // Columns this crate does not model, kept: the runner stamps a new one
+    // most cycles, and the resume gate's `engine` hash is one of them. A
+    // writer that dropped them would silently un-stamp every row it rewrote,
+    // and the next pass would re-measure the lot. Last, in key order -- after
+    // every key `run_instance` writes, so no committed row changes.
+    for (k, v) in &r.extra {
+        key(k, out);
+        write_value(v, out);
+    }
     out.push('}');
 }
 

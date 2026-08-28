@@ -87,15 +87,20 @@ fn manifest() -> Manifest {
 }
 
 /// One board's raw, and its sibling conditions file, in a directory of their
-/// own. The conditions file is the `air24` one, which is the rollup-only shape
-/// that 72 of the repo's 76 conditions files have.
+/// own. The conditions file is the rescued rollup-only fixture -- the shape
+/// 72 of the repo's 76 conditions files have, verdict `clean`, no timeline.
+///
+/// A rescued fixture rather than `benchmarks/air24/`'s file: `air*/` is
+/// gitignored, so on a fresh checkout that file does not exist, the pass
+/// verdict degrades to `unknown`, and this test fails for a reason that has
+/// nothing to do with the code under test. Hermetic means git-tracked.
 fn artifacts(scratch: &Scratch, name: &str, raw: &str) -> PathBuf {
     let dir = scratch.join(name);
     std::fs::write(dir.join(BOARD_RAW), raw).expect("writing the board raw");
-    let cond = repo_root().join("benchmarks/air24/ipc2014-opt.conditions.json");
-    if cond.exists() {
-        std::fs::copy(&cond, dir.join("ipc2014-opt.conditions.json")).expect("copying conditions");
-    }
+    let cond = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/conditions/rollup-only.json");
+    std::fs::copy(&cond, dir.join("ipc2014-opt.conditions.json"))
+        .unwrap_or_else(|e| panic!("{}: {e}", cond.display()));
     dir
 }
 

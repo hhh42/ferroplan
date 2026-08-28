@@ -43,6 +43,12 @@ pub struct Engine {
     /// Exactly `ff --version`. Written into every row; NOT the identity the
     /// resume gate uses, because two builds of a cycle share it.
     pub ver: String,
+    /// BLAKE3 of the binary -- the identity the resume gate DOES use. Stamped
+    /// into every measured row under [`crate::sched::resume::ENGINE_KEY`], so
+    /// a row is self-identifying in the database and in the exported raw
+    /// alike. Empty means "unknown", and an unstamped row is refused by the
+    /// gate rather than trusted.
+    pub blake3: String,
 }
 
 /// What `ff --json` prints.
@@ -90,6 +96,13 @@ pub struct Measured {
     /// The machine slept mid-run. Every number here is suspect.
     pub clock_jump: Duration,
     pub mem_instrument: &'static str,
+    /// Real elapsed time, suspension included. Zero on the spawn-fail path.
+    pub wall: Duration,
+    pub exit_code: Option<i32>,
+    pub term_signal: Option<i32>,
+    /// The child that ran. `None` only when nothing was spawned.
+    pub pid: Option<crate::platform::Pid>,
+    pub pgid: Option<crate::platform::Pid>,
 }
 
 /// Build the argv `ipc67.py` builds.
@@ -122,11 +135,19 @@ pub fn measure<P: Platform>(
     plan_dir: &Path,
     plat: &P,
     ctl: &Receiver<Ctl>,
+    on_spawn: Option<&dyn Fn(crate::platform::Pid, f64)>,
 ) -> Measured {
     let mem_cap = plat.probe_mem_cap((cfg.mem_gb * (1u64 << 30) as f64) as u64);
     let envs = exec_env::build(cfg.timeout_secs, cfg.mem_gb, &cfg.env);
     let args = argv(cfg, &inst.domain, &inst.problem);
 
+    let mut extra = serde_json::Map::new();
+    if !engine.blake3.is_empty() {
+        extra.insert(
+            crate::sched::resume::ENGINE_KEY.to_string(),
+            serde_json::Value::String(engine.blake3.clone()),
+        );
+    }
     let mut row = RawRow {
         ipc: Some(ipc.to_string()),
         variant: variant.to_string(),
@@ -150,7 +171,7 @@ pub fn measure<P: Platform>(
         end_ts: None,
         makespan: None,
         resumed_clean: false,
-        extra: Default::default(),
+        extra,
         present: Present::current(false),
     };
 
@@ -161,6 +182,7 @@ pub fn measure<P: Platform>(
             envs: &envs,
             timeout: Duration::from_secs(cfg.timeout_secs),
             mem_cap,
+            on_spawn,
         },
         plat,
         ctl,
@@ -171,7 +193,7 @@ pub fn measure<P: Platform>(
             // environmental and NOT an engine verdict -- the 0.16 seq-mco sweep
             // lost floor-tile i7-i12 to exactly this, logged as engine rejects.
             row.notes = Some(Notes::One("spawn-fail".into()));
-            return done(row, None, 0, 0, Duration::ZERO, Duration::ZERO, mem_cap);
+            return done(row, None, None, mem_cap);
         }
         Err(e) => {
             // A missing or unrunnable binary is fatal to the SWEEP, never a
@@ -291,24 +313,13 @@ pub fn measure<P: Platform>(
         }
     }
 
-    done(
-        row,
-        verdict,
-        out.cpu_ms,
-        out.peak_rss,
-        out.suspended,
-        out.clock_jump,
-        mem_cap,
-    )
+    done(row, verdict, Some(&out), mem_cap)
 }
 
 fn done(
     mut row: RawRow,
     verdict: Option<Verdict>,
-    cpu_ms: u64,
-    peak_rss: u64,
-    suspended: Duration,
-    clock_jump: Duration,
+    out: Option<&exec::RunOutcome>,
     mem_cap: MemCap,
 ) -> Measured {
     // Stamped on every exit path, because a row only reaches the artifact once
@@ -327,11 +338,16 @@ fn done(
     Measured {
         row,
         val_reason: verdict.and_then(|v| v.reason()),
-        cpu_ms,
-        peak_rss,
-        suspended,
-        clock_jump,
+        cpu_ms: out.map_or(0, |o| o.cpu_ms),
+        peak_rss: out.map_or(0, |o| o.peak_rss),
+        suspended: out.map_or(Duration::ZERO, |o| o.suspended),
+        clock_jump: out.map_or(Duration::ZERO, |o| o.clock_jump),
         mem_instrument: mem_cap.instrument(),
+        wall: out.map_or(Duration::ZERO, |o| o.wall),
+        exit_code: out.and_then(|o| o.exit_code),
+        term_signal: out.and_then(|o| o.term_signal),
+        pid: out.map(|o| o.pid),
+        pgid: out.map(|o| o.pgid),
     }
 }
 

@@ -14,17 +14,41 @@
 //! written, marked dirty when the box was not quiet, and a board is banked only
 //! when every one of its instances has a CLEAN row. Nothing is discarded; work
 //! is owed, not lost.
+//!
+//! # The database is the truth; the JSONL is an export
+//!
+//! Every measured instance is committed to the database in its own
+//! transaction the moment its run finishes -- BEFORE the box is asked whether
+//! the run was clean, before the artifacts are rewritten, before anything else
+//! happens. That commit is the `kill -9` receipt: a restarted sweep opens the
+//! same database, reads back every row and every clean verdict, and owes
+//! exactly the instances that never got one. The stage's `.jsonl` is
+//! regenerated from those rows, which is what makes it an export rather than a
+//! second record that could disagree.
+//!
+//! Cleanliness is the per-sample window intersection over the watcher's
+//! box-wide timeline (`Reader::window_gate`), the same rule `ipc67.py`'s
+//! `load_resume` applies to a conditions file -- and not the before/after
+//! sample pair the first cut of this driver used, which could not see a
+//! ten-minute spike in the middle of a five-minute instance.
+//!
+//! `--no-db` restores that first cut exactly: no database, no watcher thread,
+//! no engine stamp on the rows, pair-judged cleanliness. It is the hatch, and
+//! it is kept so the off-path artifacts stay bit-identical to what the
+//! pre-database binary wrote.
 
 use anyhow::Context;
 use crucible_core::corpus;
-use crucible_core::exec::Ctl;
+use crucible_core::db::{self, Db, Reader};
+use crucible_core::exec::{orphan, Ctl};
 use crucible_core::monitor::{self, Level, Sample, Throttle};
-use crucible_core::platform::{self, Platform};
+use crucible_core::platform::{self, Pid, Platform};
 use crucible_core::sched::{self, Attempt, BoardState, Event, LoopConfig, Next, Runner};
 use crucible_core::sweep::{BoardCfg, Engine as SweepEngine};
 use crucible_publish::manifest::{BoardSpec, Manifest};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 /// One board's work: its spec, its instances, and which of them still owe a
@@ -35,17 +59,46 @@ pub(crate) struct Board {
     instances: Vec<(String, String, corpus::Instance)>,
     /// Instance keys that have banked a CLEAN row. A dirty row is written and
     /// kept, but does not remove the instance from the owed set.
+    ///
+    /// Keyed by the row's full address -- `ipc`, variant, label -- and never by
+    /// the label alone. A multi-variant board carries instance "1" in every
+    /// variant, and a set keyed on labels would count them once and never
+    /// reach zero.
     clean: std::collections::BTreeSet<String>,
     /// Every row measured, keyed so a later clean measurement SUPERSEDES an
     /// earlier dirty one. Nothing is ever dropped -- a dirty row is the record
     /// that the instance was attempted and what the box was doing.
     rows: std::collections::BTreeMap<String, crucible_publish::RawRow>,
+    /// The database's names for this board and engine, once resolved.
+    ids: Option<(i64, i64)>,
+    /// The identity every receipt for this board is written under.
+    key: db::BoardKey,
+    facts: db::BoardFacts,
+    /// Rows this process did not measure: read back from the database at
+    /// startup. Reported on the pass row, the way `ipc67.py`'s `.md` reports
+    /// what it stitched.
+    reused: usize,
 }
 
 impl Board {
     fn remaining(&self) -> usize {
         self.instances.len() - self.clean.len()
     }
+}
+
+/// The row's address inside a board: the same three fields `run` is keyed by.
+fn instance_key(ipc: &str, variant: &str, label: &str) -> String {
+    format!("{ipc}\u{1}{variant}\u{1}{label}")
+}
+
+/// The open database and everything a receipt is stamped with.
+pub struct DbCtx {
+    pub db: Db,
+    pub reader: Reader,
+    pub engine: db::EngineKey,
+    pub engine_facts: db::EngineFacts,
+    /// The watcher's cadence, and the padding either side of a run's window.
+    pub interval: f64,
 }
 
 /// The runner's construction parameters.
@@ -60,6 +113,8 @@ pub struct Setup<'s> {
     /// Whether this engine can run a given `--mode`. A board it cannot run is
     /// skipped with ZERO rows, never measured as zero coverage.
     pub capable: &'s dyn Fn(&str) -> bool,
+    /// `None` is the `--no-db` path.
+    pub db: Option<DbCtx>,
 }
 
 pub struct SweepRunner<'a> {
@@ -85,6 +140,7 @@ pub struct SweepRunner<'a> {
     /// tonight and show me".
     max_passes: Option<u32>,
     passes: u32,
+    db: Option<DbCtx>,
 }
 
 /// A board's config, assembled once so the row-identity tuple travels together.
@@ -110,6 +166,61 @@ fn board_cfg(m: &Manifest, b: &BoardSpec) -> BoardCfg {
     }
 }
 
+/// The identity a LIVE sweep writes its receipts under: the manifest's, with
+/// the armed wall and the declared environment filled in. A rebuilt board's
+/// `env` is empty because the artifacts do not record it, so a live board gets
+/// its own row -- which is correct, not unfortunate: a measurement whose
+/// environment is known is not the same measurement as one whose environment
+/// is not.
+fn board_key_for_sweep(m: &Manifest, spec: &BoardSpec, cfg: &BoardCfg) -> db::BoardKey {
+    let mut k = db::board_key_from_manifest(m, spec);
+    k.budget_secs = cfg.timeout_secs as f64;
+    k.mode = cfg.mode.clone().unwrap_or_else(|| "auto".into());
+    k.jobs = cfg.jobs;
+    k.threads = cfg.threads.to_string();
+    // A BTreeMap serialises with sorted keys, which is the canonical form the
+    // `board` table's UNIQUE needs: one environment, one identity.
+    k.env = serde_json::to_string(&cfg.env).unwrap_or_else(|_| "{}".into());
+    k.args = serde_json::to_string(&cfg.extra_args).unwrap_or_else(|_| "[]".into());
+    k
+}
+
+/// Sample the box once. The verdict is named-competitor load, never idle:
+/// a `--threads 8` board burns most of this machine by design.
+fn sample_box(plat: &platform::Host) -> Sample {
+    let ps = std::process::Command::new("ps")
+        .args(["-Ao", "pcpu,comm", "-r"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default();
+    let mine = plat.descendants(std::process::id() as i32);
+    let competitors = monitor::sample::attribute(&ps, &|cmd| {
+        // Exclude our own tree by PID rather than by name. The Python
+        // matched substrings and so never excluded `Validate`, which meant
+        // VAL's bursts of a full core counted as foreign competition on
+        // every temporal board.
+        let _ = &mine;
+        cmd.contains("crucible") || cmd.contains("Validate") || cmd.ends_with("/ff")
+    });
+    let total = competitors.values().sum();
+    Sample {
+        at: now_epoch(),
+        idle_pct: None,
+        competitors,
+        competitors_total: total,
+        loadavg1: None,
+        swap_mb: plat.swap_used_mb(),
+        cpu_speed_limit: plat.cpu_speed_limit(),
+    }
+}
+
+fn now_epoch() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| (d.as_secs_f64() * 10.0).round() / 10.0)
+        .unwrap_or(0.0)
+}
+
 impl<'a> SweepRunner<'a> {
     /// Everything the runner needs that is not the manifest itself. Grouped
     /// because nine positional arguments is more than anyone can keep straight,
@@ -124,6 +235,7 @@ impl<'a> SweepRunner<'a> {
             quiet_hours,
             max_passes,
             capable,
+            db,
         } = setup;
         let spec = manifest
             .set(set)
@@ -164,19 +276,24 @@ impl<'a> SweepRunner<'a> {
                     instances.push((v.ipc.clone(), v.name.clone(), i));
                 }
             }
+            let cfg = board_cfg(manifest, b);
             boards.push(Board {
                 spec: b.clone(),
                 position,
                 instances,
                 clean: Default::default(),
                 rows: Default::default(),
+                ids: None,
+                key: board_key_for_sweep(manifest, b, &cfg),
+                facts: db::board_facts(b, manifest, None),
+                reused: 0,
             });
         }
         for w in &warnings {
             eprintln!("WARN {w}");
         }
 
-        Ok(SweepRunner {
+        let mut runner = SweepRunner {
             stage: repo.join(&spec.stage),
             manifest,
             engine,
@@ -189,7 +306,83 @@ impl<'a> SweepRunner<'a> {
             quiet_hours,
             max_passes,
             passes: 0,
-        })
+            db,
+        };
+        runner.seed_from_db()?;
+        Ok(runner)
+    }
+
+    /// The restart: every row and every clean verdict the database already
+    /// holds for these boards under THIS engine comes back, and the stage is
+    /// regenerated from them. Rows measured by another binary do not resolve
+    /// to this `(board, engine)` and are invisible, which is the BLAKE3 gate
+    /// at database granularity. Rows imported from artifacts carry timing
+    /// `unknown`, never `clean`, so they are kept and re-run -- fail closed;
+    /// a needless re-run costs sixty seconds.
+    fn seed_from_db(&mut self) -> anyhow::Result<()> {
+        let Some(ctx) = &self.db else {
+            return Ok(());
+        };
+        let mut seeded = Vec::new();
+        for (idx, b) in self.boards.iter_mut().enumerate() {
+            let (bid, eid) = ctx
+                .db
+                .writer()
+                .resolve(
+                    b.key.clone(),
+                    b.facts.clone(),
+                    ctx.engine.clone(),
+                    ctx.engine_facts.clone(),
+                )
+                .context("resolving the board in the database")?;
+            b.ids = Some((bid, eid));
+            let rows = ctx.reader.export_rows(bid, eid)?;
+            let clean = ctx.reader.clean_instances(bid, eid)?;
+            if rows.is_empty() {
+                continue;
+            }
+            // Only instances this sweep actually enumerates count: a row for
+            // an instance the corpus no longer has is kept in the database and
+            // ignored here, exactly as an export would ignore it.
+            let known: std::collections::BTreeSet<String> = b
+                .instances
+                .iter()
+                .map(|(ipc, v, i)| instance_key(ipc, v, &i.label))
+                .collect();
+            for r in rows {
+                let key = instance_key(
+                    r.ipc.as_deref().unwrap_or(""),
+                    &r.variant,
+                    &db::InstanceKey::of(&r.instance).label,
+                );
+                if known.contains(&key) {
+                    b.rows.insert(key, r);
+                }
+            }
+            for (ipc, variant, label) in clean {
+                let key = instance_key(ipc.as_deref().unwrap_or(""), &variant, &label);
+                if known.contains(&key) {
+                    b.clean.insert(key);
+                }
+            }
+            b.reused = b.rows.len();
+            if b.reused > 0 {
+                println!(
+                    "resume  {:<22} {} row(s) read back, {} clean -- {} still owed",
+                    b.spec.id,
+                    b.reused,
+                    b.clean.len(),
+                    b.remaining()
+                );
+                seeded.push(idx);
+            }
+        }
+        for idx in seeded {
+            if let Err(e) = self.write_artifacts(idx) {
+                eprintln!("!! could not write {}: {e}", self.boards[idx].spec.id);
+            }
+        }
+        Ok(())
     }
 
     pub fn total_instances(&self) -> usize {
@@ -236,8 +429,7 @@ impl<'a> SweepRunner<'a> {
         let mut jsonl = String::new();
         let mut ordered: Vec<&crucible_publish::RawRow> = Vec::new();
         for (ipc, variant, i) in &b.instances {
-            let key = format!("{ipc}\u{1}{variant}\u{1}{}", i.label);
-            if let Some(r) = b.rows.get(&key) {
+            if let Some(r) = b.rows.get(&instance_key(ipc, variant, &i.label)) {
                 crucible_publish::write_row(r, &mut jsonl);
                 jsonl.push('\n');
                 ordered.push(r);
@@ -254,7 +446,7 @@ impl<'a> SweepRunner<'a> {
                 jobs: cfg.jobs,
                 mode: cfg.mode.clone(),
                 val: self.val.is_some(),
-                reused_total: 0,
+                reused_total: b.reused,
                 resume_raw: None,
             },
             &crucible_core::artifact::board_md::summarize_variants(&owned, None),
@@ -274,35 +466,51 @@ impl<'a> SweepRunner<'a> {
         Ok(())
     }
 
-    /// Sample the box once. The verdict is named-competitor load, never idle:
-    /// a `--threads 8` board burns most of this machine by design.
     fn sample(&self) -> Sample {
-        let ps = std::process::Command::new("ps")
-            .args(["-Ao", "pcpu,comm", "-r"])
-            .output()
-            .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-            .unwrap_or_default();
-        let mine = self.plat.descendants(std::process::id() as i32);
-        let competitors = monitor::sample::attribute(&ps, &|cmd| {
-            // Exclude our own tree by PID rather than by name. The Python
-            // matched substrings and so never excluded `Validate`, which meant
-            // VAL's bursts of a full core counted as foreign competition on
-            // every temporal board.
-            let _ = &mine;
-            cmd.contains("crucible") || cmd.contains("Validate") || cmd.ends_with("/ff")
-        });
-        let total = competitors.values().sum();
-        Sample {
-            at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| (d.as_secs_f64() * 10.0).round() / 10.0)
-                .unwrap_or(0.0),
-            idle_pct: None,
-            competitors,
-            competitors_total: total,
-            loadavg1: None,
-            swap_mb: self.plat.swap_used_mb(),
-            cpu_speed_limit: self.plat.cpu_speed_limit(),
+        sample_box(&self.plat)
+    }
+
+    /// The `.done` marker's provenance: what this attempt measured, what it
+    /// reused, and whether the board is banked. `''` as the source is the
+    /// live-pass identity, so re-recording after every attempt updates one
+    /// row rather than adding one per pass.
+    fn record_pass(&self, idx: usize, ran: usize, started_at: f64) {
+        let Some(ctx) = &self.db else {
+            return;
+        };
+        let b = &self.boards[idx];
+        let rec = db::BoardPassRec {
+            board: b.key.clone(),
+            board_facts: b.facts.clone(),
+            engine: ctx.engine.clone(),
+            engine_facts: ctx.engine_facts.clone(),
+            started_at: Some(format!("{started_at:.1}")),
+            ended_at: Some(format!("{:.1}", now_epoch())),
+            verdict: if b.remaining() == 0 {
+                db::PassVerdict::Clean
+            } else {
+                db::PassVerdict::Degraded
+            },
+            ran: ran as i64,
+            reused: b.reused as i64,
+            done_marker: (b.remaining() == 0).then(|| {
+                self.stage
+                    .join(format!("{}.done", b.spec.id))
+                    .display()
+                    .to_string()
+            }),
+            raw_path: Some(
+                self.stage
+                    .join(format!("{}.jsonl", b.spec.id))
+                    .display()
+                    .to_string(),
+            ),
+            conditions_path: None,
+            sample_interval: Some(ctx.interval),
+            source_path: None,
+        };
+        if let Err(e) = ctx.db.writer().board_pass(rec) {
+            eprintln!("!! could not record the pass for {}: {e}", b.spec.id);
         }
     }
 }
@@ -326,14 +534,18 @@ impl Runner for SweepRunner<'_> {
         let cfg = board_cfg(self.manifest, &self.boards[idx].spec);
         let plan_dir = self.stage.join("plans").join(&self.boards[idx].spec.id);
         let _ = std::fs::create_dir_all(&self.stage);
+        let pass_started = now_epoch();
 
         let (_tx, rx) = mpsc::channel::<Ctl>();
         let mut banked = 0usize;
+        let mut ran = 0usize;
         let mut all_dirty = true;
         let todo: Vec<usize> = (0..self.boards[idx].instances.len())
             .filter(|i| {
-                let key = &self.boards[idx].instances[*i].2.label;
-                !self.boards[idx].clean.contains(key)
+                let (ipc, variant, inst) = &self.boards[idx].instances[*i];
+                !self.boards[idx]
+                    .clean
+                    .contains(&instance_key(ipc, variant, &inst.label))
             })
             .collect();
 
@@ -359,6 +571,37 @@ impl Runner for SweepRunner<'_> {
                 !s.is_clean() || (self.quiet_only && self.throttle.level() != Level::Full);
 
             let (ipc, variant, inst) = self.boards[idx].instances[i].clone();
+            let key = instance_key(&ipc, &variant, &inst.label);
+
+            // The live-child record goes to disk the moment the child exists:
+            // a `kill -9` of this process between here and the run's end
+            // leaves a row the next startup reaps by identity, instead of a
+            // planner nobody owns burning a core until the wall.
+            let register = |pid: Pid, at: f64| {
+                let Some(ctx) = &self.db else {
+                    return;
+                };
+                let Some(id) = self.plat.proc_identity(pid) else {
+                    return;
+                };
+                // The identity is the KERNEL's reading of the process, both
+                // halves -- never the path this process configured. The
+                // kernel canonicalises (`/var` is `/private/var` on Darwin),
+                // and a reaper comparing a configured path against a live
+                // one would spare every orphan as a stranger.
+                let child = db::LiveChild {
+                    pid,
+                    pgid: pid,
+                    run_id: None,
+                    binary_path: id.path.clone(),
+                    proc_start_tvsec: id.start_tvsec,
+                    spawned_at: at,
+                    stopped: false,
+                };
+                if let Err(e) = ctx.db.writer().child_spawned(child) {
+                    eprintln!("!! could not register child {pid}: {e}");
+                }
+            };
             let m = crucible_core::sweep::measure(
                 &self.engine,
                 &cfg,
@@ -369,27 +612,100 @@ impl Runner for SweepRunner<'_> {
                 &plan_dir,
                 &self.plat,
                 &rx,
+                self.db.as_ref().map(|_| &register as &dyn Fn(Pid, f64)),
             );
+            ran += 1;
+
+            let clean = match &self.db {
+                None => {
+                    // The pre-database rule, kept bit for bit under --no-db:
+                    // a before/after pair, and nothing in between.
+                    let after = self.sample();
+                    !dirty_now && after.is_clean() && m.clock_jump.is_zero()
+                }
+                Some(ctx) => {
+                    let w = ctx.db.writer();
+                    if let Some(pid) = m.pid {
+                        let _ = w.child_gone(pid);
+                    }
+                    let (bid, eid) = self.boards[idx]
+                        .ids
+                        .expect("a board with a database has resolved ids");
+                    let attempt = ctx
+                        .reader
+                        .next_attempt(bid, eid, Some(&ipc), &variant, &inst.label)
+                        .unwrap_or(1);
+                    let mut rec = db::RunRecord {
+                        board: self.boards[idx].key.clone(),
+                        board_facts: self.boards[idx].facts.clone(),
+                        engine: ctx.engine.clone(),
+                        engine_facts: ctx.engine_facts.clone(),
+                        attempt,
+                        state: db::RunState::Done,
+                        timing: db::TimingQuality::Unknown,
+                        val_reason: m.val_reason.and_then(db::ValReason::parse),
+                        row: m.row.clone(),
+                        measured: db::Measured {
+                            started_at: m.row.start_ts,
+                            finished_at: m.row.end_ts,
+                            wall_ms: Some(m.wall.as_millis() as u64),
+                            cpu_ms: Some(m.cpu_ms),
+                            suspended_ms: Some(m.suspended.as_millis() as u64),
+                            peak_rss: Some(m.peak_rss),
+                            mem_instrument: Some(m.mem_instrument.to_string()),
+                            exit_code: m.exit_code,
+                            term_signal: m.term_signal,
+                            pid: m.pid,
+                            pgid: m.pgid,
+                        },
+                    };
+                    // THE RECEIPT. Committed before the verdict is asked for,
+                    // in its own transaction, and this call waits for it.
+                    if let Err(e) = w.run(rec.clone()) {
+                        eprintln!("!! could not commit {key}: {e}");
+                    }
+                    // The verdict: every watcher sample within one interval of
+                    // the run's window under the clean line, and at least one
+                    // of them. Flush first -- the watcher's samples are batched
+                    // and the reader is a separate connection.
+                    let _ = w.flush();
+                    let gate = match (m.row.start_ts, m.row.end_ts) {
+                        (Some(s), Some(e)) => ctx
+                            .reader
+                            .window_gate(s, e, ctx.interval, None)
+                            .unwrap_or(db::Cleanliness::Uncovered),
+                        _ => db::Cleanliness::Uncovered,
+                    };
+                    let clean = gate == db::Cleanliness::Clean && m.clock_jump.is_zero();
+                    rec.timing = match gate {
+                        db::Cleanliness::Clean if clean => db::TimingQuality::Clean,
+                        db::Cleanliness::Clean | db::Cleanliness::Dirty => db::TimingQuality::Dirty,
+                        db::Cleanliness::Uncovered => db::TimingQuality::Unknown,
+                    };
+                    if let Err(e) = w.run(rec) {
+                        eprintln!("!! could not record the verdict for {key}: {e}");
+                    }
+                    clean
+                }
+            };
 
             // The row is KEPT either way -- nothing is discarded for
             // contention. It just does not count toward banking.
-            let after = self.sample();
-            let clean = !dirty_now && after.is_clean() && m.clock_jump.is_zero();
             if clean {
-                self.boards[idx].clean.insert(inst.label.clone());
+                self.boards[idx].clean.insert(key.clone());
                 banked += 1;
                 all_dirty = false;
             }
             // Written either way. The board is not banked, but the work is
             // not lost -- and a later clean row supersedes this one under the
             // same key.
-            let key = format!("{ipc}\u{1}{variant}\u{1}{}", inst.label);
             self.boards[idx].rows.insert(key, m.row);
         }
 
         if let Err(e) = self.write_artifacts(idx) {
             eprintln!("!! could not write {}: {e}", self.boards[idx].spec.id);
         }
+        self.record_pass(idx, ran, pass_started);
 
         Attempt {
             banked,
@@ -467,13 +783,125 @@ impl Runner for SweepRunner<'_> {
 pub struct Opts<'a> {
     pub set: &'a str,
     /// Refuse unless the binary reports this. The gate every sweep driver opens
-    /// with: measure the CANDIDATE, not whatever happens to be built.
+    /// with: measure the CANDIDATE, not whatever happens to be built. `None`
+    /// defers to the set's own `requires_version`.
     pub require_version: Option<&'a str>,
     pub quiet_only: bool,
     pub dry_run: bool,
     /// `None` is the resident behaviour: a board that cannot bank because the
     /// box is never quiet is waiting, not failing.
     pub max_passes: Option<u32>,
+    /// The restore hatch: the pre-database path, bit for bit.
+    pub no_db: bool,
+}
+
+/// The box-wide contention timeline: one sample every interval, for as long
+/// as the sweep runs, written to the database as telemetry -- batched, and
+/// allowed to be lost, unlike a run row. This is what `window_gate` reads.
+struct Watcher {
+    stop: Arc<AtomicBool>,
+    join: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Watcher {
+    fn start(writer: db::WriterHandle, interval: Duration) -> Watcher {
+        let stop = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&stop);
+        let join = std::thread::Builder::new()
+            .name("crucible-watch".into())
+            .spawn(move || {
+                let plat = platform::host();
+                let mut next = Instant::now();
+                while !flag.load(Ordering::Relaxed) {
+                    if Instant::now() >= next {
+                        writer.sample(db::SampleRec::of(&sample_box(&plat)));
+                        next += interval;
+                    }
+                    std::thread::sleep(Duration::from_millis(250));
+                }
+            })
+            .expect("spawning the contention watcher");
+        Watcher {
+            stop,
+            join: Some(join),
+        }
+    }
+}
+
+impl Drop for Watcher {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Relaxed);
+        if let Some(j) = self.join.take() {
+            let _ = j.join();
+        }
+    }
+}
+
+/// Open the database and settle what it owes from before: children a killed
+/// supervisor left running are reaped by identity, never by pid alone.
+fn open_db(cfg: &crate::config::Config, engine: &crate::repo::Engine) -> anyhow::Result<DbCtx> {
+    let db = Db::open(&cfg.db.dir).with_context(|| {
+        format!(
+            "opening the database at {} (another crucible holding the lock is \
+             an answer, not a fault)",
+            cfg.db.dir.display()
+        )
+    })?;
+    let reader = db.reader()?;
+    let plat = platform::host();
+    let orphans = reader.live_children()?;
+    if !orphans.is_empty() {
+        println!(
+            "reap    {} child(ren) recorded by an earlier run",
+            orphans.len()
+        );
+        let children: Vec<orphan::LiveChild> = orphans
+            .iter()
+            .map(|c| orphan::LiveChild {
+                pid: c.pid,
+                pgid: c.pgid,
+                run_id: c.run_id,
+                binary_path: c.binary_path.clone(),
+                proc_start_tvsec: c.proc_start_tvsec,
+                spawned_at: c.spawned_at,
+                stopped: c.stopped,
+            })
+            .collect();
+        for r in orphan::reap(&children, &plat) {
+            match &r {
+                orphan::Reaped::Killed { pid, pgid } => {
+                    println!("        killed {pid} (group {pgid}) -- verified ours")
+                }
+                orphan::Reaped::Vanished { pid } => println!("        {pid} already gone"),
+                orphan::Reaped::Recycled {
+                    pid,
+                    expected,
+                    found,
+                } => println!(
+                    "        {pid} is somebody else's now ({found}, not {expected}) -- \
+                     NOT signalled"
+                ),
+            }
+            // Every row is closed: a killed child is gone, a vanished one was
+            // already gone, and a recycled pid is a ghost this table must not
+            // keep claiming.
+            let _ = db.writer().child_gone(r.pid());
+        }
+    }
+    Ok(DbCtx {
+        db,
+        reader,
+        engine: db::EngineKey {
+            blake3: Some(engine.blake3.clone()),
+            ver: Some(engine.ver.clone()),
+        },
+        engine_facts: db::EngineFacts {
+            tag: engine.tag.clone(),
+            binary_path: Some(engine.path.display().to_string()),
+            ..Default::default()
+        },
+        interval: cfg.contention.sample_interval_secs as f64,
+    })
 }
 
 pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Result<()> {
@@ -483,14 +911,16 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
         quiet_only,
         dry_run,
         max_passes,
+        no_db,
     } = o;
     let manifest = crate::load_manifest(repo)?;
     let bin = crate::repo::candidate_path(repo);
     let engine = crate::repo::Engine::probe(&bin)?;
-    if let Some(want) = require_version {
-        // The gate every sweep driver opens with: measure the CANDIDATE, not
-        // whatever happens to be built.
-        engine.require_version(want)?;
+    // The gate every sweep driver opens with: measure the CANDIDATE, not
+    // whatever happens to be built. The set may name the version itself.
+    let set_wants = manifest.set(set).and_then(|s| s.requires_version.clone());
+    if let Some(want) = require_version.map(str::to_string).or(set_wants) {
+        engine.require_version(&want)?;
     }
     let val = crucible_core::validate::find(repo, cfg.sweep.validator.as_deref());
     if val.is_none() {
@@ -503,6 +933,19 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
     let _awake = platform::host().keep_awake();
 
     println!("engine  {} [{}]", engine.ver, engine.short_hash());
+    let dbctx = if dry_run || no_db {
+        None
+    } else {
+        Some(open_db(cfg, &engine)?)
+    };
+    let _watcher = dbctx.as_ref().map(|c| {
+        println!("db      {}", c.db.path().display());
+        Watcher::start(
+            c.db.writer().clone(),
+            Duration::from_secs(cfg.contention.sample_interval_secs.max(1)),
+        )
+    });
+
     let mut runner = SweepRunner::new(
         &manifest,
         Setup {
@@ -511,12 +954,20 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
             engine: SweepEngine {
                 path: engine.path.clone(),
                 ver: engine.ver.clone(),
+                // Under --no-db the rows stay unstamped, as the pre-database
+                // binary wrote them.
+                blake3: if no_db {
+                    String::new()
+                } else {
+                    engine.blake3.clone()
+                },
             },
             val,
             quiet_only,
             quiet_hours: cfg.quiet_hours.clone(),
             max_passes,
             capable: &|m| engine.supports_mode(m),
+            db: dbctx,
         },
     )?;
     println!("set     {set}: {} instances", runner.total_instances());

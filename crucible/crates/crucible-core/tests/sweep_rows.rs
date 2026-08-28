@@ -45,6 +45,7 @@ fn run(env: &[(&str, &str)], timeout: u64) -> crucible_core::sweep::Measured {
     let engine = Engine {
         path: PathBuf::from(env!("CARGO_BIN_EXE_fakeff")),
         ver: "ff 0.26.0".into(),
+        blake3: String::new(),
     };
     let mut c = cfg(timeout);
     // fakeff reads its instructions from the environment, and the sweep
@@ -64,6 +65,7 @@ fn run(env: &[(&str, &str)], timeout: u64) -> crucible_core::sweep::Measured {
         &std::env::temp_dir().join("crucible-test-plans"),
         &platform::host(),
         &rx,
+        None,
     );
     for (k, _) in env {
         std::env::remove_var(k);

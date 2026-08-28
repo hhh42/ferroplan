@@ -169,6 +169,64 @@ impl Reader {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// The instances of this board, under this engine, whose latest DONE
+    /// attempt banked a CLEAN timing -- the set a restarted sweep owes nothing
+    /// for. Keys are `(ipc, variant, label)`, the row's own address.
+    ///
+    /// Same latest-done-attempt rule as [`Reader::export_rows`], for the same
+    /// reason: a clean attempt 1 followed by a dirty attempt 2 is an instance
+    /// that was clean and then re-measured under load, and the LATER verdict
+    /// is the one in force. Anything else lets a stale clean row bank an
+    /// instance the runner deliberately re-opened.
+    pub fn clean_instances(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+    ) -> Result<Vec<(Option<String>, String, String)>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT v.ipc, v.name, i.label
+               FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2
+                AND r.state = 'done' AND r.timing_quality = 'clean'
+                AND r.attempt = (SELECT MAX(r2.attempt) FROM run r2
+                                  WHERE r2.board_id = r.board_id
+                                    AND r2.instance_id = r.instance_id
+                                    AND r2.engine_id = r.engine_id
+                                    AND r2.state = 'done')
+              ORDER BY v.ipc, v.name, i.sort_key",
+        )?;
+        let rows = st.query_map(params![board_id, engine_id], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// The attempt number a NEW run of this instance should carry: one past
+    /// the highest already recorded, in any state. `run` is UNIQUE on
+    /// (board, instance, engine, attempt) and the insert upserts, so reusing a
+    /// number would overwrite the receipt it is meant to follow.
+    pub fn next_attempt(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+        ipc: Option<&str>,
+        variant: &str,
+        label: &str,
+    ) -> Result<i64, DbError> {
+        Ok(self.conn.query_row(
+            "SELECT ifnull(MAX(r.attempt), 0) + 1
+               FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2
+                AND v.ipc IS ?3 AND v.name = ?4 AND i.label = ?5",
+            params![board_id, engine_id, ipc, variant, label],
+            |r| r.get(0),
+        )?)
+    }
+
     /// How many rows this board holds for this engine, and the highest attempt
     /// among them. A second import that produced `attempt = 2` rows would show
     /// up here as a doubled count.

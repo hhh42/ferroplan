@@ -61,6 +61,14 @@ fn make_repo(dir: &Path) -> PathBuf {
     }
     std::fs::create_dir_all(dir.join("benchmarks")).unwrap();
     std::fs::write(dir.join("benchmarks/manifest.toml"), MANIFEST).unwrap();
+    // The database lives INSIDE the scratch repo. The default is the
+    // operator's `~/.crucible/db`, and four tests opening that at once would
+    // fight over its lock -- and leave fake-planner rows in a real record.
+    std::fs::write(
+        dir.join("config.toml"),
+        format!("[db]\ndir = {:?}\n", dir.join("db").display().to_string()),
+    )
+    .unwrap();
 
     // The candidate binary lives where a ferroplan checkout puts it.
     let bin = dir.join("target/release/ff");
@@ -90,7 +98,8 @@ fn crucible(repo: &Path, args: &[&str]) -> std::process::Output {
         // The sweep scrubs the child environment, so fakeff's instructions
         // reach it the way a real board's hatches do -- declared, and on the
         // record. Here there are none, so it takes its defaults: solved.
-        .env("CRUCIBLE_CONFIG", repo.join("nonexistent.toml"))
+        .env("CRUCIBLE_CONFIG", repo.join("config.toml"))
+        .env_remove("CRUCIBLE_NO_DB")
         .output()
         .expect("crucible runs")
 }
@@ -130,8 +139,16 @@ fn a_sweep_measures_every_instance_and_writes_its_artifacts() {
             assert!(l.contains(stamp), "missing {stamp} in {l}");
         }
     }
-    // A solved row carries makespan last; an unsolved one omits it entirely.
-    assert!(lines[0].ends_with(r#""makespan": null}"#), "{}", lines[0]);
+    // A solved row carries makespan after every key `run_instance` writes,
+    // and before the one key crucible adds of its own -- the engine hash the
+    // resume gate reads. An unsolved row omits makespan entirely.
+    let (ms, eng) = (
+        lines[0].find(r#""makespan": null"#),
+        lines[0].find(r#""engine": ""#),
+    );
+    assert!(ms.is_some(), "{}", lines[0]);
+    assert!(eng.is_some_and(|e| e > ms.unwrap()), "{}", lines[0]);
+    assert!(lines[0].ends_with('}'), "{}", lines[0]);
 
     // The summary the drivers `tail -1` for their log line.
     let md = std::fs::read_to_string(stage.join("toy-board.md")).expect("a summary is written");

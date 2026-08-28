@@ -353,7 +353,10 @@ fn board_key(m: &Manifest, spec: &BoardSpec, r: &RawRow) -> BoardKey {
     k
 }
 
-fn board_key_from_manifest(m: &Manifest, spec: &BoardSpec) -> BoardKey {
+/// The identity a board has BEFORE any row exists for it: what the manifest
+/// says it sweeps under. A live sweep starts from this and fills in the one
+/// thing the manifest alone cannot canonicalise for it, the environment.
+pub fn board_key_from_manifest(m: &Manifest, spec: &BoardSpec) -> BoardKey {
     let threads = spec.threads.unwrap_or(m.defaults.threads);
     BoardKey {
         name: spec.id.clone(),
@@ -369,7 +372,9 @@ fn board_key_from_manifest(m: &Manifest, spec: &BoardSpec) -> BoardKey {
     }
 }
 
-fn board_facts(spec: &BoardSpec, m: &Manifest, first: Option<&RawRow>) -> BoardFacts {
+/// The reporting-only columns, from the spec and -- when one is in hand -- the
+/// first row's own `threads` token.
+pub fn board_facts(spec: &BoardSpec, m: &Manifest, first: Option<&RawRow>) -> BoardFacts {
     let threads_json = match first.and_then(|r| r.present.stamps.then_some(r)) {
         Some(r) => r
             .threads

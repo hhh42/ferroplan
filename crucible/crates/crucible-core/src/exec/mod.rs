@@ -86,6 +86,10 @@ pub struct RunOutcome {
     pub clock_jump: Duration,
     pub start_ts: f64,
     pub end_ts: f64,
+    /// The child that ran, and its group -- equal by construction, because the
+    /// spawn hook makes every child its own group leader.
+    pub pid: Pid,
+    pub pgid: Pid,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -111,6 +115,11 @@ pub struct RunRequest<'a> {
     pub envs: &'a [(std::ffi::OsString, std::ffi::OsString)],
     pub timeout: Duration,
     pub mem_cap: MemCap,
+    /// Called once, with the pid and the spawn's epoch timestamp, the moment
+    /// the child exists and BEFORE anything is waited on. This is the hook the
+    /// `live_child` table hangs off: a record written here survives a
+    /// `kill -9` of the supervisor, which is the only reason the table exists.
+    pub on_spawn: Option<&'a dyn Fn(Pid, f64)>,
 }
 
 fn now_epoch() -> f64 {
@@ -169,6 +178,9 @@ pub fn run<P: Platform>(
     let pgid = pid;
     let start = Instant::now();
     let start_ts = now_epoch();
+    if let Some(hook) = req.on_spawn {
+        hook(pid, start_ts);
+    }
 
     // Reader threads rather than poll(2). Two extra threads per child is
     // nothing against a multi-hour board, and it makes the "never deadlock on
@@ -315,6 +327,8 @@ pub fn run<P: Platform>(
         clock_jump,
         start_ts,
         end_ts: now_epoch(),
+        pid,
+        pgid,
     })
 }
 
