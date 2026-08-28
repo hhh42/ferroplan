@@ -156,9 +156,8 @@ raw = "ipc5-time.jsonl"
 md = "ipc5-time.md"
 label = "time"
 competition = "ipc5"
-budget_secs = 30
+budget_secs = 60
 track = "time-2006"
-timeout_secs = 60   # DIFFERS from budget_secs: a tier move in flight
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -167,9 +166,8 @@ raw = "ipc5-metric-time.jsonl"
 md = "ipc5-metric-time.md"
 label = "metric-time"
 competition = "ipc5"
-budget_secs = 30
+budget_secs = 60
 track = "metric-time-2006"
-timeout_secs = 60   # DIFFERS from budget_secs: a tier move in flight
 rebaselined_on = ["m5-air"]
 
 [[board]]

@@ -260,13 +260,13 @@ fn re_importing_does_not_create_a_second_attempt() {
 /// `val` is a tristate, and the two ways a row can fail to be "valid" are
 /// different questions with different answers.
 ///
-/// On this board 77 rows solved and every one of those plans was accepted by
-/// VAL; the other 179 never produced a plan, so there was nothing to submit and
+/// On this board every solved plan was accepted by
+/// VAL; the unsolved rows never produced a plan, so there was nothing to submit and
 /// validation is UNAVAILABLE for them. Zero plans were rejected.
 ///
 /// A `validated INTEGER` column of the kind `crucible-spec.md` §8 sketches
-/// cannot hold that. Flattened, those 179 nulls become 179 zeros, and the next
-/// query that reaches for `= 0` to mean "not valid" reports 179 rejected plans
+/// cannot hold that. Flattened, those nulls become zeros, and the next
+/// query that reaches for `= 0` to mean "not valid" reports them as rejected plans
 /// on a board that had none -- which is the shape of the 0.20, 0.21 and 0.23
 /// incidents, where domains VAL could not INGEST were counted as domains VAL
 /// had REJECTED and a published table came out fifteen instances light.
@@ -279,14 +279,26 @@ fn unavailable_validation_is_not_a_rejection() {
     let b = &built[0];
     let reader = db.reader().expect("reader");
 
+    // The expectations come from the raw itself, not from a pinned count:
+    // the board is re-promoted every cut, and a pinned 77 was one cut stale by
+    // the time this file merged. The PROPERTY is what is asserted -- every
+    // solved plan accepted, every unsolved row unavailable, nothing rejected.
+    let solved = committed_raw()
+        .lines()
+        .filter(|l| l.contains(r#""solved": true"#))
+        .count() as i64;
+    assert!(
+        solved > 0 && solved < 256,
+        "a board with both outcomes: {solved}"
+    );
     assert_eq!(
         reader.val_ok(b.board_id, b.engine_id).unwrap(),
-        77,
+        solved,
         "every solved plan on this board was accepted"
     );
     assert_eq!(
         reader.val_unavailable(b.board_id, b.engine_id).unwrap(),
-        179,
+        256 - solved,
         "the unsolved rows have validation unavailable, not failed"
     );
     assert_eq!(
@@ -297,7 +309,7 @@ fn unavailable_validation_is_not_a_rejection() {
     // The three answers partition the board. If they ever stop adding up, one
     // of the queries has started reading NULL as a verdict.
     let (rows, _) = reader.run_census(b.board_id, b.engine_id).unwrap();
-    assert_eq!(rows, 77 + 179);
+    assert_eq!(rows, 256);
 }
 
 /// The four boards with a real timeline are the only ones whose samples can be

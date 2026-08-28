@@ -1539,22 +1539,20 @@ boards = ["ipc67-results"]
         }
     }
 
-    /// The generated manifest itself: no errors, and exactly the two warnings
-    /// this project knows about -- the `ipc5-time` / `ipc5-metric-time` tier
-    /// move. A third warning here is a board that lost its schedule.
+    /// The generated manifest itself: no errors, and no warnings. The one
+    /// warning this project ever carried -- the `ipc5-time` /
+    /// `ipc5-metric-time` tier move, 30 s scored against a 60 s wall -- landed
+    /// at the 0.25 promote, so both boards are scored at the wall they run
+    /// under again. A warning here now is a board that lost its schedule, or
+    /// a tier move nobody recorded.
     #[test]
-    fn the_generated_manifest_is_clean_but_for_the_tier_move() {
+    fn the_generated_manifest_is_clean() {
         let Some(m) = committed() else {
             return;
         };
         assert_eq!(m.schema, SCHEMA);
         assert!(m.errors().is_empty(), "{:?}", m.errors());
-
-        let w = m.warnings();
-        assert_eq!(w.len(), 2, "{w:?}");
-        assert!(w.iter().all(|l| l.contains("TIER MOVE")), "{w:?}");
-        assert!(w.iter().any(|l| l.contains("`ipc5-time`")), "{w:?}");
-        assert!(w.iter().any(|l| l.contains("`ipc5-metric-time`")), "{w:?}");
+        assert!(m.warnings().is_empty(), "{:?}", m.warnings());
 
         // The five consolidated registries, spot-checked through the API the
         // renderer will actually use.

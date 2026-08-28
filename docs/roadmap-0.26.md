@@ -464,6 +464,71 @@ the worktree-naming rule already exist with tests; nothing drives them),
 and arming the Linux cross-check that keeps `trait Platform` honest
 (`rustup target add x86_64-unknown-linux-gnu`).
 
+#### Recorded — the gap is closed (2026-08-28, `4336c35`, merged `8cae317`)
+
+The wiring landed as the dossier specified it (F6 part 1), and the branch
+merged to `main` under the finish-in-main agreement with
+`crucible/preflight.sh` green on the merged tree: 378 boards agree with
+the oracle, 0 mismatch (50,800 rows, 176 boards classified); 55,620 rows
+across 186 raws round-trip byte for byte; the manifest agrees with the
+registries. Every measured instance is now committed in its own
+transaction the moment its run ends — before the verdict, before the
+artifacts — and the verdict is `Reader::window_gate`, the per-sample
+intersection over the watcher's box-wide timeline, not a before/after
+pair. A restarted sweep reads back every row and every clean verdict,
+regenerates the stage from them, and owes exactly what never banked.
+**The JSONL is an export.**
+
+The three unwired facts the dossier named, closed — and two it did not
+name, found on the way:
+
+- Rows are stamped with the engine's BLAKE3 under the resume gate's own
+  key. That exposed a second defect: `write_row` was silently DROPPING
+  `extra` columns, so the stamp never reached the raw. It keeps them now,
+  last, in key order — no committed row changes (the round-trip proves
+  it).
+- The watcher persists the timeline; `live_child` is written at spawn
+  with the KERNEL's identity (the configured path is not canonical on
+  Darwin — `/var` is `/private/var` — and a reaper comparing it would
+  spare every orphan as a stranger, which the first run of the test did).
+- The in-memory clean set was keyed by instance LABEL alone. Every
+  multi-variant board carries instance "1" once per variant, so under the
+  old key such a board could never reach zero owed. Keyed by the row's
+  full address now.
+- `requires_version` on a `[[set]]` gates when the CLI flag is absent.
+
+Tested, not asserted: `kill9_resume.rs` — the stamp; the `--no-db` hatch
+writes the pre-database shape; a restart over a database holding clean
+rows re-spawns ZERO (RED before the wiring: every restart re-measured
+everything); and the real thing — a crucible `SIGKILL`ed mid-instance, its
+orphaned planner found by the next one, identity-verified, killed, its row
+closed. `gate_agreement.rs` holds `window_gate` and `sched::resume::judge`
+against each other over every rescued timeline fixture, every window.
+
+Two things the merge surfaced, recorded rather than discovered:
+
+- **The crate's own tests were not hermetic**: a roundtrip test read a
+  gitignored `air24/` conditions file, the e2e harness opened the
+  operator's real `~/.crucible/db` from four tests at once, and three
+  tests pinned counts one cut stale (77 solved on `ipc2014-opt`, the
+  release list ending at 0.24.0, the tier-move warning). All now read
+  git-tracked fixtures, their own scratch database, or the property
+  rather than the number. The manifest is regenerated for the landed
+  tier move (`ipc5-time`/`ipc5-metric-time` scored at 60 s again, so the
+  manifest carries no warnings). The pre-flight's round-trip loop skips
+  `benchmarks/metrics/` — a decode sitting's `matrix.jsonl` carries a
+  `solved` key and is not a board.
+- **The Linux cross-check (F6 part 3) is BLOCKED on this box, not
+  armed.** `rustup target add` succeeds, but the gate's `cargo check`
+  builds `libsqlite3-sys` from bundled C source and needs
+  `x86_64-linux-gnu-gcc`, which is not installed. The target was removed
+  again so the gate reports SKIPPED honestly. Arming it is an operator
+  decision: a cross C toolchain (e.g. `messense/macos-cross-toolchains`)
+  or a feature gate that keeps SQLite out of the check.
+
+Still open from this phase: `crucible backfill` (part 2), the Linux
+cross-check (part 3, as above), and the cut-26 runbook (part 4).
+
 ## The field-gaps expansion (adopted 2026-08-26)
 
 The program: `docs/field-gaps-0.26.md`, verified before adoption — every

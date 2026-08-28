@@ -770,6 +770,14 @@ All evidence is in hand. Writing the spec now.
 
 ### Part 1 — the DB wiring: resumption survives `kill -9` of the process (M)
 
+**STATUS 2026-08-28: LANDED** — `4336c35` on `crucible`, merged to `main` as
+`8cae317`, `crucible/preflight.sh` green on the merged tree. Record:
+docs/roadmap-0.26.md Phase 5, "Recorded — the gap is closed". The RED fixture
+(`kill9_resume.rs`) and the agreement test (`gate_agreement.rs`) exist as
+specified; the `--no-db` hatch is `CRUCIBLE_NO_DB=1`'s twin. Part 3 was
+attempted the same day and is BLOCKED (no `x86_64-linux-gnu-gcc` for the
+bundled SQLite build — see the roadmap record); parts 2 and 4 stand open.
+
 **What is true today, precisely.**
 
 - `crucible/crates/crucible/src/sweep.rs:32-43` — `Board { clean: BTreeSet<String>, rows: BTreeMap<String, RawRow> }`, both in memory only. `attempt` (lines 322-399) judges cleanliness from a before-sample (line 346, `self.sample()`) plus an after-sample (line 376) plus `m.clock_jump.is_zero()` (line 377) — a two-point probe, not a window intersection. `write_artifacts` (lines 229-274) rewrites `stage/{id}.jsonl`/`.md`/`.done` after every attempt, so the *rows* survive a kill — but `SweepRunner::new` (lines 117-193) starts every board with empty `clean`/`rows` and never reads the stage back, so a restarted process re-measures everything.

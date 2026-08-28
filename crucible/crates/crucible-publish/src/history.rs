@@ -1355,9 +1355,26 @@ mod tests {
     fn trend_is_ordered_by_version_not_by_measurement() {
         let t = real_history().trend("2018 seq-sat", &BoxId::new("m5-air"));
         let versions: Vec<String> = t.points.iter().map(|(k, _)| k.to_string()).collect();
-        assert_eq!(
-            versions,
-            ["0.19.0", "0.20.0", "0.21.0", "0.22.0", "0.23.0", "0.24.0"]
+        // The releases every cut since has kept, in version order -- and the
+        // cuts after 0.24.0 follow them in the same order. Not pinned to a
+        // tail: this list grows by one every cycle, and a pinned tail is one
+        // cut stale the moment the next cut promotes.
+        assert!(
+            versions.starts_with(&[
+                "0.19.0".to_string(),
+                "0.20.0".to_string(),
+                "0.21.0".to_string(),
+                "0.22.0".to_string(),
+                "0.23.0".to_string(),
+                "0.24.0".to_string(),
+            ]),
+            "{versions:?}"
+        );
+        assert!(
+            versions
+                .windows(2)
+                .all(|w| w[0] < w[1] || w[0].len() < w[1].len()),
+            "not in version order: {versions:?}"
         );
         assert_eq!(t.points[0].1, (63, 240));
         assert_eq!(t.label, "2018 seq-sat");
@@ -1369,7 +1386,11 @@ mod tests {
     fn trend_skips_releases_that_never_ran_the_board() {
         let h = real_history();
         let t = h.trend("2026 numeric-opt", &BoxId::new("m5-air"));
-        assert_eq!(t.points.len(), 4, "first banked at 0.21.0");
+        // First banked at 0.21.0, so exactly two fewer points than the board
+        // every release measured -- however many releases there are by now.
+        let all = h.trend("2018 seq-sat", &BoxId::new("m5-air")).points.len();
+        assert_eq!(t.points.len(), all - 2, "first banked at 0.21.0");
+        assert_eq!(t.points[0].0.to_string(), "0.21.0");
         assert!(h
             .trend("seq-sat", &BoxId::new("nobodys-box"))
             .points
