@@ -20,6 +20,10 @@ use crate::types::NumPre;
 /// expansion order, and thus the plan AND the evaluated-state count, are
 /// identical for any worker count; threads only split each batch's h-eval.
 const BATCH: usize = 256;
+/// The preferred-operator split of one batch (0.26 F1): lama.rs's shares,
+/// summing to `BATCH` so the wall/cap cadence is the same either way.
+const PREF_BATCH: usize = 192;
+const NORM_BATCH: usize = 64;
 /// Default safety cap on evaluated states (deterministic).
 pub const DEFAULT_MAX_EVAL: usize = 5_000_000;
 /// Fixed-point scale for fractional heuristic weights (keeps the priority key an
@@ -242,6 +246,17 @@ pub struct SearchCfg {
     /// [`crate::resource::TripBound`] data rides the `RESLM` cell set by
     /// `resolve::solve` (which holds the mutex groups).
     pub w_res: i64,
+    /// Preferred-operator alternation in the complete fallback (0.26 F1,
+    /// the LAMA recipe transplanted): the popped batch evaluates with
+    /// [`relaxed_helpful`], successors reached via a parent's helpful op
+    /// also sit in a second, favored heap, and each round pops 192 from
+    /// that heap and 64 from the normal one. Pop ORDER only — every key is
+    /// computed exactly as before, the normal heap still holds everything,
+    /// so open-list exhaustion still means exhaustion. `false` (the default
+    /// at every construction site) is the historical single heap and
+    /// [`relaxed_to`], bit-identical; only `plan_avoiding`'s plain
+    /// classical fallback arms it, and `FF_NO_ENRICH=1` restores it there.
+    pub pref_ops: bool,
     /// Per-search retained-memory target in BYTES (0.11 Phase 4, the
     /// budgeted-think surface): overrides the default 8 GiB target behind
     /// the internal `node_cap_for` per-node byte model.
@@ -312,6 +327,7 @@ impl SearchCfg {
             len_anytime: false,
             w_lm: 0,
             w_res: 0,
+            pref_ops: false,
             node_bytes_target: None,
             deadline: None,
         }
@@ -667,10 +683,6 @@ pub fn search_from(
         None => task.state_key_hash(s, cost_fluent),
     };
     let batch = BATCH;
-    let node_cap = match cfg.node_bytes_target {
-        Some(b) => node_cap_for_bytes(task, b),
-        None => node_cap_for(task),
-    };
     // Phase-time attribution, printed only under FF_RES_DEBUG at the cap
     // return (measurement only — never affects behavior).
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
@@ -709,6 +721,23 @@ pub fn search_from(
         None
     };
     let clm_words = clms.len().div_ceil(64);
+    // The node cap's byte model charges `lm_acc` when the landmark term is
+    // armed (0.26 F1 — default-on in the classical fallback now, so the
+    // `clm_words × 8` bytes per node are real retained memory, not an
+    // opt-in curiosity the model could ignore). An explicit
+    // FF_SEARCH_NODE_CAP is a count and stays a count.
+    let node_cap = {
+        let base = match cfg.node_bytes_target {
+            Some(b) => node_cap_for_bytes(task, b),
+            None => node_cap_for(task),
+        };
+        if clm_words > 0 && std::env::var("FF_SEARCH_NODE_CAP").is_err() {
+            let per = per_node_model_bytes(task).max(1);
+            (base as u128 * per as u128 / (per + clm_words * 8) as u128) as usize
+        } else {
+            base
+        }
+    };
     let mut root_clm = vec![0u64; clm_words];
     if !clms.is_empty() {
         clm_accept_into(&mut root_clm, &clms, &init);
@@ -728,13 +757,25 @@ pub fn search_from(
     // states stay distinct (see PackedTask::state_key_with_cost).
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0))); // init popped first
-                                // Retained-state compression (0.20 Phase 4): visited is hash -> node
-                                // indices; equality is checked EXACTLY against the arena state, so
-                                // nothing stores a second copy of the bitset (the old StateKey set
-                                // held bits + vals per entry — words*8 bytes of pure duplication on
-                                // every inserted node). Dedup verdicts and expansion order are
-                                // byte-identical: the hash only routes to candidates, the exact
-                                // `state_key_eq` decides.
+                                // Preferred-operator alternation (cfg.pref_ops, 0.26 F1): the
+                                // LAMA rung's second heap. A successor reached via a parent's
+                                // helpful op sits in BOTH heaps; `expanded` makes it expand once.
+                                // The normal heap holds everything, so completeness is lama's
+                                // argument verbatim. Off (the default): never touched, and the
+                                // pop loop below is the historical one.
+    let mut pref_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
+    let mut expanded: Vec<bool> = if cfg.pref_ops {
+        vec![false]
+    } else {
+        Vec::new()
+    };
+    // Retained-state compression (0.20 Phase 4): visited is hash -> node
+    // indices; equality is checked EXACTLY against the arena state, so
+    // nothing stores a second copy of the bitset (the old StateKey set
+    // held bits + vals per entry — words*8 bytes of pure duplication on
+    // every inserted node). Dedup verdicts and expansion order are
+    // byte-identical: the hash only routes to candidates, the exact
+    // `state_key_eq` decides.
     let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
     visited.insert(khash(&init), vec![0]);
 
@@ -754,13 +795,44 @@ pub fn search_from(
     let mut len_acc: Option<usize> = None;
     let mut eval_ceiling: usize = cfg.max_eval;
 
-    while !heap.is_empty() {
+    while !heap.is_empty() || !pref_heap.is_empty() {
         // pop a batch of lowest-priority nodes
         let mut popped: Vec<usize> = Vec::with_capacity(batch);
-        for _ in 0..batch {
-            match heap.pop() {
-                Some(Reverse((_, ni))) => popped.push(ni),
-                None => break,
+        if cfg.pref_ops {
+            // Deterministic mixed batch, lama.rs's shape: the boosted share
+            // from the preferred heap, the rest from the normal one — the
+            // same 256 total, so the wall/cap cadence below is unchanged.
+            for _ in 0..PREF_BATCH {
+                match pref_heap.pop() {
+                    Some(Reverse((_, ni))) if !expanded[ni] => {
+                        expanded[ni] = true;
+                        popped.push(ni);
+                    }
+                    Some(_) => continue,
+                    None => break,
+                }
+            }
+            for _ in 0..NORM_BATCH {
+                match heap.pop() {
+                    Some(Reverse((_, ni))) if !expanded[ni] => {
+                        expanded[ni] = true;
+                        popped.push(ni);
+                    }
+                    Some(_) => continue,
+                    None => break,
+                }
+            }
+            if popped.is_empty() {
+                // Only already-expanded entries came out; the heaps shrank
+                // by that much, so the loop condition decides what is left.
+                continue;
+            }
+        } else {
+            for _ in 0..batch {
+                match heap.pop() {
+                    Some(Reverse((_, ni))) => popped.push(ni),
+                    None => break,
+                }
             }
         }
 
@@ -859,20 +931,29 @@ pub fn search_from(
         // PARALLEL: evaluate h for the popped batch (the only evaluations),
         // each worker reusing one Scratch across its chunk.
         let t_phase = crate::clock::Clock::now();
-        let hs: Vec<Option<i32>> = par::par_map_with(
+        // Under pref_ops the evaluator is `relaxed_helpful`: the same relaxed
+        // plan, the same h, plus the helpful-action set the expansion below
+        // marks preferred successors with. Otherwise the historical
+        // evaluators, and the helpful slot is an empty (non-allocating) Vec.
+        let evals: Vec<Option<(i32, Vec<u32>)>> = par::par_map_with(
             &popped,
             threads,
             || Scratch::new(task),
             |sc, &ni| {
                 let s = &nodes[ni].state;
+                if cfg.pref_ops {
+                    return relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num);
+                }
                 match cfg.h_cost {
                     Some(hcf) => {
                         relaxed_costed(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num, hcf)
                     }
                     None => relaxed_to(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num),
                 }
+                .map(|h| (h, Vec::new()))
             },
         );
+        let hs: Vec<Option<i32>> = evals.iter().map(|e| e.as_ref().map(|(h, _)| *h)).collect();
         t_h += t_phase.elapsed_us();
         evaluated += popped.len();
         // The wall checkpoint (0.22 Phase 2 lever 1): the eval cap is
@@ -943,14 +1024,14 @@ pub fn search_from(
 
         // PARALLEL: expand non-dead-end popped nodes; successors carry the
         // parent's h as their (deferred) priority key.
-        let live: Vec<(usize, i32)> = popped
+        let live: Vec<(usize, i32, &Vec<u32>)> = popped
             .iter()
-            .zip(hs.iter())
-            .filter_map(|(&ni, h)| h.map(|h| (ni, h)))
+            .zip(evals.iter())
+            .filter_map(|(&ni, e)| e.as_ref().map(|(h, help)| (ni, *h, help)))
             .collect();
         let t_phase = crate::clock::Clock::now();
-        let cand_chunks: Vec<Vec<(usize, usize, State, u64, i32)>> =
-            par::par_map(&live, threads, |&(ni, ph)| {
+        let cand_chunks: Vec<Vec<(usize, usize, State, u64, i32, bool)>> =
+            par::par_map(&live, threads, |&(ni, ph, helpful)| {
                 let st = &nodes[ni].state;
                 let mut v = Vec::new();
                 for oi in 0..task.n_ops {
@@ -965,7 +1046,11 @@ pub fn search_from(
                             }
                         }
                         let k = khash(&ns);
-                        v.push((ni, oi, ns, k, ph));
+                        // Preferred = reached via one of the parent's helpful
+                        // ops. The set is empty off-path, so this is false
+                        // there and nothing downstream changes.
+                        let pref = cfg.pref_ops && helpful.contains(&(oi as u32));
+                        v.push((ni, oi, ns, k, ph, pref));
                     }
                 }
                 v
@@ -976,7 +1061,7 @@ pub fn search_from(
         // SERIAL: dedup + insert (deterministic order, independent of threads).
         let t_phase = crate::clock::Clock::now();
         for chunk in cand_chunks {
-            for (pi, oi, s, k, ph) in chunk {
+            for (pi, oi, s, k, ph, pref) in chunk {
                 let g = nodes[pi].g + 1;
                 if g >= cfg.g_bound || g >= len_bound {
                     continue; // cannot beat the length incumbent (see SearchCfg)
@@ -1030,15 +1115,19 @@ pub fn search_from(
                             g,
                             lm_acc: acc,
                         });
-                        heap.push(Reverse((
-                            cfg.w_g * g as i64
-                                + cfg.w_h * ph as i64
-                                + cfg.w_lm * un
-                                + res_term
-                                + sat_pen
-                                + cost_term,
-                            idx,
-                        )));
+                        let key = cfg.w_g * g as i64
+                            + cfg.w_h * ph as i64
+                            + cfg.w_lm * un
+                            + res_term
+                            + sat_pen
+                            + cost_term;
+                        heap.push(Reverse((key, idx)));
+                        if cfg.pref_ops {
+                            expanded.push(false);
+                            if pref {
+                                pref_heap.push(Reverse((key, idx)));
+                            }
+                        }
                         continue;
                     };
                     let idx = nodes.len();
@@ -1049,15 +1138,19 @@ pub fn search_from(
                         g,
                         lm_acc: Vec::new(),
                     });
-                    heap.push(Reverse((
-                        cfg.w_g * g as i64
-                            + cfg.w_h * ph as i64
-                            + lm_term
-                            + res_term
-                            + sat_pen
-                            + cost_term,
-                        idx,
-                    )));
+                    let key = cfg.w_g * g as i64
+                        + cfg.w_h * ph as i64
+                        + lm_term
+                        + res_term
+                        + sat_pen
+                        + cost_term;
+                    heap.push(Reverse((key, idx)));
+                    if cfg.pref_ops {
+                        expanded.push(false);
+                        if pref {
+                            pref_heap.push(Reverse((key, idx)));
+                        }
+                    }
                 }
             }
         }
@@ -1402,6 +1495,22 @@ pub fn plan_avoiding(
     // FF_CLM=<weight> adds w_lm × unaccepted-landmarks to the best-first
     // fallback's key (EHC and the LAMA rung are untouched).
     if cfg.h_cost.is_none() && !cfg.anytime {
+        // Fallback enrichment (0.26 F1): the plain classical fallback —
+        // the rung that writes the "used weighted best-first" note on 128
+        // of ipc5-prop's 369 solved rows — carries the LAMA recipe by
+        // default: preferred-operator alternation plus the landmark-count
+        // term at FF_CLM's historical parse-fallback weight (3.0). Scoped
+        // by this guard to exactly that rung: the cost-h rung, the anytime
+        // B&B loops, temporal and the optimal ladder never enter here.
+        // `FF_NO_ENRICH=1` is the restore hatch — single heap, plain h,
+        // no landmark term unless FF_CLM says otherwise, which it keeps
+        // saying exactly as it did (the 0.11 opt-in path is what the
+        // referee's decomposition arm measures).
+        let enrich = std::env::var("FF_NO_ENRICH").is_err();
+        cfg.pref_ops = enrich;
+        if enrich {
+            cfg.w_lm = (3.0 * WEIGHT_SCALE) as i64;
+        }
         if let Ok(v) = std::env::var("FF_CLM") {
             let w = v.trim().parse::<f64>().unwrap_or(3.0);
             if w.is_finite() && w > 0.0 {

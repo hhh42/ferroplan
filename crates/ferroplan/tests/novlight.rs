@@ -26,9 +26,14 @@ fn light_walks_the_grid_where_weighted_best_first_caps() {
         "light needed {evaluated} pops — the walk should be ~plan-length"
     );
 
-    // The counterpart: weighted best-first under a 20x LARGER eval budget
-    // still fails (the h_FF plateau — this is the mechanism the rung
-    // exists for, and the reason it runs before LAMA in the ladder).
+    // The counterpart: the BARE weighted best-first fallback under a 20x
+    // LARGER eval budget still fails (the h_FF plateau — this is the
+    // mechanism the rung exists for, and the reason it runs before LAMA in
+    // the ladder). Bare = `FF_NO_ENRICH=1`: since 0.26 F1 the fallback
+    // carries preferred-operator alternation by default, and THAT fallback
+    // walks this grid (pinned below) — the plateau the light rung was
+    // measured against is the single-queue one. One test in this binary,
+    // so the process-global knob is safe to set here.
     let dom = include_str!("../../../benchmarks/bench/visitgrid-domain.pddl");
     let prb = include_str!("../../../benchmarks/bench/visitgrid-10x10.pddl");
     let opts = ferroplan::Options {
@@ -37,6 +42,23 @@ fn light_walks_the_grid_where_weighted_best_first_caps() {
         threads: 1,
         ..Default::default()
     };
-    let sol = ferroplan::solve(dom, prb, &opts).unwrap();
-    assert!(!sol.solved, "best-first should cap on the plateau");
+    std::env::set_var("FF_NO_ENRICH", "1");
+    let bare = ferroplan::solve(dom, prb, &opts).unwrap();
+    std::env::remove_var("FF_NO_ENRICH");
+    assert!(
+        !bare.solved,
+        "the bare best-first should cap on the plateau"
+    );
+
+    // The enriched fallback (0.26 F1) crosses the same plateau inside the
+    // same budget: the helpful set keeps the frontier on the unvisited
+    // cells the way IW(1)'s novelty does. Measured 2026-08-28; pinned so a
+    // regression in the preferred queue shows up here, on the domain the
+    // rung was built for.
+    let enriched = ferroplan::solve(dom, prb, &opts).unwrap();
+    assert!(
+        enriched.solved,
+        "the enriched best-first walked the grid when F1 landed; evals {}",
+        enriched.statistics.evaluated_states
+    );
 }

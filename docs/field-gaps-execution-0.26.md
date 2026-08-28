@@ -114,6 +114,14 @@ referee) — checked and confirmed. Size grades read honest throughout.
 
 ## F1 — Fallback enrichment: preferred operators + landmark count armed into the complete wBFS fallback
 
+**STATUS 2026-08-28: BUILT, unit pin green, referee in flight on crucible** —
+record in docs/roadmap-0.26.md ("The field-gaps expansion", F1 bullet). Two
+measured facts the spec did not predict: the landmark term alone is inert on
+the pin's chain fixture (the deferred h already orders it), and the enriched
+fallback crosses the visit-all 10×10 plateau (tests/novlight.rs) that the bare
+one caps on. `f1-before` (ff 0.25.0) is sweeping; `f1-armed` follows the
+0.26.0 build.
+
 ### Goal + evidence anchor
 
 Bring the `lama.rs` dual-heap preferred-operator alternation and the landmark-count ordering term (`FF_CLM`, opt-in since 0.11) into `search_from`'s complete weighted best-first fallback, armed by default, scoped exactly to the plain classical fallback — the search that does most of the solving and today carries neither signal.

@@ -555,6 +555,37 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   into the bare wBFS fallback that does most of the solving; RED fixture,
   named `FF_NO_*` restore, old-binary referee; bands +10–17 (ipc5-prop
   tails) and +9-to-median (2018).
+  **Recorded 2026-08-28 — F1 BUILT, unit-refereed, board A/B pending.**
+  Landed as specified: `SearchCfg.pref_ops` (default false at every
+  construction site — all nine other sites spread from a base), armed
+  with the landmark term at 3.0 inside `plan_avoiding`'s guarded block
+  (`FF_NO_ENRICH=1` restores the bare single-queue fallback; `FF_CLM`
+  keeps its opt-in semantics under the hatch), `search_from` gains the
+  lama.rs dual heap (192/64 shares, same 256 batch), `relaxed_helpful`
+  as the evaluator, preferred insertion, and the node-cap byte model
+  now charges `lm_acc` when the term is armed. Pin (`tests/enrich.rs`,
+  child-process pattern, a 30-step chain with 14 junk toggles at a 4k
+  eval cap): bare queue capped unsolved at 4,218 evals; enriched solves
+  in **1,808**, plan identical at 1 and 8 threads. Measured and recorded
+  rather than assumed: on that fixture the landmark term ALONE is inert
+  (7,034 evals, identical to bare at every K from 14 to 20) — the
+  deferred h already orders the chain, and the preferred queue's whole
+  gain there is batch composition (~65 evaluations a round instead of
+  256); attributing the two halves is the board A/B's job. The first
+  real receipt came from an existing pin, `tests/novlight.rs`: the
+  enriched fallback now SOLVES the 10×10 visit-all grid inside the
+  100k-eval cap the bare fallback capped on — the exact h-plateau the
+  novelty-light rung was justified against — so that test's bare arm
+  runs under the hatch and the new fact is pinned beside it. Debug test
+  pass green across ferroplan/cli/mcp. The referee is in flight ON
+  CRUCIBLE: `f1-before` (v0.25.0 engine, the published cut) sweeping
+  `ipc5-prop` + `ipc2018-sat` into `benchmarks/air26-f1-before`; the
+  armed leg (`f1-armed`, requires 0.26) follows once the 0.26.0
+  candidate is built — which waits for the before-leg to drain, because
+  rebuilding `target/release/ff` under a live sweep would hand later
+  rows a different binary than the hash they carry. The release
+  `--include-ignored` pass and the `hatch-differential.py` "enrich"
+  entry (its witnesses ARE the converted rows) wait on the same.
 - **F2 — YAHSP-style relaxed-plan lookahead** (ungated; never tried in
   this engine): opt-in hatch first; parking-2014's four 59.5–59.9 s
   solves are the fixture class.
