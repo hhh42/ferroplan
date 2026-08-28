@@ -257,6 +257,18 @@ pub struct SearchCfg {
     /// [`relaxed_to`], bit-identical; only `plan_avoiding`'s plain
     /// classical fallback arms it, and `FF_NO_ENRICH=1` restores it there.
     pub pref_ops: bool,
+    /// YAHSP-style relaxed-plan lookahead in the complete fallback (0.26 F2,
+    /// OPT-IN `FF_LOOKAHEAD=1`): at a popped node, greedily EXECUTE the
+    /// relaxed plan's ops on the concrete state, first-fit in RPG-layer
+    /// order, and hand the resulting deep state to the open list as one
+    /// extra successor carrying a multi-op edge, keyed on its own TRUE h.
+    /// Adds successors only — every normal successor is still generated —
+    /// so completeness is untouched. `false` (the default everywhere) is
+    /// byte-identical; only `plan_avoiding`'s plain classical fallback
+    /// arms it, and inside `search_from` it additionally requires the bare
+    /// classical shape (no cost fluent, closure, guidance, length bound or
+    /// length-anytime).
+    pub lookahead: bool,
     /// Per-search retained-memory target in BYTES (0.11 Phase 4, the
     /// budgeted-think surface): overrides the default 8 GiB target behind
     /// the internal `node_cap_for` per-node byte model.
@@ -328,6 +340,7 @@ impl SearchCfg {
             w_lm: 0,
             w_res: 0,
             pref_ops: false,
+            lookahead: false,
             node_bytes_target: None,
             deadline: None,
         }
@@ -769,6 +782,20 @@ pub fn search_from(
     } else {
         Vec::new()
     };
+    // Relaxed-plan lookahead (cfg.lookahead, 0.26 F2): the plain classical
+    // shape only — a cost fluent, a closure, guidance, a length bound or
+    // length-anytime each change what a "successor" means here, and the
+    // lookahead's deep node is a plain one. Its multi-op edge lives in a
+    // side table keyed by node index, so the arena's per-node bytes do not
+    // move off-path (the bytes it holds are a recorded under-count of the
+    // model, bounded by h ops per lookahead node).
+    let lookahead = cfg.lookahead
+        && cost_fluent.is_none()
+        && closure.is_none()
+        && sat.is_none()
+        && cfg.g_bound == usize::MAX
+        && !cfg.len_anytime;
+    let mut la_edges: FxHashMap<u32, Box<[u32]>> = FxHashMap::default();
     // Retained-state compression (0.20 Phase 4): visited is hash -> node
     // indices; equality is checked EXACTLY against the arena state, so
     // nothing stores a second copy of the bitset (the old StateKey set
@@ -879,7 +906,7 @@ pub fn search_from(
                     if eff <= 0.0 {
                         // Nothing can beat zero: the incumbent is optimal.
                         return PlanResult::Plan {
-                            ops: reconstruct(&nodes, ni),
+                            ops: reconstruct(&nodes, ni, &la_edges),
                             advance,
                             evaluated,
                             max_g,
@@ -896,7 +923,7 @@ pub fn search_from(
                 g + cl.cost(s) < cost_bound
             }) {
                 return PlanResult::Plan {
-                    ops: reconstruct(&nodes, ni),
+                    ops: reconstruct(&nodes, ni, &la_edges),
                     advance,
                     evaluated,
                     max_g,
@@ -935,27 +962,46 @@ pub fn search_from(
         // plan, the same h, plus the helpful-action set the expansion below
         // marks preferred successors with. Otherwise the historical
         // evaluators, and the helpful slot is an empty (non-allocating) Vec.
-        let evals: Vec<Option<(i32, Vec<u32>)>> = par::par_map_with(
+        let evals: Vec<Option<(i32, Vec<u32>, Option<Lookahead>)>> = par::par_map_with(
             &popped,
             threads,
             || Scratch::new(task),
             |sc, &ni| {
                 let s = &nodes[ni].state;
-                if cfg.pref_ops {
-                    return relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num);
-                }
-                match cfg.h_cost {
-                    Some(hcf) => {
-                        relaxed_costed(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num, hcf)
-                    }
-                    None => relaxed_to(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num),
-                }
-                .map(|h| (h, Vec::new()))
+                let (h, helpful) = if cfg.pref_ops {
+                    relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num)?
+                } else {
+                    let h = match cfg.h_cost {
+                        Some(hcf) => relaxed_costed(
+                            task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num, hcf,
+                        ),
+                        None => relaxed_to(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num),
+                    }?;
+                    (h, Vec::new())
+                };
+                let la = if lookahead && h > 0 {
+                    lookahead_from(task, sc, s, goal_pos, goal_num, forbidden)
+                } else {
+                    None
+                };
+                Some((h, helpful, la))
             },
         );
-        let hs: Vec<Option<i32>> = evals.iter().map(|e| e.as_ref().map(|(h, _)| *h)).collect();
+        let hs: Vec<Option<i32>> = evals
+            .iter()
+            .map(|e| e.as_ref().map(|(h, _, _)| *h))
+            .collect();
         t_h += t_phase.elapsed_us();
         evaluated += popped.len();
+        // A lookahead terminal's h is a real evaluation, counted against the
+        // cap and the wall checkpoint like any other.
+        evaluated += evals
+            .iter()
+            .filter(|e| {
+                e.as_ref()
+                    .is_some_and(|(_, _, la)| la.as_ref().is_some_and(|l| l.evaluated))
+            })
+            .count();
         // The wall checkpoint (0.22 Phase 2 lever 1): the eval cap is
         // denominated in states and the wall in seconds, and on slow-eval
         // domains the two run apart by MINUTES — gear-car i6 ran this loop
@@ -1004,7 +1050,7 @@ pub fn search_from(
             }
             if let Some(ni) = best_acc.or(len_acc) {
                 return PlanResult::Plan {
-                    ops: reconstruct(&nodes, ni),
+                    ops: reconstruct(&nodes, ni, &la_edges),
                     advance,
                     evaluated,
                     max_g,
@@ -1027,7 +1073,7 @@ pub fn search_from(
         let live: Vec<(usize, i32, &Vec<u32>)> = popped
             .iter()
             .zip(evals.iter())
-            .filter_map(|(&ni, e)| e.as_ref().map(|(h, help)| (ni, *h, help)))
+            .filter_map(|(&ni, e)| e.as_ref().map(|(h, help, _)| (ni, *h, help)))
             .collect();
         let t_phase = crate::clock::Clock::now();
         let cand_chunks: Vec<Vec<(usize, usize, State, u64, i32, bool)>> =
@@ -1154,6 +1200,75 @@ pub fn search_from(
                 }
             }
         }
+        // Lookahead terminals, after the normal successors and in popped
+        // order: one deep node each, dedup'd through the same bucket, keyed on
+        // its own TRUE h at its real depth, normal heap only (R2: never a
+        // preferred edge). A goal-met terminal is the plan, first-improvement
+        // as on the plain path.
+        if lookahead {
+            for (&ni, e) in popped.iter().zip(evals.iter()) {
+                let Some((_, _, Some(la))) = e else {
+                    continue;
+                };
+                let k = khash(&la.state);
+                let bucket = visited.entry(k).or_default();
+                let dup = match orbit {
+                    Some(om) => {
+                        let ck = om.canonical_skey(task, &la.state, cost_fluent);
+                        bucket.iter().any(|&idx| {
+                            om.canonical_skey(task, &nodes[idx as usize].state, cost_fluent) == ck
+                        })
+                    }
+                    None => bucket.iter().any(|&idx| {
+                        task.state_key_eq(&nodes[idx as usize].state, &la.state, cost_fluent)
+                    }),
+                };
+                if dup {
+                    continue;
+                }
+                bucket.push(nodes.len() as u32);
+                let g = nodes[ni].g + la.ops.len();
+                // Landmarks accepted along the WHOLE edge, not just at its end:
+                // replay the intermediate states so a landmark passed through
+                // is not skipped.
+                let (acc, un) = if clms.is_empty() {
+                    (Vec::new(), 0)
+                } else {
+                    let mut acc = nodes[ni].lm_acc.clone();
+                    let mut st = nodes[ni].state.clone();
+                    for &oi in la.ops.iter() {
+                        st = task.apply(oi as usize, &st);
+                        clm_accept_into(&mut acc, &clms, &st);
+                    }
+                    let un = clm_unaccepted(&acc, clms.len());
+                    (acc, un)
+                };
+                let res_term = reslm.map_or(0, |tb| cfg.w_res * tb.trips(&la.state.bits));
+                let idx = nodes.len();
+                nodes.push(Node {
+                    state: la.state.clone(),
+                    father: ni,
+                    op: LA_SENTINEL,
+                    g,
+                    lm_acc: acc,
+                });
+                la_edges.insert(idx as u32, la.ops.clone());
+                let key = cfg.w_g * g as i64 + cfg.w_h * la.h as i64 + cfg.w_lm * un + res_term;
+                heap.push(Reverse((key, idx)));
+                if cfg.pref_ops {
+                    expanded.push(false);
+                }
+                max_g = max_g.max(g);
+                if la.h == 0 && task.goal_met_with(&la.state, goal_pos, goal_num) {
+                    return PlanResult::Plan {
+                        ops: reconstruct(&nodes, idx, &la_edges),
+                        advance,
+                        evaluated,
+                        max_g,
+                    };
+                }
+            }
+        }
         t_ins += t_phase.elapsed_us();
     }
 
@@ -1161,7 +1276,7 @@ pub fn search_from(
     // bound (the caller's confirming re-sweep proves it via None + un-capped).
     if let Some(ni) = best_acc.or(len_acc) {
         return PlanResult::Plan {
-            ops: reconstruct(&nodes, ni),
+            ops: reconstruct(&nodes, ni, &la_edges),
             advance,
             evaluated,
             max_g,
@@ -1173,10 +1288,94 @@ pub fn search_from(
     }
 }
 
-fn reconstruct(nodes: &[Node], mut ni: usize) -> Vec<usize> {
+/// The `op` a lookahead node carries: its edge is several ops, held in the
+/// side table `reconstruct` splices in.
+const LA_SENTINEL: usize = usize::MAX - 1;
+
+/// What one lookahead produced at a popped node.
+struct Lookahead {
+    state: State,
+    /// The ops executed, in order — the multi-op edge.
+    ops: Box<[u32]>,
+    /// The terminal's own h (0 when it meets the goal).
+    h: i32,
+    /// Whether `h` cost a relaxed-plan evaluation (a goal-met terminal
+    /// costs none).
+    evaluated: bool,
+}
+
+/// Greedily execute the last extraction's relaxed plan on `start`: first-fit
+/// in RPG-layer order over the concrete state, each op at most once, until
+/// a full pass applies nothing, the goal holds, or the plan is spent. Yields
+/// only when at least two ops applied — a one-step jump is a normal
+/// successor. The terminal is evaluated with the scratch AFTER the plan has
+/// been read out of it, which is the ordering that makes this free.
+fn lookahead_from(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+    forbidden: &[bool],
+) -> Option<Lookahead> {
+    let rp = crate::heuristic::extraction_plan_ops(sc);
+    if rp.len() < 2 {
+        return None;
+    }
+    let mut used = vec![false; rp.len()];
+    let mut st = start.clone();
+    let mut applied: Vec<u32> = Vec::new();
+    loop {
+        let mut progressed = false;
+        for (i, &oi) in rp.iter().enumerate() {
+            if used[i] || forbidden.get(oi as usize).copied().unwrap_or(false) {
+                continue;
+            }
+            if task.op_applicable(oi as usize, &st) {
+                st = task.apply(oi as usize, &st);
+                used[i] = true;
+                applied.push(oi);
+                progressed = true;
+                if task.goal_met_with(&st, goal_pos, goal_num) {
+                    break;
+                }
+            }
+        }
+        if !progressed || applied.len() == rp.len() || task.goal_met_with(&st, goal_pos, goal_num) {
+            break;
+        }
+    }
+    if applied.len() < 2 {
+        return None;
+    }
+    if task.goal_met_with(&st, goal_pos, goal_num) {
+        return Some(Lookahead {
+            state: st,
+            ops: applied.into_boxed_slice(),
+            h: 0,
+            evaluated: false,
+        });
+    }
+    let h = relaxed_to(task, sc, &st.bits, &st.fv, &st.fdef, goal_pos, goal_num)?;
+    Some(Lookahead {
+        state: st,
+        ops: applied.into_boxed_slice(),
+        h,
+        evaluated: true,
+    })
+}
+
+fn reconstruct(nodes: &[Node], mut ni: usize, la_edges: &FxHashMap<u32, Box<[u32]>>) -> Vec<usize> {
     let mut ops = Vec::new();
     while nodes[ni].father != usize::MAX {
-        ops.push(nodes[ni].op);
+        if nodes[ni].op == LA_SENTINEL {
+            // The edge is walked backwards, like the path it sits in.
+            for &oi in la_edges[&(ni as u32)].iter().rev() {
+                ops.push(oi as usize);
+            }
+        } else {
+            ops.push(nodes[ni].op);
+        }
         ni = nodes[ni].father;
     }
     ops.reverse();
@@ -1511,6 +1710,10 @@ pub fn plan_avoiding(
         if enrich {
             cfg.w_lm = (3.0 * WEIGHT_SCALE) as i64;
         }
+        // Relaxed-plan lookahead (0.26 F2), opt-in probe: the same guard,
+        // which makes it and the cost-augmented first-plan rung mutually
+        // exclusive by construction (the memo's search.rs guard fence).
+        cfg.lookahead = std::env::var("FF_LOOKAHEAD").is_ok();
         if let Ok(v) = std::env::var("FF_CLM") {
             let w = v.trim().parse::<f64>().unwrap_or(3.0);
             if w.is_finite() && w > 0.0 {

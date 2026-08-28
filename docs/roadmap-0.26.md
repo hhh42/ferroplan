@@ -589,6 +589,30 @@ below touches the box until the 0.25 cut sweep completes and promotes.
 - **F2 — YAHSP-style relaxed-plan lookahead** (ungated; never tried in
   this engine): opt-in hatch first; parking-2014's four 59.5–59.9 s
   solves are the fixture class.
+  **Recorded 2026-08-28 — F2 BUILT as the opt-in probe, unit-pinned,
+  A/B pending.** `FF_LOOKAHEAD=1` arms `SearchCfg.lookahead` under the
+  same guard as F1 (so it and the cost-h rung exclude each other by
+  construction); inside `search_from` it requires the bare classical
+  shape. Per popped node with h > 0 the relaxed plan is read out in
+  RPG-layer order (`heuristic::extraction_plan_ops`, a new read-out —
+  the extraction only ever materialised a count and the helpful set) and
+  executed greedily first-fit on the concrete state, each op once; a
+  terminal reached by ≥ 2 ops joins the open list as one deep node on
+  its own TRUE h at its real depth, normal heap only, its edge in a side
+  table `reconstruct` splices; landmarks are accepted along the whole
+  edge; a goal-met terminal is the plan. Terminal evaluations count
+  against the cap. Flag-off is byte-identical (the read-out is dead code
+  and the field defaults false at every site). Pins
+  (`tests/lookahead.rs`): a 40-step serial chain — flag-off 40+
+  evaluations, flag-on solves from the root's ONE evaluation with the
+  identical plan, same at 8 threads; the read-out's layer order. The
+  `hatch-differential.py` "lookahead" entry (parking-2014, roles
+  inverted: the hatch ARMS the probe) and the board A/B (ipc2014-sat /
+  agile, ipc2018-sat, on the F1-enriched binary ± the flag so the 2018
+  marginal is attributed, never double-banked) wait on the box: they run
+  on crucible after the F1 referee. Clippy on F2 waits for the same
+  window (the box is quiet and the before-leg is banking; a build now
+  is a dirty row).
 - **F3 — the gated builds**, opened only by F0's decodes: the
   `charge_pre_num` temporal hatch (the 0.22 charge-on-temporal negative
   declared; the workshop-economy fixture mandatory; `FF_H_ENDGATE`/`FF_TRPG`

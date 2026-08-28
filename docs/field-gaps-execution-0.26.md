@@ -209,6 +209,11 @@ All evidence is gathered. Here is the spec section.
 
 ## F2 — YAHSP-style relaxed-plan lookahead in the complete fallback (`FF_LOOKAHEAD`)
 
+**STATUS 2026-08-28: BUILT (opt-in), unit pins green, A/B pending on crucible**
+— record in docs/roadmap-0.26.md ("The field-gaps expansion", F2 bullet).
+`hatch-differential.py` carries the `lookahead` entry; the board A/B and the
+old-binary leg queue behind the F1 referee.
+
 ### Goal + evidence anchor
 
 At a popped node, greedily EXECUTE the relaxed plan's actions on the concrete state and hand the resulting deep state to the open list — the YAHSP2/3 mechanism (won IPC-2014 agile and temporal; memo §3.4: "the biggest speed payoff per the field evidence", no anti-pot adjacency, never tried in this engine). The constituency, re-read from the raws for this spec:

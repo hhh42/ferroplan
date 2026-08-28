@@ -71,6 +71,17 @@ SPECS = {
         "domain": ("ipc-2014", "visit-all-sequential-satisficing"),
         "question": "how much of visit-all is the light rung?",
     },
+    # 0.26 F2. The YAHSP-style relaxed-plan lookahead is OPT-IN, so the
+    # roles invert: the "shipped" arm is flag-off and the "hatched" arm ARMS
+    # the probe (FF_LOOKAHEAD=1). parking-2014 is the constituency -- four
+    # solves at 59.5-59.9 s of a 60 s wall, i1/i4/i6-i8 dying just past it.
+    "lookahead": {
+        "hatch": "FF_LOOKAHEAD",
+        "mode": None,
+        "domain": ("ipc-2014", "parking-sequential-satisficing"),
+        "question": "do the wall-sitting parking solves come off the wall, "
+                    "and do i1/i4/i6-i8 convert, with the lookahead ARMED?",
+    },
     # Phase 1. tpp-numeric is where the early-exit witness lived.
     "refill": {
         "hatch": "FF_NO_REFILL",
