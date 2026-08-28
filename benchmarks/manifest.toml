@@ -546,3 +546,21 @@ requires_version = "0.25"
 boards = [
   "ipc5-complex-pref",
 ]
+
+[[set]]
+name = "f1-before"
+stage = "benchmarks/air26-f1-before"
+requires_version = "0.25"
+boards = [
+  "ipc5-prop",
+  "ipc2018-sat",
+]
+
+[[set]]
+name = "f1-armed"
+stage = "benchmarks/air26-f1"
+requires_version = "0.26"
+boards = [
+  "ipc5-prop",
+  "ipc2018-sat",
+]

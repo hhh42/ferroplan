@@ -125,6 +125,15 @@ def parse_args(extra):
     return mode, threads, (1 if threads > 1 else 2), rest
 
 
+# (set name, stage, boards, required engine version)
+REFEREE_SETS = [
+    # F1 fallback enrichment: the old-binary leg (v0.25.0, the engine the
+    # cut shipped) and the armed candidate, on the two boards the band claims.
+    ("f1-before", "benchmarks/air26-f1-before", ["ipc5-prop", "ipc2018-sat"], "0.25"),
+    ("f1-armed", "benchmarks/air26-f1", ["ipc5-prop", "ipc2018-sat"], "0.26"),
+]
+
+
 def q(s):
     return '"' + str(s).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
@@ -142,7 +151,7 @@ def main():
         for bid, track, tmo, extra in boards_from(path):
             spec_of[bid] = (track, tmo, extra)
             ids.append(bid)
-        sets.append((set_name, stage, ids))
+        sets.append((set_name, stage, ids, "0.25"))
 
     # The board the entries sweep MISSED: registered in SWEEPS, swept by
     # post-entries25.sh, in no BOARDS array. The manifest is where that stops
@@ -155,7 +164,17 @@ def main():
                             budget, [])
             orphans.append(bid)
     if orphans:
-        sets.append(("post-entries25", "benchmarks/air25-entries", orphans))
+        sets.append(("post-entries25", "benchmarks/air25-entries", orphans, "0.25"))
+
+    # Referee sets for the 0.26 builds (docs/field-gaps-execution-0.26.md):
+    # the same boards measured twice on the same box, once by the previous
+    # release's engine and once by the candidate, each into its own stage.
+    # Declared here rather than in a shell driver, because from 0.26 on
+    # crucible IS the driver and there is no BOARDS array to transcribe.
+    for name, stage, ids, ver in REFEREE_SETS:
+        for bid in ids:
+            assert bid in spec_of, f"referee set {name}: unknown board {bid}"
+        sets.append((name, stage, ids, ver))
 
     L = ["# benchmarks/manifest.toml -- the sweep instrument, versioned with the planner.",
          "#",
@@ -244,11 +263,11 @@ def main():
           "# and the cut record carries TWO headlines.",
           "# ---------------------------------------------------------------------------",
           ""]
-    for name, stage, ids in sets:
+    for name, stage, ids, ver in sets:
         L.append("[[set]]")
         L.append(f"name = {q(name)}")
         L.append(f"stage = {q(stage)}")
-        L.append('requires_version = "0.25"')
+        L.append(f"requires_version = {q(ver)}")
         if name == "post-entries25":
             L.append("# Registered in SWEEPS and swept by post-entries25.sh, but absent from")
             L.append("# every BOARDS array -- the entries driver was not edited mid-run.")

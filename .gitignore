@@ -60,3 +60,6 @@ benchmarks/post-entries25.log
 crucible/target/
 crucible/state/
 benchmarks/crucible-differential.jsonl
+
+# 0.26 referee stages (crucible sets f1-before / f1-armed) and the cut.
+benchmarks/air26*/
