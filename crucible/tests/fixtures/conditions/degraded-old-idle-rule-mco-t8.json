@@ -1,0 +1,27 @@
+{
+ "started": "2026-08-16 05:45:11",
+ "ended": "2026-08-16 06:59:51",
+ "samples": 209,
+ "idle_pct": {
+  "median": 38.2,
+  "p25": 24.6,
+  "min": 7.8
+ },
+ "loadavg": {
+  "median": 5.76,
+  "max": 7.94
+ },
+ "competitors_mean_pcpu": {
+  "spotlightknowledged": 52.5,
+  "corespotlightd": 3.0,
+  "biomesyncd": 0.8,
+  "frauddefensed": 0.4
+ },
+ "swap_mb": {
+  "max": 6016.5
+ },
+ "cpu_speed_limit": {
+  "min": null
+ },
+ "verdict": "DEGRADED"
+}

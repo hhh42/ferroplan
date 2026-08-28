@@ -1,0 +1,40 @@
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 1, "solved": true, "time": 3.15, "metric": null, "length": 162, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 2, "solved": true, "time": 2.45, "metric": null, "length": 153, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 3, "solved": true, "time": 2.96, "metric": null, "length": 159, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 4, "solved": true, "time": 1.79, "metric": null, "length": 140, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 5, "solved": true, "time": 2.15, "metric": null, "length": 150, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 6, "solved": true, "time": 2.81, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 7, "solved": true, "time": 3.15, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 8, "solved": true, "time": 2.73, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 9, "solved": true, "time": 1.83, "metric": null, "length": 137, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 10, "solved": true, "time": 2.48, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 11, "solved": true, "time": 2.84, "metric": null, "length": 153, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 12, "solved": true, "time": 2.9, "metric": null, "length": 170, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 13, "solved": true, "time": 3.62, "metric": null, "length": 165, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 14, "solved": true, "time": 1.94, "metric": null, "length": 148, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 15, "solved": true, "time": 2.03, "metric": null, "length": 152, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 16, "solved": true, "time": 3.11, "metric": null, "length": 156, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 17, "solved": true, "time": 1.98, "metric": null, "length": 141, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 18, "solved": true, "time": 2.49, "metric": null, "length": 154, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 19, "solved": true, "time": 2.67, "metric": null, "length": 156, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "barman-sequential-agile", "instance": 20, "solved": true, "time": 2.57, "metric": null, "length": 157, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 1, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 2, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 3, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 4, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 5, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 6, "solved": true, "time": 30.21, "metric": 104.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 7, "solved": true, "time": 30.97, "metric": 105.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 8, "solved": false, "time": 28.44, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 9, "solved": true, "time": 30.37, "metric": 100.0, "length": 33, "val": true, "notes": ["EHC found no improving state; used weighted best-first"]}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 10, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 11, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 12, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 13, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 14, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 15, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 16, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 17, "solved": false, "time": 60, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 18, "solved": false, "time": 44.27, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 19, "solved": false, "time": 53.09, "metric": null, "length": null, "val": null, "notes": null}
+{"ipc": "ipc-2014", "variant": "cave-diving-sequential-agile", "instance": 20, "solved": false, "time": 38.97, "metric": null, "length": null, "val": null, "notes": null}

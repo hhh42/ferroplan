@@ -10,7 +10,12 @@ members = [
 ]
 # Built standalone via maturin (pyo3 extension-module doesn't link libpython, so
 # a plain workspace `cargo build` would fail to link).
-exclude = ["crates/ferroplan-py"]
+# crucible/ is its own workspace root (crucible/Cargo.toml) and would stop
+# cargo's upward walk on its own; listing it here documents the intent and
+# survives someone deleting that [workspace] table. It keeps the sweep harness
+# out of `cargo test --all`, the clippy gate, publish.sh and the RELEASING.md
+# pre-flight -- a ratatui/rusqlite dep tree must never gate a planner release.
+exclude = ["crates/ferroplan-py", "crucible"]
 
 [workspace.package]
 version = "0.25.0"

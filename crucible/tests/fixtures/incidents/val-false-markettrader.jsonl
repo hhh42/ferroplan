@@ -1,0 +1,1 @@
+{"ipc": "ipc-2023n", "variant": "markettrader-numeric-satisficing", "instance": 3, "solved": true, "time": 4.87, "metric": null, "length": 453, "val": false, "notes": ["EHC found no improving state; used weighted best-first"]}

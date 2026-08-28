@@ -1,0 +1,25 @@
+[package]
+name = "crucible-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+crucible-publish = { path = "../crucible-publish" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+libc = "0.2"
+# bundled: no dependency on the system SQLite's version. Weeks of benchmark
+# history is the kind of thing the spec calls mission-critical, and this is the
+# repo's first database of any kind.
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# macOS-only, and the ONLY target-gated dependency. Every use of it sits behind
+# `trait Platform`; `preflight.sh` cross-checks the crate for linux-gnu, and
+# keeping libproc out of the unconditional table is what gives that check teeth
+# -- otherwise it would resolve on Linux and prove nothing.
+[target.'cfg(target_os = "macos")'.dependencies]
+libproc = "0.14"

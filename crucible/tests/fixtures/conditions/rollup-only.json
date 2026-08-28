@@ -1,0 +1,27 @@
+{
+ "started": "2026-08-17 18:24:34",
+ "ended": "2026-08-17 19:45:17",
+ "samples": 223,
+ "idle_pct": {
+  "median": 74.8,
+  "p25": 71.6,
+  "min": 39.5
+ },
+ "loadavg": {
+  "median": 3.21,
+  "max": 4.49
+ },
+ "competitors_mean_pcpu": {
+  "Brave Browser Helper (Renderer)": 9.8,
+  "WallpaperAerialsExtension": 5.0,
+  "WindowServer": 3.2,
+  "Brave Browser": 2.2
+ },
+ "swap_mb": {
+  "max": 7692.0
+ },
+ "cpu_speed_limit": {
+  "min": null
+ },
+ "verdict": "clean"
+}

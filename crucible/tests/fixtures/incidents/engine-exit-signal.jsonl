@@ -1,0 +1,11 @@
+{"ipc": "ipc-2018", "variant": "organic-synthesis-sequential-satisficing", "instance": 14, "solved": false, "time": 57.94, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 60}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 18, "solved": false, "time": 240.89, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 6, "solved": false, "time": 147.35, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 6, "solved": false, "time": 171.19, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 6, "solved": false, "time": 183.85, "metric": null, "length": null, "val": null, "notes": "engine-exit--9"}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 7, "solved": false, "time": 156.75, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 7, "solved": false, "time": 194.1, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 300}
+{"ipc": "ipc-2023", "variant": "folding-agile", "instance": 7, "solved": false, "time": 205.05, "metric": null, "length": null, "val": null, "notes": "engine-exit--9"}
+{"ipc": "ipc-2023n", "variant": "block-grouping-numeric-satisficing", "instance": 10, "solved": false, "time": 59.13, "metric": null, "length": null, "val": null, "notes": "engine-exit--9"}
+{"ipc": "ipc-2023n", "variant": "block-grouping-numeric-satisficing", "instance": 10, "solved": false, "time": 59.67, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 60}
+{"ipc": "ipc-2023n", "variant": "block-grouping-numeric-satisficing", "instance": 13, "solved": false, "time": 54.41, "metric": null, "length": null, "val": null, "notes": "engine-exit--9", "budget": 60}

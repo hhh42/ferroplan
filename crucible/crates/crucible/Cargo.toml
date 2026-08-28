@@ -1,0 +1,28 @@
+[package]
+name = "crucible"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "crucible"
+path = "src/main.rs"
+
+[dependencies]
+crucible-core = { path = "../crucible-core" }
+crucible-publish = { path = "../crucible-publish" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+toml = { workspace = true }
+anyhow = "1"
+thiserror = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+# Engine identity. The resume gate compares this, not the version STRING --
+# every dev build of a cycle reports the same `ff 0.25.0`.
+blake3 = "1"
+
+# The dashboard must never meaningfully compete with the thing it measures.
+ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
+crossterm = "0.28"
