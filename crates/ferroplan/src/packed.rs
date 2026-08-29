@@ -130,12 +130,14 @@ pub struct PackedTask {
     pub goal_num: Vec<NumPre>,
 
     /// Arm the numeric-precondition charge (0.21 Phase 3) in relaxed-plan
-    /// extraction. True on the classical/numeric grounding entries; FALSE
-    /// on the temporal snap/session entries (stratified/fixpoint), whose
-    /// compiled tasks always carry `pre_num` — the charge re-routed the
-    /// village workshop economy (27-step carve plan → 47-step chisel-sale
-    /// plan), and the temporal boards are other phases' referee surface,
-    /// so they keep 0.20's h byte-identical until measured on their own.
+    /// extraction. True on the classical/numeric grounding entries; on the
+    /// temporal snap/session entries (stratified/fixpoint), whose compiled
+    /// tasks always carry `pre_num`, true only under `FF_NUMPRE_TEMPORAL`
+    /// (0.26 F3, opt-in) — the pre-damping charge re-routed the village
+    /// workshop economy (27-step carve plan → 47-step chisel-sale plan),
+    /// and the temporal boards are other phases' referee surface, so
+    /// unset they keep 0.20's h byte-identical. `FF_NO_NUMPRE` is the deep
+    /// restore either way (heuristic.rs gate).
     pub charge_pre_num: bool,
 
     /// The h-surgery probe (0.21 Phase 8, opt-in `FF_H_ENDGATE=1`): op id ->

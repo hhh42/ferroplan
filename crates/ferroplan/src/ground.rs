@@ -3118,7 +3118,10 @@ fn ground_v(
         goal_num,
         // The temporal entries (stratified snap path, fixpoint session)
         // keep the numeric-precondition charge OFF — see the field docs.
-        charge_pre_num: !stratified,
+        // Temporal groundings arm the charge only under `FF_NUMPRE_TEMPORAL`
+        // (0.26 F3, opened by the metric-time decode); unset, the
+        // short-circuit keeps the temporal h byte-identical.
+        charge_pre_num: !stratified || std::env::var("FF_NUMPRE_TEMPORAL").is_ok(),
         // The end-gate pair table is a TEMPORAL think-time overlay
         // (temporal.rs `endgate_pairs`, 0.21 Phase 8) — never grounded in.
         pair_end: None,

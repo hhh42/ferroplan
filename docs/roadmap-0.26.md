@@ -762,7 +762,50 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   `charge_pre_num` temporal hatch (the 0.22 charge-on-temporal negative
   declared; the workshop-economy fixture mandatory; `FF_H_ENDGATE`/`FF_TRPG`
   co-fire declared untested), AIBR/subgoaling numeric h, transport L1–L3,
-  the forgetting/multi-heuristic rung.
+  the forgetting/multi-heuristic rung. **`FF_NUMPRE_TEMPORAL` executed
+  2026-08-29 (gate opened by Sitting C): built as specified (one armed
+  line at the packed-task constructor, `FF_NO_NUMPRE` the deep restore,
+  unset bit-identical by the short-circuit). Referee, the 2006
+  metric-time constituency armed solo at 30 s
+  (`benchmarks/air26-probes/numpre-temporal/`,
+  `benchmarks/metrics/fieldgaps-F3-numpre.md`): pathways-metric-time
+  **1/30 vs 0/30** — i1 converts (unsolved at 27 s → solved in 1.5 s,
+  the board's first solve ever), i2 (the RED fixture) and everything
+  above stay at the wall; tpp **3/40 = 3/40**; rovers **5/40 = 5/40**,
+  the same five rows. The mandatory quality rider fired: the workshop
+  economy re-routes 25 → 47 steps (chisel sale, never carves) under the
+  armed charge AND under every damping half (`FF_NUMPRE_NODAMP/NOSKIP/
+  NOSUM`, `FF_NO_NUMPRE_CHAIN`, `FF_NUMPRE_DEPTH=0`) — the 0.21 negative
+  shape exactly, so the damping that fixed it on classical groundings
+  does not reach the temporal one. Verdict: the hatch stays **opt-in**,
+  +1 measured, no board arms it; `tests/numpre_temporal.rs` pins the
+  unset carve plan and the armed re-route (if the re-route ever
+  disappears the item is re-refereed, not promoted). Instrument note:
+  Timberborn started six minutes into the probe (≈150 % CPU), so tpp/
+  rovers rows are contended reads — they match the banked coverage
+  exactly, and tpp i4 (the near-wall cliff row) solved solo at 8–10 s
+  both unset and armed, i.e. it is wall-flaky, not flag-sensitive.**
+  **Ladder dedup (Sitting A's F3 candidate, +2 firm) BUILT 2026-08-29:**
+  `temporal.rs` skips the tight pass when its mask equals the sound
+  mask, the unmasked backstop when the sound mask keeps every op (an
+  all-true mask IS the unmasked pass — `allow` reads them identically,
+  the only other use is narration), and the Full-tier escalation rung
+  when the predicate-goal thresholds add nothing to the demand (read
+  once by the numeric-tier pass function while its task exists, handed
+  to `solve_ladder` through a thread-local; unset cell ⇒ rung kept).
+  `FF_NO_LADDER_DEDUP=1` restores the quartet; `tests/ladder_dedup.rs`
+  pins the exact saving on a mask-degenerate ring (8 monolithic passes
+  → 2, the decomposer's contract passes shared) and that the solvable
+  ring still solves. **Receipts PENDING a quiet box:** the first take
+  (`benchmarks/air26-probes/ladder-dedup/`, engine af98f98131554a21) ran
+  beside Timberborn at ~190 % CPU and every pass ran ~4× slower than
+  Sitting A's ledger — storage-time i15's helpful pass reaches the same
+  589,433-eval exhaustion but in ~52 s instead of ~13 s, trucks-time i12's
+  never reaches its node cap inside 60 s — so both legs fail at the
+  wall and the dedup has nothing to return; the skips and the Full-rung
+  skip narrate correctly. Retake solo (trucks-time i12/i13, storage-time
+  i15/i17, dedup vs hatched) before pricing; until then the +2 is
+  Sitting A's number, not this build's.
 - **F4 — quality + memory**: quantum-layout anytime polish (existing
   boards only, coverage-neutrality refereed — no new tiers), the
   folding/elevator memory sitting (+3–10 across boards), the storage-tc

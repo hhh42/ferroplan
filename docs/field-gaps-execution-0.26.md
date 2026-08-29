@@ -468,6 +468,15 @@ Memo anchors: `docs/field-gaps-0.26.md` §1a (metric-time build candidates), §3
 
 ### 1. `FF_NUMPRE_TEMPORAL` — the charge_pre_num temporal hatch (one line, gated on the Phase 3 decode)
 
+**STATUS 2026-08-29: EXECUTED — built as specified, refereed, stays OPT-IN at
++1** (`benchmarks/metrics/fieldgaps-F3-numpre.md`, receipts
+`benchmarks/air26-probes/numpre-temporal/`). pathways-metric-time 1/30 vs
+0/30 (i1 converts, 27 s unsolved → 1.5 s; the RED fixture i2 does not); tpp
+3/40 = 3/40; rovers 5/40 = 5/40. The mandatory workshop rider fired — 25 → 47
+steps under the armed charge and under every damping half — so the 0.21
+negative is the temporal charge's shape, not its damping; `tests/numpre_temporal.rs`
+pins both facts. No board arms the flag; the co-fire declaration stands.
+
 **Goal + evidence.** Arm the 0.21/0.22/0.24 numeric-precondition charge (a1 + damping + a2 chain) on temporal groundings, opt-in, aimed at the 2006 metric-time family: pathways-metric-time **0/30** with every failure UNDER the 30 s wall (raws: i1 0.02 s → i8 17.38 s, `benchmarks/ipc5-metric-time.jsonl`, budget stamp 30), tpp-metric-time **3/40** cliffing exactly at i4 (i3 0.34 s, i4 10.05 s), rovers-metric-time **5/40** bimodal (i7/i8 at 0.01/0.06 s beside i3/i5/i6 at the wall). The receipt that makes this worth a hatch: the a2 chained charge converted pathwaysmetric-2023n i2 from 948,388 dead evals to 173 (0.24 P6.3), and it is INERT on these boards today purely by the grounding-entry rule.
 
 **Gate status.** **CLOSED.** Opens only if the 0.26 Phase 3 decode (pathways/tpp riddles, `docs/roadmap-0.26.md` Phase 3) names a mechanism **outside the closed temporal h-accounting ledger** (ten negatives, CLOSED at 0.22). Declared adjacency, verbatim from the record: the 0.22 scoping armed the *pre-a2* charge on temporal groundings and measured NEGATIVE — model-train plateau re-leveled 6→13 and stayed flat at 683,555 evals (roadmap-0.22 anti-pots). The distinction this build stands on: the a2 chain landed later with its RED fixture converted, and the constituency is 2006 metric-time, not the TMS/model-train plateau. A decode exit that lands on "temporal h accounting" keeps this gate shut — that is the anti-pot, not a loophole to argue with.

@@ -777,8 +777,8 @@ fn relaxed_extract(
     // snapshot keeps the walk one-level by construction; a task with no
     // numeric preconditions never enters, so classical extraction is
     // byte-identical, and the temporal groundings clear `charge_pre_num`
-    // (their boards are other phases' referee surface — see packed.rs).
-    // `FF_NO_NUMPRE=1` restores the plateau.
+    // unless `FF_NUMPRE_TEMPORAL` arms it (0.26 F3 — see packed.rs).
+    // `FF_NO_NUMPRE=1` restores the plateau regardless.
     if task.charge_pre_num
         && !task.pre_num.flat.is_empty()
         && std::env::var("FF_NO_NUMPRE").is_err()
@@ -952,7 +952,9 @@ fn relaxed_extract(
     // selected only for its at-start effects keeps its full charge; a
     // reps>1 pair discounts at most 1 (recorded simplification). Composes
     // additively with the pre_num charge above; the temporal groundings
-    // clear `charge_pre_num`, so the two passes never co-fire today.
+    // clear `charge_pre_num` unless `FF_NUMPRE_TEMPORAL` arms it, and
+    // that co-fire (with `FF_H_ENDGATE` or `FF_TRPG`) is declared
+    // UNTESTED — no referee has run the two together (0.26 F3).
     if let Some(pairs) = &task.pair_end {
         for (oi, &end) in pairs.iter().enumerate() {
             if end != u32::MAX && sc.selected[oi] == sc.gen && sc.selected[end as usize] == sc.gen {

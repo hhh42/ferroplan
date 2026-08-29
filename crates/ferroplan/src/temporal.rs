@@ -722,6 +722,7 @@ fn solve_prefless(domain: &Domain, problem: &Problem, threads: usize) -> Option<
 /// exactly what `FF_NO_SAT` restores.
 fn solve_ladder(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
     let ambient = crate::features::demand_mode();
+    FULL_TIER_IDENTICAL.with(|c| c.set(None));
     if let Some(plan) = solve_monolithic(domain, problem, threads, ambient) {
         return Some(plan);
     }
@@ -735,7 +736,17 @@ fn solve_ladder(domain: &Domain, problem: &Problem, threads: usize) -> Option<Ti
     if ambient == DemandMode::Off || !crate::features::escalate() {
         return None;
     }
-    if ambient != DemandMode::Full {
+    // Ladder dedup (0.26 F3): the Full tier re-runs the identical quartet
+    // when the predicate-goal thresholds add nothing to the demand — the
+    // numeric-tier pass function measured that while its task existed.
+    // Skipped only on a positive read; an unset cell (the run never reached
+    // the pass function) keeps the rung.
+    let full_identical = std::env::var("FF_NO_LADDER_DEDUP").is_err()
+        && FULL_TIER_IDENTICAL.with(|c| c.get()) == Some(true);
+    if full_identical && std::env::var("FF_WALL_DEBUG").is_ok() {
+        eprintln!("wall: ladder Full tier skipped (demand identical to the numeric tier)");
+    }
+    if ambient != DemandMode::Full && !full_identical {
         if let Some(plan) = solve_monolithic(domain, problem, threads, DemandMode::Full) {
             return Some(plan);
         }
@@ -1858,11 +1869,11 @@ pub(crate) fn solve_from_seeded_orbit_audited(
     // Converging-resource demand guidance (FF_TDEMAND, default OFF → empty → the
     // phase-1 key is bit-identical to the prior temporal search). Phase 2 (the
     // complete pure-h pass) is unaffected regardless, so completeness is preserved.
+    let w = std::env::var("FF_TDEMAND_W")
+        .ok()
+        .and_then(|s| s.parse::<i64>().ok())
+        .unwrap_or(3);
     let demand = if tier != DemandMode::Off {
-        let w = std::env::var("FF_TDEMAND_W")
-            .ok()
-            .and_then(|s| s.parse::<i64>().ok())
-            .unwrap_or(3);
         // demand seed = numeric goal (always) + numeric thresholds implied by
         // PREDICATE goals' achievers (Full tier only — so `(built-wall)` drives the
         // blocks>=4 chain). The predicate half is gated off by default because it
@@ -1909,7 +1920,8 @@ pub(crate) fn solve_from_seeded_orbit_audited(
     } else {
         Vec::new()
     };
-    if on && std::env::var("FF_RES_DEBUG").is_ok() {
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    if on && dbg {
         eprintln!(
             "[TREL] sound {}/{}  tight {}/{}",
             sound.iter().filter(|&&b| b).count(),
@@ -1917,6 +1929,47 @@ pub(crate) fn solve_from_seeded_orbit_audited(
             tight.iter().filter(|&&b| b).count(),
             tight.len()
         );
+    }
+    // Ladder dedup (0.26 F3, the trucks/storage-time decode): when the
+    // masks keep everything the four passes are VERBATIM re-runs of one
+    // search — same task, same mask semantics (an all-true mask is the
+    // unmasked pass, `allow` below), same deterministic caps — and on
+    // storage-time i15 that burned ~70 % of a 60 s wall re-deriving
+    // identical stats. A pass whose inputs equal an earlier pass's is
+    // skipped: tight ≡ sound drops the tight pass, an all-true sound mask
+    // drops the unmasked backstop (completeness is unchanged — the pass
+    // that ran WAS the unmasked complete pass). `FF_NO_LADDER_DEDUP=1`
+    // restores the quartet.
+    let dedup = std::env::var("FF_NO_LADDER_DEDUP").is_err();
+    let tight_dup = on && dedup && tight == sound;
+    let sound_all = on && dedup && sound.iter().all(|&b| b);
+    if dbg && (tight_dup || sound_all) {
+        eprintln!(
+            "[TREL] ladder dedup: tight pass {}, unmasked pass {}",
+            if tight_dup {
+                "skipped (≡ sound)"
+            } else {
+                "kept"
+            },
+            if sound_all {
+                "skipped (sound keeps all)"
+            } else {
+                "kept"
+            }
+        );
+    }
+    // The escalation rung's identity read: the Full tier differs from
+    // this one ONLY in the predicate-goal thresholds it adds to the demand
+    // seed, so if those change nothing the Full re-run is the same quartet
+    // again (trucks-time i12: `[TDEMAND] total=0` on every rung, the whole
+    // ladder run twice). Computed here, where the task exists, and read
+    // by `solve_ladder` after this tier fails.
+    if tier == DemandMode::Numeric {
+        let mut full_seed: Vec<NumPre> = goal_num.to_vec();
+        full_seed.extend(predicate_goal_thresholds(task, kind, goal_pos));
+        let full = compute_demand(task, kind, &full_seed, w);
+        let identical = full.res == demand.res && full.total == demand.total;
+        FULL_TIER_IDENTICAL.with(|c| c.set(Some(identical)));
     }
     // The budget spans the WHOLE pass ladder (a think bounds everything);
     // RefCell keeps the closure's reborrow simple in serial control flow.
@@ -1974,11 +2027,24 @@ pub(crate) fn solve_from_seeded_orbit_audited(
                 None
             }
         })
-        .or_else(|| if on { go(&tight, false, false) } else { None })
+        .or_else(|| {
+            if on && !tight_dup {
+                go(&tight, false, false)
+            } else {
+                None
+            }
+        })
         .or_else(|| go(&sound, false, false))
         // Unmasked complete backstop — only distinct from the previous pass when
-        // pruning is on (off ⇒ `sound` is already empty ⇒ pass 3 was unmasked).
-        .or_else(|| if on { go(&[], false, false) } else { None })
+        // pruning is on (off ⇒ `sound` is already empty ⇒ pass 3 was unmasked)
+        // and the sound mask dropped something (dedup above).
+        .or_else(|| {
+            if on && !sound_all {
+                go(&[], false, false)
+            } else {
+                None
+            }
+        })
 }
 
 /// Static unproducibility: is some goal conjunct impossible to ever achieve because
@@ -2155,6 +2221,15 @@ fn landmark_deficit(landmarks: &[NumPre], fv: &[f64], fdef: &[bool]) -> i64 {
             None => 0,
         })
         .sum()
+}
+
+thread_local! {
+    /// The ladder-dedup identity read (0.26 F3): set by the numeric-tier
+    /// pass function to whether the Full tier's demand would equal its own,
+    /// cleared by `solve_ladder` before each ladder. Thread-local because
+    /// the ladder and its pass function share the calling thread and
+    /// nothing else may observe it.
+    static FULL_TIER_IDENTICAL: std::cell::Cell<Option<bool>> = const { std::cell::Cell::new(None) };
 }
 
 /// Total resource DEMAND implied by the numeric goal, regressed down the recipe
