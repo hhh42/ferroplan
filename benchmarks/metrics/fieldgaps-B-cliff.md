@@ -136,6 +136,32 @@ half); the driver alone fails it. recharging i6 is a 1 s novelty-light solve
 under every condition — it was on the list as a 5/20 board's residue, and
 the residue is not this instance.
 
+## 5b. B2 — the pricing probe (2026-08-29, `probes-0.26/B2-price/`)
+
+Run right after this sitting, under the contention watcher — which read
+the box **DEGRADED** (idle median 54%): the other agents' builds were back.
+The arms are still readable where they agree with each other, and they do:
+
+| arm | rubiks board (20) | spider i1–i6 (unsolved on the board) |
+|---|---|---|
+| default ladder | 5/20 (i1–i5) | 0/6 |
+| `FF_NOV_OLD=1`, slice 0.05 | **6/20 (+i6)** | — |
+| `FF_NOV_OLD=1`, slice 0.10 | **6/20 (+i6)** | — |
+| `FF_NOV_OLD=1`, slice 0.30 (the slot's default) | **6/20 (+i6)** | — |
+| `FF_NOV_R_CAP=1024` | — | 0/6 |
+| `FF_NOV_R_CAP=4096` | — | 0/6 |
+
+**rubiks: +1, and exactly one.** i6 converts at every slice width (814
+evals, the same solve the sitting saw), i7–i20 convert at none — the
+h-guided rung's reach on this board is i6 and nothing past it. A 5% slice
+buys the same +1 as the slot's full 30%, which is the cheap shape a build
+would take; but +1 on one board against a tax paid on every board where the
+h-guided rung's 86 s-per-100k-evals cost is real (the 0.22 parking receipt)
+is not a number the width rule builds on. **spider: 0/6 at every cap** —
+the R-cap moved i9 (a solved row's eval count) but converts none of the
+unsolved six, under contention or not; the forgetting lever prices at zero
+on its own witnesses.
+
 ## 6. Verdict for the rung (F3's forgetting/multi-heuristic gate)
 
 **Named, per family, with the number that shows it — and the rung as
@@ -146,8 +172,12 @@ in a bounded slice — an alternation of RUNGS at the slot, not of queues
 inside one search — priced by B2 against the 0.17 −51 fence; (spider) a
 larger `|R|` for the driver where its table saturates, priced by B2; (labyrinth)
 a schedule that reaches the driver sooner, which B2's slot arms also price.
-Floortile refuses. **Gate verdict: the forgetting/multi-heuristic rung does
-NOT open on this decode; a rung-schedule build (h-guided-then-driver at the
-novelty slot, bounded) and a per-family R-cap are the two candidates, each
-gated on B2's number, each carrying an `FF_NO_*` restore and the old-binary
-referee, and each dying the same day if a board A/B reads like 0.17.**
+Floortile refuses. **Gate verdict, with B2's numbers in: the forgetting/multi-heuristic rung
+does NOT open, and neither narrower candidate is built this cycle.** The
+h-guided-then-driver slot prices at **+1 (rubiks i6)** at any slice width —
+below what the standing width rule builds on, and with the 0.17 −51 fence on
+the far side; the per-family R-cap prices at **0/6** on spider's unsolved
+rows. Both are recorded as measured, the rubiks mechanism stays named
+(`FF_NOV_OLD=1` is the reproduction, 814 evals), and the rung stays un-built.
+Floortile's refusal stands; labyrinth's ladder tax is a schedule question
+the cut sweep's rows will price without a build.

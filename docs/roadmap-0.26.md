@@ -551,8 +551,11 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   ladder's driver 110k pops for nothing), spider to a binding driver
   `|R|` cap, labyrinth to a 25 s ladder tax; floortile refuses (a
   9–10M-eval flat plateau). Two narrower candidates — a bounded
-  h-guided-then-driver slot and a per-family R-cap — gated on the B2
-  pricing probe.** (c) metric-time widened to
+  h-guided-then-driver slot and a per-family R-cap — were gated on the
+  B2 pricing probe, and B2 priced them: rubiks **+1** (i6, at every slice
+  width from 5% to 30%; i7–i20 unmoved) and spider **0/6** at R-caps 1024
+  and 4096 — neither is built; the mechanism stays named with its
+  reproduction (`FF_NOV_OLD=1`, 814 evals).** (c) metric-time widened to
   rovers i3/i5 — rides Phase 3's sitting. (d) the transport probe
   widening — rides Phase 4; prices the 2008 share of the +8–20 aggregate.
 - Specs for every phase below: `docs/field-gaps-execution-0.26.md`
