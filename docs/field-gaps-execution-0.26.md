@@ -545,6 +545,13 @@ Everything downstream already exists and is untouched: the heuristic gate at `he
 
 ### 4. The 2014 config schedule + hiking diagnosis — with the config difference now READ, and it is not a config
 
+**STATUS 2026-08-29: DIAGNOSIS EXECUTED, schedule REFUSED** —
+`benchmarks/metrics/fieldgaps-F5-hiking.md`. hiking-agile i5/i6 are tails
+(solve at 300 s), i7 an evaluation-cost wall (101 s of h in 143 s); tetris i14
+spends 27–47 s of its 60 s wall before search (grounding), so the flip is a
+grounding-time row. hiking-sat i16 (a 37 s board solve) did not solve solo on
+the 0.26.0 candidate — flagged for the cut sweep.
+
 **Goal + evidence, updated by this sitting's read (no planner run).** Memo rung 2: union 155/280, oracle +6 over sat's 149; hiking sat 20/20 vs agile 12/20, agile losses i5/6/7/13/14/18/19/20 at 59.79–60 s where the sat rows of the same numbers read 7.34–26.9 s. **The asked-for driver diff comes up empty by construction:** `benchmarks/ipc67.py` distinguishes the tracks ONLY by variant-name regex (`:141` `seq-sat-2014: r"sequential-satisficing"`, `:142` `seq-agile-2014: r"sequential-agile"`); both boards sweep at 60 s (every cut script since cut19: `run_board ipc2014-sat seq-sat-2014 60` / `ipc2014-agile … 60`; both raws stamp `budget: 60`), same env, no `--mode`. **The difference is the corpus, not the config:** in `benchmarks/.ipc-corpus/ipc-2014/domains/`, hiking's domain.pddl is byte-identical across the pair but **all 20 instance files differ** (md5), and the agile set is bigger — i3: 5 cars/4 tents/4 couples/3+3 people (agile) vs 3/3/3/2+2 (sat); i5: 5 cars/4 couples vs 3 cars/3 couples. openstacks likewise 0/20 identical (agile i6 is a re-generated, ~15 % smaller file). **tetris and parking are 20/20 byte-identical across the pair** — and their solved-set deltas are opposite near-wall flips on identical inputs: parking i14 sat-solved 59.9 s / agile-unsolved 60 s; tetris i14 agile-solved 52.94 s / sat-unsolved 60 s.
 
 **Consequences (memo corrections for the verifier).** (i) The "agile ordering dies on hiking" hypothesis dissolves: the agile losses are 5-car/4-couple instances the engine has never solved on any board — a scaling wall (the car/couple assignment plateau, the transport-capacity family shape), not an ordering kill. (ii) The +6 oracle decomposes as openstacks i6–i10 (+5, **different instance files** — cross-set comparison, unreachable by any config schedule) plus tetris i14 (+1, identical file — a wall-edge variance/contention question, the class `contention.py` exists for). (iii) The per-instance-number union arithmetic behind 155/280 mixes non-comparable rows on 2 of the 4 divergent domains; rung 2's honest schedule oracle on truly-shared instances is **≤ +2** (tetris i14, parking i14), not +6.

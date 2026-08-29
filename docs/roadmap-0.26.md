@@ -771,6 +771,14 @@ below touches the box until the 0.25 cut sweep completes and promotes.
 - **F5 — 2014 config reconciliation**: the hiking agile-ordering
   diagnosis, then the +6-oracle config schedule, old-binary refereed and
   priced after the referee (the true sat∪agile union is 155/280).
+  **Executed 2026-08-29 — REFUSED
+  (`benchmarks/metrics/fieldgaps-F5-hiking.md`):** the agile losses are
+  evaluation-cost tails (i5/i6 solve at 300 s, i7 spends 101 s of 143 s
+  in the heuristic), tetris i14 is a grounding-time row (27–47 s of the
+  60 s wall gone before search across three reps), and the corrected
+  ≤ +2 oracle does not survive either. No schedule is built. Flag for the
+  cut sweep: hiking-sat i16 (37 s on the board) did not solve solo on the
+  candidate.
 - **F6 — crucible sweeps the cut**: Phase 5's named gap closes first (the
   DB wiring — resumption survives a killed PROCESS, the premise), then
   `crucible backfill` and the Linux cross-check; the 0.26 cut sweep runs
