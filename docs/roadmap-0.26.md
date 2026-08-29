@@ -544,7 +544,15 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   temporal-relaxation exits pre-excluded (that ledger is closed). (b) the
   cliff decode that must precede any forgetting/multi-heuristic rung
   (rubiks, floor-tile-class, the 2018/2023 residue) — the rung builds only
-  on its number, per the standing width rule. (c) metric-time widened to
+  on its number, per the standing width rule. **Executed 2026-08-29
+  (`benchmarks/metrics/fieldgaps-B-cliff.md`): the rung as specified is
+  refused; rubiks decodes to the h-guided novelty rung the 0.22 slot swap
+  removed from reach (i5/i6 in 574/814 evals under it, the default
+  ladder's driver 110k pops for nothing), spider to a binding driver
+  `|R|` cap, labyrinth to a 25 s ladder tax; floortile refuses (a
+  9–10M-eval flat plateau). Two narrower candidates — a bounded
+  h-guided-then-driver slot and a per-family R-cap — gated on the B2
+  pricing probe.** (c) metric-time widened to
   rovers i3/i5 — rides Phase 3's sitting. (d) the transport probe
   widening — rides Phase 4; prices the 2008 share of the +8–20 aggregate.
 - Specs for every phase below: `docs/field-gaps-execution-0.26.md`

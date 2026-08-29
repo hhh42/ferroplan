@@ -362,6 +362,16 @@ done   # repeat for storage-time i15
 
 ### Sitting B — the cliff decode that precedes the forgetting/multi-heuristic rung (memo §3.2; report: `benchmarks/metrics/decode-cliff-0.26.md`)
 
+**STATUS 2026-08-29: EXECUTED — report `benchmarks/metrics/fieldgaps-B-cliff.md`
+(165 rows, clean box, 0 starved). The rung AS SPECIFIED is refused; three
+families name narrower mechanisms: rubiks needs the h-guided novelty rung the
+slot's h-free driver replaced (i5/i6 solve in <1 s under `FF_NOVELTY_ONLY`,
+i7 falls to nothing); spider's driver `|R|` cap binds (64 loses i9, 1024 solves
+it with 26% fewer evals); labyrinth pays a 25 s ladder tax ahead of the driver.
+floortile REFUSES (9–10M-eval flat plateau, nothing moves). Follow-up B2 (rubiks
+board under `FF_NOV_OLD=1` at 5/10/30% slices; spider i1–i6 at R-cap 1024/4096)
+is queued behind F5 — the two candidate builds are gated on its number.**
+
 **Claim under test:** the Scorpion-Maidu ingredients (novelty-with-forgetting; alternation across DIFFERENT heuristics' queues). Verified in source before the sitting: forgetting is absent (`novelty.rs` clears its buffers per iteration — `r_true.clear()/r_new.clear()`, novelty.rs:809-810); dual pref/normal batch alternation WITHIN one heuristic already ships (`lama.rs:204-210`, `novelty.rs:33-35`). The deliverable is **the named mechanism forgetting/alternation would fix in THIS engine — or refusal**; the rung builds only on that number (0.24/0.25 SAT-wing lesson: field receipts do not price these walls).
 
 **Instances (exact paths; failing behavior from the raws):**
