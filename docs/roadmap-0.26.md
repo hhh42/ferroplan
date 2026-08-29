@@ -911,7 +911,17 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   fixture `backfill --tag v0.18.0 --set cut25 --dry-run` converted (built
   in 1 m 21 s, three proof boards skipped, 5,500 instances planned). The
   suite also caught `STANDINGS.md` stale since the 0.25.0 publish ("vs
-  0.24.0" → "vs 0.25.0", both renderers agree) — regenerated.**
+  0.24.0" → "vs 0.25.0", both renderers agree) — regenerated. **Gates
+  run 2026-08-29 13:37–14:06 on the final candidate (`ff 0.26.0`,
+  blake3 `03a17198744b`): crucible preflight clean (after one red — the
+  round-trip walk read a probe receipt as a board raw; `air26-probes/`
+  now skipped like `metrics/`), standings parity ok both docs, 378
+  agree / 0 MISMATCH, certificate gate 382 agree / 0 mismatch / 0
+  REGRESSION at board budget, enumeration 8,444. THE 0.26 CUT SWEEP
+  SPAWNED 14:07 in a Terminal (`crucible sweep --set cut26
+  --require-version 0.26`, log `benchmarks/cut26-sweep.log`, stage
+  `benchmarks/air26/`, DB `~/.crucible/db`) — the first cut swept by
+  crucible, the shell drivers standing by as the fallback instrument.**
 
 Standing correction already landed with the adoption (2026-08-26):
 `docs/ipc-rankings.md`'s constraints row refreshed from the committed raws
