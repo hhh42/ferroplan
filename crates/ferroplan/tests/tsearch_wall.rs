@@ -82,8 +82,14 @@ fn run_child(scenario: &str) -> (String, String, f64) {
             // The permanent RED record: hatched off, the ladder ignores
             // the expired wall and grinds to its node caps (bounded here
             // so the record costs seconds, not the historical minutes).
+            // 0.26 F3's ladder dedup skips the quartet's verbatim
+            // re-runs, which halves this grind (the ring's masks keep
+            // everything) and pulled the leg to the 0.5 s floor; the RED
+            // shape this leg records is the FULL quartet, so it hatches
+            // the dedup too (tests/ladder_dedup.rs pins the dedup itself).
             cmd.env("FF_TIME_LIMIT", "1")
                 .env("FF_NO_RUNG_WALLCAP", "1")
+                .env("FF_NO_LADDER_DEDUP", "1")
                 .env("FF_TEMPORAL_NODE_CAP", "20000");
         }
         "scontrol" => {

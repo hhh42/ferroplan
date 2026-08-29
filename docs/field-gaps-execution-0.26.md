@@ -532,6 +532,20 @@ Everything downstream already exists and is untouched: the heuristic gate at `he
 
 ### 3. Transport L1 — cost-augmented FIRST plan (`FF_COSTH_FIRST`), gated on the widened probe's number
 
+**STATUS 2026-08-29: the gate's lever was decoded past this spec; the build
+that shipped is a default move, not L1** (`benchmarks/metrics/fieldgaps-F3-transport.md`).
+Sitting D opened the gate at +12 naming the rung tax; three solo probes on the
+0.26 candidate showed (1) LAMA's arrival flip converts nothing and loses the
+spider canary, (2) every `FF_NO_LAMA` conversion is the novelty DRIVER's — the
+sitting's "fallback evals" were the post-plan cost sweep — and (3) with LAMA
+kept, `FF_NOV_WALL_FRAC=0.50` converts 2011 i1/i2/i6/i7/i11 + 2008 i18, spider
+intact. Shipped: the driver slice default 0.30 → 0.50 (`search.rs`,
+`FF_NOV_WALL_FRAC=0.30` restores), priced +6/+1 solo, refereed by the cut26
+like-for-like table (the old-binary referee). L1 proper is NOT built — the
+driver is cost-blind and converts anyway; L1 remains a quality lever with this
+spec, unpriced for coverage. L2/L3 as specified are subsumed (the rung tax was
+the driver's starvation, now addressed at the slice).
+
 **Goal + evidence.** The 0.25 transport decode, mechanism 3 (`benchmarks/metrics/attribution-0.25.md`): "the first-plan search is cost-blind — `relaxed_costed` exists but only the post-hoc anytime sweep uses it; all 200–794 roads tie during search (2008 receipts: first plan ~2× the swept cost)." The machinery: `relaxed_costed` at `heuristic.rs:1209`, plumbed via `SearchCfg.h_cost` (`search.rs:198`), consumed at `search.rs:868-871`, whose **only setter today is the post-hoc cost sweep** (`costs.rs:152-155` via `with_cost_h`, `search.rs:322`). Boards today: transport-sequential-satisficing (2011) **2/20** — solving exactly i4/i5 at 59.59/59.88 s, the ~12–14-package line; 2008 `-strips` **20/30**; mco t2/t4/t8 **4/5/7 of 20**; near-wall timeouts throughout (i1 at 59.62–59.77 s). L3 receipts prove the family converts when the fallback gets wall: i4 16.18 s, i6 58.98 s under `FF_NO_NOVLIGHT=1 FF_NO_LAMA=1` — **provenance correction for the verifier: those receipts are IPC-2011 rows** (`benchmarks/post-entries25.sh:119-124` runs `ipc-2011/domains/transport-sequential-satisficing` i4/i6; the memo's §1c "2008 i4/i6" label is wrong — the script and `benchmarks/air25-entries/transport-L3-i*.json` are authoritative).
 
 **Gate status.** **CLOSED until the widened transport probe reports a number** (roadmap-0.26 Phase 4: "two instances is not a lever — widen the probe before pricing it"). The widening this spec defines IS the gate-opener: all 20 of 2011-sat + the 2008 `-strips` unsolved ten + mco-t4's unsolved rows, solo at 60 s, cells {baseline, L1, L3, L1+L3}, receipts under `benchmarks/air26-probes/`, `post-entries25.sh:117-126` as the template. The probe's number prices the build; the fence stands in writing — **2014 sequential boards are NOT claimable** (0/20 everywhere, 25 packages vs the ~12–14 line).

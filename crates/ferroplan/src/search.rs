@@ -1450,9 +1450,15 @@ pub fn plan_avoiding(
             // — its +19 visit-all receipt is bankable and its slice
             // proven.
             let old_rung = std::env::var("FF_NOV_OLD").is_ok();
-            // The last bounded rung can afford the biggest slice (0.30):
-            // everything behind it is the fallback.
-            let slice = sooner_deadline(rung_slice("FF_NOV_WALL_FRAC", 0.30), cfg.deadline);
+            // The last bounded rung can afford the biggest slice:
+            // everything behind it is the fallback. 0.30 at 0.22 ("0.5
+            // converts loaded — the sweep referees the knob"); 0.50 since
+            // 0.26 F3 (the transport decode, `fieldgaps-F3-transport.md`):
+            // every transport conversion on 2008/2011 is the DRIVER's, and
+            // at 0.50 it converts 2011 i1/i2/i6/i7/i11 + 2008 i18 with LAMA
+            // kept, spider i1 (the arrival canary) intact and faster.
+            // `FF_NOV_WALL_FRAC=0.30` restores.
+            let slice = sooner_deadline(rung_slice("FF_NOV_WALL_FRAC", 0.50), cfg.deadline);
             let solved = if old_rung {
                 crate::novelty::search(
                     task,

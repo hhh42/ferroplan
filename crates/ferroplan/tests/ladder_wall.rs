@@ -9,7 +9,8 @@
 //!
 //! 0.22 Phase 2 + 5A (docs/roadmap-0.22.md) finish the lesson: LAMA
 //! gains a slice at `FF_LAMA_WALL_FRAC` (0.25), the h-guided novelty
-//! rung one at `FF_NOV_WALL_FRAC` (0.30), affordability is re-read at
+//! rung one at `FF_NOV_WALL_FRAC` (0.30 then; 0.50 since 0.26 F3, the
+//! transport decode), affordability is re-read at
 //! every rung entry, the best-first fallback checks the clock at its
 //! batch boundary, and GROUNDING's binding enumeration checks it too
 //! (trip ⇒ an honest no-verdict failure, never a partial task).

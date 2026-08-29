@@ -803,9 +803,38 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   589,433-eval exhaustion but in ~52 s instead of ~13 s, trucks-time i12's
   never reaches its node cap inside 60 s — so both legs fail at the
   wall and the dedup has nothing to return; the skips and the Full-rung
-  skip narrate correctly. Retake solo (trucks-time i12/i13, storage-time
-  i15/i17, dedup vs hatched) before pricing; until then the +2 is
-  Sitting A's number, not this build's.
+  skip narrate correctly. **Retaken solo on the quiet box (12:16,
+  `rows.jsonl`; the contended take kept as `rows-contended.jsonl`):
+  trucks-time i12 FLIPS — dedup solved at 57.3 s (16 ladder passes, 16
+  skip lines: the decomposer's contract ladders dedup too), hatched
+  unsolved at 60 s (4 passes); trucks-time i13 solves at 59.97 s under
+  dedup (board row: unsolved) — a wall-margin row, fragile at jobs 2;
+  storage-time i15 stays unsolved both ways (21 vs 7 passes — the wall
+  the dedup returns goes to the decomposer, which does not convert it at
+  60 s) and i17 too. Priced: +1 firm (i12) +1 wall-margin (i13) on
+  ipc5-time, against Sitting A's "+2 firm" — i15's flip was the
+  `FF_TDECOMP=1` receipt at 51.9 s, and a returned ~40 s of wall is not
+  the same as decompose-first. Default-on (it is a pure skip of
+  byte-identical re-runs); the cut sweep referees the boards.**
+  **Transport (Sitting D's +12, gate open) BUILT 2026-08-29 as a default
+  move, after three probes corrected the decode
+  (`fieldgaps-F3-transport.md`, receipts `air26-probes/transport-arrival/`):
+  (1) the LAMA arrival flip is DEAD — 0 conversions on seven rows and it
+  loses spider i1, the 0.24 canary, exactly as recorded; (2) under
+  Sitting D's `FF_NO_LAMA` every conversion is the **novelty driver's**
+  (`wall: solved by novelty-driver` on 2011 i1/i2/i6 and 2008 i8), and
+  without the driver the fallback fails at 2–3× the eval counts the
+  sitting quoted — those counts were the post-plan cost sweep, not the
+  first plan; (3) with LAMA kept, `FF_NOV_WALL_FRAC=0.50` converts 2011
+  i1/i2/i6/i7/i11 (5/5) and 2008 i18, 0.70 adds 2008 i8, spider i1 intact
+  and faster at both. Shipped: the driver's slice default 0.30 → 0.50
+  (`search.rs`; `FF_NOV_WALL_FRAC=0.30` restores) — the 0.22 record's
+  own "0.5 converts loaded — the sweep referees the knob". Priced solo
+  +6 on 2011 (2/20 → 8/20), +1 on 2008; four conversions sit at
+  59.0–59.6 s and may miss at jobs 2. The cut26 like-for-like table is
+  the old-binary referee the F5 law demands of a budget reallocation.
+  `FF_COSTH_FIRST` (L1) not built: the driver is cost-blind and converts
+  anyway, so L1 stays a quality lever, unpriced for coverage.**
 - **F4 — quality + memory**: quantum-layout anytime polish (existing
   boards only, coverage-neutrality refereed — no new tiers), the
   folding/elevator memory sitting (+3–10 across boards), the storage-tc
