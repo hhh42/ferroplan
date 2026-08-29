@@ -646,6 +646,18 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   eating the wall the reorder needs. None is pursued before F2's
   receipt lands.
 
+  **Mechanism witness, re-read by rung (2026-08-29, solo re-runs under
+  `FF_WALL_DEBUG`): 13 of the 14 gains are "solved by best-first
+  fallback (round 1)"; agricola i12 is "solved by LAMA"** — a rung F1
+  never touches, so that gain is the instrument's, not F1's, and the
+  honest count is +13/−2. The correction that made this re-read
+  necessary: the raw's "EHC found no improving state; used weighted
+  best-first" note is emitted on `ehc_fell_back` alone (api.rs) — it
+  says EHC handed down, NOT which rung solved. It is not a fallback
+  witness, and two specs in the dossier (F1 §evidence, F2 §evidence)
+  read it as one. Rung attribution needs the `wall: solved by …`
+  narration, and from here on that is what the record cites.
+
   Referee status: both legs on crucible, same box, same instrument,
   every row clean by the per-sample gate; the old-binary rule is
   satisfied by the before-leg itself (0.25.0 IS the published cut
@@ -679,6 +691,51 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   on crucible after the F1 referee. Clippy on F2 waits for the same
   window (the box is quiet and the before-leg is banking; a build now
   is a dirty row).
+
+  **Recorded 2026-08-29 — the parking differential is a NULL, and the
+  reason is a decode, not a tuning.** `hatch-differential.py --spec
+  lookahead --repeat 2` on the 0.26.0 candidate: 6/20 in both arms,
+  identical times to 0.1 s, none of i1/i4/i6–i8 converted, no
+  wall-sitting solve moved (`benchmarks/cut26/lookahead-parking.log`).
+  Solo under `FF_WALL_DEBUG` the probe reports NOTHING on parking i2 —
+  the search never reached a lookahead-eligible fallback pop — and the
+  narration says why: **parking i2 is "solved by LAMA"**, at 48 s, after
+  the novelty-light slice. Parking's solves are LAMA's, its failures
+  spend the wall in EHC → novelty → LAMA, and the complete fallback F2
+  was scoped to (by the note, misread — see the F1 record above) is not
+  where parking lives. On a domain that DOES reach the fallback the
+  probe fires on every popped node (transport-2008 i8: tried 18,596,
+  yielded 18,596, inserted 14,763 — the 2× per-pop tax the spec
+  warned about, in full) and converts nothing there either. So: the
+  parking half of the exit clause is met; the 2018 marginal is measured
+  next on the spec's own witness rows (settlers i12/i17–i20,
+  data-network i6–i10, flashfill i2–i5) rather than a whole board, and
+  if it reads ≤ 0 the flag leaves the tree per the clause. The
+  LAMA-side lookahead — the rung that actually holds parking — is the
+  deferred rider the spec named, and it stays deferred until a receipt
+  says the mechanism pays somewhere. (Parking's 4/20 → 6/20 between the
+  cut and the F1 differential's flag-off arm is the quiet instrument,
+  same as the +18 above: i10 solved once in two repeats.)
+
+  **The 2018 marginal (2026-08-29, `--spec lookahead-2018 --repeat 2`,
+  the spec's 14 witness rows on the F1 binary ± the flag,
+  `benchmarks/cut26/lookahead-2018.log`): −1.** Settlers i12/i17–i20,
+  data-network i6/i8–i10 and flashfill i4/i5 unsolved in both arms;
+  flashfill i2/i3 solved in both; **data-network i7 solved 2/2 without
+  the flag and LOST with it** (the terminal evaluations' tax, on a row
+  with no wall to spare). Both halves of the exit clause read against
+  the probe, so **the flag leaves the tree**: `SearchCfg.lookahead`,
+  `FF_LOOKAHEAD`, `lookahead_from`, the multi-op edge, the
+  `extraction_plan_ops` read-out and `tests/lookahead.rs` are removed
+  (`search.rs`/`heuristic.rs` restored to F1's shape; an archaeology
+  note marks where they stood), the two differential specs go with them,
+  and the receipts stay. What the probe taught, kept: (1) the fallback
+  is not where parking, tetris or cave-diving spend their wall — LAMA
+  is — so a lookahead worth another probe is a LAMA-side one, and that
+  rider is priced only if a receipt ever says the mechanism pays; (2)
+  first-fit relaxed-plan execution yields on every pop where it runs and
+  costs a second evaluation each time — the 0.22 parking tax, measured
+  again. F2 is CLOSED as a measured negative.
 - **F3 — the gated builds**, opened only by F0's decodes: the
   `charge_pre_num` temporal hatch (the 0.22 charge-on-temporal negative
   declared; the workshop-economy fixture mandatory; `FF_H_ENDGATE`/`FF_TRPG`

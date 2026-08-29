@@ -213,10 +213,13 @@ All evidence is gathered. Here is the spec section.
 
 ## F2 — YAHSP-style relaxed-plan lookahead in the complete fallback (`FF_LOOKAHEAD`)
 
-**STATUS 2026-08-28: BUILT (opt-in), unit pins green, A/B pending on crucible**
-— record in docs/roadmap-0.26.md ("The field-gaps expansion", F2 bullet).
-`hatch-differential.py` carries the `lookahead` entry; the board A/B and the
-old-binary leg queue behind the F1 referee.
+**STATUS 2026-08-29: CLOSED, measured negative — the flag left the tree.**
+Parking differential 6/20 both arms (parking is solved by LAMA; the probe
+was scoped to the fallback by a misread of the "used weighted best-first"
+note, which is not a rung witness); 2018 witnesses −1 (data-network i7 lost).
+Both exit-clause halves read against it. Code removed, receipts in
+`benchmarks/cut26/lookahead-*.log`, record in docs/roadmap-0.26.md F2 bullet.
+The LAMA-side lookahead is the deferred rider, unpriced.
 
 ### Goal + evidence anchor
 

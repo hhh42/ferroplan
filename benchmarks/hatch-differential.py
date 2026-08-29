@@ -71,16 +71,34 @@ SPECS = {
         "domain": ("ipc-2014", "visit-all-sequential-satisficing"),
         "question": "how much of visit-all is the light rung?",
     },
-    # 0.26 F2. The YAHSP-style relaxed-plan lookahead is OPT-IN, so the
-    # roles invert: the "shipped" arm is flag-off and the "hatched" arm ARMS
-    # the probe (FF_LOOKAHEAD=1). parking-2014 is the constituency -- four
-    # solves at 59.5-59.9 s of a 60 s wall, i1/i4/i6-i8 dying just past it.
-    "lookahead": {
-        "hatch": "FF_LOOKAHEAD",
+    # ARCHAEOLOGY (0.26 F2): the "lookahead" and "lookahead-2018" specs --
+    # the YAHSP-style relaxed-plan lookahead probe -- lived here and left
+    # with the flag: parking is solved by LAMA (the probe was aimed at the
+    # fallback), and the 2018 witnesses read -1 armed. Receipts:
+    # benchmarks/cut26/lookahead-parking.log, lookahead-2018.log; record
+    # in docs/roadmap-0.26.md. The explicit-`instances` spec shape stays.
+    # 0.26 F1. The fallback enrichment (preferred operators + landmark term,
+    # default-on). Witnesses are the 13 rows the crucible A/B converted AND
+    # the narration attributed to the fallback (docs/roadmap-0.26.md, F1);
+    # agricola i12 is left out on purpose -- LAMA solved it.
+    "enrich": {
+        "hatch": "FF_NO_ENRICH",
         "mode": None,
-        "domain": ("ipc-2014", "parking-sequential-satisficing"),
-        "question": "do the wall-sitting parking solves come off the wall, "
-                    "and do i1/i4/i6-i8 convert, with the lookahead ARMED?",
+        "instances": [("ipc-2006", "pathways-propositional", 27),
+                      ("ipc-2006", "pathways-propositional-strips", 18),
+                      ("ipc-2006", "pathways-propositional-strips", 22),
+                      ("ipc-2006", "pipesworld-propositional-strips", 23),
+                      ("ipc-2006", "pipesworld-propositional-strips", 24),
+                      ("ipc-2006", "trucks-propositional", 12),
+                      ("ipc-2006", "trucks-propositional-strips", 10),
+                      ("ipc-2006", "trucks-propositional-strips", 13),
+                      ("ipc-2006", "trucks-propositional-strips", 15),
+                      ("ipc-2018", "data-network-sequential-satisficing", 7),
+                      ("ipc-2018", "data-network-sequential-satisficing", 16),
+                      ("ipc-2018", "flashfill-sequential-satisficing", 2),
+                      ("ipc-2018", "flashfill-sequential-satisficing", 3)],
+        "question": "do the 13 fallback-attributed F1 gains hold as shipped, "
+                    "and does the bare single-queue fallback get any of them?",
     },
     # Phase 1. tpp-numeric is where the early-exit witness lived.
     "refill": {
@@ -185,6 +203,10 @@ def main():
     if "from_boards" in spec:
         recs = instances_from_boards(spec["from_boards"], spec["prover"],
                                      spec.get("limit"))
+    elif "instances" in spec:
+        # Named witnesses: exactly the rows a spec cites, nothing sampled.
+        recs = [{"ipc": ipc, "variant": variant, "instance": inst, "cost": None}
+                for ipc, variant, inst in spec["instances"]]
     else:
         recs = instances_from_domain(*spec["domain"])
     if not recs:

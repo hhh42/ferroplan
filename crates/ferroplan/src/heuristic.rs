@@ -1133,22 +1133,6 @@ pub fn helpful_needed_adders(
 /// on the SAME state (the `helpful_needed_adders` contract: reads the
 /// current-generation stamps). Read-only — the ~20 lines the roadmap
 /// priced, no new bookkeeping.
-/// The relaxed plan's ops in RPG-layer order (0.26 F2, the YAHSP lookahead's
-/// input): every op the last extraction selected, ascending by `(layer, op)`.
-/// The extraction materialises only a count and the layer-0 helpful set; the
-/// order is recoverable for free from `op_layer`, which is stamp-gated and
-/// valid on every selected op. Read-only, same contract as the other
-/// read-outs: valid immediately after a `relaxed_to`/`relaxed_helpful` on the
-/// same state, before the next evaluation reuses the scratch.
-pub fn extraction_plan_ops(sc: &Scratch) -> Vec<u32> {
-    let mut ops: Vec<u32> = (0..sc.selected.len())
-        .filter(|&oi| sc.selected[oi] == sc.gen)
-        .map(|oi| oi as u32)
-        .collect();
-    ops.sort_by_key(|&oi| (sc.op_layer[oi as usize], oi));
-    ops
-}
-
 pub fn extraction_need_facts(sc: &Scratch) -> Vec<(u32, u32)> {
     sc.need_fact
         .iter()
