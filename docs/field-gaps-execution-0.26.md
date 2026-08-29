@@ -625,6 +625,14 @@ Neither negative tried the shape the raws now expose: **a wall-denominated post-
 
 ### F4.2 — the folding/elevator memory-profile sitting (footprint work only)
 
+**STATUS 2026-08-29: EXECUTED — the memory build is REFUSED; the mechanism is
+GROUNDING** (`benchmarks/metrics/fieldgaps-F42-memory.md`). folding i9/i15 spend
+all 300 s in binding enumeration (RSS 1.2–3 GB, never reach search); elevator
+2008-strips i29 / 2011 i10 overrun the 60 s wall inside `ground::ground_v`
+(stack-sampled), a too-coarse grounding checkpoint on the temporal path; the
+numeric twin solves in 47 s. The or-aware-hoist rider's gate condition is met
+by this ledger; the checkpoint granularity is a small fix with a fixture.
+
 **Goal + evidence anchor.** The two-domain memory problem, from the committed raws:
 
 - **folding**, `benchmarks/ipc2023-agile-300s.jsonl` (300 s, MEMGB=6, jobs=2, threads=1): 2/20 solved (i1 104.17 s len 146, i14 269.67 s len 114); **10 mem-caps at t = 12.02–18.54 s** (i9–i12, i15–i20); **2 `engine-exit--9` at 171.19/194.10 s** (i6/i7); 6 wall timeouts. At 60 s folding is 0/20 on both the agile board and the sat entries board — the 300 s board is where the mem fixes pay.
@@ -655,6 +663,13 @@ The +3–10 band is ACROSS these boards (2008 ~+3, 2011 ≤+7, folding-300s ≤+
 ---
 
 ### F4.3 — storage-tc i8–i10: why the at-end fold stalls, smallest probe first
+
+**STATUS 2026-08-29: PROBED, OPEN** (`benchmarks/metrics/fieldgaps-F43-storage.md`):
+i8 is a per-node-cost wall (6,078 temporal nodes in 42.7 s); the crate-ablation
+twin (7 crates on i8's layout) still stalls at ~21 ms/node — the layout, not the
+count, so hypothesis (a) is refuted; `FF_NO_TRAJ_END` chokes in 2 s as
+predicted. Needs a temporal-evaluation time-split instrument before (b)/(c)
+can be separated; +3 unpriced.
 
 **Goal + evidence anchor.** `benchmarks/ipc5-constraints.jsonl`, `storage-time-constraints` (60 s): i1–i7 solved (0.01–11.22 s, makespans 6.0–25.0), **i8/i9/i10 unsolved at the full 60 s wall with `notes: null`** — clean timeouts, zero rejects (the whole board is 28/120 with zero rejection notes; the VAL-SIGBUS rows elsewhere in this domain are booked per the memo §4 — not chased here). The corpus decade structure, read from the instance files: bases 1–10 appear three times at rising constraint tiers — decade 1 (i1–i10) carries ONLY `(forall (?c - crate) (at end (exists (?d - depot) (in ?c ?d))))`; decade 2 adds a `sometime-before` chain + `within`; decade 3 adds `at-most-once` + `always-within 3.5`. Solved: i11–i16 and i21–i22; the tiers fail progressively earlier (i17+, i23+). **The isolated bonus is decade 1's tail: instance-8 = 9 crates / 5 depots / 5 hoists / 3 containers with `(:goal (and))` EMPTY** — the at-end fold IS the entire goal — while i7 (8 crates / 5 depots) solves in 8.23 s. The cliff is one crate wide.
 

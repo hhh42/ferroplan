@@ -770,7 +770,17 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   model-train plan-then-schedule feasibility read — **executed
   2026-08-26, exit clause FIRED**: the pre-state duration core has existed
   since v0.10; the item is closed and its mass re-routes to F3's
-  `charge_pre_num` gate (dossier §3.7).
+  `charge_pre_num` gate (dossier §3.7). **Executed 2026-08-29 — the
+  memory sitting (`fieldgaps-F42-memory.md`) refuses the memory build:
+  folding and elevator are both GROUNDING walls (binding enumeration;
+  folding never reaches search in 300 s, elevator-2008-strips i29
+  overruns its 60 s wall inside `ground_v` behind a too-coarse
+  checkpoint), which opens the or-aware-hoist rider's gate and names one
+  small checkpoint fix. The storage-tc probe (`fieldgaps-F43-storage.md`)
+  refutes the crate-count hypothesis with its twin (i8's LAYOUT costs
+  7–21 ms per temporal node) and stays open on an instrument. F4.1 (the
+  wall-denominated length polish) is written; its build and referee are
+  next.**
 - **F5 — 2014 config reconciliation**: the hiking agile-ordering
   diagnosis, then the +6-oracle config schedule, old-binary refereed and
   priced after the referee (the true sat∪agile union is 155/280).
