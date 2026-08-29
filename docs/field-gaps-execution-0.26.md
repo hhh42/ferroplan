@@ -910,6 +910,18 @@ bundled SQLite build — see the roadmap record); parts 2 and 4 stand open.
 
 ### Part 4 — the cut-26-on-crucible runbook (S to write; the sweep itself is the cycle's tail)
 
+**STATUS 2026-08-29: steps 3–4 DONE, 1–2 and 5 queued behind the F3 probes.**
+`gen-manifest.py` transcribes `[[set]] cut26` (32 boards = cut25 ∪ entries25 ∪
+post-entries25, stage `benchmarks/air26`, requires 0.26) and puts every
+proof-track board at `jobs = 1` (the attribution-0.26 cross-cutting finding —
+a runner condition, recorded as such). The enumeration gate first said
+**6538**: crucible's `--mode` probe read only clap's inline `<a|b>` shape and the
+0.26 binary renders long help (a variant doc comment), so all seven proof
+boards were SKIPPED as "no --mode optimal". Fixed in `crucible/src/repo.rs`
+(`modes_from_help` reads all three shapes, pinned) — gate now prints
+`set cut26: 8444 instances`, proof boards at jobs 1, mco boards at jobs 1 by
+the wall-clock rule.
+
 **Preconditions, all green before the first spawn, in this order:**
 
 1. **Crucible merged to main** (branch `crucible` → `main`, fast-forward per the working agreement), `crucible/preflight.sh` fully green on the merged tree — including the newly-armed Linux step (Part 3) and the Part 1 kill-9 test.

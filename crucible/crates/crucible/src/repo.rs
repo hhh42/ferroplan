@@ -117,22 +117,65 @@ fn probe_modes(path: &Path) -> Vec<String> {
     let Ok(out) = std::process::Command::new(path).arg("--help").output() else {
         return Vec::new();
     };
-    let help = String::from_utf8_lossy(&out.stdout);
-    for line in help.lines() {
-        if !line.contains("--mode") {
-            continue;
-        }
-        if let (Some(a), Some(b)) = (line.find('<'), line.rfind('>')) {
-            if b > a {
-                return line[a + 1..b]
-                    .split('|')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-            }
+    modes_from_help(&String::from_utf8_lossy(&out.stdout))
+}
+
+/// The three shapes clap renders a value enum in, all read (0.26 F6 Part 4:
+/// the cut26 enumeration gate found the 0.26 binary "without --mode optimal"
+/// because a variant doc comment had switched `--help` to the long form,
+/// and every proof board was skipped):
+/// - `--mode <auto|ff|optimal>` — the inline placeholder;
+/// - `--mode <MODE> ... [possible values: auto, ff, optimal]` — short help;
+/// - `--mode <MODE>` followed by a `Possible values:` block of `- name` /
+///   `- name: doc` bullets — long help, once any variant carries a doc.
+fn modes_from_help(help: &str) -> Vec<String> {
+    let mut lines = help.lines();
+    let Some(line) = lines.find(|l| l.contains("--mode")) else {
+        return Vec::new();
+    };
+    let words = |s: &str, sep: char| -> Vec<String> {
+        s.split(sep)
+            .map(|w| w.trim().to_string())
+            .filter(|w| !w.is_empty())
+            .collect()
+    };
+    if let Some(rest) = line.split("[possible values:").nth(1) {
+        if let Some(end) = rest.find(']') {
+            return words(&rest[..end], ',');
         }
     }
-    Vec::new()
+    if let (Some(a), Some(b)) = (line.find('<'), line.rfind('>')) {
+        let inner = &line[a + 1..b];
+        if b > a && inner.contains('|') {
+            return words(inner, '|');
+        }
+    }
+    // Long help: the block starts at "Possible values:" and ends at the
+    // first line that is neither blank nor a bullet.
+    let mut modes = Vec::new();
+    let mut in_block = false;
+    for l in lines {
+        let t = l.trim();
+        if !in_block {
+            if t.starts_with("Possible values:") {
+                in_block = true;
+            } else if t.starts_with("--") || t.starts_with('-') && t.len() == 2 {
+                break; // the next option: no block for --mode
+            }
+            continue;
+        }
+        if t.is_empty() {
+            continue;
+        }
+        let Some(item) = t.strip_prefix("- ") else {
+            break;
+        };
+        let name = item.split(':').next().unwrap_or("").trim();
+        if !name.is_empty() {
+            modes.push(name.to_string());
+        }
+    }
+    modes
 }
 
 /// Where the candidate binary lives in a ferroplan checkout.
@@ -203,6 +246,32 @@ mod tests {
         assert!(old.supports_mode("auto"));
         let new = engine("ff 0.25.0", &["auto", "optimal", "sat"]);
         assert!(new.supports_mode("optimal"));
+    }
+
+    /// All three clap shapes read the same list — the long-help block is the
+    /// one the 0.26 binary renders, and the one the first probe missed.
+    #[test]
+    fn every_clap_help_shape_yields_the_modes() {
+        let inline = "Options:\n      --mode <auto|ff|optimal>  Planning mode\n";
+        let short = "      --mode <MODE>          Planning mode [default: auto] \
+                     [possible values: auto, ff, optimal, sat]\n      --search <SEARCH>\n";
+        let long = concat!(
+            "      --mode <MODE>\n",
+            "          Planning mode (`auto` routes)\n",
+            "\n",
+            "          Possible values:\n",
+            "          - auto\n",
+            "          - ff\n",
+            "          - optimal:   Sequential-optimal: A* + admissible h^max\n",
+            "          - sat:       Bounded-layer SAT compilation\n",
+            "\n",
+            "      --search <SEARCH>\n",
+            "          Search strategy\n",
+        );
+        assert_eq!(modes_from_help(inline), ["auto", "ff", "optimal"]);
+        assert_eq!(modes_from_help(short), ["auto", "ff", "optimal", "sat"]);
+        assert_eq!(modes_from_help(long), ["auto", "ff", "optimal", "sat"]);
+        assert!(modes_from_help("no such flag here\n").is_empty());
     }
 
     /// An unreadable help text must not silently skip every board.

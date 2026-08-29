@@ -862,7 +862,20 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   the 314-board classifier agreement, the 6,366-instance enumeration),
   with `standings.py` alongside as the differential oracle, and the
   mem-cap classification fix landing as its own commit AFTER parity is
-  proven, carrying the −7/+7 movement in the cut record.
+  proven, carrying the −7/+7 movement in the cut record. **Part 4 progress
+  2026-08-29: `[[set]] cut26` transcribed (32 boards, one stage,
+  `benchmarks/air26`, requires 0.26) with every proof board at `jobs = 1`
+  per Phase 0's cross-cutting finding; the enumeration gate caught a real
+  crucible defect on its first run — the `--mode` probe read only clap's
+  inline help shape, the 0.26 binary renders the long form, and all seven
+  proof boards were SKIPPED (6,538 instances) — fixed and pinned
+  (`repo.rs::modes_from_help`, three shapes); the gate now reads
+  `set cut26: 8444 instances`. Remaining before the spawn: crucible
+  preflight on the merged tree, `standings --check` + the classifier
+  differential on the 0.26 candidate, and the certificate gate
+  (`opt-differential.py --board-budget`, fresh `--out` under
+  `benchmarks/cut26/`) — all queued behind the F3 receipt probes on the
+  quiet gate.**
 
 Standing correction already landed with the adoption (2026-08-26):
 `docs/ipc-rankings.md`'s constraints row refreshed from the committed raws

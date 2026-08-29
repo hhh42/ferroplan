@@ -347,6 +347,7 @@ competition = "optimal"
 budget_secs = 60
 track = "seq-opt"
 mode = "optimal"
+jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
 rebaselined_on = ["m5-air"]
 
@@ -359,6 +360,7 @@ competition = "optimal"
 budget_secs = 60
 track = "seq-opt-2014"
 mode = "optimal"
+jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
 rebaselined_on = ["m5-air"]
 
@@ -371,6 +373,7 @@ competition = "modern"
 budget_secs = 60
 track = "opt-2026"
 mode = "optimal"
+jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
 rebaselined_on = ["m5-air"]
 
@@ -407,6 +410,7 @@ competition = "optimal"
 budget_secs = 60
 track = "opt-2018"
 mode = "optimal"
+jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
 rebaselined_on = ["m5-air"]
 
@@ -429,6 +433,7 @@ competition = "optimal"
 budget_secs = 60
 track = "opt-2023"
 mode = "optimal"
+jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
 rebaselined_on = ["m5-air"]
 
@@ -441,6 +446,7 @@ competition = "modern"
 budget_secs = 60
 track = "numeric-2023"
 mode = "optimal"
+jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
 rebaselined_on = ["m5-air"]
 
@@ -453,6 +459,7 @@ competition = "modern"
 budget_secs = 60
 track = "opt-2026-full"
 mode = "optimal"
+jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
 rebaselined_on = ["m5-air"]
 
@@ -563,4 +570,43 @@ requires_version = "0.26"
 boards = [
   "ipc5-prop",
   "ipc2018-sat",
+]
+
+[[set]]
+name = "cut26"
+stage = "benchmarks/air26"
+requires_version = "0.26"
+boards = [
+  "ipc5-time",
+  "ipc5-metric-time",
+  "ipc5-constraints",
+  "ipc2026-opt",
+  "ipc67-netben",
+  "ipc5-prop",
+  "ipc2023-agile",
+  "ipc2014-tempo",
+  "ipc2018-sat",
+  "ipc2014-sat",
+  "ipc2014-agile",
+  "ipc2014-opt",
+  "ipc2026-numeric",
+  "ipc2023-numeric",
+  "ipc-opt-2008-11",
+  "ipc67-temporal",
+  "ipc67-results",
+  "ipc7-mco-t2",
+  "ipc7-mco-t4",
+  "ipc7-mco-t8",
+  "ipc2014-mco-t4",
+  "ipc2023-agile-300s",
+  "ipc5-simple-pref",
+  "ipc5-qual-pref",
+  "ipc2023-sat",
+  "ipc2023-opt",
+  "ipc2018-opt",
+  "ipc2023-numeric-opt",
+  "ipc2026-opt-full",
+  "ipc2014-mco-t2",
+  "ipc2014-mco-t8",
+  "ipc5-complex-pref",
 ]
