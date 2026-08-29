@@ -117,3 +117,10 @@ elevator-2008-strips i29 (≥ 20 s overrun solo; the runner's kill is what
 ends it on the board). That fix is small, ships with a fixture (i29 at a
 60 s wall must RETURN with the no-verdict note inside the wall + reserve),
 and touches no search.
+
+**Landed (same day).** `WallTick::STRIDE` in `ground.rs` 8,192 → 256: the
+stride counts BINDINGS, and one binding's DNF work is unbounded, so 8,192 of
+them could carry the enumeration 20 s past the wall. Receipt, i29 @60 s solo
+on the rebuilt binary: **returned after 60 s**, 223 bytes of JSON, six
+checkpoint lines on stderr ending in the no-verdict note. `ground_wall`,
+`novlight`, `enrich`, `refill` green under the new stride.

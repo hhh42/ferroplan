@@ -589,7 +589,14 @@ struct WallTick<'a> {
 }
 
 impl WallTick<'_> {
-    const STRIDE: u32 = 8192;
+    // 256, down from 8192 (0.26 F4.2): the stride is denominated in
+    // BINDINGS, and a binding's cost is not bounded — on
+    // elevator-2008-strips i29 (F4.2's ledger) 8,192 of them ran longer than
+    // 20 s past a 60 s wall, so the checkpoint that exists to stop the
+    // enumeration could not. A clock read every 256 bindings is invisible
+    // next to one binding's DNF work and bounds the overrun by 256 of them.
+    // Deterministic either way: a trip discards the partial output whole.
+    const STRIDE: u32 = 256;
 
     #[inline]
     fn tripped(&mut self) -> bool {

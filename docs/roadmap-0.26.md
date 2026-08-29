@@ -776,11 +776,31 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   folding never reaches search in 300 s, elevator-2008-strips i29
   overruns its 60 s wall inside `ground_v` behind a too-coarse
   checkpoint), which opens the or-aware-hoist rider's gate and names one
-  small checkpoint fix. The storage-tc probe (`fieldgaps-F43-storage.md`)
+  small checkpoint fix — **landed the same day**: `WallTick::STRIDE`
+  in `ground.rs` 8,192 → 256 bindings (the stride is denominated in
+  bindings, and a binding's DNF work is unbounded), receipt elevator i29
+  @60 s solo: returned at **60 s** with the no-verdict checkpoint note
+  (was 80.7 s under the guard with no output at all); `ground_wall`,
+  `novlight`, `enrich`, `refill` green. The storage-tc probe (`fieldgaps-F43-storage.md`)
   refutes the crate-count hypothesis with its twin (i8's LAYOUT costs
-  7–21 ms per temporal node) and stays open on an instrument. F4.1 (the
-  wall-denominated length polish) is written; its build and referee are
-  next.**
+  7–21 ms per temporal node) and stays open on an instrument. **F4.1 (the
+  wall-denominated length polish) is a MEASURED NEGATIVE and left the
+  tree the same day:** built as specified (per-rung `SearchCfg.deadline`
+  from the unspent wall, w_h 3/2/1 with the incumbent bound, ≥ 25 % wall
+  gate, `FF_NO_LEN_POLISH` restore; unit pin green on a corridor
+  fixture), then run solo on the three worst quantum-layout rows the spec
+  named — **i13 212 → 212, i19 87 → 87, i20 129 → 129**, every rung
+  spending its deadline (~60k evals each on i13) and returning nothing
+  shorter. Two facts the spec did not have: all three rows are
+  novelty-rung solves (driver on i13, light on i19/i20), not the
+  fallback plans the note suggested, and a default-on polish would push
+  every solved metric-free row's wall to ~60 s on the boards — an
+  instrument side effect on the `time` column that no +0.02 quality
+  read could pay for. The same verdict class as 0.9 (the restart shape,
+  not the budget, is the limit), now measured at the wall too. Code
+  reverted (costs.rs at F1's shape, the test deleted; receipts in
+  `scratchpad`-era logs summarised here), the 0.9 opt-in
+  `FF_LEN_SWEEP_EVALS` untouched.**
 - **F5 — 2014 config reconciliation**: the hiking agile-ordering
   diagnosis, then the +6-oracle config schedule, old-binary refereed and
   priced after the referee (the true sat∪agile union is 155/280).

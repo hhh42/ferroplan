@@ -591,6 +591,13 @@ Provenance: every number below re-derived read-only from the committed raws (`be
 
 ### F4.1 — quantum-layout plan-length polish: spend the wall the first plan leaves behind
 
+**STATUS 2026-08-29: BUILT, MEASURED NEGATIVE, REMOVED.** Solo on the candidate:
+i13 212 → 212, i19 87 → 87, i20 129 → 129 with every rung running its full
+deadline; the rows are novelty-rung solves, and a default-on polish would drag
+every metric-free solved row's `time` to the wall on the boards. Record in
+docs/roadmap-0.26.md (F4 bullet); the 0.9 opt-in `FF_LEN_SWEEP_EVALS` is
+untouched.
+
 **Goal + evidence anchor.** The entries sat board (`benchmarks/air25-entries/ipc2023-sat.jsonl`, 60 s, 36/140 solved) carries quantum-layout 20/20 — over half the board's solves in one domain — at **mean quality 0.714** against the vendored bounds (`benchmarks/.ipc-corpus/ipc-2023/bounds.json`, `sat/quantum-layout/pNN.pddl` keys, upper bound = best known; the memo's 0.72-vs-board-0.79). Worst 3 by ratio, re-derived:
 
 | inst | our len | bound hi | q | time (60 s board) | time (300 s board) |
@@ -631,7 +638,10 @@ all 300 s in binding enumeration (RSS 1.2–3 GB, never reach search); elevator
 2008-strips i29 / 2011 i10 overrun the 60 s wall inside `ground::ground_v`
 (stack-sampled), a too-coarse grounding checkpoint on the temporal path; the
 numeric twin solves in 47 s. The or-aware-hoist rider's gate condition is met
-by this ledger; the checkpoint granularity is a small fix with a fixture.
+by this ledger; the checkpoint granularity is a small fix with a fixture —
+**landed 2026-08-29**: `ground.rs` `WallTick::STRIDE` 8,192 → 256, receipt
+elevator i29 @60 s returns at 60 s with the no-verdict note (was 80.7 s under
+the guard with nothing checkpointed).
 
 **Goal + evidence anchor.** The two-domain memory problem, from the committed raws:
 

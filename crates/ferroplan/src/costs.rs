@@ -250,7 +250,12 @@ pub fn optimize_text(
 /// solve — buys 226 -> 222, ~1.8%). The restart SHAPE is the limit, not
 /// the machinery: a future length-anytime that tightens within ONE search
 /// (the cost sweep's shape) or landmark-guided restarts are the recorded
-/// next ideas.
+/// next ideas. 0.26 F4.1 tried a third shape — spending the WALL the first
+/// plan left (a wall-scaled per-rung budget instead of the eval count) —
+/// and measured NEGATIVE on the visitall/floortile length boards
+/// (`docs/roadmap-0.26.md`, F4.1): the low-weight rungs exhaust the extra
+/// wall without a shorter incumbent, so the code was removed rather than
+/// hatched.
 pub fn improve_length(
     task: &PackedTask,
     ops: Vec<usize>,
