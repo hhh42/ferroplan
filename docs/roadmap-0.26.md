@@ -658,6 +658,17 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   read it as one. Rung attribution needs the `wall: solved by …`
   narration, and from here on that is what the record cites.
 
+  **The hatch differential (2026-08-29, `--spec enrich --repeat 2`, the 13
+  fallback-attributed gains, `benchmarks/cut26/enrich.log`): shipped
+  12/13, `FF_NO_ENRICH=1` 0/13 — the feature is worth +12 on its own
+  witnesses, with every single row lost the moment the queue is bare.**
+  Solo times under the enrichment: pathways-strips i18 13.2 s, i22
+  16.4 s, trucks-prop i12 25.6 s, pipesworld i24 33.4 s — not wall-edge
+  flips but mid-wall solves against 55–60 s failures. trucks-strips i13
+  did not reproduce solo (0/2 shipped, 57.8 s — the board's 57.18 s
+  solve was a wall-margin row). That is the attribution the spec asked
+  for, on the rows the A/B named.
+
   Referee status: both legs on crucible, same box, same instrument,
   every row clean by the per-sample gate; the old-binary rule is
   satisfied by the before-leg itself (0.25.0 IS the published cut
