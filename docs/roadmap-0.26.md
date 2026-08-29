@@ -586,6 +586,17 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   rows a different binary than the hash they carry. The release
   `--include-ignored` pass and the `hatch-differential.py` "enrich"
   entry (its witnesses ARE the converted rows) wait on the same.
+
+  **The before-leg banked (2026-08-28, 690/690 in 6 passes,
+  `benchmarks/air26-f1-before/`).** Same 0.25.0 engine as the cut, and
+  it reads **ipc5-prop 372/450, ipc2018-sat 86/240** against the cut's
+  358 and 82 — **+18 from the instrument alone**: a quiet box (Brave,
+  Steam and the other agents' build bursts were the competitors; every
+  row they touched was re-measured until clean) and crucible's
+  instance-level retry. That is the number the armed leg is judged
+  against, never air25 — the cut's rows carry contention this leg does
+  not, and crediting F1 with the difference would be the exact lie the
+  old-binary referee exists to refuse.
 - **F2 — YAHSP-style relaxed-plan lookahead** (ungated; never tried in
   this engine): opt-in hatch first; parking-2014's four 59.5–59.9 s
   solves are the fixture class.

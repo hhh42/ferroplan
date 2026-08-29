@@ -15,7 +15,7 @@ readme = "../../README.md"
 [dependencies]
 # The SAT compilation wing's solver (0.24 Phase 2) — the first wiring of
 # the absorbed crate, version-pinned like every other in-workspace dep.
-ferroplan-sat = { path = "../ferroplan-sat", version = "0.25.0" }
+ferroplan-sat = { path = "../ferroplan-sat", version = "0.26.0" }
 serde = { workspace = true }
 thiserror = { workspace = true }
 schemars = { version = "1.2.2", optional = true }
