@@ -114,7 +114,11 @@ referee) — checked and confirmed. Size grades read honest throughout.
 
 ## F1 — Fallback enrichment: preferred operators + landmark count armed into the complete wBFS fallback
 
-**STATUS 2026-08-28: BUILT, unit pin green, referee in flight on crucible** —
+**STATUS 2026-08-29: REFEREED on crucible — +8 ipc5-prop (band +10–17:
+under-delivered), +4 ipc2018-sat, 14 gains / 2 losses, every gain a
+fallback-note row; settlers i12 did NOT convert; default stays ON.** Record
+and the shortfall hypotheses: docs/roadmap-0.26.md F1 bullet.
+Earlier status (2026-08-28): BUILT, unit pin green, referee in flight on crucible —
 record in docs/roadmap-0.26.md ("The field-gaps expansion", F1 bullet). Two
 measured facts the spec did not predict: the landmark term alone is inert on
 the pin's chain fixture (the deferred h already orders it), and the enriched

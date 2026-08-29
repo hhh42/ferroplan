@@ -597,6 +597,61 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   against, never air25 — the cut's rows carry contention this leg does
   not, and crediting F1 with the difference would be the exact lie the
   old-binary referee exists to refuse.
+
+  **The armed leg banked (2026-08-29 00:10, 690/690 in 3 passes,
+  `benchmarks/air26-f1/`, `ff 0.26.0` blake3 `3709aeefc039`) — VERDICT:
+  F1 stays default-on, +12/−2 on the same instrument, band
+  under-delivered and said so.**
+
+  | board | before (0.25.0) | armed (0.26.0) | net | gains | losses |
+  |---|---|---|---|---|---|
+  | ipc5-prop | 372/450 | **380/450** | **+8** | 9 | 1 |
+  | ipc2018-sat | 86/240 | **90/240** | **+4** | 5 | 1 |
+
+  Where the gains are: pathways +3 (prop i27, strips i18/i22 — the tail
+  the band named, all three in the 56–58 s near-wall list the spec
+  cited), pipesworld-strips +2 (i23/i24), **trucks +4** (strips
+  i10/i13/i15 and prop i12 — the trucks cliff F1 explicitly did NOT
+  claim; F0(a) owns that decode, and this is evidence for it, not a
+  claim by F1), data-network +2 (i7/i16), flashfill +2 (i2/i3, both in
+  the spec's i2–i5 cluster), agricola +1 (i12, 0 → 1). **Every one of the 14 gained rows
+  carries the fallback note** — the mechanism witness the spec asked for.
+  Plan length on the 456 common solves: one row longer, none shorter;
+  time on common solves −0.1 s / −0.6 s mean; zero VAL rejects.
+
+  The two losses, named: **trucks-propositional i10** (before 43.3 s via
+  the fallback; armed unsolved at 58.2 s — a real loss, the preferred
+  queue's order on that instance, offset ×4 on its siblings but not
+  erased) and **spider i1** (before solved AT 60.0 s, armed unsolved — a
+  wall-margin row, the class the 0.25 adjudication called churn).
+
+  What did NOT happen: **settlers i12, the named must-convert RED fixture,
+  did not convert** (59.77 s before, 59.78 s armed — untouched), and
+  settlers moved 15 → 15. The 2018 +4 came from data-network and
+  flashfill, not the settlers slice the spec claimed. **ipc5-prop reads +8
+  against a +10–17 band** — under-delivery, the 0.24 treatment: the
+  band's arithmetic assumed the near-wall rows were fallback-ORDER rows,
+  and on settlers and storage (0 gained, i27–30 still at the wall) the
+  measurement says they are fallback-COST rows — the enriched queue
+  reorders but does not cheapen, and a row burning 58 s of h-evals is
+  not converted by popping better. Hypotheses for the shortfall, in
+  order: (1) F2's lookahead is the cost lever for exactly this class
+  (settlers/storage rows sit AT the wall with the plan found late) — its
+  differential runs next on the F1 binary ± the flag, which attributes
+  the 2018 mass instead of double-banking it; (2) the landmark term is
+  inert on chain-shaped tasks (the pin measured it) and may be inert on
+  these too — the `FF_NO_ENRICH=1 FF_CLM=3` decomposition arm on
+  ipc5-prop is the cheap test; (3) `relaxed_helpful`'s per-pop tax is
+  the recorded 0.22 parking risk, and on the slow-h rows it may be
+  eating the wall the reorder needs. None is pursued before F2's
+  receipt lands.
+
+  Referee status: both legs on crucible, same box, same instrument,
+  every row clean by the per-sample gate; the old-binary rule is
+  satisfied by the before-leg itself (0.25.0 IS the published cut
+  binary). The `hatch-differential.py` "enrich" entry is still owed
+  (its witnesses are now known: the 14 gained rows) and is queued
+  behind the lookahead differential on the same box.
 - **F2 — YAHSP-style relaxed-plan lookahead** (ungated; never tried in
   this engine): opt-in hatch first; parking-2014's four 59.5–59.9 s
   solves are the fixture class.
