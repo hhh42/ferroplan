@@ -55,8 +55,10 @@ step "every committed raw round-trips byte for byte"
 total=0; files=0
 # benchmarks/metrics/ holds reports and probe receipts (a sitting's matrix.jsonl
 # carries a "solved" key too), never board raws -- skipped, or a decode
-# sitting's receipts would be asked to round-trip as a board.
-for f in $(find ../benchmarks -name '*.jsonl' -not -path '*/.ipc-corpus/*' -not -path '*/metrics/*' | sort); do
+# sitting's receipts would be asked to round-trip as a board. The 0.26
+# build probes stage their receipts under benchmarks/air26-probes/ (F3's
+# rows.jsonl per probe, `solved` key, not a board row shape) -- same rule.
+for f in $(find ../benchmarks -name '*.jsonl' -not -path '*/.ipc-corpus/*' -not -path '*/metrics/*' -not -path '*/air26-probes/*' | sort); do
   head -1 "$f" | grep -q '"solved"' || continue
   n=$(target/release/crucible-replay roundtrip --raw "$f")
   total=$((total + n)); files=$((files + 1))
