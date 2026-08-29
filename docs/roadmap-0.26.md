@@ -875,7 +875,14 @@ below touches the box until the 0.25 cut sweep completes and promotes.
   differential on the 0.26 candidate, and the certificate gate
   (`opt-differential.py --board-budget`, fresh `--out` under
   `benchmarks/cut26/`) — all queued behind the F3 receipt probes on the
-  quiet gate.**
+  quiet gate. Part 2 (`crucible backfill`) BUILT the same day: the tag's
+  planner in a crucible-owned worktree, the working tree's instrument, the
+  version gate skipped, stage `benchmarks/air-<ver>/`, feature-absent
+  boards now leave a `feature-absent` pass row for any engine; the RED
+  fixture `backfill --tag v0.18.0 --set cut25 --dry-run` converted (built
+  in 1 m 21 s, three proof boards skipped, 5,500 instances planned). The
+  suite also caught `STANDINGS.md` stale since the 0.25.0 publish ("vs
+  0.24.0" → "vs 0.25.0", both renderers agree) — regenerated.**
 
 Standing correction already landed with the adoption (2026-08-26):
 `docs/ipc-rankings.md`'s constraints row refreshed from the committed raws

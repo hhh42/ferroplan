@@ -115,6 +115,10 @@ pub struct Setup<'s> {
     pub capable: &'s dyn Fn(&str) -> bool,
     /// `None` is the `--no-db` path.
     pub db: Option<DbCtx>,
+    /// Where the artifacts go. `None` is the set's own stage; a backfill
+    /// stages under `benchmarks/air-<ver>/` instead, because the set names
+    /// the CANDIDATE's stage and an old engine must never write there.
+    pub stage: Option<PathBuf>,
 }
 
 pub struct SweepRunner<'a> {
@@ -236,6 +240,7 @@ impl<'a> SweepRunner<'a> {
             max_passes,
             capable,
             db,
+            stage,
         } = setup;
         let spec = manifest
             .set(set)
@@ -246,6 +251,7 @@ impl<'a> SweepRunner<'a> {
 
         let mut boards = Vec::new();
         let mut warnings = Vec::new();
+        let mut absent = Vec::new();
         for (position, id) in spec.boards.iter().enumerate() {
             let Some(b) = manifest.board(id) else {
                 continue;
@@ -254,13 +260,19 @@ impl<'a> SweepRunner<'a> {
             // written -- never a board of zeroes. "The feature does not exist,
             // and recording a zero would be a lie the standings would then
             // average." Old tags predate Mode::Optimal, and a stale binary can
-            // predate a whole track.
+            // predate a whole track. The skip gets a `feature-absent` pass row
+            // (0.26 F6 Part 2) so it has provenance, not just an absence.
             if let Some(mode) = &b.mode {
                 if !capable(mode) {
                     println!(
                         "SKIP {id}: this engine has no --mode {mode} -- \
                          feature-absent, not zero coverage"
                     );
+                    let cfg = board_cfg(manifest, b);
+                    absent.push((
+                        board_key_for_sweep(manifest, b, &cfg),
+                        db::board_facts(b, manifest, None),
+                    ));
                     continue;
                 }
             }
@@ -293,8 +305,35 @@ impl<'a> SweepRunner<'a> {
             eprintln!("WARN {w}");
         }
 
+        // Feature-absent boards get their pass row now, before anything is
+        // measured: the skip is a verdict with provenance, written once per
+        // run (the `''` source identity, like the live pass).
+        if let Some(ctx) = &db {
+            for (key, facts) in absent {
+                let rec = db::BoardPassRec {
+                    board: key,
+                    board_facts: facts,
+                    engine: ctx.engine.clone(),
+                    engine_facts: ctx.engine_facts.clone(),
+                    started_at: Some(format!("{:.1}", now_epoch())),
+                    ended_at: Some(format!("{:.1}", now_epoch())),
+                    verdict: db::PassVerdict::FeatureAbsent,
+                    ran: 0,
+                    reused: 0,
+                    done_marker: None,
+                    raw_path: None,
+                    conditions_path: None,
+                    sample_interval: Some(ctx.interval),
+                    source_path: None,
+                };
+                if let Err(e) = ctx.db.writer().board_pass(rec) {
+                    eprintln!("!! could not record the feature-absent pass: {e}");
+                }
+            }
+        }
+
         let mut runner = SweepRunner {
-            stage: repo.join(&spec.stage),
+            stage: stage.unwrap_or_else(|| repo.join(&spec.stage)),
             manifest,
             engine,
             val,
@@ -905,23 +944,36 @@ fn open_db(cfg: &crate::config::Config, engine: &crate::repo::Engine) -> anyhow:
 }
 
 pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Result<()> {
-    let Opts {
-        set,
-        require_version,
-        quiet_only,
-        dry_run,
-        max_passes,
-        no_db,
-    } = o;
     let manifest = crate::load_manifest(repo)?;
     let bin = crate::repo::candidate_path(repo);
     let engine = crate::repo::Engine::probe(&bin)?;
     // The gate every sweep driver opens with: measure the CANDIDATE, not
     // whatever happens to be built. The set may name the version itself.
-    let set_wants = manifest.set(set).and_then(|s| s.requires_version.clone());
-    if let Some(want) = require_version.map(str::to_string).or(set_wants) {
+    let set_wants = manifest.set(o.set).and_then(|s| s.requires_version.clone());
+    if let Some(want) = o.require_version.map(str::to_string).or(set_wants) {
         engine.require_version(&want)?;
     }
+    run_engine(repo, cfg, o, &manifest, engine, None)
+}
+
+/// The sweep proper, for an engine already identified: the candidate (above)
+/// or a built tag (`backfill`). `stage` overrides the set's own staging dir.
+pub fn run_engine(
+    repo: &Path,
+    cfg: &crate::config::Config,
+    o: Opts<'_>,
+    manifest: &Manifest,
+    engine: crate::repo::Engine,
+    stage: Option<PathBuf>,
+) -> anyhow::Result<()> {
+    let Opts {
+        set,
+        require_version: _,
+        quiet_only,
+        dry_run,
+        max_passes,
+        no_db,
+    } = o;
     let val = crucible_core::validate::find(repo, cfg.sweep.validator.as_deref());
     if val.is_none() {
         eprintln!(
@@ -947,7 +999,7 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
     });
 
     let mut runner = SweepRunner::new(
-        &manifest,
+        manifest,
         Setup {
             repo,
             set,
@@ -968,6 +1020,7 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
             max_passes,
             capable: &|m| engine.supports_mode(m),
             db: dbctx,
+            stage,
         },
     )?;
     println!("set     {set}: {} instances", runner.total_instances());
@@ -982,7 +1035,7 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
             "board", "insts", "wall", "jobs", "threads", "mode"
         );
         for b in &runner.boards {
-            let c = board_cfg(&manifest, &b.spec);
+            let c = board_cfg(manifest, &b.spec);
             let mut notes = Vec::new();
             if c.threads > 1 {
                 notes.push("mco wall-clock rule: jobs forced to 1".to_string());

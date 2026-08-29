@@ -10,6 +10,7 @@
 //! kept, marked dirty when the box was not quiet, and a board is only banked
 //! and only publishable once every one of its rows is clean.
 
+mod backfill;
 mod config;
 mod repo;
 mod sweep;
@@ -85,6 +86,30 @@ enum Cmd {
         #[arg(long)]
         no_db: bool,
     },
+    /// Sweep a TAG with the working tree's instrument: build the tag's planner
+    /// in a detached worktree under crucible's own prefix, skip the version
+    /// gate, stage under benchmarks/air-<ver>/, and skip (feature-absent) any
+    /// board the old engine cannot run. The instrument never varies with the
+    /// engine, or the delta means nothing.
+    Backfill {
+        /// The git tag to build and measure, e.g. v0.18.0.
+        #[arg(long)]
+        tag: String,
+        /// A `[[set]]` from the manifest: cut25, entries25, ...
+        #[arg(long)]
+        set: String,
+        /// Staging dir override. Default: benchmarks/air-<ver>/.
+        #[arg(long)]
+        stage: Option<PathBuf>,
+        /// Print the board plan (with the capability skips) and stop.
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        max_passes: Option<u32>,
+        /// The pre-database path, as for `sweep`. Env twin: CRUCIBLE_NO_DB=1.
+        #[arg(long)]
+        no_db: bool,
+    },
     /// Regenerate (or check) the standings documents.
     Standings {
         /// detail | summary | all
@@ -156,6 +181,25 @@ fn real_main() -> anyhow::Result<()> {
                 set: &set,
                 require_version: require_version.as_deref(),
                 quiet_only,
+                dry_run,
+                max_passes,
+                no_db: no_db || std::env::var_os("CRUCIBLE_NO_DB").is_some_and(|v| v == "1"),
+            },
+        ),
+        Cmd::Backfill {
+            tag,
+            set,
+            stage,
+            dry_run,
+            max_passes,
+            no_db,
+        } => backfill::run(
+            &repo_root,
+            &cfg,
+            backfill::Opts {
+                tag: &tag,
+                set: &set,
+                stage,
                 dry_run,
                 max_passes,
                 no_db: no_db || std::env::var_os("CRUCIBLE_NO_DB").is_some_and(|v| v == "1"),

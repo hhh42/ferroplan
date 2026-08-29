@@ -883,6 +883,31 @@ bundled SQLite build — see the roadmap record); parts 2 and 4 stand open.
 
 ### Part 2 — `crucible backfill`: drive what repo.rs already proves (M)
 
+**STATUS 2026-08-29: BUILT** (`crucible/crates/crucible/src/backfill.rs`,
+`Cmd::Backfill { tag, set, stage, dry_run, max_passes, no_db }`). Steps 1–6 as
+designed: tag verified by name (`rev-parse --verify refs/tags/<tag>`), detached
+worktree under `cfg.repo.worktree_dir/<tag>` (created if absent; an existing
+`target/release/ff` there is trusted, else `cargo build --release -p
+ferroplan-cli` in the worktree), `Engine::probe` + `tag = Some`, the version
+gate skipped, `SweepRunner` reused through the new `sweep::run_engine` with a
+stage override defaulting to `benchmarks/air-<ver>/`, feature-absent boards now
+get a `PassVerdict::FeatureAbsent` `board_pass` row (for every engine, not only
+backfills), worktree GC keeps `keep_tags` newest under the prefix only.
+`tests/backfill.rs`: a tagged toy git repo + pre-placed fake planner reporting
+0.18.0 against a set demanding 9.9.9 — plans under `benchmarks/air-0.18.0/`,
+never `airtest`, candidate slot untouched; a missing tag is refused by name.
+Real-corpus RED fixture (`--tag v0.18.0 --set cut25 --dry-run`) CONVERTED:
+worktree `~/.crucible/worktrees/v0.18.0` created and built (1 m 21 s), engine
+`ff 0.18.0 [da023da2cb3a]`, the three proof boards of cut25 SKIPPED as
+feature-absent, `set cut25: 5500 instances` planned under
+`benchmarks/air-0.18.0/`, candidate binary untouched. Side finding while the
+whole crucible suite ran: `golden_standings` was red because the committed
+`STANDINGS.md` still said "vs 0.24.0" — the 0.25.0 publish rolled the release
+list and both renderers (Python and crucible) now say "vs 0.25.0"; the doc was
+regenerated, not the renderer. The referee (structural agreement with the
+committed `air-0.19.0`/`air-0.21.0` goldens via `crucible-differential.py`)
+waits on an actual backfill run, which is box time this cycle does not owe.
+
 **What exists, undriven** (crucible/crates/crucible/src/repo.rs): `Engine::probe` (:58 — blake3 + `--mode` capability probe from the binary's own `--help`, so it works against a tag whose tree is not checked out), `require_version` (:84), `supports_mode` (:99 — feature-absent, never a board of zeroes; empty probe assumes capable), `worktree_for` (:156, `#[allow(dead_code)]` — distinct prefix under `cfg.repo.worktree_dir` (default `~/.crucible/worktrees`) so GC can never eat the operator's hand-made `~/ferroplan-backfill-*` checkouts), all with tests (:162-240). The rule the driver must keep, already in the module doc (:143-154) and in `benchmarks/backfill-air.sh`: **the instrument is ALWAYS the working tree's; only the ENGINE comes from the tag** — checking out the old `benchmarks/` "would vary the INSTRUMENT as well as the engine, and then the delta means nothing."
 
 **Design.** New subcommand in the `Cmd` enum (crucible/src/main.rs:38): `Backfill { tag: String, set: String, stage: Option<PathBuf>, dry_run: bool, max_passes: Option<u32> }`. Steps, each mirroring backfill-air.sh's proven shape:
