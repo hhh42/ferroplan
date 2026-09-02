@@ -419,3 +419,304 @@ crucible/
 7. **Polish.** Daemon/`attach` split over a Unix socket so a Zellij restart can't kill a three-day sweep; clean-timing pass; sparkline history views.
 
 Phases 1–3 are the ones that actually get your machine back. Everything after is quality of life.
+
+---
+
+# R2 — the smarter sweep (revision of 2026-09-02)
+
+**Status:** design revision, scoped while the 0.26 cut sweep runs; code starts
+after the 0.26 cut. Roadmap phase and gates: `docs/roadmap-0.27.md`.
+**Supersedes:** §5.1–5.2, §6.2, §7 and §11 above, and the tier.rs / budget.rs
+module headers that corrected §5 the first time. Everything not named here
+stands: the database is the truth, the JSONL is an export, `kill -9` loses
+nothing, the Python oracle stays.
+
+## R2.0 The case, from the 0.26 cut sweep's own record
+
+The R1 rule — a row measured while *anything else* on the box exceeded 25 %
+pcpu is owed again — was written for a box that was empty at night. The
+0.26 cut sweep ran for four days on a box that was not:
+
+| what the watcher saw (17,280 samples, 4 days) | |
+|---|---:|
+| samples under the clean line (< 25 % foreign pcpu) | 11,814 (68 %) |
+| 25–60 % | 1,428 |
+| ≥ 60 % | 4,038 (23 %) |
+| top competitors (samples present) | Docker's VM 3,135 · WindowServer 2,627 · Brave renderer 2,598 · Docker Desktop 1,318 · claude 1,256 · Timberborn 1,125 (avg **181 %**) · backupd 849 |
+| swap in use, steady | ~4.9 GB |
+
+Pass 1 owed 2,660 of 8,444 rows; pass 2 banked **zero** on ten boards and
+re-owed them whole; the ETA went from a day to "three-plus". And the rows
+being re-owed were mostly honest: of the 1,814 dirty *timeouts* over 50 s,
+**1,618 (89 %) had used ≥ 90 % of their own wall-clock as CPU** and 1,772
+(98 %) had used ≥ 80 %. The planner had its core. The referee was looking at
+the wrong thing.
+
+Four things the record also shows about the code, none of them in the 0.26
+cut record until now:
+
+1. **`Platform::cpu_ms` is 41.67× low on Apple Silicon.** `pidrusage`'s
+   `ri_user_time`/`ri_system_time` are in Mach absolute-time units, not
+   nanoseconds; `mach_timebase_info` on this box is 125/3. Every `cpu_ms` in
+   the database carries the error (mean cpu/wall reads 0.023 where it should
+   read 0.96). It is a units bug, and it was invisible because nothing read
+   the column.
+2. **Short runs undercount CPU** regardless of units: the value is the last
+   0.25 s poll before exit, so a 300 ms run records whatever the first poll
+   caught, often nothing. The exact figure is available for free from
+   `wait4`'s `rusage` at reap and was not taken.
+3. **The throttle never reaches the child.** `attempt()` builds the control
+   channel as `let (_tx, rx) = mpsc::channel::<Ctl>()` and drops `_tx` on the
+   spot. FULL/POLITE/SUSPENDED is computed, logged, and used only to dirty
+   rows; no `SIGSTOP`, no demotion. Timberborn ran at 181 % of a core
+   against un-stopped planners for ~6 hours of samples.
+4. **`sched::tier` is not called** from the sweep. History-ordered
+   execution is built and tested and unwired. And every row crucible has
+   written is stamped `jobs = 2` (the manifest default, the Python's width)
+   while `attempt()` runs one instance at a time.
+
+Also: `cpu_speed_limit` is NULL on every sample — `pmset -g therm` reports
+nothing on Apple Silicon — so the thermal instrument the spec assumed has
+never existed on this box.
+
+## R2.1 The referee — per run, not per box
+
+**The verdict on a run is a property of that run's process, read from the
+kernel, not of the box's process table.**
+
+Definitions, for a run with `threads = 1`:
+
+```
+effective_wall = wall_ms − suspended_ms
+ρ (starvation ratio) = cpu_ms / effective_wall        cpu_ms from wait4 rusage
+```
+
+| outcome | banks? | timing_quality |
+|---|---|---|
+| **solved**, VAL-valid | **always** — coverage is coverage | `clean` if ρ ≥ ρ_min ∧ window clean ∧ no neighbours; `packed` if it had neighbours; otherwise `dirty` |
+| **unsolved / timeout** | iff ρ ≥ ρ_min ∧ no clock jump ∧ no thermal flag ∧ no swap-growth flag | `clean` / `dirty` as above |
+| unsolved, otherwise | **no** — re-queued **SOLO** (§R2.2), attempt + 1 | — |
+| error (crash, signal, malformed) | retry once, then bank as today | — |
+| invalid (VAL rejected) | bank, loud, as today | — |
+
+`ρ_min` defaults to **0.90**. It is the one number in this revision that
+must not be tuned to make a sweep finish: 0.90 is where the clean record's
+own distribution sits (median 1.00, p5 0.88 on 10–50 s runs), and the
+roadmap's Phase 0 re-derives it from the corrected instrument before it is
+trusted.
+
+What ρ cannot see, and what covers it:
+
+- **Memory bandwidth and thermal clock.** A starved-of-bandwidth or
+  down-clocked core still reports 100 % CPU. Covered by the canary (§R2.3)
+  and by the Phase 0 packing calibration, which measures exactly this.
+- **Swap.** The box ran at ~4.9 GB swapped through the whole 0.26 sweep. A
+  run whose window saw swap grow by more than `swap_growth_mb` (default
+  512) is flagged; a timeout under the flag is re-queued.
+- **Sleep / clock jump.** Unchanged from R1: a monotonic-vs-wall divergence
+  is a suspension, never a timeout.
+- **`threads > 1` (the mco boards).** ρ is not meaningful for a planner
+  that may not saturate its threads. These boards keep the R1 rule whole:
+  solo, no neighbours, box-wide window gate, competition wall-clock.
+
+The box-wide window (`Reader::window_gate`) is **kept** — it qualifies
+*timing*, it feeds the throttle, and it draws the timeline — but it no
+longer decides whether a row banks.
+
+### The instrument, fixed before the referee is trusted
+
+- `cpu_ms` comes from `wait4(2)` `rusage` (`ru_utime + ru_stime`) at reap:
+  exact, in microseconds, no polling gap. `pidrusage` polling stays for the
+  live view only, with the Mach timebase applied.
+- New column `run.cpu_instrument TEXT` (`'wait4'` | `'pidrusage-mach'` |
+  `'pidrusage-ns'`), on the `mem_instrument` pattern. **The referee trusts
+  `wait4` rows only.** Existing rows are not rescaled in place — the factor
+  is exact but the poll undercount is not recoverable — they are labelled
+  `pidrusage-ns` and treated as ρ-unknown, which means they stand exactly
+  as R1 judged them. Nothing already banked moves.
+
+## R2.2 The scheduler — one queue, three classes, a width
+
+**The sweep is one queue of runs across all boards.** Boards are the
+display and publication unit, and the artifact writer still emits a board
+when its last row lands; they are no longer the unit of execution. This
+retires the "one board at a time" rule and the `budget.rs` argument that
+two boards at once make chimera rows — that argument rested on `jobs` being
+identity, and R2 stops pretending it is (below).
+
+### Class, from history
+
+"History" is the most recent measured row for the same
+(instance, budget, mode, threads) on **this box**, any engine — the
+previous tag, or the last sweep's own row. Never a different box.
+
+| class | when | width |
+|---|---|---|
+| **PACK** | prior solved with `time < pack_max_frac × budget` (default 0.5), `threads = 1` | up to `pack_width` (default 4 = P-cores) concurrent, bounded by memory (below) |
+| **SOLO** | prior solved at ≥ 0.5 × budget (near-wall); prior unsolved/timeout; never run; re-queued by the referee | one at a time on the P-cores, nothing else of ours running |
+| **EXCLUSIVE** | `threads > 1` | one at a time, box-wide window gate, as R1 |
+
+Order: PACK first — the fast coverage signal and the regressions land in
+the first hour, not the third day — then SOLO near-wall, then SOLO prior
+timeouts, then never-run. The ETA steers the 300 s tier and the timeout
+tail into quiet hours.
+
+On the record from the 0.25 promoted raws: **4,284 of 8,444 instances are
+PACK-class**, 219 are near-wall, 202 sit at ≥ 75 % of budget, and 3,739
+are prior timeouts. The timeouts are ~62 core-hours of the sweep's ~70;
+packing the solves buys minutes, and the honest re-owing of timeouts buys
+days. Whether prior timeouts may run 2-wide under ρ is **not decided
+here** — it is the roadmap's Phase 0 calibration, and until it reports
+they run SOLO as the operator chose.
+
+### Packing can lose time; it can never lose a row
+
+A PACK run that does not solve is never banked from the packed slot. It is
+re-queued SOLO, and the SOLO result is the one that stands. So the
+worst case of a wrong width is a wasted packed attempt, and the tier.rs
+objection — "an instance slowed by a neighbour crosses the wall it would
+otherwise have beaten, and the board loses a solved row" — cannot happen
+by construction. It is answered, not overruled.
+
+### Width, live
+
+- **FULL:** `pack_width`, less the memory bound.
+- **POLITE:** width 1 and children demoted to the background band
+  (E-cores). Solves still bank (`dirty` timing); unsolved re-queue.
+- **SUSPENDED:** `SIGSTOP` every child, `suspended_ms` accrues, nothing
+  times out. **This is the `_tx` that was dropped**, wired.
+- **Memory:** width is also `⌊(free − mem_reserve_gb) / Σ expected_rss⌋`,
+  where a PACK run's expected RSS is its prior `peak_rss × rss_headroom`
+  (default 1.5) and an unknown one is the manifest `mem_gb`. 16 GiB with a
+  Docker VM resident does not fit four 6 GB caps; it fits four 1 GB priors.
+
+### The truth on the row
+
+- New columns: `run.neighbours INTEGER` (our own concurrent planners at
+  spawn, and the max seen during the run), `run.pack_class TEXT`.
+- `jobs` keeps its place in the export — the raw's shape is byte-stable —
+  but it **leaves the resume gate's identity**. Identity is
+  (engine BLAKE3, budget, mode, threads). Recorded plainly: the Python
+  stamped 2 on rows measured 2-wide; crucible has stamped 2 on rows
+  measured 1-wide; R2 stamps the manifest value and writes the real width
+  beside it.
+- Standings never read `neighbours`; coverage is coverage. `crucible diff`'s
+  timing columns (p50/p95) read `clean` rows only, as R1 said, and now say
+  how many `packed` rows they excluded.
+
+## R2.3 The canary — the thermal referee this box can run
+
+`pmset -g therm` is empty on Apple Silicon and `powermetrics` needs root.
+So the sweep carries its own clock:
+
+- A fixed **canary instance** — a solve of ~2 s with no variance across the
+  record; the default is `trucks-propositional` i8 on `ipc5-prop`
+  (1,820 ms on all three engines in the database, spread 1.000) — runs
+  **solo** every `canary_interval_secs` (default 1200) and in the first idle
+  gap after any throttle transition. Cost: 2 s in 20 min.
+- Its baseline is the median of its first `canary_baseline_n` (default 5)
+  clean solo runs on this box, stored per box in the database, never
+  carried across boxes.
+- `clock_factor = wall / baseline`. Above `canary_max_factor` (default
+  1.15) the window is **thermal**: solves bank, timeouts re-queue, the
+  header shows the factor, the timeline draws it. The canary is also what
+  the Phase 0 packing calibration reads to separate "neighbours slowed it"
+  from "the box was hot".
+
+## R2.4 The TUI — `crucible sweep` is the dashboard
+
+**Process model:** the sweep hosts the TUI. `--headless` prints the R1
+log; `--dump` still renders one frame off-screen for a transcript or CI.
+Resilience is the database's, not the terminal's: a dead terminal is a
+dead renderer and nothing else. (The daemon/attach split stays deferred.)
+
+Render budget unchanged: 4 fps, redraw on tick or change, under 1 % of one
+core. The grid is O(cells) to draw and its cells change only at run
+boundaries.
+
+### Views
+
+**1. Grid** (home). One row per board, in queue order:
+
+```
+ board                 banked   owed  ▕ instances ─────────────────────────────────────▏
+ ipc5-prop           358/450     0   ▕████████████████████▓▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▏
+ ipc67-results       498/580    14   ▕██████████████████▓▓▓▓▶▶▶▶░░░░░░▒▒▒▒▒▒▒▒▒▒▒✖▒▒▒▏
+ ipc2023-agile-300s   38/140    68   ▕███▓▓▶·······················▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▏
+```
+
+One cell per instance; when a board has more instances than the strip has
+columns, a cell aggregates *k* instances and shows the worst state among
+them (owed > running > error > timeout > solved). Cells:
+
+| glyph | state |
+|---|---|
+| `·` | queued |
+| `▶` | running (ember) |
+| `█` | solved, timing clean (green) |
+| `▓` | solved, packed or dirty timing (green, dim) |
+| `▒` | unsolved/timeout, banked (steel) |
+| `░` | unsolved, **owed** — re-queued SOLO (amber) |
+| `✖` | error (red) |
+| red underline / green underline | regression / gain vs the comparable predecessor |
+
+Header: engine + hash, throttle level and reason, canary factor, width in
+flight (`3/4`), banked/owed/ETA, top-3 competitors right now. Footer: the
+live slots (below).
+
+**2. Board** (`⏎` on a row). A table of the board's instances: label,
+state, this time, previous tag's time, best-ever on this box, Δ, ρ,
+neighbours, attempt, timing quality. Sort by any column (`o`). Beside it a
+histogram of solve times against the budget with the near-wall band
+(≥ 75 %) shaded and counted — where the flips live.
+
+**3. Instance** (`⏎` again). Every attempt of the row; the box timeline
+across the run's window (competitors stacked by name, throttle band,
+canary factor, our own neighbours); the last `stderr_tail_lines` (default
+40) of the planner's stderr, captured live through a ring buffer on the
+existing pipe reader; plan cost and VAL verdict.
+
+**4. Timeline** (`t`). The whole sweep's box-wide timeline: competitors by
+name, throttle level, canary, swap, with every run as a mark and the owed
+ones highlighted. "Was something else running?" answered without sqlite.
+
+**5. Slots** (always visible, footer). The running instances: board,
+instance, class, elapsed ticking against budget, cpu %, RSS, ρ so far,
+last stderr line.
+
+### Keys
+
+R1's, plus `t` timeline, `b` back to the grid, `o` sort, `/` filter by
+board or domain. **There is no manual re-run key.** The operator's
+position, recorded: if the automatic retry is right there is nothing to
+press; if it is wrong the fix is the referee, not a key.
+
+## R2.5 Unchanged, stated so nobody has to check
+
+Exports byte-identical to the committed raws; `crucible standings --check`
+against the Python oracle; the resume gate's engine BLAKE3; the orphan
+reaper; the `.done` marker only when nothing is owed; `--no-db` writing the
+pre-database shape.
+
+## R2.6 Configuration additions
+
+```toml
+[scheduler]
+pack_width          = 4      # P-cores; the memory bound may lower it
+pack_max_frac       = 0.5    # prior time / budget below which a run is PACK
+mem_reserve_gb      = 4
+rss_headroom        = 1.5
+
+[referee]
+cpu_ratio_min       = 0.90   # ρ_min — re-derived in Phase 0, not tuned
+swap_growth_mb      = 512
+canary_board        = "ipc5-prop"
+canary_variant      = "trucks-propositional"
+canary_instance     = "8"
+canary_interval_secs = 1200
+canary_baseline_n   = 5
+canary_max_factor   = 1.15
+
+[ui]
+stderr_tail_lines   = 40
+```
