@@ -77,9 +77,14 @@ bash benchmarks/promote-air.sh     # refuses a partial sweep
 # 2. Bank this release's numbers, so the NEXT release can show movement.
 python3 scripts/standings-snapshot.py --version X.Y.Z --measured-at YYYY-MM-DD
 
-# 3. Trim the release notes: CHANGELOG.md keeps [Unreleased] + the newest two
-#    (older move to CHANGELOG-ARCHIVE.md, verbatim); README keeps the newest
-#    two "What's new" blocks.
+# 3. WRITE this release's notes first — the CHANGELOG.md section AND a
+#    matching "What's new in X.Y.Z" blockquote at the top of README.md's
+#    WHATSNEW region, plus the README's "Status: vX.Y.Z" line. Then trim:
+#    CHANGELOG.md keeps [Unreleased] + the newest two (older move to
+#    CHANGELOG-ARCHIVE.md, verbatim); README keeps the newest two blocks.
+#    The roll REFUSES if the README's Status line or first block does not
+#    name the changelog's newest version — 0.25.0 shipped without its README
+#    block because nothing checked.
 python3 scripts/release-notes-roll.py
 ```
 

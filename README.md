@@ -63,11 +63,30 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.24.0** — `ferroplan`, `ferroplan-cli`, `ferroplan-mcp` and `ferroplan-sat` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.25.0** — `ferroplan`, `ferroplan-cli`, `ferroplan-mcp` and `ferroplan-sat` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
 <!-- WHATSNEW:BEGIN — newest first; trimmed by scripts/release-notes-roll.py -->
 
 
+> **What's new in 0.25.0 — the table grows to 32 boards, and the
+> like-for-like 22 dips, and says so first.** Two headlines by
+> design, never blended. The grown table: **56% coverage across 32
+> IPC boards** (4,705/8,444), **665 certified optima** — the proof
+> surface nearly doubles (386 → 665). Ten boards enter: 2014 mco t2
+> and t8, 2018-opt, 2023 sat and opt, 2023 numeric-opt, 2026-opt on
+> its full corpus, and the three IPC-5 preference tracks on their
+> full corpora — the first complex-preferences rows in this planner's
+> history. The denominator grows 6,366 → 8,444 and the percentage
+> drops on entry day exactly as the roadmap said it would. The
+> like-for-like 22: **−38 net** (3,943/6,366 vs 3,981), concentrated
+> in net-benefit (−24) and propositional (−11), with the preference
+> tier router named as prime suspect and carried to 0.26 unresolved
+> rather than smoothed over; metric-time +10 and time +2 under a
+> 30 s → 60 s tier move, so budget-plus-engine, never engine alone.
+> Wing II shipped the conflict-rate bail (match-cellar i2 31 → 1.2 s)
+> and a CEGAR pairing soundness fix; the metric-time decode found and
+> fixed two real bugs, fixtures first. Full record:
+> [`docs/roadmap-0.25.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.25.md).
 
 > **What's new in 0.24.0 — the SAT wing: the zero block gets its
 > first nonzero row.** TMS-2011 i2 — SOLVED, VAL-valid, ~1 s: the
@@ -86,17 +105,6 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > well short of its own priced band, named plainly rather than
 > smoothed over. Full record:
 > [`docs/roadmap-0.24.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.24.md).
-
-> **What's new in 0.23.0 — the temporal cycle, and the whole table on
-> one box.** The temporal boards move to their honest 60 s tier with
-> the budget/engine split proven per instance (old-binary-at-new-budget,
-> never hatches); the constraints gate opens its first board (5/120 →
-> 12/120); the last six ghost boards re-enter (time, metric-time, and
-> the mco quartet) — and for the first time in this project's history,
-> **every number in the table shares one box.** **62% coverage across
-> 22 IPC boards** (3,916/6,366), 381 certified optima. On the sixteen
-> comparable boards: **+47**. Full record:
-> [`docs/roadmap-0.23.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.23.md).
 
 Earlier releases are summarised in the [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md) and its [archive](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG-ARCHIVE.md).
 <!-- WHATSNEW:END -->

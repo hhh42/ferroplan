@@ -126,6 +126,42 @@ def check_absolute_links():
     return 0
 
 
+STATUS_LINE = re.compile(r"^> Status: \*\*v(\d+\.\d+\.\d+)\*\*", re.M)
+WN_VERSION = re.compile(r"^> \*\*What's new in (\d+\.\d+\.\d+)", re.M)
+
+
+def check_readme_current(released):
+    """The README must already carry the newest changelog release.
+
+    Trimming to the newest two says nothing about whether the newest one was
+    ever WRITTEN: 0.25.0 shipped with its changelog section in place and the
+    README still reading "Status: v0.24.0" over a 0.24.0 What's-new block,
+    and `--check` passed, because two blocks is two blocks. So the gate now
+    reads the version off the newest `## [X.Y.Z]` section and demands the
+    README's Status line and its first What's-new block both name it.
+    """
+    if not released or not os.path.exists(README):
+        return 0
+    want = released[0][0].split("]")[0].split("[")[1]
+    text = open(README).read()
+    bad = []
+    m = STATUS_LINE.search(text)
+    if not m or m.group(1) != want:
+        bad.append(f"Status line says v{m.group(1) if m else '?'}, changelog's newest is {want}")
+    m = WN_VERSION.search(text)
+    if not m or m.group(1) != want:
+        bad.append(f"first What's-new block is {m.group(1) if m else 'missing'}, "
+                   f"changelog's newest is {want}")
+    if bad:
+        print("README IS BEHIND THE CHANGELOG — write the What's-new block and "
+              "bump the Status line before rolling:")
+        for b in bad:
+            print(f"  {b}")
+        return 1
+    print(f"README: Status line and newest What's-new both say {want}")
+    return 0
+
+
 def main():
     live = open(LIVE).read()
     preamble, sections = split_sections(live)
@@ -133,7 +169,7 @@ def main():
     unreleased = [s for s in sections if s[0].startswith("## [Unreleased]")]
     released = [s for s in sections if not s[0].startswith("## [Unreleased]")]
 
-    rc_readme = roll_readme(KEEP, CHECK)
+    rc_readme = roll_readme(KEEP, CHECK) or check_readme_current(released)
     rc_links = check_absolute_links()
 
     if len(released) <= KEEP:
