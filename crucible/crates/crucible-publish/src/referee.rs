@@ -105,14 +105,14 @@ impl Referee {
 
         let ntext = r.note_text();
 
-        // SEAM -- the pinned bug. `ipc67.py:493` also emits
-        // "mem-cap (self-inflicted: node byte target raised)", which this
-        // exact-equality test does not match, so those rows fall through to
-        // `early-exit`. Seven of them are in the published table right now.
-        // Held here on purpose: a port that changes a number cannot prove it is
-        // a port. The fix, its regenerated goldens and the recorded movement
-        // are a separate change -- docs/roadmap-0.26.md, Phase 0.
-        if ntext == "mem-cap" {
+        // SEAM, formerly the pinned bug: `ipc67.py:493` also emits
+        // "mem-cap (self-inflicted: node byte target raised)", which an
+        // exact-equality test filed under `early-exit` for two cuts. The port
+        // reproduced the bug until parity was proven (0.26 cut, 2026-09-04);
+        // the fix below landed in both implementations the same day.
+        // Fixed 2026-09-04, the same day in both implementations: the 0.24
+        // label-hygiene suffix ("mem-cap (self-inflicted: ...)") is mem-cap.
+        if ntext == "mem-cap" || ntext.starts_with("mem-cap (") {
             return Class::MemCap;
         }
         if ntext == "spawn-fail" {

@@ -259,7 +259,11 @@ def classify(r, budget):
     # Solution.notes is a list on engine rows; runner-stamped classes are
     # plain strings. Normalize to one text for the mechanism checks.
     ntext = notes if isinstance(notes, str) else " ".join(str(x) for x in notes)
-    if ntext == "mem-cap":
+    # "mem-cap" exactly, or the 0.24 label-hygiene variant
+    # "mem-cap (self-inflicted: node byte target raised)" — the runner grew a
+    # suffix and this exact-equality test silently filed those rows under
+    # early-exit for two cuts (docs/roadmap-0.26.md Phase 2, the −7/+7).
+    if ntext == "mem-cap" or ntext.startswith("mem-cap ("):
         return "mem-cap"
     if ntext == "spawn-fail":
         # Runner-side fork failure under memory pressure (environmental;
