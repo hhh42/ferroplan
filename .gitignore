@@ -50,7 +50,13 @@ benchmarks/air24/
 benchmarks/cut24-sweep*.log
 benchmarks/cut24/opt-differential.log
 benchmarks/air25/
-benchmarks/air25-entries/
+# The three air25-entries files below are read by crucible-publish's compare
+# tests as "committed boards" -- they were not, and a fresh worktree failed
+# four tests (found 2026-09-04). Evidence comes out of the ignore list.
+benchmarks/air25-entries/*
+!benchmarks/air25-entries/ipc2014-mco-t2.jsonl
+!benchmarks/air25-entries/ipc2018-opt.jsonl
+!benchmarks/air25-entries/ipc2018-opt.conditions.json
 benchmarks/entries25-sweep.log
 benchmarks/post-entries25.log
 

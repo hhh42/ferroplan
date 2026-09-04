@@ -1,0 +1,28 @@
+{
+ "started": "2026-08-22 02:30:46",
+ "ended": "2026-08-22 03:51:10",
+ "samples": 226,
+ "idle_pct": {
+  "median": 78.2,
+  "p25": 77.5,
+  "min": 35.9
+ },
+ "loadavg": {
+  "median": 2.3,
+  "max": 28.19
+ },
+ "competitors_mean_pcpu": {
+  "mediaanalysisd": 2.2,
+  "loginwindow": 0.8,
+  "corespotlightd": 0.7,
+  "backupd": 0.6
+ },
+ "competitors_total_pcpu": 7.6,
+ "swap_mb": {
+  "max": 31544.9
+ },
+ "cpu_speed_limit": {
+  "min": null
+ },
+ "verdict": "clean"
+}
