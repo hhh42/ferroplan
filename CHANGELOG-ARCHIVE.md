@@ -7,6 +7,111 @@ everything before that lands here, newest first, verbatim and unedited.
 `publish.sh` reads release notes from BOTH files, so archiving a version
 never breaks `--release-only <old-version>`.
 
+## [0.24.0] - 2026-08-20 — The SAT wing: the zero block gets its first nonzero row
+
+The cycle that absorbed a solver instead of hand-rolling one, built the
+first machinery in this planner's history that can crack the
+temporal-machine-shop family, and caught its own regression before it
+shipped. Full record:
+[`docs/roadmap-0.24.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.24.md).
+
+### Where this leaves the standings
+
+**63% coverage across 22 IPC boards** (3,981/6,366), of which **386
+are certified optima** — up from 62%/3,916/6,366/381 at 0.23.0.
++65 net across the (unchanged) board set. At-a-glance:
+[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md).
+
+- **THE HEADLINE: temporal-machine-shop falls.** TMS-2011 i2 —
+  SOLVED, VAL-valid, ~1 s (Mode::Sat, horizon 16, one STN
+  refutation): the first TMS solve in this planner's history, on
+  the family where every non-SAT entrant ever fielded scored zero.
+  The zero block has its first nonzero row. slitherlink p01 falls
+  to the classical face for a second first.
+- **The cut's own canary caught a real regression before it
+  shipped.** The 22-board sweep read match-cellar at 0/20
+  (2014-tempo) and 7/20 (2011) against a 40/40 expectation — the
+  promoted SAT rung was running against the WHOLE wall (h32
+  ground its conflict budget in pure SAT conflicts, zero STN
+  refutations, so the pre-registered thrash bail never saw
+  anything to bail on) and starving the 0.02 s classical ladder of
+  any time to run at all. Fixed: the promoted entry now gets
+  `FF_SAT_PROMO_WALL_FRAC` (default 0.5) of the remaining wall as
+  its own bounded slice, handing back cleanly on expiry so the
+  ladder always gets its turn. Re-swept clean: match-cellar back to
+  40/40 at 0.23's exact costs (750, 1060); TMS-2011 i2 unaffected
+  (still 0.4 s).
+- **ferroplan-sat**: varisat absorbed and owned — 5,012 lines, zero
+  external dependencies, attribution preserved, a differential
+  battery that proved itself RED against a lying stub and never
+  trusts the solver's own models. One addition (conflict budgets);
+  one named not-taken (planning-specific branching).
+- **The wing**: ∃-step bounded-layer encoding with disabling
+  chains, snap-event pairing for the temporal face, the existing
+  STN scheduler as CEGAR teacher with a pre-registered thrash
+  bail, a required-concurrency detector for early promotion, and
+  honesty pinned at every exit (declines, horizons, budgets —
+  never "unsolvable" without a proof).
+- **Stage c**: `within`/`always-within` lowered onto a
+  search-stamped clock — the 2006 constraints gate names nothing
+  unenforced; six timed solves banked oracle-green; the
+  constraints board itself moves 12/120 → 28/120.
+- **onlycraft's docket reads paid**: both numeric-2026 variants
+  (opt and sat) move 3/20 → 20/20, 34 of this board's 37-instance
+  gain — the roadmap's open engine docket from 0.22's reallocation.
+  Measured on this cut, mechanism not separately chased down this
+  cycle (no targeted commit touches it) — worth confirming it holds
+  under contention before calling it closed for good.
+- **The basket**: the temporal search pays the wall (sokoban-t's
+  honest exits); the a2 chain converts pathwaysmetric i2 at 173
+  evals; the hash-join candidate lists clear the slitherlink gate
+  (p03 grounding >60 s → 1.3 s); the 5A convergence fix recorded
+  as a measured negative (nurikabe and spider are irreconcilable).
+- **The game phase**: budget-stamped thinks with capped-vs-proven
+  honesty on the MCP wire; the village tick loop 15.6 → 10.6 s at
+  byte-identical evals; bazaar think latency halved. Mode::Sat
+  reaches the wire by construction.
+- **The contention-verdict methodology moved off raw idle%.**
+  Whole-machine idle counts a board's OWN threads, so a fixed
+  floor could never pass an mco `--threads 8` board even in an
+  empty room (measured: 38-40% idle with <5% real competing load).
+  The verdict now keys off named-competitor load instead — and
+  caught a run the old metric missed (a stuck renderer process
+  averaging 52% CPU across a 3h43m board, loadavg spiking to 123,
+  masked by a still-above-floor median idle).
+
+## Movement — all 22 boards, 0.23 promoted vs 0.24 promoted
+
+| board | track | 0.23 | 0.24 | delta | what moved |
+|---|---|---|---|---|---|
+| ipc2026-numeric | 2026 numeric | 180/320 | 217/320 | +37 | onlycraft opt+sat 3/20→20/20 each (+34); settlers-snp +2; factory-robot +1 |
+| ipc5-constraints | constraints (60 s) | 12/120 | 28/120 | +16 | stage c's timed-operator lowering continues into the 2006 corpus |
+| ipc-opt-2008-11 (proof) | seq-opt | 281/550 | 287/550 | +6 | +6 certs |
+| ipc5-prop | propositional | 366/450 | 369/450 | +3 | quality 0.90 |
+| ipc67-netben | net-benefit | 246/270 | 248/270 | +2 | recovers both 0.23 wall losses |
+| ipc2018-sat | 2018 seq-sat | 80/240 | 82/240 | +2 | |
+| ipc67-temporal | tempo-sat 08+11 | 436/630 | 437/630 | +1 | match-cellar restored to parity (20/20) plus a net +1 elsewhere |
+| ipc67-results | seq-sat 08+11 | 503/580 | 504/580 | +1 | |
+| ipc2023-agile | 2023 classical | 36/140 | 37/140 | +1 | |
+| ipc2023-agile-300s | 2023 agile ENTRY | 51/140 | 52/140 | +1 | |
+| ipc5-time | time | 77/130 | 77/130 | = | |
+| ipc5-metric-time | metric-time | 54/200 | 54/200 | = | |
+| ipc2026-opt (proof) | 2026 numeric-opt | 22/60 | 22/60 | = | |
+| ipc2023-numeric | 2023 numeric | 251/400 | 251/400 | = | |
+| ipc2014-tempo | 2014 tempo-sat | 74/200 | 74/200 | = | match-cellar restored to parity (20/20); net board total unchanged |
+| ipc7-mco-t2 | seq-mco t2 | 230/280 | 230/280 | = | |
+| ipc7-mco-t4 | seq-mco t4 | 237/280 | 237/280 | = | |
+| ipc7-mco-t8 | seq-mco t8 | 240/280 | 240/280 | = | |
+| ipc2014-sat | 2014 seq-sat | 151/280 | 149/280 | −2 | |
+| ipc2014-agile | 2014 seq-agile | 147/280 | 146/280 | −1 | |
+| ipc2014-opt (proof) | 2014 seq-opt | 78/256 | 77/256 | −1 | |
+| ipc2014-mco-t4 | 2014 seq-mco t4 | 164/280 | 163/280 | −1 | |
+| **TOTAL** | | **3,916/6,366 (62%)** | **3,981/6,366 (63%)** | **+65** | optima 381 → 386 |
+
+---
+
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (25 earlier releases, 0.1.0–0.23.0).
+
 ## [0.23.0] - 2026-08-16 — The temporal cycle, and the whole table on one box
 
 The cycle that moved the temporal boards to their honest 60 s tier

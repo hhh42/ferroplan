@@ -4,11 +4,11 @@ timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|
-| ipc-2006/openstacks-preferences-simple | 15/20 | 563 | 316.4s | 15/15 |
-| ipc-2006/pathways-preferences-simple | 26/30 | 472 | 920.1s | 26/26 |
-| ipc-2006/rovers-metric-preferences-simple | 20/20 | 13882 | 204.8s | 20/20 |
-| ipc-2006/storage-preferences-simple | 6/20 | 91 | 76.2s | 6/6 |
-| ipc-2006/tpp-preferences-simple | 15/20 | 4741 | 293.0s | 15/15 |
-| ipc-2006/trucks-preferences-simple | 8/20 | 0 | 92.4s | 8/8 |
+| ipc-2006/openstacks-preferences-simple | 19/20 | 2147 | 484.3s | 19/19 |
+| ipc-2006/pathways-preferences-simple | 26/30 | 509 | 825.8s | 26/26 |
+| ipc-2006/rovers-metric-preferences-simple | 20/20 | 13882 | 165.3s | 20/20 |
+| ipc-2006/storage-preferences-simple | 13/20 | 5505 | 468.6s | 13/13 |
+| ipc-2006/tpp-preferences-simple | 20/20 | 16277 | 518.9s | 20/20 |
+| ipc-2006/trucks-preferences-simple | 10/20 | 25 | 193.5s | 10/10 |
 
-total coverage: **90/130**
+total coverage: **108/130**

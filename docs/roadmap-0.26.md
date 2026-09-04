@@ -947,6 +947,29 @@ The standing template. What this cycle forces on top:
 - If Phase 0 refused the centerpiece, the cut record says so in its first
   paragraph, not its last.
 
+### The cut, recorded (2026-09-04)
+
+**59% across 32 boards (4,988/8,444), 685 certified optima, +283 over
+0.25.0** on the same instrument. Movement table and the cycle story:
+`CHANGELOG.md` `[0.26.0]`. Snapshot banked (8th, `m5-air`,
+measured 2026-09-04).
+
+The sweep was crucible's first (F6): spawned 2026-08-30 14:07, **stopped
+2026-09-04 by decision after six passes and 5 d 16 h**, 232 rows owed —
+44 solves (kept), 184 contended timeouts not re-measured, 4 uncovered.
+Promoted with `benchmarks/promote-air26.sh --accept-owed`; parity with
+the Python oracle proven before and after the mem-cap classification fix
+(60 rows early-exit → mem-cap across five boards, coverage untouched).
+The referee's defect and the four found beside it are the 0.27 headline
+(`crucible-spec.md` §R2, `docs/roadmap-0.27.md`); one more for that list,
+found at the stop: **SIGTERM to crucible left its running planner
+orphaned** — the process group is not killed on the parent's own exit.
+
+What this record does NOT carry, by decision: adjudication prose for
+the 184 rows (they are named per board in the changelog and the database
+holds every one), and a like-for-like 22-board table — from this cut on
+the 32 boards ARE the instrument.
+
 ## Anti-pots — priced at zero, standing
 
 Everything 0.25 listed carries forward unchanged: temporal

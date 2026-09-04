@@ -9,10 +9,53 @@ there: solves always bank; timeouts bank on the process's own cpu/wall;
 `crucible sweep` hosts the TUI; 32 board rows of instance cells; 4-wide for
 the known-fast, solo for everything else; **no manual retry**.
 
-The case, in one line from the record: the 0.26 cut sweep is on its fourth
-day because a referee that measures the *box* re-owed ~1,800 timeouts of
-which nine in ten had their core the whole time. `crucible-spec.md` §R2.0
-has the table.
+The case, in one line from the record: the 0.26 cut sweep ran five days
+and six passes and was stopped with 184 rows still owed, because a
+referee that measures the *box* re-owed ~1,800 timeouts of which nine in
+ten had their core the whole time. `crucible-spec.md` §R2.0 has the
+table.
+
+**Decided 2026-09-04, after the 0.26 cut:**
+
+- **Process: the automated gates stay, the prose rituals go.** fmt /
+  clippy / doc / both test passes / `publish.sh --dry-run`, byte-parity
+  against the Python oracle, RED fixtures first, `FF_NO_*` restores —
+  all kept, all scripted. Decode sittings become one-page reads with a
+  number at the bottom; no adjudication essays; the cut record is a
+  table and a paragraph. A negative is still recorded, in one line.
+- **Engine lanes, two, chosen from the weak-spot read:**
+  1. **The 2023 cliffs** — folding, labyrinth, ricochet, rubiks; 2023
+     sat/agile/opt at 24–29 % where h^novelty alone reads 84/140 in the
+     published ablation. Lever: novelty-with-forgetting + multi-heuristic
+     queue alternation (field-gaps §3.2). The standing fence applies —
+     a decode read first (wall-slice instrumentation on the cliff boards
+     naming what forgetting/alternation would fix in THIS engine) — and
+     the build takes only the number the read produces. ~120 rows on
+     three boards is the pot; the band is priced by the read, not here.
+  2. **The per-eval-cost speed lane** — profile-driven, no decode needed:
+     h-build per evaluation, successor generation, the open list. The
+     first receipt to chase is on the record already: numeric best-first
+     spends **h 19 s / expand 12 s / insert 15 s of 47 s** (markettrader
+     i1, `numeric-twins-0.23.md`) — a third of the wall in the open
+     list. Then the temporal ramps where throughput is the named wall
+     (driver-log at 1k evals/s on 61k ops, rtam 4.5k/s, satellite's
+     i5-class "converts with a faster eval loop"). Refereed with
+     `benchmarks/perf.py` against the committed baseline; the honest
+     expectation is +10–30 rows on the ramps, and it compounds every
+     later lever. The calibration stands: 2× engine speed at the 60 s
+     wall ≈ +4/140 on the 2023 cliffs — speed is not what THOSE need.
+- **Riders, already priced, unbuilt:** the 0.26 Phase 0 proof-gap bands
+  (onlycraft's numeric-bound ceiling +1–2, barman/parking +4–6/+2–3,
+  CEGAR seeding +4–9 at 300 s).
+- **Not this cycle, on the record:** preferences vs SGPlan5 (qual 46/100
+  vs 100/100, complex 26/108 vs 105/108 — the widest raw gap on the
+  table and the least-understood machinery; a read is owed before any
+  cycle takes it), transport-2014 and floor-tile (fenced; floor-tile's
+  dead-end pricing probe still unclaimed), metric-time's AIBR build.
+
+Order: crucible R2 first (it makes every probe below hours instead of
+days), then the two engine lanes in parallel, R2's sweep as their
+referee.
 
 ---
 
@@ -40,6 +83,10 @@ verified against `~/.crucible/db/crucible.db` and the source:
   exist on this box, and the idle one has stopped reading — find out why
   before Phase 1 relies on any sample column.
 - Swap held ~4.9 GB for the sweep's duration.
+- **SIGTERM to crucible orphans its running planner** (found at the 0.26
+  stop, 2026-09-04): the parent exits in ~1 s and leaves `ff` running
+  under pid 1 until its own wall. The reaper would catch it on the NEXT
+  start; the parent's own exit path must kill the process group first.
 
 ### 0.a — the instrument first
 
@@ -151,4 +198,4 @@ passes again, that is the headline and the referee is what gets decoded.
 - The Linux cross-check (0.26 F6 part 3) — still blocked on a cross C
   toolchain for `libsqlite3-sys`.
 - `crucible backfill` beyond what F6 part 2 landed.
-- The engine phases of this cycle — scoped after the 0.26 cut.
+- The engine phases' detailed gates — written when each lane's decode read lands.
