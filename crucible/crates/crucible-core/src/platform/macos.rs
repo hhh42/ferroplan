@@ -20,6 +20,35 @@ extern "C" {
 #[derive(Default)]
 pub struct MacOs;
 
+/// Mach absolute-time units to nanoseconds, via the timebase the kernel
+/// publishes. Queried once; (1, 1) if the call fails, which is the Intel
+/// value and therefore the only safe default.
+pub fn mach_ticks_to_ns(ticks: u64) -> u64 {
+    // libc marks its binding deprecated in favour of the `mach2` crate; one
+    // two-field struct is not worth a dependency, so the binding is declared
+    // here. <mach/mach_time.h>: kern_return_t mach_timebase_info(mach_timebase_info_t).
+    #[repr(C)]
+    struct MachTimebaseInfo {
+        numer: u32,
+        denom: u32,
+    }
+    extern "C" {
+        fn mach_timebase_info(info: *mut MachTimebaseInfo) -> libc::c_int;
+    }
+    static TIMEBASE: OnceLock<(u64, u64)> = OnceLock::new();
+    let (numer, denom) = *TIMEBASE.get_or_init(|| {
+        let mut tb = MachTimebaseInfo { numer: 0, denom: 0 };
+        // SAFETY: a plain out-pointer call into libSystem.
+        let rc = unsafe { mach_timebase_info(&mut tb) };
+        if rc != 0 || tb.denom == 0 {
+            (1, 1)
+        } else {
+            (tb.numer as u64, tb.denom as u64)
+        }
+    });
+    ticks.saturating_mul(numer) / denom
+}
+
 fn sysctl_u32(name: &str) -> Option<u32> {
     let c = std::ffi::CString::new(name).ok()?;
     let mut out: u32 = 0;
@@ -124,10 +153,16 @@ impl Platform for MacOs {
 
     fn cpu_ms(&self, pid: Pid) -> Option<u64> {
         use libproc::libproc::pid_rusage::{pidrusage, RUsageInfoV2};
-        // ri_user_time and ri_system_time are NANOSECONDS on Darwin.
-        pidrusage::<RUsageInfoV2>(pid)
-            .ok()
-            .map(|r| (r.ri_user_time + r.ri_system_time) / 1_000_000)
+        // ri_user_time and ri_system_time are in MACH ABSOLUTE TIME UNITS,
+        // not nanoseconds. On Apple Silicon one unit is 125/3 ns, so reading
+        // them as nanoseconds -- which this function did through the whole
+        // 0.26 cycle -- came out 41.67x low on every row in the database.
+        // The receipt is the run table itself: mean cpu/wall 0.023 where the
+        // corrected figure is 0.96. `mach_timebase_info` is the conversion
+        // the kernel publishes, and it is 1/1 on Intel, so this is right on
+        // both.
+        let r = pidrusage::<RUsageInfoV2>(pid).ok()?;
+        Some(mach_ticks_to_ns(r.ri_user_time.saturating_add(r.ri_system_time)) / 1_000_000)
     }
 
     fn demote(&self, pid: Pid) -> io::Result<()> {

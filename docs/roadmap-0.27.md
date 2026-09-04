@@ -96,6 +96,19 @@ this lands**, so it is a Phase 0 item and not a Phase 1 one. Gate: a
 fixture run of a known 2 s instance reports ρ within 0.95–1.02; the
 `kill9_resume` suite stays green; existing rows are labelled, not rescaled.
 
+**Recorded 2026-09-04 — 0.a LANDED** (`crucible-r2`): `exec::run` reaps
+with `wait4(2)` and takes `ru_utime + ru_stime` (µs, exact) as `cpu_ms`;
+`RunOutcome::cpu_instrument = "wait4"`, threaded to `run.cpu_instrument`
+(schema v2, NULL on every pre-R2 row, never rescaled). `Platform::cpu_ms`
+(the live poll, now used by nothing but kept for the dashboard) converts
+Mach units through `mach_timebase_info`. Fixtures: a 2 s spinning
+`fakeff` reads 1.9–2.3 s of CPU at ρ ≥ 0.80, a sleeping one under 0.20,
+a 120 ms spin is not undercounted; v1→v2 migration adds the column. One
+thing seen on the way, not fixed: the supervisor reaps on its 250 ms
+tick, so `effective` can read up to a tick long — irrelevant at 60 s,
+visible on a 600 ms fixture, and worth a waiter thread when the live
+view lands.
+
 ### 0.b — ρ_min, re-derived
 
 With the fixed instrument, re-run 60 clean-window instances (20 each from

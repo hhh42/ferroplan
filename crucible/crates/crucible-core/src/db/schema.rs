@@ -19,7 +19,7 @@
 use rusqlite::Connection;
 
 /// The schema version this binary writes.
-pub const USER_VERSION: i32 = 1;
+pub const USER_VERSION: i32 = 2;
 
 /// Refusing to open, with the numbers a human needs to know which binary to run.
 #[derive(Debug, thiserror::Error)]
@@ -412,6 +412,20 @@ PRAGMA user_version = 1;
 COMMIT;
 "#;
 
+/// v2 (crucible R2, Phase 0.a): which instrument produced `run.cpu_ms`.
+/// NULL on every row written before this column existed -- those were
+/// polled `pidrusage` readings in Mach units divided as nanoseconds (41.67x
+/// low on Apple Silicon) and are NOT rescaled, because the poll's undercount
+/// on short runs is not recoverable. The referee treats NULL as CPU-unknown.
+/// `'wait4'` is the only value the runner writes.
+const V2: &str = r#"
+BEGIN;
+ALTER TABLE run ADD COLUMN cpu_instrument TEXT
+  CHECK (cpu_instrument IS NULL OR cpu_instrument IN ('wait4'));
+PRAGMA user_version = 2;
+COMMIT;
+"#;
+
 /// Bring `conn` up to [`USER_VERSION`], or refuse to touch it.
 pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     let found: i32 = conn
@@ -427,6 +441,10 @@ pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
         conn.execute_batch(V1)
             .map_err(|source| MigrateError::Sql { version: 1, source })?;
     }
+    if found < 2 {
+        conn.execute_batch(V2)
+            .map_err(|source| MigrateError::Sql { version: 2, source })?;
+    }
     Ok(())
 }
 
@@ -439,6 +457,33 @@ mod tests {
         c.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
         migrate(&c).unwrap();
         c
+    }
+
+    fn has_column(c: &Connection, table: &str, col: &str) -> bool {
+        let mut st = c.prepare(&format!("PRAGMA table_info({table})")).unwrap();
+        let names: Vec<String> = st
+            .query_map([], |r| r.get::<_, String>(1))
+            .unwrap()
+            .map(|n| n.unwrap())
+            .collect();
+        names.iter().any(|n| n == col)
+    }
+
+    /// A v1 database (every one on this box before R2) gains the column
+    /// with its rows NULL, and a fresh database gets it too. The 0.26 sweep's
+    /// database is the one this ladder is actually for.
+    #[test]
+    fn v2_adds_cpu_instrument_to_a_v1_database() {
+        let c = Connection::open_in_memory().unwrap();
+        c.execute_batch(V1).unwrap();
+        assert!(!has_column(&c, "run", "cpu_instrument"));
+        migrate(&c).unwrap();
+        assert!(has_column(&c, "run", "cpu_instrument"));
+        let v: i32 = c
+            .pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
+        assert_eq!(v, 2);
+        assert!(has_column(&fresh(), "run", "cpu_instrument"));
     }
 
     /// A second migrate must be a no-op. The ladder is what a restart runs

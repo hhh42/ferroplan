@@ -289,6 +289,9 @@ pub struct Measured {
     pub finished_at: Option<f64>,
     pub wall_ms: Option<u64>,
     pub cpu_ms: Option<u64>,
+    /// Which instrument produced `cpu_ms`: `Some("wait4")` from the R2
+    /// runner, `None` on every row before it (see `schema::V2`).
+    pub cpu_instrument: Option<String>,
     pub suspended_ms: Option<u64>,
     pub peak_rss: Option<u64>,
     /// Which instrument enforced the memory budget, because the two measure

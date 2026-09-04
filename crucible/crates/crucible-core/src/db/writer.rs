@@ -660,7 +660,7 @@ fn insert_run(conn: &Connection, ids: &mut Ids, rec: &RunRecord) -> Result<i64, 
                 present_ipc,present_budget,present_stamps,present_makespan,present_resumed_clean,
                 extra_json,
                 started_at,finished_at,wall_ms,cpu_ms,suspended_ms,peak_rss,mem_instrument,
-                exit_code,term_signal,pid,pgid)
+                exit_code,term_signal,pid,pgid,cpu_instrument)
              VALUES
                (?1,?2,?3,?4,?5,?6,
                 ?7,?8,?9,?10,?11,?12,?13,?14,
@@ -668,7 +668,7 @@ fn insert_run(conn: &Connection, ids: &mut Ids, rec: &RunRecord) -> Result<i64, 
                 ?24,?25,?26,?27,?28,
                 ?29,
                 ?30,?31,?32,?33,?34,?35,?36,
-                ?37,?38,?39,?40)
+                ?37,?38,?39,?40,?41)
              ON CONFLICT(board_id,instance_id,engine_id,attempt) DO UPDATE SET
                 state=excluded.state, timing_quality=excluded.timing_quality,
                 solved=excluded.solved, time_secs=excluded.time_secs,
@@ -691,7 +691,8 @@ fn insert_run(conn: &Connection, ids: &mut Ids, rec: &RunRecord) -> Result<i64, 
                 suspended_ms=excluded.suspended_ms, peak_rss=excluded.peak_rss,
                 mem_instrument=excluded.mem_instrument,
                 exit_code=excluded.exit_code, term_signal=excluded.term_signal,
-                pid=excluded.pid, pgid=excluded.pgid
+                pid=excluded.pid, pgid=excluded.pgid,
+                cpu_instrument=excluded.cpu_instrument
              RETURNING id",
         )?
         .query_row(
@@ -736,6 +737,7 @@ fn insert_run(conn: &Connection, ids: &mut Ids, rec: &RunRecord) -> Result<i64, 
                 m.term_signal,
                 m.pid,
                 m.pgid,
+                m.cpu_instrument,
             ],
             |row| row.get(0),
         )?;

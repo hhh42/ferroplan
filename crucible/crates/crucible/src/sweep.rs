@@ -689,6 +689,7 @@ impl Runner for SweepRunner<'_> {
                             finished_at: m.row.end_ts,
                             wall_ms: Some(m.wall.as_millis() as u64),
                             cpu_ms: Some(m.cpu_ms),
+                            cpu_instrument: m.cpu_instrument.map(str::to_string),
                             suspended_ms: Some(m.suspended.as_millis() as u64),
                             peak_rss: Some(m.peak_rss),
                             mem_instrument: Some(m.mem_instrument.to_string()),

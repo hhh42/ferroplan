@@ -13,6 +13,9 @@
 //! without touching the argv the runner builds:
 //!
 //!   FAKEFF_SLEEP_MS      run this long before exiting (default 0)
+//!   FAKEFF_BURN_MS       spin on one core this long before exiting -- the
+//!                        cpu/wall referee needs a child that actually uses
+//!                        the CPU it was given, and one that does not
 //!   FAKEFF_SOLVED        1 = emit a solved Solution, 0 = unsolved (default 1)
 //!   FAKEFF_RSS_MB        balloon to this many MiB and hold, to trip the cap
 //!   FAKEFF_EXIT          exit with this code instead of the natural one
@@ -89,6 +92,18 @@ fn main() {
 
     if let Some(ms) = env_num::<u64>("FAKEFF_SLEEP_MS") {
         std::thread::sleep(std::time::Duration::from_millis(ms));
+    }
+    if let Some(ms) = env_num::<u64>("FAKEFF_BURN_MS") {
+        let until = std::time::Instant::now() + std::time::Duration::from_millis(ms);
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        while std::time::Instant::now() < until {
+            for _ in 0..10_000 {
+                x ^= x << 13;
+                x ^= x >> 7;
+                x ^= x << 17;
+            }
+        }
+        std::hint::black_box(x);
     }
 
     let mut plan = String::from("null");

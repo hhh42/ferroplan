@@ -284,3 +284,59 @@ fn demotion_does_not_disturb_a_running_child() {
     assert!(out.killed.is_none());
     assert_eq!(out.exit_code, Some(0));
 }
+
+/// THE CPU CLOCK, the R2 instrument. Two children, one that spins and one
+/// that sleeps, and the ratio of CPU to effective wall must say which is
+/// which. The R1 runner could not have passed this: it polled `pidrusage`
+/// every 250 ms and read Mach units as nanoseconds, so a spinning child
+/// reported ~2% of its wall as CPU and a 200 ms child reported nothing.
+#[test]
+fn cpu_time_comes_from_wait4_and_tracks_the_effective_clock() {
+    // 2 s of spinning: the supervisor reaps on its tick, so the effective
+    // clock can read up to a tick long, and the fixture has to be long enough
+    // that the tick cannot decide the verdict.
+    let out = Case::new()
+        .set("FAKEFF_BURN_MS", "2000")
+        .run(no_ctl())
+        .unwrap();
+    assert_eq!(out.cpu_instrument, exec::CPU_INSTRUMENT);
+    assert!(
+        (1900..=2300).contains(&out.cpu_ms),
+        "2 s spin recorded {} ms of CPU",
+        out.cpu_ms
+    );
+    let rho = out.cpu_ms as f64 / out.effective.as_millis().max(1) as f64;
+    assert!(
+        (0.80..=1.05).contains(&rho),
+        "spinning child: rho {rho:.3} (cpu {} ms over {} ms effective)",
+        out.cpu_ms,
+        out.effective.as_millis()
+    );
+
+    let out = Case::new()
+        .set("FAKEFF_SLEEP_MS", "600")
+        .run(no_ctl())
+        .unwrap();
+    let rho = out.cpu_ms as f64 / out.effective.as_millis().max(1) as f64;
+    assert!(
+        rho < 0.20,
+        "sleeping child: rho {rho:.3} (cpu {} ms over {} ms effective)",
+        out.cpu_ms,
+        out.effective.as_millis()
+    );
+}
+
+/// A short run is exactly the case the poll missed. 120 ms of spinning must
+/// still come back as ~120 ms of CPU, not as the last tick's stale reading.
+#[test]
+fn a_short_spinning_child_is_not_undercounted() {
+    let out = Case::new()
+        .set("FAKEFF_BURN_MS", "120")
+        .run(no_ctl())
+        .unwrap();
+    assert!(
+        out.cpu_ms >= 90,
+        "120 ms spin recorded only {} ms of CPU",
+        out.cpu_ms
+    );
+}
