@@ -47,6 +47,7 @@ enum Cmd {
     Run(Box<RunRecord>, Sender<Result<i64, DbError>>),
     Sample(Box<SampleRec>),
     Event(Box<EventRec>),
+    Canary(f64, String, f64, bool),
     ThrottleOpen(ThrottleWindowRec, Sender<Result<i64, DbError>>),
     ThrottleClose {
         id: i64,
@@ -94,6 +95,11 @@ impl WriterHandle {
     /// be lost.
     pub fn sample(&self, s: SampleRec) {
         let _ = self.tx.send(Cmd::Sample(Box::new(s)));
+    }
+
+    /// Record one canary run. Fire-and-forget, like a sample.
+    pub fn canary(&self, at: f64, label: String, secs: f64, solo: bool) {
+        let _ = self.tx.send(Cmd::Canary(at, label, secs, solo));
     }
 
     /// Append one log line. Fire-and-forget, same reasoning.
@@ -385,6 +391,14 @@ fn immediate(conn: &Connection, ids: &mut Ids, cmd: Cmd) -> bool {
         }
         Cmd::Flush(reply) => {
             let _ = reply.send(Ok(()));
+        }
+        Cmd::Canary(at, label, secs, solo) => {
+            // Fire-and-forget telemetry: a lost canary row costs a reading,
+            // never a verdict already made.
+            let _ = conn.execute(
+                "INSERT INTO canary (at, label, secs, solo) VALUES (?1, ?2, ?3, ?4)",
+                params![at, label, secs, solo as i64],
+            );
         }
         Cmd::Stop => return true,
         Cmd::Sample(_) | Cmd::Event(_) => unreachable!("batched commands never reach immediate"),

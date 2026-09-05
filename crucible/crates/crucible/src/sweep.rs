@@ -1287,23 +1287,38 @@ impl Canary {
         Some(out.effective)
     }
 
-    /// The baseline: `baseline_n` solo runs, the fastest kept.
-    pub fn calibrate(&mut self) -> Option<Duration> {
-        let mut best: Option<Duration> = None;
+    /// The baseline: the FASTEST this box has ever run the instance -- the
+    /// database's best (`prior_best`, every earlier solo run on this box)
+    /// against `baseline_n` solo runs now, each of which is recorded through
+    /// `record`. A baseline that is only "the fastest of five at start" is
+    /// lenient for the whole sweep whenever the sweep starts on a slow
+    /// morning; one taken over the box's history is not.
+    pub fn calibrate(&mut self, prior_best: Option<f64>, record: &dyn Fn(f64)) -> Option<Duration> {
+        let mut best: Option<f64> = prior_best;
         for _ in 0..self.baseline_n {
             if let Some(d) = self.run_once() {
-                best = Some(best.map_or(d, |b| b.min(d)));
+                let secs = d.as_secs_f64();
+                record(secs);
+                best = Some(best.map_or(secs, |b| b.min(secs)));
             }
         }
-        self.baseline = best;
-        best
+        self.baseline = best.map(Duration::from_secs_f64);
+        self.baseline
     }
 
-    /// One reading: wall over baseline.
-    pub fn read(&self) -> Option<f64> {
+    /// One reading: `(secs, secs / baseline)`. A faster run than the
+    /// baseline becomes the baseline.
+    pub fn read(&mut self) -> Option<(f64, f64)> {
         let base = self.baseline?;
-        let d = self.run_once()?;
-        Some(d.as_secs_f64() / base.as_secs_f64().max(0.001))
+        let secs = self.run_once()?.as_secs_f64();
+        if secs < base.as_secs_f64() {
+            self.baseline = Some(Duration::from_secs_f64(secs));
+        }
+        Some((secs, secs / base.as_secs_f64().max(0.001)))
+    }
+
+    pub fn label(&self) -> &str {
+        &self.label
     }
 }
 
@@ -1326,7 +1341,7 @@ impl Watcher {
         shared: Arc<Shared>,
         throttle_cfg: monitor::Config,
         quiet_hours: crate::config::QuietHours,
-        canary: Option<Canary>,
+        mut canary: Option<Canary>,
     ) -> Watcher {
         let stop = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&stop);
@@ -1339,7 +1354,7 @@ impl Watcher {
                 let mut window: Option<i64> = None;
                 let mut next_canary = canary.as_ref().map(|c| Instant::now() + c.interval);
                 while !flag.load(Ordering::Relaxed) {
-                    if let (Some(c), Some(t)) = (&canary, next_canary) {
+                    if let (Some(c), Some(t)) = (&mut canary, next_canary) {
                         if Instant::now() >= t {
                             // The canary measures the BOX, so our own planner
                             // is paused for its two seconds: beside one
@@ -1356,7 +1371,10 @@ impl Watcher {
                             if pause && shared.level() != Level::Suspended {
                                 shared.send(Ctl::Cont);
                             }
-                            if let Some(f) = reading {
+                            if let Some((secs, _)) = reading {
+                                writer.canary(now_epoch(), c.label().to_string(), secs, pause);
+                            }
+                            if let Some((_, f)) = reading {
                                 shared.set_canary(f);
                                 let slow = f > c.max_factor;
                                 if slow {
@@ -1652,27 +1670,44 @@ fn sweep_body(
         None
     } else {
         match Canary::resolve(repo, &engine.path, &cfg.referee) {
-            Some(mut c) => match c.calibrate() {
-                Some(b) => {
-                    crate::say!(
-                        "canary  {} baseline {:.3} s (fastest of {}); read every {} s, slow above {:.2}x",
-                        c.label,
-                        b.as_secs_f64(),
-                        c.baseline_n,
-                        c.interval.as_secs(),
-                        c.max_factor
-                    );
-                    shared.set_canary(1.0);
-                    Some(c)
+            Some(mut c) => {
+                let prior = dbctx
+                    .as_ref()
+                    .and_then(|d| d.reader.canary_best(c.label()).ok().flatten());
+                let label = c.label().to_string();
+                let record = |secs: f64| {
+                    if let Some(d) = &dbctx {
+                        d.db.writer().canary(now_epoch(), label.clone(), secs, true);
+                    }
+                };
+                match c.calibrate(prior, &record) {
+                    Some(b) => {
+                        crate::say!(
+                            "canary  {} baseline {:.3} s ({}); read every {} s, slow above {:.2}x",
+                            c.label(),
+                            b.as_secs_f64(),
+                            match prior {
+                                Some(p) => format!(
+                                    "this box's best of {p:.3} s against {} runs now",
+                                    c.baseline_n
+                                ),
+                                None => format!("fastest of {} runs, no history yet", c.baseline_n),
+                            },
+                            c.interval.as_secs(),
+                            c.max_factor
+                        );
+                        shared.set_canary(1.0);
+                        Some(c)
+                    }
+                    None => {
+                        eprintln!(
+                            "note: the canary {} did not solve; sweeping without a clock",
+                            c.label()
+                        );
+                        None
+                    }
                 }
-                None => {
-                    eprintln!(
-                        "note: the canary {} did not solve; sweeping without a clock",
-                        c.label
-                    );
-                    None
-                }
-            },
+            }
             None => {
                 eprintln!(
                     "note: canary instance {}/{} not in the corpus; sweeping without a clock",

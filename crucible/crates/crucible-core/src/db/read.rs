@@ -360,6 +360,19 @@ impl Reader {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// The fastest this box has ever run the canary instance, solo.
+    pub fn canary_best(&self, label: &str) -> Result<Option<f64>, DbError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT MIN(secs) FROM canary WHERE label = ?1 AND solo = 1",
+                params![label],
+                |r| r.get::<_, Option<f64>>(0),
+            )
+            .optional()?
+            .flatten())
+    }
+
     /// The attempt number a NEW run of this instance should carry: one past
     /// the highest already recorded, in any state. `run` is UNIQUE on
     /// (board, instance, engine, attempt) and the insert upserts, so reusing a
