@@ -719,6 +719,34 @@ board or domain. **There is no manual re-run key.** The operator's
 position, recorded: if the automatic retry is right there is nothing to
 press; if it is wrong the fix is the referee, not a key.
 
+## R2.4b Recorded from the first R2 nights (2026-09-04/05)
+
+What the live runs added to the design above, each with the incident that
+forced it (details in `docs/roadmap-0.27.md`):
+
+- **Packing came back, for coverage only.** The operator's rule: for an
+  instance the predecessor solved, timing is not the question. Per board a
+  cascade — prior solves under 50 % of budget at `pack_width`, under 85 %
+  at `pack_narrow_width`, everything else solo; a packed miss falls to the
+  next rung in the same pass and is never a verdict (`packed`). Workers
+  draw memory from one byte budget (prior peak RSS × headroom).
+- **The width policy.** Every sample: quiet hours or an idle keyboard
+  (`HIDIdleTime`) → every logical core; the operator active by day → the
+  P-cores; foreign load takes back `ceil(pcpu/100)` cores, floored at
+  one; SUSPENDED → none. Foreign CPU load never suspends any more —
+  suspension is for a game or critical memory pressure and ends when that
+  ends — because the R1 rule stopped a sweep for three hours under the
+  operator's own desktop.
+- **The canary pauses our own planners and holds new spawns while it
+  reads; its history is per engine** (the 0.27 engine solves it 2.3×
+  faster than 0.26); it reads four times as often under foreign load.
+- **The suspect rule.** A timeout that contradicts the predecessor's solve
+  is `suspect` on the first SOLO attempt and a verdict only when a second
+  solo run agrees. ρ ≥ 0.95 was not enough under swap thrash: a 9 s solve
+  banked as a timeout at ρ 0.956.
+- **`crucible resident`**: the unattended loop — the candidate while its
+  stage owes rows, the newest tags backfilled, sleep, repeat.
+
 ## R2.5 Unchanged, stated so nobody has to check
 
 Exports byte-identical to the committed raws; `crucible standings --check`
