@@ -332,6 +332,10 @@ impl<'a> SweepRunner<'a> {
                             // Back on the queue is pointless: the pass ends.
                             break;
                         }
+                        // The canary is reading the box: do not spawn into it.
+                        while ctx.shared.held() {
+                            std::thread::sleep(Duration::from_millis(100));
+                        }
                         let d = run_one(ctx, w, i, (width - 1) as u32, &plat, reader.as_ref());
                         let cancelled = d.cancelled;
                         let _ = tx.send(d);
@@ -1381,6 +1385,10 @@ pub struct Shared {
     /// transition or a canary pause reaches all of them.
     children: Mutex<Vec<(u64, mpsc::Sender<Ctl>)>>,
     next_id: std::sync::atomic::AtomicU64,
+    /// The canary is reading: nothing of ours may START until it is done.
+    /// Pausing the attached children is not enough with ten workers cycling
+    /// through short instances -- the next spawn lands inside the reading.
+    hold: AtomicBool,
     /// The canary's latest clock factor and when it was read.
     canary: Mutex<Option<(f64, Instant)>>,
 }
@@ -1391,8 +1399,17 @@ impl Shared {
             level: Mutex::new((Level::Full, None)),
             children: Mutex::new(Vec::new()),
             next_id: std::sync::atomic::AtomicU64::new(1),
+            hold: AtomicBool::new(false),
             canary: Mutex::new(None),
         })
+    }
+
+    pub fn hold(&self, on: bool) {
+        self.hold.store(on, Ordering::Relaxed);
+    }
+
+    pub fn held(&self) -> bool {
+        self.hold.load(Ordering::Relaxed)
     }
 
     /// How many of our own planners are attached right now.
@@ -1660,7 +1677,9 @@ impl Watcher {
                             // calibration's +23 % for a single neighbour),
                             // beside an mco board's eight threads 1.42x.
                             // Suspended time is not charged to the run.
-                            let pause = shared.attached() > 0 && shared.level() != Level::Suspended;
+                            let pause = shared.level() != Level::Suspended;
+                            let paused = shared.attached();
+                            shared.hold(true);
                             if pause {
                                 shared.send(Ctl::Stop);
                                 std::thread::sleep(Duration::from_millis(400));
@@ -1669,6 +1688,7 @@ impl Watcher {
                             if pause && shared.level() != Level::Suspended {
                                 shared.send(Ctl::Cont);
                             }
+                            shared.hold(false);
                             if let Some((secs, _)) = reading {
                                 writer.canary(now_epoch(), c.label().to_string(), secs, pause);
                             }
@@ -1687,7 +1707,10 @@ impl Watcher {
                                     kind: "canary",
                                     run_id: None,
                                     board_id: None,
-                                    message: format!("{} clock factor {f:.3}", c.label),
+                                    message: format!(
+                                        "{} clock factor {f:.3} ({paused} of ours paused)",
+                                        c.label
+                                    ),
                                 });
                             }
                             next_canary = Some(Instant::now() + c.interval);
