@@ -203,6 +203,69 @@ impl Reader {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// The instances whose latest done attempt BANKED under the referee --
+    /// what a restart owes nothing for. Same latest-attempt rule as
+    /// [`Reader::clean_instances`]; `banked` is the R2 column, and on a
+    /// migrated database it carries the v3 backfill (solves and clean rows).
+    pub fn banked_instances(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+    ) -> Result<Vec<(Option<String>, String, String)>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT v.ipc, v.name, i.label
+               FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2
+                AND r.state = 'done' AND r.banked = 1
+                AND r.attempt = (SELECT MAX(r2.attempt) FROM run r2
+                                  WHERE r2.board_id = r.board_id
+                                    AND r2.instance_id = r.instance_id
+                                    AND r2.engine_id = r.engine_id
+                                    AND r2.state = 'done')
+              ORDER BY v.ipc, v.name, i.sort_key",
+        )?;
+        let rows = st.query_map(params![board_id, engine_id], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// How much swap grew across a window: the last reading minus the first,
+    /// over the live watcher's samples. `None` when no sample with a swap
+    /// reading covers the window.
+    pub fn swap_growth_between(&self, start_ts: f64, end_ts: f64) -> Result<Option<f64>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT swap_mb FROM sample
+              WHERE pass_id IS NULL AND at >= ?1 AND at <= ?2 AND swap_mb IS NOT NULL
+              ORDER BY at",
+        )?;
+        let vals: Vec<f64> = st
+            .query_map(params![start_ts, end_ts], |r| r.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(match (vals.first(), vals.last()) {
+            (Some(a), Some(b)) => Some(b - a),
+            _ => None,
+        })
+    }
+
+    /// The worst clock factor the canary reported across a window, from the
+    /// live watcher's samples. `None` when no sample in the window carries
+    /// one -- the sweep's first twenty minutes, or a pre-canary database.
+    pub fn canary_max_between(&self, start_ts: f64, end_ts: f64) -> Result<Option<f64>, DbError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT MAX(canary_factor) FROM sample
+                  WHERE pass_id IS NULL AND at >= ?1 AND at <= ?2",
+                params![start_ts, end_ts],
+                |r| r.get::<_, Option<f64>>(0),
+            )
+            .optional()?
+            .flatten())
+    }
+
     /// The attempt number a NEW run of this instance should carry: one past
     /// the highest already recorded, in any state. `run` is UNIQUE on
     /// (board, instance, engine, attempt) and the insert upserts, so reusing a

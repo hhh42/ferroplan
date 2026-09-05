@@ -28,6 +28,43 @@ pub mod orphan;
 
 use crate::platform::{MemCap, Pid, Platform};
 use std::io::Read;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Set by [`install_interrupt_handler`] on SIGINT/SIGTERM. The supervisor
+/// reads it every tick and treats it as an operator cancel of the running
+/// child -- SIGTERM, a grace period, SIGKILL, all to the process group --
+/// so that stopping crucible never leaves a planner running under pid 1.
+/// The 0.26 sweep was stopped with SIGTERM and did exactly that.
+static INTERRUPTED: AtomicBool = AtomicBool::new(false);
+
+pub fn interrupted() -> bool {
+    INTERRUPTED.load(Ordering::Relaxed)
+}
+
+extern "C" fn on_interrupt(_sig: libc::c_int) {
+    INTERRUPTED.store(true, Ordering::Relaxed);
+}
+
+/// Route SIGINT and SIGTERM to the flag. Idempotent; call once at startup.
+pub fn install_interrupt_handler() {
+    // SAFETY: installing a handler that does one relaxed atomic store, which
+    // is async-signal-safe.
+    unsafe {
+        libc::signal(
+            libc::SIGINT,
+            on_interrupt as extern "C" fn(libc::c_int) as libc::sighandler_t,
+        );
+        libc::signal(
+            libc::SIGTERM,
+            on_interrupt as extern "C" fn(libc::c_int) as libc::sighandler_t,
+        );
+    }
+}
+
+/// Tests only: pretend the operator pressed ^C, or clear it.
+pub fn set_interrupted(on: bool) {
+    INTERRUPTED.store(on, Ordering::Relaxed);
+}
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::{Duration, Instant};
@@ -288,6 +325,17 @@ pub fn run<P: Platform>(
                 Err(TryRecvError::Empty) => break,
                 Err(TryRecvError::Disconnected) => break,
             }
+        }
+
+        // The operator's ^C or a SIGTERM to crucible: cancel the child the
+        // same way a Ctl::Cancel would, once.
+        if interrupted() && cancel_sent.is_none() {
+            if suspended_since.take().is_some() {
+                killpg(pgid, libc::SIGCONT);
+            }
+            killpg(pgid, libc::SIGTERM);
+            cancel_sent = Some(Instant::now());
+            killed = Some(Killed::Cancelled);
         }
 
         if let Some(t) = cancel_sent {

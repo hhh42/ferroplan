@@ -22,6 +22,7 @@ pub struct Config {
     pub scheduler: Scheduler,
     pub quiet_hours: QuietHours,
     pub contention: Contention,
+    pub referee: Referee,
     pub ui: Ui,
     pub db: Db,
 }
@@ -90,6 +91,54 @@ pub struct Scheduler {
     /// shell gave up after 8 passes and exited 1; an instance-level queue
     /// converges instead, so this only guards a genuine stall.
     pub stall_attempts: u32,
+}
+
+/// The R2 referee (`crucible-spec.md` R2.1, `sched::referee`).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Referee {
+    /// The starvation line: an unsolved row banks only if its CPU time over
+    /// its effective wall is at least this. DERIVED by the 0.27 Phase 0
+    /// sitting from the corrected instrument (p5 of the >= 10 s buckets,
+    /// rounded down to 0.05, floored at 0.85) -- not a knob to turn when a
+    /// sweep is slow.
+    pub cpu_ratio_min: f64,
+    /// Swap growth across a run's window past which an unsolved row is owed.
+    pub swap_growth_mb: f64,
+    /// The canary (`crucible-spec.md` R2.3): a fixed ~2 s solve run beside
+    /// the sweep every `canary_interval_secs`, whose wall over its baseline
+    /// is the box's clock factor. `pmset -g therm` is empty on Apple
+    /// Silicon, and the packing calibration showed a process can have its
+    /// core and still run 1.7x slower -- this is the instrument for that.
+    pub canary_ipc: String,
+    pub canary_variant: String,
+    pub canary_instance: String,
+    pub canary_interval_secs: u64,
+    /// Runs taken at sweep start, before any child, to set the baseline
+    /// (the fastest of them -- the least-disturbed reading).
+    pub canary_baseline_n: u32,
+    /// Above this factor a timeout measured in the window is owed.
+    pub canary_max_factor: f64,
+    /// Start runs under POLITE (demoted to the background band) rather than
+    /// waiting for FULL. SUSPENDED always waits. `--quiet-only` overrides to
+    /// the old wait-for-FULL behaviour.
+    pub admit_below_full: bool,
+}
+
+impl Default for Referee {
+    fn default() -> Self {
+        Self {
+            cpu_ratio_min: 0.95,
+            swap_growth_mb: 512.0,
+            canary_ipc: "ipc-2006".into(),
+            canary_variant: "trucks-propositional".into(),
+            canary_instance: "8".into(),
+            canary_interval_secs: 1200,
+            canary_baseline_n: 5,
+            canary_max_factor: 1.15,
+            admit_below_full: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]

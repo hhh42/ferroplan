@@ -569,6 +569,30 @@ days. Whether prior timeouts may run 2-wide under ρ is **not decided
 here** — it is the roadmap's Phase 0 calibration, and until it reports
 they run SOLO as the operator chose.
 
+### Recorded 2026-09-04 — the packing calibration (roadmap 0.27 Phase 0.c)
+
+40 PACK-class instances (prior solo 5–30 s, fourteen boards), solo ×3
+then 4-wide ×3 on the four P-cores, the box in ordinary use:
+
+| | median | p95 | max |
+|---|---:|---:|---:|
+| wall inflation, 4-wide over solo | **+73 %** | +106 % | +335 % (tpp-strips i26, 10.4 s → 45.3 s) |
+| packed ρ (cpu / wall) | 0.991 | | |
+
+Every packed planner had its core — ρ 0.99 — and ran 1.73× slower.
+Two packed runs failed where solo solved (no-mystery-opt i5, factory-robot
+i7). **By the pre-registered thresholds, 4-wide packing is a RECORDED
+NEGATIVE; the referee ships alone**, and the `pack_width` default is 1. The
+2-wide figure (the width the Python sweeps ran at as `jobs = 2`) is in the
+roadmap's Phase 0 record.
+
+The finding reaches further than packing: **ρ cannot see a slow box.** A
+process with its core can still be starved of memory bandwidth or clock by
+a neighbour on another core — ours or anyone's. So the canary (R2.3) is
+the referee's second input from Phase 1, not a later nicety: an unsolved
+row banks only if ρ ≥ ρ_min *and* the canary's clock factor across the
+run's window stayed under `canary_max_factor`.
+
 ### Packing can lose time; it can never lose a row
 
 A PACK run that does not solve is never banked from the packed slot. It is
@@ -618,8 +642,12 @@ So the sweep carries its own clock:
   clean solo runs on this box, stored per box in the database, never
   carried across boxes.
 - `clock_factor = wall / baseline`. Above `canary_max_factor` (default
-  1.15) the window is **thermal**: solves bank, timeouts re-queue, the
-  header shows the factor, the timeline draws it. The canary is also what
+  1.15) the window is **thermal** (the name covers every way a box gets
+  slower than its baseline — clocks and bandwidth alike): solves bank,
+  timeouts re-queue, the header shows the factor, the timeline draws it.
+  The factor rides on every watcher sample (`sample.canary_factor`) until
+  the next reading, so a run's window is asked the same way it is asked
+  about competitors. The canary is also what
   the Phase 0 packing calibration reads to separate "neighbours slowed it"
   from "the box was hot".
 
@@ -702,7 +730,7 @@ pre-database shape.
 
 ```toml
 [scheduler]
-pack_width          = 4      # P-cores; the memory bound may lower it
+pack_width          = 1      # 4 was the design; the calibration refused it (R2.2)
 pack_max_frac       = 0.5    # prior time / budget below which a run is PACK
 mem_reserve_gb      = 4
 rss_headroom        = 1.5

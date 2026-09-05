@@ -315,6 +315,12 @@ pub struct RunRecord {
     pub attempt: i64,
     pub state: RunState,
     pub timing: TimingQuality,
+    /// The referee's verdict (`sched::referee`): does this row bank? This is
+    /// what a restart reads back; `timing` is a separate question.
+    pub banked: bool,
+    /// Why -- `Verdict::as_str`. `None` on a row that was never judged
+    /// (abandoned, or imported).
+    pub verdict: Option<String>,
     pub val_reason: Option<ValReason>,
     pub row: RawRow,
     pub measured: Measured,
@@ -335,6 +341,9 @@ pub struct SampleRec {
     /// watcher's samples belong to no board.
     pub pass_id: Option<i64>,
     pub processes: Vec<(String, f64)>,
+    /// The canary's most recent clock factor (wall / baseline) when this
+    /// sample was taken. `None` before the first canary run.
+    pub canary_factor: Option<f64>,
 }
 
 impl SampleRec {
@@ -357,6 +366,7 @@ impl SampleRec {
             cpu_speed_limit: s.cpu_speed_limit,
             pass_id: None,
             processes: s.competitors.iter().map(|(k, v)| (k.clone(), *v)).collect(),
+            canary_factor: None,
         }
     }
 }

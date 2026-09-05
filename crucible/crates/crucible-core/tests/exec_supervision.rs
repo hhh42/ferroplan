@@ -340,3 +340,56 @@ fn a_short_spinning_child_is_not_undercounted() {
         out.cpu_ms
     );
 }
+
+/// THE ORPHAN. Stopping crucible with SIGTERM used to leave its planner
+/// running under pid 1 (the 0.26 sweep did exactly that). Now an interrupt
+/// cancels the child the way an operator Cancel does -- SIGTERM, then the
+/// grace period, then SIGKILL, all to the group -- and the run comes back
+/// marked cancelled with the child reaped.
+///
+/// The flag is process-global, so this test runs its body in a child
+/// process of the test binary -- setting it in-process would cancel every
+/// sibling test's planner too.
+#[test]
+fn an_interrupt_cancels_and_reaps_the_child() {
+    let exe = std::env::current_exe().unwrap();
+    let out = std::process::Command::new(exe)
+        .args(["--ignored", "--exact", "interrupt_body", "--test-threads=1"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "inner test failed:\n{}\n{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+#[test]
+#[ignore = "the body of an_interrupt_cancels_and_reaps_the_child; runs in its own process"]
+fn interrupt_body() {
+    exec::set_interrupted(false);
+    let (_tx, rx) = mpsc::channel();
+    let h = std::thread::spawn(move || {
+        Case::new()
+            .set("FAKEFF_SLEEP_MS", "20000")
+            .timeout_ms(60_000)
+            .run(rx)
+    });
+    std::thread::sleep(Duration::from_millis(600));
+    let t0 = Instant::now();
+    exec::set_interrupted(true);
+    let out = h.join().unwrap().unwrap();
+    exec::set_interrupted(false);
+    assert_eq!(out.killed, Some(exec::Killed::Cancelled));
+    assert!(
+        t0.elapsed() < Duration::from_secs(8),
+        "cancelled within the grace period, not at the 20 s sleep: {:?}",
+        t0.elapsed()
+    );
+    // Reaped: signalling the pid must fail with ESRCH, not reach a zombie or
+    // an orphan.
+    // SAFETY: kill(2) with signal 0 only checks for existence.
+    let rc = unsafe { libc::kill(out.pid, 0) };
+    assert_ne!(rc, 0, "the child is still there");
+}

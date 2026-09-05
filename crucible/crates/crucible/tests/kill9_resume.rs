@@ -245,6 +245,11 @@ fn a_restart_owes_nothing_that_banked_clean() {
                     engine_facts: EngineFacts::default(),
                     attempt: max_attempt + 1,
                     state: RunState::Done,
+                    // R2: the resume reads the referee's column, not the
+                    // timing. These rows banked (a clean window under the
+                    // R1 rule, which is what a v3 migration would say).
+                    banked: true,
+                    verdict: Some("window".into()),
                     timing: TimingQuality::Clean,
                     val_reason: None,
                     row,
@@ -259,6 +264,7 @@ fn a_restart_owes_nothing_that_banked_clean() {
             "the reconstructed key matched the driver's -- no second board row"
         );
         assert_eq!(r.clean_instances(bids[0], eids[0]).expect("clean").len(), 2);
+        assert_eq!(r.banked_instances(bids[0], eids[0]).expect("banked").len(), 2);
         let _ = db::Cleanliness::Clean;
     }
     let banked = run_count(&repo);
@@ -271,7 +277,7 @@ fn a_restart_owes_nothing_that_banked_clean() {
         "the restart had nothing to do:\n{text}"
     );
     assert!(
-        text.contains("2 row(s) read back, 2 clean -- 0 still owed"),
+        text.contains("2 row(s) read back, 2 banked -- 0 still owed"),
         "{text}"
     );
     assert_eq!(

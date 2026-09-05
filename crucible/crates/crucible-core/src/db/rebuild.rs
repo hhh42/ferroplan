@@ -182,6 +182,8 @@ fn load_board(
                 attempt: 1,
                 state: RunState::Done,
                 // Never `clean`. See the module header.
+                banked: false,
+                verdict: None,
                 timing: TimingQuality::Unknown,
                 val_reason: val_reason_for(r, vu),
                 row: (**r).clone(),

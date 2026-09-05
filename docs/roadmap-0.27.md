@@ -117,6 +117,22 @@ distribution of ρ. **Pre-registered:** ρ_min is the p5 of the ≥ 10 s
 buckets rounded down to 0.05, floored at 0.85. If it comes out below 0.85
 the referee is not safe on this box and the cycle says so.
 
+**Recorded 2026-09-04 — 0.b MEASURED.** 60 clean-window instances from the
+0.26 database, solo, on the corrected instrument (`wait4` rusage via
+`os.wait4` in `benchmarks/metrics/probes-0.27/calib/calibrate.py`), box in
+ordinary use (load 2.3–2.8):
+
+| bucket | n | median ρ | p10 | p5 | min |
+|---|---:|---:|---:|---:|---:|
+| 1–10 s | 20 | 0.988 | 0.967 | 0.964 | 0.938 |
+| 10–50 s | 20 | 0.995 | 0.981 | 0.975 | 0.967 |
+| ≥ 50 s | 20 | 0.998 | 0.987 | 0.982 | 0.973 |
+
+p5 of the ≥ 10 s buckets = 0.975 → by the pre-registered rule
+**ρ_min = 0.95**. The referee is safe on this box; `[referee]
+cpu_ratio_min` defaults to 0.95 and `sched::referee::Rule::default()`
+carries it.
+
 ### 0.c — the packing calibration
 
 40 PACK-class instances with prior solo times of 5–30 s, drawn from six
@@ -130,6 +146,33 @@ beside each. **Pre-registered thresholds:**
 | ≤ 15 % | ≤ 30 % | `pack_width = 2` |
 | worse | — | packing is a **recorded negative**; the referee ships alone |
 
+**Recorded 2026-09-04 — 0.c MEASURED, and packing is a RECORDED NEGATIVE
+at every width.** 40 PACK-class instances from fourteen boards, solo ×3,
+4-wide ×3, then 2-wide ×2 (the width every pre-crucible sweep ran at as
+`jobs = 2`), box in ordinary use (load 2.7 solo / 5.7 packed):
+
+| width | median inflation | p95 | max | packed ρ | verdict by the table |
+|---|---:|---:|---:|---:|---|
+| 4-wide | **+72.8 %** | +106 % | +335 % (tpp-strips i26) | 0.991 | negative |
+| 2-wide | **+22.7 %** | +32 % | +83 % (hiking-opt i12) | — | negative (median > 15 %) |
+
+Every packed planner had its core and ran slower anyway. Two 4-wide runs
+failed where solo solved (no-mystery-opt i5, factory-robot i7). So
+`pack_width = 1`, the referee ships alone, and the scheduler phase loses
+its packing half. Two consequences, both recorded in `crucible-spec.md`
+R2.2:
+
+- **ρ is blind to a slow box.** The canary is the referee's second input
+  from Phase 1, not a later nicety.
+- **Every board through 0.25 was measured 2-wide, and 0.26's were
+  measured 1-wide** (crucible ran one instance at a time while stamping
+  `jobs = 2`). At +23 % median inflation on solves, part of 0.26's +283 is
+  the instrument's width and not the engine. F1's own attribution (+8/+4
+  refereed on crucible, both legs 1-wide; +12/13 under the hatch) is
+  unaffected; the rest of the movement is not decomposed. The honest
+  measurement is `crucible backfill --tag v0.25.0` on a few boards —
+  1-wide, like for like — and it is owed before any 0.27 movement claim.
+
 Second question, same sitting: 20 prior-timeout instances, 2-wide vs solo.
 The loss we are looking for is a solo solve that the packed slot missed —
 by construction the packed miss is re-queued solo, so this measures wasted
@@ -138,7 +181,30 @@ packed timeouts and no solo run solves what its packed twin did not, prior
 timeouts are admitted at width 2 in Phase 2. Otherwise they stay SOLO as
 the operator chose and the record says why.
 
-Phase 0 closes with both tables in this file.
+**Recorded 2026-09-04 — the timeouts probe.** 20 prior timeouts, solo then
+2-wide: packed ρ ≥ ρ_min on 20/20 (median 0.998), no solo-solves-what-
+packed-missed (0 solved either way). By the pre-registered rule they
+would be admitted at width 2 — but the rule was written before the
+packing result, and it is blind in exactly the way that matters: a packed
+timeout BANKS on ρ, and 2-wide costs +23 %. A near-wall instance that
+solves solo at 50 s times out beside a neighbour and banks as a timeout.
+**Overruled by the packing result: prior timeouts stay SOLO.** The
+pre-registration is kept here as written so the overruling is visible.
+
+Phase 0 closes with these tables. Receipts: `benchmarks/metrics/probes-0.27/calib/`
+(`calibrate.py`, `analyze.py`, `results.jsonl`, the manifest of instances).
+
+**Recorded 2026-09-04 — Phase 1 BUILT** (`crucible-r2`): `sched::referee`
+(the R2.1 table, ρ_min 0.95, swap growth, the canary factor; branch
+tests); schema v3 puts `banked`/`verdict` on the row with the R2 rule
+backfilled over the 0.26 database (solves bank, clean rows keep R1's
+verdict, dirty unsolved rows owed as CPU-unknown); the watcher owns the
+throttle and delivers Stop/Cont/Demote/Promote to the running child (the
+dropped sender, wired); SIGINT/SIGTERM cancel and reap the child (the
+orphan, fixed; tested in its own process); the canary runs solo ×5 at
+start for its baseline and every 20 min after, its factor riding on every
+sample (schema v4); admission is "not SUSPENDED" by default, FULL under
+`--quiet-only`. Gate owed: the 184 rows the 0.26 stop left, under R2.
 
 ## Phase 1 — the referee
 
