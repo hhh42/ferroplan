@@ -300,8 +300,10 @@ fn cpu_time_comes_from_wait4_and_tracks_the_effective_clock() {
         .run(no_ctl())
         .unwrap();
     assert_eq!(out.cpu_instrument, exec::CPU_INSTRUMENT);
+    // A factor of two still pins the units (the bug read 41x low); the
+    // floor is loose because a packed sweep may be sharing the box.
     assert!(
-        (1900..=2300).contains(&out.cpu_ms),
+        (900..=2300).contains(&out.cpu_ms),
         "2 s spin recorded {} ms of CPU",
         out.cpu_ms
     );

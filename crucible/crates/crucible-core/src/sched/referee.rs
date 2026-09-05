@@ -89,6 +89,17 @@ pub struct Facts {
     pub clock_factor: Option<f64>,
     /// Our own concurrent planners at the time (0 until the scheduler packs).
     pub neighbours: u32,
+    /// The predecessor (the promoted raw, or an earlier engine on this box)
+    /// SOLVED this instance. A timeout that contradicts a prior solve is
+    /// suspect until a second solo run confirms it -- the 0.27 cut27 sweep
+    /// banked openstacks i28 (a 9 s solve on 0.26) as a rho-0.956 timeout
+    /// while macOS thrashed the box in ways neither rho nor a 20-minute
+    /// canary could see.
+    pub prior_solved: bool,
+    /// Which SOLO attempt this is for the instance under this engine
+    /// (1-based; packed attempts do not count -- a miss beside neighbours
+    /// is nobody's verdict, so it cannot confirm one either).
+    pub solo_attempt: u32,
 }
 
 impl Facts {
@@ -128,6 +139,9 @@ pub enum Owe {
     Contended,
     /// `threads > 1` with no watcher coverage (fail closed, as R1 did).
     Uncovered,
+    /// Unsolved where the predecessor solved, on the first attempt: not a
+    /// verdict until a second solo run says the same.
+    Suspect,
     /// Unsolved beside our own planners. Not a verdict on the instance at
     /// all -- it is re-run with fewer neighbours, then solo, in the same
     /// pass. Packing can waste time; it can never lose a row.
@@ -159,6 +173,7 @@ impl Verdict {
             Verdict::Owed(Owe::Contended) => "contended",
             Verdict::Owed(Owe::Uncovered) => "uncovered",
             Verdict::Owed(Owe::Packed) => "packed",
+            Verdict::Owed(Owe::Suspect) => "suspect",
         }
     }
 
@@ -175,6 +190,7 @@ impl Verdict {
                 | Verdict::Owed(Owe::Uncovered)
                 | Verdict::Owed(Owe::ClockJump)
                 | Verdict::Owed(Owe::Packed)
+                | Verdict::Owed(Owe::Suspect)
         )
     }
 }
@@ -189,6 +205,9 @@ pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
     // miss is re-run narrower, then solo, in the same pass.
     if f.neighbours > 0 {
         return Verdict::Owed(Owe::Packed);
+    }
+    if f.prior_solved && f.solo_attempt < 2 {
+        return Verdict::Owed(Owe::Suspect);
     }
     if f.clock_jump {
         return Verdict::Owed(Owe::ClockJump);
@@ -243,6 +262,8 @@ mod tests {
             swap_growth_mb: Some(0.0),
             clock_factor: Some(1.0),
             neighbours: 0,
+            prior_solved: false,
+            solo_attempt: 1,
         }
     }
 
@@ -394,6 +415,43 @@ mod tests {
         assert_eq!(judge(&r, &f), Verdict::Owed(Owe::Starved));
     }
 
+    /// A timeout that contradicts the predecessor's solve is suspect on
+    /// the first attempt and a verdict on the second; a solve never is.
+    #[test]
+    fn a_timeout_where_the_predecessor_solved_needs_a_second_run() {
+        let r = Rule::default();
+        let f = Facts {
+            prior_solved: true,
+            solo_attempt: 1,
+            ..unsolved()
+        };
+        assert_eq!(judge(&r, &f), Verdict::Owed(Owe::Suspect));
+        assert!(judge(&r, &f).box_fault());
+        let f = Facts {
+            prior_solved: true,
+            solo_attempt: 2,
+            ..unsolved()
+        };
+        assert_eq!(judge(&r, &f), Verdict::Banked(Bank::Rho));
+        let f = Facts {
+            prior_solved: true,
+            solo_attempt: 1,
+            solved: true,
+            ..unsolved()
+        };
+        assert_eq!(judge(&r, &f), Verdict::Banked(Bank::Solved));
+        let f = Facts {
+            prior_solved: false,
+            solo_attempt: 1,
+            ..unsolved()
+        };
+        assert_eq!(
+            judge(&r, &f),
+            Verdict::Banked(Bank::Rho),
+            "no prior solve, no suspicion"
+        );
+    }
+
     /// Packed: a solve is a solve; a miss is nobody's verdict.
     #[test]
     fn packed_rows_bank_only_when_solved() {
@@ -437,6 +495,7 @@ mod tests {
             Verdict::Owed(Owe::Contended),
             Verdict::Owed(Owe::Uncovered),
             Verdict::Owed(Owe::Packed),
+            Verdict::Owed(Owe::Suspect),
         ] {
             assert!(!v.as_str().is_empty());
             assert_eq!(v.banked(), matches!(v, Verdict::Banked(_)));

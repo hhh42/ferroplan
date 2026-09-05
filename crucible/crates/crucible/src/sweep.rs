@@ -187,6 +187,8 @@ struct RunCtx {
     admit_below_full: bool,
     board_idx: usize,
     db: Option<RunDb>,
+    /// Instances the predecessor solved (`variant/label`).
+    prior_solved: std::collections::BTreeSet<String>,
 }
 
 struct RunDb {
@@ -296,6 +298,11 @@ impl<'a> SweepRunner<'a> {
             quiet_only: self.quiet_only,
             admit_below_full: self.admit_below_full,
             board_idx: idx,
+            prior_solved: prior_rows(&self.repo, &self.boards[idx].spec.raw)
+                .into_iter()
+                .filter(|(_, (solved, _))| *solved)
+                .map(|(k, _)| k)
+                .collect(),
             db: self.db.as_ref().map(|d| RunDb {
                 writer: d.db.writer().clone(),
                 path: d.db.path().to_path_buf(),
@@ -631,6 +638,19 @@ fn run_one(
                 swap_growth_mb: swap,
                 clock_factor,
                 neighbours,
+                prior_solved: ctx
+                    .prior_solved
+                    .contains(&format!("{variant}/{}", inst.label)),
+                // This run's own row is committed above, so the count
+                // includes it when it ran solo.
+                solo_attempt: if neighbours == 0 {
+                    reader
+                        .solo_attempts(bid, eid, &variant, &inst.label)
+                        .unwrap_or(1)
+                        .max(1)
+                } else {
+                    0
+                },
             };
             let verdict = referee::judge(&ctx.rule, &facts);
             rec.timing = referee::timing(&facts);
@@ -1811,7 +1831,14 @@ impl Watcher {
                                     ),
                                 });
                             }
-                            next_canary = Some(Instant::now() + c.interval);
+                            // Under foreign load the box changes faster than
+                            // twenty minutes: read four times as often.
+                            let every = if shared.level() == Level::Full {
+                                c.interval
+                            } else {
+                                c.interval / 4
+                            };
+                            next_canary = Some(Instant::now() + every);
                         }
                     }
                     if Instant::now() >= next {

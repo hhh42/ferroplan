@@ -350,6 +350,18 @@ use, and no LLM in the loop.
   returns at once when nothing is owed. Headless; ^C stops the run in
   flight with everything banked kept.
 
+**Recorded 2026-09-05 — the suspect rule.** The cut27 sweep banked
+openstacks-propositional i28 (a 9 s solve on 0.26) as a solo timeout at
+ρ 0.956 while macOS thrashed the box (XProtect 340 %, `diskimagesiod`
+440 %, 15–29 GB of swap): the CPU share barely cleared 0.95, and the
+canary's twenty-minute cadence missed the burst. Solo, both engines
+solve it in 5,551 evaluations. So a timeout that contradicts the
+predecessor's solve is `suspect` on the first SOLO attempt (packed
+attempts never count) and a verdict only when a second solo run says the
+same; and the canary reads four times as often while foreign load is
+present. Every instrument that cannot see a slow box gets the same
+answer: a regression must be confirmed.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**

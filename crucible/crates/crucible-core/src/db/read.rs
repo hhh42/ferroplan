@@ -391,6 +391,26 @@ impl Reader {
             .flatten())
     }
 
+    /// How many SOLO done attempts (no neighbours) this instance already has
+    /// under this engine. The suspect rule counts these, not attempts.
+    pub fn solo_attempts(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+        variant: &str,
+        label: &str,
+    ) -> Result<u32, DbError> {
+        Ok(self.conn.query_row(
+            "SELECT COUNT(*) FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2 AND v.name = ?3 AND i.label = ?4
+                AND r.state = 'done' AND COALESCE(r.neighbours, 0) = 0",
+            params![board_id, engine_id, variant, label],
+            |r| r.get::<_, i64>(0),
+        )? as u32)
+    }
+
     /// The attempt number a NEW run of this instance should carry: one past
     /// the highest already recorded, in any state. `run` is UNIQUE on
     /// (board, instance, engine, attempt) and the insert upserts, so reusing a
