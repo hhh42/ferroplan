@@ -1536,7 +1536,16 @@ pub struct Canary {
 impl Canary {
     /// `None` when the configured instance is not on disk: a sweep on a box
     /// without the corpus variant runs without a clock, and says so.
-    pub fn resolve(repo: &Path, engine: &Path, r: &crate::config::Referee) -> Option<Canary> {
+    /// The label carries the engine's hash: the canary's time is a
+    /// property of the ENGINE as much as the box (the 0.27 successor
+    /// generator solved it 2.3x faster than 0.26), so its history and its
+    /// baseline are per engine, never shared across them.
+    pub fn resolve(
+        repo: &Path,
+        engine: &Path,
+        engine_hash: &str,
+        r: &crate::config::Referee,
+    ) -> Option<Canary> {
         let corpus_dir = std::env::var_os("FERROPLAN_IPC_CORPUS")
             .map(PathBuf::from)
             .unwrap_or_else(|| repo.join("benchmarks/.ipc-corpus"));
@@ -1576,7 +1585,7 @@ impl Canary {
             baseline_n: r.canary_baseline_n.max(1),
             interval: Duration::from_secs(r.canary_interval_secs.max(60)),
             max_factor: r.canary_max_factor,
-            label: format!("{}/{}", r.canary_variant, r.canary_instance),
+            label: format!("{}/{}@{engine_hash}", r.canary_variant, r.canary_instance),
         })
     }
 
@@ -1990,7 +1999,7 @@ fn sweep_body(
     let canary = if dry_run {
         None
     } else {
-        match Canary::resolve(repo, &engine.path, &cfg.referee) {
+        match Canary::resolve(repo, &engine.path, &engine.short_hash(), &cfg.referee) {
             Some(mut c) => {
                 let prior = dbctx
                     .as_ref()
