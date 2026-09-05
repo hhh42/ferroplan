@@ -91,6 +91,22 @@ pub struct Scheduler {
     /// shell gave up after 8 passes and exited 1; an instance-level queue
     /// converges instead, so this only guards a genuine stall.
     pub stall_attempts: u32,
+    /// THE PACKED SCHEDULER (decision 2026-09-05). Instances the predecessor
+    /// solved are run beside each other, as many at once as this allows --
+    /// 0 means every logical core -- because for a known solve the only
+    /// question is whether it still solves, and timing is not being
+    /// measured. A packed miss is re-run at `pack_narrow_width`, then solo,
+    /// in the same pass: packing can waste time, never lose a row.
+    pub pack_width: u32,
+    pub pack_narrow_width: u32,
+    /// Prior solve time over budget below which an instance goes in the
+    /// wide batch; below `pack_narrow_max_frac` the narrow one; else solo.
+    pub pack_max_frac: f64,
+    pub pack_narrow_max_frac: f64,
+    /// Memory held back from the packed budget, and the headroom over an
+    /// instance's prior peak RSS when sizing a batch.
+    pub mem_reserve_gb: f64,
+    pub rss_headroom: f64,
 }
 
 /// The R2 referee (`crucible-spec.md` R2.1, `sched::referee`).
@@ -208,6 +224,12 @@ impl Default for Scheduler {
             admit_dwell_secs: 40,
             min_idle_pct: None,
             stall_attempts: 3,
+            pack_width: 0,
+            pack_narrow_width: 2,
+            pack_max_frac: 0.5,
+            pack_narrow_max_frac: 0.85,
+            mem_reserve_gb: 3.0,
+            rss_headroom: 1.5,
         }
     }
 }

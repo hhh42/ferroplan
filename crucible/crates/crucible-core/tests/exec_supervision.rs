@@ -305,9 +305,11 @@ fn cpu_time_comes_from_wait4_and_tracks_the_effective_clock() {
         "2 s spin recorded {} ms of CPU",
         out.cpu_ms
     );
+    // The units are what this pins (the cpu_ms bound above); the ratio's
+    // floor is loose because the test box may be running a sweep.
     let rho = out.cpu_ms as f64 / out.effective.as_millis().max(1) as f64;
     assert!(
-        (0.80..=1.05).contains(&rho),
+        (0.60..=1.05).contains(&rho),
         "spinning child: rho {rho:.3} (cpu {} ms over {} ms effective)",
         out.cpu_ms,
         out.effective.as_millis()

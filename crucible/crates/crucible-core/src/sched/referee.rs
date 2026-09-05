@@ -128,6 +128,10 @@ pub enum Owe {
     Contended,
     /// `threads > 1` with no watcher coverage (fail closed, as R1 did).
     Uncovered,
+    /// Unsolved beside our own planners. Not a verdict on the instance at
+    /// all -- it is re-run with fewer neighbours, then solo, in the same
+    /// pass. Packing can waste time; it can never lose a row.
+    Packed,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -154,6 +158,7 @@ impl Verdict {
             Verdict::Owed(Owe::Thermal) => "thermal",
             Verdict::Owed(Owe::Contended) => "contended",
             Verdict::Owed(Owe::Uncovered) => "uncovered",
+            Verdict::Owed(Owe::Packed) => "packed",
         }
     }
 
@@ -169,6 +174,7 @@ impl Verdict {
                 | Verdict::Owed(Owe::Contended)
                 | Verdict::Owed(Owe::Uncovered)
                 | Verdict::Owed(Owe::ClockJump)
+                | Verdict::Owed(Owe::Packed)
         )
     }
 }
@@ -177,6 +183,12 @@ impl Verdict {
 pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
     if f.solved {
         return Verdict::Banked(Bank::Solved);
+    }
+    // Beside our own planners nothing about the box is knowable from this
+    // process: the calibration measured +73 % wall with rho 0.99. A packed
+    // miss is re-run narrower, then solo, in the same pass.
+    if f.neighbours > 0 {
+        return Verdict::Owed(Owe::Packed);
     }
     if f.clock_jump {
         return Verdict::Owed(Owe::ClockJump);
@@ -205,6 +217,9 @@ pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
 /// banks: R1's rule, unchanged. A row measured beside our own planners will
 /// get its own answer when the scheduler packs (R2.2).
 pub fn timing(f: &Facts) -> TimingQuality {
+    if f.neighbours > 0 {
+        return TimingQuality::Dirty;
+    }
     match f.window {
         Cleanliness::Clean if !f.clock_jump => TimingQuality::Clean,
         Cleanliness::Clean | Cleanliness::Dirty => TimingQuality::Dirty,
@@ -379,6 +394,25 @@ mod tests {
         assert_eq!(judge(&r, &f), Verdict::Owed(Owe::Starved));
     }
 
+    /// Packed: a solve is a solve; a miss is nobody's verdict.
+    #[test]
+    fn packed_rows_bank_only_when_solved() {
+        let r = Rule::default();
+        let f = Facts {
+            neighbours: 7,
+            ..unsolved()
+        };
+        assert_eq!(judge(&r, &f), Verdict::Owed(Owe::Packed));
+        assert!(judge(&r, &f).box_fault());
+        assert_eq!(timing(&f), TimingQuality::Dirty);
+        let f = Facts {
+            neighbours: 7,
+            solved: true,
+            ..unsolved()
+        };
+        assert_eq!(judge(&r, &f), Verdict::Banked(Bank::Solved));
+    }
+
     #[test]
     fn a_zero_length_run_has_no_rho() {
         let f = Facts {
@@ -402,6 +436,7 @@ mod tests {
             Verdict::Owed(Owe::Thermal),
             Verdict::Owed(Owe::Contended),
             Verdict::Owed(Owe::Uncovered),
+            Verdict::Owed(Owe::Packed),
         ] {
             assert!(!v.as_str().is_empty());
             assert_eq!(v.banked(), matches!(v, Verdict::Banked(_)));

@@ -38,6 +38,7 @@ pub struct BoardCfg {
     pub extra_args: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct Engine {
     pub path: PathBuf,
     /// Exactly `ff --version`. Written into every row; NOT the identity the

@@ -88,6 +88,528 @@ impl Board {
     }
 }
 
+/// The packed scheduler's knobs, from `[scheduler]`.
+#[derive(Debug, Clone, Copy)]
+pub struct Pack {
+    pub width: usize,
+    pub narrow_width: usize,
+    pub max_frac: f64,
+    pub narrow_max_frac: f64,
+    pub mem_reserve_bytes: u64,
+    pub rss_headroom: f64,
+}
+
+impl Pack {
+    pub fn from_config(c: &crate::config::Scheduler) -> Pack {
+        let logical = platform::host().topology().logical.max(1) as usize;
+        Pack {
+            width: if c.pack_width == 0 {
+                logical
+            } else {
+                (c.pack_width as usize).max(1)
+            },
+            narrow_width: (c.pack_narrow_width as usize).max(1),
+            max_frac: c.pack_max_frac,
+            narrow_max_frac: c.pack_narrow_max_frac,
+            mem_reserve_bytes: (c.mem_reserve_gb.max(0.0) * (1u64 << 30) as f64) as u64,
+            rss_headroom: c.rss_headroom.max(1.0),
+        }
+    }
+
+    /// Everything solo: the R1 shape, for tests and for `--quiet-only`.
+    pub fn solo() -> Pack {
+        Pack {
+            width: 1,
+            narrow_width: 1,
+            max_frac: 0.0,
+            narrow_max_frac: 0.0,
+            mem_reserve_bytes: 0,
+            rss_headroom: 1.0,
+        }
+    }
+}
+
+#[derive(Default)]
+struct PassStats {
+    banked: usize,
+    ran: usize,
+    all_dirty: bool,
+    tally: std::collections::BTreeMap<&'static str, usize>,
+}
+
+impl PassStats {
+    fn default() -> Self {
+        PassStats {
+            banked: 0,
+            ran: 0,
+            all_dirty: true,
+            tally: Default::default(),
+        }
+    }
+}
+
+/// One instance's measurement and verdict, back from a worker.
+struct Done {
+    i: usize,
+    key: String,
+    row: crucible_publish::RawRow,
+    banked: bool,
+    verdict: Option<&'static str>,
+    box_fault: bool,
+    /// Unsolved beside neighbours: try again with fewer.
+    cascade: bool,
+    cancelled: bool,
+    solved: bool,
+    rejected: bool,
+    secs: Option<f64>,
+    rho: Option<f64>,
+}
+
+/// What a worker needs to run one instance: owned or shared, nothing that
+/// borrows the runner, so the runner can apply results while workers run.
+struct RunCtx {
+    engine: SweepEngine,
+    cfg: BoardCfg,
+    plan_dir: PathBuf,
+    val: Option<PathBuf>,
+    instances: Arc<Vec<(String, String, corpus::Instance)>>,
+    shared: Arc<Shared>,
+    progress: Option<ProgressHandle>,
+    rule: referee::Rule,
+    quiet_only: bool,
+    admit_below_full: bool,
+    board_idx: usize,
+    db: Option<RunDb>,
+}
+
+struct RunDb {
+    writer: db::WriterHandle,
+    path: PathBuf,
+    engine: db::EngineKey,
+    engine_facts: db::EngineFacts,
+    board: db::BoardKey,
+    facts: db::BoardFacts,
+    ids: (i64, i64),
+    interval: f64,
+}
+
+impl<'a> SweepRunner<'a> {
+    /// Wide / narrow / solo, from what the predecessor (the promoted raw)
+    /// said and what this sweep has already seen. `threads > 1` is always
+    /// solo; so is anything this sweep already measured unsolved.
+    fn classify(
+        &self,
+        idx: usize,
+        cfg: &BoardCfg,
+        todo: &[usize],
+    ) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+        let b = &self.boards[idx];
+        let prior = prior_rows(&self.repo, &b.spec.raw);
+        let budget = cfg.timeout_secs as f64;
+        let (mut wide, mut narrow, mut solo) = (Vec::new(), Vec::new(), Vec::new());
+        for &i in todo {
+            let (ipc, variant, inst) = &b.instances[i];
+            let key = instance_key(ipc, variant, &inst.label);
+            let seen_miss = b.rows.get(&key).is_some_and(|r| !r.solved);
+            let class = if cfg.threads > 1 || seen_miss || self.pack.width <= 1 {
+                2
+            } else {
+                match prior.get(&format!("{variant}/{}", inst.label)) {
+                    Some((true, Some(secs))) if *secs <= self.pack.max_frac * budget => 0,
+                    Some((true, Some(secs))) if *secs <= self.pack.narrow_max_frac * budget => 1,
+                    _ => 2,
+                }
+            };
+            match class {
+                0 => wide.push(i),
+                1 => narrow.push(i),
+                _ => solo.push(i),
+            }
+        }
+        (wide, narrow, solo)
+    }
+
+    /// How wide a batch may run: the requested width, bounded by memory --
+    /// the largest prior peak RSS in the batch (with headroom; the board's
+    /// cap where nothing is known) against what the box has after the
+    /// reserve. Sixteen GiB with a Docker VM resident does not fit ten
+    /// 6 GB caps; it fits ten 400 MB priors.
+    fn batch_width(&self, idx: usize, cfg: &BoardCfg, items: &[usize], want: usize) -> usize {
+        if items.len() <= 1 || want <= 1 {
+            return 1;
+        }
+        let cap = (cfg.mem_gb * (1u64 << 30) as f64) as u64;
+        let mut worst = 0u64;
+        for &i in items {
+            let (_, variant, inst) = &self.boards[idx].instances[i];
+            let prior = self
+                .db
+                .as_ref()
+                .and_then(|d| d.reader.prior_peak_rss(variant, &inst.label).ok().flatten())
+                .map(|r| (r as f64 * self.pack.rss_headroom) as u64)
+                .unwrap_or(cap);
+            worst = worst.max(prior);
+        }
+        let total = self.plat.topology().mem_bytes;
+        let avail = total.saturating_sub(self.pack.mem_reserve_bytes);
+        let by_mem = avail.checked_div(worst).map(|v| v as usize).unwrap_or(want);
+        want.min(by_mem).clamp(1, items.len())
+    }
+
+    /// Run `items` `width` at a time and apply every result as it lands.
+    /// Returns the instances that missed beside neighbours, for the next
+    /// rung of the cascade. A stop leaves the rest owed.
+    fn run_batch(
+        &mut self,
+        idx: usize,
+        cfg: &BoardCfg,
+        plan_dir: &Path,
+        items: Vec<usize>,
+        width: usize,
+        stats: &mut PassStats,
+    ) -> Vec<usize> {
+        let mut cascade = Vec::new();
+        if items.is_empty() || self.stop || exec::interrupted() {
+            self.stop |= exec::interrupted();
+            return cascade;
+        }
+        let ctx = RunCtx {
+            engine: self.engine.clone(),
+            cfg: cfg.clone(),
+            plan_dir: plan_dir.to_path_buf(),
+            val: self.val.clone(),
+            instances: Arc::new(self.boards[idx].instances.clone()),
+            shared: Arc::clone(&self.shared),
+            progress: self.progress.clone(),
+            rule: self.rule,
+            quiet_only: self.quiet_only,
+            admit_below_full: self.admit_below_full,
+            board_idx: idx,
+            db: self.db.as_ref().map(|d| RunDb {
+                writer: d.db.writer().clone(),
+                path: d.db.path().to_path_buf(),
+                engine: d.engine.clone(),
+                engine_facts: d.engine_facts.clone(),
+                board: self.boards[idx].key.clone(),
+                facts: self.boards[idx].facts.clone(),
+                ids: self.boards[idx]
+                    .ids
+                    .expect("a board with a database has resolved ids"),
+                interval: d.interval,
+            }),
+        };
+        let width = width.clamp(1, items.len());
+        let queue = Mutex::new(std::collections::VecDeque::from(items));
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|sc| {
+            let (tx, rx) = mpsc::channel::<Done>();
+            for w in 0..width {
+                let tx = tx.clone();
+                let (ctx, queue, stop) = (&ctx, &queue, &stop);
+                sc.spawn(move || {
+                    let plat = platform::host();
+                    let reader = ctx.db.as_ref().and_then(|d| Reader::open(&d.path).ok());
+                    loop {
+                        if stop.load(Ordering::Relaxed) || exec::interrupted() {
+                            break;
+                        }
+                        let Some(i) = queue.lock().unwrap().pop_front() else {
+                            break;
+                        };
+                        // Admission (R2.2): SUSPENDED always waits; POLITE
+                        // starts the run demoted unless FULL was asked for.
+                        loop {
+                            let level = ctx.shared.level();
+                            let wait = level == Level::Suspended
+                                || (level != Level::Full
+                                    && (ctx.quiet_only || !ctx.admit_below_full));
+                            if !wait || exec::interrupted() || stop.load(Ordering::Relaxed) {
+                                break;
+                            }
+                            std::thread::sleep(Duration::from_secs(5));
+                        }
+                        if exec::interrupted() || stop.load(Ordering::Relaxed) {
+                            // Back on the queue is pointless: the pass ends.
+                            break;
+                        }
+                        let d = run_one(ctx, w, i, (width - 1) as u32, &plat, reader.as_ref());
+                        let cancelled = d.cancelled;
+                        let _ = tx.send(d);
+                        if cancelled {
+                            stop.store(true, Ordering::Relaxed);
+                            break;
+                        }
+                    }
+                });
+            }
+            drop(tx);
+            for d in rx {
+                if d.cancelled {
+                    self.stop = true;
+                    continue;
+                }
+                if d.cascade {
+                    cascade.push(d.i);
+                }
+                self.apply(idx, d, stats);
+            }
+        });
+        cascade
+    }
+
+    /// One result into the runner's state: the row, the banked set, the
+    /// pass statistics and the dashboard cell.
+    fn apply(&mut self, idx: usize, d: Done, stats: &mut PassStats) {
+        stats.ran += 1;
+        if let Some(v) = d.verdict {
+            *stats.tally.entry(v).or_default() += 1;
+        }
+        if !d.banked && !d.box_fault {
+            stats.all_dirty = false;
+        }
+        let (banked, solved, rejected, secs, rho, verdict) =
+            (d.banked, d.solved, d.rejected, d.secs, d.rho, d.verdict);
+        self.progress_cell(idx, d.i, |c| {
+            use crate::tui::app::Cell;
+            c.this_solved = Some(solved);
+            c.this_secs = secs;
+            c.rho = rho;
+            c.attempt += 1;
+            c.cell = match (solved, banked) {
+                _ if rejected => Cell::Error,
+                (true, _) => Cell::SolvedClean,
+                (false, true) => Cell::TimeoutBanked,
+                (false, false) => Cell::Owed,
+            };
+            if let Some(v) = verdict {
+                c.verdict = Some(v.to_string());
+            }
+        });
+        if banked {
+            if let Some(p) = &self.progress {
+                p.lock().unwrap().banked_at.push(Instant::now());
+            }
+            self.boards[idx].banked.insert(d.key.clone());
+            stats.banked += 1;
+            stats.all_dirty = false;
+        }
+        // Written either way. The board is not banked, but the work is
+        // not lost -- and a later banked row supersedes this one under the
+        // same key.
+        self.boards[idx].rows.insert(d.key, d.row);
+    }
+}
+
+/// Measure one instance and judge it. Runs on a worker thread with its own
+/// reader; everything it touches is in `ctx`.
+fn run_one(
+    ctx: &RunCtx,
+    slot: usize,
+    i: usize,
+    neighbours: u32,
+    plat: &platform::Host,
+    reader: Option<&Reader>,
+) -> Done {
+    let (ipc, variant, inst) = ctx.instances[i].clone();
+    let key = instance_key(&ipc, &variant, &inst.label);
+    let dirty_now = match &ctx.db {
+        None => !sample_box(plat).is_clean(),
+        Some(_) => ctx.shared.level() != Level::Full,
+    };
+    let (tx, rx) = mpsc::channel::<Ctl>();
+    let attached = ctx.shared.attach(tx);
+    if let Some(p) = &ctx.progress {
+        let mut g = p.lock().unwrap();
+        g.running.retain(|r| r.slot != slot);
+        g.running.push(Running {
+            slot,
+            board: ctx.board_idx,
+            inst: i,
+            pid: None,
+            started: Instant::now(),
+            budget: Duration::from_secs(ctx.cfg.timeout_secs),
+        });
+        if let Some(c) = g
+            .boards
+            .get_mut(ctx.board_idx)
+            .and_then(|b| b.cells.get_mut(i))
+        {
+            c.cell = crate::tui::app::Cell::Running;
+        }
+    }
+
+    // The live-child record goes to disk the moment the child exists: a
+    // `kill -9` of this process between here and the run's end leaves a row
+    // the next startup reaps by identity, instead of a planner nobody owns
+    // burning a core until the wall.
+    let register = |pid: Pid, at: f64| {
+        if let Some(p) = &ctx.progress {
+            if let Some(r) = p
+                .lock()
+                .unwrap()
+                .running
+                .iter_mut()
+                .find(|r| r.slot == slot)
+            {
+                r.pid = Some(pid);
+            }
+        }
+        let Some(d) = &ctx.db else {
+            return;
+        };
+        let Some(id) = plat.proc_identity(pid) else {
+            return;
+        };
+        let child = db::LiveChild {
+            pid,
+            pgid: pid,
+            run_id: None,
+            binary_path: id.path.clone(),
+            proc_start_tvsec: id.start_tvsec,
+            spawned_at: at,
+            stopped: false,
+        };
+        if let Err(e) = d.writer.child_spawned(child) {
+            eprintln!("!! could not register child {pid}: {e}");
+        }
+    };
+    let m = crucible_core::sweep::measure(
+        &ctx.engine,
+        &ctx.cfg,
+        &ipc,
+        &variant,
+        &inst,
+        ctx.val.as_deref(),
+        &ctx.plan_dir,
+        plat,
+        &rx,
+        ctx.db.as_ref().map(|_| &register as &dyn Fn(Pid, f64)),
+    );
+    ctx.shared.detach(attached);
+    if let Some(p) = &ctx.progress {
+        p.lock().unwrap().running.retain(|r| r.slot != slot);
+    }
+
+    let mut done = Done {
+        i,
+        key: key.clone(),
+        row: m.row.clone(),
+        banked: false,
+        verdict: None,
+        box_fault: true,
+        cascade: false,
+        cancelled: m.cancelled,
+        solved: m.row.solved,
+        rejected: m.row.val == Some(false),
+        secs: m.row.time.as_ref().and_then(|t| t.as_f64()),
+        rho: m.cpu_instrument.map(|_| {
+            m.cpu_ms as f64 / m.wall.saturating_sub(m.suspended).as_millis().max(1) as f64
+        }),
+    };
+    if m.cancelled {
+        if let (Some(d), Some(pid)) = (&ctx.db, m.pid) {
+            let _ = d.writer.child_gone(pid);
+        }
+        crate::say!("   interrupted mid-instance ({key}); the row is not written");
+        return done;
+    }
+
+    match (&ctx.db, reader) {
+        (Some(d), Some(reader)) => {
+            let w = &d.writer;
+            if let Some(pid) = m.pid {
+                let _ = w.child_gone(pid);
+            }
+            let (bid, eid) = d.ids;
+            let attempt = reader
+                .next_attempt(bid, eid, Some(&ipc), &variant, &inst.label)
+                .unwrap_or(1);
+            let mut rec = db::RunRecord {
+                board: d.board.clone(),
+                board_facts: d.facts.clone(),
+                engine: d.engine.clone(),
+                engine_facts: d.engine_facts.clone(),
+                attempt,
+                state: db::RunState::Done,
+                timing: db::TimingQuality::Unknown,
+                banked: false,
+                verdict: None,
+                val_reason: m.val_reason.and_then(db::ValReason::parse),
+                row: m.row.clone(),
+                measured: db::Measured {
+                    started_at: m.row.start_ts,
+                    finished_at: m.row.end_ts,
+                    wall_ms: Some(m.wall.as_millis() as u64),
+                    cpu_ms: Some(m.cpu_ms),
+                    cpu_instrument: m.cpu_instrument.map(str::to_string),
+                    neighbours: Some(neighbours),
+                    suspended_ms: Some(m.suspended.as_millis() as u64),
+                    peak_rss: Some(m.peak_rss),
+                    mem_instrument: Some(m.mem_instrument.to_string()),
+                    exit_code: m.exit_code,
+                    term_signal: m.term_signal,
+                    pid: m.pid,
+                    pgid: m.pgid,
+                },
+            };
+            // THE RECEIPT. Committed before the verdict is asked for, in its
+            // own transaction, and this call waits for it.
+            if let Err(e) = w.run(rec.clone()) {
+                eprintln!("!! could not commit {key}: {e}");
+            }
+            let _ = w.flush();
+            let window = match (m.row.start_ts, m.row.end_ts) {
+                (Some(st), Some(en)) => Some((st, en)),
+                _ => None,
+            };
+            let gate = window
+                .map(|(st, en)| {
+                    reader
+                        .window_gate(st, en, d.interval, None)
+                        .unwrap_or(db::Cleanliness::Uncovered)
+                })
+                .unwrap_or(db::Cleanliness::Uncovered);
+            let swap =
+                window.and_then(|(st, en)| reader.swap_growth_between(st, en).ok().flatten());
+            let clock_factor =
+                window.and_then(|(st, en)| reader.canary_max_between(st, en).ok().flatten());
+            // THE R2 REFEREE (sched::referee): the row is judged by what the
+            // kernel says about ITS process; beside our own planners only a
+            // solve counts.
+            let facts = referee::Facts {
+                solved: m.row.solved,
+                threads: ctx.cfg.threads,
+                cpu_instrument: m.cpu_instrument.map(str::to_string),
+                cpu_ms: m.cpu_ms,
+                effective_ms: m.wall.saturating_sub(m.suspended).as_millis() as u64,
+                clock_jump: !m.clock_jump.is_zero(),
+                window: gate,
+                swap_growth_mb: swap,
+                clock_factor,
+                neighbours,
+            };
+            let verdict = referee::judge(&ctx.rule, &facts);
+            rec.timing = referee::timing(&facts);
+            rec.banked = verdict.banked();
+            rec.verdict = Some(verdict.as_str().to_string());
+            if let Err(e) = w.run(rec) {
+                eprintln!("!! could not record the verdict for {key}: {e}");
+            }
+            done.banked = verdict.banked();
+            done.verdict = Some(verdict.as_str());
+            done.box_fault = verdict.box_fault();
+            done.cascade = verdict == referee::Verdict::Owed(referee::Owe::Packed);
+        }
+        _ => {
+            // The pre-database rule, kept bit for bit under --no-db: a
+            // before/after pair, and nothing in between.
+            let after = sample_box(plat);
+            done.banked = !dirty_now && after.is_clean() && m.clock_jump.is_zero();
+        }
+    }
+    done
+}
+
 /// The predecessor's rows for a board: `variant/label -> (solved, secs)` from
 /// the promoted raw under `benchmarks/`. Empty when there is none.
 fn prior_rows(repo: &Path, raw: &str) -> std::collections::BTreeMap<String, (bool, Option<f64>)> {
@@ -139,6 +661,7 @@ pub struct Setup<'s> {
     pub admit_below_full: bool,
     /// The dashboard's feed, when one is on screen.
     pub progress: Option<ProgressHandle>,
+    pub pack: Pack,
     /// Whether this engine can run a given `--mode`. A board it cannot run is
     /// skipped with ZERO rows, never measured as zero coverage.
     pub capable: &'s dyn Fn(&str) -> bool,
@@ -161,6 +684,7 @@ pub struct SweepRunner<'a> {
     rule: referee::Rule,
     admit_below_full: bool,
     progress: Option<ProgressHandle>,
+    pack: Pack,
     plat: platform::Host,
     /// Set when the operator interrupts. The remaining work stays remaining --
     /// it is not failed, and the next run picks it up.
@@ -271,6 +795,7 @@ impl<'a> SweepRunner<'a> {
             rule,
             admit_below_full,
             progress,
+            pack,
             capable,
             db,
             stage,
@@ -376,6 +901,7 @@ impl<'a> SweepRunner<'a> {
             rule,
             admit_below_full,
             progress,
+            pack,
             plat: platform::host(),
             stop: false,
             quiet_only,
@@ -589,10 +1115,6 @@ impl<'a> SweepRunner<'a> {
         Ok(())
     }
 
-    fn sample(&self) -> Sample {
-        sample_box(&self.plat)
-    }
-
     /// The `.done` marker's provenance: what this attempt measured, what it
     /// reused, and whether the board is banked. `''` as the source is the
     /// live-pass identity, so re-recording after every attempt updates one
@@ -659,11 +1181,6 @@ impl Runner for SweepRunner<'_> {
         let _ = std::fs::create_dir_all(&self.stage);
         let pass_started = now_epoch();
 
-        let mut banked = 0usize;
-        let mut ran = 0usize;
-        let mut all_dirty = true;
-        let mut tally: std::collections::BTreeMap<&'static str, usize> = Default::default();
-        let mut last_verdict: Option<String> = None;
         let todo: Vec<usize> = (0..self.boards[idx].instances.len())
             .filter(|i| {
                 let (ipc, variant, inst) = &self.boards[idx].instances[*i];
@@ -673,269 +1190,36 @@ impl Runner for SweepRunner<'_> {
             })
             .collect();
 
-        for i in todo {
-            if self.stop || exec::interrupted() {
-                self.stop = true;
-                break;
-            }
-            // Admission (R2.2): SUSPENDED always waits; POLITE starts the run
-            // demoted to the background band unless the operator asked for
-            // FULL only. The watcher thread owns the throttle and publishes
-            // the level; nothing about the box's judgement moves with the
-            // clock -- a Time Machine run at 3am depresses coverage exactly
-            // as much as one at 3pm.
-            loop {
-                let level = self.shared.level();
-                let wait = level == Level::Suspended
-                    || (level != Level::Full && (self.quiet_only || !self.admit_below_full));
-                if !wait || exec::interrupted() {
-                    break;
-                }
-                std::thread::sleep(Duration::from_secs(5));
-            }
-            if exec::interrupted() {
-                self.stop = true;
-                break;
-            }
-            // The pre-database rule (--no-db) still judges from a sample pair.
-            let dirty_now = match &self.db {
-                None => !self.sample().is_clean(),
-                Some(_) => self.shared.level() != Level::Full,
-            };
-            let (tx, rx) = mpsc::channel::<Ctl>();
-            self.shared.attach(tx);
-            if let Some(p) = &self.progress {
-                let mut g = p.lock().unwrap();
-                g.running = Some(Running {
-                    board: idx,
-                    inst: i,
-                    pid: None,
-                    started: Instant::now(),
-                    budget: Duration::from_secs(cfg.timeout_secs),
-                });
-            }
-            self.progress_cell(idx, i, |c| c.cell = crate::tui::app::Cell::Running);
-
-            let (ipc, variant, inst) = self.boards[idx].instances[i].clone();
-            let key = instance_key(&ipc, &variant, &inst.label);
-
-            // The live-child record goes to disk the moment the child exists:
-            // a `kill -9` of this process between here and the run's end
-            // leaves a row the next startup reaps by identity, instead of a
-            // planner nobody owns burning a core until the wall.
-            let register = |pid: Pid, at: f64| {
-                if let Some(p) = &self.progress {
-                    if let Some(r) = p.lock().unwrap().running.as_mut() {
-                        r.pid = Some(pid);
-                    }
-                }
-                let Some(ctx) = &self.db else {
-                    return;
-                };
-                let Some(id) = self.plat.proc_identity(pid) else {
-                    return;
-                };
-                // The identity is the KERNEL's reading of the process, both
-                // halves -- never the path this process configured. The
-                // kernel canonicalises (`/var` is `/private/var` on Darwin),
-                // and a reaper comparing a configured path against a live
-                // one would spare every orphan as a stranger.
-                let child = db::LiveChild {
-                    pid,
-                    pgid: pid,
-                    run_id: None,
-                    binary_path: id.path.clone(),
-                    proc_start_tvsec: id.start_tvsec,
-                    spawned_at: at,
-                    stopped: false,
-                };
-                if let Err(e) = ctx.db.writer().child_spawned(child) {
-                    eprintln!("!! could not register child {pid}: {e}");
-                }
-            };
-            let m = crucible_core::sweep::measure(
-                &self.engine,
-                &cfg,
-                &ipc,
-                &variant,
-                &inst,
-                self.val.as_deref(),
-                &plan_dir,
-                &self.plat,
-                &rx,
-                self.db.as_ref().map(|_| &register as &dyn Fn(Pid, f64)),
+        // THE CASCADE (decision 2026-09-05): what the predecessor solved fast
+        // runs packed as wide as the cores and the memory allow; a packed
+        // miss falls to the narrow batch; a narrow miss runs solo. All in
+        // this pass, so packing can only ever cost time.
+        let (wide, mut narrow, mut solo) = self.classify(idx, &cfg, &todo);
+        let mut stats = PassStats::default();
+        let wide_w = self.batch_width(idx, &cfg, &wide, self.pack.width);
+        if !wide.is_empty() {
+            crate::say!(
+                "   {:<22} packed: {} wide x{}, {} narrow, {} solo",
+                self.boards[idx].spec.id,
+                wide.len(),
+                wide_w,
+                narrow.len(),
+                solo.len()
             );
-            ran += 1;
-            self.shared.detach();
-            if let Some(p) = &self.progress {
-                p.lock().unwrap().running = None;
-            }
-
-            if m.cancelled {
-                // An interrupted run is not a measurement. The live-child row
-                // is closed; no run row is written (the runner "died
-                // mid-instance", which is what `abandoned` means).
-                if let (Some(ctx), Some(pid)) = (&self.db, m.pid) {
-                    let _ = ctx.db.writer().child_gone(pid);
-                }
-                crate::say!("   interrupted mid-instance ({key}); the row is not written");
-                self.stop = true;
-                break;
-            }
-
-            let clean = match &self.db {
-                None => {
-                    // The pre-database rule, kept bit for bit under --no-db:
-                    // a before/after pair, and nothing in between.
-                    let after = self.sample();
-                    !dirty_now && after.is_clean() && m.clock_jump.is_zero()
-                }
-                Some(ctx) => {
-                    let w = ctx.db.writer();
-                    if let Some(pid) = m.pid {
-                        let _ = w.child_gone(pid);
-                    }
-                    let (bid, eid) = self.boards[idx]
-                        .ids
-                        .expect("a board with a database has resolved ids");
-                    let attempt = ctx
-                        .reader
-                        .next_attempt(bid, eid, Some(&ipc), &variant, &inst.label)
-                        .unwrap_or(1);
-                    let mut rec = db::RunRecord {
-                        board: self.boards[idx].key.clone(),
-                        board_facts: self.boards[idx].facts.clone(),
-                        engine: ctx.engine.clone(),
-                        engine_facts: ctx.engine_facts.clone(),
-                        attempt,
-                        state: db::RunState::Done,
-                        timing: db::TimingQuality::Unknown,
-                        banked: false,
-                        verdict: None,
-                        val_reason: m.val_reason.and_then(db::ValReason::parse),
-                        row: m.row.clone(),
-                        measured: db::Measured {
-                            started_at: m.row.start_ts,
-                            finished_at: m.row.end_ts,
-                            wall_ms: Some(m.wall.as_millis() as u64),
-                            cpu_ms: Some(m.cpu_ms),
-                            cpu_instrument: m.cpu_instrument.map(str::to_string),
-                            suspended_ms: Some(m.suspended.as_millis() as u64),
-                            peak_rss: Some(m.peak_rss),
-                            mem_instrument: Some(m.mem_instrument.to_string()),
-                            exit_code: m.exit_code,
-                            term_signal: m.term_signal,
-                            pid: m.pid,
-                            pgid: m.pgid,
-                        },
-                    };
-                    // THE RECEIPT. Committed before the verdict is asked for,
-                    // in its own transaction, and this call waits for it.
-                    if let Err(e) = w.run(rec.clone()) {
-                        eprintln!("!! could not commit {key}: {e}");
-                    }
-                    // The verdict: every watcher sample within one interval of
-                    // the run's window under the clean line, and at least one
-                    // of them. Flush first -- the watcher's samples are batched
-                    // and the reader is a separate connection.
-                    let _ = w.flush();
-                    let gate = match (m.row.start_ts, m.row.end_ts) {
-                        (Some(s), Some(e)) => ctx
-                            .reader
-                            .window_gate(s, e, ctx.interval, None)
-                            .unwrap_or(db::Cleanliness::Uncovered),
-                        _ => db::Cleanliness::Uncovered,
-                    };
-                    // THE R2 REFEREE (sched::referee): the row is judged by
-                    // what the kernel says about ITS process. The box-wide
-                    // window still decides threads > 1 and the timing quality.
-                    let swap = match (m.row.start_ts, m.row.end_ts) {
-                        (Some(st), Some(en)) => {
-                            ctx.reader.swap_growth_between(st, en).ok().flatten()
-                        }
-                        _ => None,
-                    };
-                    let clock_factor = match (m.row.start_ts, m.row.end_ts) {
-                        (Some(st), Some(en)) => {
-                            ctx.reader.canary_max_between(st, en).ok().flatten()
-                        }
-                        _ => None,
-                    };
-                    let facts = referee::Facts {
-                        solved: m.row.solved,
-                        threads: cfg.threads,
-                        cpu_instrument: m.cpu_instrument.map(str::to_string),
-                        cpu_ms: m.cpu_ms,
-                        effective_ms: m.wall.saturating_sub(m.suspended).as_millis() as u64,
-                        clock_jump: !m.clock_jump.is_zero(),
-                        window: gate,
-                        swap_growth_mb: swap,
-                        clock_factor,
-                        neighbours: 0,
-                    };
-                    let verdict = referee::judge(&self.rule, &facts);
-                    rec.timing = referee::timing(&facts);
-                    rec.banked = verdict.banked();
-                    rec.verdict = Some(verdict.as_str().to_string());
-                    last_verdict = Some(verdict.as_str().to_string());
-                    *tally.entry(verdict.as_str()).or_default() += 1;
-                    if let Err(e) = w.run(rec) {
-                        eprintln!("!! could not record the verdict for {key}: {e}");
-                    }
-                    // An owed row that is not the box's fault is the runner's
-                    // problem, and the pass must not read as merely contended.
-                    if !verdict.banked() && !verdict.box_fault() {
-                        all_dirty = false;
-                    }
-                    verdict.banked()
-                }
-            };
-
-            {
-                let solved = m.row.solved;
-                let rejected = m.row.val == Some(false);
-                let secs = m.row.time.as_ref().and_then(|t| t.as_f64());
-                let rho = m.cpu_instrument.map(|_| {
-                    m.cpu_ms as f64 / m.wall.saturating_sub(m.suspended).as_millis().max(1) as f64
-                });
-                let verdict = last_verdict.take();
-                self.progress_cell(idx, i, |c| {
-                    use crate::tui::app::Cell;
-                    c.this_solved = Some(solved);
-                    c.this_secs = secs;
-                    c.rho = rho;
-                    c.attempt += 1;
-                    c.cell = match (solved, clean) {
-                        _ if rejected => Cell::Error,
-                        (true, _) => Cell::SolvedClean,
-                        (false, true) => Cell::TimeoutBanked,
-                        (false, false) => Cell::Owed,
-                    };
-                    if let Some(v) = verdict {
-                        c.verdict = Some(v);
-                    }
-                });
-                if clean {
-                    if let Some(p) = &self.progress {
-                        p.lock().unwrap().banked_at.push(Instant::now());
-                    }
-                }
-            }
-            // The row is KEPT either way -- nothing is discarded for
-            // contention. It just does not count toward banking.
-            if clean {
-                self.boards[idx].banked.insert(key.clone());
-                banked += 1;
-                all_dirty = false;
-            }
-            // Written either way. The board is not banked, but the work is
-            // not lost -- and a later clean row supersedes this one under the
-            // same key.
-            self.boards[idx].rows.insert(key, m.row);
         }
+        let missed = self.run_batch(idx, &cfg, &plan_dir, wide, wide_w, &mut stats);
+        narrow.extend(missed);
+        let narrow_w = self.batch_width(idx, &cfg, &narrow, self.pack.narrow_width);
+        let missed = self.run_batch(idx, &cfg, &plan_dir, narrow, narrow_w, &mut stats);
+        solo.extend(missed);
+        let _ = self.run_batch(idx, &cfg, &plan_dir, solo, 1, &mut stats);
 
-        if !tally.is_empty() {
-            let line: Vec<String> = tally.iter().map(|(k, v)| format!("{k} {v}")).collect();
+        if !stats.tally.is_empty() {
+            let line: Vec<String> = stats
+                .tally
+                .iter()
+                .map(|(k, v)| format!("{k} {v}"))
+                .collect();
             crate::say!(
                 "   {:<22} verdicts: {}",
                 self.boards[idx].spec.id,
@@ -945,12 +1229,12 @@ impl Runner for SweepRunner<'_> {
         if let Err(e) = self.write_artifacts(idx) {
             eprintln!("!! could not write {}: {e}", self.boards[idx].spec.id);
         }
-        self.record_pass(idx, ran, pass_started);
+        self.record_pass(idx, stats.ran, pass_started);
 
         Attempt {
-            banked,
+            banked: stats.banked,
             remaining: self.boards[idx].remaining(),
-            dirty: all_dirty && banked == 0,
+            dirty: stats.all_dirty && stats.banked == 0,
         }
     }
 
@@ -1061,7 +1345,8 @@ pub struct Opts<'a> {
 #[derive(Default)]
 pub struct Progress {
     pub boards: Vec<crate::tui::app::BoardRow>,
-    pub running: Option<Running>,
+    /// Every run in flight, one per worker slot.
+    pub running: Vec<Running>,
     pub db_path: Option<PathBuf>,
     pub engine_ver: String,
     pub engine_hash: String,
@@ -1074,6 +1359,7 @@ pub struct Progress {
 }
 
 pub struct Running {
+    pub slot: usize,
     pub board: usize,
     pub inst: usize,
     pub pid: Option<Pid>,
@@ -1091,7 +1377,10 @@ pub type ProgressHandle = Arc<Mutex<Progress>>;
 /// sender, kept.
 pub struct Shared {
     level: Mutex<(Level, Option<String>)>,
-    child: Mutex<Option<mpsc::Sender<Ctl>>>,
+    /// Every running child's control channel, by attachment id. A throttle
+    /// transition or a canary pause reaches all of them.
+    children: Mutex<Vec<(u64, mpsc::Sender<Ctl>)>>,
+    next_id: std::sync::atomic::AtomicU64,
     /// The canary's latest clock factor and when it was read.
     canary: Mutex<Option<(f64, Instant)>>,
 }
@@ -1100,9 +1389,15 @@ impl Shared {
     pub fn new() -> Arc<Shared> {
         Arc::new(Shared {
             level: Mutex::new((Level::Full, None)),
-            child: Mutex::new(None),
+            children: Mutex::new(Vec::new()),
+            next_id: std::sync::atomic::AtomicU64::new(1),
             canary: Mutex::new(None),
         })
+    }
+
+    /// How many of our own planners are attached right now.
+    pub fn attached(&self) -> usize {
+        self.children.lock().unwrap().len()
     }
 
     pub fn canary(&self) -> Option<f64> {
@@ -1128,19 +1423,22 @@ impl Shared {
     /// Register the running child's channel. A child that starts while the
     /// box is already POLITE is told so at once, rather than at the next
     /// transition.
-    pub fn attach(&self, tx: mpsc::Sender<Ctl>) {
+    pub fn attach(&self, tx: mpsc::Sender<Ctl>) -> u64 {
         for c in ctl_for(Level::Full, self.level()) {
             let _ = tx.send(c);
         }
-        *self.child.lock().unwrap() = Some(tx);
+        let id = self.next_id.fetch_add(1, Ordering::Relaxed);
+        self.children.lock().unwrap().push((id, tx));
+        id
     }
 
-    pub fn detach(&self) {
-        *self.child.lock().unwrap() = None;
+    pub fn detach(&self, id: u64) {
+        self.children.lock().unwrap().retain(|(i, _)| *i != id);
     }
 
+    /// To every attached child.
     pub fn send(&self, c: Ctl) {
-        if let Some(tx) = &*self.child.lock().unwrap() {
+        for (_, tx) in self.children.lock().unwrap().iter() {
             let _ = tx.send(c);
         }
     }
@@ -1362,7 +1660,7 @@ impl Watcher {
                             // calibration's +23 % for a single neighbour),
                             // beside an mco board's eight threads 1.42x.
                             // Suspended time is not charged to the run.
-                            let pause = shared.level() != Level::Suspended;
+                            let pause = shared.attached() > 0 && shared.level() != Level::Suspended;
                             if pause {
                                 shared.send(Ctl::Stop);
                                 std::thread::sleep(Duration::from_millis(400));
@@ -1759,6 +2057,12 @@ fn sweep_body(
             },
             admit_below_full: cfg.referee.admit_below_full,
             progress: progress.clone(),
+            // --quiet-only is the R1 shape: one at a time, FULL only.
+            pack: if quiet_only {
+                Pack::solo()
+            } else {
+                Pack::from_config(&cfg.scheduler)
+            },
             capable: &|m| engine.supports_mode(m),
             db: dbctx,
             stage,
@@ -1879,12 +2183,24 @@ mod r2_tests {
         let shared = Shared::new();
         shared.set_level(Level::Polite, Some("test".into()));
         let (tx, rx) = mpsc::channel();
-        shared.attach(tx);
+        let id = shared.attach(tx);
         assert_eq!(rx.try_recv(), Ok(Ctl::Demote));
+        let (tx2, rx2) = mpsc::channel();
+        let id2 = shared.attach(tx2);
+        assert_eq!(rx2.try_recv(), Ok(Ctl::Demote));
         shared.send(Ctl::Stop);
         assert_eq!(rx.try_recv(), Ok(Ctl::Stop));
-        shared.detach();
+        assert_eq!(
+            rx2.try_recv(),
+            Ok(Ctl::Stop),
+            "a transition reaches every child"
+        );
+        assert_eq!(shared.attached(), 2);
+        shared.detach(id);
         shared.send(Ctl::Cont);
         assert!(rx.try_recv().is_err());
+        assert_eq!(rx2.try_recv(), Ok(Ctl::Cont));
+        shared.detach(id2);
+        assert_eq!(shared.attached(), 0);
     }
 }

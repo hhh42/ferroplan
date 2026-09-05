@@ -69,8 +69,9 @@ impl Feed {
             (
                 g.boards.clone(),
                 g.running
-                    .as_ref()
-                    .map(|r| (r.board, r.inst, r.pid, r.started, r.budget)),
+                    .iter()
+                    .map(|r| (r.slot, r.board, r.inst, r.pid, r.started, r.budget))
+                    .collect::<Vec<_>>(),
                 g.engine_ver.clone(),
                 g.engine_hash.clone(),
                 g.started,
@@ -86,30 +87,43 @@ impl Feed {
         let reason = self.shared.reason();
         let suspended = level == CoreLevel::Suspended;
 
-        // The slot: the run in flight, with what the kernel says about it.
-        let slot_run = running.map(|(b, i, pid, at, budget)| {
-            let (variant, instance) = boards
-                .get(b)
-                .and_then(|br| br.cells.get(i))
-                .map(|c| (c.variant.clone(), c.label.clone()))
-                .unwrap_or_default();
-            let effective = at.elapsed();
-            let cpu_ms = pid.and_then(|p| self.plat.cpu_ms(p));
-            let rss = pid.and_then(|p| self.plat.rss_bytes(p));
-            SlotRun {
-                board: boards.get(b).map(|br| br.id.clone()).unwrap_or_default(),
-                variant,
-                instance,
-                effective,
-                suspended,
-                budget,
-                rho: cpu_ms
-                    .filter(|_| effective.as_millis() > 500)
-                    .map(|c| c as f64 / effective.as_millis().max(1) as f64),
-                rss_mb: rss.map(|r| r as f64 / 1048576.0),
-                last_stderr: None,
-            }
-        });
+        // The slots: every run in flight, with what the kernel says about it.
+        let mut slots: Vec<Slot> = running
+            .into_iter()
+            .map(|(slot, b, i, pid, at, budget)| {
+                let (variant, instance) = boards
+                    .get(b)
+                    .and_then(|br| br.cells.get(i))
+                    .map(|c| (c.variant.clone(), c.label.clone()))
+                    .unwrap_or_default();
+                let effective = at.elapsed();
+                let cpu_ms = pid.and_then(|p| self.plat.cpu_ms(p));
+                let rss = pid.and_then(|p| self.plat.rss_bytes(p));
+                Slot {
+                    index: slot,
+                    what: Some(SlotRun {
+                        board: boards.get(b).map(|br| br.id.clone()).unwrap_or_default(),
+                        variant,
+                        instance,
+                        effective,
+                        suspended,
+                        budget,
+                        rho: cpu_ms
+                            .filter(|_| effective.as_millis() > 500)
+                            .map(|c| c as f64 / effective.as_millis().max(1) as f64),
+                        rss_mb: rss.map(|r| r as f64 / 1048576.0),
+                        last_stderr: None,
+                    }),
+                }
+            })
+            .collect();
+        slots.sort_by_key(|s| s.index);
+        if slots.is_empty() {
+            slots.push(Slot {
+                index: 0,
+                what: None,
+            });
+        }
 
         // Throughput: banked per minute over the last half hour, in 2-minute
         // buckets, most recent last.
@@ -201,10 +215,7 @@ impl Feed {
                 ..Default::default()
             },
             boards,
-            slots: vec![Slot {
-                index: 0,
-                what: slot_run,
-            }],
+            slots,
             p_cores: self.p_cores,
             log: crate::out::recent(200)
                 .into_iter()

@@ -281,6 +281,21 @@ that were nothing of the sort. The watcher now pauses the running child
 (`Ctl::Stop`, 400 ms, the reading, `Ctl::Cont`) for the canary's two
 seconds; suspended time is not charged to the run.
 
+**Decided 2026-09-05 — the packed scheduler, for coverage.** The 0.c
+calibration stands as a TIMING result: beside neighbours a solve is
+slower, and its time is not a measurement. The operator's point is that
+for an instance the predecessor solved, timing is not the question --
+whether it still solves is -- so those run packed as wide as the cores
+and the memory allow, and the referee's rule for a packed row is: a solve
+banks (timing dirty, `neighbours` on the row, schema v7), a miss is
+nobody's verdict (`packed`) and is re-run narrower, then solo, in the
+same pass. The cascade per board: prior solves under 50 % of budget at
+`pack_width` (default every logical core, memory-bounded by the batch's
+largest prior peak RSS with headroom), prior solves under 85 % at
+`pack_narrow_width` (2), everything else -- prior timeouts, this sweep's
+own misses, `threads > 1` -- solo. Packing can waste time; it cannot lose
+a row. `--quiet-only` restores the R1 shape.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**

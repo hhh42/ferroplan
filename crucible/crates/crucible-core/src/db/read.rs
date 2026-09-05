@@ -360,6 +360,24 @@ impl Reader {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// The most memory this box has ever seen the instance take, on any
+    /// engine, from the supervisor's RSS watchdog. Sizes a packed batch.
+    pub fn prior_peak_rss(&self, variant: &str, label: &str) -> Result<Option<u64>, DbError> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT MAX(r.peak_rss) FROM run r
+                   JOIN instance i ON i.id = r.instance_id
+                   JOIN variant  v ON v.id = i.variant_id
+                  WHERE v.name = ?1 AND i.label = ?2 AND r.state = 'done'",
+                params![variant, label],
+                |r| r.get::<_, Option<i64>>(0),
+            )
+            .optional()?
+            .flatten()
+            .map(|v| v as u64))
+    }
+
     /// The fastest this box has ever run the canary instance, solo.
     pub fn canary_best(&self, label: &str) -> Result<Option<f64>, DbError> {
         Ok(self
