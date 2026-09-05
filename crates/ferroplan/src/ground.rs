@@ -3094,12 +3094,17 @@ fn ground_v(
         );
     }
 
+    let pre_pos = pre_pos.finish();
+    let (succ_by_fact, succ_always) =
+        crate::packed::build_succ(&pre_pos, n_facts_packed, n_reach_actions);
     Outcome::Task(PackedTask {
         n_facts: n_facts_packed,
         words,
         n_ops: n_reach_actions,
         op_display: op_display.into(),
-        pre_pos: pre_pos.finish(),
+        pre_pos,
+        succ_by_fact,
+        succ_always: succ_always.into(),
         add: add.finish(),
         del: del.finish(),
         pre_num: pre_num.finish(),

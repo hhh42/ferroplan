@@ -44,6 +44,31 @@ table.
      expectation is +10–30 rows on the ramps, and it compounds every
      later lever. The calibration stands: 2× engine speed at the 60 s
      wall ≈ +4/140 on the 2023 cliffs — speed is not what THOSE need.
+  **Recorded 2026-09-05 — the lane's first sitting, on the record's own
+  receipts.** Baselines (the 0.26 engine, `FF_RES_DEBUG`, 60 s solo):
+  labyrinth-agile i1 (78k ops, 786 facts) spends 18 of 21 s of best-first
+  in h — the relaxed-graph BUILD is 41 s cumulative against 1.4 s of
+  extraction; parking-2014 i5 (63k ops) build 50 s; markettrader i1
+  (71 ops) splits h 7.6 / expand 4.2 / insert 7.1 of 19.5 s. Two builds,
+  measured back to back against the pre-change engine on a quiet box:
+  - **The anchored successor generator** (`PackedTask::applicable_ops`:
+    each op anchored at its rarest positive precondition, candidates
+    gathered from the state's true facts, sorted into the scan's order so
+    search is byte-identical) — expansion per evaluation labyrinth 234 →
+    34 µs (7×), parking 258 → 21 µs (12×), markettrader 10 → 5.6 µs.
+    **Ships**, wired into the classical, LAMA and novelty rungs.
+  - **The counter-based relaxed-graph build** (reached facts decrement
+    the ops that need them; no per-layer scan) — build per evaluation
+    labyrinth 1.78 → 2.02 ms, parking 0.92 → 0.96. The 2026-07-19 note in
+    `build_rpg` said the scan is not the term because nearly every op
+    fires; it is true on 78k ops too. **Recorded negative, removed.**
+  - `apply()` gains an allocation-free path for ops with no conditional
+    and no numeric effects (four temporaries per successor otherwise).
+  What is left on these boards is the relaxation floor itself:
+  ~1.7–2 ms per evaluation at 60–80k ops, proportional to the effects the
+  fired ops carry. Moving it means firing fewer ops (relevance) or
+  evaluating fewer states, not a faster scan.
+
 - **Riders, already priced, unbuilt:** the 0.26 Phase 0 proof-gap bands
   (onlycraft's numeric-bound ceiling +1–2, barman/parking +4–6/+2–3,
   CEGAR seeding +4–9 at 300 s).

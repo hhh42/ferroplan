@@ -1034,11 +1034,14 @@ pub fn search_from(
             par::par_map(&live, threads, |&(ni, ph, helpful)| {
                 let st = &nodes[ni].state;
                 let mut v = Vec::new();
-                for oi in 0..task.n_ops {
+                let mut cands = Vec::new();
+                task.applicable_ops(st, &mut cands);
+                for &oi in &cands {
+                    let oi = oi as usize;
                     if forbidden.get(oi).copied().unwrap_or(false) {
                         continue;
                     }
-                    if task.op_applicable(oi, st) {
+                    {
                         let ns = task.apply(oi, st);
                         if let Some(cf) = cost_fluent {
                             if ns.fdef[cf] && ns.fv[cf] >= cost_bound {

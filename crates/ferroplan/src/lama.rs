@@ -339,11 +339,14 @@ pub fn search_subgoal(
             par::par_map(&live, threads, |&(ni, ph, helpful)| {
                 let st = &nodes[ni].state;
                 let mut v = Vec::new();
-                for oi in 0..task.n_ops {
+                let mut cands = Vec::new();
+                task.applicable_ops(st, &mut cands);
+                for &oi in &cands {
+                    let oi = oi as usize;
                     if forbidden.get(oi).copied().unwrap_or(false) {
                         continue;
                     }
-                    if task.op_applicable(oi, st) {
+                    {
                         let ns = task.apply(oi, st);
                         let k = task.state_key_hash(&ns, None);
                         let pref = helpful.contains(&(oi as u32));

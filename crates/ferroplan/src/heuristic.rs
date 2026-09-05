@@ -361,7 +361,10 @@ fn build_rpg(
     // per reached fact — was implemented and measured EQUIVALENT on
     // transport11: identical 20,126 evals, h wall 12.85 s vs 12.83 s. The
     // per-eval cost is the relaxation FLOOR — nearly every op fires in every
-    // build — so the scan is not the term; recorded 2026-07-19, not shipped.)
+    // build — so the scan is not the term; recorded 2026-07-19, not shipped.
+    // Re-measured 2026-09-05 on the big groundings the 0.27 speed lane was
+    // after — labyrinth-agile i1 (78k ops) build 1.78 → 2.02 ms/eval,
+    // parking-2014 i5 (63k ops) 0.92 → 0.96 — same verdict, removed again.)
     let mut layer: u32 = 0;
     loop {
         if !to_fixpoint && goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {

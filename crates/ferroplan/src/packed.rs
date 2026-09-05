@@ -78,6 +78,32 @@ impl<T> CsrBuilder<T> {
     }
 }
 
+/// Build the successor generator's index from the positive preconditions:
+/// each op anchored at its rarest precondition fact (ties to the smallest
+/// fact id), ops without one in the always-list.
+pub fn build_succ(pre_pos: &Csr<u32>, n_facts: usize, n_ops: usize) -> (Csr<u32>, Vec<u32>) {
+    let mut uses = vec![0u32; n_facts];
+    for oi in 0..n_ops {
+        for &f in pre_pos.slice(oi) {
+            uses[f as usize] += 1;
+        }
+    }
+    let mut anchored: Vec<Vec<u32>> = vec![Vec::new(); n_facts];
+    let mut always = Vec::new();
+    for oi in 0..n_ops {
+        let pre = pre_pos.slice(oi);
+        match pre.iter().copied().min_by_key(|&f| (uses[f as usize], f)) {
+            Some(f) => anchored[f as usize].push(oi as u32),
+            None => always.push(oi as u32),
+        }
+    }
+    let mut b = CsrBuilder::new();
+    for row in anchored {
+        b.push_row(row);
+    }
+    (b.finish(), always)
+}
+
 /// The grounded planning task in data-oriented form.
 ///
 /// `Clone` is CHEAP by design (0.13 Phase 2): the grounded payload — operator
@@ -95,6 +121,18 @@ pub struct PackedTask {
     pub op_display: Arc<[String]>,
 
     pub pre_pos: Csr<u32>,
+    /// THE SUCCESSOR GENERATOR (0.27, the per-evaluation-cost lane). Every
+    /// op is anchored at ONE of its positive preconditions -- the fact that
+    /// anchors the fewest ops, so the candidate lists stay short -- and
+    /// `succ_by_fact.slice(f)` is the ops anchored at `f`. An op with no
+    /// positive precondition lives in `succ_always`. Applicability is then
+    /// a walk over the state's TRUE facts rather than over every grounded
+    /// op: the expansion loops used to test all `n_ops` per node, which on
+    /// a 61k-op grounding is the wall (driver-log-2014 at 1k evals/s).
+    /// Exact, and order-preserving: `applicable_ops` returns the same ops
+    /// the linear scan did, in the same order, so search is byte-identical.
+    pub succ_by_fact: Csr<u32>,
+    pub succ_always: Arc<[u32]>,
     pub add: Csr<u32>,
     pub del: Csr<u32>,
     pub pre_num: Csr<NumPre>,
@@ -181,6 +219,29 @@ pub struct PackedTask {
 
 impl PackedTask {
     #[inline]
+    /// The ops applicable in `s`, ascending by op index -- exactly what
+    /// `(0..n_ops).filter(|oi| op_applicable(oi, s))` yields, found through
+    /// the anchor index instead of a full scan. `out` is cleared first.
+    pub fn applicable_ops(&self, s: &State, out: &mut Vec<u32>) {
+        out.clear();
+        out.extend_from_slice(&self.succ_always);
+        for (wi, &w) in s.bits.iter().enumerate() {
+            let mut bits = w;
+            while bits != 0 {
+                let b = bits.trailing_zeros() as usize;
+                bits &= bits - 1;
+                let f = wi * 64 + b;
+                if f < self.n_facts {
+                    out.extend_from_slice(self.succ_by_fact.slice(f));
+                }
+            }
+        }
+        // Each op is anchored once, so there are no duplicates; the sort
+        // restores the op-index order the linear scan produced.
+        out.sort_unstable();
+        out.retain(|&oi| self.op_applicable(oi as usize, s));
+    }
+
     pub fn op_applicable(&self, oi: usize, s: &State) -> bool {
         self.pre_pos
             .slice(oi)
@@ -241,6 +302,19 @@ impl PackedTask {
     /// adds so add wins on conflict; numeric deltas summed from the source).
     pub fn apply(&self, oi: usize, s: &State) -> State {
         let mut ns = s.clone();
+        // The common op has no conditional and no numeric effects: dels then
+        // adds, and none of the four temporaries the general path builds
+        // (0.27, the per-evaluation-cost lane -- this runs once per
+        // successor, and `insert` was a third of a best-first wall).
+        if self.n_cond_effs(oi) == 0 && self.num_eff.slice(oi).is_empty() {
+            for &f in self.del.slice(oi) {
+                bitset::clear(&mut ns.bits, f as usize);
+            }
+            for &f in self.add.slice(oi) {
+                bitset::set(&mut ns.bits, f as usize);
+            }
+            return ns;
+        }
         let conds: Vec<&CondEff> = self.cond_effs(oi).collect();
         let firing: Vec<bool> = conds.iter().map(|ce| self.cond_holds(ce, s)).collect();
 
@@ -454,4 +528,87 @@ pub struct State {
 pub struct StateKey {
     pub bits: Vec<u64>,
     pub vals: Vec<i64>,
+}
+
+#[cfg(test)]
+mod succ_tests {
+    use super::*;
+
+    fn task(dom: &str, prb: &str) -> PackedTask {
+        let d = crate::parser::parse_domain(dom).unwrap();
+        let p = crate::parser::parse_problem(prb).unwrap();
+        crate::ground::ground_task(&d, &p, 1).unwrap()
+    }
+
+    fn linear(task: &PackedTask, s: &State) -> Vec<u32> {
+        (0..task.n_ops)
+            .filter(|&oi| task.op_applicable(oi, s))
+            .map(|oi| oi as u32)
+            .collect()
+    }
+
+    /// The generator returns exactly the linear scan's ops, in its order,
+    /// on the initial state and on every state one step out -- including
+    /// an op with no positive precondition, which lives in the always-list.
+    #[test]
+    fn the_generator_agrees_with_the_linear_scan_everywhere_it_is_asked() {
+        let t = task(
+            "(define (domain g) (:requirements :typing)
+               (:types loc obj)
+               (:predicates (at ?o - obj ?l - loc) (free ?l - loc) (tick))
+               (:action move :parameters (?o - obj ?a ?b - loc)
+                 :precondition (and (at ?o ?a) (free ?b))
+                 :effect (and (not (at ?o ?a)) (at ?o ?b) (free ?a) (not (free ?b))))
+               (:action wait :parameters () :precondition () :effect (tick))
+               (:action unwait :parameters () :precondition (tick) :effect (not (tick))))",
+            "(define (problem g1) (:domain g)
+               (:objects a b c - loc x y - obj)
+               (:init (at x a) (at y b) (free c))
+               (:goal (and (at x c) (tick))))",
+        );
+        assert!(t.n_ops >= 5, "{} ops", t.n_ops);
+        assert!(
+            !t.succ_always.is_empty(),
+            "wait has no positive precondition"
+        );
+        let init = t.initial();
+        let mut out = Vec::new();
+        t.applicable_ops(&init, &mut out);
+        assert_eq!(out, linear(&t, &init));
+        assert!(!out.is_empty());
+        for &oi in &out.clone() {
+            let ns = t.apply(oi as usize, &init);
+            t.applicable_ops(&ns, &mut out);
+            assert_eq!(out, linear(&t, &ns), "after op {oi}");
+            for &oj in &out.clone() {
+                let ns2 = t.apply(oj as usize, &ns);
+                t.applicable_ops(&ns2, &mut out);
+                assert_eq!(out, linear(&t, &ns2), "after ops {oi},{oj}");
+            }
+        }
+    }
+
+    /// Every op is anchored exactly once, at a fact among its preconditions.
+    #[test]
+    fn every_op_is_anchored_once() {
+        let t = task(
+            "(define (domain a) (:predicates (p) (q) (r))
+               (:action x :precondition (and (p) (q)) :effect (r))
+               (:action y :precondition (q) :effect (p))
+               (:action z :precondition () :effect (q)))",
+            "(define (problem a1) (:domain a) (:init (p)) (:goal (r)))",
+        );
+        let mut seen = vec![0u32; t.n_ops];
+        for f in 0..t.n_facts {
+            for &oi in t.succ_by_fact.slice(f) {
+                assert!(t.pre_pos.slice(oi as usize).contains(&(f as u32)));
+                seen[oi as usize] += 1;
+            }
+        }
+        for &oi in t.succ_always.iter() {
+            assert!(t.pre_pos.slice(oi as usize).is_empty());
+            seen[oi as usize] += 1;
+        }
+        assert!(seen.iter().all(|&n| n == 1), "{seen:?}");
+    }
 }
