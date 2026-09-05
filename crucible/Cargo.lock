@@ -304,6 +304,7 @@ dependencies = [
  "crossterm",
  "crucible-core",
  "crucible-publish",
+ "libc",
  "ratatui",
  "serde",
  "serde_json",

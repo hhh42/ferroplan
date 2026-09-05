@@ -11,6 +11,7 @@ name = "crucible"
 path = "src/main.rs"
 
 [dependencies]
+libc = "0.2"
 crucible-core = { path = "../crucible-core" }
 crucible-publish = { path = "../crucible-publish" }
 serde = { workspace = true }

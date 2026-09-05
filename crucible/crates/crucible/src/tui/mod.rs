@@ -12,7 +12,9 @@
 
 pub mod app;
 pub mod banner;
+pub mod demo;
 pub mod draw;
+pub mod feed;
 pub mod run;
 pub mod theme;
 pub mod widget;

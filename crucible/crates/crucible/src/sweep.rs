@@ -88,6 +88,26 @@ impl Board {
     }
 }
 
+/// The predecessor's rows for a board: `variant/label -> (solved, secs)` from
+/// the promoted raw under `benchmarks/`. Empty when there is none.
+fn prior_rows(repo: &Path, raw: &str) -> std::collections::BTreeMap<String, (bool, Option<f64>)> {
+    let mut out = std::collections::BTreeMap::new();
+    let path = repo.join("benchmarks").join(raw);
+    let Ok(src) = std::fs::read_to_string(&path) else {
+        return out;
+    };
+    if let Ok(rows) = crucible_publish::parse_rows(&src, &path.display().to_string()) {
+        for r in rows {
+            let label = db::InstanceKey::of(&r.instance).label;
+            out.insert(
+                format!("{}/{label}", r.variant),
+                (r.solved, r.time.as_ref().and_then(|t| t.as_f64())),
+            );
+        }
+    }
+    out
+}
+
 /// The row's address inside a board: the same three fields `run` is keyed by.
 fn instance_key(ipc: &str, variant: &str, label: &str) -> String {
     format!("{ipc}\u{1}{variant}\u{1}{label}")
@@ -117,6 +137,8 @@ pub struct Setup<'s> {
     pub rule: referee::Rule,
     /// Start under POLITE rather than waiting for FULL (`[referee]`).
     pub admit_below_full: bool,
+    /// The dashboard's feed, when one is on screen.
+    pub progress: Option<ProgressHandle>,
     /// Whether this engine can run a given `--mode`. A board it cannot run is
     /// skipped with ZERO rows, never measured as zero coverage.
     pub capable: &'s dyn Fn(&str) -> bool,
@@ -130,6 +152,7 @@ pub struct Setup<'s> {
 
 pub struct SweepRunner<'a> {
     stage: PathBuf,
+    repo: PathBuf,
     manifest: &'a Manifest,
     engine: SweepEngine,
     val: Option<PathBuf>,
@@ -137,6 +160,7 @@ pub struct SweepRunner<'a> {
     shared: Arc<Shared>,
     rule: referee::Rule,
     admit_below_full: bool,
+    progress: Option<ProgressHandle>,
     plat: platform::Host,
     /// Set when the operator interrupts. The remaining work stays remaining --
     /// it is not failed, and the next run picks it up.
@@ -246,6 +270,7 @@ impl<'a> SweepRunner<'a> {
             shared,
             rule,
             admit_below_full,
+            progress,
             capable,
             db,
             stage,
@@ -272,7 +297,7 @@ impl<'a> SweepRunner<'a> {
             // (0.26 F6 Part 2) so it has provenance, not just an absence.
             if let Some(mode) = &b.mode {
                 if !capable(mode) {
-                    println!(
+                    crate::say!(
                         "SKIP {id}: this engine has no --mode {mode} -- \
                          feature-absent, not zero coverage"
                     );
@@ -342,6 +367,7 @@ impl<'a> SweepRunner<'a> {
 
         let mut runner = SweepRunner {
             stage: stage.unwrap_or_else(|| repo.join(&spec.stage)),
+            repo: repo.to_path_buf(),
             manifest,
             engine,
             val,
@@ -349,6 +375,7 @@ impl<'a> SweepRunner<'a> {
             shared,
             rule,
             admit_below_full,
+            progress,
             plat: platform::host(),
             stop: false,
             quiet_only,
@@ -357,7 +384,78 @@ impl<'a> SweepRunner<'a> {
             db,
         };
         runner.seed_from_db()?;
+        runner.publish_boards();
         Ok(runner)
+    }
+
+    /// Build the dashboard's board rows from what the runner knows: every
+    /// instance, its predecessor's row from the promoted raw, and the row
+    /// this sweep already holds for it.
+    fn publish_boards(&self) {
+        let Some(p) = &self.progress else {
+            return;
+        };
+        use crate::tui::app::{BoardRow, Cell, InstanceCell};
+        let mut rows = Vec::new();
+        let mut ids = Vec::new();
+        for b in &self.boards {
+            let cfg = board_cfg(self.manifest, &b.spec);
+            let prev = prior_rows(&self.repo, &b.spec.raw);
+            let cells = b
+                .instances
+                .iter()
+                .map(|(ipc, variant, inst)| {
+                    let key = instance_key(ipc, variant, &inst.label);
+                    let mut c = InstanceCell {
+                        variant: variant.clone(),
+                        label: inst.label.clone(),
+                        ..Default::default()
+                    };
+                    if let Some((solved, secs)) = prev.get(&format!("{variant}/{}", inst.label)) {
+                        c.prev_solved = Some(*solved);
+                        c.prev_secs = *secs;
+                    }
+                    if let Some(r) = b.rows.get(&key) {
+                        c.this_solved = Some(r.solved);
+                        c.this_secs = r.time.as_ref().and_then(|t| t.as_f64());
+                        let banked = b.banked.contains(&key);
+                        c.cell = match (r.solved, banked) {
+                            _ if r.val == Some(false) => Cell::Error,
+                            (true, _) => Cell::SolvedClean,
+                            (false, true) => Cell::TimeoutBanked,
+                            (false, false) => Cell::Owed,
+                        };
+                        c.attempt = 1;
+                    }
+                    c
+                })
+                .collect();
+            rows.push(BoardRow {
+                id: b.spec.id.clone(),
+                label: b.spec.label.clone(),
+                budget_secs: cfg.timeout_secs,
+                threads: cfg.threads,
+                cells,
+            });
+            ids.push(b.ids);
+        }
+        let mut g = p.lock().unwrap();
+        g.boards = rows;
+        g.ids = ids;
+    }
+
+    fn progress_cell(
+        &self,
+        idx: usize,
+        i: usize,
+        f: impl FnOnce(&mut crate::tui::app::InstanceCell),
+    ) {
+        if let Some(p) = &self.progress {
+            let mut g = p.lock().unwrap();
+            if let Some(c) = g.boards.get_mut(idx).and_then(|b| b.cells.get_mut(i)) {
+                f(c);
+            }
+        }
     }
 
     /// The restart: every row and every clean verdict the database already
@@ -415,7 +513,7 @@ impl<'a> SweepRunner<'a> {
             }
             b.reused = b.rows.len();
             if b.reused > 0 {
-                println!(
+                crate::say!(
                     "resume  {:<22} {} row(s) read back, {} banked -- {} still owed",
                     b.spec.id,
                     b.reused,
@@ -565,6 +663,7 @@ impl Runner for SweepRunner<'_> {
         let mut ran = 0usize;
         let mut all_dirty = true;
         let mut tally: std::collections::BTreeMap<&'static str, usize> = Default::default();
+        let mut last_verdict: Option<String> = None;
         let todo: Vec<usize> = (0..self.boards[idx].instances.len())
             .filter(|i| {
                 let (ipc, variant, inst) = &self.boards[idx].instances[*i];
@@ -605,6 +704,17 @@ impl Runner for SweepRunner<'_> {
             };
             let (tx, rx) = mpsc::channel::<Ctl>();
             self.shared.attach(tx);
+            if let Some(p) = &self.progress {
+                let mut g = p.lock().unwrap();
+                g.running = Some(Running {
+                    board: idx,
+                    inst: i,
+                    pid: None,
+                    started: Instant::now(),
+                    budget: Duration::from_secs(cfg.timeout_secs),
+                });
+            }
+            self.progress_cell(idx, i, |c| c.cell = crate::tui::app::Cell::Running);
 
             let (ipc, variant, inst) = self.boards[idx].instances[i].clone();
             let key = instance_key(&ipc, &variant, &inst.label);
@@ -614,6 +724,11 @@ impl Runner for SweepRunner<'_> {
             // leaves a row the next startup reaps by identity, instead of a
             // planner nobody owns burning a core until the wall.
             let register = |pid: Pid, at: f64| {
+                if let Some(p) = &self.progress {
+                    if let Some(r) = p.lock().unwrap().running.as_mut() {
+                        r.pid = Some(pid);
+                    }
+                }
                 let Some(ctx) = &self.db else {
                     return;
                 };
@@ -652,6 +767,9 @@ impl Runner for SweepRunner<'_> {
             );
             ran += 1;
             self.shared.detach();
+            if let Some(p) = &self.progress {
+                p.lock().unwrap().running = None;
+            }
 
             if m.cancelled {
                 // An interrupted run is not a measurement. The live-child row
@@ -660,7 +778,7 @@ impl Runner for SweepRunner<'_> {
                 if let (Some(ctx), Some(pid)) = (&self.db, m.pid) {
                     let _ = ctx.db.writer().child_gone(pid);
                 }
-                println!("   interrupted mid-instance ({key}); the row is not written");
+                crate::say!("   interrupted mid-instance ({key}); the row is not written");
                 self.stop = true;
                 break;
             }
@@ -759,6 +877,7 @@ impl Runner for SweepRunner<'_> {
                     rec.timing = referee::timing(&facts);
                     rec.banked = verdict.banked();
                     rec.verdict = Some(verdict.as_str().to_string());
+                    last_verdict = Some(verdict.as_str().to_string());
                     *tally.entry(verdict.as_str()).or_default() += 1;
                     if let Err(e) = w.run(rec) {
                         eprintln!("!! could not record the verdict for {key}: {e}");
@@ -772,6 +891,36 @@ impl Runner for SweepRunner<'_> {
                 }
             };
 
+            {
+                let solved = m.row.solved;
+                let rejected = m.row.val == Some(false);
+                let secs = m.row.time.as_ref().and_then(|t| t.as_f64());
+                let rho = m.cpu_instrument.map(|_| {
+                    m.cpu_ms as f64 / m.wall.saturating_sub(m.suspended).as_millis().max(1) as f64
+                });
+                let verdict = last_verdict.take();
+                self.progress_cell(idx, i, |c| {
+                    use crate::tui::app::Cell;
+                    c.this_solved = Some(solved);
+                    c.this_secs = secs;
+                    c.rho = rho;
+                    c.attempt += 1;
+                    c.cell = match (solved, clean) {
+                        _ if rejected => Cell::Error,
+                        (true, _) => Cell::SolvedClean,
+                        (false, true) => Cell::TimeoutBanked,
+                        (false, false) => Cell::Owed,
+                    };
+                    if let Some(v) = verdict {
+                        c.verdict = Some(v);
+                    }
+                });
+                if clean {
+                    if let Some(p) = &self.progress {
+                        p.lock().unwrap().banked_at.push(Instant::now());
+                    }
+                }
+            }
             // The row is KEPT either way -- nothing is discarded for
             // contention. It just does not count toward banking.
             if clean {
@@ -787,7 +936,7 @@ impl Runner for SweepRunner<'_> {
 
         if !tally.is_empty() {
             let line: Vec<String> = tally.iter().map(|(k, v)| format!("{k} {v}")).collect();
-            println!(
+            crate::say!(
                 "   {:<22} verdicts: {}",
                 self.boards[idx].spec.id,
                 line.join(", ")
@@ -818,7 +967,7 @@ impl Runner for SweepRunner<'_> {
         }
         if let Some(max) = self.max_passes {
             if self.passes >= max {
-                println!("   (--max-passes {max} reached)");
+                crate::say!("   (--max-passes {max} reached)");
                 return Next::Stop;
             }
         }
@@ -839,7 +988,7 @@ impl Runner for SweepRunner<'_> {
         match event {
             Event::PassStarted { pass, boards } => {
                 self.passes = pass;
-                println!("== pass {pass} -- {} board(s) outstanding", boards.len())
+                crate::say!("== pass {pass} -- {} board(s) outstanding", boards.len())
             }
             Event::Attempted {
                 board,
@@ -847,7 +996,7 @@ impl Runner for SweepRunner<'_> {
                 before,
                 after,
                 dirty,
-            } => println!(
+            } => crate::say!(
                 "   {board:<22} banked {banked:>4}   {before} -> {after}{}",
                 if dirty {
                     "   [DEGRADED -- not banked, work owed]"
@@ -856,26 +1005,28 @@ impl Runner for SweepRunner<'_> {
                 }
             ),
             Event::Unproductive { board, remaining } => {
-                println!("!! {board}: no progress and the box was quiet -- {remaining} still owed")
+                crate::say!(
+                    "!! {board}: no progress and the box was quiet -- {remaining} still owed"
+                )
             }
             Event::Grew {
                 board,
                 before,
                 after,
             } => {
-                println!("!! {board}: remaining GREW {before} -> {after} -- a runner bug")
+                crate::say!("!! {board}: remaining GREW {before} -> {after} -- a runner bug")
             }
             Event::Stalled {
                 consecutive,
                 backoff,
                 remaining,
-            } => println!(
+            } => crate::say!(
                 "!! stalled after {consecutive} passes; backing off {backoff:?}, {remaining} owed"
             ),
             Event::Finished { passes, banked } => {
-                println!("SWEEP COMPLETE -- {banked} banked in {passes} pass(es)")
+                crate::say!("SWEEP COMPLETE -- {banked} banked in {passes} pass(es)")
             }
-            Event::Stopped { passes, remaining } => println!(
+            Event::Stopped { passes, remaining } => crate::say!(
                 "stopped after {passes} pass(es); {remaining} still owed -- \
                  the next run picks them up"
             ),
@@ -887,6 +1038,9 @@ impl Runner for SweepRunner<'_> {
 /// How this invocation differs from a plain resident sweep.
 pub struct Opts<'a> {
     pub set: &'a str,
+    /// Print the log instead of hosting the dashboard. The default when
+    /// stdout is not a terminal.
+    pub headless: bool,
     /// Refuse unless the binary reports this. The gate every sweep driver opens
     /// with: measure the CANDIDATE, not whatever happens to be built. `None`
     /// defers to the set's own `requires_version`.
@@ -899,6 +1053,35 @@ pub struct Opts<'a> {
     /// The restore hatch: the pre-database path, bit for bit.
     pub no_db: bool,
 }
+
+/// What the sweep publishes for the dashboard: every board's cells, the
+/// run in flight, and where the database is. Written by the runner at each
+/// instance's start and end, read by the UI thread once per tick. Nothing
+/// here blocks a measurement: the lock is held for a map update.
+#[derive(Default)]
+pub struct Progress {
+    pub boards: Vec<crate::tui::app::BoardRow>,
+    pub running: Option<Running>,
+    pub db_path: Option<PathBuf>,
+    pub engine_ver: String,
+    pub engine_hash: String,
+    pub started: Option<Instant>,
+    /// Instances banked, with the time they banked at: the throughput line.
+    pub banked_at: Vec<Instant>,
+    /// `(board id, engine id)` per board, for the UI's own reader.
+    pub ids: Vec<Option<(i64, i64)>>,
+    pub finished: bool,
+}
+
+pub struct Running {
+    pub board: usize,
+    pub inst: usize,
+    pub pid: Option<Pid>,
+    pub started: Instant,
+    pub budget: Duration,
+}
+
+pub type ProgressHandle = Arc<Mutex<Progress>>;
 
 /// What the watcher thread publishes and the runner reads: the throttle
 /// level, and the control channel of the child that is running right now.
@@ -932,6 +1115,10 @@ impl Shared {
 
     pub fn level(&self) -> Level {
         self.level.lock().unwrap().0
+    }
+
+    pub fn reason(&self) -> Option<String> {
+        self.level.lock().unwrap().1.clone()
     }
 
     pub fn set_level(&self, level: Level, reason: Option<String>) {
@@ -1158,7 +1345,7 @@ impl Watcher {
                                 shared.set_canary(f);
                                 let slow = f > c.max_factor;
                                 if slow {
-                                    println!(
+                                    crate::say!(
                                         "!! canary {} at {f:.2}x its baseline -- the box is slow",
                                         c.label
                                     );
@@ -1201,7 +1388,7 @@ impl Watcher {
                                 shared.send(c);
                             }
                             let at = now_epoch();
-                            println!(
+                            crate::say!(
                                 "!! throttle {} -> {} ({reason})",
                                 level_str(t.from),
                                 level_str(t.to)
@@ -1271,7 +1458,7 @@ fn open_db(cfg: &crate::config::Config, engine: &crate::repo::Engine) -> anyhow:
     let plat = platform::host();
     let orphans = reader.live_children()?;
     if !orphans.is_empty() {
-        println!(
+        crate::say!(
             "reap    {} child(ren) recorded by an earlier run",
             orphans.len()
         );
@@ -1290,14 +1477,14 @@ fn open_db(cfg: &crate::config::Config, engine: &crate::repo::Engine) -> anyhow:
         for r in orphan::reap(&children, &plat) {
             match &r {
                 orphan::Reaped::Killed { pid, pgid } => {
-                    println!("        killed {pid} (group {pgid}) -- verified ours")
+                    crate::say!("        killed {pid} (group {pgid}) -- verified ours")
                 }
-                orphan::Reaped::Vanished { pid } => println!("        {pid} already gone"),
+                orphan::Reaped::Vanished { pid } => crate::say!("        {pid} already gone"),
                 orphan::Reaped::Recycled {
                     pid,
                     expected,
                     found,
-                } => println!(
+                } => crate::say!(
                     "        {pid} is somebody else's now ({found}, not {expected}) -- \
                      NOT signalled"
                 ),
@@ -1339,6 +1526,11 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
 
 /// The sweep proper, for an engine already identified: the candidate (above)
 /// or a built tag (`backfill`). `stage` overrides the set's own staging dir.
+///
+/// Hosts the dashboard (`crucible-spec.md` R2.4) unless `--headless` or
+/// stdout is not a terminal: the sweep runs on a scoped thread, the UI on
+/// this one; `q` cancels the running child the way ^C does and the sweep
+/// stops with everything banked kept.
 pub fn run_engine(
     repo: &Path,
     cfg: &crate::config::Config,
@@ -1347,9 +1539,74 @@ pub fn run_engine(
     engine: crate::repo::Engine,
     stage: Option<PathBuf>,
 ) -> anyhow::Result<()> {
+    let tui = !o.headless && !o.dry_run && std::io::IsTerminal::is_terminal(&std::io::stdout());
+    let shared = Shared::new();
+    if !tui {
+        return sweep_body(repo, cfg, o, manifest, engine, stage, shared, None);
+    }
+    let progress: ProgressHandle = Arc::new(Mutex::new(Progress {
+        engine_ver: engine.ver.clone(),
+        engine_hash: engine.short_hash(),
+        started: Some(Instant::now()),
+        ..Default::default()
+    }));
+    crate::out::quiet(true);
+    let result = std::thread::scope(|sc| {
+        let body = {
+            let shared = Arc::clone(&shared);
+            let progress = Arc::clone(&progress);
+            sc.spawn(move || {
+                let r = sweep_body(
+                    repo,
+                    cfg,
+                    o,
+                    manifest,
+                    engine,
+                    stage,
+                    shared,
+                    Some(Arc::clone(&progress)),
+                );
+                progress.lock().unwrap().finished = true;
+                r
+            })
+        };
+        let mut feed = crate::tui::feed::Feed::new(Arc::clone(&progress), Arc::clone(&shared));
+        let ui = crate::tui::run::run(
+            cfg.ui.fps,
+            &cfg.ui.banner_text,
+            |prev| feed.next(prev),
+            |action, _| {
+                if action == crate::tui::run::Action::Quit {
+                    exec::set_interrupted(true);
+                }
+            },
+        );
+        // The screen is given back before the sweep is joined, so the
+        // operator sees the stop happen rather than a frozen frame.
+        drop(ui);
+        body.join()
+            .unwrap_or_else(|_| Err(anyhow::anyhow!("the sweep thread panicked")))
+    });
+    crate::out::quiet(false);
+    crate::out::flush_to_stdout();
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn sweep_body(
+    repo: &Path,
+    cfg: &crate::config::Config,
+    o: Opts<'_>,
+    manifest: &Manifest,
+    engine: crate::repo::Engine,
+    stage: Option<PathBuf>,
+    shared: Arc<Shared>,
+    progress: Option<ProgressHandle>,
+) -> anyhow::Result<()> {
     let Opts {
         set,
         require_version: _,
+        headless: _,
         quiet_only,
         dry_run,
         max_passes,
@@ -1368,9 +1625,8 @@ pub fn run_engine(
     // its group) and stops the loop with everything banked kept. The 0.26
     // sweep was stopped with SIGTERM and left its planner under pid 1.
     exec::install_interrupt_handler();
-    let shared = Shared::new();
 
-    println!("engine  {} [{}]", engine.ver, engine.short_hash());
+    crate::say!("engine  {} [{}]", engine.ver, engine.short_hash());
     let dbctx = if dry_run || no_db {
         None
     } else {
@@ -1383,7 +1639,7 @@ pub fn run_engine(
         match Canary::resolve(repo, &engine.path, &cfg.referee) {
             Some(mut c) => match c.calibrate() {
                 Some(b) => {
-                    println!(
+                    crate::say!(
                         "canary  {} baseline {:.3} s (fastest of {}); read every {} s, slow above {:.2}x",
                         c.label,
                         b.as_secs_f64(),
@@ -1411,8 +1667,11 @@ pub fn run_engine(
             }
         }
     };
+    if let (Some(p), Some(c)) = (&progress, &dbctx) {
+        p.lock().unwrap().db_path = Some(c.db.path().to_path_buf());
+    }
     let _watcher = dbctx.as_ref().map(|c| {
-        println!("db      {}", c.db.path().display());
+        crate::say!("db      {}", c.db.path().display());
         Watcher::start(
             c.db.writer().clone(),
             Duration::from_secs(cfg.contention.sample_interval_secs.max(1)),
@@ -1449,21 +1708,27 @@ pub fn run_engine(
                 canary_max_factor: cfg.referee.canary_max_factor,
             },
             admit_below_full: cfg.referee.admit_below_full,
+            progress: progress.clone(),
             capable: &|m| engine.supports_mode(m),
             db: dbctx,
             stage,
         },
     )?;
-    println!("set     {set}: {} instances", runner.total_instances());
+    crate::say!("set     {set}: {} instances", runner.total_instances());
 
     if dry_run {
         // Everything up to the first spawn: the boards, their row-identity
         // tuples, and how much work each owes. Enough to check a sweep before
         // committing days of the machine to it.
-        println!();
-        println!(
+        crate::say!();
+        crate::say!(
             "{:<22} {:>7} {:>5} {:>5} {:>7} {:<10} notes",
-            "board", "insts", "wall", "jobs", "threads", "mode"
+            "board",
+            "insts",
+            "wall",
+            "jobs",
+            "threads",
+            "mode"
         );
         for b in &runner.boards {
             let c = board_cfg(manifest, &b.spec);
@@ -1480,7 +1745,7 @@ pub fn run_engine(
             if !c.env.is_empty() {
                 notes.push(format!("env {:?}", c.env));
             }
-            println!(
+            crate::say!(
                 "{:<22} {:>7} {:>5} {:>5} {:>7} {:<10} {}",
                 b.spec.id,
                 b.instances.len(),
@@ -1491,8 +1756,8 @@ pub fn run_engine(
                 notes.join("; ")
             );
         }
-        println!();
-        println!("dry run -- nothing measured, nothing written");
+        crate::say!();
+        crate::say!("dry run -- nothing measured, nothing written");
         return Ok(());
     }
 
@@ -1507,7 +1772,7 @@ pub fn run_engine(
         // NOT an error. A board that could not bank because the box was never
         // quiet has lost nothing -- every row it measured is on disk, and the
         // next run picks up exactly what is still owed.
-        println!(
+        crate::say!(
             "{} instance(s) still owed -- rows are written, nothing is lost",
             out.remaining
         );

@@ -11,7 +11,7 @@
 //! never panics, because the one thing worse than a small dashboard is a
 //! supervisor that died because someone dragged a divider.
 
-use super::app::{Level, LogKind, Snapshot};
+use super::app::{strip, Cell, Level, LogKind, Snapshot, View};
 use super::theme::Theme;
 use super::widget;
 use ratatui::prelude::*;
@@ -22,30 +22,31 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 pub const MIN_WIDTH: u16 = 60;
 pub const MIN_HEIGHT: u16 = 16;
 
-/// Vertical budget, top to bottom. The log gets whatever is left, because it is
-/// the only region that is useful at any size.
+/// Vertical budget, top to bottom. The body gets whatever is left after the
+/// fixed rows; the log keeps a floor of three lines, because a log you cannot
+/// read is not a log.
 struct Rows {
     header: u16,
     sweep: u16,
     body: u16,
+    slots: u16,
     log: u16,
     keys: u16,
 }
 
-fn rows(area: Rect, banner_lines: u16) -> Rows {
+fn rows(area: Rect, banner_lines: u16, slots: u16) -> Rows {
     let header = banner_lines + 1;
-    let sweep = 3;
+    let sweep = 2;
     let keys = 1;
-    let fixed = header + sweep + keys;
+    let slots = slots.min(4) + 1;
+    let fixed = header + sweep + keys + slots;
     let rest = area.height.saturating_sub(fixed);
-    // The body (tracks and slots) gets two thirds of what is left, the log one
-    // third, with the log never smaller than three lines -- a log you cannot
-    // read is not a log.
-    let log = (rest / 3).max(3).min(rest);
+    let log = (rest / 4).clamp(3, 8).min(rest);
     Rows {
         header,
         sweep,
         body: rest.saturating_sub(log),
+        slots,
         log,
         keys,
     }
@@ -60,11 +61,12 @@ pub fn draw(f: &mut Frame, s: &Snapshot, th: &Theme, banner_text: &str) {
     }
 
     let banner = super::banner::render(banner_text, area.width.saturating_sub(28) as usize);
-    let r = rows(area, banner.len() as u16);
+    let r = rows(area, banner.len() as u16, s.slots.len().max(1) as u16);
     let chunks = Layout::vertical([
         Constraint::Length(r.header),
         Constraint::Length(r.sweep),
         Constraint::Length(r.body),
+        Constraint::Length(r.slots),
         Constraint::Length(r.log),
         Constraint::Length(r.keys),
     ])
@@ -72,12 +74,22 @@ pub fn draw(f: &mut Frame, s: &Snapshot, th: &Theme, banner_text: &str) {
 
     draw_header(f, chunks[0], s, th, &banner);
     draw_sweep(f, chunks[1], s, th);
-    let body = Layout::horizontal([Constraint::Percentage(58), Constraint::Percentage(42)])
-        .split(chunks[2]);
-    draw_tracks(f, body[0], s, th);
-    draw_slots(f, body[1], s, th);
-    draw_log(f, chunks[3], s, th);
-    draw_keys(f, chunks[4], th);
+    match s.view {
+        View::Grid => draw_grid(f, chunks[2], s, th),
+        View::Board => draw_board(f, chunks[2], s, th),
+        View::Instance => draw_instance(f, chunks[2], s, th),
+        View::Timeline => draw_timeline(
+            f,
+            chunks[2],
+            s,
+            th,
+            &s.timeline,
+            "TIMELINE -- the whole sweep",
+        ),
+    }
+    draw_slots(f, chunks[3], s, th);
+    draw_log(f, chunks[4], s, th);
+    draw_keys(f, chunks[5], s, th);
     draw_toasts(f, area, s, th);
 }
 
@@ -110,15 +122,19 @@ fn draw_header(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme, banner: &[St
     ];
     if let Some(r) = &s.level.reason {
         status.push(Span::styled(
-            format!(" \u{2014} {r}"),
+            format!(" \u{2014} {}", widget::ellipsize(r, 40)),
             Style::default().fg(th.dim),
         ));
     }
+    if let Some(c) = s.canary {
+        let slow = c > 1.15;
+        status.push(Span::styled(
+            format!("   canary {c:.2}x"),
+            Style::default().fg(if slow { th.alarm } else { th.dim }),
+        ));
+    }
     if let Some(l) = lines.first_mut() {
-        // The status rides on the banner's first row so the header stays as
-        // short as the letterforms demand and no shorter.
-        let pad = " ".repeat(2);
-        l.spans.push(Span::raw(pad));
+        l.spans.push(Span::raw("  "));
         l.spans.extend(status);
     }
 
@@ -132,12 +148,24 @@ fn draw_header(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme, banner: &[St
             widget::until(q.as_secs())
         ));
     }
-    lines.push(Line::from(Span::styled(sub, Style::default().fg(th.dim))));
+    if !s.competitors.is_empty() {
+        let top: Vec<String> = s
+            .competitors
+            .iter()
+            .take(3)
+            .map(|(n, p)| format!("{} {p:.0}%", widget::ellipsize(n, 18)))
+            .collect();
+        sub.push_str(&format!(" \u{00b7} foreign: {}", top.join(", ")));
+    }
+    lines.push(Line::from(Span::styled(
+        widget::ellipsize(&sub, area.width as usize),
+        Style::default().fg(th.dim),
+    )));
     f.render_widget(Paragraph::new(lines), area);
 }
 
 fn draw_sweep(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
-    let w = area.width.saturating_sub(46).clamp(10, 40) as usize;
+    let w = area.width.saturating_sub(50).clamp(10, 40) as usize;
     let p = &s.sweep;
     let mut top = vec![
         Span::styled(
@@ -148,7 +176,12 @@ fn draw_sweep(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
         ),
         Span::styled(widget::bar(th, p.frac(), w), Style::default().fg(th.ember)),
         Span::styled(
-            format!("  {:>3.0}%  {}/{}", p.frac() * 100.0, p.done, p.total),
+            format!(
+                "  {:>3.0}%  {}/{} banked",
+                p.frac() * 100.0,
+                p.done,
+                p.total
+            ),
             Style::default().fg(th.text),
         ),
     ];
@@ -164,8 +197,6 @@ fn draw_sweep(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
         Style::default().fg(th.solved),
     )];
     if let Some(d) = p.delta {
-        // A delta only means something against a release measured on the same
-        // box; the label carries which one.
         second.push(Span::styled(
             format!(" ({d:+} vs {})", p.delta_vs),
             Style::default().fg(if d < 0 { th.alarm } else { th.dim }),
@@ -181,11 +212,9 @@ fn draw_sweep(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
             Style::default().fg(th.alarm).add_modifier(Modifier::BOLD),
         ));
     }
-    if p.dirty > 0 {
-        // Kept, not lost -- but owed. The board cannot bank until these are
-        // re-measured on a quiet box.
+    if p.owed > 0 {
         second.push(Span::styled(
-            format!("   dirty {} (re-run owed)", p.dirty),
+            format!("   owed {}", p.owed),
             Style::default().fg(th.amber),
         ));
     }
@@ -195,105 +224,523 @@ fn draw_sweep(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
     );
 }
 
-fn draw_tracks(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
+/// The glyph and colour of one strip column.
+fn cell_span(th: &Theme, cell: Cell, regression: bool, gain: bool) -> Span<'static> {
+    let (uni, asc, colour) = match cell {
+        Cell::Queued => ("\u{00b7}", ".", th.dim),
+        Cell::Running => ("\u{25b6}", ">", th.ember),
+        Cell::SolvedClean => ("\u{2588}", "#", th.solved),
+        Cell::SolvedDirty => ("\u{2593}", "=", th.solved),
+        Cell::TimeoutBanked => ("\u{2592}", "-", th.structure),
+        Cell::Owed => ("\u{2591}", "~", th.amber),
+        Cell::Error => ("\u{2716}", "x", th.alarm),
+    };
+    let mut style = Style::default().fg(colour);
+    if regression {
+        style = style.add_modifier(Modifier::UNDERLINED).fg(th.alarm);
+    } else if gain {
+        style = style.add_modifier(Modifier::UNDERLINED);
+    }
+    Span::styled(th.glyph(uni, asc).to_string(), style)
+}
+
+/// THE GRID. One row per board, one cell per instance, worst-of-k when the
+/// strip is narrower than the board.
+fn draw_grid(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
     let block = Block::default()
-        .borders(Borders::RIGHT)
+        .borders(Borders::TOP)
         .border_style(Style::default().fg(th.dim))
-        .title(Span::styled(" TRACKS", Style::default().fg(th.structure)));
+        .title(Span::styled(
+            format!(" BOARDS {} ", s.boards.len()),
+            Style::default().fg(th.structure),
+        ));
     let inner = block.inner(area);
     f.render_widget(block, area);
-
-    let bw = (inner.width as usize).saturating_sub(34).clamp(6, 12);
+    if inner.width < 40 || inner.height == 0 {
+        return;
+    }
+    // Columns: id (20) banked/total (9) owed (5) delta (5) strip (rest).
+    let label_w = 20usize;
+    let strip_w = (inner.width as usize).saturating_sub(label_w + 9 + 5 + 6 + 4);
     let mut lines = Vec::new();
-    for (row, (ti, di)) in s.visible_tracks().into_iter().enumerate() {
+    let first = s
+        .sel_board
+        .saturating_sub(inner.height as usize / 2)
+        .min(s.boards.len().saturating_sub(inner.height as usize));
+    for (i, b) in s.boards.iter().enumerate().skip(first) {
         if lines.len() >= inner.height as usize {
             break;
         }
-        let t = &s.tracks[ti];
-        let sel = row == s.selected;
-        let mark = |c: Color| {
-            if sel {
-                Style::default().fg(th.ground).bg(c)
-            } else {
-                Style::default().fg(c)
-            }
+        let sel = i == s.sel_board;
+        let base = if sel {
+            Style::default().fg(th.ground).bg(th.structure)
+        } else {
+            Style::default().fg(th.text)
         };
-        match di {
-            None => {
-                let (glyph, colour) = if t.finished {
-                    (th.glyph("\u{2714}", "+"), th.solved)
-                } else if t.done > 0 {
-                    (th.glyph("\u{25b6}", ">"), th.ember)
-                } else {
-                    (th.glyph("\u{00b7}", "."), th.dim)
-                };
-                let delta = match t.delta {
-                    Some(d) => format!(" {d:+}"),
-                    None => String::new(),
-                };
-                let body = if t.finished {
-                    // Collapsed to one line with its final coverage.
-                    format!(" {glyph} {:<10} {}/{}{delta}", t.name, t.solved, t.total)
-                } else if t.done == 0 {
-                    // Queued: a dim single line. A bar pinned at zero reads as
-                    // "running and getting nowhere", a different and worse claim.
-                    format!(" {glyph} {:<10} {}/{}  [queued]", t.name, t.done, t.total)
-                } else {
-                    format!(
-                        " {glyph} {:<10} {}/{}{delta}  {} {:>3.0}%",
-                        t.name,
-                        t.done,
-                        t.total,
-                        widget::bar(th, t.done as f64 / t.total.max(1) as f64, bw),
-                        100.0 * t.done as f64 / t.total.max(1) as f64
-                    )
-                };
-                lines.push(Line::from(Span::styled(
-                    widget::ellipsize(&body, inner.width as usize),
-                    mark(colour),
-                )));
-            }
-            Some(j) => {
-                let d = &t.domains[j];
-                let warn = if d.regressions > 0 {
-                    format!(" {}", th.glyph("\u{26a0}", "!"))
-                } else {
-                    String::new()
-                };
-                let body = format!(
-                    "      {:<14} {} {}/{}{warn}",
-                    widget::ellipsize(&d.name, 14),
-                    // The bar tracks SOLVED, not "ran": coverage is the metric,
-                    // and a full bar beside "12/30" says the opposite of the truth.
-                    widget::bar(th, d.solved as f64 / d.total.max(1) as f64, bw),
-                    d.solved,
-                    d.total
-                );
-                let colour = if d.regressions > 0 { th.alarm } else { th.text };
-                lines.push(Line::from(Span::styled(
-                    widget::ellipsize(&body, inner.width as usize),
-                    mark(colour),
-                )));
-            }
+        let mark = if b.done() {
+            th.glyph("\u{2714}", "+")
+        } else if b.running() {
+            th.glyph("\u{25b6}", ">")
+        } else {
+            " "
+        };
+        let delta = match b.prev_solved() {
+            Some(p) => format!("{:>+5}", b.solved() as i64 - p as i64),
+            None => "     ".into(),
+        };
+        let mut spans = vec![Span::styled(
+            format!(
+                "{mark} {:<label_w$} {:>4}/{:<4}{:>4} {delta} ",
+                widget::ellipsize(&b.id, label_w),
+                b.banked(),
+                b.total(),
+                b.owed(),
+            ),
+            base,
+        )];
+        spans.push(Span::styled(
+            th.glyph("\u{2595}", "|").to_string(),
+            Style::default().fg(th.dim),
+        ));
+        for col in strip(&b.cells, strip_w) {
+            spans.push(cell_span(th, col.cell, col.regression, col.gain));
         }
+        spans.push(Span::styled(
+            th.glyph("\u{258f}", "|").to_string(),
+            Style::default().fg(th.dim),
+        ));
+        lines.push(Line::from(spans));
+    }
+    f.render_widget(Paragraph::new(lines), inner);
+}
+
+/// One board: every instance, sortable, with this run beside the predecessor.
+fn draw_board(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
+    let Some(b) = s.board() else {
+        return;
+    };
+    let title = format!(
+        " {} ({}, {}s{}) \u{00b7} {}/{} banked, {} owed, {} solved{} \u{00b7} sort: {} ",
+        b.id,
+        b.label,
+        b.budget_secs,
+        if b.threads > 1 {
+            format!(", {} threads", b.threads)
+        } else {
+            String::new()
+        },
+        b.banked(),
+        b.total(),
+        b.owed(),
+        b.solved(),
+        match b.prev_solved() {
+            Some(p) => format!(
+                " ({:+} vs prev: {} gained, {} lost)",
+                b.solved() as i64 - p as i64,
+                b.gains(),
+                b.regressions()
+            ),
+            None => String::new(),
+        },
+        s.sort.label()
+    );
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(th.dim))
+        .title(Span::styled(title, Style::default().fg(th.structure)));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+    if inner.height < 3 {
+        return;
+    }
+    // Histogram strip on the right when there is room.
+    let (table_area, hist_area) = if inner.width >= 100 {
+        let h = Layout::horizontal([Constraint::Min(70), Constraint::Length(30)]).split(inner);
+        (h[0], Some(h[1]))
+    } else {
+        (inner, None)
+    };
+
+    let mut lines = vec![Line::from(Span::styled(
+        format!(
+            " {:<3}{:<26} {:>8} {:>8} {:>7} {:>5} {:>3}  {}",
+            "", "instance", "this", "prev", "delta", "rho", "att", "verdict"
+        ),
+        Style::default().fg(th.dim),
+    ))];
+    let order = s.sorted_instances();
+    let rows_avail = table_area.height.saturating_sub(1) as usize;
+    let first = s
+        .sel_inst
+        .saturating_sub(rows_avail / 2)
+        .min(order.len().saturating_sub(rows_avail));
+    for (row, &i) in order.iter().enumerate().skip(first) {
+        if lines.len() > rows_avail {
+            break;
+        }
+        let c = &b.cells[i];
+        let sel = row == s.sel_inst;
+        let secs = |v: Option<f64>| v.map_or(format!("{:>8}", "-"), |x| format!("{x:>7.2}s"));
+        let delta = c
+            .delta_secs()
+            .map_or("      -".to_string(), |d| format!("{d:>+7.2}"));
+        let rho = c.rho.map_or("    -".to_string(), |r| format!("{r:>5.2}"));
+        let verdict = c.verdict.clone().unwrap_or_default();
+        let text = format!(
+            "{:<26} {} {} {delta} {rho} {:>3}  {verdict}",
+            widget::ellipsize(&format!("{}/{}", c.variant, c.label), 26),
+            secs(c.this_secs),
+            secs(c.prev_secs),
+            c.attempt
+        );
+        let colour = if c.regression() {
+            th.alarm
+        } else if c.gain() {
+            th.solved
+        } else {
+            th.text
+        };
+        let style = if sel {
+            Style::default().fg(th.ground).bg(th.structure)
+        } else {
+            Style::default().fg(colour)
+        };
+        lines.push(Line::from(vec![
+            Span::raw(" "),
+            cell_span(th, c.cell, c.regression(), c.gain()),
+            Span::raw("  "),
+            Span::styled(
+                widget::ellipsize(&text, table_area.width.saturating_sub(4) as usize),
+                style,
+            ),
+        ]));
+    }
+    f.render_widget(Paragraph::new(lines), table_area);
+
+    if let Some(h) = hist_area {
+        draw_histogram(f, h, s, th);
+    }
+}
+
+/// Solve times against the wall, in eight bins; the near-wall band counted.
+fn draw_histogram(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
+    let Some(b) = s.board() else {
+        return;
+    };
+    let secs = b.solve_secs();
+    let budget = b.budget_secs.max(1) as f64;
+    let bins = 8usize;
+    let mut counts = vec![0usize; bins];
+    for t in &secs {
+        let k = ((t / budget) * bins as f64).floor() as usize;
+        counts[k.min(bins - 1)] += 1;
+    }
+    let max = *counts.iter().max().unwrap_or(&1).max(&1);
+    let mut lines = vec![Line::from(Span::styled(
+        format!(" solve times vs {}s wall", b.budget_secs),
+        Style::default().fg(th.dim),
+    ))];
+    let bar_w = (area.width as usize).saturating_sub(14).max(4);
+    for (k, n) in counts.iter().enumerate() {
+        let lo = budget * k as f64 / bins as f64;
+        let near = k * 4 >= bins * 3;
+        let bar = widget::bar(th, *n as f64 / max as f64, bar_w);
+        lines.push(Line::from(vec![
+            Span::styled(format!(" {lo:>4.0}s "), Style::default().fg(th.dim)),
+            Span::styled(
+                bar,
+                Style::default().fg(if near { th.amber } else { th.solved }),
+            ),
+            Span::styled(format!(" {n}"), Style::default().fg(th.text)),
+        ]));
+    }
+    lines.push(Line::from(Span::styled(
+        format!(" near the wall (\u{2265}75%): {}", b.near_wall()),
+        Style::default().fg(th.amber),
+    )));
+    f.render_widget(Paragraph::new(lines), area);
+}
+
+/// One instance: every attempt, the box across the latest window.
+fn draw_instance(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
+    let (Some(b), Some(c)) = (s.board(), s.selected_instance()) else {
+        return;
+    };
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(th.dim))
+        .title(Span::styled(
+            format!(
+                " {} \u{00b7} {}/{} \u{00b7} {} ",
+                b.id,
+                c.variant,
+                c.label,
+                c.cell.label()
+            ),
+            Style::default().fg(th.structure),
+        ));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+    let mut lines = vec![Line::from(vec![
+        Span::styled(" this ", Style::default().fg(th.dim)),
+        Span::styled(
+            c.this_secs.map_or("-".into(), |t| format!("{t:.2}s")),
+            Style::default().fg(th.text),
+        ),
+        Span::styled("   prev ", Style::default().fg(th.dim)),
+        Span::styled(
+            c.prev_secs.map_or("-".into(), |t| format!("{t:.2}s")),
+            Style::default().fg(th.text),
+        ),
+        Span::styled("   verdict ", Style::default().fg(th.dim)),
+        Span::styled(
+            c.verdict.clone().unwrap_or_else(|| "-".into()),
+            Style::default().fg(if c.cell == Cell::Owed {
+                th.amber
+            } else {
+                th.text
+            }),
+        ),
+        Span::styled(
+            if c.regression() {
+                "   REGRESSION"
+            } else if c.gain() {
+                "   gain"
+            } else {
+                ""
+            },
+            Style::default()
+                .fg(if c.regression() { th.alarm } else { th.solved })
+                .add_modifier(Modifier::BOLD),
+        ),
+    ])];
+    match &s.detail {
+        None => lines.push(Line::from(Span::styled(
+            " reading the database\u{2026}",
+            Style::default().fg(th.dim),
+        ))),
+        Some(d) => {
+            lines.push(Line::from(Span::styled(
+                format!(
+                    " {:>3} {:>7} {:>8} {:>8} {:>8} {:>6} {:>8} {:<8} verdict",
+                    "att", "solved", "time", "wall", "cpu", "rho", "rss", "timing"
+                ),
+                Style::default().fg(th.dim),
+            )));
+            for a in &d.attempts {
+                lines.push(Line::from(Span::styled(
+                    format!(
+                        " {:>3} {:>7} {:>8} {:>8} {:>8} {:>6} {:>8} {:<8} {}",
+                        a.attempt,
+                        if a.solved { "yes" } else { "no" },
+                        a.secs.map_or("-".into(), |t| format!("{t:.2}s")),
+                        a.wall_ms
+                            .map_or("-".into(), |w| format!("{:.1}s", w as f64 / 1000.0)),
+                        a.cpu_ms
+                            .map_or("-".into(), |w| format!("{:.1}s", w as f64 / 1000.0)),
+                        a.rho().map_or("-".into(), |r| format!("{r:.3}")),
+                        a.peak_rss.map_or("-".into(), |r| format!("{}M", r >> 20)),
+                        a.timing,
+                        a.verdict.clone().unwrap_or_default()
+                    ),
+                    Style::default().fg(th.text),
+                )));
+            }
+            let mut box_line = String::from(" across the latest window:");
+            if let Some(cm) = d.canary_max {
+                box_line.push_str(&format!("  canary max {cm:.2}x"));
+            }
+            if let Some(sg) = d.swap_growth_mb {
+                box_line.push_str(&format!("  swap {sg:+.0} MB"));
+            }
+            if !d.competitors.is_empty() {
+                let top: Vec<String> = d
+                    .competitors
+                    .iter()
+                    .take(4)
+                    .map(|(n, p)| format!("{} {p:.0}%", widget::ellipsize(n, 18)))
+                    .collect();
+                box_line.push_str(&format!("  foreign: {}", top.join(", ")));
+            }
+            lines.push(Line::from(Span::styled(
+                widget::ellipsize(&box_line, inner.width as usize),
+                Style::default().fg(th.dim),
+            )));
+        }
+    }
+    let used = lines.len() as u16;
+    f.render_widget(Paragraph::new(lines), inner);
+    if let Some(d) = &s.detail {
+        if inner.height > used + 3 {
+            let rest = Rect {
+                x: inner.x,
+                y: inner.y + used,
+                width: inner.width,
+                height: inner.height - used,
+            };
+            draw_timeline(
+                f,
+                rest,
+                s,
+                th,
+                &d.timeline,
+                "the box across this instance's window",
+            );
+        }
+    }
+}
+
+/// The box over a span: foreign load and the canary as sparklines, throttle
+/// windows as a band, runs as marks.
+fn draw_timeline(
+    f: &mut Frame,
+    area: Rect,
+    _s: &Snapshot,
+    th: &Theme,
+    t: &super::app::Timeline,
+    title: &str,
+) {
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(th.dim))
+        .title(Span::styled(
+            format!(" {title} "),
+            Style::default().fg(th.structure),
+        ));
+    let inner = block.inner(area);
+    f.render_widget(block, area);
+    if inner.height < 2 || t.points.is_empty() {
+        f.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                " no samples in this span",
+                Style::default().fg(th.dim),
+            ))),
+            inner,
+        );
+        return;
+    }
+    let w = (inner.width as usize).saturating_sub(12).max(8);
+    let n = t.points.len();
+    // Resample to the width: max within each bucket, so a burst is not lost.
+    let bucket = |get: &dyn Fn(&super::app::TimelinePoint) -> Option<f64>| -> Vec<f64> {
+        let per = n.div_ceil(w).max(1);
+        t.points
+            .chunks(per)
+            .map(|ch| ch.iter().filter_map(get).fold(0.0f64, f64::max))
+            .collect()
+    };
+    let foreign = bucket(&|p| p.foreign);
+    let canary = bucket(&|p| p.canary.map(|c| (c - 1.0).max(0.0) * 100.0));
+    let swap = bucket(&|p| p.swap_mb);
+    let span_s = t.points.last().map(|p| p.at).unwrap_or(0.0)
+        - t.points.first().map(|p| p.at).unwrap_or(0.0);
+    let mut lines = vec![
+        Line::from(vec![
+            Span::styled(" foreign %  ", Style::default().fg(th.dim)),
+            Span::styled(
+                widget::spark(th, &foreign, w),
+                Style::default().fg(th.amber),
+            ),
+            Span::styled(
+                format!(" max {:.0}", foreign.iter().cloned().fold(0.0, f64::max)),
+                Style::default().fg(th.dim),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(" canary +%  ", Style::default().fg(th.dim)),
+            Span::styled(widget::spark(th, &canary, w), Style::default().fg(th.ember)),
+            Span::styled(
+                format!(" max {:.0}", canary.iter().cloned().fold(0.0, f64::max)),
+                Style::default().fg(th.dim),
+            ),
+        ]),
+        Line::from(vec![
+            Span::styled(" swap MB    ", Style::default().fg(th.dim)),
+            Span::styled(
+                widget::spark(th, &swap, w),
+                Style::default().fg(th.structure),
+            ),
+            Span::styled(
+                format!(" max {:.0}", swap.iter().cloned().fold(0.0, f64::max)),
+                Style::default().fg(th.dim),
+            ),
+        ]),
+    ];
+    // Throttle band and runs, as one row each of marks.
+    if let (Some(first), Some(last)) = (t.points.first(), t.points.last()) {
+        let (a, z) = (first.at, last.at.max(first.at + 1.0));
+        let col = |ts: f64| {
+            (((ts - a) / (z - a)) * (w as f64 - 1.0))
+                .round()
+                .clamp(0.0, w as f64 - 1.0) as usize
+        };
+        let mut band = vec![' '; w];
+        for (st, en, level) in &t.windows {
+            let ch = match level.as_str() {
+                "suspended" => 'S',
+                "polite" => 'p',
+                _ => '-',
+            };
+            let (lo, hi) = (col(*st), col(en.unwrap_or(z)));
+            band.iter_mut().take(hi + 1).skip(lo).for_each(|c| *c = ch);
+        }
+        let mut runs = vec![' '; w];
+        for (st, en, banked) in &t.runs {
+            let ch = if *banked { '=' } else { '~' };
+            let (lo, hi) = (col(*st), col(*en));
+            runs.iter_mut().take(hi + 1).skip(lo).for_each(|c| *c = ch);
+        }
+        let critical = t
+            .points
+            .iter()
+            .filter(|p| p.mem_pressure.is_some_and(|l| l >= 4))
+            .count();
+        lines.push(Line::from(vec![
+            Span::styled(" throttle   ", Style::default().fg(th.dim)),
+            Span::styled(
+                band.into_iter().collect::<String>(),
+                Style::default().fg(th.alarm),
+            ),
+            Span::styled("  S suspended, p polite", Style::default().fg(th.dim)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled(" runs       ", Style::default().fg(th.dim)),
+            Span::styled(
+                runs.into_iter().collect::<String>(),
+                Style::default().fg(th.solved),
+            ),
+            Span::styled("  = banked, ~ owed", Style::default().fg(th.dim)),
+        ]));
+        lines.push(Line::from(Span::styled(
+            format!(
+                " {} samples over {}, {} under critical memory pressure",
+                n,
+                widget::duration(span_s.max(0.0) as u64),
+                critical,
+            ),
+            Style::default().fg(th.dim),
+        )));
     }
     f.render_widget(Paragraph::new(lines), inner);
 }
 
 fn draw_slots(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
-    let block = Block::default().title(Span::styled(
-        format!(
-            " SLOTS{:>w$} P-core ",
-            s.p_cores,
-            w = (area.width as usize).saturating_sub(16)
-        ),
-        Style::default().fg(th.structure),
-    ));
+    let block = Block::default()
+        .borders(Borders::TOP)
+        .border_style(Style::default().fg(th.dim))
+        .title(Span::styled(
+            format!(
+                " RUNNING{:>w$} P-core ",
+                s.p_cores,
+                w = (area.width as usize).saturating_sub(18)
+            ),
+            Style::default().fg(th.structure),
+        ));
     let inner = block.inner(area);
     f.render_widget(block, area);
 
     let mut lines = Vec::new();
-    for slot in &s.slots {
+    for slot in s.slots.iter().take(inner.height as usize) {
         let line = match &slot.what {
             None => Line::from(Span::styled(
                 format!(" {} {} idle", slot.index, th.glyph("\u{00b7}", ".")),
@@ -305,8 +752,6 @@ fn draw_slots(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
                 } else {
                     (th.glyph("\u{25b6}", ">"), th.ember)
                 };
-                // Effective time, not wall: a suspended run is not about to
-                // time out, and showing wall here would suggest it was.
                 let clock = if r.suspended {
                     "suspended".to_string()
                 } else {
@@ -316,13 +761,19 @@ fn draw_slots(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
                         r.budget.as_secs_f64()
                     )
                 };
+                let rho = r.rho.map_or(String::new(), |x| format!("  rho {x:.2}"));
+                let rss = r.rss_mb.map_or(String::new(), |x| format!("  {x:.0} MB"));
+                let err = r
+                    .last_stderr
+                    .as_ref()
+                    .map_or(String::new(), |e| format!("  {e}"));
                 Line::from(Span::styled(
                     widget::ellipsize(
                         &format!(
-                            " {} {glyph} {:<22} {} {clock}",
+                            " {} {glyph} {:<20} {:<24} {clock}{rho}{rss}{err}",
                             slot.index,
-                            format!("{}/{}", widget::ellipsize(&r.variant, 16), r.instance),
-                            r.tier
+                            widget::ellipsize(&r.board, 20),
+                            format!("{}/{}", widget::ellipsize(&r.variant, 18), r.instance),
                         ),
                         inner.width as usize,
                     ),
@@ -332,9 +783,8 @@ fn draw_slots(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
         };
         lines.push(line);
     }
-    if !s.throughput.is_empty() && inner.height as usize > lines.len() + 1 {
-        lines.push(Line::from(""));
-        let w = (inner.width as usize).saturating_sub(24).clamp(6, 24);
+    if !s.throughput.is_empty() && inner.height as usize > lines.len() {
+        let w = (inner.width as usize).saturating_sub(24).clamp(6, 30);
         lines.push(Line::from(vec![
             Span::styled(" throughput ", Style::default().fg(th.dim)),
             Span::styled(
@@ -342,7 +792,7 @@ fn draw_slots(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
                 Style::default().fg(th.ember),
             ),
             Span::styled(
-                format!(" {:.0}/min", s.throughput.last().copied().unwrap_or(0.0)),
+                format!(" {:.1}/min", s.throughput.last().copied().unwrap_or(0.0)),
                 Style::default().fg(th.dim),
             ),
         ]));
@@ -395,13 +845,15 @@ fn draw_log(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
     f.render_widget(Paragraph::new(lines), inner);
 }
 
-fn draw_keys(f: &mut Frame, area: Rect, th: &Theme) {
+fn draw_keys(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
+    let keys = match s.view {
+        View::Grid => " j/k move   \u{21b5} board   t timeline   esc dismiss   q quit (stops the sweep; nothing banked is lost)",
+        View::Board => " j/k move   \u{21b5} instance   o sort   b/esc back   q quit",
+        View::Instance => " j/k next instance   b/esc back   q quit",
+        View::Timeline => " t/b/esc back to the grid   q quit",
+    };
     f.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            " j/k move   \u{21b5} expand   z collapse done   d diff   f filter   \
-             p pause   s suspend   r re-run   esc dismiss   q quit",
-            Style::default().fg(th.dim),
-        ))),
+        Paragraph::new(Line::from(Span::styled(keys, Style::default().fg(th.dim)))),
         area,
     );
 }
@@ -443,9 +895,6 @@ fn draw_toasts(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
 /// died because someone dragged a divider would be a bad joke.
 fn draw_compact(f: &mut Frame, s: &Snapshot, th: &Theme, area: Rect) {
     let p = &s.sweep;
-    // The loud thing goes FIRST, because this line is about to be truncated
-    // and whatever is last is what disappears. A regression that scrolled off
-    // the right edge of a narrow pane is a regression nobody saw.
     let text = if p.regressions > 0 {
         format!(
             "REGRESSIONS {}  {} {}/{} {:.0}%",
@@ -457,13 +906,14 @@ fn draw_compact(f: &mut Frame, s: &Snapshot, th: &Theme, area: Rect) {
         )
     } else {
         format!(
-            "{} {}  {}/{} {:.0}%  cov {}",
+            "{} {}  {}/{} {:.0}%  cov {}  owed {}",
             super::banner::compact("crucible"),
             s.level.level.label(),
             p.done,
             p.total,
             p.frac() * 100.0,
-            p.solved
+            p.solved,
+            p.owed
         )
     };
     f.render_widget(
@@ -473,213 +923,4 @@ fn draw_compact(f: &mut Frame, s: &Snapshot, th: &Theme, area: Rect) {
         ))),
         area,
     );
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tui::app::*;
-    use ratatui::backend::TestBackend;
-    use std::time::Duration;
-
-    fn demo() -> Snapshot {
-        Snapshot {
-            engine_ver: "ff 0.26.0".into(),
-            engine_hash: "2989d528b05e".into(),
-            level: LevelState {
-                level: Level::Polite,
-                reason: Some("Mail 34%".into()),
-            },
-            uptime: Duration::from_secs(3 * 86400 + 4 * 3600 + 720),
-            quiet_in: Some(Duration::from_secs(9660)),
-            sweep: SweepProgress {
-                done: 1284,
-                total: 2103,
-                solved: 1102,
-                delta: Some(7),
-                delta_vs: "0.25.0".into(),
-                regressions: 1,
-                dirty: 43,
-                eta: Some(Duration::from_secs(51_720)),
-            },
-            tracks: vec![
-                TrackProgress {
-                    name: "IPC5".into(),
-                    done: 86,
-                    total: 86,
-                    solved: 86,
-                    delta: Some(0),
-                    domains: vec![],
-                    expanded: true,
-                    finished: true,
-                },
-                TrackProgress {
-                    name: "IPC6".into(),
-                    done: 412,
-                    total: 598,
-                    solved: 400,
-                    delta: Some(5),
-                    domains: vec![
-                        DomainProgress {
-                            name: "openstacks".into(),
-                            solved: 30,
-                            total: 30,
-                            regressions: 0,
-                        },
-                        DomainProgress {
-                            name: "pathways".into(),
-                            solved: 12,
-                            total: 30,
-                            regressions: 1,
-                        },
-                    ],
-                    expanded: true,
-                    finished: false,
-                },
-            ],
-            slots: vec![
-                Slot {
-                    index: 0,
-                    what: Some(SlotRun {
-                        variant: "rovers".into(),
-                        instance: "p12".into(),
-                        tier: 'A',
-                        effective: Duration::from_millis(4200),
-                        suspended: false,
-                        budget: Duration::from_secs(60),
-                    }),
-                },
-                Slot {
-                    index: 1,
-                    what: Some(SlotRun {
-                        variant: "storage".into(),
-                        instance: "p18".into(),
-                        tier: 'C',
-                        effective: Duration::from_secs(12),
-                        suspended: true,
-                        budget: Duration::from_secs(60),
-                    }),
-                },
-                Slot {
-                    index: 2,
-                    what: None,
-                },
-            ],
-            p_cores: 4,
-            log: vec![
-                LogLine {
-                    at: "14:02:11".into(),
-                    kind: LogKind::Warn,
-                    text: "POLITE -- foreign CPU 34% (Mail) -- demoted to E-cores".into(),
-                },
-                LogLine {
-                    at: "14:04:02".into(),
-                    kind: LogKind::Regression,
-                    text: "REGRESSION IPC6/pathways/p07 -- solved in 0.25.0, timeout".into(),
-                },
-            ],
-            toasts: vec![Toast {
-                text: "REGRESSION pathways/p07".into(),
-                kind: LogKind::Regression,
-                sticky: true,
-                age: Duration::ZERO,
-            }],
-            throughput: vec![1.0, 3.0, 8.0, 14.0, 22.0, 14.0, 8.0, 3.0, 1.0],
-            selected: 1,
-        }
-    }
-
-    fn render(w: u16, h: u16) -> ratatui::buffer::Buffer {
-        let mut term = Terminal::new(TestBackend::new(w, h)).unwrap();
-        let th = Theme::forge();
-        term.draw(|f| draw(f, &demo(), &th, "CRUCIBLE")).unwrap();
-        term.backend().buffer().clone()
-    }
-
-    fn text(buf: &ratatui::buffer::Buffer) -> String {
-        let mut s = String::new();
-        for y in 0..buf.area.height {
-            for x in 0..buf.area.width {
-                s.push_str(buf[(x, y)].symbol());
-            }
-            s.push('\n');
-        }
-        s
-    }
-
-    #[test]
-    fn a_full_size_frame_shows_the_things_that_matter() {
-        let t = text(&render(120, 34));
-        assert!(t.contains("POLITE"), "the throttle level is always visible");
-        assert!(t.contains("1284/2103"));
-        assert!(t.contains("REGRESSION"), "a regression must be on screen");
-        assert!(t.contains("dirty 43"), "work owed is shown, not hidden");
-    }
-
-    /// A suspended run shows "suspended", never a wall clock creeping toward
-    /// its budget -- the whole point is that it is NOT about to time out.
-    #[test]
-    fn a_suspended_slot_does_not_show_a_countdown() {
-        let t = text(&render(120, 34));
-        assert!(t.contains("suspended"));
-    }
-
-    /// The screen must survive any size a person can drag a pane to. A
-    /// supervisor that panicked on a resize would be a bad joke.
-    #[test]
-    fn every_plausible_terminal_size_renders_without_panicking() {
-        for (w, h) in [
-            (1, 1),
-            (2, 3),
-            (10, 5),
-            (40, 10),
-            (59, 15),
-            (60, 16),
-            (80, 24),
-            (120, 34),
-            (400, 100),
-            (200, 8),
-        ] {
-            let _ = render(w, h);
-        }
-    }
-
-    /// Below the minimum the layout collapses to one honest line rather than a
-    /// scrambled one -- and it still says the loud thing.
-    #[test]
-    fn a_tiny_pane_still_reports_a_regression() {
-        let t = text(&render(50, 6));
-        assert!(t.contains("REGRESSION"), "got: {t:?}");
-    }
-
-    /// A queued track says so rather than drawing a bar pinned at zero.
-    #[test]
-    fn a_queued_track_reads_as_queued() {
-        let mut s = demo();
-        s.tracks.push(TrackProgress {
-            name: "IPC7".into(),
-            done: 0,
-            total: 419,
-            solved: 0,
-            delta: None,
-            domains: vec![],
-            expanded: false,
-            finished: false,
-        });
-        let mut term = Terminal::new(TestBackend::new(120, 34)).unwrap();
-        let th = Theme::forge();
-        term.draw(|f| draw(f, &s, &th, "CRUCIBLE")).unwrap();
-        assert!(text(term.backend().buffer()).contains("[queued]"));
-    }
-
-    /// A finished track occupies one line even though it is marked expanded.
-    #[test]
-    fn a_finished_track_does_not_crowd_out_the_active_one() {
-        let t = text(&render(120, 34));
-        assert!(t.contains("IPC5"));
-        assert!(
-            t.contains("openstacks"),
-            "the ACTIVE track's domains are visible"
-        );
-    }
 }

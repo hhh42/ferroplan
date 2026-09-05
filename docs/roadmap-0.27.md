@@ -248,6 +248,30 @@ Gates: `--dump` frames for 80×24 and 220×60 checked in and reviewed; the
 render cost measured under a live 4-wide sweep at < 1 % of one core; every
 key in the table has a test the way R1's do.
 
+**Recorded 2026-09-04 — Phase 3 BUILT** (`crucible-r2`): `crucible sweep`
+hosts the dashboard when stdout is a terminal (`--headless` for the log;
+the sweep runs on a scoped thread, the UI on the main one, `q` cancels the
+running child the way ^C does and everything banked stays banked). The
+five views of §R2.4: the grid (one row per board, one cell per instance,
+attention states win a column and settled columns show their majority),
+the board table (this run beside the predecessor from the promoted raw,
+Δ, ρ, attempt, verdict; sortable; a solve-time histogram against the wall
+with the near-wall band counted), the instance view (every attempt from
+the database, ρ per attempt, the canary/swap/competitors across the
+latest window, the box timeline), the whole-sweep timeline (foreign load,
+canary, swap, throttle band, runs as marks, critical-pressure count) and
+the running slot (elapsed against budget, live ρ and RSS from the
+kernel). The sweep's narration goes through `say!` into a ring the log
+pane renders and stdout gets back on exit. `crucible tui --dump --view
+grid|board|instance|timeline` renders any view off-screen from synthetic
+data; the four frames were reviewed at 140×34. No re-run key, by decision.
+**Gate still owed:** a live sitting in a real terminal — the pseudo-tty
+smoke here had no terminal size and could not deliver keys, so the
+hosting path (scope, quit, flush) is verified by its parts, not end to
+end. Not built: the stderr tail in the slot (the pipe reader keeps the
+whole stream; a ring-buffer tap is a small change) and `live_child.stopped`
+on Stop/Cont.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**

@@ -374,6 +374,32 @@ impl SampleRec {
     }
 }
 
+/// One attempt as the dashboard reads it back (`Reader::attempts_for`).
+#[derive(Debug, Clone, Default)]
+pub struct AttemptRec {
+    pub attempt: u32,
+    pub solved: bool,
+    pub secs: Option<f64>,
+    pub wall_ms: Option<u64>,
+    pub cpu_ms: Option<u64>,
+    pub suspended_ms: Option<u64>,
+    pub peak_rss: Option<u64>,
+    pub timing: String,
+    pub verdict: Option<String>,
+    pub started_at: Option<f64>,
+    pub finished_at: Option<f64>,
+}
+
+/// One watcher sample as the dashboard reads it back.
+#[derive(Debug, Clone, Default)]
+pub struct SamplePoint {
+    pub at: f64,
+    pub foreign: Option<f64>,
+    pub canary: Option<f64>,
+    pub swap_mb: Option<f64>,
+    pub mem_pressure: Option<u32>,
+}
+
 /// A line of the rolling log.
 #[derive(Debug, Clone)]
 pub struct EventRec {

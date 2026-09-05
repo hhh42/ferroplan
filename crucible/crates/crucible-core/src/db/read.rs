@@ -266,6 +266,100 @@ impl Reader {
             .flatten())
     }
 
+    /// Every attempt of one instance under one engine, oldest first, with
+    /// what the supervisor measured. The dashboard's instance view.
+    pub fn attempts_for(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+        variant: &str,
+        label: &str,
+    ) -> Result<Vec<AttemptRec>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT r.attempt, r.solved, r.time_secs, r.wall_ms, r.cpu_ms, r.suspended_ms,
+                    r.peak_rss, r.timing_quality, r.verdict, r.started_at, r.finished_at
+               FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2 AND v.name = ?3 AND i.label = ?4
+                AND r.state = 'done'
+              ORDER BY r.attempt",
+        )?;
+        let rows = st.query_map(params![board_id, engine_id, variant, label], |r| {
+            Ok(AttemptRec {
+                attempt: r.get::<_, i64>(0)? as u32,
+                solved: r.get::<_, i64>(1)? != 0,
+                secs: r.get(2)?,
+                wall_ms: r.get::<_, Option<i64>>(3)?.map(|v| v as u64),
+                cpu_ms: r.get::<_, Option<i64>>(4)?.map(|v| v as u64),
+                suspended_ms: r.get::<_, Option<i64>>(5)?.map(|v| v as u64),
+                peak_rss: r.get::<_, Option<i64>>(6)?.map(|v| v as u64),
+                timing: r.get(7)?,
+                verdict: r.get(8)?,
+                started_at: r.get(9)?,
+                finished_at: r.get(10)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// The live watcher's samples across a span, oldest first.
+    pub fn samples_between(&self, start_ts: f64, end_ts: f64) -> Result<Vec<SamplePoint>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT at, competitors_total, canary_factor, swap_mb, mem_pressure
+               FROM sample
+              WHERE pass_id IS NULL AND at >= ?1 AND at <= ?2
+              ORDER BY at",
+        )?;
+        let rows = st.query_map(params![start_ts, end_ts], |r| {
+            Ok(SamplePoint {
+                at: r.get(0)?,
+                foreign: r.get(1)?,
+                canary: r.get(2)?,
+                swap_mb: r.get(3)?,
+                mem_pressure: r.get::<_, Option<i64>>(4)?.map(|v| v as u32),
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Throttle windows overlapping a span: `(started_at, ended_at, level)`.
+    pub fn throttle_windows_between(
+        &self,
+        start_ts: f64,
+        end_ts: f64,
+    ) -> Result<Vec<(f64, Option<f64>, String)>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT started_at, ended_at, level FROM throttle_window
+              WHERE started_at <= ?2 AND (ended_at IS NULL OR ended_at >= ?1)
+              ORDER BY started_at",
+        )?;
+        let rows = st.query_map(params![start_ts, end_ts], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// Runs under one engine that overlap a span: `(started, finished, banked)`.
+    pub fn runs_between(
+        &self,
+        engine_id: i64,
+        start_ts: f64,
+        end_ts: f64,
+    ) -> Result<Vec<(f64, f64, bool)>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT started_at, finished_at, banked FROM run
+              WHERE engine_id = ?1 AND state = 'done'
+                AND started_at IS NOT NULL AND finished_at IS NOT NULL
+                AND started_at <= ?3 AND finished_at >= ?2
+              ORDER BY started_at",
+        )?;
+        let rows = st.query_map(params![engine_id, start_ts, end_ts], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0))
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
     /// The attempt number a NEW run of this instance should carry: one past
     /// the highest already recorded, in any state. `run` is UNIQUE on
     /// (board, instance, engine, attempt) and the insert upserts, so reusing a

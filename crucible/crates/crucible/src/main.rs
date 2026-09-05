@@ -12,6 +12,7 @@
 
 mod backfill;
 mod config;
+mod out;
 mod repo;
 mod sweep;
 mod tui;
@@ -70,6 +71,10 @@ enum Cmd {
         /// dirty row is still worth having; on, the sweep waits instead.
         #[arg(long)]
         quiet_only: bool,
+        /// Print the log instead of hosting the dashboard. The default when
+        /// stdout is not a terminal.
+        #[arg(long)]
+        headless: bool,
         /// Enumerate the boards and their run parameters, then stop. Nothing is
         /// spawned and nothing is written.
         #[arg(long)]
@@ -134,6 +139,9 @@ enum Cmd {
     /// Open the dashboard. With --demo it runs against a synthetic sweep, which
     /// is how the layout gets looked at without burning three days of CPU.
     Tui {
+        /// Which view to dump: grid | board | instance | timeline.
+        #[arg(long, default_value = "grid")]
+        view: String,
         #[arg(long)]
         demo: bool,
         /// Render ONE frame to stdout and exit, instead of taking the terminal.
@@ -171,6 +179,7 @@ fn real_main() -> anyhow::Result<()> {
             set,
             require_version,
             quiet_only,
+            headless,
             dry_run,
             max_passes,
             no_db,
@@ -180,6 +189,7 @@ fn real_main() -> anyhow::Result<()> {
             sweep::Opts {
                 set: &set,
                 require_version: require_version.as_deref(),
+                headless,
                 quiet_only,
                 dry_run,
                 max_passes,
@@ -208,11 +218,12 @@ fn real_main() -> anyhow::Result<()> {
         Cmd::Standings { doc, check, write } => standings(&repo_root, &cfg, &doc, check, write),
         Cmd::Diff { a, b, mode } => diff(&repo_root, &a, &b, &mode),
         Cmd::Tui {
+            view,
             demo,
             dump,
             width,
             height,
-        } => tui_cmd(&cfg, demo, dump, width, height),
+        } => tui_cmd(&cfg, demo, dump, width, height, &view),
     }
 }
 
@@ -225,195 +236,26 @@ fn tui_cmd(
     dump: bool,
     width: u16,
     height: u16,
+    view: &str,
 ) -> anyhow::Result<()> {
-    use crucible_core::monitor::Level as CoreLevel;
-    use std::time::{Duration, Instant};
-    use tui::app::*;
+    use std::time::Instant;
 
     if dump {
-        return dump_frame(cfg, width, height);
+        return dump_frame(cfg, width, height, view);
     }
     if !demo {
         anyhow::bail!(
-            "no sweep is running to attach to; start one, or pass --demo to \
-             look at the layout"
+            "no sweep is running to attach to; start one (`crucible sweep` hosts \
+             the dashboard), or pass --demo to look at the layout"
         );
     }
 
     let start = Instant::now();
-    let mut throughput: Vec<f64> = Vec::new();
     tui::run::run(
         cfg.ui.fps,
         &cfg.ui.banner_text,
-        move || {
-            let t = start.elapsed().as_secs_f64();
-            let done = ((t * 40.0) as usize).min(2103);
-            // Foreign load arrives, the sweep goes polite, and the throughput
-            // sparkline visibly sags -- which is the whole argument for having
-            // a dashboard at all rather than tailing a log.
-            let level = match (t as u64 / 8) % 3 {
-                0 => CoreLevel::Full,
-                1 => CoreLevel::Polite,
-                _ => CoreLevel::Suspended,
-            };
-            throughput.push(match level {
-                CoreLevel::Full => 22.0,
-                CoreLevel::Polite => 7.0,
-                CoreLevel::Suspended => 0.0,
-            });
-            if throughput.len() > 40 {
-                throughput.remove(0);
-            }
-            Some(Snapshot {
-                engine_ver: "ff 0.26.0".into(),
-                engine_hash: "2989d528b05e".into(),
-                level: LevelState {
-                    level: match level {
-                        CoreLevel::Full => Level::Full,
-                        CoreLevel::Polite => Level::Polite,
-                        CoreLevel::Suspended => Level::Suspended,
-                    },
-                    reason: match level {
-                        CoreLevel::Full => None,
-                        CoreLevel::Polite => Some("Brave 34%".into()),
-                        CoreLevel::Suspended => Some("Timberborn 240%".into()),
-                    },
-                },
-                uptime: start.elapsed() + Duration::from_secs(3 * 86400),
-                quiet_in: Some(Duration::from_secs(9660)),
-                sweep: SweepProgress {
-                    done,
-                    total: 2103,
-                    solved: done * 86 / 100,
-                    delta: Some(7),
-                    delta_vs: "0.25.0".into(),
-                    regressions: if done > 800 { 1 } else { 0 },
-                    dirty: done / 30,
-                    eta: Some(Duration::from_secs((2103 - done) as u64 * 24)),
-                },
-                tracks: vec![
-                    TrackProgress {
-                        name: "IPC5".into(),
-                        done: 86,
-                        total: 86,
-                        solved: 86,
-                        delta: Some(0),
-                        domains: vec![],
-                        expanded: false,
-                        finished: true,
-                    },
-                    TrackProgress {
-                        name: "IPC6".into(),
-                        done: done.min(598),
-                        total: 598,
-                        solved: done.min(598) * 9 / 10,
-                        delta: Some(5),
-                        domains: vec![
-                            DomainProgress {
-                                name: "openstacks".into(),
-                                solved: 30,
-                                total: 30,
-                                regressions: 0,
-                            },
-                            DomainProgress {
-                                name: "pathways".into(),
-                                solved: 12,
-                                total: 30,
-                                regressions: 1,
-                            },
-                            DomainProgress {
-                                name: "trucks".into(),
-                                solved: 21,
-                                total: 30,
-                                regressions: 0,
-                            },
-                        ],
-                        expanded: true,
-                        finished: false,
-                    },
-                    TrackProgress {
-                        name: "IPC7".into(),
-                        done: 0,
-                        total: 419,
-                        solved: 0,
-                        delta: None,
-                        domains: vec![],
-                        expanded: false,
-                        finished: false,
-                    },
-                ],
-                slots: vec![
-                    Slot {
-                        index: 0,
-                        what: Some(SlotRun {
-                            variant: "rovers".into(),
-                            instance: "p12".into(),
-                            tier: 'A',
-                            effective: Duration::from_secs_f64(t % 6.0),
-                            suspended: level == CoreLevel::Suspended,
-                            budget: Duration::from_secs(60),
-                        }),
-                    },
-                    Slot {
-                        index: 1,
-                        what: Some(SlotRun {
-                            variant: "storage".into(),
-                            instance: "p18".into(),
-                            tier: 'C',
-                            effective: Duration::from_secs_f64(t % 22.0),
-                            suspended: level == CoreLevel::Suspended,
-                            budget: Duration::from_secs(60),
-                        }),
-                    },
-                    Slot {
-                        index: 2,
-                        what: None,
-                    },
-                    Slot {
-                        index: 3,
-                        what: None,
-                    },
-                ],
-                p_cores: 4,
-                log: vec![
-                    LogLine {
-                        at: "14:01:02".into(),
-                        kind: LogKind::Info,
-                        text: "IPC6/openstacks -- 30 instances, tier A first".into(),
-                    },
-                    LogLine {
-                        at: "14:02:11".into(),
-                        kind: LogKind::Warn,
-                        text: "POLITE -- foreign CPU 34% (Brave) -- demoted to E-cores, runs kept"
-                            .into(),
-                    },
-                    LogLine {
-                        at: "14:03:40".into(),
-                        kind: LogKind::Good,
-                        text: "IPC6/openstacks complete -- 30/30 (+1 vs 0.25.0)".into(),
-                    },
-                    LogLine {
-                        at: "14:04:02".into(),
-                        kind: LogKind::Regression,
-                        text: "REGRESSION IPC6/pathways/p07 -- solved in 0.25.0, timeout here"
-                            .into(),
-                    },
-                ],
-                toasts: if done > 800 {
-                    vec![Toast {
-                        text: "REGRESSION pathways/p07".into(),
-                        kind: LogKind::Regression,
-                        sticky: true,
-                        age: Duration::ZERO,
-                    }]
-                } else {
-                    vec![]
-                },
-                throughput: throughput.clone(),
-                selected: 1,
-            })
-        },
-        |_action, _snap| {},
+        |_prev| Some(tui::demo::snapshot(start.elapsed().as_secs_f64())),
+        |_, _| {},
     )?;
     Ok(())
 }
@@ -700,142 +542,24 @@ fn engine(repo: &std::path::Path) -> anyhow::Result<()> {
 
 /// Render one frame off-screen and print it. No terminal is touched, so this
 /// works in a pipe, in CI, and in a transcript.
-fn dump_frame(cfg: &config::Config, width: u16, height: u16) -> anyhow::Result<()> {
+fn dump_frame(cfg: &config::Config, width: u16, height: u16, view: &str) -> anyhow::Result<()> {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
-    use std::time::Duration;
-    use tui::app::*;
 
-    let snap = Snapshot {
-        engine_ver: "ff 0.26.0".into(),
-        engine_hash: "2989d528b05e".into(),
-        level: LevelState {
-            level: Level::Polite,
-            reason: Some("Brave 34%".into()),
-        },
-        uptime: Duration::from_secs(3 * 86400 + 4 * 3600 + 720),
-        quiet_in: Some(Duration::from_secs(9660)),
-        sweep: SweepProgress {
-            done: 1284,
-            total: 2103,
-            solved: 1102,
-            delta: Some(7),
-            delta_vs: "0.25.0".into(),
-            regressions: 1,
-            dirty: 43,
-            eta: Some(Duration::from_secs(51_720)),
-        },
-        tracks: vec![
-            TrackProgress {
-                name: "IPC5".into(),
-                done: 86,
-                total: 86,
-                solved: 86,
-                delta: Some(0),
-                domains: vec![],
-                expanded: false,
-                finished: true,
-            },
-            TrackProgress {
-                name: "IPC6".into(),
-                done: 412,
-                total: 598,
-                solved: 397,
-                delta: Some(5),
-                domains: vec![
-                    DomainProgress {
-                        name: "openstacks".into(),
-                        solved: 30,
-                        total: 30,
-                        regressions: 0,
-                    },
-                    DomainProgress {
-                        name: "pathways".into(),
-                        solved: 12,
-                        total: 30,
-                        regressions: 1,
-                    },
-                    DomainProgress {
-                        name: "trucks".into(),
-                        solved: 21,
-                        total: 30,
-                        regressions: 0,
-                    },
-                ],
-                expanded: true,
-                finished: false,
-            },
-            TrackProgress {
-                name: "IPC7".into(),
-                done: 0,
-                total: 419,
-                solved: 0,
-                delta: None,
-                domains: vec![],
-                expanded: false,
-                finished: false,
-            },
-        ],
-        slots: vec![
-            Slot {
-                index: 0,
-                what: Some(SlotRun {
-                    variant: "rovers".into(),
-                    instance: "p12".into(),
-                    tier: 'A',
-                    effective: Duration::from_millis(4200),
-                    suspended: false,
-                    budget: Duration::from_secs(60),
-                }),
-            },
-            Slot {
-                index: 1,
-                what: Some(SlotRun {
-                    variant: "tpp".into(),
-                    instance: "p21".into(),
-                    tier: 'A',
-                    effective: Duration::from_millis(1800),
-                    suspended: false,
-                    budget: Duration::from_secs(60),
-                }),
-            },
-            Slot {
-                index: 2,
-                what: Some(SlotRun {
-                    variant: "storage".into(),
-                    instance: "p18".into(),
-                    tier: 'C',
-                    effective: Duration::from_secs(18),
-                    suspended: true,
-                    budget: Duration::from_secs(60),
-                }),
-            },
-            Slot {
-                index: 3,
-                what: None,
-            },
-        ],
-        p_cores: 4,
-        log: vec![
-            LogLine {
-                at: "14:02:11".into(),
-                kind: LogKind::Warn,
-                text: "POLITE -- foreign CPU 34% (Brave) -- demoted to E-cores, runs kept".into(),
-            },
-            LogLine {
-                at: "14:03:40".into(),
-                kind: LogKind::Good,
-                text: "IPC6/openstacks complete -- 30/30 (+1 vs 0.25.0)".into(),
-            },
-            LogLine {
-                at: "14:04:02".into(),
-                kind: LogKind::Regression,
-                text: "REGRESSION IPC6/pathways/p07 -- solved in 0.25.0, timeout here".into(),
-            },
-        ],
-        toasts: vec![],
-        throughput: vec![1.0, 2.0, 4.0, 8.0, 14.0, 22.0, 18.0, 12.0, 7.0, 7.0, 8.0],
-        selected: 1,
+    let mut snap = tui::demo::snapshot(400.0);
+    snap.sel_board = 3;
+    snap.sel_inst = 5;
+    snap.view = match view {
+        "board" => tui::app::View::Board,
+        "instance" => {
+            snap.detail = Some(tui::demo::detail());
+            tui::app::View::Instance
+        }
+        "timeline" => {
+            snap.timeline = tui::demo::detail().timeline;
+            tui::app::View::Timeline
+        }
+        _ => tui::app::View::Grid,
     };
 
     let mut term = Terminal::new(TestBackend::new(width, height))?;

@@ -15,7 +15,7 @@
 //! tick fires or state actually changed. This program is watching a benchmark;
 //! a dashboard that perturbs its own measurement is worse than no dashboard.
 
-use super::app::Snapshot;
+use super::app::{Snapshot, View};
 use super::{draw, theme::Theme};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use crossterm::terminal::{
@@ -61,64 +61,71 @@ pub const TOAST_DWELL: Duration = Duration::from_secs(4);
 /// they mean, so this file never has to know what a sweep is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
+    /// Stop the sweep the way ^C would: the running child is cancelled and
+    /// reaped, everything banked stays banked.
     Quit,
-    /// Pause or resume the sweep.
-    TogglePause,
-    /// Operator-forced suspension: get off the machine now.
-    ForceSuspend,
-    /// Re-measure the selected item, discarding its current row.
-    Rerun,
-    ShowDiff,
-    FilterLog,
-    Search,
+    /// The selection or the view changed; nothing for the sweep to do.
     Redraw,
+    /// The instance view wants its detail read from the database.
+    NeedDetail,
 }
 
-/// Vim keys and arrows both, because muscle memory is not negotiable.
+/// Keys to intent. There is deliberately no re-run key (`crucible-spec.md`
+/// R2.4): if the automatic retry is right there is nothing to press; if it
+/// is wrong the fix is the referee.
 pub fn action_for(k: KeyEvent, s: &mut Snapshot) -> Option<Action> {
     if k.modifiers.contains(KeyModifiers::CONTROL) && matches!(k.code, KeyCode::Char('c')) {
         return Some(Action::Quit);
     }
+    let detail = |s: &Snapshot| {
+        if s.view == View::Instance {
+            Action::NeedDetail
+        } else {
+            Action::Redraw
+        }
+    };
     match k.code {
         KeyCode::Char('q') => Some(Action::Quit),
         KeyCode::Char('j') | KeyCode::Down => {
             s.move_selection(1);
-            Some(Action::Redraw)
+            Some(detail(s))
         }
         KeyCode::Char('k') | KeyCode::Up => {
             s.move_selection(-1);
-            Some(Action::Redraw)
+            Some(detail(s))
         }
         KeyCode::Char('g') => {
-            s.selected = 0;
-            Some(Action::Redraw)
+            s.jump(false);
+            Some(detail(s))
         }
         KeyCode::Char('G') => {
-            s.selected = s.visible_tracks().len().saturating_sub(1);
-            Some(Action::Redraw)
+            s.jump(true);
+            Some(detail(s))
         }
-        KeyCode::Enter
-        | KeyCode::Char('l')
-        | KeyCode::Right
-        | KeyCode::Char('h')
-        | KeyCode::Left => {
-            s.toggle_selected();
-            Some(Action::Redraw)
+        KeyCode::Enter | KeyCode::Char('l') | KeyCode::Right => {
+            s.enter();
+            Some(detail(s))
         }
-        KeyCode::Char('z') => {
-            s.collapse_finished();
+        KeyCode::Char('b') | KeyCode::Char('h') | KeyCode::Left => {
+            s.back();
             Some(Action::Redraw)
         }
         KeyCode::Esc => {
-            s.dismiss_toasts();
+            if s.toasts.is_empty() {
+                s.back();
+            } else {
+                s.dismiss_toasts();
+            }
             Some(Action::Redraw)
         }
-        KeyCode::Char('p') => Some(Action::TogglePause),
-        KeyCode::Char('s') => Some(Action::ForceSuspend),
-        KeyCode::Char('r') => Some(Action::Rerun),
-        KeyCode::Char('d') => Some(Action::ShowDiff),
-        KeyCode::Char('f') => Some(Action::FilterLog),
-        KeyCode::Char('/') => Some(Action::Search),
+        KeyCode::Char('t') => {
+            s.toggle_timeline();
+            Some(Action::Redraw)
+        }
+        KeyCode::Char('o') => {
+            s.cycle_sort();
+            Some(Action::Redraw)
+        }
         _ => None,
     }
 }
@@ -132,7 +139,7 @@ pub fn action_for(k: KeyEvent, s: &mut Snapshot) -> Option<Action> {
 /// pick up the result.
 pub fn run<N, A>(fps: u32, banner_text: &str, mut next: N, mut on_action: A) -> io::Result<()>
 where
-    N: FnMut() -> Option<Snapshot>,
+    N: FnMut(&Snapshot) -> Option<Snapshot>,
     A: FnMut(Action, &Snapshot),
 {
     let _guard = TerminalGuard::enter()?;
@@ -140,7 +147,7 @@ where
     let theme = Theme::forge();
     let tick = Duration::from_millis(1000 / fps.clamp(1, 30) as u64);
 
-    let Some(mut snap) = next() else {
+    let Some(mut snap) = next(&Snapshot::default()) else {
         return Ok(());
     };
     let mut last_draw = Instant::now();
@@ -170,8 +177,19 @@ where
         }
 
         if last_draw.elapsed() >= tick {
-            match next() {
-                Some(s) => snap = s,
+            match next(&snap) {
+                Some(mut s) => {
+                    // The feed knows nothing about the cursor; navigation
+                    // state carries across refreshes.
+                    s.view = snap.view;
+                    s.sel_board = snap.sel_board;
+                    s.sel_inst = snap.sel_inst;
+                    s.sort = snap.sort;
+                    if s.detail.is_none() {
+                        s.detail = snap.detail.take();
+                    }
+                    snap = s;
+                }
                 // The sweep is over and there is nothing left to watch.
                 None => return Ok(()),
             }
@@ -199,89 +217,99 @@ mod tests {
     }
 
     fn snap() -> Snapshot {
+        let cells = |n: usize| (0..n).map(|_| InstanceCell::default()).collect();
         Snapshot {
-            tracks: vec![
-                TrackProgress {
-                    name: "A".into(),
-                    done: 1,
-                    total: 2,
-                    solved: 1,
-                    delta: None,
-                    domains: vec![],
-                    expanded: false,
-                    finished: true,
+            boards: vec![
+                BoardRow {
+                    id: "a".into(),
+                    cells: cells(3),
+                    ..Default::default()
                 },
-                TrackProgress {
-                    name: "B".into(),
-                    done: 1,
-                    total: 2,
-                    solved: 1,
-                    delta: None,
-                    domains: vec![DomainProgress {
-                        name: "d".into(),
-                        solved: 0,
-                        total: 1,
-                        regressions: 0,
-                    }],
-                    expanded: false,
-                    finished: false,
+                BoardRow {
+                    id: "b".into(),
+                    cells: cells(2),
+                    ..Default::default()
                 },
             ],
             ..Default::default()
         }
     }
 
-    /// Vim keys and arrows both. Half a keymap is worse than either.
     #[test]
     fn vim_keys_and_arrows_agree() {
         let mut a = snap();
         let mut b = snap();
         action_for(key('j'), &mut a);
         action_for(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE), &mut b);
-        assert_eq!(a.selected, b.selected);
-        assert_eq!(a.selected, 1);
+        assert_eq!(a.sel_board, b.sel_board);
+        assert_eq!(a.sel_board, 1);
     }
 
     #[test]
-    fn enter_expands_the_selected_track() {
+    fn enter_drills_and_back_climbs() {
         let mut s = snap();
-        s.selected = 1;
-        assert_eq!(s.visible_tracks().len(), 2);
-        action_for(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE), &mut s);
-        assert_eq!(s.visible_tracks().len(), 3, "its one domain is now shown");
+        assert_eq!(
+            action_for(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE), &mut s),
+            Some(Action::Redraw)
+        );
+        assert_eq!(s.view, View::Board);
+        assert_eq!(
+            action_for(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE), &mut s),
+            Some(Action::NeedDetail),
+            "the instance view asks for its detail"
+        );
+        assert_eq!(s.view, View::Instance);
+        action_for(key('b'), &mut s);
+        assert_eq!(s.view, View::Board);
+        action_for(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &mut s);
+        assert_eq!(s.view, View::Grid);
     }
 
     #[test]
     fn g_and_shift_g_jump_to_the_ends() {
         let mut s = snap();
-        action_for(
-            KeyEvent::new(KeyCode::Char('G'), KeyModifiers::NONE),
-            &mut s,
-        );
-        assert_eq!(s.selected, 1);
+        action_for(key('G'), &mut s);
+        assert_eq!(s.sel_board, 1);
         action_for(key('g'), &mut s);
-        assert_eq!(s.selected, 0);
+        assert_eq!(s.sel_board, 0);
     }
 
-    /// Esc clears the ordinary toasts. A sticky regression toast is cleared
-    /// too -- but only because the operator explicitly asked, which is the
-    /// difference between dismissing and never seeing.
     #[test]
-    fn esc_dismisses_toasts() {
+    fn t_toggles_the_timeline_and_o_cycles_the_sort() {
         let mut s = snap();
+        action_for(key('t'), &mut s);
+        assert_eq!(s.view, View::Timeline);
+        action_for(key('t'), &mut s);
+        assert_eq!(s.view, View::Grid);
+        action_for(key('o'), &mut s);
+        assert_eq!(s.sort, Sort::Corpus, "sort is a board-view thing");
+        s.enter();
+        action_for(key('o'), &mut s);
+        assert_eq!(s.sort, Sort::Time);
+    }
+
+    /// Esc clears the ordinary toasts first; with none showing it climbs.
+    #[test]
+    fn esc_dismisses_toasts_before_it_climbs() {
+        let mut s = snap();
+        s.enter();
         s.toasts.push(Toast {
-            text: "x".into(),
+            text: "resumed".into(),
             kind: LogKind::Info,
             sticky: false,
             age: Duration::ZERO,
         });
         action_for(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &mut s);
         assert!(s.toasts.is_empty());
+        assert_eq!(s.view, View::Board);
+        action_for(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE), &mut s);
+        assert_eq!(s.view, View::Grid);
     }
 
     #[test]
     fn ctrl_c_quits_as_well_as_q() {
         let mut s = snap();
+        assert_eq!(action_for(key('q'), &mut s), Some(Action::Quit));
         assert_eq!(
             action_for(
                 KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL),
@@ -289,24 +317,14 @@ mod tests {
             ),
             Some(Action::Quit)
         );
-        assert_eq!(action_for(key('q'), &mut s), Some(Action::Quit));
     }
 
-    /// Operator intent is REPORTED, never acted on here -- this file must not
-    /// know what a sweep is, or the dashboard could stall one.
+    /// The re-run key is gone by decision, and an unbound key does nothing.
     #[test]
-    fn control_keys_report_intent_rather_than_acting() {
+    fn there_is_no_rerun_key_and_unbound_keys_do_nothing() {
         let mut s = snap();
-        assert_eq!(action_for(key('p'), &mut s), Some(Action::TogglePause));
-        assert_eq!(action_for(key('s'), &mut s), Some(Action::ForceSuspend));
-        assert_eq!(action_for(key('r'), &mut s), Some(Action::Rerun));
-    }
-
-    #[test]
-    fn an_unbound_key_does_nothing_at_all() {
-        let mut s = snap();
-        let before = s.selected;
-        assert_eq!(action_for(key('Q'), &mut s), None);
-        assert_eq!(s.selected, before);
+        assert_eq!(action_for(key('r'), &mut s), None);
+        assert_eq!(action_for(key('x'), &mut s), None);
+        assert_eq!(s.view, View::Grid);
     }
 }

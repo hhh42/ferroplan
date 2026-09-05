@@ -163,6 +163,7 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
         repo,
         cfg,
         crate::sweep::Opts {
+            headless: false,
             set: o.set,
             require_version: None,
             quiet_only: false,
