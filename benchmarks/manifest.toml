@@ -610,3 +610,45 @@ boards = [
   "ipc2014-mco-t8",
   "ipc5-complex-pref",
 ]
+
+
+# The 0.27 cut set: the same 32 boards as cut26, its own stage, the
+# 0.27 version gate. Swept by crucible R2's packed scheduler.
+[[set]]
+name = "cut27"
+stage = "benchmarks/air27"
+requires_version = "0.27"
+boards = [
+  "ipc5-time",
+  "ipc5-metric-time",
+  "ipc5-constraints",
+  "ipc2026-opt",
+  "ipc67-netben",
+  "ipc5-prop",
+  "ipc2023-agile",
+  "ipc2014-tempo",
+  "ipc2018-sat",
+  "ipc2014-sat",
+  "ipc2014-agile",
+  "ipc2014-opt",
+  "ipc2026-numeric",
+  "ipc2023-numeric",
+  "ipc-opt-2008-11",
+  "ipc67-temporal",
+  "ipc67-results",
+  "ipc7-mco-t2",
+  "ipc7-mco-t4",
+  "ipc7-mco-t8",
+  "ipc2014-mco-t4",
+  "ipc2023-agile-300s",
+  "ipc5-simple-pref",
+  "ipc5-qual-pref",
+  "ipc2023-sat",
+  "ipc2023-opt",
+  "ipc2018-opt",
+  "ipc2023-numeric-opt",
+  "ipc2026-opt-full",
+  "ipc2014-mco-t2",
+  "ipc2014-mco-t8",
+  "ipc5-complex-pref",
+]
