@@ -1341,7 +1341,22 @@ impl Watcher {
                 while !flag.load(Ordering::Relaxed) {
                     if let (Some(c), Some(t)) = (&canary, next_canary) {
                         if Instant::now() >= t {
-                            if let Some(f) = c.read() {
+                            // The canary measures the BOX, so our own planner
+                            // is paused for its two seconds: beside one
+                            // neighbour it read 1.14x on an idle box (the
+                            // calibration's +23 % for a single neighbour),
+                            // beside an mco board's eight threads 1.42x.
+                            // Suspended time is not charged to the run.
+                            let pause = shared.level() != Level::Suspended;
+                            if pause {
+                                shared.send(Ctl::Stop);
+                                std::thread::sleep(Duration::from_millis(400));
+                            }
+                            let reading = c.read();
+                            if pause && shared.level() != Level::Suspended {
+                                shared.send(Ctl::Cont);
+                            }
+                            if let Some(f) = reading {
                                 shared.set_canary(f);
                                 let slow = f > c.max_factor;
                                 if slow {

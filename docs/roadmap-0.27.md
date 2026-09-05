@@ -272,6 +272,15 @@ end. Not built: the stderr tail in the slot (the pipe reader keeps the
 whole stream; a ring-buffer tap is a small change) and `live_child.stopped`
 on Stop/Cont.
 
+**Recorded 2026-09-04, from the first R2 night — the canary measures the
+box, so the box must not hold our own planner while it runs.** Beside one
+neighbour on an idle box (foreign 0 %, pressure normal) it read
+1.14–1.15× — the calibration's single-neighbour +23 % — and beside an mco
+board's eight threads 1.42×, owing 18 `ipc2014-agile` timeouts as thermal
+that were nothing of the sort. The watcher now pauses the running child
+(`Ctl::Stop`, 400 ms, the reading, `Ctl::Cont`) for the canary's two
+seconds; suspended time is not charged to the run.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**
