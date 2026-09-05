@@ -1523,26 +1523,30 @@ impl Shared {
 }
 
 /// How many of our own planners may run right now. The night, or an idle
-/// box, gets every core; a box the operator is using by day gets the
-/// P-cores; foreign load (POLITE) one demoted planner; SUSPENDED none.
+/// box, starts from every core; a box the operator is using by day from
+/// the P-cores; foreign load then takes back the cores it is actually
+/// using (56 % of a core is one core, not nine -- the POLITE line is a
+/// quarter of a core and is this desktop's resting state); SUSPENDED is
+/// none. Never below one: the referee, not the width, decides whether a
+/// row measured beside foreign load counts.
 pub fn policy_width(
     level: Level,
     quiet_hours: bool,
     user_idle_secs: Option<f64>,
+    foreign_pcpu: f64,
     pack: &Pack,
 ) -> usize {
-    match level {
-        Level::Suspended => 0,
-        Level::Polite => 1,
-        Level::Full => {
-            let at_the_box = user_idle_secs.is_some_and(|i| i < pack.user_active_secs);
-            if quiet_hours || !at_the_box {
-                pack.width
-            } else {
-                pack.width_day.min(pack.width)
-            }
-        }
+    if level == Level::Suspended {
+        return 0;
     }
+    let at_the_box = user_idle_secs.is_some_and(|i| i < pack.user_active_secs);
+    let base = if quiet_hours || !at_the_box {
+        pack.width
+    } else {
+        pack.width_day.min(pack.width)
+    };
+    let foreign_cores = (foreign_pcpu.max(0.0) / 100.0).ceil() as usize;
+    base.saturating_sub(foreign_cores).max(1)
 }
 
 /// What a throttle transition tells the running child.
@@ -1869,10 +1873,16 @@ impl Watcher {
                         // The width policy, every sample: the level, the
                         // hour, and whether anyone is at the keyboard.
                         let idle = plat.user_idle_secs();
-                        let allowed = policy_width(shared.level(), quiet_now, idle, &pack);
+                        let allowed = policy_width(
+                            shared.level(),
+                            quiet_now,
+                            idle,
+                            s.competitors_total,
+                            &pack,
+                        );
                         if allowed != shared.width() {
                             crate::say!(
-                                "!! width {} -> {} ({}{}{})",
+                                "!! width {} -> {} ({}{}{}, foreign {:.0}%)",
                                 if shared.width() == usize::MAX {
                                     "-".to_string()
                                 } else {
@@ -1886,7 +1896,8 @@ impl Watcher {
                                         format!(", operator active {i:.0}s ago"),
                                     Some(i) => format!(", idle {i:.0}s"),
                                     None => String::new(),
-                                }
+                                },
+                                s.competitors_total,
                             );
                             shared.set_width(allowed);
                         }
@@ -2306,7 +2317,7 @@ mod r2_tests {
     use super::*;
 
     /// Night or an idle box: everything. The operator at the box by day:
-    /// the P-cores. Foreign load: one. Suspended: none.
+    /// the P-cores. Foreign load takes back its cores. Suspended: none.
     #[test]
     fn the_width_policy_reads_the_hour_the_keyboard_and_the_level() {
         let pack = Pack {
@@ -2320,29 +2331,47 @@ mod r2_tests {
             rss_headroom: 1.5,
         };
         assert_eq!(
-            policy_width(Level::Full, true, Some(3.0), &pack),
+            policy_width(Level::Full, true, Some(3.0), 0.0, &pack),
             10,
             "quiet hours"
         );
         assert_eq!(
-            policy_width(Level::Full, false, Some(3.0), &pack),
+            policy_width(Level::Full, false, Some(3.0), 0.0, &pack),
             4,
             "at the box by day"
         );
         assert_eq!(
-            policy_width(Level::Full, false, Some(900.0), &pack),
+            policy_width(Level::Full, false, Some(900.0), 0.0, &pack),
             10,
             "idle by day"
         );
         assert_eq!(
-            policy_width(Level::Full, false, None, &pack),
+            policy_width(Level::Full, false, None, 0.0, &pack),
             10,
             "unknown reads as idle"
         );
-        assert_eq!(policy_width(Level::Polite, false, Some(900.0), &pack), 1);
-        assert_eq!(policy_width(Level::Suspended, true, None, &pack), 0);
+        // Foreign load takes back the cores it uses, never everything.
+        assert_eq!(
+            policy_width(Level::Polite, false, Some(900.0), 56.0, &pack),
+            9
+        );
+        assert_eq!(
+            policy_width(Level::Polite, false, Some(900.0), 340.0, &pack),
+            6
+        );
+        assert_eq!(
+            policy_width(Level::Polite, false, Some(3.0), 340.0, &pack),
+            1,
+            "P-cores minus four, floored"
+        );
+        assert_eq!(
+            policy_width(Level::Full, true, None, 2000.0, &pack),
+            1,
+            "never below one"
+        );
+        assert_eq!(policy_width(Level::Suspended, true, None, 0.0, &pack), 0);
         let solo = Pack::solo();
-        assert_eq!(policy_width(Level::Full, true, None, &solo), 1);
+        assert_eq!(policy_width(Level::Full, true, None, 0.0, &solo), 1);
     }
 
     /// Every transition delivers what the child needs, and nothing else: a
