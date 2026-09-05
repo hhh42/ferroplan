@@ -321,6 +321,18 @@ largest prior peak RSS with headroom), prior solves under 85 % at
 own misses, `threads > 1` -- solo. Packing can waste time; it cannot lose
 a row. `--quiet-only` restores the R1 shape.
 
+**Recorded 2026-09-05, from the cut27 sweep's first night — foreign CPU
+load no longer suspends.** The throttle went `polite → suspended
+(Foreign 87 %)` at 22:21 (a cargo build) and never resumed: the resume
+rule wanted foreign load under 25 % for a minute, and the operator's own
+desktop (Claude Helper at 56 %, Docker at 23 %) held the box above the
+line for three hours with both planners stopped. That is the R1
+empty-box assumption living on in the throttle. Now foreign load only
+ever demotes (POLITE, the background band); SUSPENDED is for a game or
+critical memory pressure, and ends when THAT ends, whatever the CPU
+load. `[contention] suspend_threshold_pct` stays in the config and is
+read by nothing.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**

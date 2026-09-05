@@ -176,15 +176,22 @@ impl Throttle {
             self.clear_since = None;
             return None;
         }
-        if suspend_for.is_some_and(|d| d >= self.cfg.polite_dwell) || swapping {
+        // Memory pressure suspends. FOREIGN CPU LOAD NEVER DOES (R2,
+        // 2026-09-05): the referee judges every row by its own process's
+        // CPU share and the canary, so a busy box costs a demotion to the
+        // background band, not a stop. The R1 rule stopped a sweep for
+        // three hours because the operator's own desktop apps held the box
+        // above the resume line -- the "empty box" assumption R2 exists to
+        // retire. `suspend_threshold_pct` is kept in the config for
+        // compatibility and read by nothing.
+        let _ = suspend_for;
+        if swapping {
             if self.level != Level::Suspended {
                 self.clear_since = None;
-                let r = if swapping {
-                    Reason::MemoryPressure(s.swap_mb.unwrap_or_default())
-                } else {
-                    Reason::Foreign(load)
-                };
-                return Some(self.go(Level::Suspended, r));
+                return Some(self.go(
+                    Level::Suspended,
+                    Reason::MemoryPressure(s.swap_mb.unwrap_or_default()),
+                ));
             }
             self.clear_since = None;
             return None;
@@ -197,8 +204,18 @@ impl Throttle {
         // De-escalate only after a sustained clear stretch, and only ONE level
         // at a time -- SUSPENDED returns to POLITE, which then has to earn FULL
         // separately. Jumping straight back to full throttle is how a
-        // borderline box oscillates.
-        if load <= self.cfg.polite_threshold_pct && game_busy.is_none() && !swapping {
+        // borderline box oscillates. What counts as clear depends on the
+        // level: a suspension ends when the game and the memory pressure are
+        // gone, whatever the CPU load (load is POLITE's business); POLITE
+        // ends when foreign load is under the line.
+        let clear = match self.level {
+            Level::Suspended => game_busy.is_none() && !swapping,
+            Level::Polite => {
+                load <= self.cfg.polite_threshold_pct && game_busy.is_none() && !swapping
+            }
+            Level::Full => false,
+        };
+        if clear {
             let since = *self.clear_since.get_or_insert(now);
             if now.saturating_duration_since(since) >= self.cfg.resume_dwell {
                 self.clear_since = Some(now);
@@ -314,6 +331,39 @@ mod tests {
         );
         let tr = th.on_sample(&load(1.0), &quiet, at(t0, 150)).unwrap();
         assert_eq!(tr.to, Level::Full);
+    }
+
+    /// THE R2 RULE: foreign CPU load demotes and never suspends, however
+    /// high and however long -- the referee judges the rows. And a
+    /// suspension (a game) ends when the game ends, even with the box
+    /// still busy: the sweep goes back to POLITE and runs demoted.
+    #[test]
+    fn foreign_load_only_ever_demotes_and_a_busy_box_still_resumes() {
+        let t0 = Instant::now();
+        let mut th = Throttle::new(Config::default());
+        let quiet = GameState::default();
+        assert!(th.on_sample(&load(95.0), &quiet, t0).is_none());
+        let tr = th.on_sample(&load(95.0), &quiet, at(t0, 25)).unwrap();
+        assert_eq!(tr.to, Level::Polite);
+        for s in [60, 600, 3600] {
+            assert!(th.on_sample(&load(95.0), &quiet, at(t0, s)).is_none());
+            assert_eq!(th.level(), Level::Polite, "never suspended by load alone");
+        }
+        let playing = GameState {
+            busiest: Some(("Timberborn".into(), 240.0)),
+        };
+        th.on_sample(&load(95.0), &playing, at(t0, 4000));
+        let tr = th.on_sample(&load(95.0), &playing, at(t0, 4015)).unwrap();
+        assert_eq!(tr.to, Level::Suspended);
+        // The game ends; the desktop is still busy. Back to POLITE after the
+        // dwell -- the old rule would have waited for a box that never came.
+        assert!(th.on_sample(&load(80.0), &quiet, at(t0, 4020)).is_none());
+        let tr = th.on_sample(&load(80.0), &quiet, at(t0, 4090)).unwrap();
+        assert_eq!(tr.to, Level::Polite);
+        assert!(
+            th.on_sample(&load(80.0), &quiet, at(t0, 4200)).is_none(),
+            "still busy: stays polite"
+        );
     }
 
     /// A swapping box slows search while looking perfectly CPU-idle, so the
