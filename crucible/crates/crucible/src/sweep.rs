@@ -92,6 +92,9 @@ impl Board {
 #[derive(Debug, Clone, Copy)]
 pub struct Pack {
     pub width: usize,
+    /// The width while the operator is at the box by day.
+    pub width_day: usize,
+    pub user_active_secs: f64,
     pub narrow_width: usize,
     pub max_frac: f64,
     pub narrow_max_frac: f64,
@@ -108,6 +111,8 @@ impl Pack {
             } else {
                 (c.pack_width as usize).max(1)
             },
+            width_day: (c.pack_width_day as usize).max(1),
+            user_active_secs: c.user_active_secs as f64,
             narrow_width: (c.pack_narrow_width as usize).max(1),
             max_frac: c.pack_max_frac,
             narrow_max_frac: c.pack_narrow_max_frac,
@@ -120,6 +125,8 @@ impl Pack {
     pub fn solo() -> Pack {
         Pack {
             width: 1,
+            width_day: 1,
+            user_active_secs: 0.0,
             narrow_width: 1,
             max_frac: 0.0,
             narrow_max_frac: 0.0,
@@ -318,6 +325,13 @@ impl<'a> SweepRunner<'a> {
                     loop {
                         if stop.load(Ordering::Relaxed) || exec::interrupted() {
                             break;
+                        }
+                        // The width policy: worker `w` runs only while the
+                        // watcher allows at least `w + 1` planners. Worker 0
+                        // waits only for SUSPENDED (admission below).
+                        if w > 0 && w >= ctx.shared.width() {
+                            std::thread::sleep(Duration::from_secs(1));
+                            continue;
                         }
                         let Some((i, bytes)) = queue.lock().unwrap().pop_front() else {
                             break;
@@ -1426,6 +1440,8 @@ pub struct Shared {
     hold: AtomicBool,
     /// The canary's latest clock factor and when it was read.
     canary: Mutex<Option<(f64, Instant)>>,
+    /// The width policy's answer right now (`policy_width`).
+    width: std::sync::atomic::AtomicUsize,
 }
 
 impl Shared {
@@ -1436,7 +1452,17 @@ impl Shared {
             next_id: std::sync::atomic::AtomicU64::new(1),
             hold: AtomicBool::new(false),
             canary: Mutex::new(None),
+            width: std::sync::atomic::AtomicUsize::new(usize::MAX),
         })
+    }
+
+    /// Planners allowed right now; `usize::MAX` until the watcher has said.
+    pub fn width(&self) -> usize {
+        self.width.load(Ordering::Relaxed)
+    }
+
+    pub fn set_width(&self, w: usize) {
+        self.width.store(w, Ordering::Relaxed);
     }
 
     pub fn hold(&self, on: bool) {
@@ -1492,6 +1518,29 @@ impl Shared {
     pub fn send(&self, c: Ctl) {
         for (_, tx) in self.children.lock().unwrap().iter() {
             let _ = tx.send(c);
+        }
+    }
+}
+
+/// How many of our own planners may run right now. The night, or an idle
+/// box, gets every core; a box the operator is using by day gets the
+/// P-cores; foreign load (POLITE) one demoted planner; SUSPENDED none.
+pub fn policy_width(
+    level: Level,
+    quiet_hours: bool,
+    user_idle_secs: Option<f64>,
+    pack: &Pack,
+) -> usize {
+    match level {
+        Level::Suspended => 0,
+        Level::Polite => 1,
+        Level::Full => {
+            let at_the_box = user_idle_secs.is_some_and(|i| i < pack.user_active_secs);
+            if quiet_hours || !at_the_box {
+                pack.width
+            } else {
+                pack.width_day.min(pack.width)
+            }
         }
     }
 }
@@ -1701,6 +1750,7 @@ impl Watcher {
         throttle_cfg: monitor::Config,
         quiet_hours: crate::config::QuietHours,
         mut canary: Option<Canary>,
+        pack: Pack,
     ) -> Watcher {
         let stop = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&stop);
@@ -1772,9 +1822,8 @@ impl Watcher {
                             quiet_hours: quiet_hours.clone(),
                             ..Default::default()
                         };
-                        let games = if qcfg.in_quiet_hours(minutes_past_midnight())
-                            && quiet_hours.skip_game_check
-                        {
+                        let quiet_now = qcfg.in_quiet_hours(minutes_past_midnight());
+                        let games = if quiet_now && quiet_hours.skip_game_check {
                             Default::default()
                         } else {
                             games_now(&plat)
@@ -1816,6 +1865,30 @@ impl Watcher {
                                     })
                                     .ok();
                             }
+                        }
+                        // The width policy, every sample: the level, the
+                        // hour, and whether anyone is at the keyboard.
+                        let idle = plat.user_idle_secs();
+                        let allowed = policy_width(shared.level(), quiet_now, idle, &pack);
+                        if allowed != shared.width() {
+                            crate::say!(
+                                "!! width {} -> {} ({}{}{})",
+                                if shared.width() == usize::MAX {
+                                    "-".to_string()
+                                } else {
+                                    shared.width().to_string()
+                                },
+                                allowed,
+                                level_str(shared.level()),
+                                if quiet_now { ", quiet hours" } else { "" },
+                                match idle {
+                                    Some(i) if i < pack.user_active_secs =>
+                                        format!(", operator active {i:.0}s ago"),
+                                    Some(i) => format!(", idle {i:.0}s"),
+                                    None => String::new(),
+                                }
+                            );
+                            shared.set_width(allowed);
                         }
                         next += interval;
                     }
@@ -2094,6 +2167,11 @@ fn sweep_body(
             throttle_config(&cfg.contention),
             cfg.quiet_hours.clone(),
             canary,
+            if quiet_only {
+                Pack::solo()
+            } else {
+                Pack::from_config(&cfg.scheduler)
+            },
         )
     });
 
@@ -2226,6 +2304,46 @@ fn minutes_past_midnight() -> u32 {
 #[cfg(test)]
 mod r2_tests {
     use super::*;
+
+    /// Night or an idle box: everything. The operator at the box by day:
+    /// the P-cores. Foreign load: one. Suspended: none.
+    #[test]
+    fn the_width_policy_reads_the_hour_the_keyboard_and_the_level() {
+        let pack = Pack {
+            width: 10,
+            width_day: 4,
+            user_active_secs: 300.0,
+            narrow_width: 2,
+            max_frac: 0.5,
+            narrow_max_frac: 0.85,
+            mem_reserve_bytes: 0,
+            rss_headroom: 1.5,
+        };
+        assert_eq!(
+            policy_width(Level::Full, true, Some(3.0), &pack),
+            10,
+            "quiet hours"
+        );
+        assert_eq!(
+            policy_width(Level::Full, false, Some(3.0), &pack),
+            4,
+            "at the box by day"
+        );
+        assert_eq!(
+            policy_width(Level::Full, false, Some(900.0), &pack),
+            10,
+            "idle by day"
+        );
+        assert_eq!(
+            policy_width(Level::Full, false, None, &pack),
+            10,
+            "unknown reads as idle"
+        );
+        assert_eq!(policy_width(Level::Polite, false, Some(900.0), &pack), 1);
+        assert_eq!(policy_width(Level::Suspended, true, None, &pack), 0);
+        let solo = Pack::solo();
+        assert_eq!(policy_width(Level::Full, true, None, &solo), 1);
+    }
 
     /// Every transition delivers what the child needs, and nothing else: a
     /// stopped child is continued before it is demoted or promoted, and a

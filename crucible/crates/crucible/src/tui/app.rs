@@ -399,6 +399,8 @@ pub struct Snapshot {
     pub throughput: Vec<f64>,
     /// The canary's latest clock factor.
     pub canary: Option<f64>,
+    /// Planners the width policy allows right now.
+    pub width_now: Option<usize>,
     /// The top competitors right now, busiest first.
     pub competitors: Vec<(String, f64)>,
     pub view: View,

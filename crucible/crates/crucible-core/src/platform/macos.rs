@@ -237,6 +237,18 @@ impl Platform for MacOs {
         line.split('=').nth(1)?.trim().parse().ok()
     }
 
+    fn user_idle_secs(&self) -> Option<f64> {
+        // `ioreg -c IOHIDSystem` carries "HIDIdleTime" = <nanoseconds>.
+        let out = std::process::Command::new("ioreg")
+            .args(["-c", "IOHIDSystem", "-d", "4", "-r"])
+            .output()
+            .ok()?;
+        let s = String::from_utf8_lossy(&out.stdout);
+        let line = s.lines().find(|l| l.contains("HIDIdleTime"))?;
+        let ns: f64 = line.split('=').nth(1)?.trim().parse().ok()?;
+        Some(ns / 1e9)
+    }
+
     fn proc_identity(&self, pid: Pid) -> Option<ProcIdentity> {
         use libproc::libproc::{bsd_info::BSDInfo, proc_pid};
         let path = proc_pid::pidpath(pid).ok()?;

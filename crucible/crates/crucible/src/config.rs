@@ -98,6 +98,11 @@ pub struct Scheduler {
     /// measured. A packed miss is re-run at `pack_narrow_width`, then solo,
     /// in the same pass: packing can waste time, never lose a row.
     pub pack_width: u32,
+    /// The width while the operator is AT the box by day (touched the
+    /// keyboard within `user_active_secs`, outside quiet hours): the
+    /// P-cores by default. Quiet hours, or an idle box, get `pack_width`.
+    pub pack_width_day: u32,
+    pub user_active_secs: u64,
     pub pack_narrow_width: u32,
     /// Prior solve time over budget below which an instance goes in the
     /// wide batch; below `pack_narrow_max_frac` the narrow one; else solo.
@@ -225,6 +230,8 @@ impl Default for Scheduler {
             min_idle_pct: None,
             stall_attempts: 3,
             pack_width: 0,
+            pack_width_day: 4,
+            user_active_secs: 300,
             pack_narrow_width: 2,
             pack_max_frac: 0.5,
             pack_narrow_max_frac: 0.85,

@@ -191,6 +191,12 @@ fn draw_sweep(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
             Style::default().fg(th.dim),
         ));
     }
+    if let Some(w) = s.width_now {
+        top.push(Span::styled(
+            format!("  width {w}"),
+            Style::default().fg(if w == 0 { th.alarm } else { th.dim }),
+        ));
+    }
 
     let mut second = vec![Span::styled(
         format!("  coverage {}", p.solved),

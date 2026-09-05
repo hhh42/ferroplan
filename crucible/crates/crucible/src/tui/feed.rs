@@ -236,6 +236,10 @@ impl Feed {
             toasts: Vec::new(),
             throughput,
             canary: self.shared.canary(),
+            width_now: match self.shared.width() {
+                usize::MAX => None,
+                w => Some(w),
+            },
             competitors: self.competitors.clone(),
             view: prev.view,
             sel_board: prev.sel_board,

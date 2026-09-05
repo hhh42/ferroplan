@@ -135,6 +135,14 @@ pub trait Platform: Send + Sync + 'static {
         None
     }
 
+    /// Seconds since the operator last touched the keyboard or mouse
+    /// (`HIDIdleTime` on Darwin). `None` where unknown. The width policy
+    /// reads it: a box in use by day gets the P-cores; an idle one, or the
+    /// night, gets everything.
+    fn user_idle_secs(&self) -> Option<f64> {
+        None
+    }
+
     fn proc_identity(&self, pid: Pid) -> Option<ProcIdentity>;
 
     /// Every descendant of `root`, for excluding our own tree from the
