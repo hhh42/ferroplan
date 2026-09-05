@@ -344,6 +344,8 @@ pub struct SampleRec {
     /// The canary's most recent clock factor (wall / baseline) when this
     /// sample was taken. `None` before the first canary run.
     pub canary_factor: Option<f64>,
+    /// The kernel's memory-pressure level (1 normal, 2 warn, 4 critical).
+    pub mem_pressure: Option<u32>,
 }
 
 impl SampleRec {
@@ -367,6 +369,7 @@ impl SampleRec {
             pass_id: None,
             processes: s.competitors.iter().map(|(k, v)| (k.clone(), *v)).collect(),
             canary_factor: None,
+            mem_pressure: s.mem_pressure,
         }
     }
 }

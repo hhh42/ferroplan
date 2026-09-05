@@ -48,6 +48,8 @@ pub struct Sample {
     pub loadavg1: Option<f64>,
     pub swap_mb: Option<f64>,
     pub cpu_speed_limit: Option<u32>,
+    /// `Platform::memory_pressure_level`: 1 normal, 2 warn, 4 critical.
+    pub mem_pressure: Option<u32>,
 }
 
 impl Sample {

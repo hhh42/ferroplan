@@ -165,6 +165,27 @@ impl Platform for MacOs {
         Some(mach_ticks_to_ns(r.ri_user_time.saturating_add(r.ri_system_time)) / 1_000_000)
     }
 
+    fn memory_pressure_level(&self) -> Option<u32> {
+        let name = b"kern.memorystatus_vm_pressure_level\0";
+        let mut val: libc::c_int = 0;
+        let mut len = std::mem::size_of::<libc::c_int>();
+        // SAFETY: a plain sysctlbyname read into a correctly sized int.
+        let rc = unsafe {
+            libc::sysctlbyname(
+                name.as_ptr() as *const libc::c_char,
+                &mut val as *mut libc::c_int as *mut libc::c_void,
+                &mut len,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        if rc == 0 && val >= 0 {
+            Some(val as u32)
+        } else {
+            None
+        }
+    }
+
     fn demote(&self, pid: Pid) -> io::Result<()> {
         // SAFETY: a plain setpriority on a pid we own.
         let rc =

@@ -414,8 +414,8 @@ fn drain(
         for s in samples.iter() {
             c.execute(
                 "INSERT INTO sample
-                   (at,idle_pct,competitors_total,loadavg1,swap_mb,cpu_speed_limit,pass_id,canary_factor)
-                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
+                   (at,idle_pct,competitors_total,loadavg1,swap_mb,cpu_speed_limit,pass_id,canary_factor,mem_pressure)
+                 VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)",
                 params![
                     s.at,
                     s.idle_pct,
@@ -424,7 +424,8 @@ fn drain(
                     s.swap_mb,
                     s.cpu_speed_limit.map(|v| v as i64),
                     s.pass_id,
-                    s.canary_factor
+                    s.canary_factor,
+                    s.mem_pressure.map(|v| v as i64)
                 ],
             )?;
             let sid = c.last_insert_rowid();

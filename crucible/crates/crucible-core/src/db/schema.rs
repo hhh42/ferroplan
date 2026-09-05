@@ -19,7 +19,7 @@
 use rusqlite::Connection;
 
 /// The schema version this binary writes.
-pub const USER_VERSION: i32 = 4;
+pub const USER_VERSION: i32 = 5;
 
 /// Refusing to open, with the numbers a human needs to know which binary to run.
 #[derive(Debug, thiserror::Error)]
@@ -458,6 +458,15 @@ PRAGMA user_version = 4;
 COMMIT;
 "#;
 
+/// v5 (crucible R2, Phase 1): the kernel's memory-pressure level on every
+/// sample, beside the swap stock it replaces as the throttle's signal.
+const V5: &str = r#"
+BEGIN;
+ALTER TABLE sample ADD COLUMN mem_pressure INTEGER;
+PRAGMA user_version = 5;
+COMMIT;
+"#;
+
 /// Bring `conn` up to [`USER_VERSION`], or refuse to touch it.
 pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     let found: i32 = conn
@@ -484,6 +493,10 @@ pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     if found < 4 {
         conn.execute_batch(V4)
             .map_err(|source| MigrateError::Sql { version: 4, source })?;
+    }
+    if found < 5 {
+        conn.execute_batch(V5)
+            .map_err(|source| MigrateError::Sql { version: 5, source })?;
     }
     Ok(())
 }
@@ -572,6 +585,7 @@ mod tests {
         assert!(has_column(&fresh(), "run", "banked"));
         assert!(has_column(&fresh(), "run", "verdict"));
         assert!(has_column(&fresh(), "sample", "canary_factor"));
+        assert!(has_column(&fresh(), "sample", "mem_pressure"));
     }
 
     /// A second migrate must be a no-op. The ladder is what a restart runs

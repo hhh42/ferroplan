@@ -220,6 +220,7 @@ fn sample_box(plat: &platform::Host) -> Sample {
         loadavg1: None,
         swap_mb: plat.swap_used_mb(),
         cpu_speed_limit: plat.cpu_speed_limit(),
+        mem_pressure: plat.memory_pressure_level(),
     }
 }
 

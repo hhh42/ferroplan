@@ -264,7 +264,10 @@ fn a_restart_owes_nothing_that_banked_clean() {
             "the reconstructed key matched the driver's -- no second board row"
         );
         assert_eq!(r.clean_instances(bids[0], eids[0]).expect("clean").len(), 2);
-        assert_eq!(r.banked_instances(bids[0], eids[0]).expect("banked").len(), 2);
+        assert_eq!(
+            r.banked_instances(bids[0], eids[0]).expect("banked").len(),
+            2
+        );
         let _ = db::Cleanliness::Clean;
     }
     let banked = run_count(&repo);

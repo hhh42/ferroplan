@@ -158,7 +158,13 @@ impl Throttle {
             .as_ref()
             .filter(|(_, cpu)| *cpu > self.cfg.game_cpu_threshold_pct);
         let game_for = hold(&mut self.game_since, game_busy.is_some());
-        let swapping = s.swap_mb.is_some_and(|m| m > self.cfg.swap_pressure_mb);
+        // The kernel's level when it has one -- CRITICAL suspends, warn does
+        // not -- and the swap-stock line only as a fallback where it does
+        // not. Swap in use never comes back down once idle pages are out.
+        let swapping = match s.mem_pressure {
+            Some(level) => level >= 4,
+            None => s.swap_mb.is_some_and(|m| m > self.cfg.swap_pressure_mb),
+        };
 
         // Escalate first, and to the highest level the evidence supports.
         if game_for.is_some_and(|d| d >= self.cfg.game_dwell) {
@@ -337,5 +343,46 @@ mod tests {
             .is_none());
         assert_eq!(th.level(), Level::Suspended);
         assert_eq!(th.set_manual_hold(false).unwrap().to, Level::Full);
+    }
+}
+
+#[cfg(test)]
+mod pressure_tests {
+    use super::*;
+
+    fn sample(swap_mb: f64, level: Option<u32>) -> Sample {
+        Sample {
+            at: 0.0,
+            competitors_total: 0.0,
+            swap_mb: Some(swap_mb),
+            mem_pressure: level,
+            ..Default::default()
+        }
+    }
+
+    /// 15 GB of swap in use with the kernel at "warn" is a box that paged
+    /// out its idle pages, not a box under pressure. The first R2 evening
+    /// sat SUSPENDED on exactly this until the level replaced the stock.
+    #[test]
+    fn the_kernel_level_outranks_the_swap_stock() {
+        let mut t = Throttle::new(Config::default());
+        let g = GameState::default();
+        let now = Instant::now();
+        assert!(t.on_sample(&sample(15_700.0, Some(2)), &g, now).is_none());
+        assert_eq!(t.level(), Level::Full);
+        let tr = t
+            .on_sample(&sample(15_700.0, Some(4)), &g, now)
+            .expect("critical suspends");
+        assert_eq!(tr.to, Level::Suspended);
+        assert!(matches!(tr.reason, Reason::MemoryPressure(_)));
+    }
+
+    /// Without a kernel reading the swap-stock line still applies.
+    #[test]
+    fn the_swap_stock_is_the_fallback() {
+        let mut t = Throttle::new(Config::default());
+        let g = GameState::default();
+        let tr = t.on_sample(&sample(15_700.0, None), &g, Instant::now());
+        assert_eq!(tr.map(|t| t.to), Some(Level::Suspended));
     }
 }

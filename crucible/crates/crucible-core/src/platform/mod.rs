@@ -125,6 +125,16 @@ pub trait Platform: Send + Sync + 'static {
     /// a fanless chassis a long sweep is exactly when that shows up.
     fn cpu_speed_limit(&self) -> Option<u32>;
 
+    /// The kernel's own memory-pressure verdict: 1 normal, 2 warn, 4
+    /// critical on Darwin (`kern.memorystatus_vm_pressure_level`). `None`
+    /// where the platform has no such reading. This is a LEVEL, and it is
+    /// what the throttle suspends on -- swap in use is a stock that never
+    /// comes back down once idle pages have been paged out, and a throttle
+    /// keyed on it sat SUSPENDED forever the first evening R2 ran.
+    fn memory_pressure_level(&self) -> Option<u32> {
+        None
+    }
+
     fn proc_identity(&self, pid: Pid) -> Option<ProcIdentity>;
 
     /// Every descendant of `root`, for excluding our own tree from the
