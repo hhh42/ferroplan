@@ -14,6 +14,7 @@ mod backfill;
 mod config;
 mod out;
 mod repo;
+mod resident;
 mod sweep;
 mod tui;
 
@@ -90,6 +91,24 @@ enum Cmd {
         /// CRUCIBLE_NO_DB=1.
         #[arg(long)]
         no_db: bool,
+    },
+    /// Run resident: sweep the candidate for a set while it owes rows, keep
+    /// the newest tags backfilled, and otherwise wait -- forever, headless,
+    /// with nothing to launch by hand. ^C stops the run in flight with
+    /// everything banked kept; the next start resumes.
+    Resident {
+        /// The `[[set]]` to keep complete: cut27, ...
+        #[arg(long)]
+        set: String,
+        /// Also sweep the working tree's candidate for the set.
+        #[arg(long)]
+        candidate: bool,
+        /// How many of the newest tags to keep backfilled (config keep_tags).
+        #[arg(long)]
+        tags: Option<usize>,
+        /// One cycle, then exit.
+        #[arg(long)]
+        once: bool,
     },
     /// Sweep a TAG with the working tree's instrument: build the tag's planner
     /// in a detached worktree under crucible's own prefix, skip the version
@@ -194,6 +213,21 @@ fn real_main() -> anyhow::Result<()> {
                 dry_run,
                 max_passes,
                 no_db: no_db || std::env::var_os("CRUCIBLE_NO_DB").is_some_and(|v| v == "1"),
+            },
+        ),
+        Cmd::Resident {
+            set,
+            candidate,
+            tags,
+            once,
+        } => resident::run(
+            &repo_root,
+            &cfg,
+            resident::Opts {
+                set: &set,
+                candidate,
+                tags,
+                once,
             },
         ),
         Cmd::Backfill {

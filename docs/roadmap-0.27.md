@@ -333,6 +333,23 @@ critical memory pressure, and ends when THAT ends, whatever the CPU
 load. `[contention] suspend_threshold_pct` stays in the config and is
 read by nothing.
 
+**Recorded 2026-09-05 — the width policy and `crucible resident`.** The
+operator's two asks: push harder at night, step back when the box is in
+use, and no LLM in the loop.
+- `policy_width` (crucible/src/sweep.rs), published by the watcher every
+  sample and honoured per worker: quiet hours or an idle keyboard
+  (`HIDIdleTime` ≥ `user_active_secs`, 300 s) → every logical core; the
+  operator active by day → `pack_width_day` (4, the P-cores); foreign
+  load takes back `ceil(pcpu/100)` cores from that, floored at one;
+  SUSPENDED → none. Seen live: width 9 → 1 → 7 across a macOS
+  `diskimagesiod` + XProtect burst at 440 % + 340 %, unattended.
+- `crucible resident --set cut27 --candidate`: sweeps the candidate while
+  the set's stage owes rows, keeps the newest `keep_tags` tags backfilled
+  (newest first, each until its stage is complete), sleeps
+  `tag_poll_secs` otherwise; every entry resumes from the database and
+  returns at once when nothing is owed. Headless; ^C stops the run in
+  flight with everything banked kept.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**
