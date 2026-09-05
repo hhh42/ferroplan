@@ -229,31 +229,35 @@ impl<'a> SweepRunner<'a> {
         (wide, narrow, solo)
     }
 
-    /// How wide a batch may run: the requested width, bounded by memory --
-    /// the largest prior peak RSS in the batch (with headroom; the board's
-    /// cap where nothing is known) against what the box has after the
-    /// reserve. Sixteen GiB with a Docker VM resident does not fit ten
-    /// 6 GB caps; it fits ten 400 MB priors.
-    fn batch_width(&self, idx: usize, cfg: &BoardCfg, items: &[usize], want: usize) -> usize {
-        if items.len() <= 1 || want <= 1 {
-            return 1;
-        }
+    /// What each instance is expected to take in memory: its prior peak RSS
+    /// on this box with headroom, or the board's cap where nothing is known.
+    /// The workers draw these from one byte budget (the box after the
+    /// reserve), so a memory-hungry instance throttles itself and not the
+    /// whole batch -- sizing a batch by its worst member ran
+    /// ipc5-metric-time 3-wide on ten cores.
+    fn expected_bytes(&self, idx: usize, cfg: &BoardCfg, items: &[usize]) -> Vec<(usize, u64)> {
         let cap = (cfg.mem_gb * (1u64 << 30) as f64) as u64;
-        let mut worst = 0u64;
-        for &i in items {
-            let (_, variant, inst) = &self.boards[idx].instances[i];
-            let prior = self
-                .db
-                .as_ref()
-                .and_then(|d| d.reader.prior_peak_rss(variant, &inst.label).ok().flatten())
-                .map(|r| (r as f64 * self.pack.rss_headroom) as u64)
-                .unwrap_or(cap);
-            worst = worst.max(prior);
-        }
-        let total = self.plat.topology().mem_bytes;
-        let avail = total.saturating_sub(self.pack.mem_reserve_bytes);
-        let by_mem = avail.checked_div(worst).map(|v| v as usize).unwrap_or(want);
-        want.min(by_mem).clamp(1, items.len())
+        items
+            .iter()
+            .map(|&i| {
+                let (_, variant, inst) = &self.boards[idx].instances[i];
+                let prior = self
+                    .db
+                    .as_ref()
+                    .and_then(|d| d.reader.prior_peak_rss(variant, &inst.label).ok().flatten())
+                    .map(|r| (r as f64 * self.pack.rss_headroom) as u64)
+                    .unwrap_or(cap);
+                (i, prior.max(64 << 20))
+            })
+            .collect()
+    }
+
+    fn mem_budget(&self) -> u64 {
+        self.plat
+            .topology()
+            .mem_bytes
+            .saturating_sub(self.pack.mem_reserve_bytes)
+            .max(1 << 30)
     }
 
     /// Run `items` `width` at a time and apply every result as it lands.
@@ -264,7 +268,7 @@ impl<'a> SweepRunner<'a> {
         idx: usize,
         cfg: &BoardCfg,
         plan_dir: &Path,
-        items: Vec<usize>,
+        items: Vec<(usize, u64)>,
         width: usize,
         stats: &mut PassStats,
     ) -> Vec<usize> {
@@ -299,13 +303,15 @@ impl<'a> SweepRunner<'a> {
             }),
         };
         let width = width.clamp(1, items.len());
+        let budget = self.mem_budget();
         let queue = Mutex::new(std::collections::VecDeque::from(items));
+        let in_use = Mutex::new(0u64);
         let stop = AtomicBool::new(false);
         std::thread::scope(|sc| {
             let (tx, rx) = mpsc::channel::<Done>();
             for w in 0..width {
                 let tx = tx.clone();
-                let (ctx, queue, stop) = (&ctx, &queue, &stop);
+                let (ctx, queue, stop, in_use) = (&ctx, &queue, &stop, &in_use);
                 sc.spawn(move || {
                     let plat = platform::host();
                     let reader = ctx.db.as_ref().and_then(|d| Reader::open(&d.path).ok());
@@ -313,9 +319,25 @@ impl<'a> SweepRunner<'a> {
                         if stop.load(Ordering::Relaxed) || exec::interrupted() {
                             break;
                         }
-                        let Some(i) = queue.lock().unwrap().pop_front() else {
+                        let Some((i, bytes)) = queue.lock().unwrap().pop_front() else {
                             break;
                         };
+                        // The byte budget: wait until this instance fits
+                        // beside what is running. An instance larger than
+                        // the whole budget runs alone.
+                        loop {
+                            {
+                                let mut used = in_use.lock().unwrap();
+                                if *used == 0 || *used + bytes <= budget {
+                                    *used += bytes;
+                                    break;
+                                }
+                            }
+                            if exec::interrupted() || stop.load(Ordering::Relaxed) {
+                                break;
+                            }
+                            std::thread::sleep(Duration::from_millis(200));
+                        }
                         // Admission (R2.2): SUSPENDED always waits; POLITE
                         // starts the run demoted unless FULL was asked for.
                         loop {
@@ -332,11 +354,15 @@ impl<'a> SweepRunner<'a> {
                             // Back on the queue is pointless: the pass ends.
                             break;
                         }
+                        if exec::interrupted() || stop.load(Ordering::Relaxed) {
+                            break;
+                        }
                         // The canary is reading the box: do not spawn into it.
                         while ctx.shared.held() {
                             std::thread::sleep(Duration::from_millis(100));
                         }
                         let d = run_one(ctx, w, i, (width - 1) as u32, &plat, reader.as_ref());
+                        *in_use.lock().unwrap() -= bytes;
                         let cancelled = d.cancelled;
                         let _ = tx.send(d);
                         if cancelled {
@@ -1200,22 +1226,31 @@ impl Runner for SweepRunner<'_> {
         // this pass, so packing can only ever cost time.
         let (wide, mut narrow, mut solo) = self.classify(idx, &cfg, &todo);
         let mut stats = PassStats::default();
-        let wide_w = self.batch_width(idx, &cfg, &wide, self.pack.width);
         if !wide.is_empty() {
             crate::say!(
-                "   {:<22} packed: {} wide x{}, {} narrow, {} solo",
+                "   {:<22} packed: {} wide x{} ({:.1} GB budget), {} narrow, {} solo",
                 self.boards[idx].spec.id,
                 wide.len(),
-                wide_w,
+                self.pack.width,
+                self.mem_budget() as f64 / (1u64 << 30) as f64,
                 narrow.len(),
                 solo.len()
             );
         }
-        let missed = self.run_batch(idx, &cfg, &plan_dir, wide, wide_w, &mut stats);
+        let wide = self.expected_bytes(idx, &cfg, &wide);
+        let missed = self.run_batch(idx, &cfg, &plan_dir, wide, self.pack.width, &mut stats);
         narrow.extend(missed);
-        let narrow_w = self.batch_width(idx, &cfg, &narrow, self.pack.narrow_width);
-        let missed = self.run_batch(idx, &cfg, &plan_dir, narrow, narrow_w, &mut stats);
+        let narrow = self.expected_bytes(idx, &cfg, &narrow);
+        let missed = self.run_batch(
+            idx,
+            &cfg,
+            &plan_dir,
+            narrow,
+            self.pack.narrow_width,
+            &mut stats,
+        );
         solo.extend(missed);
+        let solo = self.expected_bytes(idx, &cfg, &solo);
         let _ = self.run_batch(idx, &cfg, &plan_dir, solo, 1, &mut stats);
 
         if !stats.tally.is_empty() {
