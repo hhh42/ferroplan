@@ -805,6 +805,13 @@ impl Runner for SweepRunner<'_> {
         }
     }
 
+    fn stopped(&mut self) -> bool {
+        if exec::interrupted() {
+            self.stop = true;
+        }
+        self.stop
+    }
+
     fn wait(&mut self, backoff: Duration) -> Next {
         if self.stop {
             return Next::Stop;

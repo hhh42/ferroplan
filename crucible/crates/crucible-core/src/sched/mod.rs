@@ -218,6 +218,13 @@ pub trait Runner {
     fn event(&mut self, event: Event) {
         let _ = event;
     }
+
+    /// The operator asked to stop, mid-pass. Checked before every attempt,
+    /// so an interrupt ends the pass at the board it interrupted instead of
+    /// walking every remaining board through a zero-banked attempt.
+    fn stopped(&mut self) -> bool {
+        false
+    }
 }
 
 /// How the loop ended.
@@ -280,6 +287,21 @@ pub fn run(r: &mut dyn Runner, cfg: &LoopConfig) -> Outcome {
 
         let mut shrank_by = 0usize;
         for b in &ordered {
+            if r.stopped() {
+                let remaining: usize =
+                    ordered.iter().map(|b| b.remaining).sum::<usize>() - shrank_by;
+                r.event(Event::Stopped {
+                    passes: pass,
+                    remaining,
+                });
+                return Outcome {
+                    passes: pass,
+                    attempts,
+                    banked,
+                    complete: false,
+                    remaining,
+                };
+            }
             let a = r.attempt(b);
             attempts += 1;
             banked += a.banked;
@@ -619,6 +641,38 @@ mod tests {
         assert!(out.complete);
         assert_eq!((out.passes, out.attempts), (0, 0));
         assert!(f.attempted().is_empty());
+    }
+
+    /// An interrupt ends the pass at the board it interrupted: the boards
+    /// after it are not walked through zero-banked attempts.
+    #[test]
+    fn a_stop_ends_the_pass_at_the_interrupted_board() {
+        struct Stopper(Fake, u32);
+        impl Runner for Stopper {
+            fn boards(&mut self) -> Vec<BoardState> {
+                self.0.boards()
+            }
+            fn attempt(&mut self, b: &BoardState) -> Attempt {
+                self.1 += 1;
+                self.0.attempt(b)
+            }
+            fn event(&mut self, e: Event) {
+                self.0.event(e)
+            }
+            fn stopped(&mut self) -> bool {
+                self.1 >= 1
+            }
+        }
+        let mut s = Stopper(Fake::with(&[("a", 1, 3), ("b", 1, 3), ("c", 1, 3)]), 0);
+        let out = run(&mut s, &LoopConfig::default());
+        assert!(!out.complete);
+        assert_eq!(s.1, 1, "one attempt, then the stop was honoured");
+        assert_eq!(out.remaining, 8);
+        assert!(s
+            .0
+            .events
+            .iter()
+            .any(|e| matches!(e, Event::Stopped { .. })));
     }
 
     /// Every board gets its attempt in a pass, in the pass's order.
