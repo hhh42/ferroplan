@@ -378,17 +378,35 @@ impl Reader {
             .map(|v| v as u64))
     }
 
-    /// The fastest this box has ever run the canary instance, solo.
-    pub fn canary_best(&self, label: &str) -> Result<Option<f64>, DbError> {
-        Ok(self
-            .conn
-            .query_row(
-                "SELECT MIN(secs) FROM canary WHERE label = ?1 AND solo = 1",
-                params![label],
-                |r| r.get::<_, Option<f64>>(0),
-            )
-            .optional()?
-            .flatten())
+    /// The canary's baseline: a low PERCENTILE of its most recent solo
+    /// readings, not the fastest ever.
+    ///
+    /// The 0.27 cut sweep spent a night refusing every timeout as
+    /// `thermal` because the baseline was the all-time minimum: five
+    /// readings of 0.52 s out of 174 (a cool boost clock, 3 % of the
+    /// record) against the box's ordinary 0.77 s, so every reading was
+    /// 1.49x and nothing could ever be clean. A percentile of the recent
+    /// window tracks what the box actually does, tolerates a lucky-fast
+    /// outlier, and still moves if the box gets genuinely slower.
+    pub fn canary_baseline(
+        &self,
+        label: &str,
+        window: usize,
+        pct: f64,
+    ) -> Result<Option<f64>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT secs FROM canary WHERE label = ?1 AND solo = 1
+              ORDER BY at DESC LIMIT ?2",
+        )?;
+        let mut secs: Vec<f64> = st
+            .query_map(params![label, window as i64], |r| r.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        if secs.is_empty() {
+            return Ok(None);
+        }
+        secs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let idx = ((secs.len() - 1) as f64 * pct.clamp(0.0, 1.0)).round() as usize;
+        Ok(Some(secs[idx]))
     }
 
     /// How many SOLO done attempts (no neighbours) this instance already has

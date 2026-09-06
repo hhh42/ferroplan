@@ -362,6 +362,20 @@ same; and the canary reads four times as often while foreign load is
 present. Every instrument that cannot see a slow box gets the same
 answer: a regression must be confirmed.
 
+**Recorded 2026-09-06 — the canary's baseline is a percentile, not the
+minimum.** The cut27 sweep spent a night refusing every timeout as
+`thermal` (553 owed rows across eleven boards) with the box reading a
+steady 1.49x. It was not the box: of 174 solo readings, 144 were the
+ordinary 0.766–0.78 s and five were 0.515–0.520 s — a cool boost clock,
+3 % of the record — and yesterday's "fastest ever" rule had locked the
+baseline onto those, so nothing could ever read clean again. The
+baseline is now the **25th percentile of the last 100 solo readings**
+(taken with the slower of that and the median of the current start's
+runs), and it does not move within a run. The two failures it sits
+between are both on the record: the all-time minimum refuses
+everything, and the fastest-of-five at start is lenient for a whole day
+when the sweep starts on a slow morning.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**

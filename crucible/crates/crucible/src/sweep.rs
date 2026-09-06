@@ -1719,33 +1719,45 @@ impl Canary {
         Some(out.effective)
     }
 
-    /// The baseline: the FASTEST this box has ever run the instance -- the
-    /// database's best (`prior_best`, every earlier solo run on this box)
-    /// against `baseline_n` solo runs now, each of which is recorded through
-    /// `record`. A baseline that is only "the fastest of five at start" is
-    /// lenient for the whole sweep whenever the sweep starts on a slow
-    /// morning; one taken over the box's history is not.
-    pub fn calibrate(&mut self, prior_best: Option<f64>, record: &dyn Fn(f64)) -> Option<Duration> {
-        let mut best: Option<f64> = prior_best;
+    /// The baseline: a low PERCENTILE of this box's recent solo readings
+    /// (`prior`, from `Reader::canary_baseline`) against `baseline_n` runs
+    /// taken now, each recorded through `record`.
+    ///
+    /// NOT the fastest ever, and not the fastest of five at start. The
+    /// all-time minimum spent a night of the 0.27 cut sweep refusing every
+    /// timeout: five 0.52 s readings out of 174 against the box's ordinary
+    /// 0.77 s meant every later reading was 1.49x and nothing could be
+    /// clean. The fastest-of-five is the opposite failure -- a sweep that
+    /// starts on a slow morning is lenient all day. A percentile of the
+    /// recent window is what the box actually does.
+    pub fn calibrate(&mut self, prior: Option<f64>, record: &dyn Fn(f64)) -> Option<Duration> {
+        let mut now: Vec<f64> = Vec::new();
         for _ in 0..self.baseline_n {
             if let Some(d) = self.run_once() {
                 let secs = d.as_secs_f64();
                 record(secs);
-                best = Some(best.map_or(secs, |b| b.min(secs)));
+                now.push(secs);
             }
         }
-        self.baseline = best.map(Duration::from_secs_f64);
+        now.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        // The median of this start's runs, and the history's percentile;
+        // the SLOWER of the two, so neither a lucky boost clock nor a
+        // single slow start can set an unreachable line.
+        let mine = now.get(now.len() / 2).copied();
+        self.baseline = match (prior, mine) {
+            (Some(p), Some(m)) => Some(p.max(m)),
+            (a, b) => a.or(b),
+        }
+        .map(Duration::from_secs_f64);
         self.baseline
     }
 
-    /// One reading: `(secs, secs / baseline)`. A faster run than the
-    /// baseline becomes the baseline.
+    /// One reading: `(secs, secs / baseline)`. The baseline does not move
+    /// within a run -- a faster reading is information about the box, not
+    /// a new line to hold every later row to.
     pub fn read(&mut self) -> Option<(f64, f64)> {
         let base = self.baseline?;
         let secs = self.run_once()?.as_secs_f64();
-        if secs < base.as_secs_f64() {
-            self.baseline = Some(Duration::from_secs_f64(secs));
-        }
         Some((secs, secs / base.as_secs_f64().max(0.001)))
     }
 
@@ -2147,9 +2159,14 @@ fn sweep_body(
     } else {
         match Canary::resolve(repo, &engine.path, &engine.short_hash(), &cfg.referee) {
             Some(mut c) => {
-                let prior = dbctx
-                    .as_ref()
-                    .and_then(|d| d.reader.canary_best(c.label()).ok().flatten());
+                // The recent window's 25th percentile: robust to a lucky
+                // boost clock at one end and a slow hour at the other.
+                let prior = dbctx.as_ref().and_then(|d| {
+                    d.reader
+                        .canary_baseline(c.label(), 100, 0.25)
+                        .ok()
+                        .flatten()
+                });
                 let label = c.label().to_string();
                 let record = |secs: f64| {
                     if let Some(d) = &dbctx {
@@ -2164,10 +2181,10 @@ fn sweep_body(
                             b.as_secs_f64(),
                             match prior {
                                 Some(p) => format!(
-                                    "this box's best of {p:.3} s against {} runs now",
+                                    "p25 of the last 100 readings is {p:.3} s, against {} runs now",
                                     c.baseline_n
                                 ),
-                                None => format!("fastest of {} runs, no history yet", c.baseline_n),
+                                None => format!("median of {} runs, no history yet", c.baseline_n),
                             },
                             c.interval.as_secs(),
                             c.max_factor
