@@ -2963,16 +2963,17 @@ fn temporal_search(
     // found are returned by the goal check before any pop is spent.
     // Unarmed `FF_TIME_LIMIT` or `FF_NO_RUNG_WALLCAP=1` ⇒ `None` ⇒
     // byte-identical search.
-    let wall = if crate::search::rung_wallcap_on() {
-        crate::search::wall_deadline()
-    } else {
-        None
-    };
+    // The env wall (hatch-gated) joined with the caller's per-call budget
+    // (0.28, never hatch-gated) — see `search::effective_deadline`.
+    let wall = crate::search::effective_deadline();
+    let cancel = crate::search::call_budget().cancel;
     let per_node = temporal_per_node_bytes(task, til_events.len());
     // A pass entered after the wall has already expired exits before its
     // root evaluation — the ladder above runs up to four passes, and an
     // expired ladder must not pay four root h builds to learn the time.
-    if wall.is_some_and(|d| crate::search::deadline_expired_reserving(d, 0)) {
+    if wall.is_some_and(|d| crate::search::deadline_expired_reserving(d, 0))
+        || crate::search::cancelled(&cancel)
+    {
         if std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!("wall: temporal search checkpoint expired (pass entry refused)");
         }
@@ -3241,7 +3242,7 @@ fn temporal_search(
         // the ladder's next pass refuses at entry, the caller reports.
         let wall_hit = wall.is_some_and(|d| {
             crate::search::deadline_expired_reserving(d, nodes.len().saturating_mul(per_node))
-        });
+        }) || crate::search::cancelled(&cancel);
         if wall_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!(
                 "wall: temporal search checkpoint expired (nodes {}, evaluated {}) at {}ms",

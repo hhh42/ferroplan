@@ -153,6 +153,13 @@ impl Cli {
             threads: self.threads,
             max_evaluated: self.max_evaluated,
             optimize: !self.satisfice,
+            // The per-call budget (0.28) has no flag to derive from, and
+            // should not: `ff` is one process running one call, which is
+            // exactly the shape `FF_TIME_LIMIT` already fits. These exist
+            // for the caller `ff` is not -- a long-lived host solving on
+            // many threads, needing to bound or withdraw ONE of them.
+            wall_ms: None,
+            should_continue: None,
         }
     }
 }

@@ -569,14 +569,43 @@ struct RawOp {
 /// deadline flips `tripped` and every enumeration unwinds. The caller
 /// then returns [`Outcome::WallExhausted`] — never a partial task.
 struct GroundWall {
-    clock: crate::clock::Clock,
-    total: f64,
+    deadline: Option<(crate::clock::Clock, f64)>,
+    /// The caller's stop flag (0.28, `Options::should_continue`). An `Arc`
+    /// rather than a thread-local because THIS is the structure the worker
+    /// pool sees: built once on the calling thread, shared by reference
+    /// across every enumeration worker.
+    cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     tripped: std::sync::atomic::AtomicBool,
 }
 
 impl GroundWall {
     fn tripped(&self) -> bool {
         self.tripped.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Why the enumeration stopped, as the whole clause the caller reads.
+    /// Never the word "unsolvable": a budget is not a proof (the 0.21
+    /// honesty rider).
+    ///
+    /// The env-wall wording is byte-identical to 0.22 Phase 2's, and pinned
+    /// by tests/ladder_wall.rs. The 0.28 per-call budgets are new causes,
+    /// so they get new clauses rather than borrowing that one -- a host
+    /// that withdrew should not read "FF_TIME_LIMIT".
+    fn why(&self) -> &'static str {
+        match crate::search::call_stop_reason() {
+            Some(r) if r.contains("should_continue") => {
+                "the caller withdrew during binding enumeration \
+                 (Options::should_continue went false): no task grounded, no verdict"
+            }
+            Some(_) => {
+                "wall budget exhausted during binding enumeration \
+                 (Options::wall_ms): no task grounded, no verdict"
+            }
+            None => {
+                "wall budget exhausted during binding enumeration \
+                 (FF_TIME_LIMIT): no task grounded, no verdict"
+            }
+        }
     }
 }
 
@@ -609,7 +638,11 @@ impl WallTick<'_> {
         if w.tripped.load(Relaxed) {
             return true;
         }
-        if w.clock.elapsed_secs() >= w.total {
+        let over = w
+            .deadline
+            .is_some_and(|(clock, total)| clock.elapsed_secs() >= total)
+            || crate::search::cancelled(&w.cancel);
+        if over {
             w.tripped.store(true, Relaxed);
             return true;
         }
@@ -1653,12 +1686,22 @@ fn ground_v(
     // discarded), and the session entry keeps its own budget discipline
     // (0.23's tier). Unarmed `FF_TIME_LIMIT` or `FF_NO_RUNG_WALLCAP=1` ⇒
     // `None` ⇒ byte-identical enumeration.
-    let gwall: Option<GroundWall> = (walled && crate::search::rung_wallcap_on())
+    //
+    // 0.28: the PER-CALL budget (`Options::wall_ms` / `should_continue`)
+    // arms the same checkpoint on every entry, `walled` or not, and is NOT
+    // subject to `FF_NO_RUNG_WALLCAP` — that hatch governs the env wall, and
+    // a budget the caller passed in code outranks it. This is the half
+    // `max_evaluated` never bounded: a cap on evaluated STATES cannot stop
+    // an enumeration that has not produced a state yet.
+    let budget = crate::search::call_budget();
+    let env_wall = (walled && crate::search::rung_wallcap_on())
         .then(crate::search::wall_deadline)
-        .flatten()
-        .map(|(clock, total)| GroundWall {
-            clock,
-            total,
+        .flatten();
+    let deadline = crate::search::sooner_deadline(env_wall, budget.deadline);
+    let gwall: Option<GroundWall> =
+        (deadline.is_some() || budget.cancel.is_some()).then(|| GroundWall {
+            deadline,
+            cancel: budget.cancel.clone(),
             tripped: std::sync::atomic::AtomicBool::new(false),
         });
     // Threshold-routed fixpoint (0.22 Phase 7 lever 2): the PLAIN solve
@@ -1904,15 +1947,11 @@ fn ground_v(
     // the abort point depends on scheduling, and a task shaped by it
     // would be nondeterministic — honest failure or a whole task,
     // nothing in between.
-    if gwall.as_ref().is_some_and(|g| g.tripped()) {
+    if let Some(g) = gwall.as_ref().filter(|g| g.tripped()) {
         if std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!("wall: grounding checkpoint expired mid-enumeration (no task, no verdict)");
         }
-        return Outcome::WallExhausted(
-            "wall budget exhausted during binding enumeration (FF_TIME_LIMIT): \
-             no task grounded, no verdict"
-                .into(),
-        );
+        return Outcome::WallExhausted(g.why().into());
     }
     let n_easy = raws.iter().filter(|r| !r.multi).count();
     let n_hard = raws.iter().filter(|r| r.multi).count();
@@ -2205,11 +2244,17 @@ fn ground_v(
     });
     if wall_hit {
         return Outcome::WallExhausted(format!(
-            "goal DNF expansion ({} goal items) exceeded the declared budget",
+            "goal DNF expansion ({} goal items) exceeded the declared budget{}",
             match &problem.goal {
                 Formula::And(fs) => fs.len(),
                 _ => 1,
-            }
+            },
+            // Which budget, when it was the caller's own (0.28): a host that
+            // withdrew should not have to tell that apart from a host that
+            // ran out of time.
+            crate::search::call_stop_reason()
+                .map(|why| format!(" ({why})"))
+                .unwrap_or_default()
         ));
     }
     if goal_dnf.is_empty() {

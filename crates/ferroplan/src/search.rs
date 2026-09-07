@@ -471,10 +471,21 @@ pub fn arm_wall_limit() {
 
 /// Fraction of the wall budget remaining, `None` if no limit is set.
 pub(crate) fn wall_remaining_frac() -> Option<f64> {
-    WALL.get_or_init(|| None).as_ref().map(|(start, total)| {
+    let frac = |(start, total): &(crate::clock::Clock, f64)| {
         let used = start.elapsed_ms() as f64 / 1000.0;
         ((total - used) / total).max(0.0)
-    })
+    };
+    let budget = call_budget();
+    if budget.cancelled() {
+        return Some(0.0);
+    }
+    let env = WALL.get_or_init(|| None).as_ref().map(frac);
+    let call = budget.deadline.as_ref().map(frac);
+    match (env, call) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (x, None) => x,
+        (None, y) => y,
+    }
 }
 
 /// The armed wall's raw (start clock, total seconds), `None` when no
@@ -483,6 +494,73 @@ pub(crate) fn wall_remaining_frac() -> Option<f64> {
 /// OnceLock traffic per check.
 pub(crate) fn wall_deadline() -> Option<(crate::clock::Clock, f64)> {
     *WALL.get_or_init(|| None)
+}
+
+/// THE PER-CALL BUDGET (0.28): what THIS `solve` may spend, and a flag the
+/// caller can flip to stop it.
+///
+/// `FF_TIME_LIMIT` is armed once per PROCESS ([`WALL`] is a `OnceLock`), which
+/// is the right shape for a benchmark runner and useless for a long-lived
+/// consumer: set it low and every solve after the first N ms of process life
+/// is instantly out of budget; set it high and it never bounds an individual
+/// call. A real-time caller needs neither -- it needs THIS call to return.
+///
+/// Held in a thread-local rather than threaded through every signature
+/// because of where it is READ: the grounding wall and the search config are
+/// both built ONCE, on the calling thread, and then shared by reference with
+/// the worker pool. So concurrent `solve`s on different threads never see
+/// each other's budget, which a process-global could not promise.
+#[derive(Clone, Default)]
+pub(crate) struct CallBudget {
+    pub deadline: Option<(crate::clock::Clock, f64)>,
+    pub cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+}
+
+impl CallBudget {
+    /// The caller withdrew. Cheap enough for any inner loop: an `Option`
+    /// test and one relaxed load.
+    #[inline]
+    pub fn cancelled(&self) -> bool {
+        cancelled(&self.cancel)
+    }
+}
+
+thread_local! {
+    static CALL_BUDGET: std::cell::RefCell<CallBudget> =
+        const { std::cell::RefCell::new(CallBudget { deadline: None, cancel: None }) };
+}
+
+/// This thread's current call budget (default = unarmed = byte-identical to
+/// every shape before 0.28).
+pub(crate) fn call_budget() -> CallBudget {
+    CALL_BUDGET.with(|b| b.borrow().clone())
+}
+
+/// Clears the thread's call budget on drop, so an early return, a `?` or a
+/// panic cannot leave a stale deadline armed for the next caller on this
+/// thread.
+pub(crate) struct CallBudgetGuard;
+
+impl Drop for CallBudgetGuard {
+    fn drop(&mut self) {
+        CALL_BUDGET.with(|b| *b.borrow_mut() = CallBudget::default());
+    }
+}
+
+/// Arm the per-call budget for the lifetime of the returned guard. The clock
+/// starts HERE -- before parsing and grounding -- because a caller who asks
+/// for 250 ms means 250 ms of its own wall, not 250 ms of search after an
+/// unbounded grounding.
+pub(crate) fn arm_call_budget(
+    wall_ms: Option<u64>,
+    cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+) -> CallBudgetGuard {
+    let budget = CallBudget {
+        deadline: wall_ms.map(|ms| (crate::clock::Clock::now(), ms as f64 / 1000.0)),
+        cancel,
+    };
+    CALL_BUDGET.with(|b| *b.borrow_mut() = budget);
+    CallBudgetGuard
 }
 
 /// The 0.22 Phase 2 checkpoint hatch: `FF_NO_RUNG_WALLCAP=1` turns OFF
@@ -514,10 +592,68 @@ pub(crate) fn wall_hard_expired() -> bool {
 /// sweep box — capped at 15 s (the largest teardown measured, sailing
 /// i9's ~13 s). Small arenas reserve milliseconds.
 pub(crate) fn wall_expired_reserving(retained_bytes: usize) -> bool {
-    if !rung_wallcap_on() {
-        return false;
+    let budget = call_budget();
+    if budget.cancelled() {
+        return true;
     }
-    wall_deadline().is_some_and(|d| deadline_expired_reserving(d, retained_bytes))
+    effective_deadline_with(&budget).is_some_and(|d| deadline_expired_reserving(d, retained_bytes))
+}
+
+/// THE DEADLINE THIS WORK MUST RESPECT: the process wall joined with the
+/// caller's per-call budget, whichever expires first.
+///
+/// The two are gated differently ON PURPOSE. `FF_NO_RUNG_WALLCAP=1` is the
+/// 0.21 escape hatch that restores pre-wallcap shapes for the ENV wall; it
+/// has no business switching off a budget the caller passed in code. A
+/// library caller who wrote `wall_ms: Some(250)` gets 250 ms whatever the
+/// environment says.
+pub(crate) fn effective_deadline() -> Option<(crate::clock::Clock, f64)> {
+    effective_deadline_with(&call_budget())
+}
+
+fn effective_deadline_with(budget: &CallBudget) -> Option<(crate::clock::Clock, f64)> {
+    let env = if rung_wallcap_on() {
+        wall_deadline()
+    } else {
+        None
+    };
+    sooner_deadline(env, budget.deadline)
+}
+
+/// WHY THIS CALL STOPPED, when it stopped at the caller's budget rather
+/// than at the end of the search space. `None` means the budget is not the
+/// reason, so the caller may read the verdict as the search's own.
+///
+/// The distinction the 0.21 honesty rider exists to protect: a plan not
+/// found inside 250 ms is not a plan that does not exist.
+pub(crate) fn call_stop_reason() -> Option<&'static str> {
+    let budget = call_budget();
+    if budget.cancelled() {
+        return Some("the caller withdrew: Options::should_continue went false");
+    }
+    if budget
+        .deadline
+        .is_some_and(|d| deadline_expired_reserving(d, 0))
+    {
+        return Some("the wall expired: Options::wall_ms");
+    }
+    None
+}
+
+/// The caller withdrew: their flag went FALSE.
+///
+/// The polarity is the caller's, not ours -- the field is
+/// `Options::should_continue`, so `true` is the ordinary state and going
+/// false is the event. Reading it the other way round (the first cut of
+/// this, caught by the `withdraw` leg of tests/call_budget.rs) makes every
+/// caller who arms the flag correctly get stopped at their first
+/// checkpoint.
+///
+/// `None` -- the default everywhere -- is a branch the optimiser folds away.
+#[inline]
+pub(crate) fn cancelled(flag: &Option<std::sync::Arc<std::sync::atomic::AtomicBool>>) -> bool {
+    flag.as_ref()
+        .is_some_and(|f| !f.load(std::sync::atomic::Ordering::Relaxed))
 }
 
 /// [`wall_expired_reserving`] against a CACHED deadline copy — for hot
@@ -563,9 +699,24 @@ pub(crate) fn sooner_deadline(
 /// seconds — the currency the boards charge — where the satisficing
 /// gates above read the fraction.
 pub(crate) fn wall_remaining_secs() -> Option<f64> {
-    WALL.get_or_init(|| None)
+    let budget = call_budget();
+    if budget.cancelled() {
+        return Some(0.0);
+    }
+    let env = WALL
+        .get_or_init(|| None)
         .as_ref()
-        .map(|(start, total)| (total - start.elapsed_ms() as f64 / 1000.0).max(0.0))
+        .map(|(start, total)| (total - start.elapsed_ms() as f64 / 1000.0).max(0.0));
+    // The per-call budget (0.28) answers the same question — how much time
+    // is left for THIS work — so the callers that ration against it (the
+    // goal-DNF expansion, the rung slices) ration against whichever budget
+    // runs out first.
+    let call = deadline_remaining_secs(&budget.deadline);
+    match (env, call) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (x, None) => x,
+        (None, y) => y,
+    }
 }
 
 /// Wall-slice knob (0.21 Phase 5): `var` read as a fraction of the
@@ -1603,7 +1754,8 @@ pub fn plan_avoiding(
             PlanResult::Unsolvable { evaluated, capped } => {
                 total_evaluated += evaluated;
                 let wall_ok = wall_remaining_frac().is_some_and(|f| f > 0.10)
-                    && deadline_remaining_secs(&cfg.deadline).map_or(true, |s| s > 0.0);
+                    && deadline_remaining_secs(&cfg.deadline).map_or(true, |s| s > 0.0)
+                    && !cancelled(&call_budget().cancel);
                 if !(capped && refill_armed && wall_ok && round < REFILL_MAX_ROUNDS) {
                     return PlanOutcome {
                         ops: None,
@@ -1675,6 +1827,10 @@ fn ehc(
     max_eval: usize,
     deadline: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
+    // The caller's stop flag, read ONCE from the thread-local into an owned
+    // handle: EHC and its lookahead both poll it, and every rung of the
+    // ladder runs on the thread that entered `solve`.
+    let cancel = &call_budget().cancel;
     // The ladder tax (0.21 Phase 5, lever 2): under an ARMED wall budget
     // the op-scaled eval budget below is joined by a wall-denominated
     // deadline — `FF_EHC_WALL_FRAC` (default 0.25) of the REMAINING wall
@@ -1733,7 +1889,7 @@ fn ehc(
     // and only on the hand-down paths — a plan found before the check is
     // a plan, never discarded.
     let tripped = |evaluated: usize| {
-        let hit = slice.as_ref().is_some_and(|(t0, s)| t0.elapsed_secs() > *s);
+        let hit = slice.as_ref().is_some_and(|(t0, s)| t0.elapsed_secs() > *s) || cancelled(cancel);
         if hit && std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!(
                 "wall: EHC slice exhausted ({evaluated} evals in {:.2}s), handing down the ladder",
@@ -1751,6 +1907,7 @@ fn ehc(
             &mut evaluated,
             forbidden,
             slice.as_ref(),
+            cancel,
         ) {
             Some((ops, next, next_h)) => {
                 plan.extend(ops);
@@ -1789,6 +1946,7 @@ fn bfs_improve(
     evaluated: &mut usize,
     forbidden: &[bool],
     slice: Option<&(crate::clock::Clock, f64)>,
+    cancel: &Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 ) -> Option<(Vec<usize>, State, i32)> {
     // Fail FAST: if a helpful-restricted lookahead can't improve h within this
     // many expansions it is almost certainly on a plateau EHC won't escape, so
@@ -1839,6 +1997,9 @@ fn bfs_improve(
                 if t0.elapsed_secs() > *s {
                     return None; // wall slice exhausted — ehc narrates
                 }
+            }
+            if cancelled(cancel) {
+                return None; // the caller withdrew — ehc narrates
             }
             let (h_ns, helpful_ns) = match relaxed_helpful(
                 task,

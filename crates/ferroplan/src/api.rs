@@ -126,6 +126,47 @@ pub struct Options {
     /// hard goals only (`false`).
     #[serde(default = "default_true")]
     pub optimize: bool,
+    /// THIS CALL'S WALL, in milliseconds (0.28). `None` = no per-call bound.
+    ///
+    /// Bounds the whole of [`solve`] — parsing, grounding AND search — from
+    /// the moment the call is entered. It is the budget [`max_evaluated`]
+    /// could not express: a cap on evaluated STATES cannot stop a binding
+    /// enumeration that has not produced a state yet, which is how a call
+    /// with `max_evaluated: Some(50_000)` can still run for minutes.
+    ///
+    /// It is also the budget `FF_TIME_LIMIT` could not express, for a
+    /// different reason: that one is armed ONCE PER PROCESS and measured
+    /// from the first solve, so in a long-lived host it either bounds
+    /// nothing or, after a while, refuses everything.
+    ///
+    /// A call stopped by this budget returns `solved: false` with a note
+    /// that names the budget and where it stopped. It NEVER reports
+    /// unsolvable — running out of time is not a proof.
+    ///
+    /// [`max_evaluated`]: Options::max_evaluated
+    #[serde(default)]
+    pub wall_ms: Option<u64>,
+    /// A flag the caller can flip to `false` to stop THIS call (0.28).
+    ///
+    /// Polled wherever the wall is: the grounding checkpoint (every 256
+    /// bindings) and the search checkpoints (best-first batch boundaries,
+    /// the EHC per-evaluation slice, the temporal pop). Stopping is
+    /// cooperative, so a return is prompt rather than instant, bounded by
+    /// one checkpoint's work.
+    ///
+    /// For a host that abandons work — a dropped future, a cancelled
+    /// request, an entity that no longer needs a plan — this is what lets
+    /// the thread END rather than run to completion for a caller that has
+    /// gone away. Like [`wall_ms`], a stop yields `solved: false` with a
+    /// note, never an unsolvable claim.
+    ///
+    /// Skipped by serde: an in-process handle has no JSON form, so a
+    /// round-tripped `Options` comes back with `None` here.
+    ///
+    /// [`wall_ms`]: Options::wall_ms
+    #[serde(skip)]
+    #[cfg_attr(feature = "schema", schemars(skip))]
+    pub should_continue: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
 }
 
 impl Default for Options {
@@ -139,13 +180,28 @@ impl Default for Options {
             threads: 0,
             max_evaluated: None,
             optimize: true,
+            wall_ms: None,
+            should_continue: None,
         }
     }
 }
 
 impl Options {
     fn search_cfg(&self) -> crate::search::SearchCfg {
-        crate::search::SearchCfg::from_weights(self.weight_g, self.weight_h, self.max_evaluated)
+        let mut cfg = crate::search::SearchCfg::from_weights(
+            self.weight_g,
+            self.weight_h,
+            self.max_evaluated,
+        );
+        // The per-call wall travels IN the config (0.28) so the rung ladder
+        // slices against the RIGHT total: `FF_LAMA_WALL_FRAC` and friends are
+        // fractions of the remaining budget, and a caller's 250 ms has to be
+        // the budget they divide. The stop flag needs no such passage — every
+        // rung runs on the thread that entered `solve`, where the
+        // thread-local is live.
+        cfg.deadline =
+            crate::search::sooner_deadline(cfg.deadline, crate::search::call_budget().deadline);
+        cfg
     }
 }
 
@@ -542,6 +598,13 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     // Wall-budget clock (FF_TIME_LIMIT) starts BEFORE grounding: the
     // ladder's affordability gate must see grounding time as spent budget.
     crate::search::arm_wall_limit();
+    // The PER-CALL budget (0.28) starts here too, and for the same reason:
+    // a caller who asks for 250 ms means 250 ms of its own wall, not 250 ms
+    // of search after an unbounded grounding. The guard clears the budget on
+    // every exit — `?`, early return or panic — so it can never leak into
+    // the next call on this thread. Held in a thread-local, so concurrent
+    // solves on other threads keep their own budgets.
+    let _budget = crate::search::arm_call_budget(opts.wall_ms, opts.should_continue.clone());
     let domain = parser::parse_domain(domain_src).map_err(SolveError::DomainParse)?;
     let problem = parser::parse_problem(problem_src).map_err(SolveError::ProblemParse)?;
     // Compile `:derived` axioms away (static rules -> init facts) before routing.
@@ -1163,7 +1226,16 @@ fn solve_classic(
                 notes,
             })
         }
-        None => Ok(unsolved(mode, stats(&task, evaluated, threads), notes)),
+        None => {
+            // A budget stop is NOT an unsolvability claim, and the caller
+            // must be able to tell them apart without parsing a timing
+            // (0.28): the note names the budget and where it bound, exactly
+            // as the grounding-side stop does.
+            if let Some(why) = crate::search::call_stop_reason() {
+                notes.push(format!("search stopped at the declared budget: {why}"));
+            }
+            Ok(unsolved(mode, stats(&task, evaluated, threads), notes))
+        }
     }
 }
 
