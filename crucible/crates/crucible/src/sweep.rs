@@ -594,6 +594,7 @@ fn run_one(
                     cpu_ms: Some(m.cpu_ms),
                     cpu_instrument: m.cpu_instrument.map(str::to_string),
                     neighbours: Some(neighbours),
+                    demoted: Some(m.demoted),
                     suspended_ms: Some(m.suspended.as_millis() as u64),
                     peak_rss: Some(m.peak_rss),
                     mem_instrument: Some(m.mem_instrument.to_string()),
@@ -637,6 +638,7 @@ fn run_one(
                 window: gate,
                 swap_growth_mb: swap,
                 clock_factor,
+                demoted: m.demoted,
                 neighbours,
                 prior_solved: ctx
                     .prior_solved
@@ -1454,6 +1456,12 @@ pub struct Shared {
     /// transition or a canary pause reaches all of them.
     children: Mutex<Vec<(u64, mpsc::Sender<Ctl>)>>,
     next_id: std::sync::atomic::AtomicU64,
+    /// May we demote children right now? Set by the watcher: TRUE only
+    /// while the operator is actually at the keyboard. Demotion buys the
+    /// operator a responsive box and costs the measurement its meaning
+    /// (Darwin's background band is an efficiency core, 13x slower here),
+    /// so it is spent only when someone is there to benefit.
+    demote_ok: AtomicBool,
     /// The canary is reading: nothing of ours may START until it is done.
     /// Pausing the attached children is not enough with ten workers cycling
     /// through short instances -- the next spawn lands inside the reading.
@@ -1470,6 +1478,7 @@ impl Shared {
             level: Mutex::new((Level::Full, None)),
             children: Mutex::new(Vec::new()),
             next_id: std::sync::atomic::AtomicU64::new(1),
+            demote_ok: AtomicBool::new(false),
             hold: AtomicBool::new(false),
             canary: Mutex::new(None),
             width: std::sync::atomic::AtomicUsize::new(usize::MAX),
@@ -1483,6 +1492,14 @@ impl Shared {
 
     pub fn set_width(&self, w: usize) {
         self.width.store(w, Ordering::Relaxed);
+    }
+
+    pub fn set_demote_ok(&self, on: bool) {
+        self.demote_ok.store(on, Ordering::Relaxed);
+    }
+
+    pub fn demote_ok(&self) -> bool {
+        self.demote_ok.load(Ordering::Relaxed)
     }
 
     pub fn hold(&self, on: bool) {
@@ -1522,7 +1539,7 @@ impl Shared {
     /// box is already POLITE is told so at once, rather than at the next
     /// transition.
     pub fn attach(&self, tx: mpsc::Sender<Ctl>) -> u64 {
-        for c in ctl_for(Level::Full, self.level()) {
+        for c in ctl_for(Level::Full, self.level(), self.demote_ok()) {
             let _ = tx.send(c);
         }
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
@@ -1570,13 +1587,25 @@ pub fn policy_width(
 }
 
 /// What a throttle transition tells the running child.
-pub fn ctl_for(from: Level, to: Level) -> Vec<Ctl> {
+pub fn ctl_for(from: Level, to: Level, demote_ok: bool) -> Vec<Ctl> {
+    // POLITE narrows the WIDTH always (policy_width); it moves children into
+    // the background band only when the operator is at the keyboard. A
+    // demoted run is not a measurement -- the referee refuses to bank an
+    // unsolved one -- so the trade is made explicitly: responsiveness while
+    // someone is there, honest numbers when nobody is.
+    let demote = |v: Vec<Ctl>| -> Vec<Ctl> {
+        if demote_ok {
+            v
+        } else {
+            v.into_iter().filter(|c| *c != Ctl::Demote).collect()
+        }
+    };
     match (from, to) {
         (Level::Suspended, Level::Suspended) => vec![],
         (_, Level::Suspended) => vec![Ctl::Stop],
-        (Level::Suspended, Level::Polite) => vec![Ctl::Cont, Ctl::Demote],
+        (Level::Suspended, Level::Polite) => demote(vec![Ctl::Cont, Ctl::Demote]),
         (Level::Suspended, Level::Full) => vec![Ctl::Cont, Ctl::Promote],
-        (Level::Full, Level::Polite) => vec![Ctl::Demote],
+        (Level::Full, Level::Polite) => demote(vec![Ctl::Demote]),
         (Level::Polite, Level::Full) => vec![Ctl::Promote],
         (Level::Full, Level::Full) | (Level::Polite, Level::Polite) => vec![],
     }
@@ -1874,7 +1903,7 @@ impl Watcher {
                         if let Some(t) = throttle.on_sample(&s, &games, Instant::now()) {
                             let reason = format!("{:?}", t.reason);
                             shared.set_level(t.to, Some(reason.clone()));
-                            for c in ctl_for(t.from, t.to) {
+                            for c in ctl_for(t.from, t.to, shared.demote_ok()) {
                                 shared.send(c);
                             }
                             let at = now_epoch();
@@ -1912,6 +1941,8 @@ impl Watcher {
                         // The width policy, every sample: the level, the
                         // hour, and whether anyone is at the keyboard.
                         let idle = plat.user_idle_secs();
+                        // Demotion is for a human who is actually here.
+                        shared.set_demote_ok(idle.is_some_and(|i| i < pack.user_active_secs));
                         let allowed = policy_width(
                             shared.level(),
                             quiet_now,
@@ -2424,14 +2455,37 @@ mod r2_tests {
     #[test]
     fn transitions_map_to_control_messages() {
         use Level::*;
-        assert_eq!(ctl_for(Full, Suspended), vec![Ctl::Stop]);
-        assert_eq!(ctl_for(Polite, Suspended), vec![Ctl::Stop]);
-        assert_eq!(ctl_for(Suspended, Polite), vec![Ctl::Cont, Ctl::Demote]);
-        assert_eq!(ctl_for(Suspended, Full), vec![Ctl::Cont, Ctl::Promote]);
-        assert_eq!(ctl_for(Full, Polite), vec![Ctl::Demote]);
-        assert_eq!(ctl_for(Polite, Full), vec![Ctl::Promote]);
-        assert!(ctl_for(Full, Full).is_empty());
-        assert!(ctl_for(Suspended, Suspended).is_empty());
+        assert_eq!(ctl_for(Full, Suspended, true), vec![Ctl::Stop]);
+        assert_eq!(ctl_for(Polite, Suspended, true), vec![Ctl::Stop]);
+        assert_eq!(
+            ctl_for(Suspended, Polite, true),
+            vec![Ctl::Cont, Ctl::Demote]
+        );
+        assert_eq!(
+            ctl_for(Suspended, Full, true),
+            vec![Ctl::Cont, Ctl::Promote]
+        );
+        assert_eq!(ctl_for(Full, Polite, true), vec![Ctl::Demote]);
+        assert_eq!(ctl_for(Polite, Full, true), vec![Ctl::Promote]);
+        assert!(ctl_for(Full, Full, true).is_empty());
+        assert!(ctl_for(Suspended, Suspended, true).is_empty());
+
+        // Nobody at the keyboard: POLITE still narrows the width, but no
+        // child is moved to an efficiency core, because a demoted run
+        // cannot bank an unsolved row and the night is when the timeout
+        // tail gets measured.
+        assert!(ctl_for(Full, Polite, false).is_empty());
+        assert_eq!(ctl_for(Suspended, Polite, false), vec![Ctl::Cont]);
+        assert_eq!(
+            ctl_for(Polite, Full, false),
+            vec![Ctl::Promote],
+            "promote is always safe"
+        );
+        assert_eq!(
+            ctl_for(Full, Suspended, false),
+            vec![Ctl::Stop],
+            "suspension is not politeness"
+        );
     }
 
     /// A child attached while the box is already POLITE is demoted at once;
@@ -2439,6 +2493,7 @@ mod r2_tests {
     #[test]
     fn the_shared_state_delivers_to_the_attached_child() {
         let shared = Shared::new();
+        shared.set_demote_ok(true);
         shared.set_level(Level::Polite, Some("test".into()));
         let (tx, rx) = mpsc::channel();
         let id = shared.attach(tx);
@@ -2460,5 +2515,13 @@ mod r2_tests {
         assert_eq!(rx2.try_recv(), Ok(Ctl::Cont));
         shared.detach(id2);
         assert_eq!(shared.attached(), 0);
+
+        // With nobody at the keyboard a child attached under POLITE is not
+        // demoted at all.
+        let quiet = Shared::new();
+        quiet.set_level(Level::Polite, Some("night".into()));
+        let (tx3, rx3) = mpsc::channel();
+        quiet.attach(tx3);
+        assert!(rx3.try_recv().is_err(), "no demotion when nobody is there");
     }
 }

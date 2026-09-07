@@ -94,6 +94,8 @@ pub struct Measured {
     pub cpu_ms: u64,
     /// `Some("wait4")` when a child ran; `None` on the spawn-fail path.
     pub cpu_instrument: Option<&'static str>,
+    /// The run spent time in the background band (see `exec::RunOutcome`).
+    pub demoted: bool,
     /// The operator cancelled the run (a Ctl::Cancel, or SIGINT/SIGTERM to
     /// crucible). The row's numbers describe an interrupted run and must not
     /// be exported as a measurement.
@@ -347,6 +349,7 @@ fn done(
         val_reason: verdict.and_then(|v| v.reason()),
         cpu_ms: out.map_or(0, |o| o.cpu_ms),
         cpu_instrument: out.map(|o| o.cpu_instrument),
+        demoted: out.is_some_and(|o| o.demoted),
         cancelled: out.is_some_and(|o| o.killed == Some(exec::Killed::Cancelled)),
         peak_rss: out.map_or(0, |o| o.peak_rss),
         suspended: out.map_or(Duration::ZERO, |o| o.suspended),

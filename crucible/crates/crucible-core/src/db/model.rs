@@ -294,6 +294,8 @@ pub struct Measured {
     pub cpu_instrument: Option<String>,
     /// Our own planners running beside this one (`schema::V7`).
     pub neighbours: Option<u32>,
+    /// The run was in the background band at some point (`schema::V8`).
+    pub demoted: Option<bool>,
     pub suspended_ms: Option<u64>,
     pub peak_rss: Option<u64>,
     /// Which instrument enforced the memory budget, because the two measure

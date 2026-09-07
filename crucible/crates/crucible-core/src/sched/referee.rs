@@ -82,6 +82,11 @@ pub struct Facts {
     pub window: Cleanliness,
     /// Swap growth over the run's window, when the watcher covered it.
     pub swap_growth_mb: Option<f64>,
+    /// The run was moved into the background scheduling band at any point.
+    /// `rho` CANNOT see this -- it is CPU share, and a demoted process has
+    /// all the share of a slow core (measured: 4.52 s normal, 59.28 s
+    /// demoted, rho 0.956).
+    pub demoted: bool,
     /// The worst canary clock factor across the run's window, when one was
     /// measured. Above `Rule::canary_max_factor` the row is `Owe::Thermal`
     /// (the name predates the calibration; it covers every way a box gets
@@ -142,6 +147,10 @@ pub enum Owe {
     /// Unsolved where the predecessor solved, on the first attempt: not a
     /// verdict until a second solo run says the same.
     Suspect,
+    /// Measured in the background scheduling band -- an efficiency core at
+    /// a fraction of the speed, with the CPU SHARE of a healthy run. Not a
+    /// measurement of anything.
+    Demoted,
     /// Unsolved beside our own planners. Not a verdict on the instance at
     /// all -- it is re-run with fewer neighbours, then solo, in the same
     /// pass. Packing can waste time; it can never lose a row.
@@ -174,6 +183,7 @@ impl Verdict {
             Verdict::Owed(Owe::Uncovered) => "uncovered",
             Verdict::Owed(Owe::Packed) => "packed",
             Verdict::Owed(Owe::Suspect) => "suspect",
+            Verdict::Owed(Owe::Demoted) => "demoted",
         }
     }
 
@@ -191,6 +201,7 @@ impl Verdict {
                 | Verdict::Owed(Owe::ClockJump)
                 | Verdict::Owed(Owe::Packed)
                 | Verdict::Owed(Owe::Suspect)
+                | Verdict::Owed(Owe::Demoted)
         )
     }
 }
@@ -218,6 +229,12 @@ pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
             Cleanliness::Dirty => Verdict::Owed(Owe::Contended),
             Cleanliness::Uncovered => Verdict::Owed(Owe::Uncovered),
         };
+    }
+    // Before every box-wide signal: this one is about THIS process, and no
+    // box-wide instrument can see it. The canary runs at normal priority,
+    // so it reads a healthy box while every planner crawls on an E-core.
+    if f.demoted {
+        return Verdict::Owed(Owe::Demoted);
     }
     if f.clock_factor.is_some_and(|c| c > rule.canary_max_factor) {
         return Verdict::Owed(Owe::Thermal);
@@ -261,6 +278,7 @@ mod tests {
             window: Cleanliness::Dirty,
             swap_growth_mb: Some(0.0),
             clock_factor: Some(1.0),
+            demoted: false,
             neighbours: 0,
             prior_solved: false,
             solo_attempt: 1,
@@ -452,6 +470,34 @@ mod tests {
         );
     }
 
+    /// THE E-CORE DEFECT (0.27 cut sweep): a run in the background band is
+    /// 13x slower with cpu/wall 0.956 -- it clears the starvation line and
+    /// banks a five-second instance as a sixty-second timeout. Unsolved and
+    /// demoted is owed; SOLVED and demoted still banks, because a solve is
+    /// a solve however slowly it arrived.
+    #[test]
+    fn a_demoted_row_cannot_bank_a_timeout_but_can_bank_a_solve() {
+        let r = Rule::default();
+        let f = Facts {
+            demoted: true,
+            cpu_ms: 56_690,
+            effective_ms: 59_280,
+            ..unsolved()
+        };
+        assert!(
+            f.rho().is_some_and(|v| v > r.rho_min),
+            "rho alone would bank it"
+        );
+        assert_eq!(judge(&r, &f), Verdict::Owed(Owe::Demoted));
+        assert!(judge(&r, &f).box_fault());
+        let f = Facts {
+            demoted: true,
+            solved: true,
+            ..unsolved()
+        };
+        assert_eq!(judge(&r, &f), Verdict::Banked(Bank::Solved));
+    }
+
     /// Packed: a solve is a solve; a miss is nobody's verdict.
     #[test]
     fn packed_rows_bank_only_when_solved() {
@@ -496,6 +542,7 @@ mod tests {
             Verdict::Owed(Owe::Uncovered),
             Verdict::Owed(Owe::Packed),
             Verdict::Owed(Owe::Suspect),
+            Verdict::Owed(Owe::Demoted),
         ] {
             assert!(!v.as_str().is_empty());
             assert_eq!(v.banked(), matches!(v, Verdict::Banked(_)));

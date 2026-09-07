@@ -376,6 +376,44 @@ between are both on the record: the all-time minimum refuses
 everything, and the fastest-of-five at start is lenient for a whole day
 when the sweep starts on a slow morning.
 
+**Recorded 2026-09-07 — the E-core defect, and why the 0.27 sweep read
+as a regression.** The staged air26→air27 diff read net −7, with
+ipc5-prop −22 and ipc5-time −11 on boards that were essentially complete.
+It was not the engine: head to head on the fastest "lost" instances both
+binaries return identical plans and identical evaluation counts
+(rovers-prop i36 228 steps / 24,713 evals; openstacks-prop i28 and i29
+500 / 5,551), and 0.27 is marginally faster on each.
+
+The cause is the harness. Under POLITE crucible moved children into
+Darwin's background scheduling band, which confines them to the efficiency
+cores. Measured on this box, the same instance and the same wall:
+
+| | real | user | ρ |
+|---|---:|---:|---:|
+| normal priority | 4.52 s | 4.51 | — |
+| background band | **59.28 s** | 56.69 | **0.956** |
+
+Thirteen times slower, and it BANKS: ρ is CPU **share**, and a demoted
+process has all the share of a slow core, so 0.956 clears the 0.95
+starvation line. The canary cannot see it either — the canary spawns
+undemoted, so it reports a healthy box while every planner crawls. And
+R1's referee, which refused any row measured under foreign load, had been
+masking the defect for three cycles by accident; R2's referee was built
+precisely to stop refusing those rows and so removed the protection.
+
+**Blast radius: 1,709 banked timeouts** measured inside a POLITE window,
+across every board. Solves are unaffected — a solve is a solve, however
+slowly it arrived — so the error is one-directional: coverage was
+systematically UNDERSTATED. Those rows are re-opened (verdict `demoted`)
+and re-run.
+
+The fix, chosen by the operator: **demote only while the operator is
+actually at the keyboard, and never bank an unsolved row that was ever
+demoted** (schema v8 carries `run.demoted`; `Owe::Demoted` is checked
+before every box-wide signal, because no box-wide instrument can see it).
+POLITE still narrows the width always. Responsiveness when someone is
+there; honest numbers when nobody is.
+
 ## Phase 4 — the 0.27 cut sweep runs on it
 
 The scoreboard for a harness cycle is the sweep itself. **Pre-registered:**

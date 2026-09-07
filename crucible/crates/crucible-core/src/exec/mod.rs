@@ -125,6 +125,17 @@ pub struct RunOutcome {
     /// `"wait4"`. Rows written by the R1 runner have no instrument stamp and
     /// are treated as CPU-unknown by the referee.
     pub cpu_instrument: &'static str,
+    /// The run was moved into the background scheduling band at any point.
+    ///
+    /// THIS IS A MEASUREMENT VERDICT, not a curiosity. On Darwin the
+    /// background band confines a process to the efficiency cores, and it
+    /// still gets ~all of one: measured on this box, rovers-propositional
+    /// i36 solves in 4.52 s at normal priority and takes 59.28 s demoted --
+    /// 13x -- with cpu/wall 0.956, which clears the starvation line. So a
+    /// demoted timeout is not evidence of a timeout, and `rho` cannot see
+    /// it: rho is CPU SHARE, and a demoted process has all the share of a
+    /// slow core.
+    pub demoted: bool,
     pub peak_rss: u64,
     pub mem_hit: bool,
     pub spawn_attempts: u32,
@@ -254,6 +265,7 @@ pub fn run<P: Platform>(
     let mut suspended_since: Option<Instant> = None;
     let mut clock_jump = Duration::ZERO;
     let mut peak_rss = 0u64;
+    let mut demoted = false;
     let mut mem_hit = false;
     let mut killed: Option<Killed> = None;
     let mut cancel_sent: Option<Instant> = None;
@@ -306,7 +318,9 @@ pub fn run<P: Platform>(
                     }
                 }
                 Ok(Ctl::Demote) => {
-                    let _ = plat.demote(pid);
+                    if plat.demote(pid).is_ok() {
+                        demoted = true;
+                    }
                 }
                 Ok(Ctl::Promote) => {
                     let _ = plat.promote(pid);
@@ -376,6 +390,7 @@ pub fn run<P: Platform>(
         suspended,
         cpu_ms,
         cpu_instrument: CPU_INSTRUMENT,
+        demoted,
         peak_rss,
         mem_hit,
         spawn_attempts: attempts,

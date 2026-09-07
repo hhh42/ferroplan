@@ -19,7 +19,7 @@
 use rusqlite::Connection;
 
 /// The schema version this binary writes.
-pub const USER_VERSION: i32 = 7;
+pub const USER_VERSION: i32 = 8;
 
 /// Refusing to open, with the numbers a human needs to know which binary to run.
 #[derive(Debug, thiserror::Error)]
@@ -496,6 +496,21 @@ PRAGMA user_version = 7;
 COMMIT;
 "#;
 
+/// v8: whether the run was ever in the background scheduling band.
+///
+/// The 0.27 cut sweep banked 5,519 rows measured there before anyone
+/// noticed: Darwin's background band confines a process to the efficiency
+/// cores, `rho` reads the share of a slow core rather than a slow core, and
+/// a 4.5 s instance banks as a 60 s timeout at rho 0.956. NULL on every row
+/// written before this column existed -- those rows cannot be trusted for
+/// an unsolved verdict and are re-opened rather than re-judged.
+const V8: &str = r#"
+BEGIN;
+ALTER TABLE run ADD COLUMN demoted INTEGER;
+PRAGMA user_version = 8;
+COMMIT;
+"#;
+
 /// Bring `conn` up to [`USER_VERSION`], or refuse to touch it.
 pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     let found: i32 = conn
@@ -534,6 +549,10 @@ pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     if found < 7 {
         conn.execute_batch(V7)
             .map_err(|source| MigrateError::Sql { version: 7, source })?;
+    }
+    if found < 8 {
+        conn.execute_batch(V8)
+            .map_err(|source| MigrateError::Sql { version: 8, source })?;
     }
     Ok(())
 }
@@ -625,6 +644,7 @@ mod tests {
         assert!(has_column(&fresh(), "sample", "mem_pressure"));
         assert!(has_column(&fresh(), "canary", "secs"));
         assert!(has_column(&fresh(), "run", "neighbours"));
+        assert!(has_column(&fresh(), "run", "demoted"));
     }
 
     /// A second migrate must be a no-op. The ladder is what a restart runs
