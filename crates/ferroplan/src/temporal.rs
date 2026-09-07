@@ -2947,6 +2947,16 @@ fn temporal_search(
     // 25k stored nodes — the memory-attribution eyes for the temporal path.
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     let orbit_gen = std::env::var("FF_ORBIT_GEN").is_ok();
+    // THE CANDIDATE SOURCE for block (a) (0.28 Lane A). Read ONCE per pass,
+    // never in the pop loop -- the file's own idiom for env and deadline.
+    //
+    // The full scan survives in two passes. Under FF_ORBIT_GEN the
+    // generation-skip below claims a symmetry class from the FIRST candidate
+    // carrying it, applicable or not, so a narrowed list would hand the class
+    // to a different op and change which successors are generated -- that arm
+    // is opt-in, default-off, and already a recorded negative (match-cellar
+    // lost 9 instances to it). FF_NO_TSUCC=1 is the named restore.
+    let scan_all = (orbit.is_some() && orbit_gen) || std::env::var("FF_NO_TSUCC").is_ok();
     let lifo = std::env::var("FF_TLIFO").is_ok();
     let tb_free_g = std::env::var("FF_TB_FREE_G").is_ok();
     // The SEARCH-side wall checkpoint (0.24 Phase 6): the caps above are
@@ -3095,6 +3105,9 @@ fn temporal_search(
     heap.push(Reverse((0, if lifo { usize::MAX } else { 0 })));
     let mut visited: HashSet<(StateKey, Vec<(i64, usize)>)> = HashSet::new();
     visited.insert(tkey(task, &nodes[0], relative, orbit));
+    // Successor-generator scratch, reused across expansions: one allocation
+    // per pass (`applicable_ops` clears it).
+    let mut succ_buf: Vec<u32> = Vec::new();
 
     while let Some(Reverse((_k, tie))) = heap.pop() {
         // Decode the FF_TLIFO tie encoding (see enqueue_committed).
@@ -3270,8 +3283,9 @@ fn temporal_search(
         let time = nodes[ni].time;
         let pg = nodes[ni].g;
 
-        // (a) start a durative action / apply a classical action — restricted to
-        // the node's helpful set under pruning (else a full scan), minus any
+        // (a) start a durative action / apply a classical action — the node's
+        // helpful set under pruning, else the ops APPLICABLE here (the 0.27
+        // successor generator; `scan_all` passes keep the full scan), minus any
         // forbidden ops (sibling protection; forbidding a START suffices).
         // forbidden (sibling protection) + goal-relevance pruning, both phases.
         // Empty relevance mask = keep all (default path). Sound: a non-relevant op
@@ -3288,8 +3302,29 @@ fn temporal_search(
                 .map(|&o| o as usize)
                 .filter(|&oi| allow(oi))
                 .collect()
-        } else {
+        } else if scan_all {
             (0..task.n_ops).filter(|&oi| allow(oi)).collect()
+        } else {
+            // THE SUCCESSOR GENERATOR (0.27 `PackedTask::applicable_ops`): the
+            // applicable ops ascending, through the anchor index instead of a
+            // scan over every grounded op. This rung was the one 0.27 did not
+            // wire, and the boards said so -- the same commit moved
+            // ipc2014-sat +12 and ipc2014-agile +14 through the wired rungs
+            // and ipc2014-tempo by exactly 0.
+            //
+            // Byte-identical here: both live arms below re-test
+            // `op_applicable` (Start, Classical) and emit nothing without it,
+            // `End | Til | Skip` is the empty arm, and pending ends and TILs
+            // fire from the AGENDA in block (b), never from this list.
+            // `allow` is orthogonal to applicability, so it still runs, and
+            // the order is unchanged -- `applicable_ops` returns ascending op
+            // ids, which is what the scan produced.
+            task.applicable_ops(&nodes[ni].state, &mut succ_buf);
+            succ_buf
+                .iter()
+                .map(|&o| o as usize)
+                .filter(|&oi| allow(oi))
+                .collect()
         };
         // Successor prototypes first (cheap state application), heuristics second —
         // batched across worker threads when the frontier is big enough, then
