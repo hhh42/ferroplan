@@ -310,6 +310,21 @@ fn append_til_setters(
     task.monitored = monitored.into();
     task.fact_names = fact_names.into();
     task.n_ops += rows.len();
+    // The successor index (0.27, `PackedTask::applicable_ops`) is DERIVED
+    // state and this function moved both of its axes: `n_facts` grew by the
+    // TIL-NEVER fence above and `n_ops` by the setter rows. `succ_by_fact`
+    // is read BY FACT ID and returns ops BY ID, so a stale index is an
+    // out-of-bounds `Csr::slice` (which is unchecked) on the fence, and ops
+    // the generator can never emit.
+    //
+    // Today the staleness is unobservable -- the fence is never true, so the
+    // fence row is never read, and every setter requires it, so no rung can
+    // emit one either. It becomes load-bearing the moment the temporal rung
+    // reads this index (0.28 Lane A), and an invariant that is only true by
+    // luck is not an invariant. Rebuild over the grown tables.
+    let (by_fact, always) = crate::packed::build_succ(&task.pre_pos, task.n_facts, task.n_ops);
+    task.succ_by_fact = by_fact;
+    task.succ_always = always.into();
     map
 }
 
@@ -2026,6 +2041,59 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// THE INVARIANT: the successor index covers the task it belongs to.
+    /// `append_til_setters` grows `n_facts` (the TIL-NEVER fence) and
+    /// `n_ops` (the setter rows); before 0.28 it left `succ_by_fact` sized
+    /// for the OLD fact count, so the index's own bounds disagreed with the
+    /// task's. RED before the rebuild: `off.len()` is `old_n_facts + 1`
+    /// while `n_facts` is `old_n_facts + 1`, so the assert fails by exactly
+    /// one row -- and it fails even with no dynamic facts at all, because
+    /// the fence is added unconditionally.
+    #[test]
+    fn the_successor_index_covers_a_session_task_after_the_til_fence() {
+        let d = crate::parser::parse_domain(
+            "(define (domain s) (:predicates (p) (q))
+               (:action a :precondition (p) :effect (q)))",
+        )
+        .unwrap();
+        let pr = crate::parser::parse_problem(
+            "(define (problem s1) (:domain s) (:init (p)) (:goal (q)))",
+        )
+        .unwrap();
+        let mut task = crate::ground::ground_task(&d, &pr, 1).unwrap();
+        let (facts0, ops0) = (task.n_facts, task.n_ops);
+        let dynamic = vec![false; task.n_facts];
+        let mirror = FxHashMap::default();
+        append_til_setters(&mut task, &dynamic, &mirror);
+
+        assert_eq!(
+            task.n_facts,
+            facts0 + 1,
+            "the TIL-NEVER fence is unconditional"
+        );
+        assert_eq!(
+            task.succ_by_fact.off.len(),
+            task.n_facts + 1,
+            "the index must be sized for the grown fact table"
+        );
+        // Every op the task has is anchored exactly once, fence rows included.
+        let mut seen = vec![0u32; task.n_ops];
+        for f in 0..task.n_facts {
+            for &oi in task.succ_by_fact.slice(f) {
+                seen[oi as usize] += 1;
+            }
+        }
+        for &oi in task.succ_always.iter() {
+            seen[oi as usize] += 1;
+        }
+        assert!(
+            seen.iter().all(|&n| n == 1),
+            "every op anchored once after the rebuild: {seen:?} (n_ops {} -> {})",
+            ops0,
+            task.n_ops
+        );
+    }
 
     const DOM: &str = "
     (define (domain farm) (:requirements :strips :typing :numeric-fluents)
