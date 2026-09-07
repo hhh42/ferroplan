@@ -640,6 +640,22 @@ pub(crate) fn call_stop_reason() -> Option<&'static str> {
     None
 }
 
+/// WHICH per-call budget is ARMED, for notes written by a checkpoint that
+/// refuses PREDICTIVELY -- the goal-DNF expansion turns back when the work
+/// it estimates cannot fit in the time left, which is before any deadline
+/// has actually expired. [`call_stop_reason`] answers a different question
+/// ("has it already stopped?") and is correctly silent there.
+pub(crate) fn call_budget_label() -> Option<&'static str> {
+    let budget = call_budget();
+    if budget.cancelled() {
+        Some("the caller withdrew: Options::should_continue went false")
+    } else if budget.deadline.is_some() {
+        Some("Options::wall_ms")
+    } else {
+        None
+    }
+}
+
 /// The caller withdrew: their flag went FALSE.
 ///
 /// The polarity is the caller's, not ours -- the field is

@@ -2251,8 +2251,9 @@ fn ground_v(
             },
             // Which budget, when it was the caller's own (0.28): a host that
             // withdrew should not have to tell that apart from a host that
-            // ran out of time.
-            crate::search::call_stop_reason()
+            // ran out of time. The LABEL, not the stop reason -- this arm
+            // refuses on an estimate, before any deadline has expired.
+            crate::search::call_budget_label()
                 .map(|why| format!(" ({why})"))
                 .unwrap_or_default()
         ));
