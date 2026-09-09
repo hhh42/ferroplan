@@ -111,6 +111,26 @@ pub struct Scheduler {
     /// Memory held back from the packed budget, and the headroom over an
     /// instance's prior peak RSS when sizing a batch.
     pub mem_reserve_gb: f64,
+    /// The reserve while the operator is AWAY (0.28). Width already collapses
+    /// this distinction -- an idle keyboard buys every logical core -- but the
+    /// byte budget did not, so a sleeping laptop went on holding back three
+    /// gigabytes for a desktop nobody was looking at.
+    ///
+    /// WHERE THIS ACTUALLY BUYS ANYTHING, measured over 9,744 rows of the
+    /// 0.27 sweep rather than guessed: peak RSS is p50 0.58 GB, p75 2.08,
+    /// p90 4.41, max 7.20. The median instance is small enough that WIDTH is
+    /// what caps a typical batch -- 13 GB already admits fifteen of them and
+    /// the policy only ever hands out ten cores. The reserve binds in the
+    /// tail: one p90 instance wants 6.6 GB with headroom, so the difference
+    /// between a 13 GB and a 14.5 GB budget is the difference between one of
+    /// them running and two. Narrow, and exactly the case where the box would
+    /// otherwise sit half idle behind a single fat planner.
+    ///
+    /// Still a reserve, not zero. Swap is the one pressure the referee cannot
+    /// un-ring: a row that swapped is owed, and a box that swaps hard takes
+    /// its neighbours down with it (47 rows of the 0.27 sweep are owed to
+    /// exactly that).
+    pub mem_reserve_idle_gb: f64,
     pub rss_headroom: f64,
 }
 
@@ -236,6 +256,7 @@ impl Default for Scheduler {
             pack_max_frac: 0.5,
             pack_narrow_max_frac: 0.85,
             mem_reserve_gb: 3.0,
+            mem_reserve_idle_gb: 1.5,
             rss_headroom: 1.5,
         }
     }

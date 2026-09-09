@@ -99,6 +99,8 @@ pub struct Pack {
     pub max_frac: f64,
     pub narrow_max_frac: f64,
     pub mem_reserve_bytes: u64,
+    /// The reserve to hold back once the operator is away (0.28).
+    pub mem_reserve_idle_bytes: u64,
     pub rss_headroom: f64,
 }
 
@@ -117,6 +119,7 @@ impl Pack {
             max_frac: c.pack_max_frac,
             narrow_max_frac: c.pack_narrow_max_frac,
             mem_reserve_bytes: (c.mem_reserve_gb.max(0.0) * (1u64 << 30) as f64) as u64,
+            mem_reserve_idle_bytes: (c.mem_reserve_idle_gb.max(0.0) * (1u64 << 30) as f64) as u64,
             rss_headroom: c.rss_headroom.max(1.0),
         }
     }
@@ -131,6 +134,7 @@ impl Pack {
             max_frac: 0.0,
             narrow_max_frac: 0.0,
             mem_reserve_bytes: 0,
+            mem_reserve_idle_bytes: 0,
             rss_headroom: 1.0,
         }
     }
@@ -265,12 +269,25 @@ impl<'a> SweepRunner<'a> {
             .collect()
     }
 
+    /// The bytes this batch may draw on, recomputed per batch so it tracks the
+    /// operator the way width already does (0.28).
+    ///
+    /// `demote_ok` is maintained every sample as `idle < user_active_secs` --
+    /// it is named for its consequence, but what it MEANS is "someone is at
+    /// this keyboard". While that holds, hold back the full reserve: the
+    /// desktop, the browser and whatever else the operator is doing have to
+    /// fit beside us. Once it goes false, take the box.
+    ///
+    /// Never all of it. See `mem_reserve_idle_gb`.
     fn mem_budget(&self) -> u64 {
-        self.plat
-            .topology()
-            .mem_bytes
-            .saturating_sub(self.pack.mem_reserve_bytes)
-            .max(1 << 30)
+        // `demote_ok` is maintained every sample as `idle < user_active_secs`.
+        // It is named for its consequence; what it MEANS is "someone is at
+        // this keyboard".
+        policy_mem_budget(
+            self.plat.topology().mem_bytes,
+            self.shared.demote_ok(),
+            &self.pack,
+        )
     }
 
     /// Run `items` `width` at a time and apply every result as it lands.
@@ -2402,6 +2419,35 @@ fn sweep_body(
     Ok(())
 }
 
+/// THE BYTE BUDGET, as a policy rather than a constant (0.28).
+///
+/// A free function for the same reason `policy_width` is one: it is a rule
+/// about the operator, and a rule about the operator has to be testable
+/// without a box in a particular mood.
+///
+/// Width has always collapsed the at-the-box distinction -- an idle keyboard
+/// buys every logical core -- while the byte budget did not, so a sleeping
+/// laptop went on holding back the full desktop reserve.
+///
+/// The gain is narrow and worth stating honestly, because the mean lies here:
+/// peak RSS over 9,744 measured rows is p50 0.58 GB but p90 4.41 GB. For a
+/// median instance memory is not the constraint at all -- 13 GB admits
+/// fifteen and the policy hands out ten cores -- so this changes nothing.
+/// It changes the tail, where one p90 planner wants 6.6 GB with headroom and
+/// the budget decides whether a second one fits beside it.
+///
+/// The idle reserve is never zero and never larger than the active one. Swap
+/// is the pressure the referee cannot un-ring: a row that swapped is owed,
+/// and a box swapping hard takes its neighbours' rows down with it.
+pub fn policy_mem_budget(mem_bytes: u64, at_the_box: bool, pack: &Pack) -> u64 {
+    let reserve = if at_the_box {
+        pack.mem_reserve_bytes
+    } else {
+        pack.mem_reserve_idle_bytes.min(pack.mem_reserve_bytes)
+    };
+    mem_bytes.saturating_sub(reserve).max(1 << 30)
+}
+
 /// Local minutes past midnight, without a timezone dependency: the offset comes
 /// from the platform's own idea of local time.
 fn minutes_past_midnight() -> u32 {
@@ -2428,6 +2474,89 @@ fn minutes_past_midnight() -> u32 {
 mod r2_tests {
     use super::*;
 
+    /// THE BYTE BUDGET FOLLOWS THE OPERATOR, like width already did (0.28).
+    ///
+    /// This is the constraint that actually caps the pack on this box. Width
+    /// hands out ten cores on an idle keyboard; memory only ever fed about
+    /// six instances, because the reserve was a flat 3 GB whether or not
+    /// anyone was using the desktop it was reserved for.
+    #[test]
+    fn the_memory_reserve_shrinks_once_the_operator_leaves() {
+        let gb = |n: f64| (n * (1u64 << 30) as f64) as u64;
+        let pack = Pack {
+            mem_reserve_bytes: gb(3.0),
+            mem_reserve_idle_bytes: gb(1.5),
+            ..Pack::solo()
+        };
+        let box_ram = gb(16.0);
+
+        assert_eq!(
+            policy_mem_budget(box_ram, true, &pack),
+            gb(13.0),
+            "someone is typing: the desktop, the browser and the rest of it \
+             have to fit beside us"
+        );
+        assert_eq!(
+            policy_mem_budget(box_ram, false, &pack),
+            gb(14.5),
+            "nobody is here: take the box"
+        );
+
+        // THE GAIN, in the currency that matters, and it is not where the
+        // mean would put it. Measured peak RSS over 9,744 rows: p50 0.58 GB,
+        // p90 4.41 GB.
+        let fits = |at_the_box, rss_gb: f64| {
+            policy_mem_budget(box_ram, at_the_box, &pack) / ((gb(rss_gb) as f64 * 1.5) as u64)
+        };
+
+        // A median instance is small enough that memory never binds: both
+        // budgets admit more than the ten cores the width policy hands out,
+        // so this knob is correctly a no-op there.
+        assert!(
+            fits(true, 0.58) >= 10 && fits(false, 0.58) >= 10,
+            "at p50 the cap is width, not memory: {} vs {}",
+            fits(true, 0.58),
+            fits(false, 0.58)
+        );
+
+        // The tail is the whole point: one p90 planner or two.
+        assert_eq!(
+            (fits(true, 4.41), fits(false, 4.41)),
+            (1, 2),
+            "at p90 the reserve decides whether the box runs one fat planner \
+             or two -- which is exactly when it would otherwise sit idle"
+        );
+    }
+
+    /// Two guards, because this knob decides how hard the machine is pushed
+    /// and a misconfigured one is a swap storm rather than an error.
+    #[test]
+    fn the_idle_reserve_can_never_be_the_greedier_of_the_two() {
+        let gb = |n: f64| (n * (1u64 << 30) as f64) as u64;
+        // An operator who sets the idle reserve HIGHER than the active one
+        // means "hold back at least this much"; it must not become a way to
+        // take MORE while they are sitting here.
+        let pack = Pack {
+            mem_reserve_bytes: gb(2.0),
+            mem_reserve_idle_bytes: gb(8.0),
+            ..Pack::solo()
+        };
+        assert_eq!(
+            policy_mem_budget(gb(16.0), false, &pack),
+            policy_mem_budget(gb(16.0), true, &pack),
+            "the idle reserve is clamped to the active one, never above it"
+        );
+
+        // And a box too small for any reserve still gets a gigabyte to work
+        // in, rather than a budget of zero that admits nothing forever.
+        let big = Pack {
+            mem_reserve_bytes: gb(64.0),
+            mem_reserve_idle_bytes: gb(64.0),
+            ..Pack::solo()
+        };
+        assert_eq!(policy_mem_budget(gb(8.0), false, &big), gb(1.0));
+    }
+
     /// Night or an idle box: everything. The operator at the box by day:
     /// the P-cores. Foreign load takes back its cores. Suspended: none.
     #[test]
@@ -2440,6 +2569,7 @@ mod r2_tests {
             max_frac: 0.5,
             narrow_max_frac: 0.85,
             mem_reserve_bytes: 0,
+            mem_reserve_idle_bytes: 0,
             rss_headroom: 1.5,
         };
         assert_eq!(
