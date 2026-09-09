@@ -198,6 +198,8 @@ impl Feed {
         }
 
         let mut s = Snapshot {
+            // The in-process feed IS the sweep.
+            detached: false,
             engine_ver,
             engine_hash,
             level: LevelState {

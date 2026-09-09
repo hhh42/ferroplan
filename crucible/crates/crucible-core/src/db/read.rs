@@ -76,6 +76,25 @@ impl Reader {
     }
 
     /// The engines that have contributed rows to this board, oldest first.
+    /// The engine with this BLAKE3, if the database has ever seen it (0.28).
+    ///
+    /// A reader that wants "the run in progress" must ask by hash and not by
+    /// recency. Boards carry rows from every engine ever measured on them, so
+    /// picking the newest engine PER BOARD silently mixes cycles: a board the
+    /// current candidate has not reached yet answers with its predecessor's
+    /// rows, which are complete, and the set reads as finished when it has
+    /// barely started.
+    pub fn engine_by_hash(&self, blake3: &str) -> Result<Option<i64>, DbError> {
+        let mut st = self
+            .conn
+            .prepare("SELECT id FROM engine WHERE blake3 = ?1")?;
+        let mut rows = st.query([blake3])?;
+        Ok(match rows.next()? {
+            Some(r) => Some(r.get(0)?),
+            None => None,
+        })
+    }
+
     pub fn engines_for_board(&self, board_id: i64) -> Result<Vec<i64>, DbError> {
         let mut st = self
             .conn

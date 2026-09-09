@@ -12,6 +12,7 @@
 
 mod backfill;
 mod config;
+mod monitor;
 mod out;
 mod repo;
 mod resident;
@@ -155,9 +156,15 @@ enum Cmd {
         #[arg(long, default_value = "text")]
         mode: String,
     },
-    /// Open the dashboard. With --demo it runs against a synthetic sweep, which
-    /// is how the layout gets looked at without burning three days of CPU.
+    /// Open the dashboard. Reads the DATABASE, so it attaches to a sweep it
+    /// does not host -- a resident, the launchd agent, or nothing at all --
+    /// and closing it does nothing to the run. With --demo it runs against a
+    /// synthetic sweep, which is how the layout gets looked at without
+    /// burning three days of CPU.
     Tui {
+        /// Which set to watch.
+        #[arg(long, default_value = "cut27")]
+        set: String,
         /// Which view to dump: grid | board | instance | timeline.
         #[arg(long, default_value = "grid")]
         view: String,
@@ -252,20 +259,24 @@ fn real_main() -> anyhow::Result<()> {
         Cmd::Standings { doc, check, write } => standings(&repo_root, &cfg, &doc, check, write),
         Cmd::Diff { a, b, mode } => diff(&repo_root, &a, &b, &mode),
         Cmd::Tui {
+            set,
             view,
             demo,
             dump,
             width,
             height,
-        } => tui_cmd(&cfg, demo, dump, width, height, &view),
+        } => tui_cmd(&repo_root, &cfg, &set, demo, dump, width, height, &view),
     }
 }
 
 /// The dashboard. Without a live sweep to attach to there is nothing to draw,
 /// so `--demo` animates a synthetic one -- which is also how the layout gets
 /// reviewed without spending three days of CPU to see it.
+#[allow(clippy::too_many_arguments)]
 fn tui_cmd(
+    repo: &std::path::Path,
     cfg: &config::Config,
+    set: &str,
     demo: bool,
     dump: bool,
     width: u16,
@@ -275,13 +286,16 @@ fn tui_cmd(
     use std::time::Instant;
 
     if dump {
-        return dump_frame(cfg, width, height, view);
+        // --dump --demo renders the synthetic layout (documentation, CI);
+        // --dump alone renders the REAL set, which is how a headless box
+        // reports where it stands without taking a terminal.
+        return dump_frame(repo, cfg, set, demo, width, height, view);
     }
     if !demo {
-        anyhow::bail!(
-            "no sweep is running to attach to; start one (`crucible sweep` hosts \
-             the dashboard), or pass --demo to look at the layout"
-        );
+        // The dashboard used to exist only INSIDE a running sweep, so this
+        // refused whenever the sweep was headless -- which, since the sweep
+        // became a launchd agent, is always. It reads the database now.
+        return monitor::run(repo, cfg, set);
     }
 
     let start = Instant::now();
@@ -576,13 +590,26 @@ fn engine(repo: &std::path::Path) -> anyhow::Result<()> {
 
 /// Render one frame off-screen and print it. No terminal is touched, so this
 /// works in a pipe, in CI, and in a transcript.
-fn dump_frame(cfg: &config::Config, width: u16, height: u16, view: &str) -> anyhow::Result<()> {
+fn dump_frame(
+    repo: &std::path::Path,
+    cfg: &config::Config,
+    set: &str,
+    demo: bool,
+    width: u16,
+    height: u16,
+    view: &str,
+) -> anyhow::Result<()> {
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
-    let mut snap = tui::demo::snapshot(400.0);
-    snap.sel_board = 3;
-    snap.sel_inst = 5;
+    let mut snap = if demo {
+        let mut s = tui::demo::snapshot(400.0);
+        s.sel_board = 3;
+        s.sel_inst = 5;
+        s
+    } else {
+        monitor::frame(repo, cfg, set)?
+    };
     snap.view = match view {
         "board" => tui::app::View::Board,
         "instance" => {
