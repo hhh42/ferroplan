@@ -166,6 +166,10 @@ struct Done {
     /// Unsolved beside neighbours: try again with fewer.
     cascade: bool,
     cancelled: bool,
+    /// The engine binary itself could not be run (0.28). Ends the pass like
+    /// a cancellation -- no row, no verdict -- but is reported as a failure
+    /// rather than an operator's choice.
+    engine_gone: Option<String>,
     solved: bool,
     rejected: bool,
     secs: Option<f64>,
@@ -384,9 +388,13 @@ impl<'a> SweepRunner<'a> {
                         }
                         let d = run_one(ctx, w, i, (width - 1) as u32, &plat, reader.as_ref());
                         *in_use.lock().unwrap() -= bytes;
-                        let cancelled = d.cancelled;
+                        // A vanished engine ends the pass exactly as a
+                        // cancellation does -- every worker stops, and the
+                        // in-flight row is not written. What differs is what
+                        // the CALLER is told afterwards.
+                        let halt = d.cancelled || d.engine_gone.is_some();
                         let _ = tx.send(d);
-                        if cancelled {
+                        if halt {
                             stop.store(true, Ordering::Relaxed);
                             break;
                         }
@@ -395,6 +403,16 @@ impl<'a> SweepRunner<'a> {
             }
             drop(tx);
             for d in rx {
+                if let Some(why) = d.engine_gone {
+                    // First reason wins: later workers report the same
+                    // missing binary, and the first one has the cleanest
+                    // errno.
+                    if self.engine_gone.is_none() {
+                        self.engine_gone = Some(why);
+                    }
+                    self.stop = true;
+                    continue;
+                }
                 if d.cancelled {
                     self.stop = true;
                     continue;
@@ -550,6 +568,7 @@ fn run_one(
         box_fault: true,
         cascade: false,
         cancelled: m.cancelled,
+        engine_gone: m.engine_gone.clone(),
         solved: m.row.solved,
         rejected: m.row.val == Some(false),
         secs: m.row.time.as_ref().and_then(|t| t.as_f64()),
@@ -755,6 +774,11 @@ pub struct SweepRunner<'a> {
     /// Set when the operator interrupts. The remaining work stays remaining --
     /// it is not failed, and the next run picks it up.
     stop: bool,
+    /// Set when the engine binary went missing mid-sweep (0.28). Unlike
+    /// `stop`, this IS a failure: the sweep returns an error naming the
+    /// binary, so a supervisor can rebuild it instead of retrying into the
+    /// same hole forever.
+    engine_gone: Option<String>,
     quiet_only: bool,
     /// Stop after this many passes. `None` is the resident behaviour: a board
     /// that cannot bank because the box is never quiet is not FAILING, it is
@@ -970,6 +994,7 @@ impl<'a> SweepRunner<'a> {
             pack,
             plat: platform::host(),
             stop: false,
+            engine_gone: None,
             quiet_only,
             max_passes,
             passes: 0,
@@ -2353,6 +2378,18 @@ fn sweep_body(
             ..Default::default()
         },
     );
+    // The instrument went missing mid-measurement (0.28). Everything measured
+    // before that is on disk and banked exactly as it was -- this is an error
+    // about the NEXT run, not about the rows already taken. Reported as one so
+    // a supervisor can rebuild the binary rather than retry into the same hole
+    // every five minutes.
+    if let Some(why) = runner.engine_gone.clone() {
+        crate::say!(
+            "{} instance(s) still owed -- rows are written, nothing is lost",
+            out.remaining
+        );
+        anyhow::bail!("the engine binary could not be run: {why}");
+    }
     if !out.complete {
         // NOT an error. A board that could not bank because the box was never
         // quiet has lost nothing -- every row it measured is on disk, and the
