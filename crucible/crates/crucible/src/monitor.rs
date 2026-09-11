@@ -50,7 +50,9 @@ fn cell_for(r: &RawRow, banked: bool) -> Cell {
 }
 
 /// Everything the dashboard shows, read from the database in one pass.
+#[allow(clippy::too_many_arguments)]
 fn snapshot(
+    repo: &Path,
     reader: &Reader,
     set: &SetSpec,
     manifest: &Manifest,
@@ -90,10 +92,20 @@ fn snapshot(
         let spec = manifest.board(id);
         // Indexed by the pair that identifies an instance, so the corpus --
         // not the row set -- drives what appears.
+        let verdicts = engine_id
+            .map(|e| reader.verdicts_for(board_id, e).unwrap_or_default())
+            .unwrap_or_default();
         let by_key: HashMap<(String, String), &RawRow> = rows
             .iter()
             .map(|r| ((r.variant.clone(), r.instance.to_string()), r))
             .collect();
+
+        // The PREDECESSOR, from the promoted raw the standings publish --
+        // the same source the sweep's own dashboard uses. This is the number
+        // every ad-hoc comparison got wrong: it belongs in the instrument.
+        let prior = spec
+            .map(|b| crate::sweep::prior_rows(repo, &b.raw))
+            .unwrap_or_default();
 
         let declared = census.get(id.as_str()).cloned().unwrap_or_default();
         let mut cells = Vec::with_capacity(declared.len());
@@ -109,18 +121,19 @@ fn snapshot(
             } else {
                 owed += 1;
             }
+            let prev = prior.get(&format!("{variant}/{label}"));
             cells.push(InstanceCell {
                 variant,
                 label,
                 // No row at all is QUEUED, which is the state the database
                 // cannot represent and the operator most needs to see.
                 cell: row.map_or(Cell::Queued, |r| cell_for(r, is_banked)),
-                prev_solved: None,
-                prev_secs: None,
+                prev_solved: prev.map(|(s, _)| *s),
+                prev_secs: prev.and_then(|(_, t)| *t),
                 this_solved: row.map(|r| r.solved),
                 this_secs: row.and_then(|r| r.time.as_ref().and_then(|t| t.as_f64())),
                 rho: None,
-                verdict: None,
+                verdict: verdicts.get(&key).cloned(),
                 attempt: u32::from(row.is_some()),
             });
         }
@@ -267,6 +280,7 @@ pub fn frame(repo: &Path, cfg: &crate::config::Config, set_name: &str) -> anyhow
     let (engine, engine_id) = resolve_engine(repo, &reader);
     let census = census(repo, &manifest, &set);
     snapshot(
+        repo,
         &reader,
         &set,
         &manifest,
@@ -310,6 +324,7 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, set_name: &str) -> anyhow::
                 // being measured rather than the one it opened with.
                 let (engine, engine_id) = resolve_engine(repo, &reader);
                 if let Ok(s) = snapshot(
+                    repo,
                     &reader,
                     &set,
                     &manifest,
@@ -325,6 +340,150 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, set_name: &str) -> anyhow::
         },
         |_, _| {},
     )?;
+    Ok(())
+}
+
+/// THE STATS, AS TEXT (0.28) -- `crucible status`.
+///
+/// This exists because of how it was got wrong. Over one session, three
+/// separate hand-rolled SQL queries were written against this database to
+/// answer "how is the sweep doing", and all three disagreed with the
+/// instrument: one counted rows instead of instances, one took the newest
+/// engine per board so untouched boards answered with their predecessor's
+/// complete rows, and one dropped `board_id` from a `MAX(attempt)` subquery
+/// and reported 1,979 instances losing banked work they had not lost.
+///
+/// Every one of those numbers was plausible, and two of them were reported
+/// before being checked. The rules here are not hard, but they are exact --
+/// latest attempt, scoped by board; the declared corpus as the denominator;
+/// one engine for the whole set, resolved by hash -- and anything that
+/// reimplements them will get them wrong eventually.
+///
+/// So the instrument answers, and it shares the snapshot the dashboard draws:
+/// one implementation of the rule, two renderings.
+pub fn status(
+    repo: &Path,
+    cfg: &crate::config::Config,
+    set_name: &str,
+    json: bool,
+) -> anyhow::Result<()> {
+    let snap = frame(repo, cfg, set_name)?;
+
+    let mut verdicts: std::collections::BTreeMap<&str, usize> = Default::default();
+    for b in &snap.boards {
+        for c in &b.cells {
+            if !c.cell.banked() {
+                *verdicts
+                    .entry(c.verdict.as_deref().unwrap_or("not yet run"))
+                    .or_default() += 1;
+            }
+        }
+    }
+
+    if json {
+        let boards: Vec<_> = snap
+            .boards
+            .iter()
+            .map(|b| {
+                let prev = b
+                    .cells
+                    .iter()
+                    .filter(|c| c.prev_solved == Some(true))
+                    .count();
+                serde_json::json!({
+                    "board": b.id,
+                    "total": b.total(),
+                    "banked": b.banked(),
+                    "owed": b.owed(),
+                    "solved": b.solved(),
+                    "previous_solved": prev,
+                    "delta": b.solved() as i64 - prev as i64,
+                    "complete": b.owed() == 0,
+                })
+            })
+            .collect();
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "engine": {"version": snap.engine_ver, "hash": snap.engine_hash},
+                "banked": snap.sweep.done,
+                "total": snap.sweep.total,
+                "solved": snap.sweep.solved,
+                "owed": snap.sweep.owed,
+                "owed_by_verdict": verdicts,
+                "boards": boards,
+            }))?
+        );
+        return Ok(());
+    }
+
+    println!(
+        "engine  {} [{}]",
+        if snap.engine_ver.is_empty() {
+            "(no candidate built)"
+        } else {
+            &snap.engine_ver
+        },
+        snap.engine_hash
+    );
+    println!(
+        "set     {} banked of {} ({:.0}%) -- {} solved, {} owed",
+        snap.sweep.done,
+        snap.sweep.total,
+        100.0 * snap.sweep.done as f64 / snap.sweep.total.max(1) as f64,
+        snap.sweep.solved,
+        snap.sweep.owed
+    );
+    println!();
+    println!(
+        "{:<24}{:>7}{:>7}{:>7}{:>9}{:>8}",
+        "board", "total", "banked", "owed", "solved", "vs prev"
+    );
+    let (mut net, mut complete) = (0i64, 0usize);
+    for b in &snap.boards {
+        let prev = b
+            .cells
+            .iter()
+            .filter(|c| c.prev_solved == Some(true))
+            .count();
+        let d = b.solved() as i64 - prev as i64;
+        // A board with rows still owed cannot be compared yet: the owed rows
+        // are exactly the ones that might change the answer.
+        let delta = if b.owed() == 0 {
+            net += d;
+            complete += 1;
+            format!("{d:+}")
+        } else {
+            "--".into()
+        };
+        println!(
+            "{:<24}{:>7}{:>7}{:>7}{:>9}{:>8}",
+            b.id,
+            b.total(),
+            b.banked(),
+            b.owed(),
+            b.solved(),
+            delta
+        );
+    }
+    println!();
+    println!("net {net:+} over the {complete} board(s) with nothing owed");
+    if complete < snap.boards.len() {
+        println!(
+            "({} board(s) still owe rows and are shown as `--`: an owed row is \
+             one that could still change its board's number)",
+            snap.boards.len() - complete
+        );
+    }
+    if !verdicts.is_empty() {
+        println!();
+        println!("owed by verdict:");
+        let mut v: Vec<_> = verdicts.into_iter().collect();
+        v.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
+        for (k, n) in v {
+            println!("  {k:<14}{n:>6}");
+        }
+    }
     Ok(())
 }
 

@@ -714,7 +714,10 @@ fn run_one(
 
 /// The predecessor's rows for a board: `variant/label -> (solved, secs)` from
 /// the promoted raw under `benchmarks/`. Empty when there is none.
-fn prior_rows(repo: &Path, raw: &str) -> std::collections::BTreeMap<String, (bool, Option<f64>)> {
+pub(crate) fn prior_rows(
+    repo: &Path,
+    raw: &str,
+) -> std::collections::BTreeMap<String, (bool, Option<f64>)> {
     let mut out = std::collections::BTreeMap::new();
     let path = repo.join("benchmarks").join(raw);
     let Ok(src) = std::fs::read_to_string(&path) else {

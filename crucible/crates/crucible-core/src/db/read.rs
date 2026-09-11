@@ -222,6 +222,40 @@ impl Reader {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// THE VERDICT ON EACH INSTANCE'S LATEST ATTEMPT (0.28), keyed by
+    /// (variant, label).
+    ///
+    /// Board-scoped, like every other latest-attempt rule here, and for a
+    /// reason worth writing down: 1,360 instances of the cut27 set belong to
+    /// more than one board -- the mco boards measure the same instances at 2,
+    /// 4 and 8 threads. A `MAX(attempt)` that forgets `board_id` lets a
+    /// six-attempt row on mco-t8 make the mco-t2 row of the same instance
+    /// look stale, and every hand-rolled query that dropped the clause
+    /// reported a sweep losing banked work it had not lost.
+    pub fn verdicts_for(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+    ) -> Result<std::collections::HashMap<(String, String), String>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT v.name, i.label, r.verdict
+               FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2
+                AND r.state = 'done' AND r.verdict IS NOT NULL
+                AND r.attempt = (SELECT MAX(r2.attempt) FROM run r2
+                                  WHERE r2.board_id = r.board_id
+                                    AND r2.instance_id = r.instance_id
+                                    AND r2.engine_id = r.engine_id
+                                    AND r2.state = 'done')",
+        )?;
+        let rows = st.query_map(params![board_id, engine_id], |r| {
+            Ok(((r.get::<_, String>(0)?, r.get::<_, String>(1)?), r.get(2)?))
+        })?;
+        Ok(rows.collect::<Result<std::collections::HashMap<_, _>, _>>()?)
+    }
+
     /// The instances whose latest done attempt BANKED under the referee --
     /// what a restart owes nothing for. Same latest-attempt rule as
     /// [`Reader::clean_instances`]; `banked` is the R2 column, and on a

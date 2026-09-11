@@ -156,6 +156,17 @@ enum Cmd {
         #[arg(long, default_value = "text")]
         mode: String,
     },
+    /// Print where the set stands: per board, banked/owed/solved and the
+    /// delta against the promoted predecessor. Reads the same snapshot the
+    /// dashboard draws, so the numbers cannot drift from it.
+    Status {
+        #[arg(long, default_value = "cut27")]
+        set: String,
+        /// Machine-readable, for scripts and for agents that would otherwise
+        /// write their own SQL and get the latest-attempt rule wrong.
+        #[arg(long)]
+        json: bool,
+    },
     /// Open the dashboard. Reads the DATABASE, so it attaches to a sweep it
     /// does not host -- a resident, the launchd agent, or nothing at all --
     /// and closing it does nothing to the run. With --demo it runs against a
@@ -258,6 +269,7 @@ fn real_main() -> anyhow::Result<()> {
         ),
         Cmd::Standings { doc, check, write } => standings(&repo_root, &cfg, &doc, check, write),
         Cmd::Diff { a, b, mode } => diff(&repo_root, &a, &b, &mode),
+        Cmd::Status { set, json } => monitor::status(&repo_root, &cfg, &set, json),
         Cmd::Tui {
             set,
             view,
