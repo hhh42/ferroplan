@@ -142,6 +142,69 @@ differential is run for it, because a term that small cannot pay for one.
 
 **Cost of the lane:** one afternoon, four samples, no sweep.
 
+## Lane A' (the replacement headline) — the node cap is a model, and the model may be wrong
+
+Lane A died on its own kill criterion the same afternoon it was measured,
+so this takes the headline. It comes from the 0.27 cut rather than from a
+guess.
+
+**The observation.** 937 rows across the seven optimality boards banked
+UNSOLVED with the note `inconclusive: node cap reached after N
+expansions`. They did not run out of time; they ran out of node budget.
+And they did it while barely touching the 6 GB the boards declare:
+
+| board | capped rows | avg GB actually used |
+|---|---|---|
+| ipc-opt-2008-11 | 253 | 1.74 |
+| ipc2023-numeric-opt | 179 | 3.36 |
+| ipc2014-opt | 174 | 1.38 |
+| ipc2018-opt | 117 | **0.93** |
+| ipc2026-opt-full | 96 | 4.38 |
+| ipc2023-opt | 81 | **0.80** |
+| ipc2026-opt | 37 | 4.00 |
+
+`ipc2018-opt` stops having used 15 % of its declared budget. The cap is
+derived from `node_bytes_target` over a MODEL of per-insertion cost --
+deliberately, because the count has to be serial and thread-count
+independent, so it can never be RSS. That design is right. The question
+nobody has asked is whether the model's bytes-per-node is ACCURATE, and
+four boards stopping under 2 GB of a 6 GB budget is what makes it worth
+asking.
+
+**The receipt.** `openstacks-sequential-optimal-strips/16`, traced at the
+0.27 cut: 0.26 proved it in 53.29 s using 3.82 GB and 4,250,212
+expansions; 0.27 capped at 3,798,074 expansions with 3.05 GB -- 89 % of
+the way to a proof it had the memory to finish. The cut-time re-check
+proved it again on a quiet box. One row, but it is the mechanism in
+miniature: the cap, not the clock, and not the engine.
+
+**Measure first.** Modelled bytes-per-node against measured, on the four
+boards with the widest gap (2018-opt, 2023-opt, 2014-opt,
+opt-2008-11). The measurement is RSS growth over nodes inserted across a
+run, compared with what `per_node_model_bytes` predicted for the same
+task. No engine change to take the measurement.
+
+**Pre-registered kill:** if the model is within 25 % of measured
+bytes-per-node on all four, the caps are honest memory exhaustion, this
+lane is a **recorded negative that day**, and the proof tracks' ceiling is
+real rather than self-inflicted. Raising a cap that is already accurate
+would buy swap, not proofs -- and the referee already owes 50 rows of
+this sweep to swap.
+
+**Band, labelled as interpolation:** +15 to +60 across the seven proof
+boards, concentrated where the gap is widest. NOT the 937 -- most of
+those instances are genuinely too large, and the openstacks receipt was
+at 89 % precisely because it was close. Rows recovered here are
+certified optima, which is why a smaller band than Lane A's is worth
+more: on a proof track, coverage IS proof rate.
+
+**Why it is the right headline for this cycle.** The optimality boards
+are the weakest coverage in the table (20-38 %). Every other lane this
+cycle aims at boards already above 60 %. And the 0.27 engine work has
+now twice been told the same thing by measurement -- the relaxation floor
+is the term, not the scan -- so a cycle that keeps pushing per-evaluation
+speed is a cycle arguing with its own instrument.
+
 ## Lane B — two cheap claims at the existing 60 s wall
 
 - **The tpp complex-preferences parse.** All 20 rows of
