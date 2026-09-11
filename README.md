@@ -63,9 +63,22 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.27.0** — `ferroplan`, `ferroplan-cli`, `ferroplan-mcp` and `ferroplan-sat` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.27.1** — `ferroplan`, `ferroplan-cli`, `ferroplan-mcp` and `ferroplan-sat` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
 <!-- WHATSNEW:BEGIN — newest first; trimmed by scripts/release-notes-roll.py -->
+
+
+
+> **What's new in 0.27.1 — a budget the caller can set, and withdraw.**
+> No engine change; coverage is unchanged from 0.27.0. `Options` gains
+> `wall_ms` (this call's wall in milliseconds, armed before parsing so it
+> bounds grounding too) and `should_continue` (an `Arc<AtomicBool>` you
+> flip to stop the call). Both default to `None` and are inert unless set.
+> They are the budget `max_evaluated` could not express — it caps
+> evaluated states, and grounding runs before the first state exists —
+> and the one `FF_TIME_LIMIT` could not, being armed once per process. A
+> stop returns `solved: false` with a note naming which budget bound and
+> where, never the word "unsolvable".
 
 
 
@@ -95,26 +108,6 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > **59.28 s instead of 4.52 s** and banked anyway. Eleven instances that
 > 0.26 solved and 0.27 does not are named in the changelog; eight more
 > looked like regressions and were not.
-
-
-
-> **What's new in 0.26.0 — the fallback learns the LAMA recipe, and the
-> harness learns what it was doing wrong.** **59% coverage across 32 IPC
-> boards** (4,988/8,444), **685 certified optima**, **+283** over 0.25.0
-> on the same instrument. The complete wBFS fallback that does most of
-> the solving now carries preferred operators and the landmark term
-> (`FF_NO_ENRICH=1` restores) — net-benefit 224→267 closes 0.25's open
-> adjudication, the three IPC-5 preference boards gain +58 between them,
-> propositional +22, seq-sat +19, 2023-numeric +19. Transport's novelty
-> driver gets half the wall. Four levers refused with measurements
-> (lookahead, length polish, the memory build, the 2014 config schedule);
-> the proof-gap centerpiece priced and carried. The cut was swept by
-> **crucible**, the new Rust harness — and stopped after six passes and
-> five days with 184 contended timeouts left un-re-measured, because its
-> referee judged the box instead of the run; the rework that fixes that
-> (and the 41.67× CPU-clock bug it found) is the 0.27 headline. Full
-> record:
-> [`docs/roadmap-0.26.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.26.md).
 
 Earlier releases are summarised in the [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md) and its [archive](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG-ARCHIVE.md).
 <!-- WHATSNEW:END -->
