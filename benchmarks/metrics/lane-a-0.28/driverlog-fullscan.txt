@@ -1,0 +1,288 @@
+Analysis of sampling ff (pid 45015) every 1 millisecond
+Process:         ff [45015]
+Path:            /Users/USER/*/ff
+Load Address:    0x100dd4000
+Identifier:      ff
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  zsh [45012]
+Target Type:     live task
+
+Date/Time:       2026-09-11 15:20:06.290 -0700
+Launch Time:     2026-09-11 15:19:58.222 -0700
+OS Version:      macOS 26.6.2 (25G83)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         717.5M
+Physical footprint (peak):  1.3G
+Idle exit:                  untracked
+----
+
+Call graph:
+    16441 Thread_62327764   DispatchQueue_1: com.apple.main-thread  (serial)
+      16441 start  (in dyld) + 6992  [0x1864f44e4]
+        16441 main  (in ff) + 52  [0x100f76c50]
+          16441 _RNvNtCs82bWklYMk3w_3std2rt19lang_start_internal  (in ff) + 932  [0x100f9c360]  rt.rs:171
+            16441 _RNCINvNtCs82bWklYMk3w_3std2rt10lang_startINtNtCs8Mbv00yxnRz_4core6result6ResultuNtCs9jcPXgb96It_6anyhow5ErrorEE0Cs2WSSFJcAyUT_2ff  (in ff) + 24  [0x100f6665c]  rt.rs:206
+              16441 _RINvNtNtCs82bWklYMk3w_3std3sys9backtrace28___rust_begin_short_backtraceFEINtNtCs8Mbv00yxnRz_4core6result6ResultuNtCs9jcPXgb96It_6anyhow5ErrorEB19_ECs2WSSFJcAyUT_2ff  (in ff) + 12  [0x100f62448]  backtrace.rs:166
+                16441 _RNvCs2WSSFJcAyUT_2ff4main  (in ff) + 8532  [0x100f69620]  main.rs:290
+                  16441 _RNvNtCsaD5EJadM3fh_9ferroplan3api5solve  (in ff) + 2408  [0x100e87874]  api.rs:664
+                    16441 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal14solve_prefless  (in ff) + 452  [0x100f11ec8]  temporal.rs:707
+                      16441 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal16solve_monolithic  (in ff) + 376  [0x100f1dbd0]  temporal.rs:798
+                        16441 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal11solve_inner  (in ff) + 7324  [0x100f0e860]  temporal.rs:952
+                          16441 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal31solve_from_seeded_orbit_audited  (in ff) + 4484  [0x100f23d84]  temporal.rs:2013
+                            16441 _RNCNvNtCsaD5EJadM3fh_9ferroplan8temporal31solve_from_seeded_orbit_auditeds2_0B5_  (in ff) + 332  [0x100e60090]  temporal.rs:1990
+                              14995 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 17660  [0x100f16c2c]  temporal.rs:3508
+                              + 14948 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal9push_node  (in ff) + 516  [0x100f2a350]  temporal.rs:2844
+                              + ! 14948 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal9eval_node  (in ff) + 128  [0x100f29e60]  temporal.rs:2418
+                              + !   14945 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic15relaxed_helpful  (in ff) + 108  [0x100f2e154]  heuristic.rs:1001
+                              + !   : 14616 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 344  [0x100f2ed5c]  heuristic.rs:705
+                              + !   : | 14616 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 420  [0x100f32340]  heuristic.rs:370
+                              + !   : |   3776 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2288,2316,...  [0x100f32a8c,0x100f32aa8,...]  heuristic.rs:438
+                              + !   : |   3322 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2344,2332,...  [0x100f32ac4,0x100f32ab8,...]  heuristic.rs:440
+                              + !   : |   1620 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2248,2252,...  [0x100f32a64,0x100f32a68,...]  heuristic.rs:433
+                              + !   : |   1395 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2192,2212,...  [0x100f32a2c,0x100f32a40,...]  mod.rs:0
+                              + !   : |   1055 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2224  [0x100f32a4c]  range.rs:0
+                              + !   : |   924 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2260,3408,...  [0x100f32a70,0x100f32eec,...]  heuristic.rs:0
+                              + !   : |   448 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4300,4340,...  [0x100f33268,0x100f33290,...]  heuristic.rs:490
+                              + !   : |   416 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4004,3448,...  [0x100f33140,0x100f32f14,...]  heuristic.rs:467
+                              + !   : |   372 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3524,3504,...  [0x100f32f60,0x100f32f4c,...]  heuristic.rs:478
+                              + !   : |   205 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3300,2188,...  [0x100f32e80,0x100f32a28,...]  heuristic.rs:459
+                              + !   : |   168 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2396,2372,...  [0x100f32af8,0x100f32ae0,...]  heuristic.rs:443
+                              + !   : |   150 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2360,2428,...  [0x100f32ad4,0x100f32b18,...]  macros.rs:0
+                              + !   : |   147 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3280,3272,...  [0x100f32e6c,0x100f32e64,...]  heuristic.rs:458
+                              + !   : |   142 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4016,4032,...  [0x100f3314c,0x100f3315c,...]  heuristic.rs:469
+                              + !   : |   114 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4040  [0x100f33164]  heuristic.rs:470
+                              + !   : |   66 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3248  [0x100f32e4c]  heuristic.rs:457
+                              + !   : |   65 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3980  [0x100f33128]  tuple.rs:0
+                              + !   : |   61 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2200,2196,...  [0x100f32a34,0x100f32a30,...]  heuristic.rs:432
+                              + !   : |   56 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3380,3384,...  [0x100f32ed0,0x100f32ed4,...]  heuristic.rs:465
+                              + !   : |   54 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4048,4060  [0x100f3316c,0x100f33178]  heuristic.rs:471
+                              + !   : |   50 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3388,3392  [0x100f32ed8,0x100f32edc]  heuristic.rs:466
+                              + !   : |   5 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9goal_done  (in ff) + 56  [0x100f336bc]  heuristic.rs:330
+                              + !   : |   3 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2436  [0x100f32b20]  heuristic.rs:447
+                              + !   : |   1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9goal_done  (in ff) + 4  [0x100f33688]  heuristic.rs:322
+                              + !   : |   1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9goal_done  (in ff) + 320  [0x100f337c4]  heuristic.rs:332
+                              + !   : 195 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 156  [0x100f2eca0]  heuristic.rs:701
+                              + !   : | 171 _RNvMNtCsaD5EJadM3fh_9ferroplan9heuristicNtB2_7Scratch5reset  (in ff) + 92,60,...  [0x100e647d0,0x100e647b0,...]  heuristic.rs:171
+                              + !   : | 23 _RNvMNtCsaD5EJadM3fh_9ferroplan9heuristicNtB2_7Scratch5reset  (in ff) + 228,364,...  [0x100e64858,0x100e648e0,...]  heuristic.rs:173
+                              + !   : | 1 _RNvMNtCsaD5EJadM3fh_9ferroplan9heuristicNtB2_7Scratch5reset  (in ff) + 100  [0x100e647d8]  heuristic.rs:170
+                              + !   : 84 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 900,936,...  [0x100f2ef88,0x100f2efac,...]  heuristic.rs:712
+                              + !   : 29 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 692  [0x100f2eeb8]  heuristic.rs:712
+                              + !   : | 11 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 328,204,...  [0x100f31d70,0x100f31cf4,...]  heuristic.rs:1300
+                              + !   : | 7 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 372  [0x100f31d9c]  heuristic.rs:1303
+                              + !   : | 3 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 112  [0x100f31c98]  heuristic.rs:1297
+                              + !   : | 2 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 24,44  [0x100f31c40,0x100f31c54]  heuristic.rs:1291
+                              + !   : | 2 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 76,88  [0x100f31c74,0x100f31c80]  heuristic.rs:1296
+                              + !   : | 2 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 380  [0x100f31da4]  heuristic.rs:1304
+                              + !   : | 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 184  [0x100f31ce0]  heuristic.rs:1299
+                              + !   : | 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 264  [0x100f31d30]  heuristic.rs:1307
+                              + !   : 9 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 272,276  [0x100f31d38,0x100f31d3c]  heuristic.rs:1307
+                              + !   : 3 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 712  [0x100f2eecc]  heuristic.rs:712
+                              + !   : | 3 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic14queue_cond_for  (in ff) + 24,60,...  [0x100f2de40,0x100f2de64,...]  heuristic.rs:1259
+                              + !   : 2 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic14queue_cond_for  (in ff) + 572  [0x100f2e064]  heuristic.rs:1287
+                              + !   : 2 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 276  [0x100f2ed18]  heuristic.rs:704
+                              + !   : | 2 _RNvMNtNtNtNtCs82bWklYMk3w_3std3sys3pal4unix4timeNtB2_8Timespec3now  (in ff) + 20  [0x100f90d60]
+                              + !   : |   2 clock_gettime  (in libsystem_c.dylib) + 60  [0x18675bd60]
+                              + !   : |     2 clock_gettime_nsec_np  (in libsystem_c.dylib) + 384  [0x18674e15c]
+                              + !   : |       2 mach_absolute_time  (in libsystem_kernel.dylib) + 108  [0x18687c10c]
+                              + !   : 2 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 492  [0x100f2edf0]  heuristic.rs:711
+                              + !   : | 2 _RNvMNtNtNtNtCs82bWklYMk3w_3std3sys3pal4unix4timeNtB2_8Timespec3now  (in ff) + 20  [0x100f90d60]
+                              + !   : |   2 clock_gettime  (in libsystem_c.dylib) + 60  [0x18675bd60]
+                              + !   : |     2 clock_gettime_nsec_np  (in libsystem_c.dylib) + 384  [0x18674e15c]
+                              + !   : |       2 mach_absolute_time  (in libsystem_kernel.dylib) + 108  [0x18687c10c]
+                              + !   : 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 100  [0x100f2ec68]  heuristic.rs:700
+                              + !   : | 1 _RNvMNtNtNtNtCs82bWklYMk3w_3std3sys3pal4unix4timeNtB2_8Timespec3now  (in ff) + 20  [0x100f90d60]
+                              + !   : |   1 clock_gettime  (in libsystem_c.dylib) + 60  [0x18675bd60]
+                              + !   : |     1 clock_gettime_nsec_np  (in libsystem_c.dylib) + 384  [0x18674e15c]
+                              + !   : |       1 mach_absolute_time  (in libsystem_kernel.dylib) + 108  [0x18687c10c]
+                              + !   : 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 352  [0x100f2ed64]  heuristic.rs:706
+                              + !   : | 1 _RNvMNtNtNtNtCs82bWklYMk3w_3std3sys3pal4unix4timeNtB2_8Timespec3now  (in ff) + 20  [0x100f90d60]
+                              + !   : |   1 clock_gettime  (in libsystem_c.dylib) + 60  [0x18675bd60]
+                              + !   : |     1 clock_gettime_nsec_np  (in libsystem_c.dylib) + 384  [0x18674e15c]
+                              + !   : |       1 mach_absolute_time  (in libsystem_kernel.dylib) + 108  [0x18687c10c]
+                              + !   : 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 6036  [0x100f30398]  heuristic.rs:713
+                              + !   :   1 _RNvMNtNtNtNtCs82bWklYMk3w_3std3sys3pal4unix4timeNtB2_8Timespec3now  (in ff) + 20  [0x100f90d60]
+                              + !   :     1 clock_gettime  (in libsystem_c.dylib) + 12  [0x18675bd30]
+                              + !   3 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic15relaxed_helpful  (in ff) + 284  [0x100f2e204]  heuristic.rs:1032
+                              + !     3 _RINvNvMs2_NtCshxvaOLs88l5_5alloc7raw_vecINtB8_11RawVecInnerpE7reserve21do_reserve_and_handleNtNtBa_5alloc6GlobalECsaD5EJadM3fh_9ferroplan  (in ff) + 88  [0x100fb8170]  mod.rs:669
+                              + !       3 _RNvMs5_NtCshxvaOLs88l5_5alloc7raw_vecNtB5_11RawVecInner11finish_growCsaD5EJadM3fh_9ferroplan  (in ff) + 228  [0x100fb8f04]  mod.rs:557
+                              + !         3 _realloc  (in libsystem_malloc.dylib) + 452  [0x1866ebf14]
+                              + !           3 _malloc_zone_realloc  (in libsystem_malloc.dylib) + 148  [0x1866eb6f8]
+                              + !             1 xzm_realloc  (in libsystem_malloc.dylib) + 808  [0x1866dbeac]
+                              + !             | 1 _xzm_xzone_thread_cache_fill_and_malloc  (in libsystem_malloc.dylib) + 116  [0x1866e2634]
+                              + !             |   1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 860  [0x1866e32d8]
+                              + !             |     1 xzm_chunk_mark_used  (in libsystem_malloc.dylib) + 188  [0x1866c3efc]
+                              + !             |       1 _xzm_reclaim_mark_used  (in libsystem_malloc.dylib) + 176  [0x1866c3fe0]
+                              + !             |         1 mach_vm_reclaim_update_kernel_accounting  (in libsystem_kernel.dylib) + 92  [0x18688f494]
+                              + !             |           1 mach_vm_reclaim_update_kernel_accounting_trap  (in libsystem_kernel.dylib) + 8  [0x18687bcb8]
+                              + !             1 xzm_realloc  (in libsystem_malloc.dylib) + 904  [0x1866dbf0c]
+                              + !             | 1 _xzm_free  (in libsystem_malloc.dylib) + 48  [0x1866dc148]
+                              + !             1 xzm_realloc  (in libsystem_malloc.dylib) + 760  [0x1866dbe7c]
+                              + 46 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal9push_node  (in ff) + 932  [0x100f2a4f0]  temporal.rs:2864
+                              + ! 37 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal17enqueue_evaluated  (in ff) + 108  [0x100f1ef7c]  temporal.rs:2468
+                              + ! : 17 _RNvMs1_NtCs3fRkGY2FHAU_9hashbrown3mapINtB5_7HashMapTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEuNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateE6insertBS_  (in ff) + 60  [0x100e6bf7c]  map.rs:1807
+                              + ! : | 17 _RINvYNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateNtNtCs8Mbv00yxnRz_4core4hash11BuildHasher8hash_oneRTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEEB1K_  (in ff) + 112  [0x100e567fc]  mod.rs:700
+                              + ! : |   15 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 376  [0x100f4b388]  sip.rs:282
+                              + ! : |   1 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 368  [0x100f4b380]  sip.rs:289
+                              + ! : |   1 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 360  [0x100f4b378]  sip.rs:290
+                              + ! : 16 _RNvMs1_NtCs3fRkGY2FHAU_9hashbrown3mapINtB5_7HashMapTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEuNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateE6insertBS_  (in ff) + 940  [0x100e6c2ec]  map.rs:1812
+                              + ! : | 15 _RINvMs6_NtCs3fRkGY2FHAU_9hashbrown3rawINtB6_8RawTableTTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEuEE14reserve_rehashNCINvNtB8_3map11make_hasherBQ_uNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateE0EBV_  (in ff) + 248  [0x100fb0390]  raw.rs:962
+                              + ! : | + 14 _RINvYNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateNtNtCs8Mbv00yxnRz_4core4hash11BuildHasher8hash_oneRTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEEB1K_  (in ff) + 112  [0x100e567fc]  mod.rs:700
+                              + ! : | + ! 10 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 376  [0x100f4b388]  sip.rs:282
+                              + ! : | + ! 2 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 320  [0x100f4b350]  sip.rs:106
+                              + ! : | + ! 2 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 368  [0x100f4b380]  sip.rs:289
+                              + ! : | + 1 _RINvYNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateNtNtCs8Mbv00yxnRz_4core4hash11BuildHasher8hash_oneRTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEEB1K_  (in ff) + 228  [0x100e56870]  mod.rs:700
+                              + ! : | +   1 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 356  [0x100f4b374]  sip.rs:289
+                              + ! : | 1 _RINvMs6_NtCs3fRkGY2FHAU_9hashbrown3rawINtB6_8RawTableTTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEuEE14reserve_rehashNCINvNtB8_3map11make_hasherBQ_uNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateE0EBV_  (in ff) + 368  [0x100fb0408]  raw.rs:962
+                              + ! : 4 _RNvMs1_NtCs3fRkGY2FHAU_9hashbrown3mapINtB5_7HashMapTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEuNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateE6insertBS_  (in ff) + 156,188,...  [0x100e6bfdc,0x100e6bffc,...]  map.rs:1812
+                              + ! 5 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal17enqueue_evaluated  (in ff) + 96  [0x100f1ef70]  temporal.rs:2467
+                              + ! : 5 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal4tkey  (in ff) + 416  [0x100f2485c]  temporal.rs:504
+                              + ! :   5 _RNvMs2_NtCsaD5EJadM3fh_9ferroplan6packedNtB5_10PackedTask9state_key  (in ff) + 256  [0x100e73ae8]  packed.rs:444
+                              + ! :     3 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 756  [0x1866e2994]
+                              + ! :     2 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x1866e27e4]
+                              + ! :       1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 1308  [0x1866e3498]
+                              + ! :       + 1 xzm_segment_group_alloc_chunk  (in libsystem_malloc.dylib) + 976  [0x1866c47cc]
+                              + ! :       1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 768  [0x1866e327c]
+                              + ! 3 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal17enqueue_evaluated  (in ff) + 284  [0x100f1f02c]  temporal.rs:2469
+                              + ! : 2 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal17enqueue_committed  (in ff) + 2584  [0x100f1e9c8]  temporal.rs:2576
+                              + ! : | 2 _RNCNvNtNtNtCs82bWklYMk3w_3std3sys3env4unix6getenv0B9_  (in ff) + 60  [0x100f8ff14]
+                              + ! : |   2 getenv  (in libsystem_c.dylib) + 64  [0x18674def8]
+                              + ! : |     2 __findenv_locked  (in libsystem_c.dylib) + 64,88  [0x18674df64,0x18674df7c]
+                              + ! : 1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal17enqueue_committed  (in ff) + 168  [0x100f1e058]  temporal.rs:2508
+                              + ! :   1 _RNCNvNtNtNtCs82bWklYMk3w_3std3sys3env4unix6getenv0B9_  (in ff) + 60  [0x100f8ff14]
+                              + ! :     1 getenv  (in libsystem_c.dylib) + 64  [0x18674def8]
+                              + ! :       1 __findenv_locked  (in libsystem_c.dylib) + 64  [0x18674df64]
+                              + ! 1 _RINvNtCs8Mbv00yxnRz_4core3ptr9drop_glueNtNtCsaD5EJadM3fh_9ferroplan8temporal5TNodeEBF_  (in ff) + 32  [0x100e238a8]  mod.rs:823
+                              + !   1 _xzm_free  (in libsystem_malloc.dylib) + 356  [0x1866dc27c]
+                              + 1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal9push_node  (in ff) + 336  [0x100f2a29c]  temporal.rs:2824
+                              +   1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal6doomed  (in ff) + 64  [0x100f25650]  temporal.rs:0
+                              1439 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 24432  [0x100f186a0]  temporal.rs:3670
+                              + 1436 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal9push_node  (in ff) + 516  [0x100f2a350]  temporal.rs:2844
+                              + ! 1436 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal9eval_node  (in ff) + 128  [0x100f29e60]  temporal.rs:2418
+                              + !   1436 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic15relaxed_helpful  (in ff) + 108  [0x100f2e154]  heuristic.rs:1001
+                              + !     1409 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 344  [0x100f2ed5c]  heuristic.rs:705
+                              + !     : 1409 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 420  [0x100f32340]  heuristic.rs:370
+                              + !     :   370 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2288,2316,...  [0x100f32a8c,0x100f32aa8,...]  heuristic.rs:438
+                              + !     :   329 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2344,2332,...  [0x100f32ac4,0x100f32ab8,...]  heuristic.rs:440
+                              + !     :   151 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2248,2252,...  [0x100f32a64,0x100f32a68,...]  heuristic.rs:433
+                              + !     :   137 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2192,2212,...  [0x100f32a2c,0x100f32a40,...]  mod.rs:0
+                              + !     :   112 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2224  [0x100f32a4c]  range.rs:0
+                              + !     :   71 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2260,3408  [0x100f32a70,0x100f32eec]  heuristic.rs:0
+                              + !     :   51 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4300,4340,...  [0x100f33268,0x100f33290,...]  heuristic.rs:490
+                              + !     :   38 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3504,3468,...  [0x100f32f4c,0x100f32f28,...]  heuristic.rs:478
+                              + !     :   36 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4004,3448,...  [0x100f33140,0x100f32f14,...]  heuristic.rs:467
+                              + !     :   19 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3300,2188,...  [0x100f32e80,0x100f32a28,...]  heuristic.rs:459
+                              + !     :   14 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3280,3272  [0x100f32e6c,0x100f32e64]  heuristic.rs:458
+                              + !     :   12 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2396,2372  [0x100f32af8,0x100f32ae0]  heuristic.rs:443
+                              + !     :   11 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3980  [0x100f33128]  tuple.rs:0
+                              + !     :   9 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2196,2200,...  [0x100f32a30,0x100f32a34,...]  heuristic.rs:432
+                              + !     :   9 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4040  [0x100f33164]  heuristic.rs:470
+                              + !     :   9 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 2360,2428  [0x100f32ad4,0x100f32b18]  macros.rs:0
+                              + !     :   8 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3380,3384  [0x100f32ed0,0x100f32ed4]  heuristic.rs:465
+                              + !     :   8 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4016,4032,...  [0x100f3314c,0x100f3315c,...]  heuristic.rs:469
+                              + !     :   7 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3388  [0x100f32ed8]  heuristic.rs:466
+                              + !     :   6 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 3248  [0x100f32e4c]  heuristic.rs:457
+                              + !     :   2 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff) + 4048,4060  [0x100f3316c,0x100f33178]  heuristic.rs:471
+                              + !     16 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 156  [0x100f2eca0]  heuristic.rs:701
+                              + !     : 13 _RNvMNtCsaD5EJadM3fh_9ferroplan9heuristicNtB2_7Scratch5reset  (in ff) + 60,72,...  [0x100e647b0,0x100e647bc,...]  heuristic.rs:171
+                              + !     : 3 _RNvMNtCsaD5EJadM3fh_9ferroplan9heuristicNtB2_7Scratch5reset  (in ff) + 228,340  [0x100e64858,0x100e648c8]  heuristic.rs:173
+                              + !     6 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 716,800,...  [0x100f2eed0,0x100f2ef24,...]  heuristic.rs:712
+                              + !     3 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 692  [0x100f2eeb8]  heuristic.rs:712
+                              + !     : 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 112  [0x100f31c98]  heuristic.rs:1297
+                              + !     : 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 340  [0x100f31d7c]  heuristic.rs:1302
+                              + !     : 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 312  [0x100f31d60]  heuristic.rs:1304
+                              + !     1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff) + 712  [0x100f2eecc]  heuristic.rs:712
+                              + !     : 1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic14queue_cond_for  (in ff) + 60  [0x100f2de64]  heuristic.rs:1259
+                              + !     1 _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff) + 272  [0x100f31d38]  heuristic.rs:1307
+                              + 3 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal9push_node  (in ff) + 932  [0x100f2a4f0]  temporal.rs:2864
+                              +   2 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal17enqueue_evaluated  (in ff) + 108  [0x100f1ef7c]  temporal.rs:2468
+                              +   : 2 _RNvMs1_NtCs3fRkGY2FHAU_9hashbrown3mapINtB5_7HashMapTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEuNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateE6insertBS_  (in ff) + 60  [0x100e6bf7c]  map.rs:1807
+                              +   :   2 _RINvYNtNtNtCs82bWklYMk3w_3std4hash6random11RandomStateNtNtCs8Mbv00yxnRz_4core4hash11BuildHasher8hash_oneRTNtNtCsaD5EJadM3fh_9ferroplan6packed8StateKeyINtNtCshxvaOLs88l5_5alloc3vec3VecTxjEEEEB1K_  (in ff) + 112  [0x100e567fc]  mod.rs:700
+                              +   :     2 _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff) + 376  [0x100f4b388]  sip.rs:282
+                              +   1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal17enqueue_evaluated  (in ff) + 96  [0x100f1ef70]  temporal.rs:2467
+                              +     1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal4tkey  (in ff) + 416  [0x100f2485c]  temporal.rs:504
+                              +       1 _RNvMs2_NtCsaD5EJadM3fh_9ferroplan6packedNtB5_10PackedTask9state_key  (in ff) + 256  [0x100e73ae8]  packed.rs:444
+                              +         1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 756  [0x1866e2994]
+                              2 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 14752  [0x100f160d0]  temporal.rs:3379
+                              + 2 _RNvMs2_NtCsaD5EJadM3fh_9ferroplan6packedNtB5_10PackedTask5apply  (in ff) + 64  [0x100e72c54]  packed.rs:304
+                              +   2 _RNvXs8_NtCsaD5EJadM3fh_9ferroplan6packedNtB5_5StateNtNtCs8Mbv00yxnRz_4core5clone5Clone5clone  (in ff) + 56  [0x100f4b430]  packed.rs:522
+                              +     2 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 756  [0x1866e2994]
+                              2 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 23468  [0x100f182dc]  temporal.rs:3640
+                              + 1 _RNvMs2_NtCsaD5EJadM3fh_9ferroplan6packedNtB5_10PackedTask5apply  (in ff) + 64  [0x100e72c54]  packed.rs:304
+                              + ! 1 _RNvXs8_NtCsaD5EJadM3fh_9ferroplan6packedNtB5_5StateNtNtCs8Mbv00yxnRz_4core5clone5Clone5clone  (in ff) + 76  [0x100f4b444]  packed.rs:522
+                              + !   1 _platform_memmove  (in libsystem_platform.dylib) + 180  [0x1868c9414]
+                              + 1 _RNvMs2_NtCsaD5EJadM3fh_9ferroplan6packedNtB5_10PackedTask5apply  (in ff) + 504  [0x100e72e0c]  packed.rs:314
+                              1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 13320  [0x100f15b38]  temporal.rs:3304
+                              + 1 _RINvNvMs2_NtCshxvaOLs88l5_5alloc7raw_vecINtB8_11RawVecInnerpE7reserve21do_reserve_and_handleNtNtBa_5alloc6GlobalECsaD5EJadM3fh_9ferroplan  (in ff) + 88  [0x100fb8170]  mod.rs:669
+                              +   1 _RNvMs5_NtCshxvaOLs88l5_5alloc7raw_vecNtB5_11RawVecInner11finish_growCsaD5EJadM3fh_9ferroplan  (in ff) + 228  [0x100fb8f04]  mod.rs:557
+                              +     1 _realloc  (in libsystem_malloc.dylib) + 252  [0x1866ebe4c]
+                              +       1 xzm_malloc_zone_size  (in libsystem_malloc.dylib) + 244  [0x1866e6600]
+                              1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 15912  [0x100f16558]  temporal.rs:3439
+                              + 1 _platform_memmove  (in libsystem_platform.dylib) + 36  [0x1868c9384]
+                              1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 16172  [0x100f1665c]  temporal.rs:3448
+                                1 _RNvNtCsaD5EJadM3fh_9ferroplan8temporal15temporal_search  (in ff) + 16320  [0x100f166f0]  temporal.rs:3449
+
+Total number in stack (recursive counted multiple, when >=5):
+        5       _RNvMNtNtNtNtCs82bWklYMk3w_3std3sys3pal4unix4timeNtB2_8Timespec3now  (in ff) + 20  [0x100f90d60]
+
+Sort by top of stack, same collapsed (when >= 5):
+        _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9build_rpg  (in ff)        16018
+        _RNvMNtCsaD5EJadM3fh_9ferroplan9heuristicNtB2_7Scratch5reset  (in ff)        211
+        _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic16relaxed_to_inner  (in ff)        90
+        _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic6select  (in ff)        42
+        _RNvXs3_NtNtCs8Mbv00yxnRz_4core4hash3sipINtB5_6HasherNtB5_11Sip13RoundsENtB7_6Hasher5writeCsaD5EJadM3fh_9ferroplan  (in ff)        34
+        _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic9goal_done  (in ff)        7
+        _RNvNtCsaD5EJadM3fh_9ferroplan9heuristic14queue_cond_for  (in ff)        6
+        _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib)        6
+        mach_absolute_time  (in libsystem_kernel.dylib)        6
+
+Binary Images:
+       0x100dd4000 -        0x10101ebcf +ff (0) <2306F0AA-77D1-3E48-B0C6-3FFBDB36AD0F> /Users/*/ff
+       0x18644c000 -        0x18649eb4b  libobjc.A.dylib (951.7) <03BD9E32-CF0A-37B0-898A-3CE8DE06D842> /usr/lib/libobjc.A.dylib
+       0x18649f000 -        0x1864d3d58  libdyld.dylib (1387) <957F93B3-8805-39C7-9C51-EDD1715F550E> /usr/lib/system/libdyld.dylib
+       0x1864d4000 -        0x1865874ff  dyld (1.0.0 - 1387) <74E52480-C2BD-3C8D-812D-95FE2B74A096> /usr/lib/dyld
+       0x186588000 -        0x18658b228  libsystem_blocks.dylib (96) <E0AC1231-27AA-3A13-8FAC-41D5802B1F3C> /usr/lib/system/libsystem_blocks.dylib
+       0x18658c000 -        0x1865e055f  libxpc.dylib (3102.160.5) <33E44C2D-D65E-37A6-B85F-1A4CF524A050> /usr/lib/system/libxpc.dylib
+       0x1865e1000 -        0x1866019ff  libsystem_trace.dylib (1861.160.4) <93F1DD8C-6CD9-32B9-B222-D23DA5D161B4> /usr/lib/system/libsystem_trace.dylib
+       0x186602000 -        0x1866b05f7  libcorecrypto.dylib (1922.160.10) <0642DDAD-4771-3C82-805C-E7C6701C1461> /usr/lib/system/libcorecrypto.dylib
+       0x1866b1000 -        0x186701257  libsystem_malloc.dylib (812.160.5) <D969A907-3E43-3951-9365-8C2DB3812E9D> /usr/lib/system/libsystem_malloc.dylib
+       0x186702000 -        0x18674923f  libdispatch.dylib (1542.160.2) <B2000CD5-F580-314A-A141-E036719D854E> /usr/lib/system/libdispatch.dylib
+       0x18674a000 -        0x18674cffb  libsystem_featureflags.dylib (103) <FEE12F9C-344B-33B3-8EDD-283580EF1C67> /usr/lib/system/libsystem_featureflags.dylib
+       0x18674d000 -        0x1867ce1e7  libsystem_c.dylib (1752.160.4) <D77CEB62-AFF6-3CEC-BA9B-4F057FBE2EB5> /usr/lib/system/libsystem_c.dylib
+       0x1867cf000 -        0x18685fae7  libc++.1.dylib (2100.43) <F0FD393C-15BC-3C75-A19D-897F7B225C78> /usr/lib/libc++.1.dylib
+       0x186860000 -        0x18687a75f  libc++abi.dylib (2100.43) <F38A9C58-22AB-3798-BBAE-8DCD9CC0CE27> /usr/lib/libc++abi.dylib
+       0x18687b000 -        0x1868b82e7  libsystem_kernel.dylib (12377.161.14) <C6A4A4CB-92E6-3BAF-AAE0-E8306259209A> /usr/lib/system/libsystem_kernel.dylib
+       0x1868b9000 -        0x1868c5b3b  libsystem_pthread.dylib (539.100.4) <A373F0B0-9880-326A-88B4-DD8BE4E33072> /usr/lib/system/libsystem_pthread.dylib
+       0x1868c6000 -        0x1868ce963  libsystem_platform.dylib (375.120.2) <EDB83A19-EC17-32DE-9350-6145970A85D6> /usr/lib/system/libsystem_platform.dylib
+       0x1868cf000 -        0x1868fe6eb  libsystem_info.dylib (600) <9B5FB84B-31AD-3EA7-8F89-8C700D369DC8> /usr/lib/system/libsystem_info.dylib
+       0x18a89c000 -        0x18a8a5e5f  libsystem_darwin.dylib (1752.160.4) <8E07D22E-CE5A-38A0-B091-5B0338C326F5> /usr/lib/system/libsystem_darwin.dylib
+       0x18ad07000 -        0x18ad191b6  libsystem_notify.dylib (348.160.3) <15799128-6CBD-30D6-A2BB-B9D02B4470C0> /usr/lib/system/libsystem_notify.dylib
+       0x18cfd8000 -        0x18cff2f7b  libsystem_networkextension.dylib (2226.161.1) <9C7B1EEB-47BE-3791-93A9-CFC693CB9417> /usr/lib/system/libsystem_networkextension.dylib
+       0x18d075000 -        0x18d08cfdf  libsystem_asl.dylib (406) <54439739-33EE-3273-839F-CBA67D7F5CB1> /usr/lib/system/libsystem_asl.dylib
+       0x18ec2e000 -        0x18ec36387  libsystem_symptoms.dylib (2169.160.3) <229122B9-B8B1-3F2F-870E-8650AE3C4FB5> /usr/lib/system/libsystem_symptoms.dylib
+       0x192ed3000 -        0x192f0b5b7  libsystem_containermanager.dylib (725.160.3) <14B2A47F-19C8-392F-8FDB-FE8AE375DD41> /usr/lib/system/libsystem_containermanager.dylib
+       0x1942e5000 -        0x1942e95d7  libsystem_configuration.dylib (1405.160.3) <D8D6280B-783D-3550-BDBA-2861AE40604F> /usr/lib/system/libsystem_configuration.dylib
+       0x1942ea000 -        0x1942f099f  libsystem_sandbox.dylib (2680.160.6) <54688162-B50D-3D31-A1E8-7B9766D3530D> /usr/lib/system/libsystem_sandbox.dylib
+       0x195945000 -        0x1959481fb  libquarantine.dylib (196.160.2) <EEE5AADB-52E1-3C4C-881A-70405770B1F1> /usr/lib/system/libquarantine.dylib
+       0x1960e4000 -        0x1960ead03  libsystem_coreservices.dylib (191.5.1) <D4ACD2AC-5702-3C45-85A0-300B2C2D19E1> /usr/lib/system/libsystem_coreservices.dylib
+       0x196673000 -        0x1966b0a77  libsystem_m.dylib (3312.100.1) <B54FBE99-DB0B-32C7-ABDD-C2206DF606A4> /usr/lib/system/libsystem_m.dylib
+       0x1966b2000 -        0x1966b5527  libmacho.dylib (1387) <949131E5-BDA2-39BA-AA50-62651BB51802> /usr/lib/system/libmacho.dylib
+       0x1966cf000 -        0x1966dc3a7  libcommonCrypto.dylib (600035) <3B110564-5278-3CB0-85F1-2CE8431FF935> /usr/lib/system/libcommonCrypto.dylib
+       0x1966dd000 -        0x1966e6ca3  libunwind.dylib (2100.2) <05FD0014-55B1-3B8A-A6BA-6C7A389C4123> /usr/lib/system/libunwind.dylib
+       0x1966ef000 -        0x1966f9bef  libcopyfile.dylib (240.160.2.0.1) <D0009B8A-8ECC-3D56-9206-7E1839707F93> /usr/lib/system/libcopyfile.dylib
+       0x1966fa000 -        0x1966fd987  libcompiler_rt.dylib (103.3) <6FB345CA-7F5C-3263-A23F-143F7539FD8A> /usr/lib/system/libcompiler_rt.dylib
+       0x1966fe000 -        0x19670278b  libsystem_collections.dylib (1752.160.4) <C8160BD2-5941-3DC0-BB40-F8C2B8156EC4> /usr/lib/system/libsystem_collections.dylib
+       0x196703000 -        0x1967064cf  libsystem_secinit.dylib (168.100.7) <ECABC024-8F02-374A-BB7E-29437CEA2ABD> /usr/lib/system/libsystem_secinit.dylib
+       0x196707000 -        0x196709bf7  libremovefile.dylib (85.100.6) <7460B5AE-469A-36A0-A7EC-6C7D69628E86> /usr/lib/system/libremovefile.dylib
+       0x19670a000 -        0x19670af27  libkeymgr.dylib (31) <7E863FCA-F3FF-32C7-8A8C-F983E946AFC3> /usr/lib/system/libkeymgr.dylib
+       0x19670b000 -        0x196713e37  libsystem_dnssd.dylib (2881.160.4) <305F4398-E688-3384-B351-02D865EC8A04> /usr/lib/system/libsystem_dnssd.dylib
+       0x196714000 -        0x19671909b  libcache.dylib (95) <9CD7B1E1-3E47-339C-A193-2392E3E0ED23> /usr/lib/system/libcache.dylib
+       0x19671a000 -        0x19671bce3  libSystem.B.dylib (1356) <4FED5EE2-5D3E-35B1-A170-9859C4B683BB> /usr/lib/libSystem.B.dylib
+       0x28a6dd000 -        0x28a6e4349  libRosetta.dylib (367.9) <0C7397C6-D747-31F2-8BC1-4096213BDE5C> /usr/lib/libRosetta.dylib
+       0x28c2f0000 -        0x28c2f3a4b  libsystem_darwindirectory.dylib (122) <971A4F65-493D-39F3-846D-0D33FA2769FD> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x28c2f4000 -        0x28c2fe39b  libsystem_eligibility.dylib (319.160.17) <750CA446-92EA-3A56-9A7B-CC0841686C50> /usr/lib/system/libsystem_eligibility.dylib
+       0x28c2ff000 -        0x28c30688b  libsystem_sanitizers.dylib (26.1) <D88EC709-9AA8-3083-B22B-D3CB39678D71> /usr/lib/system/libsystem_sanitizers.dylib
+       0x28c307000 -        0x28c307bb7  libsystem_trial.dylib (474.2.18.2) <7194FF5B-A6C5-3D67-B00A-90209F10D603> /usr/lib/system/libsystem_trial.dylib

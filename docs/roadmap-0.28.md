@@ -98,6 +98,50 @@ the applicability test, so the substitution is not byte-identical under
 `FF_ORBIT_GEN=1` — that arm keeps the full scan, and it is already a
 recorded negative ("match-cellar lost 9 instances to it").
 
+### Lane A — RECORDED NEGATIVE, 2026-09-11. The lane ends here.
+
+The pre-registered kill fired. Candidate-scan SELF time, sampled on a box
+with one competing core (Steam), `FF_NO_TSUCC=1` so the full scan is the
+thing being measured, `sample` at ~1 kHz:
+
+| instance | ops | scan share | heuristic share |
+|---|---|---|---|
+| driver-log-t i5 | 61,092 | **0.01 %** | 99.6 % |
+| rtam i16 | 13,176 | **7.70 %** | ~97 % |
+| satellite i5 | 17,676 | **0.09 %** | 98.7 % |
+| storage-t i15 | 3,744 | **0.72 %** | 96.9 % |
+
+Under ~10 % on all four, which is the condition this lane wrote down in
+advance for ending itself. The 7.70 % on rtam is the loose end and it is
+loose in the safe direction: that sample carries more than one thread, so
+its denominator is understated and the true share is lower.
+
+**Why it is not close.** 61,092 ops was chosen as the case where an
+O(n_ops) scan should hurt most, and it is the instance where the scan is
+LEAST visible — 0.01 %. Every sample that is not the scan is the relaxed
+planning graph: `push_node → eval_node → relaxed_helpful →
+relaxed_to_inner → build_rpg`, 16,384 of 16,441 samples on driver-log-t.
+The scan does not even appear as a frame; it inlines into
+`temporal_search` and shows only as self time.
+
+**What this confirms rather than discovers.** 0.27 recorded the same shape
+for the classical path: "what is left on these boards is the relaxation
+floor itself, ~1.7-2 ms per evaluation at 60-80k ops, proportional to the
+effects the fired ops carry. Moving it means firing fewer ops (relevance)
+or evaluating fewer states, not a faster scan." Nobody had read that
+share for a TEMPORAL evaluation, which is why the measurement was worth
+its afternoon. It reads the same.
+
+**The code stays.** `98a74e1` wires the anchored generator into the
+temporal rung and is byte-identical by construction (candidates sorted
+back into the scan's order), so it is neither a win nor a risk: it
+removes a 0.01-7.7 % term and costs nothing. `FF_NO_TSUCC=1` keeps the
+full scan for exactly this kind of measurement. What is withdrawn is the
+CLAIM -- the +2 to +8 band on `ipc2014-tempo` is not pursued and no
+differential is run for it, because a term that small cannot pay for one.
+
+**Cost of the lane:** one afternoon, four samples, no sweep.
+
 ## Lane B — two cheap claims at the existing 60 s wall
 
 - **The tpp complex-preferences parse.** All 20 rows of
@@ -133,6 +177,50 @@ recorded negative ("match-cellar lost 9 instances to it").
   classical path at all — the 138-row AIBR constituency named in the
   0.26 dossier has never been measured for flat h. One print site fixes
   that, and it is what makes the next cycle's numeric-h question askable.
+
+## Lane D — the per-call budget (unscoped, consumer-driven; SHIPPED IN 0.27.1)
+
+Not on the cycle plan. A consumer embedding ferroplan as a library filed a
+concrete ask with a measurement attached, and the measurement is why it
+jumped the queue: `solve` was blocking and uninterruptible, so a host that
+abandoned the work leaked that thread for the life of the process. Their
+own instrumentation recorded 213 solves completed, then 2 abandoned, after
+which the pool was dead — 0 completed, 4 abandoned.
+
+Neither existing budget could bound one call. `max_evaluated` caps
+evaluated STATES and grounding runs before the first state exists;
+`FF_TIME_LIMIT` is armed once per PROCESS from the first solve, so in a
+long-lived host it either bounds nothing or eventually refuses
+everything.
+
+**Shipped as 0.27.1, not here.** Two fields on `Options`, both `None` by
+default and inert unless set: `wall_ms` (armed at the top of `solve`, so
+it bounds parsing and grounding too) and `should_continue` (an
+`Arc<AtomicBool>` polled wherever the wall is). A stop returns
+`solved: false` with a note naming which budget bound and where, never
+the word "unsolvable".
+
+It went out as a patch release on the 0.27 line rather than waiting for
+this cycle **because it is additive API with no engine change** — so it
+needed no sweep, and holding it would have kept a blocked consumer
+waiting on Lane A's measurement for no reason. The two commits were
+cherry-picked; the rest of this branch stayed behind until it has been
+measured. That is the precedent worth keeping: API that cannot move a
+number does not need a cut behind it.
+
+Held per call in a thread-local armed by an RAII guard, so concurrent
+solves carry their own and a spent budget cannot leak into the next call
+on its thread. `FF_NO_RUNG_WALLCAP` does not disable it — that hatch
+governs the env wall, and a budget passed in code outranks an environment
+variable.
+
+**Recorded, not acted on:** the rung ladder rations a wall across its
+rungs, so a budget is not "time until I stop". A 30-block instance
+solving in 34 ms unbudgeted is stopped by a 120 ms wall and solved under a
+200 ms one — and `FF_TIME_LIMIT=0.12` fails the same instance while `0.2`
+solves it, so this is the env wall's behaviour too, not the new path's.
+Teaching the ladder to skip its slicing under small budgets would be a
+behaviour change with no measurement behind it.
 
 ## The SGPlan question, recorded rather than scoped
 
