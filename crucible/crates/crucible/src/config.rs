@@ -144,6 +144,10 @@ pub struct Referee {
     /// rounded down to 0.05, floored at 0.85) -- not a knob to turn when a
     /// sweep is slow.
     pub cpu_ratio_min: f64,
+    /// Below this wall, `cpu_ratio_min` is not applied: the ratio is dominated
+    /// by process spawn and teardown rather than by the box. Such a row is
+    /// judged by the box-wide window instead. See `Rule::rho_floor_ms`.
+    pub rho_floor_ms: u64,
     /// Swap growth across a run's window past which an unsolved row is owed.
     pub swap_growth_mb: f64,
     /// The canary (`crucible-spec.md` R2.3): a fixed ~2 s solve run beside
@@ -170,6 +174,7 @@ impl Default for Referee {
     fn default() -> Self {
         Self {
             cpu_ratio_min: 0.95,
+            rho_floor_ms: 2_000,
             swap_growth_mb: 512.0,
             canary_ipc: "ipc-2006".into(),
             canary_variant: "trucks-propositional".into(),

@@ -2325,6 +2325,7 @@ fn sweep_body(
             shared: Arc::clone(&shared),
             rule: referee::Rule {
                 rho_min: cfg.referee.cpu_ratio_min,
+                rho_floor_ms: cfg.referee.rho_floor_ms,
                 swap_growth_mb: cfg.referee.swap_growth_mb,
                 canary_max_factor: cfg.referee.canary_max_factor,
             },

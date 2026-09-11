@@ -50,6 +50,25 @@ pub struct Rule {
     /// which the box was too slow for a timeout to count.
     /// `[referee] canary_max_factor`.
     pub canary_max_factor: f64,
+    /// THE FLOOR BELOW WHICH rho IS NOT A STATISTIC (0.28).
+    ///
+    /// rho is cpu over effective wall, and a process's wall includes a fixed
+    /// cost -- fork, exec, dynamic linking, teardown -- during which the
+    /// child burns no CPU. Over a 60 s run that overhead is noise. Over a
+    /// 0.4 s run it IS the measurement: such a row reads rho 0.015 on a
+    /// perfectly idle box, so `rho < rho_min` condemns it no matter what the
+    /// machine was doing, forever.
+    ///
+    /// That is not hypothetical. The 0.27 sweep produced 84 sub-second rows
+    /// on ipc2023-numeric-opt alone -- grounding-level unsolvability proofs
+    /// and honest out-of-scope refusals, both delivered in 0.4 s -- and
+    /// refused every one as starved across four passes. The 0.26 sweep
+    /// banked the same 21 rows through the window path. A rule that can
+    /// never be satisfied is not a strict rule, it is a livelock: the set
+    /// could not reach a terminal state.
+    ///
+    /// `[referee] rho_floor_ms`.
+    pub rho_floor_ms: u64,
 }
 
 impl Default for Rule {
@@ -58,6 +77,10 @@ impl Default for Rule {
             rho_min: 0.95,
             swap_growth_mb: 512.0,
             canary_max_factor: 1.15,
+            // Two seconds: spawn overhead is ~50-100 ms on this box, so at
+            // 2 s it is under 5% of the wall and rho can still reach 0.95.
+            // Below it, the ratio is dominated by process setup.
+            rho_floor_ms: 2_000,
         }
     }
 }
@@ -242,10 +265,33 @@ pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
     if f.swap_growth_mb.is_some_and(|g| g > rule.swap_growth_mb) {
         return Verdict::Owed(Owe::Swap);
     }
-    match f.rho() {
-        Some(r) if r >= rule.rho_min => Verdict::Banked(Bank::Rho),
-        Some(_) => Verdict::Owed(Owe::Starved),
-        None => Verdict::Owed(Owe::CpuUnknown),
+    // TOO SHORT FOR rho TO MEAN ANYTHING (0.28). Judge it the way 0.26 did,
+    // and the way a `threads > 1` row still is: by whether the box-wide
+    // WINDOW was clean. That is a statement about the machine that does not
+    // divide by a wall too small to divide by.
+    //
+    // Deliberately AFTER demoted, thermal, swap and clock-jump: those are
+    // reasons to doubt a row that hold however briefly it ran, and a short
+    // run must not be a way around them.
+    //
+    // No rho AT ALL -- an untrusted instrument, or a run with no measurable
+    // wall -- is a different and older answer, and it comes first: the floor
+    // is about a ratio that exists and does not mean anything, not about a
+    // ratio we never had.
+    let Some(r) = f.rho() else {
+        return Verdict::Owed(Owe::CpuUnknown);
+    };
+    if f.effective_ms < rule.rho_floor_ms {
+        return match f.window {
+            Cleanliness::Clean => Verdict::Banked(Bank::Window),
+            Cleanliness::Dirty => Verdict::Owed(Owe::Contended),
+            Cleanliness::Uncovered => Verdict::Owed(Owe::Uncovered),
+        };
+    }
+    if r >= rule.rho_min {
+        Verdict::Banked(Bank::Rho)
+    } else {
+        Verdict::Owed(Owe::Starved)
     }
 }
 
@@ -288,6 +334,117 @@ mod tests {
     #[test]
     fn the_stamp_is_the_runners_stamp() {
         assert_eq!(TRUSTED_CPU_INSTRUMENT, crate::exec::CPU_INSTRUMENT);
+    }
+
+    /// THE LIVELOCK, pinned (0.28). rho cannot condemn a row too short to
+    /// have a meaningful rho.
+    ///
+    /// A 0.4 s run spends most of its wall in fork, exec and teardown, during
+    /// which the child burns no CPU. It reads rho 0.015 on a perfectly idle
+    /// box. Under `rho < rho_min` that row is starved FOREVER -- and the 0.27
+    /// sweep proved it, refusing 84 sub-second rows on ipc2023-numeric-opt
+    /// across four passes while the set could never reach a terminal state.
+    ///
+    /// The rows were not failures. They were grounding-level unsolvability
+    /// proofs and honest out-of-scope refusals, answered in 0.4 s. The 0.26
+    /// instrument banked the same 21 rows through the window path; this
+    /// restores that, so the two cycles stay like-for-like.
+    #[test]
+    fn a_run_too_short_for_rho_is_judged_by_the_window_instead() {
+        let brief = |window| Facts {
+            cpu_ms: 6,
+            effective_ms: 400,
+            window,
+            ..unsolved()
+        };
+
+        // The shape that livelocked: rho 0.015, far under rho_min, on a box
+        // whose window was clean.
+        let clean = brief(Cleanliness::Clean);
+        assert!(
+            clean.rho().is_some_and(|r| r < Rule::default().rho_min),
+            "the premise: rho alone condemns this row"
+        );
+        assert_eq!(
+            judge(&Rule::default(), &clean),
+            Verdict::Banked(Bank::Window),
+            "a clean window banks it, exactly as 0.26 did"
+        );
+
+        // A dirty box is still a dirty box -- the floor is not an amnesty.
+        assert_eq!(
+            judge(&Rule::default(), &brief(Cleanliness::Dirty)),
+            Verdict::Owed(Owe::Contended)
+        );
+        assert_eq!(
+            judge(&Rule::default(), &brief(Cleanliness::Uncovered)),
+            Verdict::Owed(Owe::Uncovered)
+        );
+    }
+
+    /// The floor must not become a way around the signals that hold however
+    /// briefly a row ran. A demoted 0.4 s run is still demoted: the E-core
+    /// defect banked 1,709 rows precisely because a box-wide instrument could
+    /// not see it, and a short wall does not make it visible.
+    #[test]
+    fn the_short_run_floor_does_not_override_the_process_signals() {
+        let brief = Facts {
+            cpu_ms: 6,
+            effective_ms: 400,
+            window: Cleanliness::Clean,
+            ..unsolved()
+        };
+        let cases = [
+            (
+                Facts {
+                    demoted: true,
+                    ..brief.clone()
+                },
+                Verdict::Owed(Owe::Demoted),
+            ),
+            (
+                Facts {
+                    clock_factor: Some(2.0),
+                    ..brief.clone()
+                },
+                Verdict::Owed(Owe::Thermal),
+            ),
+            (
+                Facts {
+                    swap_growth_mb: Some(4096.0),
+                    ..brief.clone()
+                },
+                Verdict::Owed(Owe::Swap),
+            ),
+            (
+                Facts {
+                    clock_jump: true,
+                    ..brief.clone()
+                },
+                Verdict::Owed(Owe::ClockJump),
+            ),
+        ];
+        for (f, want) in cases {
+            assert_eq!(judge(&Rule::default(), &f), want);
+        }
+    }
+
+    /// And the floor is a FLOOR: an ordinary 60 s timeout is still judged by
+    /// rho, which is the whole point of the R2 referee.
+    #[test]
+    fn a_full_length_run_is_still_judged_by_rho() {
+        let f = unsolved();
+        assert!(f.effective_ms >= Rule::default().rho_floor_ms);
+        assert_eq!(judge(&Rule::default(), &f), Verdict::Banked(Bank::Rho));
+
+        let starved = Facts {
+            cpu_ms: 6_000,
+            ..unsolved()
+        };
+        assert_eq!(
+            judge(&Rule::default(), &starved),
+            Verdict::Owed(Owe::Starved)
+        );
     }
 
     /// THE R2 CASE: a timeout measured while something else was on the box,
