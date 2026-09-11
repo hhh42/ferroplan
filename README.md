@@ -78,9 +78,12 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > the state's true facts, sorted back into the scan's order so the search
 > is byte-identical — the same plans, the same evaluation counts, 7× to
 > 12× less time per expansion on the boards where expansion was the term.
-> net-benefit reaches **270/270, the first board at 100%**;
 > simple-preferences +8.5 pts, 2014 seq-agile +6.4,
-> qualitative-preferences +5.0. One track fell: tempo-sat −0.3.
+> qualitative-preferences +5.0, 2014 seq-sat +4.3. One track fell:
+> tempo-sat −0.3. net-benefit stands at 270/270, but a like-for-like
+> backfill of 0.26.0 on this box reaches 270/270 too — so that board is
+> not a 0.27 gain, and the same-instrument total will land a little under
+> +134 once the backfill completes.
 >
 > The rest of the cycle went into the harness, and it is why those
 > numbers are worth reading: this is the first sweep to reach a terminal

@@ -36,11 +36,19 @@ into the thing that measures it, and that is the honest summary of what
 
 ### Where it moved
 
-net-benefit reaches **270/270 — the first board at 100%**.
 simple-preferences +8.5 pts (119/130), 2014 seq-agile +6.4 (172/280),
 qualitative-preferences +5.0 (51/100), and 2014 seq-sat / 2023 seq-sat /
 2023 classical +4.3 each. 2018 seq-sat at 94/240 now places ~1st of 25
 entrants by rate. One track went backwards: tempo-sat −0.3 pts.
+
+net-benefit stands at **270/270**, but that is NOT claimed as a 0.27
+gain. The like-for-like backfill now running — the v0.26.0 tag rebuilt
+and re-measured on this box under the current referee — reaches 270/270
+as well, so its published +3 was the instrument, not the engine. The
+same control has so far moved 2026 numeric-opt's +1 to 0 for the same
+reason. **Expect the same-instrument total to land a little under +134**;
+it will be recorded when the backfill completes, against 0.26.0's own
+re-measured numbers rather than its published table.
 
 ### The instrument (crucible R2)
 
