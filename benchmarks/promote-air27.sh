@@ -85,7 +85,21 @@ for b in "${boards[@]}"; do promote "$b"; done
 echo
 echo "regenerating standings (the Python oracle writes; crucible must agree)..."
 python3 benchmarks/standings.py
-./crucible/target/release/crucible --repo . standings --check \
+# crucible moved to its own worktree during R2 (ferroplan-r2/crucible), so
+# the in-tree path stopped existing and this gate silently degraded: a
+# missing binary reported MISMATCH, which reads exactly like the numbers
+# disagreeing. Found at the 0.27 cut. Look in both places, and REFUSE to
+# cut if neither has one -- an unrunnable check must never pass for having
+# nothing to run.
+CRUCIBLE=""
+for c in ./crucible/target/release/crucible \
+         ../ferroplan-r2/crucible/target/release/crucible; do
+  [ -x "$c" ] && { CRUCIBLE="$c"; break; }
+done
+if [ -z "$CRUCIBLE" ]; then
+  echo "  no crucible binary: build it, or the parity gate is not a gate"; exit 1
+fi
+"$CRUCIBLE" --repo . standings --check \
   && echo "  crucible standings --check: parity" \
   || { echo "  crucible standings --check: MISMATCH — do not cut on this"; exit 1; }
 

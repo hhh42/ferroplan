@@ -4,6 +4,89 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-09-10 — One lever in the engine, and an instrument that can finally finish
+
+**61% coverage across 32 IPC boards** (5,122/8,444), **687 certified
+optima** — **+134** over 0.26.0 on the same instrument. Full record:
+[`docs/roadmap-0.27.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.27.md).
+
+The engine changed in exactly one place this cycle. Most of the work went
+into the thing that measures it, and that is the honest summary of what
+0.27 is.
+
+### The engine
+
+- **The anchored successor generator** (`PackedTask::applicable_ops`).
+  Expansion used to scan every grounded op to find the applicable ones.
+  Now each op is anchored at its RAREST positive precondition, candidates
+  are gathered from the state's true facts, and the result is sorted back
+  into the scan's order — so the search it feeds is byte-identical, the
+  same plans found in the same number of evaluations. Expansion per
+  evaluation: labyrinth 234 → 34 µs (7×), parking 258 → 21 µs (12×),
+  markettrader 10 → 5.6 µs. Wired into the classical, LAMA and novelty
+  rungs.
+- `apply()` gains an allocation-free path for ops with no conditional and
+  no numeric effects, which otherwise cost four temporaries per successor.
+- **Recorded negative:** the counter-based relaxed-graph build (reached
+  facts decrement the ops that need them, no per-layer scan) measured
+  1.78 → 2.02 ms on labyrinth and 0.92 → 0.96 on parking. Slower.
+  Removed. What remains on these boards is the relaxation floor itself,
+  ~1.7–2 ms per evaluation at 60–80k ops; moving it means firing fewer
+  ops or evaluating fewer states, not a faster scan.
+
+### Where it moved
+
+net-benefit reaches **270/270 — the first board at 100%**.
+simple-preferences +8.5 pts (119/130), 2014 seq-agile +6.4 (172/280),
+qualitative-preferences +5.0 (51/100), and 2014 seq-sat / 2023 seq-sat /
+2023 classical +4.3 each. 2018 seq-sat at 94/240 now places ~1st of 25
+entrants by rate. One track went backwards: tempo-sat −0.3 pts.
+
+### The instrument (crucible R2)
+
+Not shipped to crates.io — it is the harness — but it is why the numbers
+above are worth reading. **This is the first sweep in the project's
+history to reach a terminal state: 8,444 of 8,444 instances banked, zero
+owed.** The 0.26 cut was taken by decision after six passes and five days
+sixteen hours with 232 rows still owed.
+
+The referee now judges each row by ITS OWN process rather than by the
+box, which is what makes a clean terminal state reachable at all. Four
+defects it found the hard way, each with its receipt:
+
+- `cpu_ms` was **41.67× low** on every row ever recorded — Mach absolute
+  time read as nanoseconds.
+- The throttle never reached the child for the whole 0.26 sweep: the
+  control channel's sender was dropped at construction.
+- The **E-core defect**: under POLITE the harness put planners in
+  Darwin's background band, where the same instance took **59.28 s
+  instead of 4.52 s** — and banked, because ρ 0.956 is CPU share and a
+  demoted process has all the share of a slow core. 1,709 rows affected.
+- The canary locked onto a 3%-frequency boost clock and refused 553 rows
+  as thermal across eleven boards. Its baseline is now the 25th
+  percentile of recent solo readings.
+
+### Honesty notes
+
+- **11 instances that 0.26 solved, 0.27 did not.** Each was re-opened and
+  re-run solo on a quiet box under the cut rule before promotion; these
+  are the ones that failed again and are counted as real. Eight others
+  looked like regressions and were not — they solved on the re-run, which
+  is a 42% false-regression rate in the raw sweep and the reason the
+  re-check exists.
+- **The referee changed during the final passes.** ρ is CPU over wall,
+  and every process pays a fixed ~0.3 s of fork, exec, linking and
+  teardown that is wall without CPU — so below ~8 s no process, however
+  well served, can reach ρ ≥ 0.95. Runs under that floor were being
+  refused forever, and the set could not have completed. They are now
+  judged by the box-wide window, which is what 0.26's instrument did for
+  every row. Verified against the database rather than asserted: the same
+  rows banked under 0.26 as `window`. The solved count did not move
+  across either change — what banked were honest non-solutions.
+- Coverage is measured at 60 s (300 s where a board says ENTRY), against
+  official budgets that are typically 30× longer. The comparison is to
+  ferroplan 0.26.0 on the same box, not to the competition.
+
 ## [0.26.0] - 2026-09-04 — The fallback learns the LAMA recipe, and the harness learns what it was doing wrong
 
 **59% coverage across 32 IPC boards** (4,988/8,444), **685 certified
@@ -101,69 +184,6 @@ never had are `crucible-spec.md` §R2 and `docs/roadmap-0.27.md`.
 | ipc2026-opt-full | 2026 numeric-opt FULL | 80/260 | 79/260 | -1 | petri-net 2→3; forestfire 8→7; gear-car 9→8 |
 | ipc2014-mco-t8 | 2014 seq-mco t8 | 164/280 | 162/280 | -2 | tetris-multi-core 13→11; parking-multi-core 9→7; cave-diving-multi-core 5→7 |
 
-## [0.25.0] - 2026-08-27 — The table grows to 32 boards — and the like-for-like 22 dips, and says so first
-
-Two headlines BY DESIGN (roadmap-0.25 Phase 6): the grown table and the
-like-for-like instrument, never blended. Full record:
-[`docs/roadmap-0.25.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.25.md).
-
-### Headline one — the grown table
-
-**56% coverage across 32 IPC boards** (4,705/8,444), of which **665 are
-certified optima** — the proof surface nearly doubles (386 → 665). Ten
-boards enter: 2014 mco t2 (157/280) and t8 (164/280), 2018-opt
-(89/240 ⚖️), 2023 sat (36/140) and 2023 opt (33/140 ⚖️), 2023
-numeric-opt (81/400 ⚖️), 2026-opt FULL (80/260 ⚖️), and the three 2006
-preference tracks on their full corpora — simple 90/130, qualitative
-23/100, complex 9/108 (the first complex-preferences rows in this
-planner's history; the Phase 2 entry). The denominator grows
-6,366 → 8,444 and the total percentage DROPS on entry day exactly as the
-roadmap said it would — a bigger honest table, not a regression.
-
-### Headline two — the like-for-like 22: down 38, and the record names where
-
-3,943/6,366 (61.9%) vs 3,981/6,366 (62.5%) at 0.24.0 — **−38 net**,
-concentrated: **net-benefit 248→224 (−24)** and **propositional 369→358
-(−11)** own −35 of it; 2023-numeric −8 (251→243) is third. Gains:
-**metric-time 54→64 (+10)** and **time 77→79 (+2)** — BOTH under the
-Phase 5 tier move (their boards moved 30 s → 60 s this cycle), so their
-movement column carries budget-plus-engine, never engine alone; the
-engine half of metric-time's +10 includes the two 0.25 bug fixes (the
-zero-duration durative skip and the [TREL] relevance-mask hole).
-seq-sat +3 (504→507); small ±1–3 elsewhere at the 60 s wall.
-
-**Adjudications owed, hypotheses named (the 0.24 rule — never papered
-over):** the prime suspect for net-benefit's −24 is the Phase 2
-preference-tier ROUTER, a global change — the sweep header itself said
-"the router change is global — watch for parity" before it ran.
-Propositional's −11 sits entirely in near-wall timeouts (92 vs 81, zero
-mem-caps), where borderline flips and the same router suspect both
-apply. Both boards' final numbers came from CLEAN re-runs (~74% idle) —
-contention does not explain them. Neither is root-caused in this
-record; both are named for 0.26.
-
-### The cycle's engine story
-
-- **Wing II (Phase 3):** the conflict-rate bail is the refund that
-  shipped (match-cellar i1 30.7→17.5 s, i2 31→1.2 s;
-  `FF_NO_SAT_RATEBAIL` restores); the CEGAR pairing GUARD (a soundness
-  fix, no hatch by design), layer-shift generalization
-  (`FF_NO_SAT_LAYERGEN`); planning branching MEASURED NEGATIVE for
-  default-on and shipped opt-in (`FF_SAT_BRANCH`). The wing's step-5
-  verdict stands recorded: no board moved.
-- **The metric-time decode (Phase 4)** found and fixed two real bugs,
-  fixtures first; pathways stays 0/30 and its riddle carries to 0.26
-  sharpened.
-- **match-cellar canary: 40/40** at 0.23's exact costs — clean.
-
-### The sweep, on the record
-
-Three passes, 2026-08-26 → 08-27, on `m5-air`. Nine boards measured
-under contention in pass 1 (Docker Desktop's VM, Steam, a wrangler
-burst, a Gradle daemon — each named in the log) were refused WHOLE and
-re-banked clean in passes 2–3 at ~74–77% idle. Nothing dirty was
-promoted. Snapshot banked (`standings-history.json`, 7th snapshot).
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (26 earlier releases, 0.1.0–0.24.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (27 earlier releases, 0.1.0–0.25.0).
