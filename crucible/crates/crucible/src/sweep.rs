@@ -2329,6 +2329,7 @@ fn sweep_body(
             rule: referee::Rule {
                 rho_min: cfg.referee.cpu_ratio_min,
                 rho_floor_ms: cfg.referee.rho_floor_ms,
+                rho_overhead_ms: cfg.referee.rho_overhead_ms,
                 swap_growth_mb: cfg.referee.swap_growth_mb,
                 canary_max_factor: cfg.referee.canary_max_factor,
             },

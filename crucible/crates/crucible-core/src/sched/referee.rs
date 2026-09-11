@@ -69,6 +69,42 @@ pub struct Rule {
     ///
     /// `[referee] rho_floor_ms`.
     pub rho_floor_ms: u64,
+    /// THE FIXED COST OF RUNNING A PROCESS AT ALL, in milliseconds: fork,
+    /// exec, dynamic linking, teardown. Wall the child spends existing
+    /// without burning CPU, and therefore a permanent subtraction from rho.
+    ///
+    /// MEASURED, not assumed. Over 6,989 solo single-threaded rows of the
+    /// 0.27 sweep, wall minus cpu is ~0.29 s under 2 s, ~0.31 s at 2-5 s and
+    /// ~0.35 s at 5-10 s -- flat, which is what makes it a fixed cost rather
+    /// than contention. The first cut of the floor guessed 50-100 ms and was
+    /// wrong by a factor of three.
+    ///
+    /// It sets the floor rather than being one: rho can only reach `rho_min`
+    /// once this is a small enough share of the wall, so the honest floor is
+    /// `overhead / (1 - rho_min)` -- 8 s at the measured 0.4 s and the
+    /// measured 0.95. Below that, no box however idle can produce a passing
+    /// rho, and `rho < rho_min` is a statement about arithmetic rather than
+    /// about the machine.
+    pub rho_overhead_ms: u64,
+}
+
+impl Rule {
+    /// The wall below which `rho_min` is unreachable, so rho must not judge.
+    ///
+    /// Derived, so that moving `rho_min` moves this with it: a stricter
+    /// starvation line needs a longer run before it can be met, and a
+    /// hand-set floor would silently stop matching.
+    pub fn rho_floor_ms(&self) -> u64 {
+        let derived = if self.rho_min >= 1.0 {
+            u64::MAX
+        } else {
+            // Rounded UP: the floor is the first wall at which rho_min is
+            // reachable, and 400/(1-0.95) lands at 7999.999 in binary
+            // floating point.
+            (self.rho_overhead_ms as f64 / (1.0 - self.rho_min)).ceil() as u64
+        };
+        derived.max(self.rho_floor_ms)
+    }
 }
 
 impl Default for Rule {
@@ -77,10 +113,10 @@ impl Default for Rule {
             rho_min: 0.95,
             swap_growth_mb: 512.0,
             canary_max_factor: 1.15,
-            // Two seconds: spawn overhead is ~50-100 ms on this box, so at
-            // 2 s it is under 5% of the wall and rho can still reach 0.95.
-            // Below it, the ratio is dominated by process setup.
+            // A hard minimum; the operative floor is derived from the
+            // overhead below (0.4 / 0.05 = 8 s at the defaults).
             rho_floor_ms: 2_000,
+            rho_overhead_ms: 400,
         }
     }
 }
@@ -281,7 +317,7 @@ pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
     let Some(r) = f.rho() else {
         return Verdict::Owed(Owe::CpuUnknown);
     };
-    if f.effective_ms < rule.rho_floor_ms {
+    if f.effective_ms < rule.rho_floor_ms() {
         return match f.window {
             Cleanliness::Clean => Verdict::Banked(Bank::Window),
             Cleanliness::Dirty => Verdict::Owed(Owe::Contended),
@@ -427,6 +463,64 @@ mod tests {
         for (f, want) in cases {
             assert_eq!(judge(&Rule::default(), &f), want);
         }
+    }
+
+    /// THE FLOOR IS DERIVED, NOT GUESSED (0.28).
+    ///
+    /// rho is cpu over wall, and every process pays a fixed cost -- fork,
+    /// exec, linking, teardown -- that is wall without cpu. So the BEST rho a
+    /// run can possibly show is `(W - overhead) / W`, and below some wall
+    /// even a perfectly served process cannot reach `rho_min`.
+    ///
+    /// The first cut of the floor guessed that overhead at 50-100 ms and set
+    /// 2 s. Measured over 6,989 solo single-threaded rows it is ~0.3 s, so
+    /// the guess was wrong by a factor of three and 2-5 s runs went on being
+    /// condemned: only 10% of them could reach 0.95, against 69% at 5-10 s
+    /// and 96% at 10-30 s. ipc5-complex-pref refused the same twelve rows for
+    /// three consecutive passes at rho 0.89-0.93 -- all mem-cap exits at
+    /// 3-5 s, none of which could ever have passed.
+    #[test]
+    fn the_floor_is_where_rho_min_first_becomes_reachable() {
+        let r = Rule::default();
+        // 0.4 s of overhead against a 0.95 line: 8 s.
+        assert_eq!(r.rho_floor_ms(), 8_000);
+
+        // The property that makes it the right floor: just below it, a
+        // perfectly served process still fails; just above, it passes.
+        let best_rho =
+            |wall_ms: u64| (wall_ms.saturating_sub(r.rho_overhead_ms)) as f64 / wall_ms as f64;
+        assert!(best_rho(r.rho_floor_ms() - 1) < r.rho_min);
+        assert!(best_rho(r.rho_floor_ms()) >= r.rho_min);
+
+        // And it tracks rho_min, rather than being a constant that silently
+        // stops matching when the line moves.
+        let strict = Rule {
+            rho_min: 0.98,
+            ..Rule::default()
+        };
+        assert_eq!(strict.rho_floor_ms(), 20_000);
+    }
+
+    /// The shape that stalled: a 3.4 s mem-cap exit at rho 0.90, refused
+    /// three passes running, banks on a clean window and stays owed on a
+    /// dirty one.
+    #[test]
+    fn a_mem_cap_exit_under_the_floor_is_judged_by_the_window() {
+        let row = |window| Facts {
+            cpu_ms: 3_030,
+            effective_ms: 3_360,
+            window,
+            ..unsolved()
+        };
+        assert!(row(Cleanliness::Clean).rho().is_some_and(|r| r < 0.95));
+        assert_eq!(
+            judge(&Rule::default(), &row(Cleanliness::Clean)),
+            Verdict::Banked(Bank::Window)
+        );
+        assert_eq!(
+            judge(&Rule::default(), &row(Cleanliness::Dirty)),
+            Verdict::Owed(Owe::Contended)
+        );
     }
 
     /// And the floor is a FLOOR: an ordinary 60 s timeout is still judged by

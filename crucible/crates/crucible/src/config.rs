@@ -148,6 +148,10 @@ pub struct Referee {
     /// by process spawn and teardown rather than by the box. Such a row is
     /// judged by the box-wide window instead. See `Rule::rho_floor_ms`.
     pub rho_floor_ms: u64,
+    /// The measured fixed cost of running a process: fork, exec, linking,
+    /// teardown. Sets the operative rho floor as `overhead / (1 -
+    /// cpu_ratio_min)`. See `Rule::rho_overhead_ms`.
+    pub rho_overhead_ms: u64,
     /// Swap growth across a run's window past which an unsolved row is owed.
     pub swap_growth_mb: f64,
     /// The canary (`crucible-spec.md` R2.3): a fixed ~2 s solve run beside
@@ -175,6 +179,7 @@ impl Default for Referee {
         Self {
             cpu_ratio_min: 0.95,
             rho_floor_ms: 2_000,
+            rho_overhead_ms: 400,
             swap_growth_mb: 512.0,
             canary_ipc: "ipc-2006".into(),
             canary_variant: "trucks-propositional".into(),
