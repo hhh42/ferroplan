@@ -487,6 +487,143 @@ pub fn status(
     Ok(())
 }
 
+/// ONE BOARD'S STANDING FOR ONE ENGINE, from the database.
+struct Side {
+    banked: usize,
+    owed: usize,
+    solved: usize,
+}
+
+fn side_for(reader: &Reader, board_id: i64, engine_id: i64, declared: &[(String, String)]) -> Side {
+    let banked: HashSet<(String, String)> = reader
+        .banked_instances(board_id, engine_id)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(_ipc, v, l)| (v, l))
+        .collect();
+    let rows = reader.export_rows(board_id, engine_id).unwrap_or_default();
+    let solved_keys: HashSet<(String, String)> = rows
+        .iter()
+        .filter(|r| r.solved)
+        .map(|r| (r.variant.clone(), r.instance.to_string()))
+        .collect();
+    let mut s = Side {
+        banked: 0,
+        owed: 0,
+        solved: 0,
+    };
+    for key in declared {
+        if banked.contains(key) {
+            s.banked += 1;
+            if solved_keys.contains(key) {
+                s.solved += 1;
+            }
+        } else {
+            s.owed += 1;
+        }
+    }
+    s
+}
+
+/// COMPARE TWO ENGINES ON THE SAME SET, from the database (0.28).
+///
+/// This is the instrument the like-for-like backfill exists to feed, and
+/// until now there was none. `status` compares a sweep against the PROMOTED
+/// raw, which is the right baseline right up until `promote` overwrites it
+/// with the numbers you just promoted — after which it compares a release to
+/// itself and reports `+0`. So the one question a backfill is run to answer
+/// ("0.26 re-measured against 0.27, same referee, same box") had no answer
+/// that was not a hand-written query. Three such queries were written during
+/// the 0.27 cut and all three were wrong.
+///
+/// It refuses a board where EITHER side still owes rows, for the same reason
+/// `status` does: an owed row is precisely the one that can change that
+/// board's number, and a backfill in progress is nothing but owed rows.
+pub fn compare(
+    repo: &Path,
+    cfg: &crate::config::Config,
+    set_name: &str,
+    a: &str,
+    b: &str,
+) -> anyhow::Result<()> {
+    let manifest = crate::load_manifest(repo)?;
+    let set = manifest
+        .set(set_name)
+        .with_context(|| format!("no set {set_name:?} in the manifest"))?
+        .clone();
+    let db = cfg.db.dir.join("crucible.db");
+    let reader = Reader::open(&db).with_context(|| format!("opening {}", db.display()))?;
+
+    let pick = |needle: &str| -> anyhow::Result<(i64, String)> {
+        let hits = reader.engines_matching(needle)?;
+        match hits.len() {
+            0 => anyhow::bail!(
+                "no engine matches {needle:?} (try a tag, a blake3 prefix, or `crucible engine`)"
+            ),
+            1 => Ok(hits.into_iter().next().unwrap()),
+            _ => anyhow::bail!(
+                "{needle:?} matches {} engines: {} -- name one exactly",
+                hits.len(),
+                hits.iter()
+                    .map(|(_, s)| s.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        }
+    };
+    let (a_id, a_label) = pick(a)?;
+    let (b_id, b_label) = pick(b)?;
+    if a_id == b_id {
+        anyhow::bail!("{a:?} and {b:?} are the same engine ({a_label})");
+    }
+
+    let census = census(repo, &manifest, &set);
+    println!("A  {a_label}");
+    println!("B  {b_label}");
+    println!();
+    println!(
+        "{:<24}{:>10}{:>8}{:>10}{:>8}{:>9}",
+        "board", "A solved", "A owed", "B solved", "B owed", "B - A"
+    );
+
+    let (mut net, mut decided, mut skipped) = (0i64, 0usize, 0usize);
+    for id in &set.boards {
+        let Ok(bs) = reader.boards_named(id) else {
+            continue;
+        };
+        let Some(&board_id) = bs.first() else {
+            continue;
+        };
+        let declared = census.get(id.as_str()).cloned().unwrap_or_default();
+        if declared.is_empty() {
+            continue;
+        }
+        let sa = side_for(&reader, board_id, a_id, &declared);
+        let sb = side_for(&reader, board_id, b_id, &declared);
+        let delta = if sa.owed == 0 && sb.owed == 0 {
+            net += sb.solved as i64 - sa.solved as i64;
+            decided += 1;
+            format!("{:+}", sb.solved as i64 - sa.solved as i64)
+        } else {
+            skipped += 1;
+            "--".into()
+        };
+        println!(
+            "{:<24}{:>10}{:>8}{:>10}{:>8}{:>9}",
+            id, sa.solved, sa.owed, sb.solved, sb.owed, delta
+        );
+    }
+    println!();
+    println!("net {net:+} over the {decided} board(s) where NEITHER side owes a row");
+    if skipped > 0 {
+        println!(
+            "({skipped} board(s) shown as `--`: one side still owes rows, and an owed \
+             row is one that could still change its board's number)"
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

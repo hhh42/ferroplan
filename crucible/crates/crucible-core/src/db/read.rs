@@ -76,6 +76,24 @@ impl Reader {
     }
 
     /// The engines that have contributed rows to this board, oldest first.
+    /// Resolve an engine the way an OPERATOR names one (0.28): a tag
+    /// (`v0.26.0`), a BLAKE3 prefix, or a version string.
+    ///
+    /// Returns every match, because ambiguity here must be reported rather
+    /// than guessed at. `ver` is explicitly not an identity -- every dev
+    /// build of a cycle reports the same string -- so a version that matches
+    /// several engines is a question for the caller, not a coin toss.
+    pub fn engines_matching(&self, needle: &str) -> Result<Vec<(i64, String)>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT id, ifnull(tag, ifnull(ver,'?')) || ' [' || ifnull(substr(blake3,1,12),'rebuilt') || ']'
+               FROM engine
+              WHERE tag = ?1 OR blake3 LIKE ?1 || '%' OR ver = ?1
+              ORDER BY id",
+        )?;
+        let rows = st.query_map([needle], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
     /// The engine with this BLAKE3, if the database has ever seen it (0.28).
     ///
     /// A reader that wants "the run in progress" must ask by hash and not by

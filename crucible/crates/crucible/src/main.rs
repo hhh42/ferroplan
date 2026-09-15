@@ -156,6 +156,19 @@ enum Cmd {
         #[arg(long, default_value = "text")]
         mode: String,
     },
+    /// Compare two engines on one set, from the database: the like-for-like
+    /// question a backfill is run to answer. Name each by tag, blake3 prefix
+    /// or version.
+    Compare {
+        #[arg(long, default_value = "cut27")]
+        set: String,
+        /// The baseline, e.g. v0.26.0.
+        #[arg(long)]
+        a: String,
+        /// The candidate, e.g. 86302e06d81b.
+        #[arg(long)]
+        b: String,
+    },
     /// Print where the set stands: per board, banked/owed/solved and the
     /// delta against the promoted predecessor. Reads the same snapshot the
     /// dashboard draws, so the numbers cannot drift from it.
@@ -269,6 +282,7 @@ fn real_main() -> anyhow::Result<()> {
         ),
         Cmd::Standings { doc, check, write } => standings(&repo_root, &cfg, &doc, check, write),
         Cmd::Diff { a, b, mode } => diff(&repo_root, &a, &b, &mode),
+        Cmd::Compare { set, a, b } => monitor::compare(&repo_root, &cfg, &set, &a, &b),
         Cmd::Status { set, json } => monitor::status(&repo_root, &cfg, &set, json),
         Cmd::Tui {
             set,
