@@ -30,7 +30,7 @@ use crate::platform::{MemCap, Pid, Platform};
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-/// Set by [`install_interrupt_handler`] on SIGINT/SIGTERM. The supervisor
+/// Set by [`install_interrupt_handler`] on SIGINT/SIGTERM/SIGHUP. The supervisor
 /// reads it every tick and treats it as an operator cancel of the running
 /// child -- SIGTERM, a grace period, SIGKILL, all to the process group --
 /// so that stopping crucible never leaves a planner running under pid 1.
@@ -45,19 +45,30 @@ extern "C" fn on_interrupt(_sig: libc::c_int) {
     INTERRUPTED.store(true, Ordering::Relaxed);
 }
 
-/// Route SIGINT and SIGTERM to the flag. Idempotent; call once at startup.
+/// Route SIGINT, SIGTERM and SIGHUP to the flag. Idempotent; call once at
+/// startup.
+///
+/// SIGHUP was added in 0.28 and it is the same defect SIGTERM already had,
+/// by another route. Its default action TERMINATES, so a closed terminal, a
+/// logout, or a detached session whose controlling tty goes away killed the
+/// supervisor without running the cancel path -- no SIGCONT to a stopped
+/// child, no SIGTERM to the process group, no reaping. That is precisely the
+/// orphan the 0.26 stop produced (`ff` left running under pid 1 until its own
+/// wall), and it was fixed for SIGTERM only.
+///
+/// It matters more now, not less: every sweep since 0.27 runs detached, from
+/// `nohup` or from a launchd agent, which is exactly the shape that gets
+/// HUP'd rather than INT'd.
 pub fn install_interrupt_handler() {
     // SAFETY: installing a handler that does one relaxed atomic store, which
     // is async-signal-safe.
     unsafe {
-        libc::signal(
-            libc::SIGINT,
-            on_interrupt as extern "C" fn(libc::c_int) as libc::sighandler_t,
-        );
-        libc::signal(
-            libc::SIGTERM,
-            on_interrupt as extern "C" fn(libc::c_int) as libc::sighandler_t,
-        );
+        for sig in [libc::SIGINT, libc::SIGTERM, libc::SIGHUP] {
+            libc::signal(
+                sig,
+                on_interrupt as extern "C" fn(libc::c_int) as libc::sighandler_t,
+            );
+        }
     }
 }
 

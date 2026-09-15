@@ -1771,7 +1771,13 @@ impl Canary {
         })
     }
 
-    fn run_once(&self) -> Option<Duration> {
+    /// `on_spawn` REGISTERS THE CANARY'S CHILD (0.28), the way every planner
+    /// already was. Without it the canary wrote no `live_child` row, so a
+    /// hard kill during a canary read -- and the canary runs at sweep start
+    /// and every 20 minutes after -- left an orphan that no later startup
+    /// could reap by identity. The one process whose job is to measure
+    /// whether the box is clean was the one that could dirty it invisibly.
+    fn run_once(&self, on_spawn: Option<&dyn Fn(Pid, f64)>) -> Option<Duration> {
         let (_tx, rx) = mpsc::channel::<Ctl>();
         let plat = platform::host();
         let out = exec::run(
@@ -1781,7 +1787,7 @@ impl Canary {
                 envs: &self.envs,
                 timeout: Duration::from_secs(30),
                 mem_cap: crucible_core::platform::MemCap::Off,
-                on_spawn: None,
+                on_spawn,
             },
             &plat,
             &rx,
@@ -1804,10 +1810,15 @@ impl Canary {
     /// clean. The fastest-of-five is the opposite failure -- a sweep that
     /// starts on a slow morning is lenient all day. A percentile of the
     /// recent window is what the box actually does.
-    pub fn calibrate(&mut self, prior: Option<f64>, record: &dyn Fn(f64)) -> Option<Duration> {
+    pub fn calibrate(
+        &mut self,
+        prior: Option<f64>,
+        record: &dyn Fn(f64),
+        on_spawn: Option<&dyn Fn(Pid, f64)>,
+    ) -> Option<Duration> {
         let mut now: Vec<f64> = Vec::new();
         for _ in 0..self.baseline_n {
-            if let Some(d) = self.run_once() {
+            if let Some(d) = self.run_once(on_spawn) {
                 let secs = d.as_secs_f64();
                 record(secs);
                 now.push(secs);
@@ -1829,9 +1840,9 @@ impl Canary {
     /// One reading: `(secs, secs / baseline)`. The baseline does not move
     /// within a run -- a faster reading is information about the box, not
     /// a new line to hold every later row to.
-    pub fn read(&mut self) -> Option<(f64, f64)> {
+    pub fn read(&mut self, on_spawn: Option<&dyn Fn(Pid, f64)>) -> Option<(f64, f64)> {
         let base = self.baseline?;
-        let secs = self.run_once()?.as_secs_f64();
+        let secs = self.run_once(on_spawn)?.as_secs_f64();
         Some((secs, secs / base.as_secs_f64().max(0.001)))
     }
 
@@ -1888,7 +1899,28 @@ impl Watcher {
                                 shared.send(Ctl::Stop);
                                 std::thread::sleep(Duration::from_millis(400));
                             }
-                            let reading = c.read();
+                            // Register the canary's child so a hard kill
+                            // during its read leaves something reapable
+                            // (0.28).
+                            let plat_reg = platform::host();
+                            let reg = |pid: Pid, at: f64| {
+                                let Some(id) = plat_reg.proc_identity(pid) else {
+                                    return;
+                                };
+                                let child = db::LiveChild {
+                                    pid,
+                                    pgid: pid,
+                                    run_id: None,
+                                    binary_path: id.path.clone(),
+                                    proc_start_tvsec: id.start_tvsec,
+                                    spawned_at: at,
+                                    stopped: false,
+                                };
+                                if let Err(e) = writer.child_spawned(child) {
+                                    eprintln!("!! could not register the canary child {pid}: {e}");
+                                }
+                            };
+                            let reading = c.read(Some(&reg as &dyn Fn(Pid, f64)));
                             if pause && shared.level() != Level::Suspended {
                                 shared.send(Ctl::Cont);
                             }
@@ -2249,7 +2281,7 @@ fn sweep_body(
                         d.db.writer().canary(now_epoch(), label.clone(), secs, true);
                     }
                 };
-                match c.calibrate(prior, &record) {
+                match c.calibrate(prior, &record, None) {
                     Some(b) => {
                         crate::say!(
                             "canary  {} baseline {:.3} s ({}); read every {} s, slow above {:.2}x",
