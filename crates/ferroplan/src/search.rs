@@ -949,6 +949,13 @@ pub fn search_from(
     let mut evaluated = 0usize;
     let mut best = i32::MAX;
     let mut advance: Vec<i32> = Vec::new();
+    // The classical h-descent trace (0.28 Lane C): every new best h with the
+    // evaluation count and the seconds since this search started, on stderr.
+    // The temporal rung has had one since 0.23; this path had none, so the
+    // flat-h (AIBR) constituency was never measured here.
+    let htrace = std::env::var("FF_HTRACE")
+        .is_ok()
+        .then(crate::clock::Clock::now);
     let mut max_g = 0usize;
     // Anytime in-sweep tightening (`cfg.anytime`, metric B&B loops only): the
     // bound tightens in place on every acceptance and the sweep keeps going —
@@ -1186,6 +1193,12 @@ pub fn search_from(
             if *h < best {
                 best = *h;
                 advance.push(*h);
+                if let Some(c) = &htrace {
+                    eprintln!(
+                        "htrace: best_h {h} at {evaluated} evaluated ({:.3} s)",
+                        c.elapsed_secs()
+                    );
+                }
             }
         }
 

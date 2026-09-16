@@ -76,6 +76,66 @@ Two things follow, and the second one matters as much as the first.
 4. **The cut27 postmortem**, as Phase 4 of the 0.27 roadmap pre-registered
    it: passes, wall-clock hours, and the box's condition, whatever they say.
 
+### Phase 0 — status, 2026-09-16
+
+1. **CLOSED.** All 32 cut27 boards are `.done`; 0.27.0 was promoted and
+   published 2026-09-10 (5,122/8,444).
+2. **Run 2026-09-16, same box, both binaries alternating, 3 reps.** The
+   lost set, read from the crucible database: 22 instances where 0.26.0
+   [03a17198744b] banked a solve in the cut26 sweep and 0.27.0
+   [86302e06d81b] banked a miss in cut27. Neither original binary survives
+   (`target/` was rebuilt), so the pair is `v0.26.0` rebuilt [8fe896b4fd53]
+   against `v0.27.0` rebuilt. 16 of the 22 were solved by 0.26 at ≥ 58 s
+   of a 60 s wall. Results are recorded below the postmortem.
+
+   **CLOSED 2026-09-16: the fork reads "not the engine".** Each cell
+   counts solves out of 3 repeats. The canary read 0.49–1.14 s (median
+   0.55) across 66 readings. The box was shared with the v0.26.0 backfill.
+   In repeat 1, three tetris-mco runs peaked near 8 GB each and pushed it
+   into swap; that is the repeat where everything failed.
+
+   | outcome | instances | 0.26 | 0.27 |
+   |---|---|---:|---:|
+   | both solve | tetris-mco t2 i16, t4 i15, t4 i16, t8 i16; hydropower-opt i14; elevator-t i10; elevator-t-strips i28; pathways-complex i11 | 18/24 | 18/24 |
+   | 0.27 solves, 0.26 does not | parking-agile i10; parking-mco-t8 i1, i9, i17; recharging-robots i14 | 1/15 | 12/15 |
+   | both fail | spider i17; folding-agile-300s i2; recharging-robots i4; storage-qual i12, i18; scanalyzer i18, strips i28; parking-mco-t4 i19 | 0/24 | 0/24 |
+   | 0.26 once, 0.27 never | scanalyzer-strips i29 | 1/3 | 0/3 |
+
+   Not one instance fits "0.26 solves and 0.27 fails". The single 0.26-only
+   solve is 1 of 3 at the wall. `69cb96a`'s byte-identity claim holds in the
+   field, and the 22 cut27 misses are conditions (8 failures shared by
+   both binaries, 8 instances that both solve on a quieter box) plus five
+   rows where 0.27 is the stronger binary. The Lane A arm is moot, since
+   that lane is already a recorded negative.
+3. **BUILT** (`crucible-r2` fd4ea3f). A row's `neighbours` is now the PEAK
+   number of planners that ran beside it over its lifetime, not
+   `width − 1` fixed before the workers started. It goes to the
+   database, where the referee reads it, and onto the raw row as
+   `neighbours`. The resume identity keeps `jobs`, so no banked row is
+   re-owed. The running resident still uses the old binary until it is
+   restarted.
+4. **The cut27 postmortem.** The pre-registration was one pass plus its
+   solo tail, within 36 h. **It took 141 h of wall-clock** (2026-09-04
+   22:20 → 09-10 19:28) across nine sweep sessions; the last one finished
+   in 2 passes. 12,800 runs banked 8,444 rows, and 2,486 instances took
+   more than one run (at most 18). Of the 134.6 planner-hours, **63.4
+   (47 %) went to runs that were not banked**:
+
+   | verdict (not banked) | runs | planner-h |
+   |---|---:|---:|
+   | demoted (the E-core defect, fixed 09-07) | 1,996 | 33.1 |
+   | thermal | 878 | 13.9 |
+   | starved | 682 | 4.2 |
+   | packed | 259 | 4.3 |
+   | contended | 307 | 4.2 |
+   | suspect / recheck / swap / uncovered | 234 | 3.8 |
+
+   The box's condition: in ordinary use throughout. Worst incident: the
+   09-07 disk cleanup deleted `target/` and the sweep sat dead for 11 h.
+   The E-core demotion alone cost more than the whole 36 h budget. Mean
+   nominal neighbours on the record: 2.4, max 9. That number is the old
+   stamp, which is what item 3 fixes.
+
 ## Lane A (headline) — the temporal successor rung
 
 **Measure first.** A per-expansion split (candidate scan / h / apply) on
@@ -205,6 +265,44 @@ now twice been told the same thing by measurement -- the relaxation floor
 is the term, not the scan -- so a cycle that keeps pushing per-evaluation
 speed is a cycle arguing with its own instrument.
 
+### Lane A' — RECORDED NEGATIVE, 2026-09-16. The premise was a mislabel.
+
+Nothing was measured against the cap, because the cap was not what stopped
+these rows. `api.rs` built its node-cap note from `inconclusive()`, the same
+constructor the clock trip uses, and never read `clock_tripped`, so **every
+optimal row the 60 s wall stopped was banked as "node cap reached"**. The
+air27 times had already said so. On the four target boards, 545 of the 625
+"capped" rows ran ≥ 57 s and none ran under 50 s; across all seven boards
+14 of 937 ran under 50 s, and none under 40 s. The early exits are the
+teardown reserve (stored bytes / 4e8 s), not the cap.
+
+**The probe.** 26 of the 937 rows (4 per board, evenly spaced; 2 more
+could not be located), re-run with the fixed note (`engine-0.28` 5c94647),
+`FF_WALL_DEBUG` for the cap and its per-node model, and
+`/usr/bin/time -l` for the peak footprint, with the box shared with the
+backfill:
+
+- **26 of 26 stopped at the wall. 0 hit the cap. 0 raised it.**
+- Headroom was large everywhere: agricola-opt i1 expanded 234 k nodes
+  against a 13.8 M cap (250 MB); barman-2014-opt i1 5.0 M against 18.6 M
+  (2.0 GB).
+- Where memory was heavy, nothing suggests the model over-charges.
+  fo-farmland i19's whole process peaked at 4.89 GB before reaching its
+  cap, which is MORE than the 3.87 GB the model charges for a full cap
+  (9.76 M × 396 B). factory-robot i14 peaked at 3.96 GB against 3.87 GB
+  modelled. The footprint includes the task tables and the open list, so
+  this is not a per-node measurement, but the direction is clear. A higher
+  cap on the numeric boards would buy swap, not proofs.
+
+The openstacks-16 receipt reads the same way: 0.27 was 89 % through a
+proof at the wall, not at the cap. **The ceiling on the proof tracks is the
+clock**, so a proof-track lever has to be a cheaper expansion or a better
+bound, not a larger cap.
+
+**What stays:** the note fix (5c94647). From the next sweep on, a wall stop
+reads `inconclusive: wall reached after N expansions`. The 937 air27 rows
+keep their old text, so read them as wall stops.
+
 ## Lane B — two cheap claims at the existing 60 s wall
 
 - **The tpp complex-preferences parse.** All 20 rows of
@@ -220,6 +318,20 @@ speed is a cycle arguing with its own instrument.
   downstream, the plans are legal but the METRIC is wrong, which is worse
   than failing loudly. A number the record cannot defend is worse than a
   missing number.
+  **BUILT 2026-09-16** (`engine-0.28` 9aabf88). The parser takes
+  `(preference name (at start phi))` inside a durative `:condition`, and the
+  search drops it. The open question is answered in code: `score_soft`
+  binds each durative step's condition preferences and counts one
+  violated instance per application (at start before the start happening,
+  at end before the end, over all across every state inside the
+  interval). The fixtures pin all three timespecs and the forced metric.
+  **The board, 20 instances at 60 s, one pass, box shared with the
+  backfill: 8 of 20 solve** (i1–i4 in 16–36 s; i5–i8 in 58.6–59.1 s, which
+  is on the wall and will not all survive a sweep). The other 12 stop at
+  the wall, and none dies engine-exit any more. Honest band: **+4 solid, up
+  to +8**, against the +3 to +6 the lane was sized at. No solved plan
+  violates p-drive, so the new count reads 0 on every banked row. The
+  fixtures, not the board, are what prove the count.
 - **The barman optimal gate, no-code arm first.** The 300 s probe proves
   cost 49 at 6,949,349 expansions in 50.4 s of user time; the 60 s board
   rows node-cap at 6.4M expansions in 57 s — short of a certificate the
@@ -284,6 +396,14 @@ solving in 34 ms unbudgeted is stopped by a 120 ms wall and solved under a
 solves it, so this is the env wall's behaviour too, not the new path's.
 Teaching the ladder to skip its slicing under small budgets would be a
 behaviour change with no measurement behind it.
+
+### Lane C — the classical `best_h` trace, BUILT 2026-09-16
+
+`FF_HTRACE=1` prints `htrace: best_h H at N evaluated (T s)` on stderr each
+time the classical weighted-best-first search improves its best h. That is
+the site `advance` already records; the trace adds the evaluation count and
+the clock. Off by default and silent. The trace has not been read on the
+AIBR constituency yet; that read is the probe.
 
 ## The SGPlan question, recorded rather than scoped
 
