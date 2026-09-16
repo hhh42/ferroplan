@@ -63,12 +63,72 @@ fn set_done(repo: &Path, boards: &[String], stage: &Path) -> bool {
         .all(|b| stage.join(format!("{b}.done")).exists())
 }
 
+/// Run a sweep so that NOTHING it does can end the resident loop (0.28).
+///
+/// Resident forces `headless: true`, and the headless path runs the sweep on
+/// the caller's own thread, so before this a panic anywhere in a worker
+/// unwound straight through `run` and killed the supervisor. That is the
+/// opposite of what a resident process is for: the one component whose job is
+/// to still be here tomorrow was the one with no guard on it.
+///
+/// `AssertUnwindSafe` is the honest annotation rather than a dodge. What the
+/// sweep mutates that outlives a panic is the DATABASE, and its durability
+/// does not depend on the sweep's stack: every finished run commits in its own
+/// transaction before the next one starts, which is the same property that
+/// makes `kill -9` survivable. A panic can therefore lose at most the rows in
+/// flight, which is exactly what an interrupt already costs.
+fn sweep_guarded(repo: &Path, cfg: &Config, set: &str) -> anyhow::Result<()> {
+    let res = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        crate::sweep::run(
+            repo,
+            cfg,
+            crate::sweep::Opts {
+                set,
+                require_version: None,
+                headless: true,
+                quiet_only: false,
+                dry_run: false,
+                max_passes: None,
+                no_db: false,
+            },
+        )
+    }));
+    match res {
+        Ok(r) => r,
+        Err(panic) => {
+            // The payload is usually the panic message. Keep it: it is the
+            // only description of the fault that survives the unwind.
+            let what = panic
+                .downcast_ref::<String>()
+                .cloned()
+                .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_string()))
+                .unwrap_or_else(|| "no message".into());
+            anyhow::bail!("the sweep panicked: {what}")
+        }
+    }
+}
+
+/// Build the candidate, announcing it. Failure is returned, never fatal --
+/// a tree that does not compile is a normal state for a working tree, and the
+/// resident loop must survive it and try again later.
+fn build_candidate(repo: &Path) -> anyhow::Result<()> {
+    println!(
+        "resident: building the candidate -- cargo build --release -p ferroplan-cli in {}",
+        repo.display()
+    );
+    let bin = crate::repo::build_planner(repo)?;
+    println!("resident: built {}", bin.display());
+    Ok(())
+}
+
 pub fn run(repo: &Path, cfg: &Config, o: Opts<'_>) -> anyhow::Result<()> {
     let manifest = crate::load_manifest(repo)?;
     let set = manifest
         .set(o.set)
         .with_context(|| format!("no set {:?} in the manifest", o.set))?
         .clone();
+    // Consecutive failures, for the backoff below. Reset by any clean sweep.
+    let mut failures: u32 = 0;
     let n_tags = o.tags.unwrap_or(cfg.repo.keep_tags);
     let poll = Duration::from_secs(cfg.repo.tag_poll_secs.max(30));
     crucible_core::exec::install_interrupt_handler();
@@ -91,7 +151,15 @@ pub fn run(repo: &Path, cfg: &Config, o: Opts<'_>) -> anyhow::Result<()> {
             if set_done(repo, &set.boards, stage) {
                 println!("resident: candidate stage {} complete", set.stage);
             } else {
-                match crate::repo::Engine::probe(&crate::repo::candidate_path(repo)) {
+                // No binary is a state resident can now FIX rather than
+                // merely report (0.28). Before this it printed a note every
+                // 300 s forever, waiting for a human.
+                let probe_path = crate::repo::candidate_path(repo);
+                if !probe_path.exists() && build_candidate(repo).is_err() {
+                    // Reported by build_candidate; the probe below produces
+                    // the ordinary "no candidate" note and the loop backs off.
+                }
+                match crate::repo::Engine::probe(&probe_path) {
                     Ok(engine) => {
                         let gate_ok = set
                             .requires_version
@@ -103,20 +171,20 @@ pub fn run(repo: &Path, cfg: &Config, o: Opts<'_>) -> anyhow::Result<()> {
                                 engine.ver, set.name
                             );
                             did = true;
-                            if let Err(e) = crate::sweep::run(
-                                repo,
-                                cfg,
-                                crate::sweep::Opts {
-                                    set: &set.name,
-                                    require_version: None,
-                                    headless: true,
-                                    quiet_only: false,
-                                    dry_run: false,
-                                    max_passes: None,
-                                    no_db: false,
-                                },
-                            ) {
-                                eprintln!("resident: candidate sweep failed: {e:#}");
+                            match sweep_guarded(repo, cfg, &set.name) {
+                                Ok(()) => failures = 0,
+                                Err(e) => {
+                                    failures = failures.saturating_add(1);
+                                    eprintln!(
+                                        "resident: candidate sweep failed ({failures} in a row): {e:#}"
+                                    );
+                                    // The one failure resident can act on: the
+                                    // instrument is gone. Rebuild it now rather
+                                    // than waiting to fail again identically.
+                                    if format!("{e:#}").contains("engine binary could not be run") {
+                                        let _ = build_candidate(repo);
+                                    }
+                                }
                             }
                         } else {
                             println!(
@@ -176,11 +244,38 @@ pub fn run(repo: &Path, cfg: &Config, o: Opts<'_>) -> anyhow::Result<()> {
             );
             return Ok(());
         }
-        if !did {
-            println!("resident: nothing owed; next look in {}s", poll.as_secs());
+        // HOW LONG TO WAIT (0.28). Three cases, and only the middle one was
+        // here before:
+        //
+        //   worked, cleanly  -- look again at once. A sweep pass takes hours;
+        //                       idling five minutes after one finishes is five
+        //                       minutes of a quiet box thrown away, and quiet
+        //                       boxes are the scarce resource (a demoted row
+        //                       cannot bank at all while the operator types).
+        //   nothing owed     -- the ordinary poll.
+        //   failing          -- back off, doubling, to an hour. A tree that
+        //                       does not compile, or a set whose version gate
+        //                       can never pass, must not drive cargo every
+        //                       300 s forever.
+        let wait = if failures > 0 {
+            let mult = 1u64 << failures.min(6);
+            poll.saturating_mul(mult as u32)
+                .min(Duration::from_secs(3600))
+        } else if did {
+            Duration::from_secs(5)
+        } else {
+            poll
+        };
+        if failures > 0 {
+            println!(
+                "resident: {failures} failure(s) in a row; next attempt in {}s",
+                wait.as_secs()
+            );
+        } else if !did {
+            println!("resident: nothing owed; next look in {}s", wait.as_secs());
         }
         // Sleep in slices so ^C is honoured promptly.
-        let until = std::time::Instant::now() + poll;
+        let until = std::time::Instant::now() + wait;
         while std::time::Instant::now() < until {
             if crucible_core::exec::interrupted() {
                 println!("resident: stopped");

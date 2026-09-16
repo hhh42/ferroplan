@@ -99,6 +99,8 @@ pub struct Pack {
     pub max_frac: f64,
     pub narrow_max_frac: f64,
     pub mem_reserve_bytes: u64,
+    /// The reserve to hold back once the operator is away (0.28).
+    pub mem_reserve_idle_bytes: u64,
     pub rss_headroom: f64,
 }
 
@@ -117,6 +119,7 @@ impl Pack {
             max_frac: c.pack_max_frac,
             narrow_max_frac: c.pack_narrow_max_frac,
             mem_reserve_bytes: (c.mem_reserve_gb.max(0.0) * (1u64 << 30) as f64) as u64,
+            mem_reserve_idle_bytes: (c.mem_reserve_idle_gb.max(0.0) * (1u64 << 30) as f64) as u64,
             rss_headroom: c.rss_headroom.max(1.0),
         }
     }
@@ -131,6 +134,7 @@ impl Pack {
             max_frac: 0.0,
             narrow_max_frac: 0.0,
             mem_reserve_bytes: 0,
+            mem_reserve_idle_bytes: 0,
             rss_headroom: 1.0,
         }
     }
@@ -166,6 +170,10 @@ struct Done {
     /// Unsolved beside neighbours: try again with fewer.
     cascade: bool,
     cancelled: bool,
+    /// The engine binary itself could not be run (0.28). Ends the pass like
+    /// a cancellation -- no row, no verdict -- but is reported as a failure
+    /// rather than an operator's choice.
+    engine_gone: Option<String>,
     solved: bool,
     rejected: bool,
     secs: Option<f64>,
@@ -261,12 +269,25 @@ impl<'a> SweepRunner<'a> {
             .collect()
     }
 
+    /// The bytes this batch may draw on, recomputed per batch so it tracks the
+    /// operator the way width already does (0.28).
+    ///
+    /// `demote_ok` is maintained every sample as `idle < user_active_secs` --
+    /// it is named for its consequence, but what it MEANS is "someone is at
+    /// this keyboard". While that holds, hold back the full reserve: the
+    /// desktop, the browser and whatever else the operator is doing have to
+    /// fit beside us. Once it goes false, take the box.
+    ///
+    /// Never all of it. See `mem_reserve_idle_gb`.
     fn mem_budget(&self) -> u64 {
-        self.plat
-            .topology()
-            .mem_bytes
-            .saturating_sub(self.pack.mem_reserve_bytes)
-            .max(1 << 30)
+        // `demote_ok` is maintained every sample as `idle < user_active_secs`.
+        // It is named for its consequence; what it MEANS is "someone is at
+        // this keyboard".
+        policy_mem_budget(
+            self.plat.topology().mem_bytes,
+            self.shared.demote_ok(),
+            &self.pack,
+        )
     }
 
     /// Run `items` `width` at a time and apply every result as it lands.
@@ -384,9 +405,13 @@ impl<'a> SweepRunner<'a> {
                         }
                         let d = run_one(ctx, w, i, (width - 1) as u32, &plat, reader.as_ref());
                         *in_use.lock().unwrap() -= bytes;
-                        let cancelled = d.cancelled;
+                        // A vanished engine ends the pass exactly as a
+                        // cancellation does -- every worker stops, and the
+                        // in-flight row is not written. What differs is what
+                        // the CALLER is told afterwards.
+                        let halt = d.cancelled || d.engine_gone.is_some();
                         let _ = tx.send(d);
-                        if cancelled {
+                        if halt {
                             stop.store(true, Ordering::Relaxed);
                             break;
                         }
@@ -395,6 +420,16 @@ impl<'a> SweepRunner<'a> {
             }
             drop(tx);
             for d in rx {
+                if let Some(why) = d.engine_gone {
+                    // First reason wins: later workers report the same
+                    // missing binary, and the first one has the cleanest
+                    // errno.
+                    if self.engine_gone.is_none() {
+                        self.engine_gone = Some(why);
+                    }
+                    self.stop = true;
+                    continue;
+                }
                 if d.cancelled {
                     self.stop = true;
                     continue;
@@ -550,6 +585,7 @@ fn run_one(
         box_fault: true,
         cascade: false,
         cancelled: m.cancelled,
+        engine_gone: m.engine_gone.clone(),
         solved: m.row.solved,
         rejected: m.row.val == Some(false),
         secs: m.row.time.as_ref().and_then(|t| t.as_f64()),
@@ -678,7 +714,10 @@ fn run_one(
 
 /// The predecessor's rows for a board: `variant/label -> (solved, secs)` from
 /// the promoted raw under `benchmarks/`. Empty when there is none.
-fn prior_rows(repo: &Path, raw: &str) -> std::collections::BTreeMap<String, (bool, Option<f64>)> {
+pub(crate) fn prior_rows(
+    repo: &Path,
+    raw: &str,
+) -> std::collections::BTreeMap<String, (bool, Option<f64>)> {
     let mut out = std::collections::BTreeMap::new();
     let path = repo.join("benchmarks").join(raw);
     let Ok(src) = std::fs::read_to_string(&path) else {
@@ -755,6 +794,11 @@ pub struct SweepRunner<'a> {
     /// Set when the operator interrupts. The remaining work stays remaining --
     /// it is not failed, and the next run picks it up.
     stop: bool,
+    /// Set when the engine binary went missing mid-sweep (0.28). Unlike
+    /// `stop`, this IS a failure: the sweep returns an error naming the
+    /// binary, so a supervisor can rebuild it instead of retrying into the
+    /// same hole forever.
+    engine_gone: Option<String>,
     quiet_only: bool,
     /// Stop after this many passes. `None` is the resident behaviour: a board
     /// that cannot bank because the box is never quiet is not FAILING, it is
@@ -970,6 +1014,7 @@ impl<'a> SweepRunner<'a> {
             pack,
             plat: platform::host(),
             stop: false,
+            engine_gone: None,
             quiet_only,
             max_passes,
             passes: 0,
@@ -1726,7 +1771,13 @@ impl Canary {
         })
     }
 
-    fn run_once(&self) -> Option<Duration> {
+    /// `on_spawn` REGISTERS THE CANARY'S CHILD (0.28), the way every planner
+    /// already was. Without it the canary wrote no `live_child` row, so a
+    /// hard kill during a canary read -- and the canary runs at sweep start
+    /// and every 20 minutes after -- left an orphan that no later startup
+    /// could reap by identity. The one process whose job is to measure
+    /// whether the box is clean was the one that could dirty it invisibly.
+    fn run_once(&self, on_spawn: Option<&dyn Fn(Pid, f64)>) -> Option<Duration> {
         let (_tx, rx) = mpsc::channel::<Ctl>();
         let plat = platform::host();
         let out = exec::run(
@@ -1736,7 +1787,7 @@ impl Canary {
                 envs: &self.envs,
                 timeout: Duration::from_secs(30),
                 mem_cap: crucible_core::platform::MemCap::Off,
-                on_spawn: None,
+                on_spawn,
             },
             &plat,
             &rx,
@@ -1759,10 +1810,15 @@ impl Canary {
     /// clean. The fastest-of-five is the opposite failure -- a sweep that
     /// starts on a slow morning is lenient all day. A percentile of the
     /// recent window is what the box actually does.
-    pub fn calibrate(&mut self, prior: Option<f64>, record: &dyn Fn(f64)) -> Option<Duration> {
+    pub fn calibrate(
+        &mut self,
+        prior: Option<f64>,
+        record: &dyn Fn(f64),
+        on_spawn: Option<&dyn Fn(Pid, f64)>,
+    ) -> Option<Duration> {
         let mut now: Vec<f64> = Vec::new();
         for _ in 0..self.baseline_n {
-            if let Some(d) = self.run_once() {
+            if let Some(d) = self.run_once(on_spawn) {
                 let secs = d.as_secs_f64();
                 record(secs);
                 now.push(secs);
@@ -1784,9 +1840,9 @@ impl Canary {
     /// One reading: `(secs, secs / baseline)`. The baseline does not move
     /// within a run -- a faster reading is information about the box, not
     /// a new line to hold every later row to.
-    pub fn read(&mut self) -> Option<(f64, f64)> {
+    pub fn read(&mut self, on_spawn: Option<&dyn Fn(Pid, f64)>) -> Option<(f64, f64)> {
         let base = self.baseline?;
-        let secs = self.run_once()?.as_secs_f64();
+        let secs = self.run_once(on_spawn)?.as_secs_f64();
         Some((secs, secs / base.as_secs_f64().max(0.001)))
     }
 
@@ -1843,7 +1899,28 @@ impl Watcher {
                                 shared.send(Ctl::Stop);
                                 std::thread::sleep(Duration::from_millis(400));
                             }
-                            let reading = c.read();
+                            // Register the canary's child so a hard kill
+                            // during its read leaves something reapable
+                            // (0.28).
+                            let plat_reg = platform::host();
+                            let reg = |pid: Pid, at: f64| {
+                                let Some(id) = plat_reg.proc_identity(pid) else {
+                                    return;
+                                };
+                                let child = db::LiveChild {
+                                    pid,
+                                    pgid: pid,
+                                    run_id: None,
+                                    binary_path: id.path.clone(),
+                                    proc_start_tvsec: id.start_tvsec,
+                                    spawned_at: at,
+                                    stopped: false,
+                                };
+                                if let Err(e) = writer.child_spawned(child) {
+                                    eprintln!("!! could not register the canary child {pid}: {e}");
+                                }
+                            };
+                            let reading = c.read(Some(&reg as &dyn Fn(Pid, f64)));
                             if pause && shared.level() != Level::Suspended {
                                 shared.send(Ctl::Cont);
                             }
@@ -2204,7 +2281,7 @@ fn sweep_body(
                         d.db.writer().canary(now_epoch(), label.clone(), secs, true);
                     }
                 };
-                match c.calibrate(prior, &record) {
+                match c.calibrate(prior, &record, None) {
                     Some(b) => {
                         crate::say!(
                             "canary  {} baseline {:.3} s ({}); read every {} s, slow above {:.2}x",
@@ -2283,6 +2360,8 @@ fn sweep_body(
             shared: Arc::clone(&shared),
             rule: referee::Rule {
                 rho_min: cfg.referee.cpu_ratio_min,
+                rho_floor_ms: cfg.referee.rho_floor_ms,
+                rho_overhead_ms: cfg.referee.rho_overhead_ms,
                 swap_growth_mb: cfg.referee.swap_growth_mb,
                 canary_max_factor: cfg.referee.canary_max_factor,
             },
@@ -2353,6 +2432,18 @@ fn sweep_body(
             ..Default::default()
         },
     );
+    // The instrument went missing mid-measurement (0.28). Everything measured
+    // before that is on disk and banked exactly as it was -- this is an error
+    // about the NEXT run, not about the rows already taken. Reported as one so
+    // a supervisor can rebuild the binary rather than retry into the same hole
+    // every five minutes.
+    if let Some(why) = runner.engine_gone.clone() {
+        crate::say!(
+            "{} instance(s) still owed -- rows are written, nothing is lost",
+            out.remaining
+        );
+        anyhow::bail!("the engine binary could not be run: {why}");
+    }
     if !out.complete {
         // NOT an error. A board that could not bank because the box was never
         // quiet has lost nothing -- every row it measured is on disk, and the
@@ -2363,6 +2454,35 @@ fn sweep_body(
         );
     }
     Ok(())
+}
+
+/// THE BYTE BUDGET, as a policy rather than a constant (0.28).
+///
+/// A free function for the same reason `policy_width` is one: it is a rule
+/// about the operator, and a rule about the operator has to be testable
+/// without a box in a particular mood.
+///
+/// Width has always collapsed the at-the-box distinction -- an idle keyboard
+/// buys every logical core -- while the byte budget did not, so a sleeping
+/// laptop went on holding back the full desktop reserve.
+///
+/// The gain is narrow and worth stating honestly, because the mean lies here:
+/// peak RSS over 9,744 measured rows is p50 0.58 GB but p90 4.41 GB. For a
+/// median instance memory is not the constraint at all -- 13 GB admits
+/// fifteen and the policy hands out ten cores -- so this changes nothing.
+/// It changes the tail, where one p90 planner wants 6.6 GB with headroom and
+/// the budget decides whether a second one fits beside it.
+///
+/// The idle reserve is never zero and never larger than the active one. Swap
+/// is the pressure the referee cannot un-ring: a row that swapped is owed,
+/// and a box swapping hard takes its neighbours' rows down with it.
+pub fn policy_mem_budget(mem_bytes: u64, at_the_box: bool, pack: &Pack) -> u64 {
+    let reserve = if at_the_box {
+        pack.mem_reserve_bytes
+    } else {
+        pack.mem_reserve_idle_bytes.min(pack.mem_reserve_bytes)
+    };
+    mem_bytes.saturating_sub(reserve).max(1 << 30)
 }
 
 /// Local minutes past midnight, without a timezone dependency: the offset comes
@@ -2391,6 +2511,89 @@ fn minutes_past_midnight() -> u32 {
 mod r2_tests {
     use super::*;
 
+    /// THE BYTE BUDGET FOLLOWS THE OPERATOR, like width already did (0.28).
+    ///
+    /// This is the constraint that actually caps the pack on this box. Width
+    /// hands out ten cores on an idle keyboard; memory only ever fed about
+    /// six instances, because the reserve was a flat 3 GB whether or not
+    /// anyone was using the desktop it was reserved for.
+    #[test]
+    fn the_memory_reserve_shrinks_once_the_operator_leaves() {
+        let gb = |n: f64| (n * (1u64 << 30) as f64) as u64;
+        let pack = Pack {
+            mem_reserve_bytes: gb(3.0),
+            mem_reserve_idle_bytes: gb(1.5),
+            ..Pack::solo()
+        };
+        let box_ram = gb(16.0);
+
+        assert_eq!(
+            policy_mem_budget(box_ram, true, &pack),
+            gb(13.0),
+            "someone is typing: the desktop, the browser and the rest of it \
+             have to fit beside us"
+        );
+        assert_eq!(
+            policy_mem_budget(box_ram, false, &pack),
+            gb(14.5),
+            "nobody is here: take the box"
+        );
+
+        // THE GAIN, in the currency that matters, and it is not where the
+        // mean would put it. Measured peak RSS over 9,744 rows: p50 0.58 GB,
+        // p90 4.41 GB.
+        let fits = |at_the_box, rss_gb: f64| {
+            policy_mem_budget(box_ram, at_the_box, &pack) / ((gb(rss_gb) as f64 * 1.5) as u64)
+        };
+
+        // A median instance is small enough that memory never binds: both
+        // budgets admit more than the ten cores the width policy hands out,
+        // so this knob is correctly a no-op there.
+        assert!(
+            fits(true, 0.58) >= 10 && fits(false, 0.58) >= 10,
+            "at p50 the cap is width, not memory: {} vs {}",
+            fits(true, 0.58),
+            fits(false, 0.58)
+        );
+
+        // The tail is the whole point: one p90 planner or two.
+        assert_eq!(
+            (fits(true, 4.41), fits(false, 4.41)),
+            (1, 2),
+            "at p90 the reserve decides whether the box runs one fat planner \
+             or two -- which is exactly when it would otherwise sit idle"
+        );
+    }
+
+    /// Two guards, because this knob decides how hard the machine is pushed
+    /// and a misconfigured one is a swap storm rather than an error.
+    #[test]
+    fn the_idle_reserve_can_never_be_the_greedier_of_the_two() {
+        let gb = |n: f64| (n * (1u64 << 30) as f64) as u64;
+        // An operator who sets the idle reserve HIGHER than the active one
+        // means "hold back at least this much"; it must not become a way to
+        // take MORE while they are sitting here.
+        let pack = Pack {
+            mem_reserve_bytes: gb(2.0),
+            mem_reserve_idle_bytes: gb(8.0),
+            ..Pack::solo()
+        };
+        assert_eq!(
+            policy_mem_budget(gb(16.0), false, &pack),
+            policy_mem_budget(gb(16.0), true, &pack),
+            "the idle reserve is clamped to the active one, never above it"
+        );
+
+        // And a box too small for any reserve still gets a gigabyte to work
+        // in, rather than a budget of zero that admits nothing forever.
+        let big = Pack {
+            mem_reserve_bytes: gb(64.0),
+            mem_reserve_idle_bytes: gb(64.0),
+            ..Pack::solo()
+        };
+        assert_eq!(policy_mem_budget(gb(8.0), false, &big), gb(1.0));
+    }
+
     /// Night or an idle box: everything. The operator at the box by day:
     /// the P-cores. Foreign load takes back its cores. Suspended: none.
     #[test]
@@ -2403,6 +2606,7 @@ mod r2_tests {
             max_frac: 0.5,
             narrow_max_frac: 0.85,
             mem_reserve_bytes: 0,
+            mem_reserve_idle_bytes: 0,
             rss_headroom: 1.5,
         };
         assert_eq!(

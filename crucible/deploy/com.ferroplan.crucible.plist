@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  crucible as an always-on LaunchAgent (0.28).
+
+  WHY THIS EXISTS. Every sweep this project has run was a hand-typed `nohup`,
+  which means every sweep died for good the moment anything killed it. On
+  2026-09-07 a disk cleanup deleted target/ and the cut27 sweep sat dead for
+  eleven hours; on 2026-09-09 a reboot ended the next one. Neither lost a row
+  -- the database is durable and resume works -- but both lost the box, which
+  is the scarce thing.
+
+  INSTALL (deliberately not automatic; this starts sweeping by itself):
+      cp deploy/com.ferroplan.crucible.plist ~/Library/LaunchAgents/
+      launchctl load -w ~/Library/LaunchAgents/com.ferroplan.crucible.plist
+  STOP:
+      launchctl unload -w ~/Library/LaunchAgents/com.ferroplan.crucible.plist
+
+  KeepAlive is SuccessfulExit=false on purpose: a crash restarts, a clean exit
+  does not. So ^C still means stop, and "the set is complete" still means
+  done. Only failure is retried, and resident's own backoff (doubling to an
+  hour) keeps a broken tree from driving cargo every five minutes.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.ferroplan.crucible</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/harold/ferroplan-r2/crucible/target/release/crucible</string>
+        <string>--repo</string>
+        <string>/Users/harold/ferroplan</string>
+        <string>resident</string>
+        <string>--set</string>
+        <string>cut27</string>
+        <string>--candidate</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/harold/ferroplan</string>
+
+    <!-- A LaunchAgent gets a minimal PATH, and resident now BUILDS the
+         candidate when it is missing. Without cargo on this PATH the one
+         self-healing step it has would fail with "No such file". -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/harold/.cargo/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <!-- launchd's floor is 10s. A minute, so a crash loop is visible in the
+         log as a crash loop rather than as a wall of restarts. -->
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/harold/ferroplan/benchmarks/crucible-resident.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/harold/ferroplan/benchmarks/crucible-resident.log</string>
+
+    <!-- DELIBERATELY NO ProcessType AND NO Nice.
+         The obvious "be a good citizen" keys are exactly wrong here.
+         ProcessType=Background puts the job in Darwin's background QoS band,
+         which confines it to efficiency cores AND IS INHERITED BY CHILDREN --
+         the same band that made one instance take 59.28 s instead of 4.52 s
+         and banked 1,709 five-second instances as sixty-second timeouts
+         before the referee learned to refuse them. Under this agent every
+         planner would run demoted and the whole set would be unmeasurable.
+         Nice is inherited too, and a nice'd planner is a slower planner, so
+         it distorts the number being measured rather than the machine's
+         manners. Citizenship is the sweep's own job and it already does it:
+         the width policy yields cores the moment the keyboard is touched.
+         See docs/roadmap-0.28.md, the E-core defect. -->
+</dict>
+</plist>

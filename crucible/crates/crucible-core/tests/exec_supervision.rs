@@ -400,3 +400,85 @@ fn interrupt_body() {
     let rc = unsafe { libc::kill(out.pid, 0) };
     assert_ne!(rc, 0, "the child is still there");
 }
+
+/// THE SIGNAL PATH ITSELF, which nothing exercised until 0.28.
+///
+/// `an_interrupt_cancels_and_reaps_the_child` proves what happens once the
+/// flag is set, but it sets the flag by calling `set_interrupted` -- so
+/// `install_interrupt_handler` and the signal-to-flag wiring were never
+/// tested at all. A handler registered for the wrong signal, or not
+/// registered, would have passed every test in this file.
+///
+/// SIGHUP is why it matters now. Its default action terminates, and every
+/// sweep since 0.27 runs detached -- `nohup`, or a launchd agent -- which is
+/// exactly the shape that gets HUP'd when a terminal closes or a session
+/// ends. Before 0.28 that killed the supervisor without the cancel path and
+/// orphaned the planner under pid 1: the 0.26 defect by another route.
+///
+/// Each signal gets its own child process, because the flag is global and
+/// latching.
+#[test]
+fn a_real_signal_sets_the_interrupt_flag() {
+    for sig in ["SIGINT", "SIGTERM", "SIGHUP"] {
+        let ready = std::env::temp_dir().join(format!(
+            "crucible-signal-ready-{}-{sig}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&ready);
+
+        let exe = std::env::current_exe().unwrap();
+        let mut child = std::process::Command::new(&exe)
+            .args(["--ignored", "--exact", "signal_body", "--test-threads=1"])
+            .env("CRUCIBLE_SIGNAL_READY", &ready)
+            .spawn()
+            .unwrap();
+
+        // Wait for the child to say the handler is installed. Sending before
+        // that would test the DEFAULT disposition, which is the bug.
+        let start = std::time::Instant::now();
+        while !ready.exists() {
+            assert!(
+                start.elapsed() < Duration::from_secs(20),
+                "{sig}: child never signalled readiness"
+            );
+            std::thread::sleep(Duration::from_millis(20));
+        }
+
+        let n = match sig {
+            "SIGINT" => libc::SIGINT,
+            "SIGTERM" => libc::SIGTERM,
+            _ => libc::SIGHUP,
+        };
+        // SAFETY: signalling a child of this process by pid.
+        unsafe {
+            libc::kill(child.id() as i32, n);
+        }
+
+        let out = child.wait().unwrap();
+        assert!(
+            out.success(),
+            "{sig}: the handler did not set the flag -- exit {:?}. Before 0.28 \
+             SIGHUP failed here by terminating the process outright, which is \
+             an exit code, not a flag.",
+            out.code()
+        );
+        let _ = std::fs::remove_file(&ready);
+    }
+}
+
+#[test]
+#[ignore = "driven by a_real_signal_sets_the_interrupt_flag"]
+fn signal_body() {
+    exec::install_interrupt_handler();
+    let ready = std::env::var("CRUCIBLE_SIGNAL_READY").expect("readiness path");
+    std::fs::write(&ready, b"ready").unwrap();
+
+    let start = std::time::Instant::now();
+    while start.elapsed() < Duration::from_secs(15) {
+        if exec::interrupted() {
+            return; // exit 0: the signal reached the flag
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("the signal never set the flag");
+}
