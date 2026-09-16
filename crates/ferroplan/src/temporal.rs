@@ -4222,7 +4222,51 @@ pub fn score_soft(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
     let objs = crate::ground::objects_by_type(domain, problem);
     let goal_prefs = crate::pddl3::preferences(&problem.goal, &objs);
     let exp = crate::constraints::expand(domain, problem).ok()?;
-    if goal_prefs.is_empty() && exp.soft.is_empty() {
+    // Condition preferences (0.28 Lane B): `(preference p (at start phi))`
+    // on a durative action, bound per plan step. The search drops them
+    // (grounding reads a positive Pref as true); the count lives here, one
+    // instance per APPLICATION -- PDDL3's action-preference semantics.
+    let cond_prefs: Vec<Vec<(TimeSpec, String, Formula)>> = plan
+        .steps
+        .iter()
+        .map(|step| {
+            let mut it = step.action.split_whitespace();
+            let head = it.next().unwrap_or("");
+            let args: Vec<&str> = it.collect();
+            let Some(da) = domain
+                .durative_actions
+                .iter()
+                .find(|a| a.name.eq_ignore_ascii_case(head))
+            else {
+                return Vec::new();
+            };
+            if step.duration.is_none() || da.params.len() != args.len() {
+                return Vec::new();
+            }
+            let b: HashMap<Sym, Sym> = da
+                .params
+                .iter()
+                .zip(&args)
+                .map(|((v, _), a)| (v.clone(), a.to_string()))
+                .collect();
+            da.conditions
+                .iter()
+                .filter_map(|(ts, f)| match f {
+                    Formula::Pref(name, phi) => Some((
+                        *ts,
+                        name.clone()
+                            .unwrap_or_else(|| format!("{}-condition", da.name)),
+                        crate::constraints::expand_quantifiers(
+                            &crate::pddl3::subst_formula(phi, &b),
+                            &objs,
+                        ),
+                    )),
+                    _ => None,
+                })
+                .collect()
+        })
+        .collect();
+    if goal_prefs.is_empty() && exp.soft.is_empty() && cond_prefs.iter().all(Vec::is_empty) {
         return None;
     }
     let c = compile(domain, problem);
@@ -4233,9 +4277,10 @@ pub fn score_soft(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
         time: f64,
         op: usize,
         is_start: bool,
+        step: Option<usize>,
     }
     let mut hs: Vec<H> = Vec::new();
-    for step in &plan.steps {
+    for (si, step) in plan.steps.iter().enumerate() {
         let mut it = step.action.splitn(2, ' ');
         let head = it.next().unwrap_or("");
         let rest = it.next();
@@ -4249,17 +4294,20 @@ pub fn score_soft(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
                     time: step.time,
                     op: find(&with("-START"))?,
                     is_start: true,
+                    step: Some(si),
                 });
                 hs.push(H {
                     time: step.time + dur,
                     op: find(&with("-END"))?,
                     is_start: false,
+                    step: Some(si),
                 });
             }
             None => hs.push(H {
                 time: step.time,
                 op: find(&step.action)?,
                 is_start: true,
+                step: None,
             }),
         }
     }
@@ -4272,6 +4320,7 @@ pub fn score_soft(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
                 time: *t,
                 op: find(name)?,
                 is_start: false,
+                step: None,
             });
         }
     }
@@ -4291,11 +4340,49 @@ pub fn score_soft(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
             crate::verify::eval_formula(&task, &state, phi)
         });
     }
+    // (step, condition index, violated so far) for each open `over all`
+    // preference: it reads every state strictly inside its action's
+    // interval, i.e. the state before each happening up to its own end.
+    let mut open: Vec<(usize, usize, bool)> = Vec::new();
+    let mut cond_seen: Vec<(String, bool)> = Vec::new();
     for h in &hs {
+        for (s, k, v) in &mut open {
+            if !*v && !crate::verify::eval_formula(&task, &state, &cond_prefs[*s][*k].2) {
+                *v = true;
+            }
+        }
+        if let Some(s) = h.step {
+            for (ts, name, phi) in &cond_prefs[s] {
+                if matches!(
+                    (ts, h.is_start),
+                    (TimeSpec::Start, true) | (TimeSpec::End, false)
+                ) {
+                    let held = crate::verify::eval_formula(&task, &state, phi);
+                    cond_seen.push((name.clone(), !held));
+                }
+            }
+            if !h.is_start {
+                open.retain(|&(os, k, v)| {
+                    if os == s {
+                        cond_seen.push((cond_prefs[s][k].1.clone(), v));
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        }
         if !task.op_applicable(h.op, &state) {
             return None;
         }
         state = task.apply(h.op, &state);
+        if let (Some(s), true) = (h.step, h.is_start) {
+            for (k, (ts, _, _)) in cond_prefs[s].iter().enumerate() {
+                if *ts == TimeSpec::All {
+                    open.push((s, k, false));
+                }
+            }
+        }
         for (_, f) in &mut folds {
             f.step_at(h.time, &mut |phi| {
                 crate::verify::eval_formula(&task, &state, phi)
@@ -4316,6 +4403,14 @@ pub fn score_soft(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Optio
         if inst_viol[i] {
             violated.push(name.clone());
             *counts.entry(name.to_ascii_uppercase()).or_insert(0.0) += 1.0;
+        } else {
+            satisfied += 1;
+        }
+    }
+    for (name, v) in cond_seen {
+        if v {
+            *counts.entry(name.to_ascii_uppercase()).or_insert(0.0) += 1.0;
+            violated.push(name);
         } else {
             satisfied += 1;
         }

@@ -134,3 +134,114 @@ fn scorer_prices_the_plan_not_the_reachable() {
         "both preferences violated by the lazy plan: {score:?}"
     );
 }
+
+/// Condition preferences on durative actions (0.28 Lane B, IPC-5
+/// tpp-preferences-complex): `(preference p (at start phi))` inside a
+/// `:condition`. RED first: the parser refused the conjunct ("expected
+/// at/over in durative condition, found `PREFERENCE`"), so all 20 tpp rows
+/// died engine-exit-1. The planner treats the condition as dropped (never
+/// gates validity); the scorer counts ONE violation per application whose
+/// phi is false where the timespec reads it -- the PDDL3 count for action
+/// preferences. Parsed-then-dropped without the count would bank a plan
+/// with a wrong metric, which is worse than failing.
+const COND_DOMAIN: &str = "
+(define (domain cond-pref)
+  (:requirements :typing :durative-actions :preferences)
+  (:types thing)
+  (:predicates (clean ?x - thing) (ready ?x - thing) (moved ?x - thing) (quiet))
+  (:durative-action move
+    :parameters (?x - thing)
+    :duration (= ?duration 1)
+    :condition (and (preference pc (at start (clean ?x)))
+                    (preference pall (at start (forall (?y - thing) (clean ?y))))
+                    (at start (ready ?x))
+                    (at start (preference pq (quiet)))
+                    (preference po (over all (quiet))))
+    :effect (and (at start (not (ready ?x))) (at end (moved ?x)))))
+";
+
+const COND_PROBLEM: &str = "
+(define (problem cond-pref-1) (:domain cond-pref)
+  (:objects a b - thing)
+  (:init (clean a) (ready a) (ready b) (quiet))
+  (:goal (and (moved a) (moved b)))
+  (:metric minimize (+ (* 1 (is-violated pc)) (* 10 (is-violated pall))
+                       (* 100 (is-violated pq)) (* 1000 (is-violated po)))))
+";
+
+#[test]
+fn condition_preferences_on_durative_actions_parse() {
+    let d = ferroplan::parser::parse_domain(COND_DOMAIN).expect("parses");
+    let conds = &d.durative_actions[0].conditions;
+    assert_eq!(conds.len(), 5, "{conds:?}");
+    let prefs = conds
+        .iter()
+        .filter(|(_, f)| matches!(f, ferroplan::types::Formula::Pref(..)))
+        .count();
+    assert_eq!(prefs, 4, "{conds:?}");
+}
+
+#[test]
+fn condition_preferences_count_once_per_violating_application() {
+    let d = ferroplan::parser::parse_domain(COND_DOMAIN).unwrap();
+    let p = ferroplan::parser::parse_problem(COND_PROBLEM).unwrap();
+    let plan = ferroplan::temporal::TimedPlan {
+        steps: vec![
+            ferroplan::temporal::TimedStep {
+                time: 0.0,
+                action: "MOVE A".into(),
+                duration: Some(1.0),
+            },
+            ferroplan::temporal::TimedStep {
+                time: 0.0,
+                action: "MOVE B".into(),
+                duration: Some(1.0),
+            },
+        ],
+        makespan: 1.0,
+    };
+    let score = ferroplan::temporal::score_soft(&d, &p, &plan).expect("scored");
+    // pc: b is not clean (1). pall: b is dirty for both moves (2 x 10).
+    // pq, po: quiet holds throughout (0).
+    assert_eq!(score.metric, Some(21.0), "{score:?}");
+    assert_eq!(score.violated.len(), 3, "{score:?}");
+    assert_eq!(score.satisfied, 5, "{score:?}");
+}
+
+#[test]
+fn condition_preferences_never_gate_the_solve() {
+    let sol = ferroplan::solve(COND_DOMAIN, COND_PROBLEM, &ferroplan::Options::default())
+        .expect("solve runs");
+    assert!(sol.solved, "{:?}", sol.notes);
+    assert_eq!(
+        sol.plan.expect("plan").metric,
+        Some(21.0),
+        "the only plans move a and b, so the score is forced: {:?}",
+        sol.notes
+    );
+}
+
+#[test]
+fn over_all_condition_preferences_read_inside_the_interval() {
+    let d = ferroplan::parser::parse_domain(COND_DOMAIN).unwrap();
+    // No (quiet): pq (at start) and po (over all) fail on both moves.
+    let p = ferroplan::parser::parse_problem(&COND_PROBLEM.replace("(quiet)", "")).unwrap();
+    let plan = ferroplan::temporal::TimedPlan {
+        steps: vec![
+            ferroplan::temporal::TimedStep {
+                time: 0.0,
+                action: "MOVE A".into(),
+                duration: Some(1.0),
+            },
+            ferroplan::temporal::TimedStep {
+                time: 2.0,
+                action: "MOVE B".into(),
+                duration: Some(1.0),
+            },
+        ],
+        makespan: 3.0,
+    };
+    let score = ferroplan::temporal::score_soft(&d, &p, &plan).expect("scored");
+    assert_eq!(score.metric, Some(2221.0), "{score:?}");
+    assert_eq!(score.violated.len(), 7, "{score:?}");
+}

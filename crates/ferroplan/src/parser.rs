@@ -664,19 +664,38 @@ fn parse_timed_conditions(p: &mut P) -> Result<Vec<(TimeSpec, Formula)>, String>
         while !p.at_rparen() {
             p.expect_lparen()?;
             let hh = p.name()?;
-            let ts = timespec_from(p, &hh)?;
-            let f = parse_formula(p)?;
-            p.expect_rparen()?;
-            v.push((ts, f));
+            v.push(timed_condition_after(p, &hh)?);
         }
         p.expect_rparen()?;
         Ok(v)
     } else {
-        let ts = timespec_from(p, &h)?;
-        let f = parse_formula(p)?;
-        p.expect_rparen()?;
-        Ok(vec![(ts, f)])
+        Ok(vec![timed_condition_after(p, &h)?])
     }
+}
+
+/// One timed condition whose opening paren and head are already consumed:
+/// `at start phi` / `over all phi`, or the PDDL3 condition preference
+/// `preference [name] (at start phi)`, which becomes the timespec paired
+/// with `Formula::Pref(name, phi)` -- the same shape `(at start
+/// (preference name phi))` already parses to. The IPC-5 tpp complex domain
+/// writes the first form.
+fn timed_condition_after(p: &mut P, head: &str) -> Result<(TimeSpec, Formula), String> {
+    if head == "PREFERENCE" {
+        let name = if matches!(p.peek(), Some(Tok::Name(_))) {
+            Some(p.name()?)
+        } else {
+            None
+        };
+        p.expect_lparen()?;
+        let hh = p.name()?;
+        let (ts, f) = timed_condition_after(p, &hh)?;
+        p.expect_rparen()?;
+        return Ok((ts, Formula::Pref(name, Box::new(f))));
+    }
+    let ts = timespec_from(p, head)?;
+    let f = parse_formula(p)?;
+    p.expect_rparen()?;
+    Ok((ts, f))
 }
 
 fn parse_timed_effects(p: &mut P) -> Result<Vec<(TimeSpec, Effect)>, String> {
