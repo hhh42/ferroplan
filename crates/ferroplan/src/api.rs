@@ -852,6 +852,13 @@ fn solve_optimal(
     // best_g memo retains a full StateKey per stored node, which the
     // satisficing model never counted — see `opt_per_node_model_bytes`.
     let max_nodes = crate::search::opt_node_cap_for(&task);
+    if std::env::var("FF_WALL_DEBUG").is_ok() {
+        eprintln!(
+            "wall: opt node cap {max_nodes} ({} model bytes/node, {} retained-byte budget)",
+            crate::search::opt_per_node_model_bytes(&task),
+            crate::search::retained_bytes_budget()
+        );
+    }
     // The 0.22 Phase 6 L1 consumer: orbit-canonical visited keys on the
     // proof ladder (child-snack's factorial core is the constituency).
     // The L2 gate inside detection bails any cost shape σ cannot fix.
@@ -897,6 +904,17 @@ fn solve_optimal(
             Mode::Optimal,
             stats,
             vec!["PROVEN UNSOLVABLE: A* exhausted the reachable space".into()],
+        )),
+        // Name the budget that actually stopped the last pass. Until 0.28
+        // a clock trip wore the node-cap note, and the 0.27 cut's 937
+        // "node cap reached" rows were mostly the 60 s wall.
+        _ if o.clock_tripped => Ok(unsolved(
+            Mode::Optimal,
+            stats,
+            vec![format!(
+                "inconclusive: wall reached after {} expansions — no certificate, no plan reported",
+                o.expanded
+            )],
         )),
         _ => Ok(unsolved(
             Mode::Optimal,

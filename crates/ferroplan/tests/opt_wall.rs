@@ -290,6 +290,8 @@ fn opt_ladder_spends_the_wall() {
     let (stdout, _, secs) = run_child("no-lmcut");
     assert!(stdout.contains("CHILD-no-lmcut-SOLVED:false"), "{stdout}");
     assert!(stdout.contains("inconclusive"), "{stdout}");
+    // The clock stopped it, so the note says so -- not "node cap".
+    assert!(stdout.contains("inconclusive: wall reached"), "{stdout}");
     assert!(
         (2.4..15.0).contains(&secs),
         "h^max must hold the wall past any sprint slice, then stop: {secs:.1} s"

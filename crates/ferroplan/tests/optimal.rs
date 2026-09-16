@@ -80,6 +80,7 @@ fn cap_yields_inconclusive_not_a_plan() {
     let o = ferroplan::optimal::solve(&task, None, 2, None); // room for init + one node
     assert!(!o.proven);
     assert!(o.ops.is_none(), "no uncertified plan is ever reported");
+    assert!(!o.clock_tripped, "a cap stop is not a wall stop");
 }
 
 /// Certified UNSOLVABLE where the delete relaxation says solvable: the

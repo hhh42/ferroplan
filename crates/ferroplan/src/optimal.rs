@@ -1266,6 +1266,7 @@ pub fn solve(
             // probe engine continues where round 1 tripped, its open
             // list, memo and cut lists intact.
             let mut probe_last = probe;
+            let mut round2 = false;
             if !out.proven
                 && out.reject.is_none()
                 && !out.clock_tripped
@@ -1283,6 +1284,7 @@ pub fn solve(
                     max_nodes.saturating_mul(2),
                     crate::search::wall_remaining_secs(),
                 );
+                round2 = true;
             }
             // One merge at the end: both engines report CUMULATIVE
             // counters, so each side is added exactly once.
@@ -1294,6 +1296,11 @@ pub fn solve(
             }
             out.expanded += probe_last.expanded;
             out.evaluated += probe_last.evaluated;
+            // Round 2 ran last, so its stop is the run's stop: the note
+            // must name the wall if that is what ended it.
+            if round2 {
+                out.clock_tripped = probe_last.clock_tripped;
+            }
             return out;
         }
         // FF_NO_INC_LMCUT: the 0.22 one-shot probe, byte-identical.
