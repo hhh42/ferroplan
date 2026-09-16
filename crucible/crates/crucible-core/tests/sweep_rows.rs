@@ -237,3 +237,97 @@ fn the_row_has_the_shape_every_committed_board_has() {
         "got {b}"
     );
 }
+
+/// THE INSTRUMENT GOING MISSING MID-MEASUREMENT (0.28).
+///
+/// On 2026-09-07 a disk cleanup deleted `target/` while the cut27 sweep was
+/// running. `measure` hit `ExecError::NotRunnable`, and the arm that handled
+/// it was a `panic!`. It was RIGHT about the row -- a missing binary must
+/// never be booked as a measurement, or a lost `target/` becomes 6,584
+/// spawn-fail rows presented as evidence -- and wrong about the process: the
+/// unwind left the sweep dead for eleven hours with 7,773 measured rows on
+/// disk and nothing watching.
+///
+/// The rule that survives: no row. The rule that changed: no panic either.
+mod engine_gone {
+    use super::*;
+
+    fn measure_against(path: PathBuf) -> crucible_core::sweep::Measured {
+        let engine = Engine {
+            path,
+            ver: "ff 0.27.0".into(),
+            blake3: String::new(),
+        };
+        let (_tx, rx) = mpsc::channel::<Ctl>();
+        sweep::measure(
+            &engine,
+            &cfg(60),
+            "ipc-2014",
+            "barman-sequential-satisficing",
+            &inst(),
+            None,
+            &std::env::temp_dir().join("crucible-test-plans"),
+            &platform::host(),
+            &rx,
+            None,
+        )
+    }
+
+    /// A binary that is not there is REPORTED, not raised. The literal shape
+    /// of Monday's failure: the path existed when the sweep started and does
+    /// not exist now.
+    #[test]
+    fn a_deleted_binary_is_reported_and_does_not_panic() {
+        let gone = std::env::temp_dir().join(format!(
+            "crucible-no-such-planner-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        assert!(!gone.exists(), "the point of the test is that it is absent");
+
+        let m = measure_against(gone);
+
+        let why = m
+            .engine_gone
+            .as_deref()
+            .expect("a vanished binary is named, not raised");
+        assert!(
+            why.contains("No such file") || why.contains("os error 2"),
+            "the note carries the OS error the operator needs: {why}"
+        );
+    }
+
+    /// And it is NOT a row. This is the half that was already right and must
+    /// stay right: nothing here may reach a raw as a measurement, because a
+    /// board of them would read as 6,584 honest failures of the planner.
+    #[test]
+    fn a_deleted_binary_is_never_booked_as_a_measurement() {
+        let gone = std::env::temp_dir().join(format!(
+            "crucible-no-such-planner-{}-{}",
+            std::process::id(),
+            line!()
+        ));
+        let m = measure_against(gone);
+
+        assert!(!m.row.solved, "no plan was found because nothing ran");
+        assert_eq!(m.row.time, None, "nothing ran, so nothing took any time");
+        assert_eq!(m.cpu_instrument, None, "no child, so no cpu instrument");
+        assert_eq!(m.pid, None, "nothing was spawned");
+        assert!(
+            m.row.notes.is_none(),
+            "in particular NOT spawn-fail: the system forked fine, the \
+             instrument was missing -- conflating them is how the 0.16 \
+             seq-mco sweep booked environmental failures as engine verdicts"
+        );
+    }
+
+    /// The negative control, so the tests above cannot pass by accident on a
+    /// path that always reports gone: the real planner measures normally and
+    /// sets nothing.
+    #[test]
+    fn a_planner_that_is_present_reports_no_such_thing() {
+        let m = run(&[("FAKEFF_SOLVE", "1")], 60);
+        assert_eq!(m.engine_gone, None);
+        assert!(m.row.solved);
+    }
+}

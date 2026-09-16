@@ -382,6 +382,11 @@ pub struct InstanceDetail {
 
 #[derive(Debug, Clone, Default)]
 pub struct Snapshot {
+    /// READ-ONLY: this dashboard is watching a sweep it does not host, so
+    /// quitting closes a window and nothing else (0.28). The grid's footer
+    /// promises the opposite when the TUI IS the sweep, and that promise
+    /// must not be made by a viewer that cannot keep it.
+    pub detached: bool,
     pub engine_ver: String,
     pub engine_hash: String,
     pub level: LevelState,

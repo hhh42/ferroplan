@@ -111,6 +111,26 @@ pub struct Scheduler {
     /// Memory held back from the packed budget, and the headroom over an
     /// instance's prior peak RSS when sizing a batch.
     pub mem_reserve_gb: f64,
+    /// The reserve while the operator is AWAY (0.28). Width already collapses
+    /// this distinction -- an idle keyboard buys every logical core -- but the
+    /// byte budget did not, so a sleeping laptop went on holding back three
+    /// gigabytes for a desktop nobody was looking at.
+    ///
+    /// WHERE THIS ACTUALLY BUYS ANYTHING, measured over 9,744 rows of the
+    /// 0.27 sweep rather than guessed: peak RSS is p50 0.58 GB, p75 2.08,
+    /// p90 4.41, max 7.20. The median instance is small enough that WIDTH is
+    /// what caps a typical batch -- 13 GB already admits fifteen of them and
+    /// the policy only ever hands out ten cores. The reserve binds in the
+    /// tail: one p90 instance wants 6.6 GB with headroom, so the difference
+    /// between a 13 GB and a 14.5 GB budget is the difference between one of
+    /// them running and two. Narrow, and exactly the case where the box would
+    /// otherwise sit half idle behind a single fat planner.
+    ///
+    /// Still a reserve, not zero. Swap is the one pressure the referee cannot
+    /// un-ring: a row that swapped is owed, and a box that swaps hard takes
+    /// its neighbours down with it (47 rows of the 0.27 sweep are owed to
+    /// exactly that).
+    pub mem_reserve_idle_gb: f64,
     pub rss_headroom: f64,
 }
 
@@ -124,6 +144,14 @@ pub struct Referee {
     /// rounded down to 0.05, floored at 0.85) -- not a knob to turn when a
     /// sweep is slow.
     pub cpu_ratio_min: f64,
+    /// Below this wall, `cpu_ratio_min` is not applied: the ratio is dominated
+    /// by process spawn and teardown rather than by the box. Such a row is
+    /// judged by the box-wide window instead. See `Rule::rho_floor_ms`.
+    pub rho_floor_ms: u64,
+    /// The measured fixed cost of running a process: fork, exec, linking,
+    /// teardown. Sets the operative rho floor as `overhead / (1 -
+    /// cpu_ratio_min)`. See `Rule::rho_overhead_ms`.
+    pub rho_overhead_ms: u64,
     /// Swap growth across a run's window past which an unsolved row is owed.
     pub swap_growth_mb: f64,
     /// The canary (`crucible-spec.md` R2.3): a fixed ~2 s solve run beside
@@ -150,6 +178,8 @@ impl Default for Referee {
     fn default() -> Self {
         Self {
             cpu_ratio_min: 0.95,
+            rho_floor_ms: 2_000,
+            rho_overhead_ms: 400,
             swap_growth_mb: 512.0,
             canary_ipc: "ipc-2006".into(),
             canary_variant: "trucks-propositional".into(),
@@ -236,6 +266,7 @@ impl Default for Scheduler {
             pack_max_frac: 0.5,
             pack_narrow_max_frac: 0.85,
             mem_reserve_gb: 3.0,
+            mem_reserve_idle_gb: 1.5,
             rss_headroom: 1.5,
         }
     }

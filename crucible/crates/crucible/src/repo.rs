@@ -49,6 +49,8 @@ pub enum RepoError {
          cut candidate first"
     )]
     WrongVersion { found: String, want: String },
+    #[error("cargo build --release -p ferroplan-cli failed in {dir}: {detail}")]
+    BuildFailed { dir: PathBuf, detail: String },
     #[error("io: {0}")]
     Io(#[from] std::io::Error),
 }
@@ -181,6 +183,35 @@ fn modes_from_help(help: &str) -> Vec<String> {
 /// Where the candidate binary lives in a ferroplan checkout.
 pub fn candidate_path(repo: &Path) -> PathBuf {
     repo.join("target/release/ff")
+}
+
+/// BUILD THE PLANNER IN `dir` (0.28), returning its path.
+///
+/// The tag lane has always been able to do this -- `backfill` builds a tag's
+/// worktree before measuring it -- while the candidate lane could not, so a
+/// missing `target/release/ff` was a permanent stop that only a human could
+/// clear. That asymmetry is what made a disk cleanup on 2026-09-07 cost
+/// eleven hours: the binary was gone, the sweep died, and nothing in the
+/// system was able to produce another one.
+///
+/// This never decides WHETHER to build; callers do. It exists so both lanes
+/// build the same way.
+pub fn build_planner(dir: &Path) -> Result<PathBuf, RepoError> {
+    let status = std::process::Command::new("cargo")
+        .args(["build", "--release", "-p", "ferroplan-cli"])
+        .current_dir(dir)
+        .status()?;
+    if !status.success() {
+        return Err(RepoError::BuildFailed {
+            dir: dir.to_path_buf(),
+            detail: status.to_string(),
+        });
+    }
+    let bin = candidate_path(dir);
+    if !bin.exists() {
+        return Err(RepoError::NoBinary(bin));
+    }
+    Ok(bin)
 }
 
 /// The instrument is ALWAYS the working tree's; only the ENGINE comes from the

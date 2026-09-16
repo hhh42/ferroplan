@@ -853,6 +853,9 @@ fn draw_log(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
 
 fn draw_keys(f: &mut Frame, area: Rect, s: &Snapshot, th: &Theme) {
     let keys = match s.view {
+        View::Grid if s.detached => {
+            " j/k move   \u{21b5} board   t timeline   esc dismiss   q close (the sweep keeps running)"
+        }
         View::Grid => " j/k move   \u{21b5} board   t timeline   esc dismiss   q quit (stops the sweep; nothing banked is lost)",
         View::Board => " j/k move   \u{21b5} instance   o sort   b/esc back   q quit",
         View::Instance => " j/k next instance   b/esc back   q quit",

@@ -76,6 +76,43 @@ impl Reader {
     }
 
     /// The engines that have contributed rows to this board, oldest first.
+    /// Resolve an engine the way an OPERATOR names one (0.28): a tag
+    /// (`v0.26.0`), a BLAKE3 prefix, or a version string.
+    ///
+    /// Returns every match, because ambiguity here must be reported rather
+    /// than guessed at. `ver` is explicitly not an identity -- every dev
+    /// build of a cycle reports the same string -- so a version that matches
+    /// several engines is a question for the caller, not a coin toss.
+    pub fn engines_matching(&self, needle: &str) -> Result<Vec<(i64, String)>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT id, ifnull(tag, ifnull(ver,'?')) || ' [' || ifnull(substr(blake3,1,12),'rebuilt') || ']'
+               FROM engine
+              WHERE tag = ?1 OR blake3 LIKE ?1 || '%' OR ver = ?1
+              ORDER BY id",
+        )?;
+        let rows = st.query_map([needle], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// The engine with this BLAKE3, if the database has ever seen it (0.28).
+    ///
+    /// A reader that wants "the run in progress" must ask by hash and not by
+    /// recency. Boards carry rows from every engine ever measured on them, so
+    /// picking the newest engine PER BOARD silently mixes cycles: a board the
+    /// current candidate has not reached yet answers with its predecessor's
+    /// rows, which are complete, and the set reads as finished when it has
+    /// barely started.
+    pub fn engine_by_hash(&self, blake3: &str) -> Result<Option<i64>, DbError> {
+        let mut st = self
+            .conn
+            .prepare("SELECT id FROM engine WHERE blake3 = ?1")?;
+        let mut rows = st.query([blake3])?;
+        Ok(match rows.next()? {
+            Some(r) => Some(r.get(0)?),
+            None => None,
+        })
+    }
+
     pub fn engines_for_board(&self, board_id: i64) -> Result<Vec<i64>, DbError> {
         let mut st = self
             .conn
@@ -201,6 +238,40 @@ impl Reader {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?))
         })?;
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
+    /// THE VERDICT ON EACH INSTANCE'S LATEST ATTEMPT (0.28), keyed by
+    /// (variant, label).
+    ///
+    /// Board-scoped, like every other latest-attempt rule here, and for a
+    /// reason worth writing down: 1,360 instances of the cut27 set belong to
+    /// more than one board -- the mco boards measure the same instances at 2,
+    /// 4 and 8 threads. A `MAX(attempt)` that forgets `board_id` lets a
+    /// six-attempt row on mco-t8 make the mco-t2 row of the same instance
+    /// look stale, and every hand-rolled query that dropped the clause
+    /// reported a sweep losing banked work it had not lost.
+    pub fn verdicts_for(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+    ) -> Result<std::collections::HashMap<(String, String), String>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT v.name, i.label, r.verdict
+               FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2
+                AND r.state = 'done' AND r.verdict IS NOT NULL
+                AND r.attempt = (SELECT MAX(r2.attempt) FROM run r2
+                                  WHERE r2.board_id = r.board_id
+                                    AND r2.instance_id = r.instance_id
+                                    AND r2.engine_id = r.engine_id
+                                    AND r2.state = 'done')",
+        )?;
+        let rows = st.query_map(params![board_id, engine_id], |r| {
+            Ok(((r.get::<_, String>(0)?, r.get::<_, String>(1)?), r.get(2)?))
+        })?;
+        Ok(rows.collect::<Result<std::collections::HashMap<_, _>, _>>()?)
     }
 
     /// The instances whose latest done attempt BANKED under the referee --
