@@ -342,11 +342,12 @@ impl<'a> SweepRunner<'a> {
         let queue = Mutex::new(std::collections::VecDeque::from(items));
         let in_use = Mutex::new(0u64);
         let stop = AtomicBool::new(false);
+        let crowd = Crowd::new(width);
         std::thread::scope(|sc| {
             let (tx, rx) = mpsc::channel::<Done>();
             for w in 0..width {
                 let tx = tx.clone();
-                let (ctx, queue, stop, in_use) = (&ctx, &queue, &stop, &in_use);
+                let (ctx, queue, stop, in_use, crowd) = (&ctx, &queue, &stop, &in_use, &crowd);
                 sc.spawn(move || {
                     let plat = platform::host();
                     let reader = ctx.db.as_ref().and_then(|d| Reader::open(&d.path).ok());
@@ -403,7 +404,7 @@ impl<'a> SweepRunner<'a> {
                         while ctx.shared.held() {
                             std::thread::sleep(Duration::from_millis(100));
                         }
-                        let d = run_one(ctx, w, i, (width - 1) as u32, &plat, reader.as_ref());
+                        let d = run_one(ctx, w, i, crowd, &plat, reader.as_ref());
                         *in_use.lock().unwrap() -= bytes;
                         // A vanished engine ends the pass exactly as a
                         // cancellation does -- every worker stops, and the
@@ -486,13 +487,48 @@ impl<'a> SweepRunner<'a> {
     }
 }
 
+/// Who is running beside whom, measured rather than assumed. Until 0.28 a
+/// row's `neighbours` was the batch's NOMINAL width minus one, fixed before
+/// the workers started -- while the width policy collapsed the real one
+/// constantly, so a run the policy had left alone still read as packed.
+/// Each slot holds the most planners that ran beside it at any moment of
+/// its run: every entry raises the peak of everyone already inside.
+struct Crowd(Mutex<Vec<Option<u32>>>);
+
+impl Crowd {
+    fn new(slots: usize) -> Self {
+        Crowd(Mutex::new(vec![None; slots]))
+    }
+
+    fn enter(&self, slot: usize) {
+        let mut g = self.0.lock().unwrap();
+        let others = g
+            .iter()
+            .enumerate()
+            .filter(|(s, v)| *s != slot && v.is_some())
+            .count() as u32;
+        for (s, v) in g.iter_mut().enumerate() {
+            if s == slot {
+                *v = Some(others);
+            } else if let Some(peak) = v {
+                *peak = (*peak).max(others);
+            }
+        }
+    }
+
+    /// The peak neighbour count over this slot's run; the slot is free again.
+    fn leave(&self, slot: usize) -> u32 {
+        self.0.lock().unwrap()[slot].take().unwrap_or(0)
+    }
+}
+
 /// Measure one instance and judge it. Runs on a worker thread with its own
 /// reader; everything it touches is in `ctx`.
 fn run_one(
     ctx: &RunCtx,
     slot: usize,
     i: usize,
-    neighbours: u32,
+    crowd: &Crowd,
     plat: &platform::Host,
     reader: Option<&Reader>,
 ) -> Done {
@@ -559,7 +595,8 @@ fn run_one(
             eprintln!("!! could not register child {pid}: {e}");
         }
     };
-    let m = crucible_core::sweep::measure(
+    crowd.enter(slot);
+    let mut m = crucible_core::sweep::measure(
         &ctx.engine,
         &ctx.cfg,
         &ipc,
@@ -571,10 +608,17 @@ fn run_one(
         &rx,
         ctx.db.as_ref().map(|_| &register as &dyn Fn(Pid, f64)),
     );
+    let neighbours = crowd.leave(slot);
     ctx.shared.detach(attached);
     if let Some(p) = &ctx.progress {
         p.lock().unwrap().running.retain(|r| r.slot != slot);
     }
+    // On the published row too, so a reader of the raw alone can tell a
+    // packed solve from a solo one without the database.
+    m.row.extra.insert(
+        "neighbours".to_string(),
+        serde_json::Value::from(neighbours),
+    );
 
     let mut done = Done {
         i,
@@ -2510,6 +2554,34 @@ fn minutes_past_midnight() -> u32 {
 #[cfg(test)]
 mod r2_tests {
     use super::*;
+
+    /// REAL WIDTH ON THE ROW (0.28 Phase 0 item 3): the neighbour count is
+    /// what ran beside the run, not the batch's nominal width.
+    #[test]
+    fn a_run_left_alone_is_solo_whatever_the_batch_width() {
+        let c = Crowd::new(10);
+        c.enter(0);
+        assert_eq!(c.leave(0), 0, "nominal width 10, nobody beside it");
+    }
+
+    #[test]
+    fn the_crowd_keeps_each_runs_peak_after_the_neighbours_leave() {
+        let c = Crowd::new(4);
+        c.enter(0);
+        c.enter(1); // 0 now has 1 beside it
+        c.enter(2); // 0 and 1 now have 2 beside them
+        assert_eq!(c.leave(1), 2);
+        assert_eq!(c.leave(2), 2, "it entered beside two");
+        c.enter(3); // beside 0 only
+        assert_eq!(c.leave(3), 1);
+        assert_eq!(c.leave(0), 2, "the peak survives the neighbours leaving");
+        c.enter(1);
+        assert_eq!(
+            c.leave(1),
+            0,
+            "a slot re-entered starts from what is there now"
+        );
+    }
 
     /// THE BYTE BUDGET FOLLOWS THE OPERATOR, like width already did (0.28).
     ///
