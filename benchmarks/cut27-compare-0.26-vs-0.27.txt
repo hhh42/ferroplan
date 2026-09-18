@@ -1,0 +1,56 @@
+A  v0.26.0 [8fe896b4fd53]
+B  ff 0.27.0 [86302e06d81b]
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc5-time                       88       0        88       0       +0
+ipc5-metric-time                64       0        64       0       +0
+ipc5-constraints                28       0        28       0       +0
+ipc2026-opt                     23       0        23       0       +0
+ipc67-netben                   270       0       270       0       +0
+ipc5-prop                      378       0       383       0       +5
+ipc2023-agile                   44       0        47       0       +3
+ipc2014-tempo                   78       0        78       0       +0
+ipc2018-sat                     90       0        94       0       +4
+ipc2014-sat                    160       0       173       0      +13
+ipc2014-agile                  158       0       172       0      +14
+ipc2014-opt                     79       0        82       0       +3
+ipc2026-numeric                220       0       225       0       +5
+ipc2023-numeric                262       0       264       0       +2
+ipc-opt-2008-11                291       0       296       0       +5
+ipc67-temporal                 442       0       441       0       -1
+ipc67-results                  527       0       535       0       +8
+ipc7-mco-t2                    240       0       248       0       +8
+ipc7-mco-t4                    240       0       252       0      +12
+ipc7-mco-t8                    246       0       253       0       +7
+ipc2014-mco-t4                 163       0       172       0       +9
+ipc2023-agile-300s              61       0        60       0       -1
+ipc5-simple-pref               118       0       119       0       +1
+ipc5-qual-pref                  56       0        51       0       -5
+ipc2023-sat                     41       0        45       0       +4
+ipc2023-opt                     33       0        33       0       +0
+ipc2018-opt                     90       0        93       0       +3
+ipc2023-numeric-opt             81       0        81       0       +0
+ipc2026-opt-full                79       0        79       0       +0
+ipc2014-mco-t2                 161       0       171       0      +10
+ipc2014-mco-t8                 165       0       173       0       +8
+ipc5-complex-pref               31       0        29       0       -2
+
+net +115 over the 32 board(s) where NEITHER side owes a row
+instances 0.26.0 solved and 0.27.0 did not (with 0.26.0 secs)
+-------------------------------------------------------------
+ipc2014-mco-t8       parking-sequential-multi-core                 1        58.8
+ipc2023-agile-300s   labyrinth-agile                               10      298.6
+ipc2023-agile-300s   recharging-robots-agile                       3       298.2
+ipc5-complex-pref    pathways-preferences-complex                  9        59.5
+ipc5-complex-pref    pathways-preferences-complex                  11       60.0
+ipc5-qual-pref       rovers-preferences-qualitative                5        60.0
+ipc5-qual-pref       storage-preferences-qualitative               12       60.0
+ipc5-qual-pref       storage-preferences-qualitative               13       60.0
+ipc5-qual-pref       storage-preferences-qualitative               15       60.0
+ipc5-qual-pref       trucks-preferences-qualitative                6        58.0
+ipc5-simple-pref     storage-preferences-simple                    19       60.0
+ipc67-results        scanalyzer-3d-sequential-satisficing          18       60.0
+ipc67-results        scanalyzer-3d-sequential-satisficing-strips   29       57.7
+ipc67-temporal       elevator-temporal-satisficing-strips          28       46.5
+ipc7-mco-t2          tidybot-sequential-multi-core                 20       42.6
+

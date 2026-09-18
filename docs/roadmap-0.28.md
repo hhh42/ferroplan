@@ -107,6 +107,27 @@ Two things follow, and the second one matters as much as the first.
    both binaries, 8 instances that both solve on a quieter box) plus five
    rows where 0.27 is the stronger binary. The Lane A arm is moot, since
    that lane is already a recorded negative.
+
+   **The whole-set answer, 2026-09-18.** The v0.26.0 backfill of cut27
+   finished — 32/32 boards, 765 banked in 9 passes, no row owed on either
+   side — so `crucible compare` now answers the question like for like on
+   one box, one referee, one binary identity per side
+   (`benchmarks/cut27-compare-0.26-vs-0.27.txt`):
+
+   **0.26.0 [8fe896b4fd53] 5,007 · 0.27.0 [86302e06d81b] 5,122 · net
+   +115.** 0.27 is ahead on 22 boards, level on 6, behind on 4:
+   ipc5-qual-pref −5, ipc5-complex-pref −2, ipc67-temporal −1,
+   ipc2023-agile-300s −1.
+
+   Per instance, 15 rows went 0.26-solved → 0.27-unsolved (board nets hide
+   the ones 0.27 won back). **Twelve of the 15 were 0.26 solves at ≥ 57 s
+   of a 60 s wall**, i.e. wall-edge rows, and the three that were not are
+   elevator-temporal-strips i28 (46.5 s), tidybot-mco-t2 i20 (42.6 s) and
+   the two 300 s agile rows at 298 s. The differential above re-ran
+   elevator-t-strips i28 three times against both binaries and both solved
+   every time. The published +134 stands; the honest like-for-like figure
+   for the cycle is **+115**, and the difference is the 0.26 baseline
+   re-measured on today's box rather than on cut26's.
 3. **BUILT** (`crucible-r2` fd4ea3f). A row's `neighbours` is now the PEAK
    number of planners that ran beside it over its lifetime, not
    `width − 1` fixed before the workers started. It goes to the
