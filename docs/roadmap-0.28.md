@@ -128,6 +128,14 @@ Two things follow, and the second one matters as much as the first.
    every time. The published +134 stands; the honest like-for-like figure
    for the cycle is **+115**, and the difference is the 0.26 baseline
    re-measured on today's box rather than on cut26's.
+
+   > **SUPERSEDED 2026-09-19 — see "THE INSTRUMENT" below.** "One binary
+   > identity per side" was necessary and not sufficient: the two sides
+   > were not given the same NUMBER of attempts. 0.26.0 re-ran 27.0 % of
+   > its failures, 0.27.0 re-ran 68.7 % of its, neither ever re-ran a
+   > solve, and the banked delta decomposes as first-attempt −18 plus a
+   > rescue difference of +133. Under equal-N the same runs read −41
+   > [−80, +1]. The +115 is not like-for-like; it is max-over-unequal-N.
 3. **BUILT** (`crucible-r2` fd4ea3f). A row's `neighbours` is now the PEAK
    number of planners that ran beside it over its lifetime, not
    `width − 1` fixed before the workers started. It goes to the
@@ -494,6 +502,67 @@ remaining 76 rows across both boards are a real capability gap, and a
 preferences wing would still be pricing itself against that, not against
 the 125 the old reading implied.
 
+### CORRECTION, 2026-09-19: the probe ran six threads, the boards run one
+
+`probe.sh` invoked `ff` with no `--threads` flag, so the probe took the
+auto thread count — `min(cores, 6)`, and `statistics.threads: 6` on a
+re-run confirms it. Every published row on both boards is `threads: 1`
+(all 208 of them, `benchmarks/ipc5-qual-pref.jsonl` and
+`ipc5-complex-pref.jsonl`). The probe bought ~30× wall AND 6× cores at
+once, so its rows are not like-for-like with the 60 s board, and not with
+SGPlan5's single-core 1800 s results either.
+
+The three fastest new solves, re-run SINGLE-THREADED at the same 1800 s
+wall, same binary, same box:
+
+| witness | probe, 6 threads | re-run, 1 thread | 60 s board |
+|---|---:|---:|---|
+| tpp-preferences-complex i1 | 40 s | 82 s | unsolved |
+| tpp-preferences-complex i2 | 56 s | 115 s | unsolved |
+| rovers-preferences-qualitative i5 | 40 s | 457 s | unsolved |
+
+**WITHDRAWN: "three within 60 s", and the slicing lever it motivated.**
+Single-threaded, the three need 82 s, 115 s and 457 s. None is reachable
+inside the board's 60 s wall under ANY slicing policy, because the WORK
+exceeds the wall — there is no rung left to give it to. The ratios share
+no constant (2.05×, 2.05×, 11.4×), so the probe's remaining times cannot
+be rescaled to a single-threaded estimate: the 49-solve table is a
+6-thread table, and the honest single-threaded gap is somewhere between
+76 and 125 rows, unmeasured.
+
+**Also withdrawn: the mechanism.** These two boards never enter the
+sliced ladder at all. `FF_WALL_DEBUG=1` on a qualitative-preferences
+solve prints NOTHING (`mode: pddl3`) — the preference path runs
+`pddl3::metric_optimize`'s restart ladder over `PROFILES` against a flat
+2,000,000-eval `pref_eval_budget()`, which is wall-blind. Whatever the
+60 s wall costs these boards, "the rung ladder rations one wall across
+its rungs" is not a description of it.
+
+**What survives.** 49 of 128 previously-unsolved instances do solve given
+1800 s and six cores — true, as SIX-THREAD numbers, and worth what that
+is worth. The mem-cap defect below is untouched: it was diagnosed from
+address space and swap, not from timing. What is gone is the
+like-for-like reading, and the cheap lever it implied.
+
+### The 49, reclassified — 8 of them were never a wall result
+
+Zero box time: join the probe's 128 rows against the committed 60 s raws
+on `(variant, instance)` and read what the 60 s row actually SAID.
+
+| the 60 s row said | count | what the 1800 s solve means |
+|---|---:|---|
+| plain timeout | 38 | genuine extra compute (wall AND cores) |
+| `engine-exit-1` | **8** | the 60 s row was a CRASH, not a timeout |
+| `mem-cap` | 3 | the memory class, re-run 1- and 2-wide |
+
+The 8 `engine-exit-1` rows are tpp — **the Lane B parse fix, already
+banked in this cycle**. Their 60 s rows record `rc=1` because the engine
+died on the parse; the probe re-ran them with the fixed engine and scored
+the conversion a second time, as a wall result. The probe's own write-up
+says "the tpp contributions only exist because of the Lane B parse fix"
+and then counts them anyway. Deduct them: the wall-and-cores conversion
+is 41 rows, not 49, and on ipc5-complex-pref it is 16, not 24.
+
 **Owed before any SGPlan claim, and cheap: one parity probe.** Run the
 qualitative and complex boards at 1800 s, once, as a MEASUREMENT and not a
 tier — it answers whether the fight is 54 rows or 5. The standing anti-pot
@@ -501,6 +570,162 @@ against new tiers is about *published* tiers; this buys no board and
 changes no table. Until that number exists, an SGPlan wing is unpriced,
 and this project has three cycles of evidence that bands taken from other
 planners' published results deliver +1.
+
+## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
+
+Found while trying to reproduce ONE row. It outranks every lane below it,
+because every lane below it is scored on this instrument.
+
+**The reproduction failure.** `ipc5-metric-time`'s
+`pipesworld-metric-time` i7/i8/i9 are published SOLVED (29.46 s len 9,
+29.03 s len 11, 42.69 s len 36, `val: true` — VAL checked the plans). On
+today's box, at the board's own 60 s wall, through the board's own
+harness (`ipc67.py --track metric-time-2006`), they do not solve under
+FIVE arms: engine-0.28 1-wide, engine-0.28 2-wide, v0.27.1 1-wide,
+v0.26.0 1-wide, and by hand. v0.26.0 is the binary that solved all three
+on 2026-09-11. Not the engine, not the width, not the corpus (pinned
+2017 checkout, untouched since July), not `FF_MEM_BUDGET_GB`.
+
+**The cause, from `~/.crucible/db/crucible.db`.** The crucible re-ran
+them until they solved, and the board kept the attempt that did:
+
+```
+i7 @ 0.27.0   attempt 1 unsolved, 2 unsolved, 3 SOLVED   -> banked
+i8 @ 0.27.0   attempt 1 unsolved, 2 unsolved, 3 SOLVED   -> banked
+i9 @ 0.27.0   attempts 1-4 unsolved, attempt 5 SOLVED    -> banked (dirty)
+```
+
+My single-shot runs reproduce attempts 1–4 faithfully. Nothing is wrong
+with them.
+
+**The scale.** Across the record — keyed by BUILD, not by version string,
+because three distinct 0.26.0 builds sit in this db and keying on `ver`
+splices their attempts into one sequence — **543 cells are solved only
+because a retry rescued them**, and 324 of those winning attempts are
+`timing_quality: dirty`. Where one build both solved and failed the same
+instance (590 cells), the record banks the solve **590 times out of 590**.
+N per cell runs 1–18.
+
+**Why the retries are one-directional.** A re-run is triggered by failure
+and never by success, so extra attempts can only ADD solves:
+
+```
+                   attempt 1 SOLVED        attempt 1 FAILED       rescued
+v0.26.0       4845 cells, re-run  0.0%   3599 cells, re-run 27.0%    162
+ff 0.27.0     4827 cells, re-run  0.0%   3617 cells, re-run 68.7%    295
+```
+
+The retry rule is sound and exists for a measured reason (cut27's false
+timeouts under swap thrash; the SUSPECT rule). Two things about it are
+not: a SOLVE under the same thrash is never re-tested (0.0 %, both
+engines), and the two engines' failures were re-rolled at rates that
+differ by 2.5×.
+
+**What it does to this cycle's headline.** `benchmarks/attempts-estimator.py`,
+over the 8,444 instances both builds ran (receipt:
+`benchmarks/metrics/attempts-estimator-cut27.txt`):
+
+| estimator | v0.26.0 | ff 0.27.0 | delta | 95 % CI |
+|---|---:|---:|---:|---|
+| banked — what the boards publish | 5007 | 5122 | **+115** | [+93, +139] |
+| solved on ANY attempt | 5007 | 5122 | +115 | [+93, +139] |
+| FIRST attempt only | 4845 | 4827 | −18 | [−54, +22] |
+| **equal-N** (max over first min(N_A,N_B)) | 4931 | 4890 | **−41** | [−80, +1] |
+| per-run (expected coverage of ONE run) | 4918.6 | 4949.5 | +31 | [+4, +59] |
+
+And the delta decomposes exactly:
+
+```
+first-attempt -18  +  rescue difference (295 - 162) +133  =  +115
+```
+
+**The whole of +115 is the difference in how many failures each engine was
+allowed to retry.** On the one instrument both engines were given equally
+— their first attempt — 0.27.0 is 18 rows BEHIND, inside the noise.
+
+**This is not a claim that 0.27 regressed**, and the per-board table says
+why. Under equal-N the 2011/2014 families hold their gains
+(`ipc2014-sat` +17, `ipc2014-mco-t4` +15, `ipc7-mco-t2` +9,
+`ipc67-results` +9) while others reverse hard (`ipc5-prop` +5 → −43,
+`ipc67-temporal` −1 → −25, `ipc2018-sat` +4 → −22). Some of the engine
+work is real. The AGGREGATE is what the instrument cannot support.
+
+**A trap for whoever reads this next.** `timing_quality` is not a
+severity: clean runs solve LESS often than dirty ones (v0.26.0 28.2 % vs
+64.1 %), because clean re-runs were targeted at the hard owed rows.
+`clean-only` is therefore a biased subset, not a cleaner measurement, and
+the `+76` it reports is worth nothing.
+
+**Owed, and it blocks the lanes.** (1) Adopt one estimator, declared in
+advance — equal-N or per-run, not banked — and re-read cut27 under it;
+the db has every attempt, so this is re-analysis, not box time. (2) Re-test
+a sample of BANKED SOLVES, which nothing in the loop currently does, to
+price the ratchet's other half. (3) Publish attempts and timing_quality
+beside coverage, so a row says how many tries it took. (4) Only then
+re-read anything resting on the delta, this cycle's SGPlan arithmetic
+included.
+
+**Deliberately NOT changed here.** `README.md` ("61 % coverage
+(5,122/8,444) … +134 over 0.26.0") and `CHANGELOG.md` state the banked
+coverage of a SHIPPED release. The coverage figure is what the boards
+record and stays true as that; the COMPARATIVE claims (+134, +115) are the
+ones this section withdraws, and rewriting a published release's notes is
+the operator's call, not a correction to make quietly inside a cycle doc.
+`benchmarks/cut27-compare-0.26-vs-0.27.txt` is left exactly as the tool
+wrote it, for the same reason a receipt is not edited.
+
+## Lane W (candidate, NOT scoped) — declaring a wall can make the engine worse
+
+Found while chasing the withdrawn slicing lever, and kept because it
+reproduces in under a second on the CLASSICAL path, where the rung ladder
+actually runs. `blocks(30)` — the `tests/call_budget.rs` fixture, 30
+blocks in a single tower, `--threads 1`, release:
+
+| declared wall | solved | spent |
+|---|---|---:|
+| *none* | yes | 0.19 s |
+| 0.12 s | **no** | 0.13 s |
+| 0.20 s | **no** | 0.25 s |
+| 0.50 s | **no** | 0.59 s |
+| 1.00 s | yes | 0.18 s |
+
+A 0.5 s wall is 2.6× the unbudgeted solve time and still fails: telling
+the engine it has half a second is strictly worse than telling it
+nothing. `FF_WALL_DEBUG` names the mechanism outright —
+
+```
+wall: EHC slice exhausted (3678 evals in 0.12s), handing down the ladder
+wall: novelty-light slice exhausted (4096 pops in 0.05s)
+wall: LAMA slice extended to 0.13s ... extended to 0.37s (recency)
+wall: novelty skipped (remaining Some(0.0) unaffordable at rung entry)
+wall: best-first checkpoint expired at 1 evals (capped return)
+```
+
+— against `wall: solved by EHC` at 1.0 s and unbudgeted. EHC needs ~0.19 s
+and `FF_EHC_WALL_FRAC` (0.25) hands it 0.12 s.
+
+**The existing hatch is the zero-code arm.** `FF_NO_EHC_WALLCAP=1` converts
+every failing wall above AND finishes INSIDE it (0.11 / 0.16 / 0.18 s) —
+it is not trading the wall away. `FF_NO_RUNG_WALLCAP=1` also "solves" but
+overruns 3× (0.88–1.39 s), so it is not a candidate policy, only the
+permanent RED record it already is.
+
+**Why this is not a free +N, and why the lane is unscoped.** The
+discrimination is the whole problem, and this repo has already lost one
+round of it. `ladder_wall.rs`'s `capped` leg exists because on the
+`laddertax` shape EHC-direct eats ~2× the wall and the SLICE is what
+converts the row; blocks(30) is the opposite shape at the same rung.
+LAMA got a progress-conditional extension for exactly this reason (0.22
+Phase 5A a1: hiking-2014 i6's 43 s of steady progress vs tetris i4's 400k
+evals of none), and the 0.24 attempt to sharpen recency into ARRIVAL died
+because nurikabe and spider's constants CROSS. EHC never got either
+treatment. Its own progress signal ("no improving state") is
+arrival-shaped by construction, which is a reason to think it separates
+where LAMA's did not — and no reason at all to claim it does.
+
+Owed before any claim: the two fixtures side by side (blocks(30) green,
+`laddertax` still green), then a board A/B. Constituency on the boards is
+UNMEASURED; nothing here licenses a number.
 
 ## Anti-pots — priced at zero, standing
 
