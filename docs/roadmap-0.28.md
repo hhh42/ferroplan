@@ -447,6 +447,53 @@ measured:
   at 60 seconds. The published gap therefore overstates the deficit by an
   unknown amount.
 
+### The parity probe, RUN 2026-09-18/19. The gap is 76 rows, not 125.
+
+Both boards at IPC-5's own 1800 s limit, once, as a MEASUREMENT: no board
+bought, no table changed. Only instances UNSOLVED at the 60 s wall were
+re-run (a 60 s solve is a 1800 s solve), 128 of them, packed for coverage
+with timing dirty by construction. Raws:
+`benchmarks/probes-0.28/sgplan-parity-1800s.txt` and the two jsonl beside
+it. Engine: `engine-0.28` at e42c30c, so the complex board includes the
+Lane B tpp fix.
+
+| board | 60 s | 1800 s | total | SGPlan5 | gap at 60 s | gap at 1800 s |
+|---|---:|---:|---:|---:|---:|---:|
+| ipc5-qual-pref | 51 | **76** | 100 | 100 | 49 | **24** |
+| ipc5-complex-pref | 29 | **53** | 108 | 105 | 76 | **52** |
+
+**Half the qualitative gap and a third of the complex one were the wall.**
+49 new solves for 128 instance-runs. By domain: rovers +9, storage +7,
+tpp +5, openstacks +2, trucks +2 (qualitative); pathways +14, tpp +8,
+pipesworld +1, storage +1 (complex).
+
+**The finding that matters is not the count, it is the SHAPE.** 14 of the
+49 landed within 300 s and three within 60 s — rovers-qual i5 in 40 s, on
+an instance the 60 s board misses. Those are not instances that needed 30
+minutes of search. The rung ladder rations one wall across its rungs
+(Lane D recorded the same behaviour from the other side: a 34 ms instance
+fails under a 120 ms budget and solves under 200 ms), so at 60 s the
+ladder never reaches the rung that solves them. **A cheaper lever than any
+preferences wing is the ladder's slicing policy**, and it is now measured
+rather than asserted.
+
+**A defect this probe found, worth its own lane.** The 21 instances that
+banked `mem-cap` at 60 s were re-run one and two at a time. Under a
+declared `FF_MEM_BUDGET_GB=6` each grew to **~528 GB of virtual address
+space with 20 MB resident** while system swap reached **44 GB** — 28
+minutes at 0.1 % CPU, thrashing rather than searching, until the external
+alarm. One of them (storage-complex i2) still solved, at 1803 s, so the
+class is not hopeless; but the internal node cap plainly does not hold
+this class to its declared budget at a long wall. At 60 s the runner's RSS
+watchdog hides it. 0.22's sailing-wind receipt describes the same
+pathology and the cap was supposed to have fixed it.
+
+**What the probe does NOT license.** 76/100 and 53/108 are 1800 s numbers
+against SGPlan5's 1800 s numbers; the published table stays at 60 s. The
+remaining 76 rows across both boards are a real capability gap, and a
+preferences wing would still be pricing itself against that, not against
+the 125 the old reading implied.
+
 **Owed before any SGPlan claim, and cheap: one parity probe.** Run the
 qualitative and complex boards at 1800 s, once, as a MEASUREMENT and not a
 tier — it answers whether the fight is 54 rows or 5. The standing anti-pot

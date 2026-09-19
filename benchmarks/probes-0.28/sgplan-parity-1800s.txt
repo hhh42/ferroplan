@@ -1,0 +1,23 @@
+The SGPlan parity probe -- IPC-5's own 1800 s limit, 2026-09-18/19
+engine ff 0.27.1 [engine-0.28 @ e42c30c], solo-equivalent, packed for coverage
+only instances UNSOLVED at the 60 s board wall were re-run; a 60 s solve is a 1800 s solve
+
+board                 60 s  1800 s  total  SGPlan5  gap 60s  gap 1800s
+ipc5-qual-pref          51      76    100      100       49         24
+ipc5-complex-pref       29      53    108      105       76         52
+
+ipc5-qual-pref: 25 new solves, by domain
+   + 9  rovers-preferences-qualitative
+   + 7  storage-preferences-qualitative
+   + 5  tpp-preferences-qualitative
+   + 2  openstacks-preferences-qualitative
+   + 2  trucks-preferences-qualitative
+   solve times: median 1263 s; 5 within 300 s, 12 past 1500 s
+
+ipc5-complex-pref: 24 new solves, by domain
+   +14  pathways-preferences-complex
+   + 8  tpp-preferences-complex
+   + 1  pipesworld-preferences-complex
+   + 1  storage-preferences-complex
+   solve times: median 1208 s; 9 within 300 s, 8 past 1500 s
+
