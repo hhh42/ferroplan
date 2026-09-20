@@ -117,7 +117,7 @@ fn expr_has_duration(e: &Expr) -> bool {
 
 /// Substitute the `?duration` pseudo-fluent with the action's duration
 /// expression (PDDL2.1 duration-dependent effects/conditions).
-fn expr_subst_duration(e: &Expr, dur: &Expr) -> Expr {
+pub(crate) fn expr_subst_duration(e: &Expr, dur: &Expr) -> Expr {
     match e {
         Expr::Num(n) => Expr::Num(*n),
         Expr::Fluent(f, _) if f == crate::types::DURATION_PSEUDO => dur.clone(),
@@ -142,7 +142,7 @@ fn expr_subst_duration(e: &Expr, dur: &Expr) -> Expr {
     }
 }
 
-fn formula_map_exprs(f: &Formula, m: &impl Fn(&Expr) -> Expr) -> Formula {
+pub(crate) fn formula_map_exprs(f: &Formula, m: &impl Fn(&Expr) -> Expr) -> Formula {
     match f {
         Formula::Comp(op, l, r) => Formula::Comp(*op, m(l), m(r)),
         Formula::And(v) => Formula::And(v.iter().map(|x| formula_map_exprs(x, m)).collect()),
@@ -159,7 +159,7 @@ fn formula_map_exprs(f: &Formula, m: &impl Fn(&Expr) -> Expr) -> Formula {
     }
 }
 
-fn effect_map_exprs(e: &Effect, m: &impl Fn(&Expr) -> Expr) -> Effect {
+pub(crate) fn effect_map_exprs(e: &Effect, m: &impl Fn(&Expr) -> Expr) -> Effect {
     match e {
         Effect::Num(op, f, a, v) => Effect::Num(*op, f.clone(), a.clone(), m(v)),
         Effect::And(v) => Effect::And(v.iter().map(|x| effect_map_exprs(x, m)).collect()),
@@ -557,7 +557,12 @@ fn duration_bind<'a>(snap: &'a SnapInfo, args: &[&'a str]) -> HashMap<&'a str, &
         .collect()
 }
 
-fn eval_expr(e: &Expr, bind: &HashMap<&str, &str>, task: &PackedTask, init: &State) -> Option<f64> {
+pub(crate) fn eval_expr(
+    e: &Expr,
+    bind: &HashMap<&str, &str>,
+    task: &PackedTask,
+    init: &State,
+) -> Option<f64> {
     match e {
         Expr::Num(n) => Some(*n),
         Expr::Fluent(name, terms) => {
@@ -781,6 +786,74 @@ fn pref_variant(
 /// exhaustion rung — exactly what `solve` was before the preference
 /// tiers, and what every preference-free task still runs unchanged.
 fn solve_prefless(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    // THE COMPRESSION RUNG (0.28 Lane T, `crate::tcompress`): tasks that do
+    // not need concurrency are planned classically and put back on the
+    // clock. It BANKS; the decision-epoch ladder below then runs as a
+    // bounded quality chase, and the smaller makespan is returned -- so a
+    // row the ladder already solved keeps its plan unless the rung's is
+    // better, and a row it never solved has one. `FF_NO_TCOMPRESS=1` is the
+    // byte-identity restore: with it set this function IS
+    // `solve_decision_epoch`.
+    let dbg = std::env::var("FF_WALL_DEBUG").is_ok();
+    if let Some(why) = crate::tcompress::declines(domain, problem) {
+        if dbg {
+            eprintln!("wall: compression rung declined ({why})");
+        }
+        return solve_decision_epoch(domain, problem, threads);
+    }
+    match crate::tcompress::solve(domain, problem, threads, crate::tcompress::Bet::First) {
+        Some(banked) => {
+            // The chase is optional work on a banked row: a quarter of what
+            // is left (`FF_TCOMPRESS_CHASE_FRAC`), not the wall. Unarmed,
+            // the ladder runs to its own deterministic caps, as it always
+            // has.
+            let chased = {
+                let chase = crate::search::wall_frac_env("FF_TCOMPRESS_CHASE_FRAC", 0.25);
+                let _chase_wall = crate::search::wall_remaining_secs()
+                    .map(|rem| rem * (1.0 - chase.min(1.0)))
+                    .and_then(crate::search::tighten_deadline);
+                solve_decision_epoch(domain, problem, threads)
+            };
+            match chased {
+                Some(plan) if plan.makespan < banked.makespan => {
+                    if dbg {
+                        eprintln!(
+                            "wall: the ladder's makespan {:.3} beats the compression rung's {:.3}",
+                            plan.makespan, banked.makespan
+                        );
+                    }
+                    Some(plan)
+                }
+                _ => Some(banked),
+            }
+        }
+        None => {
+            let plan = solve_decision_epoch(domain, problem, threads);
+            // A ladder that found nothing leaves the rung a second, unbounded
+            // attempt: the first was a bet (a quarter of the wall, or a few
+            // thousand evaluations), and nothing else is going to use what
+            // is left -- the "exhausted its budgets with 46 s of wall left"
+            // rows, and every unwalled failure.
+            if plan.is_none() && crate::search::wall_remaining_secs().map_or(true, |s| s > 1.0) {
+                if dbg {
+                    eprintln!("wall: compression rung, second attempt on what the ladder left");
+                }
+                return crate::tcompress::solve(
+                    domain,
+                    problem,
+                    threads,
+                    crate::tcompress::Bet::Rest,
+                );
+            }
+            plan
+        }
+    }
+}
+
+/// The temporal router below the compression rung: promoted SAT, the
+/// decision-epoch ladder, the exhaustion rung -- exactly what
+/// `solve_prefless` was before 0.28.
+fn solve_decision_epoch(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
     // The SAT rung's arming policy (0.24 Phase 3), per the house law (no
     // sweep arms = no evidence): `FF_NO_SAT` is the byte-identity restore
     // — with it set this function IS `solve_ladder`, byte for byte. The
@@ -1127,6 +1200,7 @@ fn reconcile_durations(task: &PackedTask, c: &TemporalCompiled, plan: TimedPlan)
             time: f64,
             op: usize,
             is_start: bool,
+            zero_end: bool,
             /// step index + snap + args, for state-dependent starts only
             fix: Option<(usize, &'a SnapInfo, Vec<&'a str>)>,
         }
@@ -1169,12 +1243,14 @@ fn reconcile_durations(task: &PackedTask, c: &TemporalCompiled, plan: TimedPlan)
                         time: step.time,
                         op: sop,
                         is_start: true,
+                        zero_end: false,
                         fix: state_dep.then_some((si, *snap, args)),
                     });
                     hs.push(H {
                         time: step.time + dur,
                         op: eop,
                         is_start: false,
+                        zero_end: dur.abs() < EPS / 2.0,
                         fix: None,
                     });
                 }
@@ -1186,6 +1262,7 @@ fn reconcile_durations(task: &PackedTask, c: &TemporalCompiled, plan: TimedPlan)
                         time: step.time,
                         op,
                         is_start: true,
+                        zero_end: false,
                         fix: None,
                     });
                 }
@@ -1204,11 +1281,17 @@ fn reconcile_durations(task: &PackedTask, c: &TemporalCompiled, plan: TimedPlan)
                     time: *t,
                     op,
                     is_start: false,
+                    zero_end: false,
                     fix: None,
                 });
             }
         }
-        hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+        hs.sort_by_key(|h| {
+            (
+                (h.time / EPS).round() as i64,
+                epoch_rank(h.is_start, h.zero_end),
+            )
+        });
 
         let mut state = task.initial();
         let mut fixes: Vec<(usize, f64)> = Vec::new();
@@ -3971,6 +4054,7 @@ fn monitor_audit(
         time: f64,
         op: usize,
         is_start: bool,
+        zero_end: bool,
     }
     let mut hs: Vec<H> = Vec::new();
     for step in &plan.steps {
@@ -3990,11 +4074,13 @@ fn monitor_audit(
                     time: step.time,
                     op: so,
                     is_start: true,
+                    zero_end: false,
                 });
                 hs.push(H {
                     time: step.time + dur,
                     op: eo,
                     is_start: false,
+                    zero_end: dur.abs() < EPS / 2.0,
                 });
             }
             None => {
@@ -4005,6 +4091,7 @@ fn monitor_audit(
                     time: step.time,
                     op,
                     is_start: true,
+                    zero_end: false,
                 });
             }
         }
@@ -4016,10 +4103,16 @@ fn monitor_audit(
                 time: t,
                 op,
                 is_start: false,
+                zero_end: false,
             });
         }
     }
-    hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+    hs.sort_by_key(|h| {
+        (
+            (h.time / EPS).round() as i64,
+            epoch_rank(h.is_start, h.zero_end),
+        )
+    });
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     let mut s = task.initial();
     for h in &hs {
@@ -4146,6 +4239,7 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
         time: f64,
         op: usize,
         is_start: bool,
+        zero_end: bool,
         /// Deferred duration cross-check for STATE-DEPENDENT durations
         /// (bounds reading fluents some op assigns): evaluated against the
         /// simulation state when this start fires, exactly as the search
@@ -4212,12 +4306,14 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
                     time: step.time,
                     op: find(&with("-START"))?,
                     is_start: true,
+                    zero_end: false,
                     dur_check,
                 });
                 happenings.push(Happening {
                     time: step.time + dur,
                     op: find(&with("-END"))?,
                     is_start: false,
+                    zero_end: dur.abs() < EPS / 2.0,
                     dur_check: None,
                 });
             }
@@ -4225,6 +4321,7 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
                 time: step.time,
                 op: find(&step.action)?,
                 is_start: true,
+                zero_end: false,
                 dur_check: None,
             }),
         }
@@ -4242,6 +4339,7 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
                 // fire with ends (before starts) at the same epoch, so a gate the TIL
                 // opens is available to an action starting at that instant.
                 is_start: false,
+                zero_end: false,
                 dur_check: None,
             });
         }
@@ -4252,7 +4350,12 @@ pub fn validate(domain: &Domain, problem: &Problem, plan: &TimedPlan) -> Result<
     // decision-epoch semantics. Key on the ε-grid-rounded time, not the raw float,
     // so a producer-END and consumer-START at the same epoch order deterministically
     // even when composition offsets introduce sub-ε float noise.
-    happenings.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+    happenings.sort_by_key(|h| {
+        (
+            (h.time / EPS).round() as i64,
+            epoch_rank(h.is_start, h.zero_end),
+        )
+    });
     let mut state = init.clone();
     // Constraint folds observe S_0 (time 0), then every post-happening
     // state AT ITS HAPPENING TIME — the timed operators (0.24 Phase 4)
@@ -4451,6 +4554,7 @@ impl<'a> SoftScorer<'a> {
             time: f64,
             op: usize,
             is_start: bool,
+            zero_end: bool,
             step: Option<usize>,
         }
         let mut hs: Vec<H> = Vec::new();
@@ -4468,12 +4572,14 @@ impl<'a> SoftScorer<'a> {
                         time: step.time,
                         op: find(&with("-START"))?,
                         is_start: true,
+                        zero_end: false,
                         step: Some(si),
                     });
                     hs.push(H {
                         time: step.time + dur,
                         op: find(&with("-END"))?,
                         is_start: false,
+                        zero_end: dur.abs() < EPS / 2.0,
                         step: Some(si),
                     });
                 }
@@ -4481,6 +4587,7 @@ impl<'a> SoftScorer<'a> {
                     time: step.time,
                     op: find(&step.action)?,
                     is_start: true,
+                    zero_end: false,
                     step: None,
                 }),
             }
@@ -4494,11 +4601,17 @@ impl<'a> SoftScorer<'a> {
                     time: *t,
                     op: find(name)?,
                     is_start: false,
+                    zero_end: false,
                     step: None,
                 });
             }
         }
-        hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+        hs.sort_by_key(|h| {
+            (
+                (h.time / EPS).round() as i64,
+                epoch_rank(h.is_start, h.zero_end),
+            )
+        });
 
         let mut state = task.initial();
         // One fold per soft-instance MEMBER, tagged with its instance index —
@@ -4699,6 +4812,7 @@ pub(crate) fn treplay_with_exempt(
         time: f64,
         op: usize,
         is_start: bool,
+        zero_end: bool,
     }
     let mut hs: Vec<H> = Vec::new();
     for step in &plan.steps {
@@ -4715,11 +4829,13 @@ pub(crate) fn treplay_with_exempt(
                     time: step.time,
                     op: find(&with("-START"))?,
                     is_start: true,
+                    zero_end: false,
                 });
                 hs.push(H {
                     time: step.time + dur,
                     op: find(&with("-END"))?,
                     is_start: false,
+                    zero_end: dur.abs() < EPS / 2.0,
                 });
             }
             None => {
@@ -4731,6 +4847,7 @@ pub(crate) fn treplay_with_exempt(
                     // from the agenda BEFORE same-instant starts in the
                     // search; the replay sorts them with the ends to match.
                     is_start: exempt.binary_search(&op).is_err() && !head.ends_with("-END"),
+                    zero_end: false,
                     op,
                 });
             }
@@ -4738,7 +4855,12 @@ pub(crate) fn treplay_with_exempt(
     }
     // Same ε-grid-rounded ordering as `validate` (ends before starts at one epoch),
     // so the decomposer's per-contract replay agrees with the global validator.
-    hs.sort_by_key(|h| ((h.time / EPS).round() as i64, h.is_start));
+    hs.sort_by_key(|h| {
+        (
+            (h.time / EPS).round() as i64,
+            epoch_rank(h.is_start, h.zero_end),
+        )
+    });
     let mut s = state.clone();
     for h in &hs {
         if exempt.binary_search(&h.op).is_err() && !task.op_applicable(h.op, &s) {
@@ -4755,6 +4877,23 @@ pub(crate) fn treplay_with_exempt(
 
 /// PDDL2.1 separation between mutex happenings (the IPC convention).
 pub(crate) const EPS: f64 = 0.001;
+
+/// A happening's rank inside one ε-epoch. Ends fire before starts -- an end
+/// frees the token a same-instant start takes (the decision-epoch order) --
+/// with ONE exception (0.28): the END of a ZERO-DURATION step shares its own
+/// START's epoch, and "ends first" fired it before the start that makes it
+/// applicable. Every replay in this module sorted that way, so every plan
+/// through pathways' dur-0 `choose`/`initialize` was refused by the
+/// validator, though the search that builds such plans and VAL both order
+/// the pair start-then-end. Those ends fire last.
+#[inline]
+pub(crate) fn epoch_rank(is_start: bool, zero_end: bool) -> u8 {
+    if zero_end {
+        2
+    } else {
+        is_start as u8
+    }
+}
 
 /// Re-time a plan so mutex happenings are ε-separated (PDDL2.1 / VAL validity):
 /// the decision-epoch search coincides dependent happenings (e.g. one action

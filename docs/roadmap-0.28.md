@@ -571,6 +571,203 @@ changes no table. Until that number exists, an SGPlan wing is unpriced,
 and this project has three cycles of evidence that bands taken from other
 planners' published results deliver +1.
 
+### The timing read, 2026-09-20. SGPlan5's median solve is 0.54 s.
+
+Everything above argues about the WALL. `benchmarks/IPC5-results.tgz` has
+held the answer the whole time: every SGPlan5 `.soln` carries a `; Time`
+header, its own CPU seconds on 2006 hardware. Joined per instance against
+the 60 s boards (`benchmarks/probes-0.28/sgplan-timing/join.py`), like-for-
+like variants only:
+
+| | |
+|---|---:|
+| SGPlan5 solves across the seven IPC-5 boards | 860 |
+| ... finished inside 1 s / 10 s / 60 s | 480 (55 %) / 668 (77 %) / 769 (89 %) |
+| ... median | **0.54 s** |
+| rows SGPlan5 solves and this engine does not | 335 |
+| ... that took SGPlan5 under 60 s / under 1 s | **283 / 143** |
+
+**The "their 1800 s against our 60 s" reading explains at most 52 rows.**
+`pathways-metric-time`: this engine 0/30 at 60 s, SGPlan5 30/30 with a
+median of 0.22 s and a maximum of 1.1 s. `tpp-metric-time-constraints`:
+0/30 against a median of 0.01 s. A planner that answers in a hundredth of a
+second is not out-searching anything. It is not searching.
+
+**Also corrected: the quality claim above.** "On the instances both solve,
+ferroplan wins on quality" is true of the rovers rows it quotes and of
+storage; across the boards it is a split, and on simple-preferences it is
+the other way round (SGPlan5 better on 70 of 118, ferroplan on 29, by
+SGPlan5's self-reported `MetricValue`; qualitative 26–22 to ferroplan;
+complex 20–8 to SGPlan5). The margins are small where this engine loses
+(tpp 129 vs 105) and large where it wins (storage 25 vs 87), but "coverage,
+not quality" was half right.
+
+**What the unsolved rows were actually doing** (`why.py`, the 60 s raws'
+own notes column): stopping at the wall inside the decision-epoch ladder
+(~117), exhausting the temporal ladder's budgets with wall to spare (33),
+`mem-cap` three to ten seconds in (29), the Lane B parse crash (20), and a
+plain 60 s timeout inside the PDDL3 optimizer (~120). Three probes, each
+threads 1 / 60 s / single attempt / VAL-judged against the ORIGINAL task /
+counted only under 58 s (`satprobe.py`, `tprobe.py`, `tally.txt`):
+
+| lever | what the probe ran | rows converted |
+|---|---|---:|
+| the PDDL3 route has no first plan | `ff --satisfice` on the rows the optimizer timed out on | **60** (qual 51 → 97 of 100; simple 119 → 130 of 130) |
+| the temporal ladder has no sequential rung | durative → one classical action, plan, lay out end to end (`compress.py`) | **121** (complex-pref 29 → 82; metric-time 44 → 89; time 53 → 76) |
+| the preference tier overruns its own wall | (found while probing) a banked, valid plan returned at 21.94 s of a 20 s wall | folded into the two above |
+
+Six boards, **319 → 500 against SGPlan5's 612**, from levers that are
+architecture rather than search. One shape under all three: **a valid plan
+was in hand, or milliseconds away, and the route had no way to return it.**
+SGPlan5 is "feasible first, better second" all the way down. This engine
+was "best or nothing", with the wall deciding which.
+
+**What is left after them is real engine work, and it is numeric.** The
+compressed `rovers-metric-time` runs ~210 evaluations a second against
+>5,000 for its same-size propositional twin (`heuristic.rs::build_rpg`
+widens intervals layer by layer -- a hypothesis, not a profile). And
+`tpp-metric-time` i9 is 20 facts and 264 ops on which the classical ladder
+spends 5,000,000 evaluations without a plan, while `--mode partition`
+evaluates zero states on a numeric goal -- the one place SGPlan's per-goal
+partitioning is doing the work its name claims. Worth noticing on the way
+past: the decision-epoch search's demand tiers guide numeric accumulation
+BETTER than the classical relaxation does (a mini-pathways task the
+compressed search fails on for 32 s solves there in 40 ms). That is ~112
+rows and the next cycle's question; the propositional board (231 vs 248)
+is untouched by any of this.
+
+## Lanes S, I and T — feasible first (BUILT 2026-09-20)
+
+Built in cost order on `engine-0.28`. Fixtures first where a fixture can be
+RED at unit scale; where the defect is a scale phenomenon, the fixture pins
+the mechanism and the RED receipt is a named board row.
+
+### Lane S — a banked plan is reported inside the wall (`ac99b41`)
+
+`temporal::solve`'s preference tiers already banked coverage first. They
+then chased quality against the SAME wall, the ladder under the chase opened
+further rungs (each re-grounding) after the wall had expired, and the caller
+grounded the original pair a second time to score whatever came back --
+12.7 s on `pathways-complex` i20, all of it past the deadline. The runner
+kills at the wall.
+
+- `search::tighten_deadline`: a scoped deadline riding the per-call budget
+  every checkpoint already joins. `reserve_for_report` holds back 3 % of the
+  wall's TOTAL (0.5–3 s) plus `ops / 1e5` s for closing and dropping a big
+  task. (The first cut read the REMAINING wall; after a 30 s grounding that
+  is 0.9 s, and `storage-qualitative` i20 exited at 60.2.)
+- `score_soft` splits into `SoftScorer::prepare` (the grounding) and
+  `::score` (a replay): the scorer is built BEFORE the chase, under the same
+  tightened deadline, so the winning plan is one replay from its report. A
+  banked plan whose scorer cannot be built in time is reported UNSCORED,
+  with a note -- a plan without a metric is a solve; a plan never printed is
+  not.
+- `solve_ladder` refuses the Full tier and the decomposer rung once the wall
+  is spent.
+- `tests/pref_chase_wall.rs`: the `tsearch_wall` ring with its unreachable
+  goal moved into a preference, plus a K³ ballast action so grounding costs
+  real time. **v0.27.1: reported at 6.523 s of a 6 s wall. Now inside it.**
+
+### Lane I — incumbent zero (`5bfa26e`)
+
+The compiled preference task prices every preference into the goal and
+rides a monitor block on every op, so its FIRST plan is far dearer than the
+hard goals' plan. `rovers-qualitative` i9: 70k evaluations at ~3,600/s and a
+whole 20 s wall without reaching the hard goal once; the classical ladder
+reaches it in 133 evaluations and 30 ms. `metric_optimize` returned `None`
+and the route said "unsolved" (the text path said "proven unsolvable").
+
+- `pddl3::hard_goal_seed` plans the ORIGINAL pair and lifts the plan into
+  the compiled task by display name (precondition-preference variants share
+  a name and are mutually exclusive; the trajectory gate's `TRAJ-END` is a
+  real op to both). `close_seed` closes it with the phase tail.
+- `metric_optimize_seeded` uses it as a **floor, not a bound**: the B&B runs
+  exactly as it did -- the `ipc5_*_metric_no_regression` and
+  `reported_equals_verified` locks pass unchanged -- and the seed comes back
+  only when nothing cheaper was found, with a note saying so.
+  `FF_PREF_SEED_BOUND=1` also opens the B&B with it; `FF_PREF_NO_SEED=1` is
+  the 0.27 restore.
+- **The seed ladder gets the whole wall.** Handed 80 % of it, EHC's
+  proportional slice is 12 s and `rovers-qualitative` i20 -- which EHC solves
+  at 14.6 s -- is handed down the ladder and lost. This is Lane W's
+  pathology met from the other side, and the second receipt for it.
+- A plan in hand still has to cross the wire, and the optimizer had four
+  ways to miss: the best-first loop read the clock once per 256-eval batch
+  (two seconds at the 8 ms an evaluation costs on a compiled task; and on
+  wide states EXPANSION is the slow half -- one batch, 2.3 s); the selection
+  DFS's node cap is wall-blind and every node scans all the preferences
+  (~15 s on `storage-qualitative` i17's 23k instances, for a result the
+  caller discards as "capped"); and the B&B loops, the selection probes and
+  the legacy fallback kept opening one-evaluation sweeps after the wall.
+  All four now read an armed deadline. A tripped batch is a capped return
+  that never looks at its values, so a run that ends inside the wall is
+  evaluation-for-evaluation what it was.
+- `tests/pref_seed.rs` pins the lift through both places the op sets differ,
+  and the floor's exact price. The RED receipts are board rows:
+
+  | row | wall | 0.27.1 | now (process exit) |
+  |---|---:|---|---|
+  | rovers-qual i9 | 20 s | unsolved | solved, 19.88 s |
+  | rovers-qual i20 | 60 s | unsolved | solved, 58.16 s |
+  | storage-qual i20 | 60 s | unsolved | solved, 57.95 s, metric 5737 < floor 6046 |
+  | rovers-qual i1 | 20 s | metric 68.039 | 68.039 |
+
+### Lane T — the compression rung (`tcompress.rs`)
+
+Every durative action becomes one instantaneous action (condition = start ∧
+over-all ∧ end; effect = start then end, a token added at start and deleted
+at end netting to its delete), the classical ladder plans it, and a
+left-shift over the ops' read/write sets puts the plan back on the clock.
+`temporal::validate` judges the result against the original pair before
+anyone sees it. Declines required concurrency (the existing detector), timed
+initial literals and trajectory constraints.
+
+- **It banks; the decision-epoch ladder then runs as a bounded quality
+  chase, and the smaller makespan is returned.** The left-shift is coarse
+  (whole-op interference) and the ladder's plans are much better where it
+  has one -- `openstacks-time` i5: 343 against the rung's 897 -- so a row the
+  ladder already solved keeps its plan, byte for byte, and a row it never
+  solved has one.
+- **The bet is bounded in both regimes.** Under a wall, a quarter of what is
+  left (`FF_TCOMPRESS_WALL_FRAC`); unwalled, 2,000 evaluations per classical
+  rung -- the first cut had no unwalled bound and spent 32 s failing on a
+  task the ladder below solves in 40 ms. A ladder that then finds nothing
+  leaves the rung a second, unbounded attempt.
+- **The validator had to be fixed twice to be usable here.** It fired ends
+  before starts inside one epoch, which put a ZERO-DURATION step's end ahead
+  of its own start: every plan through pathways' dur-0 `choose` /
+  `initialize` was refused (`temporal::epoch_rank`; the search and VAL both
+  order the pair start-then-end). And it grounds the full snap task it
+  replays on, which for `pipesworld-metric-time` is the very blow-up the
+  board records as `mem-cap` -- i20's plan is found in 4 s and its validation
+  was still grounding 96 s later. The rung validates at the PLAN's size: the
+  domain specialised to one parameterless durative action per ground step.
+  `tests/tcompress.rs` cross-checks that against the full validator.
+- An engine-semantics note, found by the fixture and NOT changed: the snap
+  compile asks for the over-all invariant in the START snap's precondition,
+  which is stricter than PDDL2.1's open interval -- a self-established
+  over-all lock is unsolvable here by rule. The rung follows the engine's
+  rule (it only relaxes self-established AT-END conditions).
+- `tests/tcompress.rs`: a held token nets to its release; independent work
+  overlaps and interference does not; zero-duration steps validate; the
+  three declines; and, `#[ignore]`d, `pathways-metric-time` p01 -- an 18-step
+  plan the ladder cannot find (its dur-0 happenings pile up at t = 0 and the
+  search permutes them to its node caps), the whole domain 0/30 on the 0.27
+  board.
+
+### The board sit
+
+`benchmarks/probes-0.28/lanes-sit/run.sh`: the six IPC-5 boards these lanes
+were built for, and the two temporal boards they were NOT built for
+(`tempo-sat`, `tempo-sat-2014` -- the regression read: the rung touches every
+temporal task without required concurrency). One attempt per row, 2-wide,
+threads 1, 60 s, against the PUBLISHED boards, which are best-of-N -- so a
+single attempt is the conservative side of every delta, and a row the new
+engine loses is re-run on the old binary under the same conditions before it
+is called a loss. **Estimator declared in advance: first attempt.**
+
+RESULTS PENDING -- the sit was launched after the lanes were committed.
+
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
 
 Found while trying to reproduce ONE row. It outranks every lane below it,

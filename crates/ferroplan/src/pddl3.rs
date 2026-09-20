@@ -129,7 +129,7 @@ pub(crate) fn unsupported_constraints(domain: &Domain, problem: &Problem) -> Opt
 
 // ---- formula substitution + quantifier combos (for forall-preferences) ----
 
-fn subst_term(t: &Term, b: &HashMap<Sym, Sym>) -> Term {
+pub(crate) fn subst_term(t: &Term, b: &HashMap<Sym, Sym>) -> Term {
     match t {
         Term::Var(v) => b
             .get(v)
@@ -138,7 +138,7 @@ fn subst_term(t: &Term, b: &HashMap<Sym, Sym>) -> Term {
         Term::Const(_) => t.clone(),
     }
 }
-fn subst_expr(e: &Expr, b: &HashMap<Sym, Sym>) -> Expr {
+pub(crate) fn subst_expr(e: &Expr, b: &HashMap<Sym, Sym>) -> Expr {
     match e {
         Expr::Num(n) => Expr::Num(*n),
         Expr::Fluent(f, a) => Expr::Fluent(f.clone(), a.iter().map(|t| subst_term(t, b)).collect()),

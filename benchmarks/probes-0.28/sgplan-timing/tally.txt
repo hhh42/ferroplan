@@ -1,0 +1,42 @@
+board / variant                                  n us60 sgp5 | +sat +cmp =new | unjudged(VAL died)
+  openstacks-preferences-simple                 20   20   20 |    0    0   20 | 
+  pathways-preferences-simple                   30   30   30 |    0    0   30 | 
+  rovers-metric-preferences-simple              20   20   19 |    0    0   20 | 
+  storage-preferences-simple                    20   19   20 |    1    0   20 | 
+  tpp-preferences-simple                        20   20   20 |    0    0   20 | 
+  trucks-preferences-simple                     20   10   20 |   10    0   20 | 
+ipc5-simple-pref                               130  119  129 |   11    0  130 | 
+
+  openstacks-preferences-qualitative            20   18   20 |    2    0   20 | 
+  rovers-preferences-qualitative                20    7   20 |   13    0   20 | 
+  storage-preferences-qualitative               20   13   20 |    5    0   18 | 
+  tpp-preferences-qualitative                   20    8   20 |   12    0   20 | 
+  trucks-preferences-qualitative                20    5   20 |   14    0   19 | 
+ipc5-qual-pref                                 100   51  100 |   46    0   97 | 
+
+  pathways-preferences-complex                  30    6   30 |    0   24   30 | 
+  pipesworld-preferences-complex                18    2   15 |    0   15   17 | 
+  storage-preferences-complex                   20    1   20 |    0   11   12 | 8
+  tpp-preferences-complex                       20    0   20 |    3    0    3 | 
+  trucks-preferences-complex                    20   20   20 |    0    0   20 | 
+ipc5-complex-pref                              108   29  105 |    3   50   82 | 8
+
+  openstacks-time                               20   20   20 |    0    0   20 | 
+  storage-time                                  30   16   30 |    0   10   26 | 
+  trucks-time                                   30   17   30 |    0   13   30 | 
+ipc5-time                                       80   53   80 |    0   23   76 | 
+
+  openstacks-metric-time                        20   20   20 |    0    0   20 | 
+  pathways-metric-time                          30    0   30 |    0    8    8 | 
+  pipesworld-metric-time                        50   10   30 |    0   32   42 | 
+  rovers-metric-time                            40    6   32 |    0    5   11 | 
+  tpp-metric-time                               40    8   39 |    0    0    8 | 
+ipc5-metric-time                               180   44  151 |    0   45   89 | 
+
+  pipesworld-metric-time-constraints            20    3    0 |    0    0    3 | 
+  storage-time-constraints                      30   15    9 |    0    1   16 | 
+  tpp-metric-time-constraints                   30    0   18 |    0    2    2 | 
+  trucks-time-constraints                       20    5   20 |    0    0    5 | 
+ipc5-constraints                               100   23   47 |    0    3   26 | 
+
+SIX BOARDS                                     698  319  612 |   60  121  500 | 8

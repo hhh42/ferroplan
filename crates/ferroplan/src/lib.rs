@@ -79,6 +79,7 @@ pub mod report;
 pub mod resolve;
 pub mod sat;
 pub mod selection;
+pub mod tcompress;
 pub mod temporal;
 pub mod trace;
 pub mod tresolve;
