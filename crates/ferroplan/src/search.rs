@@ -590,6 +590,37 @@ impl Drop for ScopedDeadline {
     }
 }
 
+/// What optional work must leave on the wall for a plan ALREADY IN HAND:
+/// its own exit latency past the tightened deadline (one checkpoint cadence,
+/// one arena teardown), the replay that prices the winning plan, the report,
+/// and the process's own teardown -- the runner's clock stops at exit, not at
+/// the last byte of JSON.
+///
+/// 3 % of the wall's TOTAL, held to [0.5 s, 3 s] -- 1.8 s at the boards'
+/// 60 s. Total, not remaining: the costs being reserved for do not shrink
+/// because a long grounding already spent most of the wall (the first cut
+/// read the remainder, and storage-qualitative i20 -- 30 s of grounding --
+/// was handed 0.9 s and exited at 60.2). Plus a SIZE term, `ops / 1e5`
+/// seconds up to 5: closing, pricing and dropping a 140k-op task is where
+/// that instance's last second goes, and it is nothing at ordinary sizes
+/// (5k ops: 0.05 s). `FF_REPORT_RESERVE_SECS` overrides the whole figure
+/// (0 restores the 0.27 shape: optional work runs to the wall).
+pub(crate) fn report_reserve_secs(total_wall: f64, task_ops: usize) -> f64 {
+    std::env::var("FF_REPORT_RESERVE_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<f64>().ok())
+        .filter(|r| r.is_finite() && *r >= 0.0)
+        .unwrap_or_else(|| (total_wall * 0.03).clamp(0.5, 3.0) + (task_ops as f64 / 1e5).min(5.0))
+}
+
+/// [`tighten_deadline`] by [`report_reserve_secs`] -- the guard a route holds
+/// while it improves a plan it could already report. `task_ops` is the
+/// grounded size of what will have to be closed and dropped (0 if unknown).
+pub(crate) fn reserve_for_report(task_ops: usize) -> Option<ScopedDeadline> {
+    let total = sooner_deadline(wall_deadline(), call_budget().deadline)?.1;
+    tighten_deadline(report_reserve_secs(total, task_ops))
+}
+
 pub(crate) fn tighten_deadline(reserve_secs: f64) -> Option<ScopedDeadline> {
     let prev = call_budget().deadline;
     if prev.is_none() && !rung_wallcap_on() {
@@ -1147,11 +1178,32 @@ pub fn search_from(
         // plan, the same h, plus the helpful-action set the expansion below
         // marks preferred successors with. Otherwise the historical
         // evaluators, and the helpful slot is an empty (non-allocating) Vec.
+        // The IN-BATCH checkpoint (0.28 Lane I). The batch boundary below is
+        // one Clock read per 256 evaluations, which is fine at microseconds
+        // an eval and is TWO SECONDS at the 8 ms a compiled preference task
+        // costs (tpp-qualitative i12: 2,464 evals in 19.8 s) -- the whole of
+        // the reserve a banked plan's report is given. So under an armed
+        // deadline each evaluation reads the clock first, and the first one
+        // to find it expired abandons the rest of the batch. A tripped batch
+        // is a capped return that never looks at its h values, so a run that
+        // finishes inside the wall is evaluation-for-evaluation what it was.
+        // Read on the CALLING thread: the per-call budget is thread-local and
+        // the workers below would not see it.
+        let batch_wall = sooner_deadline(effective_deadline(), cfg.deadline);
+        let batch_cancel = call_budget().cancel;
+        let batch_retained = nodes.len() * per_node_model_bytes(task);
+        let batch_skipped = std::sync::atomic::AtomicUsize::new(0);
         let evals: Vec<Option<(i32, Vec<u32>)>> = par::par_map_with(
             &popped,
             threads,
             || Scratch::new(task),
             |sc, &ni| {
+                if batch_wall.is_some_and(|d| deadline_expired_reserving(d, batch_retained))
+                    || cancelled(&batch_cancel)
+                {
+                    batch_skipped.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    return None;
+                }
                 let s = &nodes[ni].state;
                 if cfg.pref_ops {
                     return relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num);
@@ -1167,7 +1219,8 @@ pub fn search_from(
         );
         let hs: Vec<Option<i32>> = evals.iter().map(|e| e.as_ref().map(|(h, _)| *h)).collect();
         t_h += t_phase.elapsed_us();
-        evaluated += popped.len();
+        let batch_skipped = batch_skipped.into_inner();
+        evaluated += popped.len() - batch_skipped;
         // The wall checkpoint (0.22 Phase 2 lever 1): the eval cap is
         // denominated in states and the wall in seconds, and on slow-eval
         // domains the two run apart by MINUTES — gear-car i6 ran this loop
@@ -1179,7 +1232,8 @@ pub fn search_from(
         // winds down and the caller reports honestly. Unarmed or
         // `FF_NO_RUNG_WALLCAP=1` ⇒ never trips.
         let retained = nodes.len() * per_node_model_bytes(task);
-        let wall_hit = wall_expired_reserving(retained)
+        let wall_hit = batch_skipped > 0
+            || wall_expired_reserving(retained)
             || cfg
                 .deadline
                 .is_some_and(|d| deadline_expired_reserving(d, retained));
@@ -1248,8 +1302,18 @@ pub fn search_from(
             .filter_map(|(&ni, e)| e.as_ref().map(|(h, help)| (ni, *h, help)))
             .collect();
         let t_phase = crate::clock::Clock::now();
+        let expand_tripped = std::sync::atomic::AtomicBool::new(false);
         let cand_chunks: Vec<Vec<(usize, usize, State, u64, i32, bool)>> =
             par::par_map(&live, threads, |&(ni, ph, helpful)| {
+                // The in-batch checkpoint's second half: on a task whose
+                // states are wide enough, EXPANSION is the slow phase
+                // (storage-qualitative i20: one 348-node batch, 2.3 s).
+                if batch_wall.is_some_and(|d| deadline_expired_reserving(d, batch_retained))
+                    || cancelled(&batch_cancel)
+                {
+                    expand_tripped.store(true, std::sync::atomic::Ordering::Relaxed);
+                    return Vec::new();
+                }
                 let st = &nodes[ni].state;
                 let mut v = Vec::new();
                 let mut cands = Vec::new();
@@ -1278,6 +1342,27 @@ pub fn search_from(
             });
 
         t_exp += t_phase.elapsed_us();
+        if expand_tripped.into_inner() {
+            // A half-expanded batch is not a frontier: the same capped
+            // return as the batch-boundary trip, with nothing inserted.
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: best-first checkpoint expired mid-expansion at {evaluated} evals (capped return)"
+                );
+            }
+            if let Some(ni) = best_acc.or(len_acc) {
+                return PlanResult::Plan {
+                    ops: reconstruct(&nodes, ni),
+                    advance,
+                    evaluated,
+                    max_g,
+                };
+            }
+            return PlanResult::Unsolvable {
+                evaluated,
+                capped: true,
+            };
+        }
 
         // SERIAL: dedup + insert (deterministic order, independent of threads).
         let t_phase = crate::clock::Clock::now();

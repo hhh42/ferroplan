@@ -1055,6 +1055,242 @@ pub fn metric_optimize(
     folded_metric: bool,
     threads: usize,
 ) -> Option<MetricResult> {
+    metric_optimize_seeded(
+        task,
+        cost_fluent,
+        forgos,
+        groups,
+        folded_metric,
+        threads,
+        None,
+    )
+    .map(|s| s.result)
+}
+
+/// [`metric_optimize`]'s verdict, and whether it is the hard-goal seed's.
+pub struct SeededResult {
+    pub result: MetricResult,
+    /// The optimizer found nothing cheaper than incumbent zero inside its
+    /// budgets: the reported plan is a plan for the HARD goals, closed by the
+    /// phase tail, and its metric is whatever that plan happens to violate.
+    pub from_seed: bool,
+}
+
+/// INCUMBENT ZERO (0.28 Lane I). `seed` is a plan for the task's HARD goals,
+/// as real-op ids of THIS compiled task (see [`hard_goal_seed`]). Closed by
+/// the phase tail it is a complete, valid compiled plan -- so the optimizer
+/// can no longer end a run with nothing to report.
+///
+/// It used to. The compiled task prices every preference into the goal and
+/// rides a monitor block on every op, so its FIRST plan is far more expensive
+/// to find than the hard goals' plan is: rovers-qualitative i9 spends 70k
+/// evaluations (~3,600/s) and the whole wall without reaching the hard goal
+/// once, while the classical ladder reaches it in 133 evaluations and 30 ms.
+/// `metric_optimize` then returned `None` and the row read "unsolved" -- 46
+/// of the 49 rows `ipc5-qual-pref` missed at 60 s, and all 11 that
+/// `ipc5-simple-pref` missed, by the 2026-09-20 probe. SGPlan5's median on
+/// those boards is under a second for exactly this reason: it finds a
+/// feasible plan first and improves it second.
+///
+/// By default the seed is a FLOOR, not a bound: the B&B runs exactly as it
+/// did (so every row that solved before solves to the same metric), and the
+/// seed is what comes back only when the optimizer found nothing cheaper.
+/// `FF_PREF_SEED_BOUND=1` additionally hands it to the B&B as its opening
+/// incumbent; `FF_PREF_NO_SEED=1` is the 0.27 restore.
+pub fn metric_optimize_seeded(
+    task: &PackedTask,
+    cost_fluent: usize,
+    forgos: &[(usize, f64)],
+    groups: &[Vec<u32>],
+    folded_metric: bool,
+    threads: usize,
+    seed: Option<&[usize]>,
+) -> Option<SeededResult> {
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let floor = seed.and_then(|prefix| close_seed(task, cost_fluent, forgos, prefix));
+    if dbg {
+        match (&floor, seed) {
+            (Some((ops, cost)), _) => {
+                eprintln!("[seed0] incumbent zero: {} ops, cost {cost}", ops.len())
+            }
+            (None, Some(_)) => eprintln!("[seed0] the hard-goal plan did not close; no floor"),
+            (None, None) => {}
+        }
+    }
+    // With the floor in hand and the wall already inside its report reserve
+    // (the compiled task's grounding can take most of a wall by itself),
+    // there is nothing the optimizer could finish: report the floor now.
+    if floor.is_some() && crate::search::wall_hard_expired() {
+        if dbg {
+            eprintln!("[seed0] no wall left to optimize in; reporting incumbent zero");
+        }
+        return floor.map(|(ops, cost)| SeededResult {
+            result: MetricResult {
+                ops,
+                cost,
+                iterations: 0,
+                proven: cost <= 0.0,
+            },
+            from_seed: true,
+        });
+    }
+    let as_bound = std::env::var("FF_PREF_SEED_BOUND").is_ok();
+    let optimized = metric_optimize_inner(
+        task,
+        cost_fluent,
+        forgos,
+        groups,
+        folded_metric,
+        threads,
+        if as_bound { floor.clone() } else { None },
+    );
+    match (optimized, floor) {
+        (Some(r), Some((_, c))) if r.cost <= c => Some(SeededResult {
+            result: r,
+            from_seed: false,
+        }),
+        (Some(r), None) => Some(SeededResult {
+            result: r,
+            from_seed: false,
+        }),
+        (_, Some((ops, cost))) => Some(SeededResult {
+            result: MetricResult {
+                ops,
+                cost,
+                iterations: 0,
+                proven: cost <= 0.0,
+            },
+            from_seed: true,
+        }),
+        (None, None) => None,
+    }
+}
+
+/// Replay a hard-goal prefix and close it with the phase tail: the complete
+/// compiled plan and its cost, or `None` if any step of that fails to hold
+/// (an incumbent that is not a valid plan must never exist).
+pub fn close_seed(
+    task: &PackedTask,
+    cost_fluent: usize,
+    forgos: &[(usize, f64)],
+    prefix: &[usize],
+) -> Option<(Vec<usize>, f64)> {
+    let tail = build_phase_tail(task, forgos)?;
+    let real_pos: Vec<u32> = task
+        .goal_pos
+        .iter()
+        .copied()
+        .filter(|&f| {
+            !task.fact_names[f as usize]
+                .to_ascii_uppercase()
+                .starts_with("(P3")
+        })
+        .collect();
+    let mut s = task.initial();
+    for &oi in prefix {
+        if !task.op_applicable(oi, &s) {
+            return None;
+        }
+        s = task.apply(oi, &s);
+    }
+    if !task.goal_met_with(&s, &real_pos, &task.goal_num) {
+        return None;
+    }
+    let tail_ops = apply_tail(task, &mut s, &tail)?;
+    if !task.goal_met_with(&s, &task.goal_pos, &task.goal_num) {
+        return None;
+    }
+    let mut ops = prefix.to_vec();
+    ops.extend(tail_ops);
+    let cost = plan_cost(task, &ops, cost_fluent);
+    Some((ops, cost))
+}
+
+/// A plan for the HARD goals of `(domain, problem)`, lifted into the
+/// compiled task `compiled` as real-op ids -- what [`metric_optimize_seeded`]
+/// takes as `seed`.
+///
+/// The plan comes from the classical ladder over the ORIGINAL pair, where
+/// grounding reads every preference as true: that task has no collect/forgo
+/// goals and no monitor block on its ops, which is the whole reason its
+/// first plan is cheap. The lift is a replay BY DISPLAY NAME. Precondition-
+/// preference variants share their action's name and are mutually exclusive
+/// by construction ([`compile`]), so "the applicable op of that name" is
+/// well defined; a step with no applicable namesake aborts the lift.
+///
+/// The ladder runs against the WHOLE remaining wall by default, because its
+/// rungs are sliced in proportion to the wall they can see: handed 80 % of a
+/// 60 s wall, EHC's quarter-slice is 12 s and rovers-qualitative i20 -- which
+/// EHC solves at 14.6 s -- is handed down the ladder and lost. A hard-goal
+/// search that fails has cost the optimizer nothing it could have used: the
+/// compiled task is the same search made harder and ~10x dearer per state.
+/// `FF_PREF_SEED_WALL_FRAC=<f>` (f < 1) caps it for experiments.
+pub fn hard_goal_seed(
+    domain: &Domain,
+    problem: &Problem,
+    compiled: &PackedTask,
+    threads: usize,
+    cfg: SearchCfg,
+) -> Option<Vec<usize>> {
+    if std::env::var("FF_PREF_NO_SEED").is_ok() {
+        return None;
+    }
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let t0 = crate::clock::Clock::now();
+    let frac = crate::search::wall_frac_env("FF_PREF_SEED_WALL_FRAC", 1.0);
+    let _seed_wall = (frac < 1.0)
+        .then(crate::search::wall_remaining_secs)
+        .flatten()
+        .map(|rem| rem * (1.0 - frac))
+        .and_then(crate::search::tighten_deadline);
+    let names: Vec<String> = match crate::ground::ground(domain, problem, threads) {
+        crate::ground::Outcome::GoalTrue => Vec::new(),
+        crate::ground::Outcome::Task(hard) => {
+            let o = plan(&hard, threads, cfg, true, None);
+            if dbg {
+                eprintln!(
+                    "[seed0] hard-goal ladder: {} in {} evals, {:.2} s",
+                    if o.ops.is_some() { "plan" } else { "no plan" },
+                    o.evaluated,
+                    t0.elapsed_secs()
+                );
+            }
+            o.ops?
+                .into_iter()
+                .map(|oi| hard.op_display[oi].clone())
+                .collect()
+        }
+        _ => return None,
+    };
+    let mut by_name: HashMap<&str, Vec<usize>> = HashMap::new();
+    for (oi, name) in compiled.op_display.iter().enumerate() {
+        by_name.entry(name.as_str()).or_default().push(oi);
+    }
+    let mut s = compiled.initial();
+    let mut prefix = Vec::with_capacity(names.len());
+    for name in &names {
+        let oi = by_name
+            .get(name.as_str())?
+            .iter()
+            .copied()
+            .find(|&oi| compiled.op_applicable(oi, &s))?;
+        s = compiled.apply(oi, &s);
+        prefix.push(oi);
+    }
+    Some(prefix)
+}
+
+fn metric_optimize_inner(
+    task: &PackedTask,
+    cost_fluent: usize,
+    forgos: &[(usize, f64)],
+    groups: &[Vec<u32>],
+    folded_metric: bool,
+    threads: usize,
+    // Incumbent zero as the B&B's OPENING incumbent (`FF_PREF_SEED_BOUND`);
+    // `None` leaves every loop below byte-identical to 0.27.
+    incumbent0: Option<(Vec<usize>, f64)>,
+) -> Option<MetricResult> {
     const MAX_ITERS: usize = 10_000;
     let init = task.initial();
 
@@ -1068,7 +1304,15 @@ pub fn metric_optimize(
     // all-forgo floor. (It still can't see the openstacks `stacks-avail` resource —
     // that needs the SAS+ partition + penalty loop — so it narrows, not closes, the
     // gap.) Built from each preference's P3COLLECT-i `phi` precondition.
+    let phase_clock = crate::clock::Clock::now();
+    let phase_dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    let phase = |name: &str| {
+        if phase_dbg {
+            eprintln!("[p3] {name}: +{:.2} s", phase_clock.elapsed_secs());
+        }
+    };
     let mut sat = build_sat_guidance(task, forgos);
+    phase("sat guidance");
     // Resource-aware guidance foundation: detect any renewable "counter" resource
     // the delete-relaxed heuristic is blind to (e.g. openstacks' stacks-avail).
     // The occupancy penalty in SatGuidance is OFF by default — see
@@ -1103,7 +1347,15 @@ pub fn metric_optimize(
     // to). Built unconditionally (pure analysis, inert on domains without the
     // structure); only the heap WEIGHT is gated, so the default path stays
     // bit-identical until a flag is set.
+    phase("resources");
     sat.deadline = build_deadline_guidance(task, forgos);
+    phase("deadline guidance");
+    // The analysis above is wall-blind and, on the widest tasks, most of a
+    // wall long (storage-qualitative i20: 37k live preference instances).
+    // A search opened after the wall is work nobody can collect.
+    if crate::search::wall_hard_expired() {
+        return None;
+    }
     let refine_cfg = SearchCfg::from_weights(1.0, 5.0, Some(300_000));
     // Cost-aware open-list ordering (see `SearchCfg::w_c`) — experimental,
     // default OFF everywhere: the sweep that was meant to pick a folded-metric
@@ -1146,6 +1398,11 @@ pub fn metric_optimize(
                 });
             }
             best = Some((ops, cost));
+        }
+        if let Some((ops, cost)) = incumbent0.clone() {
+            if best.as_ref().map_or(true, |(_, c)| cost < *c) {
+                best = Some((ops, cost));
+            }
         }
         let part = build_espc_partition(task, forgos, groups, &sat);
         return crate::espc::espc_optimize(
@@ -1218,6 +1475,7 @@ pub fn metric_optimize(
                 groups,
                 threads,
                 refine_cfg.with_cost_weight(cost_w),
+                incumbent0.clone(),
             ) {
                 return Some(r);
             }
@@ -1230,6 +1488,11 @@ pub fn metric_optimize(
     // path's deterministic eval-count budget and capped-failure escalation
     // (see `metric_optimize_closure`); the 1.5M EHC seed stays outside the
     // budget, mirroring the closure path's free init-tail incumbent.
+    if crate::search::wall_hard_expired() {
+        // The closure path ran out of WALL, not of ideas: the legacy seed
+        // below is a fresh 1.5M-eval ladder nobody has time for.
+        return None;
+    }
     let mut bound = f64::INFINITY;
     let mut best: Option<(Vec<usize>, f64)> = None;
     let mut iterations = 0;
@@ -1253,6 +1516,20 @@ pub fn metric_optimize(
         }
         bound = cost;
         best = Some((ops, cost));
+    }
+    if let Some((ops, cost)) = incumbent0 {
+        if cost < bound {
+            if cost <= 0.0 {
+                return Some(MetricResult {
+                    ops,
+                    cost,
+                    iterations: 0,
+                    proven: true,
+                });
+            }
+            bound = cost;
+            best = Some((ops, cost));
+        }
     }
 
     // FORGO-AWARE SECOND SEED (completion pricing) — experimental, opt-in via
@@ -1362,6 +1639,12 @@ pub fn metric_optimize(
     let mut escalated = false;
     let mut rung = 0usize;
     while iterations < MAX_ITERS && spent < budget {
+        // A sweep opened after the wall is work nobody can collect (0.28):
+        // each one still pays a root evaluation on the compiled task, and a
+        // ladder of them is what stood between the deadline and the report.
+        if crate::search::wall_hard_expired() {
+            break;
+        }
         iterations += 1;
         let cap = if escalated {
             budget - spent
@@ -1541,6 +1824,9 @@ fn selection_seed(
     let mut probed: crate::hash::FxHashMap<u32, bool> = crate::hash::FxHashMap::default();
     let mut bound_out = None;
     for round in 0..=MAX_REPAIRS {
+        if crate::search::wall_hard_expired() {
+            break;
+        }
         let Some(sel) = crate::selection::select(task, groups, &weights, &dnf, &banned) else {
             break;
         };
@@ -1571,7 +1857,7 @@ fn selection_seed(
             v
         };
         for &f in &chosen_facts {
-            if spent >= seed_slice {
+            if spent >= seed_slice || crate::search::wall_hard_expired() {
                 break;
             }
             let ok = *probed.entry(f).or_insert_with(|| {
@@ -2062,6 +2348,7 @@ fn metric_optimize_closure(
     groups: &[Vec<u32>],
     threads: usize,
     cfg: SearchCfg,
+    incumbent0: Option<(Vec<usize>, f64)>,
 ) -> Option<MetricResult> {
     const MAX_ITERS: usize = 10_000;
     let real_pos: Vec<u32> = task
@@ -2102,6 +2389,21 @@ fn metric_optimize_closure(
                 }
                 best = Some((tail_ops, cost));
             }
+        }
+    }
+
+    // Incumbent zero (`FF_PREF_SEED_BOUND`): the hard goals' plan, closed.
+    if let Some((ops, cost)) = incumbent0 {
+        if best.as_ref().map_or(true, |(_, c)| cost < *c) {
+            if cost <= 0.0 {
+                return Some(MetricResult {
+                    ops,
+                    cost,
+                    iterations: 0,
+                    proven: true,
+                });
+            }
+            best = Some((ops, cost));
         }
     }
 
@@ -2238,6 +2540,12 @@ fn metric_optimize_closure(
     let mut escalated = false;
     let mut rung = 0usize; // 0 = default profile; 1..=len = PROFILES
     while iterations < MAX_ITERS && spent < budget {
+        // A sweep opened after the wall is work nobody can collect (0.28):
+        // each one still pays a root evaluation on the compiled task, and a
+        // ladder of them is what stood between the deadline and the report.
+        if crate::search::wall_hard_expired() {
+            break;
+        }
         iterations += 1;
         let cap = if escalated {
             budget - spent

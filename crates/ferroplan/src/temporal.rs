@@ -626,20 +626,6 @@ pub fn solve_scored(domain: &Domain, problem: &Problem, threads: usize) -> Optio
     solve_tiers(domain, problem, threads, true)
 }
 
-/// What the optional work must leave on the wall for the row it cannot
-/// lose: its own exit latency past the tightened deadline (one checkpoint
-/// cadence, one arena teardown), the winning plan's replay through the
-/// already-built scorer, and the report. 3 % of the remaining wall, held to
-/// [0.5 s, 3 s] -- 1.8 s at the boards' 60 s. `FF_CHASE_RESERVE_SECS`
-/// overrides (0 restores the 0.27 shape: chase to the wall).
-fn chase_reserve_secs(remaining: f64) -> f64 {
-    std::env::var("FF_CHASE_RESERVE_SECS")
-        .ok()
-        .and_then(|v| v.trim().parse::<f64>().ok())
-        .filter(|r| r.is_finite() && *r >= 0.0)
-        .unwrap_or_else(|| (remaining * 0.03).clamp(0.5, 3.0))
-}
-
 fn solve_tiers(
     domain: &Domain,
     problem: &Problem,
@@ -688,9 +674,7 @@ fn solve_tiers(
     // short of the wall. If even the scorer cannot be built inside that, the
     // banked plan is returned UNSCORED rather than not at all.
     let dbg = std::env::var("FF_WALL_DEBUG").is_ok();
-    let _optional_wall = crate::search::wall_remaining_secs()
-        .map(chase_reserve_secs)
-        .and_then(crate::search::tighten_deadline);
+    let _optional_wall = crate::search::reserve_for_report(0);
     let scorer = want_score
         .then(|| SoftScorer::prepare(domain, problem))
         .flatten();

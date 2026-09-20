@@ -389,9 +389,33 @@ fn plan_pddl3(
         .collect();
     // Mutex groups feed the resource-aware guidance (renewable counter resources).
     let groups = crate::invariants::synthesize(&c.domain, &task);
-    match pddl3::metric_optimize(&task, cf, &forgos, &groups, c.folded_metric, threads) {
-        Some(r) => {
+    // Incumbent zero (0.28 Lane I) -- the library path's rule, so text and
+    // JSON agree on which rows solve.
+    let seed = pddl3::hard_goal_seed(domain, problem, &task, threads, cfg);
+    // The optimizer improves a plan that could already be reported, so it
+    // stops a reserve short of the wall (the Lane S rule): the runner kills
+    // AT the wall, and a metric polished until 60.4 s is a row lost.
+    let _report_wall = crate::search::reserve_for_report(task.n_ops);
+    match pddl3::metric_optimize_seeded(
+        &task,
+        cf,
+        &forgos,
+        &groups,
+        c.folded_metric,
+        threads,
+        seed.as_deref(),
+    ) {
+        Some(pddl3::SeededResult {
+            result: r,
+            from_seed,
+        }) => {
             let mut note = String::new();
+            if from_seed {
+                note.push_str(
+                    " the optimizer found nothing cheaper inside its budget; this is the \
+                     hard-goal plan.",
+                );
+            }
             if c.warn_other {
                 note.push_str(" metric has terms beyond is-violated/total-cost; optimized the supported part.");
             }

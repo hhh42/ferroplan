@@ -249,6 +249,9 @@ pub fn select(
         best_cost: f64,
         best_assign: Vec<Option<u32>>,
         nodes: usize,
+        /// The armed deadline, cached once (no env or thread-local traffic
+        /// inside the recursion); `None` = unarmed = the historical DFS.
+        wall: Option<(crate::clock::Clock, f64)>,
     }
     impl Dfs<'_> {
         /// Violated weight already forced under the current partial
@@ -274,6 +277,19 @@ pub fn select(
         fn go(&mut self, depth: usize) {
             self.nodes += 1;
             if self.nodes > NODE_CAP {
+                return;
+            }
+            // The node cap is denominated in nodes and the wall in seconds
+            // (0.28 Lane I): every node pays a scan of ALL the preferences,
+            // so on storage-qualitative i17's 23k instances the cap is ~15 s
+            // of selection the caller then throws away as "capped". A wall
+            // trip IS a cap -- same readout, same skip.
+            if self.nodes % 64 == 0
+                && self
+                    .wall
+                    .is_some_and(|d| crate::search::deadline_expired_reserving(d, 0))
+            {
+                self.nodes = NODE_CAP + 1;
                 return;
             }
             let (forced, _) = self.split();
@@ -328,6 +344,7 @@ pub fn select(
         best_cost: f64::INFINITY,
         best_assign: vec![None; n_vars],
         nodes: 0,
+        wall: crate::search::effective_deadline(),
     };
     // Seed the incumbent with the all-⊥ assignment (everything positive
     // violated) so a capped search still returns something.
