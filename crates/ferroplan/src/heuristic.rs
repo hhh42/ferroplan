@@ -212,6 +212,7 @@ fn widen(
     lb: &mut [f64],
     ub: &mut [f64],
     def: &[bool],
+    needs: Option<&NeedDirs>,
 ) -> bool {
     let mut changed = false;
     for ne in neffs {
@@ -237,12 +238,138 @@ fn widen(
                 AssignOp::ScaleUp => ub[t] *= vu.max(1.0),
                 AssignOp::ScaleDown => lb[t] /= vu.max(1.0),
             }
-            if (lb[t], ub[t]) != before {
+            // The bounds move exactly as they always did; `needs` only
+            // decides whether that movement counts as PROGRESS (see
+            // [`NeedDirs`]).
+            let moved = match needs {
+                None => (lb[t], ub[t]) != before,
+                Some(n) => (n.lb[t] && lb[t] != before.0) || (n.ub[t] && ub[t] != before.1),
+            };
+            if moved {
                 changed = true;
             }
         }
     }
     changed
+}
+
+/// WHICH BOUND OF EACH FLUENT ANYTHING READS (0.28).
+///
+/// The RPG's fixpoint test was "did any relevant bound move this layer",
+/// and on a task with a consumable that is true FOREVER: every applied
+/// `(decrease (energy ?r) 8)` pushes the fluent's LOWER bound down another
+/// 8 each layer, while the only thing that ever reads `energy` is
+/// `(>= (energy ?r) 8)` -- its UPPER bound. So a dead-end state, whose goal
+/// no layer will ever reach, was never seen to be a fixpoint: the build ran
+/// to `LAYER_CAP`, 2,000 layers re-widening thousands of applied ops, and
+/// then reported the same "unreachable" a fixpoint would have. On the
+/// compressed `rovers-metric-time` i20 that put the MEAN build at 120-236
+/// layers against the 4.5 a live state takes -- ~210 evaluations a second
+/// where the same-size propositional twin runs >5,000, the whole of the
+/// "numeric heuristic is slow" reading.
+///
+/// `lb[f]` / `ub[f]` are NEEDED if some precondition, conditional-effect
+/// condition or goal reads that side ([`num_sat`]'s table), or some effect
+/// feeds a needed bound from it ([`widen`]'s table), closed to a fixpoint. A
+/// layer in which no fact was reached, no op applied and no NEEDED bound
+/// moved is a fixpoint of everything applicability can see: the next
+/// layer's tests read only facts and needed bounds, and its contributions
+/// to needed bounds are functions of needed bounds. Un-needed bounds may
+/// wander for ever; nothing is watching.
+///
+/// EXACT, not approximate: the bounds themselves are widened as before, so
+/// every reachable state evaluates to the same h; and a build this ends
+/// early could only have ended at the cap, goal unreached. Computed lazily,
+/// at [`NEED_PROBE_LAYER`], so an ordinary build never pays for it and is
+/// byte-identical.
+pub(crate) struct NeedDirs {
+    lb: Vec<bool>,
+    ub: Vec<bool>,
+}
+
+/// The layer at which a build that is still going computes [`NeedDirs`].
+/// Live states are done in a handful of layers; genuine numeric counting
+/// (a gap-60 chain of +1 pumps) goes on past this and pays one extra scan.
+const NEED_PROBE_LAYER: u32 = 16;
+
+fn need_dirs(task: &PackedTask, goal_num: &[NumPre]) -> NeedDirs {
+    let n = task.relevant_fluent.len();
+    let mut nd = NeedDirs {
+        lb: vec![false; n],
+        ub: vec![false; n],
+    };
+    // Mark the sides of `e` a reader of (lb(e) if `wl`, ub(e) if `wu`) reads;
+    // `eval_iv`'s arithmetic, inverted. Returns whether anything was new.
+    fn mark(e: &NExpr, wl: bool, wu: bool, nd: &mut NeedDirs) -> bool {
+        if !wl && !wu {
+            return false;
+        }
+        match e {
+            NExpr::Num(_) => false,
+            NExpr::Fluent(i) => {
+                let i = *i as usize;
+                let new = (wl && !nd.lb[i]) || (wu && !nd.ub[i]);
+                nd.lb[i] |= wl;
+                nd.ub[i] |= wu;
+                new
+            }
+            NExpr::Neg(a) => mark(a, wu, wl, nd),
+            NExpr::Add(a, b) => mark(a, wl, wu, nd) | mark(b, wl, wu, nd),
+            NExpr::Sub(a, b) => mark(a, wl, wu, nd) | mark(b, wu, wl, nd),
+            // products and quotients take their extremes from all four corners
+            NExpr::Mul(a, b) | NExpr::Div(a, b) => {
+                mark(a, true, true, nd) | mark(b, true, true, nd)
+            }
+        }
+    }
+    fn mark_cond(np: &NumPre, nd: &mut NeedDirs) {
+        let (ll, lu, rl, ru) = match np.op {
+            CompOp::Lt | CompOp::Le => (true, false, false, true),
+            CompOp::Gt | CompOp::Ge => (false, true, true, false),
+            CompOp::Eq => (true, true, true, true),
+        };
+        mark(&np.lhs, ll, lu, nd);
+        mark(&np.rhs, rl, ru, nd);
+    }
+    for np in goal_num {
+        mark_cond(np, &mut nd);
+    }
+    for oi in 0..task.n_ops {
+        for np in task.pre_num.slice(oi) {
+            mark_cond(np, &mut nd);
+        }
+        for ce in task.cond_effs(oi) {
+            for np in &ce.cond_num {
+                mark_cond(np, &mut nd);
+            }
+        }
+    }
+    // Close over the effects: a needed side of the target needs the side(s)
+    // of the value that `widen` builds it from.
+    loop {
+        let mut grew = false;
+        for oi in 0..task.n_ops {
+            let neffs = task
+                .num_eff
+                .slice(oi)
+                .iter()
+                .chain(task.cond_effs(oi).flat_map(|ce| ce.num.iter()));
+            for ne in neffs {
+                let t = ne.target as usize;
+                let (tl, tu) = (nd.lb[t], nd.ub[t]);
+                let (wl, wu) = match ne.op {
+                    AssignOp::Increase | AssignOp::Assign => (tl, tu),
+                    AssignOp::Decrease => (tu, tl),
+                    AssignOp::ScaleUp => (false, tu),
+                    AssignOp::ScaleDown => (false, tl),
+                };
+                grew |= mark(&ne.value, wl, wu, &mut nd);
+            }
+        }
+        if !grew {
+            return nd;
+        }
+    }
 }
 
 fn op_has_relevant_neff(task: &PackedTask, oi: usize) -> bool {
@@ -366,6 +493,8 @@ fn build_rpg(
     // after — labyrinth-agile i1 (78k ops) build 1.78 → 2.02 ms/eval,
     // parking-2014 i5 (63k ops) 0.92 → 0.96 — same verdict, removed again.)
     let mut layer: u32 = 0;
+    // `None` until a build outlives NEED_PROBE_LAYER; see [`NeedDirs`].
+    let mut needs: Option<NeedDirs> = None;
     loop {
         if !to_fixpoint && goal_done(goal_pos, goal_num, &sc.reached, &sc.lb, &sc.ub, def) {
             return RpgExit::GoalAt(layer);
@@ -381,6 +510,7 @@ fn build_rpg(
                 &mut sc.lb,
                 &mut sc.ub,
                 def,
+                needs.as_ref(),
             ) {
                 changed = true;
             }
@@ -419,7 +549,14 @@ fn build_rpg(
                         }
                     }
                     if !ce.num.is_empty()
-                        && widen(&ce.num, &task.relevant_fluent, &mut sc.lb, &mut sc.ub, def)
+                        && widen(
+                            &ce.num,
+                            &task.relevant_fluent,
+                            &mut sc.lb,
+                            &mut sc.ub,
+                            def,
+                            needs.as_ref(),
+                        )
                     {
                         changed = true;
                     }
@@ -482,6 +619,7 @@ fn build_rpg(
                     &mut sc.lb,
                     &mut sc.ub,
                     def,
+                    needs.as_ref(),
                 ) {
                     changed = true;
                 }
@@ -495,6 +633,9 @@ fn build_rpg(
         layer += 1;
         if !changed {
             return RpgExit::Fixpoint;
+        }
+        if layer == NEED_PROBE_LAYER && std::env::var("FF_NO_NEED_DIRS").is_err() {
+            needs = Some(need_dirs(task, goal_num));
         }
         if layer > LAYER_CAP {
             return RpgExit::Cap;
@@ -1773,6 +1914,75 @@ mod tests {
         let noskip = water_h_pair();
         std::env::remove_var("FF_NUMPRE_NOSKIP");
         assert_eq!(noskip, (12, 10), "NOSKIP alone keeps the summed pricing");
+    }
+
+    // ---- 0.28: a dead end is a fixpoint, not a 2,000-layer grind ----
+
+    /// A rover with 5 energy, a drive that needs 8 and burns 8, and a
+    /// `wander` that burns 1 and is always applicable. The goal is
+    /// relaxed-UNREACHABLE (nothing raises energy, so `drive` never arms) --
+    /// a dead end. But `wander` pushes energy's LOWER bound down every layer,
+    /// and the only reader of energy is `(>= (energy) 8)`, its UPPER bound:
+    /// the old fixpoint test saw "a relevant bound moved" for ever and ran
+    /// the build to LAYER_CAP. [`NeedDirs`] sees that nobody reads the side
+    /// that is moving.
+    const DRAIN_DOM: &str = "(define (domain drain)
+      (:requirements :fluents)
+      (:predicates (there) (idle))
+      (:functions (energy))
+      (:action drive :parameters ()
+        :precondition (>= (energy) 8)
+        :effect (and (there) (decrease (energy) 8)))
+      (:action wander :parameters ()
+        :precondition (idle)
+        :effect (decrease (energy) 1)))";
+    const DRAIN_PRB: &str = "(define (problem d1) (:domain drain)
+      (:init (idle) (= (energy) 5)) (:goal (there)))";
+
+    #[test]
+    fn a_dead_end_with_a_draining_consumable_is_a_fixpoint() {
+        let task = task_of(DRAIN_DOM, DRAIN_PRB);
+        let init = task.initial();
+        let mut sc = Scratch::new(&task);
+        sc.reset(&task, &init.bits, &init.fv, false);
+        let exit = build_rpg(
+            &task,
+            &mut sc,
+            &task.goal_pos,
+            &task.goal_num,
+            &init.fdef,
+            false,
+            false,
+        );
+        assert_eq!(
+            exit,
+            RpgExit::Fixpoint,
+            "only energy's un-read LOWER bound is moving: that is a fixpoint"
+        );
+        // ... and the verdict the search consumes is what it always was.
+        assert!(relaxed(&task, &mut sc, &init.bits, &init.fv, &init.fdef).is_none());
+    }
+
+    /// The needed side still counts: with a recharge in play the UPPER bound
+    /// grows, `drive` arms after one layer, and the goal is reached exactly
+    /// as before -- the direction filter must never call a live build dead.
+    #[test]
+    fn a_needed_bound_still_drives_the_build() {
+        let dom = DRAIN_DOM.replace(
+            "(:action wander",
+            "(:action recharge :parameters ()
+        :precondition (idle)
+        :effect (increase (energy) 1))
+      (:action wander",
+        );
+        let task = task_of(&dom, DRAIN_PRB);
+        // energy 5: the bound reaches 8 in round 2, drive arms there, the goal reads at 3
+        assert_eq!(goal_layers_init(&task), RpgExit::GoalAt(3));
+        // a long build: 100 short of the threshold, +1 per layer, far past
+        // NEED_PROBE_LAYER -- the filter arms mid-build and the count holds.
+        let far = DRAIN_PRB.replace("(= (energy) 5)", "(= (energy) -92)");
+        let task = task_of(&dom, &far);
+        assert_eq!(goal_layers_init(&task), RpgExit::GoalAt(100));
     }
 
     // ---- 0.22 Phase 4 L0: the numeric-admissible layer bound + audit ----

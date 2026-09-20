@@ -636,7 +636,7 @@ compressed search fails on for 32 s solves there in 40 ms). That is ~112
 rows and the next cycle's question; the propositional board (231 vs 248)
 is untouched by any of this.
 
-## Lanes S, I and T — feasible first (BUILT 2026-09-20)
+## Lanes S, I, T and N — feasible first (BUILT 2026-09-20)
 
 Built in cost order on `engine-0.28`. Fixtures first where a fixture can be
 RED at unit scale; where the defect is a scale phenomenon, the fixture pins
@@ -754,6 +754,53 @@ initial literals and trajectory constraints.
   plan the ladder cannot find (its dur-0 happenings pile up at t = 0 and the
   search permutes them to its node caps), the whole domain 0/30 on the 0.27
   board.
+
+### Lane N — a dead end is a fixpoint, not a 2,000-layer grind (`heuristic.rs`)
+
+Item four on the list was "profile the numeric RPG", on the hypothesis that
+`build_rpg` widens intervals layer by layer. The profile said otherwise: a
+live state's build is 4-5 layers and ~100 µs. The cost is the DEAD ENDS.
+
+The fixpoint test was "did any relevant bound move this layer", and with a
+consumable that is true for ever: every applied `(decrease (energy ?r) 8)`
+pushes energy's LOWER bound down another 8 each layer, while the only thing
+that reads energy is `(>= (energy ?r) 8)` -- its UPPER bound. So a state
+whose goal no layer will ever reach was never seen to be a fixpoint; the
+build ran to `LAYER_CAP`, 2,000 layers re-widening thousands of applied ops,
+and then reported the same "unreachable" a fixpoint would have. On the
+compressed `rovers-metric-time` i20 the MEAN build was 120-236 layers.
+
+`NeedDirs`: which SIDE of each fluent anything reads -- `num_sat`'s table for
+conditions, `widen`'s for effects, closed to a fixpoint -- computed lazily at
+layer 16, so an ordinary build never pays for it. From there a layer counts
+as progress only if a fact, an op, or a NEEDED bound moved. The bounds
+themselves widen exactly as before, so this is exact, not approximate:
+every reachable state evaluates to the same h, and a build this ends early
+could only have ended at the cap with the goal unreached.
+`FF_NO_NEED_DIRS=1` restores the old test.
+
+| compressed rovers-metric-time, evaluations in a 30 s wall | old | new |
+|---|---:|---:|
+| i6 | 25,866 | **2,026,337** (78x) |
+| i14 | 9,115 | **717,264** (79x) |
+| i20 | 0 (EHC never finished a slice) | 49,380 |
+
+Identity: 123 of 123 corpus numeric instances (ipc-2023n, the 2002/2006/2008
+numeric and metric tracks; 20k-eval cap, unwalled) report the same solved
+flag, evaluation count and plan length with the hatch on and off; the two
+unit pins hold their exact layer counts (`GoalAt(3)`, `GoalAt(100)`) either
+way, and the dead-end pin is `Cap` under the hatch and `Fixpoint` without.
+
+**What it did NOT do is solve those rows.** With evaluations 78x cheaper,
+`rovers-metric-time` i6 descends best-h 28 -> 11 in a third of a second and
+then sits at 11 for 900,000 evaluations: the relaxation cannot see energy
+being spent, so a state with too little left looks as good as any other.
+That is guidance, not speed, and it is the same residue as `tpp` -- numeric
+goals and consumables want SGPlan's per-goal partitioning (or a resource-
+aware relaxation), and neither is built. A NEEDED bound that grows for ever
+(any task with a recharge in play) still runs a dead end to the cap; that
+wants saturation at the largest value anything compares against, and is
+also not built.
 
 ### The board sit
 
