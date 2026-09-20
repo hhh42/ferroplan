@@ -563,6 +563,44 @@ pub(crate) fn arm_call_budget(
     CallBudgetGuard
 }
 
+/// A SCOPED TIGHTENING of this thread's deadline (0.28 Lane S): the work
+/// inside the guard's lifetime may spend the remaining wall MINUS
+/// `reserve_secs`, and the previous deadline comes back on drop.
+///
+/// It exists for OPTIONAL work on a row that is already banked. The
+/// complex-preference chase ran against the same wall as the banked plan it
+/// was trying to improve, so a chase that used its whole wall left nothing
+/// for scoring and printing the plan already in hand: pathways-complex i7
+/// returned its banked, VAL-valid plan at 21.94 s against a 20 s wall, and
+/// the board's runner kills at the wall. Every one of those rows read
+/// "unsolved" with a solution in memory.
+///
+/// Rides the per-call budget because that is the deadline every checkpoint
+/// already joins ([`effective_deadline`], [`wall_remaining_secs`]). `None`
+/// when no wall is armed at all -- the no-wall contract stays byte-identical
+/// -- and when only the ENV wall is armed under `FF_NO_RUNG_WALLCAP=1`, whose
+/// whole purpose is to keep the pre-checkpoint shapes pinnable.
+pub(crate) struct ScopedDeadline {
+    prev: Option<(crate::clock::Clock, f64)>,
+}
+
+impl Drop for ScopedDeadline {
+    fn drop(&mut self) {
+        CALL_BUDGET.with(|b| b.borrow_mut().deadline = self.prev);
+    }
+}
+
+pub(crate) fn tighten_deadline(reserve_secs: f64) -> Option<ScopedDeadline> {
+    let prev = call_budget().deadline;
+    if prev.is_none() && !rung_wallcap_on() {
+        return None;
+    }
+    let rem = wall_remaining_secs()?;
+    let tightened = (crate::clock::Clock::now(), (rem - reserve_secs).max(0.0));
+    CALL_BUDGET.with(|b| b.borrow_mut().deadline = Some(tightened));
+    Some(ScopedDeadline { prev })
+}
+
 /// The 0.22 Phase 2 checkpoint hatch: `FF_NO_RUNG_WALLCAP=1` turns OFF
 /// the clock checkpoints this cycle added (the LAMA/novelty wall
 /// slices, the best-first batch-boundary check, grounding's enumeration

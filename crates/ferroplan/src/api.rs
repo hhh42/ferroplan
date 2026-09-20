@@ -1021,18 +1021,32 @@ fn solve_temporal(
     // FF_TDECOMP routes through the partition-and-resolve decomposer (Phase B), the
     // same gate as the text path (run_planner); the default is `temporal::solve` —
     // the monolithic search plus its on-failure escalation ladder.
+    // The score rides the solve (0.28 Lane S): the preference tiers build
+    // their scorer BEFORE the quality chase, so a banked plan's report never
+    // waits on a grounding paid after the wall. The decomposer path keeps
+    // the post-hoc call -- it has no tiers to bank from.
     let result = if crate::features::tdecomp() {
-        crate::tresolve::solve(domain, problem, threads)
+        crate::tresolve::solve(domain, problem, threads).map(|plan| {
+            let score = crate::temporal::score_soft(domain, problem, &plan);
+            crate::temporal::ScoredPlan {
+                plan,
+                score,
+                unscored: false,
+            }
+        })
     } else {
-        crate::temporal::solve(domain, problem, threads)
+        crate::temporal::solve_scored(domain, problem, threads)
     };
     match result {
-        Some(tp) => {
+        Some(crate::temporal::ScoredPlan {
+            plan: tp,
+            score,
+            unscored,
+        }) => {
             // The complex-preferences entry (0.25 Phase 2): a temporal
-            // plan's PDDL3 preferences are scored post-hoc against the
-            // ORIGINAL pair — the metric and the violated-instance list
-            // ride the Solution; None means the pair carries none.
-            let score = crate::temporal::score_soft(domain, problem, &tp);
+            // plan's PDDL3 preferences are scored against the ORIGINAL
+            // pair — the metric and the violated-instance list ride the
+            // Solution; None means the pair carries none.
             let mut notes = Vec::new();
             if let Some(s) = &score {
                 let viol = if s.violated.is_empty() {
@@ -1051,6 +1065,16 @@ fn solve_temporal(
                     s.satisfied,
                     s.violated.len(),
                 ));
+            } else if unscored {
+                // A valid plan with no metric beats a metric with no plan
+                // (0.28 Lane S): the scorer grounds the ORIGINAL pair, and
+                // a banked plan that arrives with the wall nearly spent is
+                // reported without it rather than lost to the kill.
+                notes.push(
+                    "PDDL3 preferences NOT scored: the wall left no room to build \
+                     the scorer; the plan is valid, its metric is omitted"
+                        .into(),
+                );
             }
             let steps = timed_steps(&tp);
             Ok(Solution {
