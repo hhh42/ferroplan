@@ -4,6 +4,66 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+Four engine lanes, all on one theme: **feasible first, better second.** A
+2026-09-20 read of SGPlan5's own IPC-5 solution headers found its MEDIAN
+solve is 0.54 s -- so the gap to it on those boards was never the 60 s wall.
+On most rows it solves and ferroplan did not, a valid plan was in hand, or
+milliseconds away, and the route had no way to return it. Board numbers are
+pending the sit recorded in `docs/roadmap-0.28.md`; nothing below claims one.
+
+### Added
+
+- **The compression rung** (`tcompress`): a temporal task that needs no
+  concurrency is planned as a classical one -- each durative action as one
+  instantaneous action -- and a left-shift over the ops' read/write sets puts
+  the plan back on the clock. The plan is validated against the ORIGINAL
+  task before it is returned. It BANKS: the decision-epoch ladder then runs
+  as a bounded quality chase and the smaller makespan wins, so a task that
+  solved before returns the plan it returned before. Declines required
+  concurrency, timed initial literals and trajectory constraints.
+  `FF_NO_TCOMPRESS=1` restores 0.27; `FF_TCOMPRESS_WALL_FRAC` /
+  `FF_TCOMPRESS_CHASE_FRAC` size the bet and the chase.
+- **Incumbent zero** for PDDL3 preference optimization
+  (`pddl3::metric_optimize_seeded`, `hard_goal_seed`, `close_seed`): the
+  optimizer is handed a plan for the hard goals before it starts, as a FLOOR
+  -- its own search is unchanged, and the seed is what comes back (with a
+  note) only when it found nothing cheaper. Previously a run that ended
+  before the optimizer's first plan reported `solved: false`.
+  `FF_PREF_NO_SEED=1` restores 0.27; `FF_PREF_SEED_BOUND=1` also opens the
+  branch-and-bound with the seed.
+- `temporal::solve_scored` / `ScoredPlan` / `SoftScorer`: the preference
+  score rides the solve instead of being computed after it.
+
+### Fixed
+
+- **A plan in hand is reported inside the wall.** The temporal preference
+  tiers banked a plan and then chased quality against the SAME wall, opened
+  further ladder rungs after it expired, and re-grounded the task to score
+  the result -- returning a valid plan at 21.9 s of a 20 s budget, which a
+  runner that kills at the wall records as unsolved. Optional work now stops
+  a reserve short of the wall (3 % of it, 0.5-3 s, plus a size term;
+  `FF_REPORT_RESERVE_SECS`), the scorer is built before the chase, and a
+  banked plan that cannot be scored in time is returned unscored, with a
+  note, rather than lost. The same reserve covers the PDDL3 optimizer.
+- The best-first loop read the clock once per 256-evaluation batch -- two
+  seconds at the 8 ms an evaluation costs on a compiled preference task.
+  Evaluations and expansions now read an armed deadline individually; a run
+  that finishes inside its wall is unchanged, evaluation for evaluation.
+- The preference-selection DFS, the optimizer's restart ladders and its
+  legacy fallback no longer open work after the wall has expired.
+- **Numeric heuristic, dead ends**: the relaxed-graph fixpoint test counted
+  ANY bound movement as progress, so a consumable's un-read lower bound,
+  drifting down for ever, sent every dead-end evaluation to the 2,000-layer
+  cap. The test is now direction-aware (`FF_NO_NEED_DIRS=1` restores it).
+  Heuristic values are identical; evaluations per second on
+  `rovers-metric-time`-shaped tasks rise ~78x.
+- The temporal validator (and scorer) fired ends before starts within one
+  epoch, which ordered a ZERO-duration step's end ahead of its own start and
+  rejected every plan containing one.
+- The text path no longer prints "problem proven unsolvable" for a PDDL3
+  run that simply ran out of budget before its first plan.
+
+
 ## [0.27.1] - 2026-09-11 — A budget the caller can set, and withdraw
 
 No engine change. Coverage is unchanged from 0.27.0 (5,122/8,444) because
