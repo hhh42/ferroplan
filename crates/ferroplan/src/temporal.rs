@@ -4434,7 +4434,7 @@ impl<'a> SoftScorer<'a> {
                                 .unwrap_or_else(|| format!("{}-condition", da.name)),
                             crate::constraints::expand_quantifiers(
                                 &crate::pddl3::subst_formula(phi, &b),
-                                &objs,
+                                objs,
                             ),
                         )),
                         _ => None,
@@ -4511,7 +4511,7 @@ impl<'a> SoftScorer<'a> {
         }
         for (_, f) in &mut folds {
             f.step_at(0.0, &mut |phi| {
-                crate::verify::eval_formula(&task, &state, phi)
+                crate::verify::eval_formula(task, &state, phi)
             });
         }
         // (step, condition index, violated so far) for each open `over all`
@@ -4521,7 +4521,7 @@ impl<'a> SoftScorer<'a> {
         let mut cond_seen: Vec<(String, bool)> = Vec::new();
         for h in &hs {
             for (s, k, v) in &mut open {
-                if !*v && !crate::verify::eval_formula(&task, &state, &cond_prefs[*s][*k].2) {
+                if !*v && !crate::verify::eval_formula(task, &state, &cond_prefs[*s][*k].2) {
                     *v = true;
                 }
             }
@@ -4531,7 +4531,7 @@ impl<'a> SoftScorer<'a> {
                         (ts, h.is_start),
                         (TimeSpec::Start, true) | (TimeSpec::End, false)
                     ) {
-                        let held = crate::verify::eval_formula(&task, &state, phi);
+                        let held = crate::verify::eval_formula(task, &state, phi);
                         cond_seen.push((name.clone(), !held));
                     }
                 }
@@ -4559,7 +4559,7 @@ impl<'a> SoftScorer<'a> {
             }
             for (_, f) in &mut folds {
                 f.step_at(h.time, &mut |phi| {
-                    crate::verify::eval_formula(&task, &state, phi)
+                    crate::verify::eval_formula(task, &state, phi)
                 });
             }
         }
@@ -4590,7 +4590,7 @@ impl<'a> SoftScorer<'a> {
             }
         }
         for (name, phi) in goal_prefs.iter() {
-            if crate::verify::eval_formula(&task, &state, phi) {
+            if crate::verify::eval_formula(task, &state, phi) {
                 satisfied += 1;
             } else {
                 violated.push(name.clone());
