@@ -21,7 +21,9 @@ export FERROPLAN_FF="$PWD/target/release/ff"
 git rev-parse HEAD >> "$HERE/engine.txt"
 for track in ${TRACKS:-qual-pref-2006 simple-pref-2006 complex-pref-2006 time-2006 metric-time-2006 constraints-2006 tempo-sat-2014 tempo-sat}; do
   [ -f "$HERE/$track.done" ] && continue
-  echo "== $track $(date '+%F %T')" >> "$HERE/run.log"
+  # Foreign load is part of the record: sit 1 ran beside a game at ~210 % CPU
+  # and nobody knew until a wall fixture flaked.
+  echo "== $track $(date '+%F %T')  load:$(uptime | sed 's/.*load averages*://')  busiest: $(ps -axo pcpu,comm | sort -nr | sed -n '1,2p' | tr '\n' ';')" >> "$HERE/run.log"
   python3 benchmarks/ipc67.py --track "$track" --timeout 60 --jobs 2 \
       --out "$HERE/$track.md" >> "$HERE/run.log" 2>&1 && touch "$HERE/$track.done"
 done
