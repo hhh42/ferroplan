@@ -436,7 +436,11 @@ fn plan_pddl3(
             0
         }
         None => {
-            out.push_str("\n\nbest first search space empty! problem proven unsolvable.\n\n");
+            // Neither the optimizer nor the hard-goal seed produced a plan
+            // inside their budgets. Both are capped searches, so this is a
+            // budget exit and never a verdict (the 0.21 honesty bar; this
+            // branch used to say "proven unsolvable" regardless).
+            out.push_str(unsolvable_line(true));
             0
         }
     }
