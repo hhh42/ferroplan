@@ -1329,6 +1329,20 @@ fn solve_pddl3(
         );
     }
 
+    // THE HARD GOALS' PLAN FIRST (0.28 Lane I) -- before the compiled task is
+    // even grounded, because that grounding is the expensive step and the
+    // one that can fail: storage-qualitative i20 compiles to 142k ops and
+    // 30 s of grounding on a quiet box, several times that on a busy one,
+    // while the plan for its (empty) hard goal is known in milliseconds. A
+    // route that grounds first has nothing to return when the wall arrives
+    // mid-grounding.
+    let seed_plan = pddl3::hard_goal_plan(domain, problem, threads, opts.search_cfg());
+    // From here on a plan may be in hand, so everything stops a reserve
+    // short of the wall (the Lane S rule): the runner kills AT the wall.
+    let _ground_wall = seed_plan
+        .is_some()
+        .then(|| crate::search::reserve_for_report(0))
+        .flatten();
     let task = match do_ground(&c.domain, &c.problem, threads)? {
         Grounded::Task(t) => t,
         Grounded::Trivial => return Ok(trivial(Mode::Pddl3, threads)),
@@ -1343,6 +1357,47 @@ fn solve_pddl3(
             ));
         }
         Grounded::Budget(why) => {
+            // The preference task did not ground inside the wall. With the
+            // hard goals' plan in hand that is a SOLVE the optimizer never
+            // got to price: a valid plan without a metric beats a metric
+            // without a plan.
+            if let Some(names) = &seed_plan {
+                let steps = strip_end_steps(
+                    names
+                        .iter()
+                        .enumerate()
+                        .map(|(index, name)| {
+                            let mut it = name.split_whitespace();
+                            Step {
+                                index,
+                                action: it.next().unwrap_or("").to_string(),
+                                args: it.map(str::to_string).collect(),
+                                time: None,
+                                duration: None,
+                            }
+                        })
+                        .collect(),
+                    strip_end,
+                );
+                return Ok(Solution {
+                    solved: true,
+                    mode: Mode::Pddl3,
+                    plan: Some(Plan {
+                        length: steps.len(),
+                        steps,
+                        metric: None,
+                        makespan: None,
+                    }),
+                    statistics: Statistics {
+                        threads,
+                        ..Default::default()
+                    },
+                    notes: vec![format!(
+                        "PDDL3 metric NOT priced: the preference task did not ground inside \
+                         the wall ({why}); this is the hard-goal plan, valid and unoptimized"
+                    )],
+                });
+            }
             return Ok(unsolved(
                 Mode::Pddl3,
                 Statistics {
@@ -1369,11 +1424,23 @@ fn solve_pddl3(
         .collect();
 
     // Mutex groups feed the resource-aware guidance (renewable counter resources).
+    let stamp = |what: &str| {
+        if std::env::var("FF_RES_DEBUG").is_ok() {
+            eprintln!(
+                "[p3] {what}: {:?} s of wall left",
+                crate::search::wall_remaining_secs()
+            );
+        }
+    };
+    stamp("compiled task grounded");
     let groups = crate::invariants::synthesize(&c.domain, &task);
+    stamp("invariants synthesized");
     // Incumbent zero (0.28 Lane I): a plan for the HARD goals, found where
     // it is cheap to find and lifted into the compiled task, so the
     // optimizer cannot end a run with nothing to report.
-    let seed = pddl3::hard_goal_seed(domain, problem, &task, threads, opts.search_cfg());
+    let seed = seed_plan
+        .as_deref()
+        .and_then(|names| pddl3::lift_seed(&task, names));
     // The optimizer improves a plan that could already be reported, so it
     // stops a reserve short of the wall (the Lane S rule): the runner kills
     // AT the wall, and a metric polished until 60.4 s is a row lost.

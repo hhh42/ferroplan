@@ -840,7 +840,50 @@ single attempt is the conservative side of every delta, and a row the new
 engine loses is re-run on the old binary under the same conditions before it
 is called a loss. **Estimator declared in advance: first attempt.**
 
-RESULTS PENDING -- the sit was launched after the lanes were committed.
+**Sit 1 (`759b55f`), stopped after its first board.** `ipc5-qual-pref`:
+**51 → 93, +42, 0 lost** (SGPlan5: 100) -- first attempt, VAL-checked,
+through the board harness. The probe had said 97. Raws in
+`lanes-sit/sit-1-759b55f/`. From its eighth minute the box was also running
+a game at ~210 % CPU, so that is a DEGRADED reading and the conservative side
+of one.
+
+The seven misses were all the LARGEST instances (rovers i20, storage 17-20,
+trucks 10/16), every one killed at exactly 60 s, and they were worth stopping
+for. Solo on a quiet box they exit at ~58 s; two-wide, or beside anything
+else, their wall-blind stretches grow past the kill line with a valid plan
+already in hand. What that turned up, in the order found:
+
+- The reserve is now 3 % of the wall + `ops / 1e5` s **+ 5 % of the wall
+  already spent**, and an optimizer reached with more than two thirds of the
+  wall gone reports incumbent zero instead of starting.
+- **The hard goals' plan is found BEFORE the compiled task is grounded**
+  (`hard_goal_plan` / `lift_seed`), and a compiled grounding that stops at
+  the wall now returns that plan UNPRICED, with a note, where it returned
+  "grounding stopped at the declared budget". JSON path only; the text path
+  still prints the grounding-wall line.
+- **A flat conjunction was grounded in quadratic time.** `and_merge` builds a
+  1 x 1 product by CLONING the accumulated conjunct, so an n-atom goal merged
+  one atom at a time copies 1 + 2 + ... + n literals -- and the compiled task's
+  goal has one `P3COLLECTED` atom per live preference: 37,201 on
+  `storage-qualitative` i20, ~700M literal copies, **25 s of a 60 s wall**.
+  The DNF wall check counts CONJUNCTS and this shape only ever produces one,
+  so not one clock read in all that time. `and_merge_owned` appends in
+  place: the same conjunct, literal for literal, in the same order.
+- Grounding below the binding enumeration had no checkpoints at all. It has
+  coarse ones now, between phases (`GroundWall::expired_now`;
+  `FF_GROUND_PHASES=1` prints each phase's clock).
+- **Found, NOT fixed -- the next thing in the way:** with the DNF fixed, the
+  long phase is `packing the ops`: every monitored op is pushed onto the
+  achiever list of every fact the SHARED monitor block adds, so the index is
+  ops x monitor-adds -- hundreds of millions of `u32`s on these instances, 46 s
+  of `storage-qualitative` i19 on the loaded box, and gigabytes. The shared
+  block exists so that cost is paid once; the achiever index un-shares it.
+  This is very likely the `mem-cap` class as well (storage-complex 18 rows,
+  pipesworld-metric-time 8), and it wants achiever lookup to understand
+  "every monitored op" without materialising it.
+
+Sit 2 runs on the refined engine, and is waiting for a quiet box.
+
 
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
 

@@ -1077,7 +1077,7 @@ pub struct SeededResult {
 }
 
 /// INCUMBENT ZERO (0.28 Lane I). `seed` is a plan for the task's HARD goals,
-/// as real-op ids of THIS compiled task (see [`hard_goal_seed`]). Closed by
+/// as real-op ids of THIS compiled task (see [`hard_goal_plan`] / [`lift_seed`]). Closed by
 /// the phase tail it is a complete, valid compiled plan -- so the optimizer
 /// can no longer end a run with nothing to report.
 ///
@@ -1120,7 +1120,20 @@ pub fn metric_optimize_seeded(
     // With the floor in hand and the wall already inside its report reserve
     // (the compiled task's grounding can take most of a wall by itself),
     // there is nothing the optimizer could finish: report the floor now.
-    if floor.is_some() && crate::search::wall_hard_expired() {
+    //
+    // "Inside its reserve" is the easy case. The other is a wall mostly
+    // SPENT getting here: an optimizer whose task took 40 s to ground will
+    // not finish its own analysis in the 15 s left, and every second it
+    // tries is a second of wall-blind work between the floor and its report.
+    // More than two thirds of the wall gone at the door means do not open it.
+    let late = match (
+        crate::search::wall_remaining_secs(),
+        crate::search::wall_elapsed_secs(),
+    ) {
+        (Some(rem), Some(spent)) => crate::search::rung_wallcap_on() && rem < 0.5 * spent,
+        _ => false,
+    };
+    if floor.is_some() && (late || crate::search::wall_hard_expired()) {
         if dbg {
             eprintln!("[seed0] no wall left to optimize in; reporting incumbent zero");
         }
@@ -1206,17 +1219,15 @@ pub fn close_seed(
     Some((ops, cost))
 }
 
-/// A plan for the HARD goals of `(domain, problem)`, lifted into the
-/// compiled task `compiled` as real-op ids -- what [`metric_optimize_seeded`]
-/// takes as `seed`.
+/// A plan for the HARD goals of `(domain, problem)`, as op display names --
+/// the first half of incumbent zero, and deliberately independent of the
+/// compiled task so it can be found BEFORE that task is grounded.
 ///
-/// The plan comes from the classical ladder over the ORIGINAL pair, where
-/// grounding reads every preference as true: that task has no collect/forgo
-/// goals and no monitor block on its ops, which is the whole reason its
-/// first plan is cheap. The lift is a replay BY DISPLAY NAME. Precondition-
-/// preference variants share their action's name and are mutually exclusive
-/// by construction ([`compile`]), so "the applicable op of that name" is
-/// well defined; a step with no applicable namesake aborts the lift.
+/// It comes from the classical ladder over the ORIGINAL pair, where grounding
+/// reads every preference as true: that task has no collect/forgo goals and
+/// no monitor block on its ops, which is the whole reason its first plan is
+/// cheap. An empty vector is a real answer (the hard goal already holds --
+/// every all-soft IPC-5 instance).
 ///
 /// The ladder runs against the WHOLE remaining wall by default, because its
 /// rungs are sliced in proportion to the wall they can see: handed 80 % of a
@@ -1225,13 +1236,12 @@ pub fn close_seed(
 /// search that fails has cost the optimizer nothing it could have used: the
 /// compiled task is the same search made harder and ~10x dearer per state.
 /// `FF_PREF_SEED_WALL_FRAC=<f>` (f < 1) caps it for experiments.
-pub fn hard_goal_seed(
+pub fn hard_goal_plan(
     domain: &Domain,
     problem: &Problem,
-    compiled: &PackedTask,
     threads: usize,
     cfg: SearchCfg,
-) -> Option<Vec<usize>> {
+) -> Option<Vec<String>> {
     if std::env::var("FF_PREF_NO_SEED").is_ok() {
         return None;
     }
@@ -1243,9 +1253,15 @@ pub fn hard_goal_seed(
         .flatten()
         .map(|rem| rem * (1.0 - frac))
         .and_then(crate::search::tighten_deadline);
-    let names: Vec<String> = match crate::ground::ground(domain, problem, threads) {
-        crate::ground::Outcome::GoalTrue => Vec::new(),
+    match crate::ground::ground(domain, problem, threads) {
+        crate::ground::Outcome::GoalTrue => Some(Vec::new()),
         crate::ground::Outcome::Task(hard) => {
+            // EHC is what finds this plan when anything does; it gets the
+            // larger share of the wall here (see `SearchCfg::ehc_wall_frac`).
+            let cfg = SearchCfg {
+                ehc_wall_frac: Some(crate::search::wall_frac_env("FF_PREF_SEED_EHC_FRAC", 0.6)),
+                ..cfg
+            };
             let o = plan(&hard, threads, cfg, true, None);
             if dbg {
                 eprintln!(
@@ -1255,20 +1271,31 @@ pub fn hard_goal_seed(
                     t0.elapsed_secs()
                 );
             }
-            o.ops?
-                .into_iter()
-                .map(|oi| hard.op_display[oi].clone())
-                .collect()
+            Some(
+                o.ops?
+                    .into_iter()
+                    .map(|oi| hard.op_display[oi].clone())
+                    .collect(),
+            )
         }
-        _ => return None,
-    };
+        _ => None,
+    }
+}
+
+/// Lift a [`hard_goal_plan`] into the compiled task as real-op ids -- what
+/// [`metric_optimize_seeded`] takes as `seed`. A replay BY DISPLAY NAME:
+/// precondition-preference variants share their action's name and are
+/// mutually exclusive by construction ([`compile`]), so "the applicable op
+/// of that name" is well defined; a step with no applicable namesake aborts
+/// the lift.
+pub fn lift_seed(compiled: &PackedTask, names: &[String]) -> Option<Vec<usize>> {
     let mut by_name: HashMap<&str, Vec<usize>> = HashMap::new();
     for (oi, name) in compiled.op_display.iter().enumerate() {
         by_name.entry(name.as_str()).or_default().push(oi);
     }
     let mut s = compiled.initial();
     let mut prefix = Vec::with_capacity(names.len());
-    for name in &names {
+    for name in names {
         let oi = by_name
             .get(name.as_str())?
             .iter()
@@ -1278,6 +1305,18 @@ pub fn hard_goal_seed(
         prefix.push(oi);
     }
     Some(prefix)
+}
+
+/// [`hard_goal_plan`] then [`lift_seed`], for callers that already hold the
+/// compiled task.
+pub fn hard_goal_seed(
+    domain: &Domain,
+    problem: &Problem,
+    compiled: &PackedTask,
+    threads: usize,
+    cfg: SearchCfg,
+) -> Option<Vec<usize>> {
+    lift_seed(compiled, &hard_goal_plan(domain, problem, threads, cfg)?)
 }
 
 fn metric_optimize_inner(

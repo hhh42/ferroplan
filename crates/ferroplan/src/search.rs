@@ -274,6 +274,15 @@ pub struct SearchCfg {
     /// there is no prior shape to restore). `None` (the default
     /// everywhere) is byte-identical to the pre-0.24 behavior.
     pub deadline: Option<(crate::clock::Clock, f64)>,
+    /// EHC's share of the remaining wall, for a caller that knows better
+    /// than the ladder's default quarter (`FF_EHC_WALL_FRAC`). `None` (the
+    /// default everywhere) is the env/default policy, byte-identical. The
+    /// one caller that sets it is the PDDL3 hard-goal seed (0.28 Lane I):
+    /// that ladder exists to find ONE plan, EHC is what finds it, and
+    /// rovers-qualitative i20 -- which EHC solves in 14.6 s alone -- is cut
+    /// at the 15 s quarter the moment a second job shares the box. Roadmap
+    /// 0.28's Lane W, met from the consumer's side.
+    pub ehc_wall_frac: Option<f64>,
 }
 
 // ARCHAEOLOGY (0.23 Phase 1): `tie_seed` — the diversification-on-refill
@@ -330,6 +339,7 @@ impl SearchCfg {
             pref_ops: false,
             node_bytes_target: None,
             deadline: None,
+            ehc_wall_frac: None,
         }
     }
 
@@ -616,9 +626,23 @@ pub(crate) fn report_reserve_secs(total_wall: f64, task_ops: usize) -> f64 {
 /// [`tighten_deadline`] by [`report_reserve_secs`] -- the guard a route holds
 /// while it improves a plan it could already report. `task_ops` is the
 /// grounded size of what will have to be closed and dropped (0 if unknown).
+///
+/// Plus 5 % of the wall ALREADY SPENT (the first board sit's finding): the
+/// latencies being reserved for -- a checkpoint cadence, a teardown -- scale
+/// with the task, and so does everything the task has done so far. Solo,
+/// `storage-qualitative` i20 exits at 57.95 s of 60; two-wide, its 30 s
+/// grounding is 40 s, its tail stretches with it, and the fixed reserve read
+/// 60.0 -- all seven rows `ipc5-qual-pref` still missed were that shape.
 pub(crate) fn reserve_for_report(task_ops: usize) -> Option<ScopedDeadline> {
     let total = sooner_deadline(wall_deadline(), call_budget().deadline)?.1;
-    tighten_deadline(report_reserve_secs(total, task_ops))
+    let spent = wall_elapsed_secs().unwrap_or(0.0);
+    tighten_deadline(report_reserve_secs(total, task_ops) + 0.05 * spent)
+}
+
+/// Seconds since the PROCESS wall was armed; `None` without one. (A scoped
+/// deadline's clock starts when it was tightened, so it cannot answer this.)
+pub(crate) fn wall_elapsed_secs() -> Option<f64> {
+    wall_deadline().map(|(t0, _)| t0.elapsed_secs())
 }
 
 pub(crate) fn tighten_deadline(reserve_secs: f64) -> Option<ScopedDeadline> {
@@ -1669,7 +1693,13 @@ pub fn plan_avoiding(
         }
     };
     if ehc_first {
-        if let Some((ops, evaluated)) = ehc(task, forbidden, cfg.max_eval, cfg.deadline) {
+        if let Some((ops, evaluated)) = ehc(
+            task,
+            forbidden,
+            cfg.max_eval,
+            cfg.deadline,
+            cfg.ehc_wall_frac,
+        ) {
             narrate_rung("EHC");
             return PlanOutcome {
                 ops: Some(ops),
@@ -1978,6 +2008,7 @@ fn ehc(
     forbidden: &[bool],
     max_eval: usize,
     deadline: Option<(crate::clock::Clock, f64)>,
+    wall_frac: Option<f64>,
 ) -> Option<(Vec<usize>, usize)> {
     // The caller's stop flag, read ONCE from the thread-local into an owned
     // handle: EHC and its lookahead both poll it, and every rung of the
@@ -2000,7 +2031,7 @@ fn ehc(
         wall_remaining_secs().map(|rem| {
             (
                 crate::clock::Clock::now(),
-                wall_frac_env("FF_EHC_WALL_FRAC", 0.25) * rem,
+                wall_frac.unwrap_or_else(|| wall_frac_env("FF_EHC_WALL_FRAC", 0.25)) * rem,
             )
         })
     } else {

@@ -24,12 +24,17 @@
 //! returned at 3.99 s against a 3 s wall, the overrun being the scorer's
 //! grounding, paid after the chase had already spent the wall.
 //!
+//! The wall is 8 s and the ballast modest on purpose: the reserve being
+//! pinned is half a second at this scale, and the first cut of this fixture
+//! (6 s, a heavier ballast) read 6.118 s once with a game running on the
+//! box. A wall pin has to hold on a machine that is doing something else.
+//!
 //! Child processes per scenario (the tests/tground_wall.rs convention: the
 //! wall clock is a process-global OnceLock).
 
 use std::process::Command;
 
-const WALL_SECS: f64 = 6.0;
+const WALL_SECS: f64 = 8.0;
 
 /// `n` ring bits; the preference asks for the first `pref_bits` of them on.
 /// `junk` objects feed the ballast action (`junk`^3 bindings per grounding).
@@ -130,7 +135,7 @@ fn a_banked_plan_is_reported_inside_the_wall() {
                 let (n, junk) = if cfg!(debug_assertions) {
                     (10, 16)
                 } else {
-                    (14, 60)
+                    (14, 48)
                 };
                 ring_pref(n, n, junk)
             }
