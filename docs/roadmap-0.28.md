@@ -802,6 +802,33 @@ aware relaxation), and neither is built. A NEEDED bound that grows for ever
 wants saturation at the largest value anything compares against, and is
 also not built.
 
+### Numeric-goal partitioning — LOOKED AT, NOT BUILT
+
+Item five. The probe's note that `--mode partition` "evaluates zero states on
+a numeric goal" was a misreading of the JSON (the partition path reports 0
+evaluations by construction). It engages, and what it does on the compressed
+`tpp-metric-time` i9 -- 20 facts, 264 ops, nine goals `(>= (stored g) (request
+g))` -- is the scoping for the next cycle (`FF_WALL_DEBUG=1`, 40 s wall):
+
+- Seven of the nine single-goal subproblems solve, 5-7 ops each -- at **~1.7 s
+  apiece**, because a subgoal solve is bare weighted best-first under a
+  100k-evaluation cap and the relaxation is nearly blind to quantities. There
+  is no EHC and no helpful-action pruning on the subgoal path; FF's speed on
+  exactly this shape is those two things.
+- The two large requests (29 and 20 units: two markets' worth, so repeated
+  buy/load/unload cycles) are **unsolvable in isolation** at that cap.
+- Every merge **re-solves every group from the initial state**, including
+  the seven that did not change: 15 s of Phase A per merge, and the wall is
+  gone after the second.
+
+So SGPlan's decomposition is the right shape for this family and the engine
+already has the loop; what it lacks is a subplanner that is good at ONE
+numeric goal. In order of cost: keep Phase A's subplans across a merge
+(only the merged group changed); give the subgoal path the EHC-first ladder
+the monolithic path has; then the relaxation's view of consumables (Lane N's
+residue, the same thing seen from the other side). Not built this cycle --
+each of those moves every numeric board and wants its own sit.
+
 ### The board sit
 
 `benchmarks/probes-0.28/lanes-sit/run.sh`: the six IPC-5 boards these lanes
