@@ -627,9 +627,9 @@ compressed `rovers-metric-time` runs ~210 evaluations a second against
 >5,000 for its same-size propositional twin (`heuristic.rs::build_rpg`
 widens intervals layer by layer -- a hypothesis, not a profile). And
 `tpp-metric-time` i9 is 20 facts and 264 ops on which the classical ladder
-spends 5,000,000 evaluations without a plan, while `--mode partition`
-evaluates zero states on a numeric goal -- the one place SGPlan's per-goal
-partitioning is doing the work its name claims. Worth noticing on the way
+spends 5,000,000 evaluations without a plan -- the one place SGPlan's per-goal
+partitioning is doing the work its name claims. (`--mode partition` does
+engage here; what it lacks is scoped below.) Worth noticing on the way
 past: the decision-epoch search's demand tiers guide numeric accumulation
 BETTER than the classical relaxation does (a mini-pathways task the
 compressed search fails on for 32 s solves there in 40 ms). That is ~112
