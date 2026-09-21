@@ -105,7 +105,7 @@ enum Cmd {
     /// with nothing to launch by hand. ^C stops the run in flight with
     /// everything banked kept; the next start resumes.
     Resident {
-        /// The `[[set]]` to keep complete: cut27, ...
+        /// The `[[set]]` to keep complete: cut28, ...
         #[arg(long)]
         set: String,
         /// Also sweep the working tree's candidate for the set.
@@ -171,7 +171,7 @@ enum Cmd {
     /// question a backfill is run to answer. Name each by tag, blake3 prefix
     /// or version.
     Compare {
-        #[arg(long, default_value = "cut27")]
+        #[arg(long, default_value = "cut28")]
         set: String,
         /// The baseline, e.g. v0.26.0.
         #[arg(long)]
@@ -191,7 +191,7 @@ enum Cmd {
     /// delta against the promoted predecessor. Reads the same snapshot the
     /// dashboard draws, so the numbers cannot drift from it.
     Status {
-        #[arg(long, default_value = "cut27")]
+        #[arg(long, default_value = "cut28")]
         set: String,
         /// Machine-readable, for scripts and for agents that would otherwise
         /// write their own SQL and get the latest-attempt rule wrong.
@@ -205,7 +205,7 @@ enum Cmd {
     /// burning three days of CPU.
     Tui {
         /// Which set to watch.
-        #[arg(long, default_value = "cut27")]
+        #[arg(long, default_value = "cut28")]
         set: String,
         /// Which view to dump: grid | board | instance | timeline.
         #[arg(long, default_value = "grid")]
