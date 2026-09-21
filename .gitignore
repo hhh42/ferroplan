@@ -69,3 +69,12 @@ benchmarks/crucible-differential.jsonl
 
 # 0.26 referee stages (crucible sets f1-before / f1-armed) and the cut.
 benchmarks/air26*/
+# cut27 / cut28: the stage and the sweep logs live in the ONE checkout the
+# crucible is pointed at; what is committed is what promote-airNN.sh promotes.
+# (An EMPTY cut27-sweep.1.log was committed by accident in 3e9e013 and blocked
+# `git checkout main` in that checkout, where the real 201 KB log sits at the
+# same path. Untracked again at the 0.28 cut.)
+benchmarks/air27/
+benchmarks/cut27-sweep*.log
+benchmarks/air28/
+benchmarks/cut28-sweep*.log
