@@ -1,0 +1,19 @@
+engine  ff 0.27.1 [c0893fb8ccc7]
+reap    6 child(ren) recorded by an earlier run
+        89999 already gone
+        90708 already gone
+        91386 already gone
+        92048 already gone
+        92728 already gone
+        94059 already gone
+canary  trucks-propositional/8@c0893fb8ccc7 baseline 0.771 s (p25 of the last 100 readings is 0.771 s, against 5 runs now); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  boards ipc5-simple-pref,ipc5-qual-pref,ipc5-complex-pref,ipc5-time,ipc5-metric-time,ipc5-constraints -- 788 instance(s) of set cut27, staged at /Users/harold/ferroplan/benchmarks/probes/lanes-0.28/0.27.1-c0893fb8ccc7
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 6 board(s) outstanding
+   ipc5-time              packed: 77 wide x10 (14.5 GB budget), 4 narrow, 49 solo
+!! width - -> 10 (full, quiet hours, idle 7717s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 7737s, foreign 6%)
+!! width 9 -> 8 (full, quiet hours, idle 7797s, foreign 106%)
+!! width 8 -> 9 (full, quiet hours, idle 7817s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 7837s, foreign -0%)

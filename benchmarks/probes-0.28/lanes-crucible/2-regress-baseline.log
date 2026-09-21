@@ -1,0 +1,139 @@
+tag     v0.27.1 at /Users/harold/.crucible/worktrees/v0.27.1
+stage   /Users/harold/ferroplan/benchmarks/air-0.27.1
+engine  ff 0.27.1 [d812c2328305]
+reap    49 child(ren) recorded by an earlier run
+        43114 already gone
+        44108 already gone
+        45041 already gone
+        46208 already gone
+        47761 already gone
+        49326 already gone
+        50104 already gone
+        50892 already gone
+        51764 already gone
+        52628 already gone
+        53480 already gone
+        54315 already gone
+        55209 already gone
+        56066 already gone
+        57071 already gone
+        57966 already gone
+        58858 already gone
+        60061 already gone
+        61577 already gone
+        63028 already gone
+        64486 already gone
+        65351 already gone
+        66169 already gone
+        67101 already gone
+        68066 already gone
+        68921 already gone
+        69875 already gone
+        70680 already gone
+        71601 already gone
+        72411 already gone
+        73157 already gone
+        73923 already gone
+        74603 already gone
+        75412 already gone
+        76117 already gone
+        76805 already gone
+        78264 already gone
+        79050 already gone
+        79742 already gone
+        80466 already gone
+        81149 already gone
+        81829 already gone
+        82512 already gone
+        83188 already gone
+        83860 already gone
+        84555 already gone
+        85234 already gone
+        85907 already gone
+        86652 already gone
+canary  trucks-propositional/8@d812c2328305 baseline 0.778 s (p25 of the last 100 readings is 0.650 s, against 5 runs now); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  boards ipc67-temporal,ipc2014-tempo; prior solved -- 519 instance(s) of set cut27, staged at /Users/harold/ferroplan/benchmarks/probes/lanes-0.28-regress/0.27.1-d812c2328305
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 2 board(s) outstanding
+   ipc2014-tempo          packed: 56 wide x10 (14.5 GB budget), 18 narrow, 4 solo
+!! width - -> 9 (full, quiet hours, idle 4426s, foreign 69%)
+!! throttle full -> polite (Foreign(107.6))
+!! width 9 -> 8 (polite, quiet hours, idle 4446s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 4466s, foreign 60%)
+!! width 9 -> 8 (polite, quiet hours, idle 4486s, foreign 147%)
+!! width 8 -> 9 (polite, quiet hours, idle 4507s, foreign 39%)
+!! width 9 -> 8 (polite, quiet hours, idle 4587s, foreign 191%)
+!! width 8 -> 9 (polite, quiet hours, idle 4607s, foreign 41%)
+!! width 9 -> 7 (polite, quiet hours, idle 4727s, foreign 268%)
+!! width 7 -> 6 (polite, quiet hours, idle 4887s, foreign 361%)
+!! width 6 -> 7 (polite, quiet hours, idle 4926s, foreign 231%)
+!! width 7 -> 8 (polite, quiet hours, idle 4946s, foreign 151%)
+!! width 8 -> 7 (polite, quiet hours, idle 4967s, foreign 280%)
+!! width 7 -> 9 (polite, quiet hours, idle 5026s, foreign 76%)
+!! width 9 -> 8 (polite, quiet hours, idle 5146s, foreign 133%)
+!! width 8 -> 9 (polite, quiet hours, idle 5167s, foreign 67%)
+!! width 9 -> 8 (polite, quiet hours, idle 5187s, foreign 170%)
+!! width 8 -> 9 (polite, quiet hours, idle 5206s, foreign 11%)
+!! width 9 -> 8 (polite, quiet hours, idle 5266s, foreign 155%)
+!! width 8 -> 9 (polite, quiet hours, idle 5287s, foreign 30%)
+!! width 9 -> 7 (polite, quiet hours, idle 5326s, foreign 268%)
+!! width 7 -> 6 (polite, quiet hours, idle 5347s, foreign 305%)
+!! width 6 -> 7 (polite, quiet hours, idle 5367s, foreign 277%)
+!! width 7 -> 8 (polite, quiet hours, idle 5427s, foreign 174%)
+!! width 8 -> 6 (polite, quiet hours, idle 5487s, foreign 353%)
+!! width 6 -> 7 (polite, quiet hours, idle 5507s, foreign 224%)
+!! width 7 -> 6 (polite, quiet hours, idle 5546s, foreign 310%)
+!! width 6 -> 7 (polite, quiet hours, idle 5566s, foreign 250%)
+!! width 7 -> 9 (polite, quiet hours, idle 5628s, foreign 78%)
+!! width 9 -> 7 (polite, quiet hours, idle 5706s, foreign 205%)
+!! width 7 -> 9 (polite, quiet hours, idle 5727s, foreign 43%)
+!! width 9 -> 8 (polite, quiet hours, idle 5747s, foreign 166%)
+!! width 8 -> 9 (polite, quiet hours, idle 5767s, foreign 69%)
+!! width 9 -> 8 (polite, quiet hours, idle 5787s, foreign 141%)
+!! width 8 -> 9 (polite, quiet hours, idle 5806s, foreign 31%)
+!! width 9 -> 8 (polite, quiet hours, idle 5827s, foreign 174%)
+!! width 8 -> 9 (polite, quiet hours, idle 5846s, foreign 35%)
+!! width 9 -> 7 (polite, quiet hours, idle 5926s, foreign 258%)
+!! width 7 -> 6 (polite, quiet hours, idle 5966s, foreign 316%)
+!! width 6 -> 7 (polite, quiet hours, idle 5987s, foreign 283%)
+!! width 7 -> 6 (polite, quiet hours, idle 6007s, foreign 337%)
+!! width 6 -> 7 (polite, quiet hours, idle 6027s, foreign 231%)
+!! width 7 -> 8 (polite, quiet hours, idle 6226s, foreign 194%)
+!! width 8 -> 9 (polite, quiet hours, idle 6246s, foreign 95%)
+!! width 9 -> 7 (polite, quiet hours, idle 6327s, foreign 209%)
+!! width 7 -> 9 (polite, quiet hours, idle 6366s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 6387s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 6406s, foreign 96%)
+!! width 9 -> 8 (polite, quiet hours, idle 6506s, foreign 101%)
+!! width 8 -> 9 (polite, quiet hours, idle 6527s, foreign 88%)
+!! width 9 -> 6 (polite, quiet hours, idle 6546s, foreign 317%)
+!! width 6 -> 7 (polite, quiet hours, idle 6667s, foreign 243%)
+!! width 7 -> 6 (polite, quiet hours, idle 6707s, foreign 338%)
+!! width 6 -> 7 (polite, quiet hours, idle 6726s, foreign 247%)
+!! width 7 -> 10 (polite, quiet hours, idle 6787s, foreign -0%)
+!! throttle polite -> full (Clear)
+!! width 10 -> 9 (full, quiet hours, idle 6866s, foreign 16%)
+!! width 9 -> 8 (full, quiet hours, idle 7007s, foreign 134%)
+!! width 8 -> 9 (full, quiet hours, idle 7026s, foreign 36%)
+!! width 9 -> 10 (full, quiet hours, idle 7047s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 7087s, foreign 40%)
+   ipc2014-tempo          verdicts: solved 78
+   ipc2014-tempo          banked   78   78 -> 0
+   ipc67-temporal         packed: 410 wide x10 (14.5 GB budget), 22 narrow, 9 solo
+!! width 9 -> 10 (full, quiet hours, idle 7127s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 7146s, foreign 13%)
+!! width 9 -> 10 (full, quiet hours, idle 7167s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 7187s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 7206s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 7226s, foreign 9%)
+!! width 9 -> 10 (full, quiet hours, idle 7246s, foreign -0%)
+!! width 10 -> 8 (full, quiet hours, idle 7427s, foreign 103%)
+!! width 8 -> 10 (full, quiet hours, idle 7447s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 7506s, foreign 72%)
+!! width 9 -> 10 (full, quiet hours, idle 7546s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 7566s, foreign 58%)
+!! width 9 -> 10 (full, quiet hours, idle 7587s, foreign -0%)
+   ipc67-temporal         verdicts: solved 441
+   ipc67-temporal         banked  441   441 -> 0
+SWEEP COMPLETE -- 519 banked in 1 pass(es)

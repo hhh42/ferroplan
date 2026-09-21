@@ -161,7 +161,12 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
         .clone()
         .unwrap_or_else(|| repo.join(stage_for(&engine.ver)));
     println!("tag     {} at {}", o.tag, wt.display());
-    println!("stage   {}", stage.display());
+    // A SUBSET stages under benchmarks/probes/ whatever this says (spec R3.2);
+    // the sweep prints where. Naming `air-<ver>/` here, for a run that will
+    // not touch it, is how an operator goes looking in the wrong directory.
+    if !o.select.is_subset() {
+        println!("stage   {}", stage.display());
+    }
     let result = crate::sweep::run_engine(
         repo,
         cfg,

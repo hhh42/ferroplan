@@ -1,0 +1,12 @@
+A  v0.27.1 [d812c2328305]
+B  ff 0.27.1 [c0893fb8ccc7]
+over boards ipc67-temporal,ipc2014-tempo; prior solved
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc2014-tempo                   78       0        78       0       +0
+ipc67-temporal                 441       0       441       0       +0
+
+net +0 over the 2 board(s) where NEITHER side owes a row
+
+cells BOTH engines banked: 0 gained by B, 0 lost by B
+lost cells written to /Users/harold/ferroplan-0.28/benchmarks/probes-0.28/lanes-crucible/regress-lost.rows

@@ -932,6 +932,42 @@ their read leans entirely on the differential.
 
 
 
+### The regression read, THROUGH THE CRUCIBLE (2026-09-20, `crucible-spec.md` R3)
+
+The ad-hoc sit above was stopped at its seventh board: the operator had been
+playing a game beside it, then building another project at load 23, and a
+shell loop around `ipc67.py` has no way to know. That is what the crucible
+is for, and it could not be aimed at a subset -- so it was taught to
+(`crucible sweep --board/--only/--rows/--prior --engine`, `compare --lost`;
+commit `e17fa2a`). Everything from here is measured through it.
+
+The question: the compression rung touches every temporal task without
+required concurrency, including the two boards it was NOT built for. Does it
+cost a row? Both engines over the SAME cells -- the 519 temporal cells the
+published `ipc67-temporal` and `ipc2014-tempo` solved -- same referee, same
+box, same retry rule: equal-N by construction.
+
+| board | cells | v0.27.1 `d812c232` | candidate `c0893fb8` | lost | gained |
+|---|---:|---:|---:|---:|---:|
+| ipc2014-tempo | 78 | 78 | 78 | 0 | 0 |
+| ipc67-temporal | 441 | 441 | 441 | 0 | 0 |
+
+**519 of 519 on both engines. The rung costs no row.** Summed solve time is
+0.91x the baseline's (26.5 min against 29.1) and the median is identical
+(0.26 s); makespan is BETTER on 181 cells, equal on 286 and worse on 6,
+because a task the rung banks returns the smaller of its left-shifted plan
+and the ladder's. (The 6 are cells the ladder did not reach inside its
+bounded chase.) The candidate arm took 4.4 h of wall to the baseline's
+55 min -- the box was POLITE for most of it (foreign load 44-225 %), the
+crucible demoted the planners and kept measuring, and every row banked in
+one pass. `match-cellar` reads 2.5x slower in that arm and is not: the rung
+declines it (required concurrency, cost 0) and solo it solves in 14.3 s, as
+it did. Dirty timing, clean coverage -- spec §7, doing its job.
+
+Receipts: `benchmarks/probes-0.28/lanes-crucible/` (`run.sh`, the three logs,
+`regress-compare.txt`); the staged raws are in the published checkout under
+`benchmarks/probes/lanes-0.28-regress/`.
+
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
 
 Found while trying to reproduce ONE row. It outranks every lane below it,
