@@ -882,7 +882,54 @@ already in hand. What that turned up, in the order found:
   pipesworld-metric-time 8), and it wants achiever lookup to understand
   "every monitored op" without materialising it.
 
-Sit 2 runs on the refined engine, and is waiting for a quiet box.
+**Sit 2 (`424843b`), the six IPC-5 boards -- DONE.** First attempt, two-wide,
+threads 1, 60 s, VAL-checked, against the PUBLISHED boards (best-of-N):
+
+| board | rows | published | sit 2 | delta | lost |
+|---|---:|---:|---:|---:|---:|
+| ipc5-qual-pref | 100 | 51 | **99** | +48 | 0 |
+| ipc5-simple-pref | 130 | 119 | **130** | +11 | 0 |
+| ipc5-complex-pref | 108 | 29 | **74** | +45 | 0 |
+| ipc5-time | 130 | 88 | **126** | +38 | 0 |
+| ipc5-metric-time | 200 | 64 | **100** | +36 | 1 |
+| ipc5-constraints | 120 | 28 | 28 | 0 | 0 |
+| **six boards** | **788** | **379** | **557** | **+178** | **1** |
+
+The same raws, restricted to the variants SGPlan5 actually ran -- the ledger
+this cycle's question was asked on:
+
+| board | rows | 0.27 published | sit 2 | SGPlan5 | gap was | gap now |
+|---|---:|---:|---:|---:|---:|---:|
+| ipc5-simple-pref | 130 | 119 | **130** | 129 | 10 | **-1** |
+| ipc5-qual-pref | 100 | 51 | **99** | 100 | 49 | 1 |
+| ipc5-complex-pref | 108 | 29 | 74 | 105 | 76 | 31 |
+| ipc5-time | 80 | 53 | 76 | 80 | 27 | 4 |
+| ipc5-metric-time | 180 | 44 | 80 | 151 | 107 | 71 |
+| ipc5-constraints | 80 | 20 | 20 | 47 | 27 | 27 |
+| **six boards** | **678** | **316** | **479** | **612** | **296** | **133** |
+
+The probe said 500; the boards say 479 (complex-pref 74 where the probe had
+82, metric-time 80 where it had 89 -- the rung's first bet is a quarter of the
+wall, where the probe gave the classical search all of it). simple-pref is
+past SGPlan5 and qual-pref is one row short of it. What is left is where this
+section said it would be: `tpp-*` and `rovers-metric-time` (numeric
+guidance), `constraints` (the rung declines them, and `within` needs a
+clock), and the `mem-cap` class.
+
+**The one lost row** is `tpp-metric-time` i8 (published solved at 14.35 s by
+the decision-epoch ladder). It is the predicted shape: the rung's bet fails on
+`tpp`, costs its quarter of the wall, and the ladder starts 15 s late. Under
+the load the box was carrying when it was re-run, 0.27.1 fails it too (0 of 2
+on each binary, `differential-ipc5-under-load.json`), so it is OWED a quiet
+re-run and is not yet called either way. Its three late-solving siblings (i5,
+i6, i7: 56-59 s published) were all RETAINED, at 41-45 s.
+
+Box conditions, from `run.log`: `mediaanalysisd` at ~200-285 % CPU at the
+start of three of the six boards (macOS's idle-time photo analysis), a browser
+at the start of two; the box was otherwise quiet. The two temporal boards
+below ran beside a full Bevy build from another project (load average 23), so
+their read leans entirely on the differential.
+
 
 
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled

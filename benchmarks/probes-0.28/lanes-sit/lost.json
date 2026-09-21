@@ -1,0 +1,8 @@
+[
+ {
+  "track": "metric-time-2006",
+  "board": "ipc5-metric-time",
+  "variant": "tpp-metric-time",
+  "instance": 8
+ }
+]
