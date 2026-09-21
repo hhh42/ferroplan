@@ -63,9 +63,49 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.27.1** — `ferroplan`, `ferroplan-cli`, `ferroplan-mcp` and `ferroplan-sat` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
+> Status: **v0.28.0** — release candidate on `main`: the 32-board cut sweep that regenerates the table above is in flight, and [crates.io](https://crates.io/crates/ferroplan) carries v0.27.1 (`ferroplan`, `ferroplan-cli`, `ferroplan-mcp`, `ferroplan-sat`) until it lands. APIs may shift before 1.0.
 
 <!-- WHATSNEW:BEGIN — newest first; trimmed by scripts/release-notes-roll.py -->
+
+
+
+> **What's new in 0.28.0 — feasible first, better second.** A read of
+> SGPlan5's own IPC-5 solution files found its median solve is **0.54 s** —
+> so the gap to it was never the 60 s wall. On most rows it solved and
+> ferroplan did not, a valid plan was in hand or milliseconds away, and the
+> route had no way to return it. Five lanes fix that. A plan in hand is now
+> reported *inside* the budget (the temporal preference tiers used to return
+> valid plans at 21.9 s of a 20 s wall, which a runner records as unsolved).
+> PDDL3 optimization starts from a plan for the hard goals — **incumbent
+> zero**, a floor: the optimizer's own search is unchanged. A **compression
+> rung** plans a temporal task that needs no concurrency as a classical one,
+> left-shifts it back onto the clock and validates it against the original.
+> The numeric heuristic stops grinding dead ends to a 2,000-layer cap
+> (identical values, ~78× the evaluations per second where it bit). And
+> **memory is a wall too**: the engine measures its own resident size, and
+> work on a plan it already holds stops at 75 % of `FF_MEM_BUDGET_GB` instead
+> of dying at the runner's cap with the plan in memory.
+>
+> Measured through the harness on the six IPC-5 boards the work was aimed
+> at: **379 → 569 of 788**, none lost, and **316 → 491** on the variants
+> SGPlan5 entered, where it solves 612. Two things the
+> [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md)
+> spells out rather than nets off: 46 of the +190 are the *empty plan* on
+> problems with no hard goal — valid, and the boards' standing convention,
+> but floor quality — and coverage is not what IPC-5 ranked these tracks on.
+> By its quality score ferroplan still trails (qualitative preferences 59 to
+> SGPlan5's 85): this release closed rows and left points where they were.
+> An equal-N regression read over the 519 temporal instances the published
+> boards solved: 519 of 519, 0.91× the solve time, makespan better on 181
+> and worse on 6.
+>
+> The harness learned to ask small questions: `crucible sweep --board /
+> --only / --rows / --prior / --engine` measures a *subset* under the same
+> referee, contention throttle and re-run rule as a cut sweep. It earned its
+> keep at once — the memory lane's first push lost two solved instances, and
+> it was the subset read, not the test suite, that found them and the three
+> holes behind them.
+
 
 
 
@@ -79,35 +119,6 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > and the one `FF_TIME_LIMIT` could not, being armed once per process. A
 > stop returns `solved: false` with a note naming which budget bound and
 > where, never the word "unsolvable".
-
-
-
-> **What's new in 0.27.0 — one lever in the engine, and an instrument
-> that can finally finish.** **61% coverage across 32 IPC boards**
-> (5,122/8,444), **687 certified optima**, **+134** over 0.26.0 on the
-> same instrument. The engine changed in exactly one place: expansion no
-> longer scans every grounded op to find the applicable ones. Each op is
-> anchored at its rarest positive precondition and candidates come from
-> the state's true facts, sorted back into the scan's order so the search
-> is byte-identical — the same plans, the same evaluation counts, 7× to
-> 12× less time per expansion on the boards where expansion was the term.
-> simple-preferences +8.5 pts, 2014 seq-agile +6.4,
-> qualitative-preferences +5.0, 2014 seq-sat +4.3. One track fell:
-> tempo-sat −0.3. net-benefit stands at 270/270, but a like-for-like
-> backfill of 0.26.0 on this box reaches 270/270 too — so that board is
-> not a 0.27 gain, and the same-instrument total will land a little under
-> +134 once the backfill completes.
->
-> The rest of the cycle went into the harness, and it is why those
-> numbers are worth reading: this is the first sweep to reach a terminal
-> state — **8,444 of 8,444 instances banked, zero owed** — where 0.26 was
-> cut by decision with 232 still owed after five days. The referee now
-> judges a row by its own process rather than by the box, which surfaced
-> four defects that had been quietly corrupting measurements, including
-> one that ran planners on efficiency cores where the same instance took
-> **59.28 s instead of 4.52 s** and banked anyway. Eleven instances that
-> 0.26 solved and 0.27 does not are named in the changelog; eight more
-> looked like regressions and were not.
 
 Earlier releases are summarised in the [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md) and its [archive](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG-ARCHIVE.md).
 <!-- WHATSNEW:END -->
@@ -127,12 +138,19 @@ Earlier releases are summarised in the [changelog](https://github.com/hhh42/ferr
   static/stratified — closed into the initial state via a datalog fixpoint).
 - **PDDL3 preferences** — soft goal preferences (incl. `forall`-quantified and
   precondition preferences) compiled away, with anytime branch-and-bound metric
-  optimization. *(Exact-optimal on small/medium instances; best-found, flagged,
+  optimization seeded by a plan for the hard goals, so a preference run never
+  ends with nothing to report. *(Exact-optimal on small/medium instances; best-found, flagged,
   on the largest — see [Limitations](#limitations).)*
 - **PDDL2.1 temporal** — `:durative-action`s with `at start`/`over all`/`at end`
   conditions & effects, **constant or parameter-dependent durations**, and
   required concurrency, via a decision-epoch forward search; output in the IPC
-  temporal plan format (`t: (action) [dur]`) with a makespan.
+  temporal plan format (`t: (action) [dur]`) with a makespan. A task that needs
+  no concurrency is first tried through a **compression rung** — planned as a
+  classical task, left-shifted onto the clock, validated against the original.
+- **Budget-honest** — declare a wall (`FF_TIME_LIMIT`, or `Options::wall_ms` /
+  `should_continue` per call) and a memory budget (`FF_MEM_BUDGET_GB`), and a
+  plan already in hand comes back *inside* both: optional work on it stops a
+  reserve short of the wall and at 75 % of the measured memory budget.
 - **SGPlan-style partitioning** — an optional partition-and-resolve mode.
 - **Robust** — a published library shouldn't crash: malformed/pathological PDDL
   (incl. deeply-nested forms) returns a typed error, never a panic.
@@ -241,6 +259,14 @@ CLI equivalents: `--mode`, `--search`, `--no-helpful`, `--weight-g/--weight-h`,
 `--max-evaluated`, `--satisfice`, `--threads`. Via JSON:
 `{"domain": "...", "problem": "...", "options": {"search": "best-first"}}`.
 
+**Budgets.** Per call: `Options::wall_ms` and `Options::should_continue` (an
+`Arc<AtomicBool>` you flip to stop the call). Per process: `FF_TIME_LIMIT`
+(seconds) and `FF_MEM_BUDGET_GB`. ferroplan never kills itself — it reads what
+you will enforce and arranges to be finished first, returning the best plan it
+holds with a note naming which budget bound. Every knob, restore hatch and
+measurement switch is in the book's
+[tuning chapter](https://hhh42.github.io/ferroplan/tuning.html).
+
 ## Workspace layout
 
 | crate | what |
@@ -338,7 +364,12 @@ flamegraph / criterion-baseline workflow for finding and tracking hotspots.
   (openstacks, storage, rovers), with trucks ahead on totals — see the
   [scoreboard](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-scoreboard.md). The tpp/pathways p05–p08 tails
   still trail (best-found, flagged *not proven optimal*, measured
-  direction-bound); the design record for the remaining work is in
+  direction-bound). On the FULL IPC-5 corpus at 60 s (0.28) coverage is level
+  with SGPlan5 on the simple and qualitative tracks (130 v 129, 98 v 100) but
+  its IPC quality score is not (94 v 119, 59 v 85): where the optimizer finds
+  nothing better than the hard-goal plan it started from, that plan is what
+  comes back — and on a problem with no hard goal it is the empty plan. The
+  design record for the remaining work is in
   [`docs/espc-preferences-spec.md`](https://github.com/hhh42/ferroplan/blob/main/docs/espc-preferences-spec.md) and
   [`docs/roadmap-0.5.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.5.md).
 - **PDDL3 trajectory constraints** (`(:constraints ...)`): the six untimed

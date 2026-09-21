@@ -7,6 +7,101 @@ everything before that lands here, newest first, verbatim and unedited.
 `publish.sh` reads release notes from BOTH files, so archiving a version
 never breaks `--release-only <old-version>`.
 
+## [0.27.0] - 2026-09-10 — One lever in the engine, and an instrument that can finally finish
+
+**61% coverage across 32 IPC boards** (5,122/8,444), **687 certified
+optima** — **+134** over 0.26.0 on the same instrument. Full record:
+[`docs/roadmap-0.27.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.27.md).
+
+The engine changed in exactly one place this cycle. Most of the work went
+into the thing that measures it, and that is the honest summary of what
+0.27 is.
+
+### The engine
+
+- **The anchored successor generator** (`PackedTask::applicable_ops`).
+  Expansion used to scan every grounded op to find the applicable ones.
+  Now each op is anchored at its RAREST positive precondition, candidates
+  are gathered from the state's true facts, and the result is sorted back
+  into the scan's order — so the search it feeds is byte-identical, the
+  same plans found in the same number of evaluations. Expansion per
+  evaluation: labyrinth 234 → 34 µs (7×), parking 258 → 21 µs (12×),
+  markettrader 10 → 5.6 µs. Wired into the classical, LAMA and novelty
+  rungs.
+- `apply()` gains an allocation-free path for ops with no conditional and
+  no numeric effects, which otherwise cost four temporaries per successor.
+- **Recorded negative:** the counter-based relaxed-graph build (reached
+  facts decrement the ops that need them, no per-layer scan) measured
+  1.78 → 2.02 ms on labyrinth and 0.92 → 0.96 on parking. Slower.
+  Removed. What remains on these boards is the relaxation floor itself,
+  ~1.7–2 ms per evaluation at 60–80k ops; moving it means firing fewer
+  ops or evaluating fewer states, not a faster scan.
+
+### Where it moved
+
+simple-preferences +8.5 pts (119/130), 2014 seq-agile +6.4 (172/280),
+qualitative-preferences +5.0 (51/100), and 2014 seq-sat / 2023 seq-sat /
+2023 classical +4.3 each. 2018 seq-sat at 94/240 now places ~1st of 25
+entrants by rate. One track went backwards: tempo-sat −0.3 pts.
+
+net-benefit stands at **270/270**, but that is NOT claimed as a 0.27
+gain. The like-for-like backfill now running — the v0.26.0 tag rebuilt
+and re-measured on this box under the current referee — reaches 270/270
+as well, so its published +3 was the instrument, not the engine. The
+same control has so far moved 2026 numeric-opt's +1 to 0 for the same
+reason. **Expect the same-instrument total to land a little under +134**;
+it will be recorded when the backfill completes, against 0.26.0's own
+re-measured numbers rather than its published table.
+
+### The instrument (crucible R2)
+
+Not shipped to crates.io — it is the harness — but it is why the numbers
+above are worth reading. **This is the first sweep in the project's
+history to reach a terminal state: 8,444 of 8,444 instances banked, zero
+owed.** The 0.26 cut was taken by decision after six passes and five days
+sixteen hours with 232 rows still owed.
+
+The referee now judges each row by ITS OWN process rather than by the
+box, which is what makes a clean terminal state reachable at all. Four
+defects it found the hard way, each with its receipt:
+
+- `cpu_ms` was **41.67× low** on every row ever recorded — Mach absolute
+  time read as nanoseconds.
+- The throttle never reached the child for the whole 0.26 sweep: the
+  control channel's sender was dropped at construction.
+- The **E-core defect**: under POLITE the harness put planners in
+  Darwin's background band, where the same instance took **59.28 s
+  instead of 4.52 s** — and banked, because ρ 0.956 is CPU share and a
+  demoted process has all the share of a slow core. 1,709 rows affected.
+- The canary locked onto a 3%-frequency boost clock and refused 553 rows
+  as thermal across eleven boards. Its baseline is now the 25th
+  percentile of recent solo readings.
+
+### Honesty notes
+
+- **11 instances that 0.26 solved, 0.27 did not.** Each was re-opened and
+  re-run solo on a quiet box under the cut rule before promotion; these
+  are the ones that failed again and are counted as real. Eight others
+  looked like regressions and were not — they solved on the re-run, which
+  is a 42% false-regression rate in the raw sweep and the reason the
+  re-check exists.
+- **The referee changed during the final passes.** ρ is CPU over wall,
+  and every process pays a fixed ~0.3 s of fork, exec, linking and
+  teardown that is wall without CPU — so below ~8 s no process, however
+  well served, can reach ρ ≥ 0.95. Runs under that floor were being
+  refused forever, and the set could not have completed. They are now
+  judged by the box-wide window, which is what 0.26's instrument did for
+  every row. Verified against the database rather than asserted: the same
+  rows banked under 0.26 as `window`. The solved count did not move
+  across either change — what banked were honest non-solutions.
+- Coverage is measured at 60 s (300 s where a board says ENTRY), against
+  official budgets that are typically 30× longer. The comparison is to
+  ferroplan 0.26.0 on the same box, not to the competition.
+
+---
+
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (28 earlier releases, 0.1.0–0.26.0).
+
 ## [0.26.0] - 2026-09-04 — The fallback learns the LAMA recipe, and the harness learns what it was doing wrong
 
 **59% coverage across 32 IPC boards** (4,988/8,444), **685 certified

@@ -4,13 +4,47 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-Four engine lanes, all on one theme: **feasible first, better second.** A
-2026-09-20 read of SGPlan5's own IPC-5 solution headers found its MEDIAN
-solve is 0.54 s -- so the gap to it on those boards was never the 60 s wall.
-On most rows it solves and ferroplan did not, a valid plan was in hand, or
-milliseconds away, and the route had no way to return it. Board numbers are
-recorded in `docs/roadmap-0.28.md` (measured through the crucible, first
-attempt against best-of-N boards); nothing below claims one for the release.
+## [0.28.0] - 2026-09-21 — Feasible first, better second
+
+A 2026-09-20 read of SGPlan5's own IPC-5 solution headers found its MEDIAN
+solve is **0.54 s** -- 89 % of its 860 solves finish inside 60 s, and of the
+335 rows it solves and ferroplan did not, 143 took it under a second. The gap
+on those boards was never the wall. On most of those rows a valid plan was in
+hand, or milliseconds away, and the route had no way to return it. Five engine
+lanes close that, and the harness learned to measure a question smaller than
+a release.
+
+### Measured
+
+Through the crucible (same referee, contention throttle and re-run rule as a
+cut sweep), on the six IPC-5 boards the work was aimed at, 60 s, one thread:
+
+| | 0.27.1 (published boards) | 0.28.0 |
+|---|---:|---:|
+| six IPC-5 boards, of 788 | 379 | **569** (+190, none lost) |
+| the variants SGPlan5 entered, of 678 -- SGPlan5 solves 612 | 316 | **491** |
+
+Read it with what it is made of. **46 of the +190 are the EMPTY plan**, on
+problems with no hard goal at all (every goal a preference): valid,
+VAL-accepted, and the boards' standing convention -- 0.27.1's carry 27 -- but
+floor quality. 144 are plans that do something. And coverage is not what IPC-5
+ranked these tracks on: by its quality score (best metric / ours, over the
+cells SGPlan5 solved) ferroplan moved 94.8 -> 94.0 on simple preferences
+(SGPlan5 119.4), 45.8 -> 59.2 on qualitative (84.8), 20.1 -> 50.6 on complex
+(67.9). **The lanes closed rows and left points where they were.** The 569 is
+an overlay of re-measured cells across two builds of this cycle, so it is an
+estimate; the 32-board cut sweep is the instrument of record
+([`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md)).
+
+Regression read, equal-N (one banked row per cell per engine), over the 519
+temporal cells the published boards solved: **519 of 519**, summed solve time
+0.91x, makespan better on 181 cells and worse on 6. Over the 58 cells that
+solve at a resident size of 3.5 GB or more -- the only ones the new memory
+wall can touch -- 58 of 58, 49 identical, one metric worse by 2, and **eight
+that keep their row and give up their metric** (they used to be scored at a
+resident size over the declared budget, unnoticed). The full record, the
+recorded negatives included, is
+[`docs/roadmap-0.28.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.28.md).
 
 ### Added
 
@@ -34,6 +68,21 @@ attempt against best-of-N boards); nothing below claims one for the release.
   branch-and-bound with the seed.
 - `temporal::solve_scored` / `ScoredPlan` / `SoftScorer`: the preference
   score rides the solve instead of being computed after it.
+- **Condition preferences on durative actions**: `(preference name (at start
+  phi))` inside a `:durative-action`'s `:condition` now parses (every row of
+  IPC-5 `tpp-preferences-complex` used to die at the parser). The search
+  drops them, as PDDL3 allows, and the scorer counts one violated instance
+  per APPLICATION -- at start before the start happening, at end before the
+  end, over all across every state inside the interval.
+- The anchored successor generator (0.27's classical lever) is wired into the
+  temporal rung. Byte-identical by construction; measured, the scan it
+  removes was 0.01-7.7 % of a temporal evaluation, so no coverage is claimed
+  for it. `FF_NO_TSUCC=1` keeps the full scan for measurement.
+- `FF_HTRACE=1`: the classical best-first `best_h` trace (evaluations and
+  seconds at each improvement) on stderr. `FF_MEM_TRIP_FRAC`,
+  `FF_GROUND_PHASES=1`: measurement knobs for the memory wall and the
+  grounder's phases. All documented in the book's
+  [tuning chapter](https://hhh42.github.io/ferroplan/tuning.html).
 
 ### Fixed
 
@@ -83,6 +132,20 @@ attempt against best-of-N boards); nothing below claims one for the release.
 - The text path no longer prints "problem proven unsolvable" for a PDDL3
   run that simply ran out of budget before its first plan.
 
+### Harness (the crucible; not part of any published crate)
+
+- **A subset is a sweep over fewer cells.** `crucible sweep --set S [--board
+  ID].. [--only RE] [--rows FILE] [--prior unsolved|solved] [--name N]
+  [--engine PATH]`, the same flags on `backfill` (minus `--engine`) and
+  `compare` (plus `--lost FILE`). Same runner, referee, owed-row cascade,
+  canary and database as a cut sweep; it stages under
+  `benchmarks/probes/<name>/<ver>-<hash>/`, records no board pass, and shares
+  its rows with the sweep that follows. Built after a week in which seven
+  "misses" on one board turned out to be a foreign process at 210 % CPU
+  beside an ad-hoc shell loop that could not know.
+- Known, owed: `run.peak_rss` is a SAMPLED maximum. Two rows banked as solved
+  at 4.5 and 5.9 GB under a 6 GB cap truly peaked at 6.6 and 6.4. `wait4`
+  already returns `ru_maxrss`.
 
 ## [0.27.1] - 2026-09-11 — A budget the caller can set, and withdraw
 
@@ -139,97 +202,6 @@ solved under a 200 ms one. That is not new to this release: `FF_TIME_LIMIT`
 of 0.12 s fails the same instance and 0.2 s solves it. Measure your own
 domain rather than assuming a 250 ms wall buys 250 ms of search.
 
-## [0.27.0] - 2026-09-10 — One lever in the engine, and an instrument that can finally finish
-
-**61% coverage across 32 IPC boards** (5,122/8,444), **687 certified
-optima** — **+134** over 0.26.0 on the same instrument. Full record:
-[`docs/roadmap-0.27.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.27.md).
-
-The engine changed in exactly one place this cycle. Most of the work went
-into the thing that measures it, and that is the honest summary of what
-0.27 is.
-
-### The engine
-
-- **The anchored successor generator** (`PackedTask::applicable_ops`).
-  Expansion used to scan every grounded op to find the applicable ones.
-  Now each op is anchored at its RAREST positive precondition, candidates
-  are gathered from the state's true facts, and the result is sorted back
-  into the scan's order — so the search it feeds is byte-identical, the
-  same plans found in the same number of evaluations. Expansion per
-  evaluation: labyrinth 234 → 34 µs (7×), parking 258 → 21 µs (12×),
-  markettrader 10 → 5.6 µs. Wired into the classical, LAMA and novelty
-  rungs.
-- `apply()` gains an allocation-free path for ops with no conditional and
-  no numeric effects, which otherwise cost four temporaries per successor.
-- **Recorded negative:** the counter-based relaxed-graph build (reached
-  facts decrement the ops that need them, no per-layer scan) measured
-  1.78 → 2.02 ms on labyrinth and 0.92 → 0.96 on parking. Slower.
-  Removed. What remains on these boards is the relaxation floor itself,
-  ~1.7–2 ms per evaluation at 60–80k ops; moving it means firing fewer
-  ops or evaluating fewer states, not a faster scan.
-
-### Where it moved
-
-simple-preferences +8.5 pts (119/130), 2014 seq-agile +6.4 (172/280),
-qualitative-preferences +5.0 (51/100), and 2014 seq-sat / 2023 seq-sat /
-2023 classical +4.3 each. 2018 seq-sat at 94/240 now places ~1st of 25
-entrants by rate. One track went backwards: tempo-sat −0.3 pts.
-
-net-benefit stands at **270/270**, but that is NOT claimed as a 0.27
-gain. The like-for-like backfill now running — the v0.26.0 tag rebuilt
-and re-measured on this box under the current referee — reaches 270/270
-as well, so its published +3 was the instrument, not the engine. The
-same control has so far moved 2026 numeric-opt's +1 to 0 for the same
-reason. **Expect the same-instrument total to land a little under +134**;
-it will be recorded when the backfill completes, against 0.26.0's own
-re-measured numbers rather than its published table.
-
-### The instrument (crucible R2)
-
-Not shipped to crates.io — it is the harness — but it is why the numbers
-above are worth reading. **This is the first sweep in the project's
-history to reach a terminal state: 8,444 of 8,444 instances banked, zero
-owed.** The 0.26 cut was taken by decision after six passes and five days
-sixteen hours with 232 rows still owed.
-
-The referee now judges each row by ITS OWN process rather than by the
-box, which is what makes a clean terminal state reachable at all. Four
-defects it found the hard way, each with its receipt:
-
-- `cpu_ms` was **41.67× low** on every row ever recorded — Mach absolute
-  time read as nanoseconds.
-- The throttle never reached the child for the whole 0.26 sweep: the
-  control channel's sender was dropped at construction.
-- The **E-core defect**: under POLITE the harness put planners in
-  Darwin's background band, where the same instance took **59.28 s
-  instead of 4.52 s** — and banked, because ρ 0.956 is CPU share and a
-  demoted process has all the share of a slow core. 1,709 rows affected.
-- The canary locked onto a 3%-frequency boost clock and refused 553 rows
-  as thermal across eleven boards. Its baseline is now the 25th
-  percentile of recent solo readings.
-
-### Honesty notes
-
-- **11 instances that 0.26 solved, 0.27 did not.** Each was re-opened and
-  re-run solo on a quiet box under the cut rule before promotion; these
-  are the ones that failed again and are counted as real. Eight others
-  looked like regressions and were not — they solved on the re-run, which
-  is a 42% false-regression rate in the raw sweep and the reason the
-  re-check exists.
-- **The referee changed during the final passes.** ρ is CPU over wall,
-  and every process pays a fixed ~0.3 s of fork, exec, linking and
-  teardown that is wall without CPU — so below ~8 s no process, however
-  well served, can reach ρ ≥ 0.95. Runs under that floor were being
-  refused forever, and the set could not have completed. They are now
-  judged by the box-wide window, which is what 0.26's instrument did for
-  every row. Verified against the database rather than asserted: the same
-  rows banked under 0.26 as `window`. The solved count did not move
-  across either change — what banked were honest non-solutions.
-- Coverage is measured at 60 s (300 s where a board says ENTRY), against
-  official budgets that are typically 30× longer. The comparison is to
-  ferroplan 0.26.0 on the same box, not to the competition.
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (28 earlier releases, 0.1.0–0.26.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (29 earlier releases, 0.1.0–0.27.0).

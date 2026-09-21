@@ -12,6 +12,24 @@ Almost every knob is a **restore hatch**: it exists to reproduce an earlier
 behavior or to run an experiment, and the default is the recommended setting. All
 results are deterministic and thread-count independent.
 
+## Budgets — the wall and the memory
+
+A budget is declared, never imposed: ferroplan does not kill itself. It
+reads what the caller (or the caller's runner) will enforce and arranges to be
+finished first. Per call, in code, the same two ideas are `Options::wall_ms`
+and `Options::should_continue`.
+
+| variable | default | effect |
+|---|---|---|
+| `FF_TIME_LIMIT` | unset | the process's REAL wall budget in seconds — see [Classical search](#classical-search-experiments--restore-hatches) for the ladder gate it arms. Since 0.28 it also bounds everything done to a plan ALREADY in hand. |
+| `FF_REPORT_RESERVE_SECS` | 3 % of the wall (0.5–3 s) + a size term | how far short of the wall optional work on a found plan stops — the quality chases, the preference scorer, the PDDL3 optimizer over its seed — so the plan is reported before a runner that kills AT the wall fires (0.28). |
+| `FF_MEM_BUDGET_GB` | unset | the retained-memory budget in GiB (fractional ok) the caller will enforce. It sizes the modelled node caps, and since 0.28 it is also MEASURED: the engine reads its own resident size (`/proc/self/status`; `task_info` on macOS). |
+| `FF_NO_MEM_WALL` | wall on | disable the 0.28 measured memory wall. With it, *bounded* work — a chase over a banked plan, the grounding that would price or score a plan already found, a rung's bet — stops at 75 % of `FF_MEM_BUDGET_GB` and returns what was banked; a trip is sticky for that scope. A first search, with nothing to fall back on, is never cut by it. |
+| `FF_MEM_TRIP_FRAC` | `0.75` | move that line — for measuring it (0.85 was measured: nothing solves or scores better, and one board instance peaks at 5.97 GB of 6). |
+| `FF_EHC_WALL_FRAC` | `0.25` | the fraction of the remaining wall EHC may spend before handing down the ladder. `FF_NO_EHC_WALLCAP=1` removes the slice. |
+| `FF_NO_RUNG_WALLCAP` | checkpoints on | turn OFF the clock checkpoints inside the bounded rungs, best-first batches and grounding (the 0.21 shapes — a run can then overrun its wall; kept as the permanent RED record). |
+| `FF_WALL_DEBUG` / `FF_GROUND_PHASES` | off | narrate every wall and memory decision / every grounding phase with its elapsed time on stderr. Probe eyes; never affect the search. |
+
 ## Temporal
 
 | var | default | effect |
@@ -36,6 +54,9 @@ results are deterministic and thread-count independent.
 | `FF_TLIFO` | off | **experimental**: LIFO tie-breaking at equal temporal keys. Measured WORSE on the TMS plateau (best_h 150 vs 110) — dives a high-h corridor. |
 | `FF_TB_FREE_G` | off | **experimental**: don't charge g for time-advance successors. Measured WORSE on TMS (best_h 196) — rides time forward, wasting windows. |
 | `FF_TAGENDA_W_PRUNE` | `0` | **experimental**: the agenda-size term on the PRUNED pass (start-credit counter-account). Measured worse on TMS (best_h 173) though it does push the search deep enough for window blocking to engage. |
+| `FF_NO_TCOMPRESS` | rung on | disable the 0.28 **compression rung** (plan a concurrency-free temporal task as a classical one, left-shift it onto the clock, validate against the original). Restores the 0.27 route. |
+| `FF_TCOMPRESS_WALL_FRAC` / `FF_TCOMPRESS_CHASE_FRAC` | `0.25` / `0.25` | the share of the remaining wall the compression rung may bet, and the share the decision-epoch makespan chase gets after it banks. Unwalled, the bet is capped at 2,000 evaluations per classical rung instead. |
+| `FF_NO_TSUCC` | generator on | restore the full operator scan in temporal expansion. 0.28 wired the anchored successor generator (0.27's classical lever) into the temporal rung; it is byte-identical by construction and, measured, removes a 0.01–7.7 % term — the relaxed planning graph is the other 92–99 %. Kept for exactly that kind of measurement. |
 | `FF_TEVAL_BUDGET` | unlimited | cap CLI temporal search **evaluations** — the deterministic measuring stick for A/B probes (eval budgets, never wall clock). |
 
 ## Classical search (experiments & restore hatches)
@@ -44,6 +65,8 @@ results are deterministic and thread-count independent.
 |---|---|---|
 | `FF_NOVELTY` | auto |  the width-1 BFWS-style novelty rung (0.17) — a third bounded classical rung after EHC and LAMA fail, open list ordered by state novelty then h. 0.19: DEFAULT-ON when `FF_TIME_LIMIT` is declared and >40% of the budget remains (the 0.18 gated referee measured +4/−0, reversing 0.17's ungated +7/−51 tax); `FF_NO_NOVELTY=1` opts out, `FF_NOVELTY=1` forces it without a budget. No budget declared ⇒ rung off, byte-identical ladder. `FF_NOVELTY_ONLY=1` probes the rung alone. |
 | `FF_TIME_LIMIT` | unset | the process's REAL wall budget in seconds (0.18 budget-aware ladder). The clock arms at solve entry (grounding counts as spent budget); a bounded rung (LAMA, novelty) is entered only while **more than 40% of the budget remains**, so late-ladder rungs stop starving the complete fallback near the budget edge — the mechanism behind the novelty referee's −51. Unset = all-rungs behavior, byte-identical to 0.17. `benchmarks/ipc67.py` passes its per-instance `--timeout` automatically. Informational, never kills the process. `FF_WALL_DEBUG=1` narrates the gate's verdict on stderr (the probe eyes, never affects the search). |
+| `FF_NO_NEED_DIRS` | direction-aware | restore the 0.27 relaxed-graph fixpoint test, which counted ANY numeric bound movement as progress — a consumable's un-read lower bound drifting down sent every dead-end evaluation to the 2,000-layer cap. Heuristic values are identical either way; only the cost of proving a dead end changes (~78× evaluations per second on rovers-metric-time shapes). |
+| `FF_HTRACE` | off | print the classical best-first `best_h` trace (evaluation count and seconds at each improvement) on stderr. |
 | `FF_NO_DNF_STATIC` | resolve | disable static resolution inside precondition DNF expansion (restore the 2^k `imply` blowup the 0.10 fix removed — openstacks-ADL 6/30 → 30/30). |
 | `FF_NO_TRAJ_END` | end-action | restore the exponential goal-DNF construction for hard trajectory monitors (pre-0.8). |
 | `FF_CLM` | off | **experimental**: classical landmark-count guidance term. Measured negative (transport unchanged, floor-tile worse). |
@@ -61,6 +84,9 @@ predecessor pieces or tune its budget.
 | `FF_PREF_NO_ESCALATE` | escalate | disable the budget-escalating retry (abandon a probe on its first capped iteration). |
 | `FF_PREF_GREEDY` | anytime | restore first-improvement sweeps: return at the first plan under the bound and restart, instead of tightening the bound in place and draining the sweep. |
 | `FF_PREF_NO_RESTARTS` | ladder on | disable the diversified restart ladder (rotated open-list weight profiles on a capped no-improvement sweep) — the lever behind the storage p06/p07 and pathways p05 wins. |
+| `FF_PREF_NO_SEED` | seed on | disable 0.28's **incumbent zero** — the hard-goal plan handed to the optimizer as a floor, and returned (with a note) when nothing cheaper was found. Restores 0.27, where such a run reported `solved: false`. |
+| `FF_PREF_SEED_BOUND` | floor only | also OPEN the branch-and-bound with the seed's metric as its first bound (off by default: the seed is a floor, not a bound, so the optimizer's own search is byte-identical to 0.27's). |
+| `FF_PREF_SEED_WALL_FRAC` / `FF_PREF_SEED_EHC_FRAC` | `1.0` / `0.6` | the share of the remaining wall the hard-goal search may use, and EHC's share of THAT. |
 | `FF_PREF_SEED` | off | **experimental**: forgo-aware second seed — price each preference's completion with a cost-aware relaxed plan and pre-forgo those priced over their weight. Measured neutral on rovers (the EHC seed already lands there). |
 | `FF_PREF_SEED3` | off | **experimental**: partitioned closure seed — compose a per-preference-component incumbent (mutex-conflict-pruned, sibling-protected stages) before the tightening loop. Composes genuinely (tpp p05: 99 vs the 105 init-tail) but measured neutral on finals: the anytime+ladder loop reaches the same metric from either bound. |
 | `FF_PREF_NO_SELECT` | select on | disable the 0.6 **selection layer** (exact preference-subset selection solved combinatorially, then planned as a hard-goal target; `docs/forensics-tpp.md`). Selection is what ties SGPlan5 on tpp p06 and widened the rovers totals lead; its bounded seed runs outside the tightening budget. |

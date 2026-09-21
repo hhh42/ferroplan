@@ -50,6 +50,31 @@ symmetric goals, a grounded task closed under relabeling — the visited key is
 canonicalized under member permutation, collapsing machine-shop-style
 "which identical piece is which" state blowups.
 
+### The compression rung (0.28)
+
+Before any of that, a task that needs **no concurrency** is tried the cheap
+way: every durative action is read as ONE instantaneous action (condition =
+start ∧ over all ∧ end, effect = start then end), the classical ladder plans
+that, and the plan is put back on the clock by a **left-shift** over each
+step's read/write sets — independent work overlaps, interfering work does not.
+The result is validated against the ORIGINAL durative task before it is
+returned, so the rung can be wrong about a task without ever being wrong about
+a plan. It *banks*: the decision-epoch search then runs as a bounded quality
+chase and the smaller makespan wins, so a task that solved before returns the
+plan it returned before. It declines — and says so under `FF_WALL_DEBUG=1` —
+on required concurrency, timed initial literals, trajectory constraints and
+unconstrained durations. `FF_NO_TCOMPRESS=1` restores the 0.27 route.
+
+### A plan in hand comes back inside the budget (0.28)
+
+Everything done to a plan that already solves the task — the preference
+quality chase, the makespan chase, the scorer — is *optional work*, and it
+stops a reserve short of `FF_TIME_LIMIT` (3 % of the wall, 0.5–3 s, plus a
+size term) and at 75 % of `FF_MEM_BUDGET_GB`. A runner that kills at the wall
+or at the memory cap no longer takes a valid plan down with the process. A
+banked plan whose preference scorer cannot be built in what is left is
+returned with a `NOT scored` note rather than not returned.
+
 ## Output
 
 Plans are rendered in the IPC temporal format, `start: (action args) [duration]`,

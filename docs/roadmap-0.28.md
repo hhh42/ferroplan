@@ -1230,6 +1230,60 @@ and pathways -- a plan-side local search over the banked plan is the obvious
 candidate, since SGPlan5's own architecture is exactly that, and nothing here
 has priced it yet.
 
+## THE CUT — 0.28.0 (opened 2026-09-21)
+
+The workspace is at 0.28.0, the `cut28` set is in the manifest (the same 32
+boards as cut27, stage `benchmarks/air28`, version gate 0.28), and the release
+text is written: `CHANGELOG.md` [0.28.0], the README's Status line and "What's
+new in 0.28.0", the book's temporal, PDDL3 and tuning chapters.
+`scripts/release-notes-roll.py --check` passes.
+
+**What the release text claims, and on what.** Only what the crucible
+measured on subsets this cycle: the six IPC-5 boards (379 -> 569, labelled an
+overlay and an estimate, with its 144 / 46 real / empty split and the quality
+table against SGPlan5), and the two equal-N regression reads. It claims NO
+32-board number. The README's standings block is generated
+(`benchmarks/standings.py`) and still shows 0.27.0's sweep; the Status line
+says so in words until the sweep below is promoted.
+
+**The estimator, declared BEFORE the sweep runs** (the INSTRUMENT section
+below withdrew 0.27's +115 for want of exactly this):
+
+1. The COMPARATIVE claim 0.27.0 -> 0.28.0 is **first attempt against first
+   attempt**, per cell, over the 8,444 -- `benchmarks/attempts-estimator.py
+   --a <0.27.0 engine> --b <0.28.0 engine>`, the `first` row, with its
+   bootstrap interval. Both engines were given exactly one first attempt;
+   nothing else in the record is equal by construction.
+2. `equal-N` is reported beside it. If the two disagree in SIGN, no delta is
+   claimed and the release says so.
+3. BANKED coverage -- what the boards and the README block show -- is
+   published as the boards' standing number and never as a delta.
+4. The empty-plan count is published with the preference boards' coverage
+   (`probes-0.28/lanes-crucible/composition.py`, pointed at `air28`).
+
+**What is left, in order** (nothing here needs an engine change):
+
+1. `crucible --repo /Users/harold/ferroplan sweep --set cut28 --headless`,
+   detached, log to `benchmarks/cut28-sweep.log`. Days, not hours. No cargo
+   build or test on the box while it runs.
+2. The regression re-check through the crucible: `compare --lost` against
+   0.27.0's banked rows, then `sweep --rows` on what it names, before any row
+   is called a loss.
+3. `bash benchmarks/promote-air28.sh` (refuses a partial sweep; regenerates
+   `benchmarks/ipc-standings.md`, `STANDINGS.md` and the README block, and
+   demands `crucible standings --check` parity).
+4. `python3 scripts/standings-snapshot.py --version 0.28.0 --measured-at <the
+   sweep's date>`.
+5. The release text gets its 32-board paragraph under the estimator above; the
+   README Status line goes back to the standing sentence ("... are on
+   crates.io"); the [0.28.0] date becomes the publish date.
+   `release-notes-roll.py --check`.
+6. Full pre-flight again on the final commit (`RELEASING.md`), push, fast-forward
+   `main`, then `./publish.sh` -- the operator's step, not the cycle's.
+
+**Pre-flight on the release-candidate commit, 2026-09-21** -- recorded below
+as it ran.
+
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
 
 Found while trying to reproduce ONE row. It outranks every lane below it,
