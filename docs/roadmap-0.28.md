@@ -1327,6 +1327,32 @@ and one of them was hiding the other.
    `tests/tcompress.rs` pins the decline. No board sets `FF_TCONC`; nothing
    measured this cycle moves.
 
+3. **An empty file, tracked by accident, blocked the checkout the sweep runs
+   from.** `3e9e013` had committed a 0-byte `benchmarks/cut27-sweep.1.log`
+   beside a `sweep.rs` change; in the operator's checkout the REAL log of that
+   sweep (201 KB) sits untracked at the same path, so `git checkout main`
+   refused. Untracked again (`43e502f`), and the cut stages and sweep logs are
+   ignored the way every earlier cycle's are. The real log was never moved.
+4. **`golden_standings` is red in the checkout that has the raws, and should
+   be, until the promote.** It renders `STANDINGS.md` from the repo and
+   compares bytes; the movement column's predecessor is the newest snapshot
+   strictly below the WORKSPACE version, so from the bump to 0.28.0 until
+   `promote-air28.sh` regenerates the tables it reads `= (vs 0.27.0)` against
+   the committed `+1.1 pts (vs 0.26.0)`. Regenerating now would publish a table
+   of equals signs. In the worktree, where the raws are absent, the test skips
+   and `crucible/preflight.sh` is **clean** end to end (it needed the
+   operator's checkout to carry `cut28` first: `tui --dump` reads that
+   manifest, not the worktree's).
+
+**The sweep is running.** Launched 2026-09-21 ~10:50 from the operator's
+checkout (`/Users/harold/ferroplan`, `main` = `43e502f`), detached:
+`crucible --repo /Users/harold/ferroplan sweep --set cut28 --headless`, log
+`benchmarks/cut28-sweep.log`, stage `benchmarks/air28/`. Engine
+**`ff 0.28.0 [89cfdc5f06ed]`**, 8,444 instances, 32 boards. Until it says
+SWEEP COMPLETE: no cargo build or test on the box, and NOTHING rebuilds
+`/Users/harold/ferroplan/target/release/ff` -- a rebuilt binary is a different
+engine to the database, and the sweep would be measuring two.
+
 **The lesson for the gate itself:** `publish.sh` and `RELEASING.md` run the
 ignored pass fail-fast. One red binary early in the alphabet turns the rest
 of the gate off without saying so. Both now say `--no-fail-fast`.
