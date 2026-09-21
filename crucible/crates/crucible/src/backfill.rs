@@ -32,6 +32,9 @@ pub struct Opts<'a> {
     pub dry_run: bool,
     pub max_passes: Option<u32>,
     pub no_db: bool,
+    /// Which cells of the set; a subset stages under `benchmarks/probes/`
+    /// instead of `air-<ver>/` (`select.rs`).
+    pub select: crate::select::Select,
 }
 
 /// `benchmarks/air-<ver>/` from `ff 0.18.0` -- the convention the hand-made
@@ -137,6 +140,13 @@ fn gc_worktrees(repo: &Path, worktree_dir: &Path, keep: usize, current: &str) {
 }
 
 pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Result<()> {
+    // A backfill's engine IS its tag. `--engine` rides in on the shared subset
+    // flags, and honouring it here would measure one binary under another's name.
+    anyhow::ensure!(
+        o.select.engine.is_none(),
+        "--engine names a binary and --tag names one too: a backfill measures the tag's. \
+         Use `sweep --engine` to measure an arbitrary binary."
+    );
     verify_tag(repo, o.tag)?;
     let manifest = crate::load_manifest(repo)?;
     manifest
@@ -163,6 +173,7 @@ pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Res
             dry_run: o.dry_run,
             max_passes: o.max_passes,
             no_db: o.no_db,
+            select: o.select.clone(),
         },
         &manifest,
         engine,

@@ -776,3 +776,116 @@ canary_max_factor   = 1.15
 [ui]
 stderr_tail_lines   = 40
 ```
+
+---
+
+# R3 — subsets (revision of 2026-09-20)
+
+## R3.0 The case
+
+Most questions asked of an engine during a cycle are not the size of a set:
+"did this lane convert the rows it was built for", "did it cost anything on
+the boards it was NOT built for", "is this one row a loss or a lucky third
+attempt". Until this revision they were asked OUTSIDE the harness, with a
+shell loop around the board runner, and so without anything the harness
+exists for. The 0.28 lanes were measured that way -- beside a game at 210 %
+CPU (§6.1 names it; the loop could not know), then beside another project's
+full build at load 23 -- and produced 1,000 rows of which nobody could say
+which meant anything. Seven "misses" on one board were the box, not the
+engine.
+
+## R3.1 A subset is a sweep over fewer cells
+
+```
+crucible sweep    --set S  [--board ID]... [--only REGEX] [--rows FILE]
+                           [--prior unsolved|solved] [--name NAME] [--engine PATH]
+crucible backfill --tag T --set S   (the same flags, minus --engine)
+crucible compare  --set S --a A --b B   (the same flags)  [--lost FILE]
+```
+
+Same runner, same referee (R2.1), same owed-row cascade (R2.2), same canary,
+same database. Nothing about measuring a cell depends on which other cells
+are being measured, so nothing about it changes. The selection is applied
+ONCE, where the cells are enumerated (`SweepRunner::new`): from there the
+board's `instances` IS the subset, and `remaining()`, the cascade, the
+dashboard and the pass loop's termination all agree about what the run is
+for. (Filtering the per-pass work list instead leaves `remaining()` counting
+cells nobody will measure, and the loop waits on them for ever.)
+
+- `--board` names boards OF THE SET; a name the set does not hold stops the
+  run. `--only` is a regex over `variant/label`. `--rows` is a file of
+  `variant/label` lines (`#` comments; `compare --lost` writes it).
+- `--prior` reads the PROMOTED raw, the source the scheduler already classes
+  a cell from: `unsolved` is what there is to gain -- and a cell the
+  predecessor never recorded counts, because a new instance is a gain waiting
+  to be measured -- `solved` is what there is to lose, the regression read.
+- A selection that selects nothing is an error, not an empty success.
+
+**This is not the manual re-run key R2.4 refuses.** It chooses CELLS; the
+referee still decides what banks and what is owed, and a cell already banked
+for this engine is not measured again. "If the automatic retry is wrong the
+fix is the referee" stands.
+
+## R3.2 What a subset must not say
+
+Everything said about a BOARD depends on all of its cells, so a subset says
+none of it:
+
+- **Stage.** `benchmarks/probes/<name>/<ver>-<hash>/`, never the set's stage
+  and never a backfill's `air-<ver>/`, whatever `--stage` says. A board raw
+  holding a third of its rows, written where the whole one goes, is exactly
+  the artifact `promote` reads; a `.done` there is what `resident` reads as
+  "complete". One directory per engine under one name, so a candidate and
+  the tag it is read against sit side by side.
+- **No `board_pass`.** That table is the `.done` marker with provenance, and
+  its live row is UNIQUE per (board, engine): a subset that banked its forty
+  cells would overwrite it with `clean`. The ROWS are on record, each with
+  its own verdict -- that is the truth about a subset, and all of it. (A
+  `.done` inside the probe's own stage means only "this subset of this board
+  owes nothing".)
+
+## R3.3 What a subset deliberately shares
+
+**The rows.** A cell measured under a subset is keyed exactly as a full sweep
+keys it -- engine BLAKE3, board identity, instance, attempt -- so the sweep
+that follows reads it back and owes one cell fewer. A probe is never wasted
+work, and a full sweep is never misled by one: what it reads back is a row
+with a verdict, judged by the same rule it would have applied itself.
+
+## R3.4 An arbitrary engine
+
+`sweep --engine PATH` measures that binary instead of
+`<repo>/target/release/ff`: the instrument and the promoted raws come from
+`--repo`, the engine from wherever it was built (a worktree, a branch, a
+bisect). SUBSETS ONLY -- the set's own stage belongs to the working tree's
+candidate and no other binary may write there. The version gate still
+applies. `backfill` refuses the flag: its engine is its tag, and honouring
+both would measure one binary under another's name.
+
+Why it is needed and not merely convenient: the promoted raws are gitignored
+and live in ONE checkout. Pointed at a worktree, the harness has no
+predecessor -- `--prior` selects nothing, every cell classes as solo, and
+the SUSPECT rule (R2.4b) never fires. Copying the raws into the worktree
+instead breaks `golden_standings`, which renders from whatever raws it
+finds.
+
+## R3.5 Reading two engines over the same cells
+
+`compare` tallies each board over its whole declared census and shows `--`
+while either side owes a row. After a probe that is every board: both
+engines "owe" the thousands of cells nobody asked them to measure. Given the
+flags the runs took, the census IS the subset, and the delta is over exactly
+those cells. It also lists the per-cell flips among cells BOTH engines
+banked -- an owed cell could still change and is nobody's loss yet -- and
+`--lost FILE` writes B's losses in `--rows` format, which is the honest
+differential's next command:
+
+```
+crucible sweep    --set cut27 --engine .../ff --board ipc2014-tempo --prior solved --name regress
+crucible backfill --set cut27 --tag v0.27.1   --board ipc2014-tempo --prior solved --name regress
+crucible compare  --set cut27 --a v0.27.1 --b <hash> --board ipc2014-tempo --prior solved --lost lost.rows
+```
+
+Both arms under the same referee, on the same box, with the same retry
+rule -- equal-N by construction, which a published board (best-of-N,
+roadmap 0.28) is not.

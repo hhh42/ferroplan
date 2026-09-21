@@ -820,6 +820,9 @@ pub struct Setup<'s> {
     /// stages under `benchmarks/air-<ver>/` instead, because the set names
     /// the CANDIDATE's stage and an old engine must never write there.
     pub stage: Option<PathBuf>,
+    /// Which cells of the set. A subset stages under `benchmarks/probes/`
+    /// whatever `stage` says, and records no board pass (`select.rs`).
+    pub select: crate::select::Select,
 }
 
 pub struct SweepRunner<'a> {
@@ -829,6 +832,9 @@ pub struct SweepRunner<'a> {
     engine: SweepEngine,
     val: Option<PathBuf>,
     pub(crate) boards: Vec<Board>,
+    /// True when this runner holds a SUBSET of its set: no board it holds is
+    /// a whole board, so nothing may be said about one (`record_pass`).
+    subset: bool,
     shared: Arc<Shared>,
     rule: referee::Rule,
     admit_below_full: bool,
@@ -953,10 +959,20 @@ impl<'a> SweepRunner<'a> {
             capable,
             db,
             stage,
+            select,
         } = setup;
         let spec = manifest
             .set(set)
             .with_context(|| format!("no set {set:?} in the manifest"))?;
+        // A board named on the command line and not in the set is a typo, and
+        // a typo must stop the run rather than quietly measure nothing.
+        let unknown = select.unknown_boards(&spec.boards);
+        anyhow::ensure!(
+            unknown.is_empty(),
+            "--board {}: not in set {set:?} (it holds: {})",
+            unknown.join(", "),
+            spec.boards.join(", ")
+        );
         let corpus_dir = std::env::var_os("FERROPLAN_IPC_CORPUS")
             .map(PathBuf::from)
             .unwrap_or_else(|| repo.join("benchmarks/.ipc-corpus"));
@@ -965,6 +981,9 @@ impl<'a> SweepRunner<'a> {
         let mut warnings = Vec::new();
         let mut absent = Vec::new();
         for (position, id) in spec.boards.iter().enumerate() {
+            if !select.wants_board(id) {
+                continue;
+            }
             let Some(b) = manifest.board(id) else {
                 continue;
             };
@@ -998,6 +1017,23 @@ impl<'a> SweepRunner<'a> {
             for v in &walk.variants {
                 for i in corpus::instances(v, 0, &mut warnings) {
                     instances.push((v.ipc.clone(), v.name.clone(), i));
+                }
+            }
+            // THE SUBSET, applied where the cells are enumerated and nowhere
+            // else: `instances` IS the subset from here on, so `remaining()`,
+            // the owed-row cascade, the dashboard and the pass loop's
+            // termination all agree about what this run is for. (Filtering
+            // the per-pass `todo` instead leaves `remaining()` counting cells
+            // nobody will measure, and the loop waits on them for ever.)
+            if select.is_subset() {
+                let prior = if select.needs_prior() {
+                    prior_rows(repo, &b.raw)
+                } else {
+                    Default::default()
+                };
+                instances.retain(|(_, variant, inst)| select.admits(variant, &inst.label, &prior));
+                if instances.is_empty() {
+                    continue;
                 }
             }
             let cfg = board_cfg(manifest, b);
@@ -1044,13 +1080,24 @@ impl<'a> SweepRunner<'a> {
             }
         }
 
+        // A subset NEVER stages where a set does, whoever asked: neither the
+        // set's own stage nor a backfill's `air-<ver>/` may hold a board raw
+        // with a third of its rows in it.
+        let subset = select.is_subset();
+        let stage = if subset {
+            let short: String = engine.blake3.chars().take(12).collect();
+            select.stage(repo, set, &engine.ver, &short)
+        } else {
+            stage.unwrap_or_else(|| repo.join(&spec.stage))
+        };
         let mut runner = SweepRunner {
-            stage: stage.unwrap_or_else(|| repo.join(&spec.stage)),
+            stage,
             repo: repo.to_path_buf(),
             manifest,
             engine,
             val,
             boards,
+            subset,
             shared,
             rule,
             admit_below_full,
@@ -1275,6 +1322,15 @@ impl<'a> SweepRunner<'a> {
     /// live-pass identity, so re-recording after every attempt updates one
     /// row rather than adding one per pass.
     fn record_pass(&self, idx: usize, ran: usize, started_at: f64) {
+        // A subset records NO pass. `board_pass` is the `.done` marker with
+        // provenance, and its live row is unique per (board, engine): a
+        // subset that banked its forty cells would overwrite it with `clean`,
+        // and the next reader would take the whole board for measured. The
+        // ROWS are on record, each with its own verdict -- that is the truth
+        // about a subset, and all of it.
+        if self.subset {
+            return;
+        }
         let Some(ctx) = &self.db else {
             return;
         };
@@ -1500,6 +1556,8 @@ pub struct Opts<'a> {
     pub max_passes: Option<u32>,
     /// The restore hatch: the pre-database path, bit for bit.
     pub no_db: bool,
+    /// Which cells of the set (`select.rs`). The default is all of them.
+    pub select: crate::select::Select,
 }
 
 /// What the sweep publishes for the dashboard: every board's cells, the
@@ -2186,7 +2244,13 @@ fn open_db(cfg: &crate::config::Config, engine: &crate::repo::Engine) -> anyhow:
 
 pub fn run(repo: &Path, cfg: &crate::config::Config, o: Opts<'_>) -> anyhow::Result<()> {
     let manifest = crate::load_manifest(repo)?;
-    let bin = crate::repo::candidate_path(repo);
+    // The candidate, or -- for a SUBSET only (`select.rs`) -- whatever binary
+    // the operator names. Either way the version gate below still applies.
+    let bin = o
+        .select
+        .engine
+        .clone()
+        .unwrap_or_else(|| crate::repo::candidate_path(repo));
     let engine = crate::repo::Engine::probe(&bin)?;
     // The gate every sweep driver opens with: measure the CANDIDATE, not
     // whatever happens to be built. The set may name the version itself.
@@ -2284,6 +2348,7 @@ fn sweep_body(
         dry_run,
         max_passes,
         no_db,
+        select,
     } = o;
     let val = crucible_core::validate::find(repo, cfg.sweep.validator.as_deref());
     if val.is_none() {
@@ -2420,9 +2485,27 @@ fn sweep_body(
             capable: &|m| engine.supports_mode(m),
             db: dbctx,
             stage,
+            select: select.clone(),
         },
     )?;
-    crate::say!("set     {set}: {} instances", runner.total_instances());
+    if select.is_subset() {
+        crate::say!(
+            "subset  {} -- {} instance(s) of set {set}, staged at {}",
+            select.describe(),
+            runner.total_instances(),
+            runner.stage.display()
+        );
+        crate::say!(
+            "        no board is marked done and no pass is recorded: the rows are the record"
+        );
+        anyhow::ensure!(
+            runner.total_instances() > 0,
+            "the subset selects nothing: {}",
+            select.describe()
+        );
+    } else {
+        crate::say!("set     {set}: {} instances", runner.total_instances());
+    }
 
     if dry_run {
         // Everything up to the first spawn: the boards, their row-identity

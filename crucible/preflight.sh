@@ -58,7 +58,11 @@ total=0; files=0
 # sitting's receipts would be asked to round-trip as a board. The 0.26
 # build probes stage their receipts under benchmarks/air26-probes/ (F3's
 # rows.jsonl per probe, `solved` key, not a board row shape) -- same rule.
-for f in $(find ../benchmarks -name '*.jsonl' -not -path '*/.ipc-corpus/*' -not -path '*/metrics/*' -not -path '*/air26-probes/*' | sort); do
+# The 0.28 probes' hand-made receipts (benchmarks/probes-0.28/: the SGPlan
+# parity and timing probes, the lanes sit) are the same again. A SUBSET's
+# stage under benchmarks/probes/ (spec R3.2) is NOT exempt: crucible wrote
+# those, in the board row shape, and they must round-trip like any raw.
+for f in $(find ../benchmarks -name '*.jsonl' -not -path '*/.ipc-corpus/*' -not -path '*/metrics/*' -not -path '*/air26-probes/*' -not -path '*/probes-0.28/*' | sort); do
   head -1 "$f" | grep -q '"solved"' || continue
   n=$(target/release/crucible-replay roundtrip --raw "$f")
   total=$((total + n)); files=$((files + 1))

@@ -76,3 +76,11 @@ wrote benchmarks/probes-0.28/lanes-sit/constraints-2006.md (raw: benchmarks/prob
 corpus: /Users/harold/ferroplan/benchmarks/.ipc-corpus
 VAL: /Users/harold/ferroplan/benchmarks/.val/VAL/build/bin/Validate
 timeout 60s, jobs 2, mode auto
+using external binary: /Users/harold/ferroplan-0.28/target/release/ff
+ipc-2014/driver-log-temporal-satisficing: 4/20 solved, cost 326, 60.3s solve-time, val 4/4
+ipc-2014/floor-tile-temporal-satisficing: 2/20 solved, cost 98, 46.8s solve-time, val 2/2
+ipc-2014/map-analyzer-temporal-satisficing: 20/20 solved, cost 808, 200.8s solve-time, val 20/20
+ipc-2014/match-cellar-temporal-satisficing: 20/20 solved, cost 1060, 270.6s solve-time, val 20/20
+ipc-2014/parking-temporal-satisficing: 20/20 solved, cost 379, 49.4s solve-time, val 20/20
+ipc-2014/road-traffic-accident-management-temporal-satisficing: 7/20 solved, cost 4519, 139.6s solve-time, val 7/7
+== stopped by hand 2026-09-20 17:52:58: tempo boards to be re-measured through the crucible (contention-aware)

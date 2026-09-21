@@ -492,6 +492,10 @@ struct Side {
     banked: usize,
     owed: usize,
     solved: usize,
+    /// The declared cells this engine BANKED, and which of those it solved --
+    /// what a per-cell flip is read from (`compare`'s lost/gained lists).
+    banked_keys: HashSet<(String, String)>,
+    solved_keys: HashSet<(String, String)>,
 }
 
 fn side_for(reader: &Reader, board_id: i64, engine_id: i64, declared: &[(String, String)]) -> Side {
@@ -511,12 +515,16 @@ fn side_for(reader: &Reader, board_id: i64, engine_id: i64, declared: &[(String,
         banked: 0,
         owed: 0,
         solved: 0,
+        banked_keys: HashSet::new(),
+        solved_keys: HashSet::new(),
     };
     for key in declared {
         if banked.contains(key) {
             s.banked += 1;
+            s.banked_keys.insert(key.clone());
             if solved_keys.contains(key) {
                 s.solved += 1;
+                s.solved_keys.insert(key.clone());
             }
         } else {
             s.owed += 1;
@@ -539,12 +547,21 @@ fn side_for(reader: &Reader, board_id: i64, engine_id: i64, declared: &[(String,
 /// It refuses a board where EITHER side still owes rows, for the same reason
 /// `status` does: an owed row is precisely the one that can change that
 /// board's number, and a backfill in progress is nothing but owed rows.
+///
+/// With a SUBSET selected (`select.rs`, the flags `sweep` and `backfill`
+/// take) the census is those cells and nothing else, so two engines measured
+/// over the same subset are read over exactly that subset -- without it every
+/// board of a probe shows `--`, because both sides "owe" the thousands of
+/// cells nobody asked them to measure. `lost` writes the cells A solved and B
+/// did not (both banked) in `--rows` format: the list a follow-up run takes.
 pub fn compare(
     repo: &Path,
     cfg: &crate::config::Config,
     set_name: &str,
     a: &str,
     b: &str,
+    select: &crate::select::Select,
+    lost: Option<&Path>,
 ) -> anyhow::Result<()> {
     let manifest = crate::load_manifest(repo)?;
     let set = manifest
@@ -577,9 +594,31 @@ pub fn compare(
         anyhow::bail!("{a:?} and {b:?} are the same engine ({a_label})");
     }
 
-    let census = census(repo, &manifest, &set);
+    let mut census = census(repo, &manifest, &set);
+    if select.is_subset() {
+        let unknown = select.unknown_boards(&set.boards);
+        anyhow::ensure!(
+            unknown.is_empty(),
+            "--board {}: not in set {set_name:?}",
+            unknown.join(", ")
+        );
+        for (id, cells) in census.iter_mut() {
+            if !select.wants_board(id) {
+                cells.clear();
+                continue;
+            }
+            let prior = match (select.needs_prior(), manifest.board(id)) {
+                (true, Some(spec)) => crate::sweep::prior_rows(repo, &spec.raw),
+                _ => Default::default(),
+            };
+            cells.retain(|(variant, label)| select.admits(variant, label, &prior));
+        }
+    }
     println!("A  {a_label}");
     println!("B  {b_label}");
+    if select.is_subset() {
+        println!("over {}", select.describe());
+    }
     println!();
     println!(
         "{:<24}{:>10}{:>8}{:>10}{:>8}{:>9}",
@@ -587,6 +626,10 @@ pub fn compare(
     );
 
     let (mut net, mut decided, mut skipped) = (0i64, 0usize, 0usize);
+    // Per-cell flips, over cells BOTH engines banked: an owed cell is one that
+    // could still change, and is nobody's loss yet.
+    let mut lost_cells: Vec<(String, String, String)> = Vec::new();
+    let mut gained_cells: Vec<(String, String, String)> = Vec::new();
     for id in &set.boards {
         let Ok(bs) = reader.boards_named(id) else {
             continue;
@@ -600,6 +643,17 @@ pub fn compare(
         }
         let sa = side_for(&reader, board_id, a_id, &declared);
         let sb = side_for(&reader, board_id, b_id, &declared);
+        for key in &declared {
+            if !(sa.banked_keys.contains(key) && sb.banked_keys.contains(key)) {
+                continue;
+            }
+            let cell = (id.clone(), key.0.clone(), key.1.clone());
+            match (sa.solved_keys.contains(key), sb.solved_keys.contains(key)) {
+                (true, false) => lost_cells.push(cell),
+                (false, true) => gained_cells.push(cell),
+                _ => {}
+            }
+        }
         let delta = if sa.owed == 0 && sb.owed == 0 {
             net += sb.solved as i64 - sa.solved as i64;
             decided += 1;
@@ -620,6 +674,25 @@ pub fn compare(
             "({skipped} board(s) shown as `--`: one side still owes rows, and an owed \
              row is one that could still change its board's number)"
         );
+    }
+    println!();
+    println!(
+        "cells BOTH engines banked: {} gained by B, {} lost by B",
+        gained_cells.len(),
+        lost_cells.len()
+    );
+    for (board, variant, label) in &lost_cells {
+        println!("  lost    {board:<22} {variant}/{label}");
+    }
+    if let Some(path) = lost {
+        let mut out = format!(
+            "# cells {a_label} solved and {b_label} did not, both banked -- `--rows` format\n"
+        );
+        for (board, variant, label) in &lost_cells {
+            out.push_str(&format!("{variant}/{label}   # {board}\n"));
+        }
+        std::fs::write(path, out).with_context(|| format!("writing {}", path.display()))?;
+        println!("lost cells written to {}", path.display());
     }
     Ok(())
 }

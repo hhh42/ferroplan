@@ -18,6 +18,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }
 anyhow = "1"
+# `--only`: the subset selector (select.rs) matches `variant/label`.
+regex = { workspace = true }
 thiserror = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 # Engine identity. The resume gate compares this, not the version STRING --
@@ -27,3 +29,9 @@ blake3 = "1"
 # The dashboard must never meaningfully compete with the thing it measures.
 ratatui = { version = "0.29", default-features = false, features = ["crossterm"] }
 crossterm = "0.28"
+
+[dev-dependencies]
+# tests/subset.rs reads `board_pass` directly: what a subset must NOT write is
+# not something any command prints. Same version and features as crucible-core,
+# so it is the same build of SQLite.
+rusqlite = { version = "0.32", features = ["bundled"] }

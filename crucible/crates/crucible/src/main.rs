@@ -16,6 +16,7 @@ mod monitor;
 mod out;
 mod repo;
 mod resident;
+mod select;
 mod sweep;
 mod tui;
 
@@ -92,6 +93,12 @@ enum Cmd {
         /// CRUCIBLE_NO_DB=1.
         #[arg(long)]
         no_db: bool,
+        /// Measure a SUBSET of the set: the same runner, referee and owed-row
+        /// cascade over fewer cells. Staged under benchmarks/probes/; no
+        /// board is marked done; the rows are keyed as a full sweep keys
+        /// them, so the sweep that follows owes that many cells fewer.
+        #[command(flatten)]
+        select: select::SelectArgs,
     },
     /// Run resident: sweep the candidate for a set while it owes rows, keep
     /// the newest tags backfilled, and otherwise wait -- forever, headless,
@@ -134,6 +141,10 @@ enum Cmd {
         /// The pre-database path, as for `sweep`. Env twin: CRUCIBLE_NO_DB=1.
         #[arg(long)]
         no_db: bool,
+        /// Measure a SUBSET, exactly as for `sweep` -- the same flags, so a
+        /// tag and the candidate can be read over the SAME cells.
+        #[command(flatten)]
+        select: select::SelectArgs,
     },
     /// Regenerate (or check) the standings documents.
     Standings {
@@ -168,6 +179,13 @@ enum Cmd {
         /// The candidate, e.g. 86302e06d81b.
         #[arg(long)]
         b: String,
+        /// Write the cells A solved and B did not (both banked) to this file,
+        /// in the `--rows` format a follow-up `sweep`/`backfill` takes.
+        #[arg(long, value_name = "FILE")]
+        lost: Option<PathBuf>,
+        /// Read the two engines over a SUBSET -- the same flags the runs took.
+        #[command(flatten)]
+        select: select::SelectArgs,
     },
     /// Print where the set stands: per board, banked/owed/solved and the
     /// delta against the promoted predecessor. Reads the same snapshot the
@@ -233,6 +251,7 @@ fn real_main() -> anyhow::Result<()> {
             dry_run,
             max_passes,
             no_db,
+            select,
         } => sweep::run(
             &repo_root,
             &cfg,
@@ -244,6 +263,7 @@ fn real_main() -> anyhow::Result<()> {
                 dry_run,
                 max_passes,
                 no_db: no_db || std::env::var_os("CRUCIBLE_NO_DB").is_some_and(|v| v == "1"),
+                select: select::Select::from_args(&select)?,
             },
         ),
         Cmd::Resident {
@@ -268,6 +288,7 @@ fn real_main() -> anyhow::Result<()> {
             dry_run,
             max_passes,
             no_db,
+            select,
         } => backfill::run(
             &repo_root,
             &cfg,
@@ -278,11 +299,26 @@ fn real_main() -> anyhow::Result<()> {
                 dry_run,
                 max_passes,
                 no_db: no_db || std::env::var_os("CRUCIBLE_NO_DB").is_some_and(|v| v == "1"),
+                select: select::Select::from_args(&select)?,
             },
         ),
         Cmd::Standings { doc, check, write } => standings(&repo_root, &cfg, &doc, check, write),
         Cmd::Diff { a, b, mode } => diff(&repo_root, &a, &b, &mode),
-        Cmd::Compare { set, a, b } => monitor::compare(&repo_root, &cfg, &set, &a, &b),
+        Cmd::Compare {
+            set,
+            a,
+            b,
+            lost,
+            select,
+        } => monitor::compare(
+            &repo_root,
+            &cfg,
+            &set,
+            &a,
+            &b,
+            &select::Select::from_args(&select)?,
+            lost.as_deref(),
+        ),
         Cmd::Status { set, json } => monitor::status(&repo_root, &cfg, &set, json),
         Cmd::Tui {
             set,

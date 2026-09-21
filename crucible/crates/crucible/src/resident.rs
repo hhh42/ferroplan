@@ -90,6 +90,7 @@ fn sweep_guarded(repo: &Path, cfg: &Config, set: &str) -> anyhow::Result<()> {
                 dry_run: false,
                 max_passes: None,
                 no_db: false,
+                select: Default::default(),
             },
         )
     }));
@@ -231,6 +232,7 @@ pub fn run(repo: &Path, cfg: &Config, o: Opts<'_>) -> anyhow::Result<()> {
                     dry_run: false,
                     max_passes: None,
                     no_db: false,
+                    select: Default::default(),
                 },
             ) {
                 eprintln!("resident: backfill of {tag} failed: {e:#}");

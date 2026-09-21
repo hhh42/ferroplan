@@ -306,6 +306,8 @@ dependencies = [
  "crucible-publish",
  "libc",
  "ratatui",
+ "regex",
+ "rusqlite",
  "serde",
  "serde_json",
  "thiserror",
