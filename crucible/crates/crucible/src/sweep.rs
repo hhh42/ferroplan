@@ -357,10 +357,17 @@ impl<'a> SweepRunner<'a> {
                         }
                         // The width policy: worker `w` runs only while the
                         // watcher allows at least `w + 1` planners. Worker 0
-                        // waits only for SUSPENDED (admission below).
-                        if w > 0 && w >= ctx.shared.width() {
-                            std::thread::sleep(Duration::from_secs(1));
-                            continue;
+                        // waits only for SUSPENDED (admission below). An EMPTY
+                        // queue ends a worker whatever the width says
+                        // (`worker_gate`).
+                        let empty = queue.lock().unwrap().is_empty();
+                        match worker_gate(w, ctx.shared.width(), empty) {
+                            Gate::Exit => break,
+                            Gate::Park => {
+                                std::thread::sleep(Duration::from_secs(1));
+                                continue;
+                            }
+                            Gate::Take => {}
                         }
                         let Some((i, bytes)) = queue.lock().unwrap().pop_front() else {
                             break;
@@ -1619,6 +1626,35 @@ pub struct Shared {
     width: std::sync::atomic::AtomicUsize,
 }
 
+/// What a batch worker does at the top of its loop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Gate {
+    /// Nothing left to take: the worker is finished, WHATEVER the width says.
+    Exit,
+    /// The width policy allows fewer than `w + 1` planners: wait and ask again.
+    Park,
+    Take,
+}
+
+/// The order of these two questions is the whole function. Until the 0.28 cut
+/// the width was asked FIRST and the queue only after it: a worker the policy
+/// had parked never learned the queue was empty, never exited, and kept the
+/// batch's channel open -- so `run_batch` waited on it for ever. cut28's first
+/// batch packed 10 wide on a box whose foreign load held the policy at 9 or
+/// under all day: nine workers banked 77 cells in fifteen seconds, worker 9
+/// slept a second at a time, and the sweep sat at 0 % CPU for three hours with
+/// 8,367 cells owed and nothing in the log but width changes. cut27 never hit
+/// it only because its width touched 10 at some point in every batch.
+pub(crate) fn worker_gate(w: usize, policy_width: usize, queue_empty: bool) -> Gate {
+    if queue_empty {
+        return Gate::Exit;
+    }
+    if w > 0 && w >= policy_width {
+        return Gate::Park;
+    }
+    Gate::Take
+}
+
 impl Shared {
     pub fn new() -> Arc<Shared> {
         Arc::new(Shared {
@@ -2637,6 +2673,64 @@ fn minutes_past_midnight() -> u32 {
 #[cfg(test)]
 mod r2_tests {
     use super::*;
+
+    /// THE cut28 DEADLOCK, as a rule: an empty queue ends a worker even while
+    /// the width policy has it parked. The old order (width first) answers
+    /// `Park` here, for ever.
+    #[test]
+    fn a_parked_worker_still_leaves_when_the_queue_is_empty() {
+        assert_eq!(worker_gate(9, 9, true), Gate::Exit);
+        assert_eq!(worker_gate(9, 2, true), Gate::Exit);
+        assert_eq!(worker_gate(0, 0, true), Gate::Exit);
+        // Work left: the policy still decides who takes it.
+        assert_eq!(worker_gate(9, 9, false), Gate::Park);
+        assert_eq!(worker_gate(8, 9, false), Gate::Take);
+        // Worker 0 is never parked by width (SUSPENDED is admission's job).
+        assert_eq!(worker_gate(0, 0, false), Gate::Take);
+    }
+
+    /// ...and as the shape it happened in: ten workers, the policy pinned at
+    /// nine for the whole batch, a queue shorter than the batch is long. The
+    /// collector drains a channel that closes only when EVERY worker has
+    /// dropped its sender -- so one parked worker is a hung sweep.
+    #[test]
+    fn a_batch_wider_than_the_policy_allows_still_finishes() {
+        use std::sync::mpsc;
+        let (done_tx, done_rx) = mpsc::channel::<usize>();
+        std::thread::spawn(move || {
+            let queue = Mutex::new(std::collections::VecDeque::from(vec![0usize; 5]));
+            let policy_width = 9usize;
+            let mut drained = 0usize;
+            std::thread::scope(|sc| {
+                let (tx, rx) = mpsc::channel::<usize>();
+                for w in 0..10 {
+                    let (tx, queue) = (tx.clone(), &queue);
+                    sc.spawn(move || loop {
+                        let empty = queue.lock().unwrap().is_empty();
+                        match worker_gate(w, policy_width, empty) {
+                            Gate::Exit => break,
+                            Gate::Park => {
+                                std::thread::sleep(Duration::from_millis(5));
+                                continue;
+                            }
+                            Gate::Take => {}
+                        }
+                        let Some(i) = queue.lock().unwrap().pop_front() else {
+                            break;
+                        };
+                        let _ = tx.send(i);
+                    });
+                }
+                drop(tx);
+                drained = rx.iter().count();
+            });
+            let _ = done_tx.send(drained);
+        });
+        let drained = done_rx
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the batch must end: a parked worker may not hold the channel open");
+        assert_eq!(drained, 5);
+    }
 
     /// REAL WIDTH ON THE ROW (0.28 Phase 0 item 3): the neighbour count is
     /// what ran beside the run, not the batch's nominal width.

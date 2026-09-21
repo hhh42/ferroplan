@@ -1353,6 +1353,34 @@ SWEEP COMPLETE: no cargo build or test on the box, and NOTHING rebuilds
 `/Users/harold/ferroplan/target/release/ff` -- a rebuilt binary is a different
 engine to the database, and the sweep would be measuring two.
 
+**And then it hung.** Three hours after launch the operator looked for `ff`
+and found none. The sweep was alive at 0 % CPU; the log had nothing in it but
+width changes. `sample` showed the main thread in `run_batch`, blocked on the
+batch's channel, and ONE worker left, asleep a second at a time:
+
+```rust
+if w > 0 && w >= ctx.shared.width() { sleep(1 s); continue; }   // asked FIRST
+let Some(..) = queue.pop_front() else { break };                 // never reached
+```
+
+The first batch packed 10 wide; foreign load (`mobileassetd`, `deleted`, an
+operator at the keyboard) held the policy width at 9 or under all day. Nine
+workers banked 77 cells in fifteen seconds and left; worker 9 never passed
+the width gate, so never saw the empty queue, so never dropped its sender --
+and a channel drains until every sender is gone. In the tree since `67a5ded`
+(09-05); cut27 survived it only because its width touched 10 somewhere in
+every batch, and this cycle's subsets never packed wide (`--engine` has no
+predecessor, so every cell classes solo). **Fixed:** `worker_gate` asks the
+queue first -- an empty queue ends a worker whatever the width says. Two
+fixtures, both RED under the old order: the rule, and the shape (ten workers,
+the policy pinned at nine, a five-item queue, a collector that must finish
+inside ten seconds). SIGINT ended the hung run cleanly -- 77 banked, 8,367
+owed, nothing lost -- and the sweep was restarted on the same engine
+(`89cfdc5f06ed`: only the crucible was rebuilt, never `ff`). **Owed to the
+crucible:** a sweep that has spawned nothing for N minutes while it owes rows
+and is not SUSPENDED should say so in the log. This one was found by a person
+looking at a process list.
+
 **The lesson for the gate itself:** `publish.sh` and `RELEASING.md` run the
 ignored pass fail-fast. One red binary early in the alphabet turns the rest
 of the gate off without saying so. Both now say `--no-fail-fast`.
