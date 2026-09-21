@@ -603,6 +603,13 @@ struct GroundWall {
     /// across every enumeration worker.
     cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
     tripped: std::sync::atomic::AtomicBool,
+    /// The MEASURED memory wall (0.28 Lane M, `crate::mem`), read at the same
+    /// stride as the clock: the enumeration is where a snap-compiled
+    /// pipesworld task goes from megabytes to the runner's SIGKILL, and until
+    /// now it could see the wall and not the memory.
+    mem: crate::mem::MemWall,
+    /// Which of the two stopped it, for [`Self::why`].
+    mem_tripped: std::sync::atomic::AtomicBool,
 }
 
 impl GroundWall {
@@ -662,6 +669,10 @@ impl GroundWall {
     /// so they get new clauses rather than borrowing that one -- a host
     /// that withdrew should not read "FF_TIME_LIMIT".
     fn why(&self) -> &'static str {
+        if self.mem_tripped.load(std::sync::atomic::Ordering::Relaxed) {
+            return "memory budget reached during binding enumeration \
+                    (FF_MEM_BUDGET_GB): no task grounded, no verdict";
+        }
         match crate::search::call_stop_reason() {
             Some(r) if r.contains("should_continue") => {
                 "the caller withdrew during binding enumeration \
@@ -713,6 +724,11 @@ impl WallTick<'_> {
             .is_some_and(|(clock, total)| clock.elapsed_secs() >= total)
             || crate::search::cancelled(&w.cancel);
         if over {
+            w.tripped.store(true, Relaxed);
+            return true;
+        }
+        if w.mem.hit() {
+            w.mem_tripped.store(true, Relaxed);
             w.tripped.store(true, Relaxed);
             return true;
         }
@@ -1768,11 +1784,21 @@ fn ground_v(
         .then(crate::search::wall_deadline)
         .flatten();
     let deadline = crate::search::sooner_deadline(env_wall, budget.deadline);
-    let gwall: Option<GroundWall> =
-        (deadline.is_some() || budget.cancel.is_some()).then(|| GroundWall {
+    // A declared memory budget arms the same checkpoint on the SOLVE entries
+    // (0.28 Lane M): the validator entry still grounds a found plan's task
+    // whatever it costs, exactly as it does past the wall.
+    let mem = if walled {
+        crate::mem::MemWall::arm()
+    } else {
+        crate::mem::MemWall::unarmed()
+    };
+    let gwall: Option<GroundWall> = (deadline.is_some() || budget.cancel.is_some() || mem.armed())
+        .then(|| GroundWall {
             deadline,
             cancel: budget.cancel.clone(),
             tripped: std::sync::atomic::AtomicBool::new(false),
+            mem,
+            mem_tripped: std::sync::atomic::AtomicBool::new(false),
         });
     // Threshold-routed fixpoint (0.22 Phase 7 lever 2): the PLAIN solve
     // entry routes into the fixpoint enumeration below when any action's
@@ -2019,7 +2045,14 @@ fn ground_v(
     // nothing in between.
     if let Some(g) = gwall.as_ref().filter(|g| g.tripped()) {
         if std::env::var("FF_WALL_DEBUG").is_ok() {
-            eprintln!("wall: grounding checkpoint expired mid-enumeration (no task, no verdict)");
+            eprintln!(
+                "wall: grounding {} mid-enumeration (no task, no verdict)",
+                if g.mem_tripped.load(std::sync::atomic::Ordering::Relaxed) {
+                    "MEMORY checkpoint"
+                } else {
+                    "checkpoint expired"
+                }
+            );
         }
         return Outcome::WallExhausted(g.why().into());
     }
@@ -2027,6 +2060,27 @@ fn ground_v(
     // honest failure or a whole task, nothing in between, exactly as above.
     let phase_clock = crate::clock::Clock::now();
     let phase_dbg = std::env::var("FF_GROUND_PHASES").is_ok();
+    let phase_mem = mem;
+    // The stop itself, quiet, for use INSIDE a phase as well as between two.
+    let phase_stop = |phase: &str| -> Option<Outcome> {
+        // Memory first (0.28 Lane M): a task too big for its budget is the
+        // runner's SIGKILL a moment from now, and whatever the caller had in
+        // hand goes with the process. Same honest stop as the wall's.
+        if phase_mem.hit() {
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!("wall: grounding MEMORY checkpoint while {phase} (no task, no verdict)");
+            }
+            return Some(Outcome::WallExhausted(format!(
+                "memory budget reached while grounding was {phase} (FF_MEM_BUDGET_GB): \
+                 no task grounded, no verdict"
+            )));
+        }
+        let g = gwall.as_ref().filter(|g| g.expired_now())?;
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!("wall: grounding checkpoint expired while {phase} (no task, no verdict)");
+        }
+        Some(Outcome::WallExhausted(g.why_in(phase)))
+    };
     let phase_wall = |phase: &str| -> Option<Outcome> {
         if phase_dbg {
             eprintln!(
@@ -2034,11 +2088,7 @@ fn ground_v(
                 phase_clock.elapsed_secs()
             );
         }
-        let g = gwall.as_ref().filter(|g| g.expired_now())?;
-        if std::env::var("FF_WALL_DEBUG").is_ok() {
-            eprintln!("wall: grounding checkpoint expired while {phase} (no task, no verdict)");
-        }
-        Some(Outcome::WallExhausted(g.why_in(phase)))
+        phase_stop(phase)
     };
     let n_easy = raws.iter().filter(|r| !r.multi).count();
     let n_hard = raws.iter().filter(|r| r.multi).count();
@@ -3148,6 +3198,14 @@ fn ground_v(
         num: ce.num.iter().map(&fold_ne).collect(),
     };
     for (oi, op) in reach_ops.iter().enumerate() {
+        // The achiever index below is ops x shared-monitor-adds (roadmap
+        // 0.28): on a wide preference task this ONE loop is gigabytes, and a
+        // checkpoint either side of it is a checkpoint too late.
+        if oi % 256 == 255 {
+            if let Some(stop) = phase_stop("packing the ops") {
+                return stop;
+            }
+        }
         op_display.push(op.display.clone());
         pre_pos.push_row(op.pre_pos.iter().map(|&f| remap(f)));
         add.push_row(op.add.iter().map(|&f| remap(f)));

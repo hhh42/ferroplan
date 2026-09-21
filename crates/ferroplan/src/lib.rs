@@ -56,6 +56,7 @@ pub mod invariants;
 pub mod lama;
 pub mod landmarks;
 pub mod lexer;
+pub mod mem;
 pub mod novelty;
 pub mod optimal;
 pub mod orbits;

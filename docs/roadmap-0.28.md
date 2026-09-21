@@ -636,7 +636,7 @@ compressed search fails on for 32 s solves there in 40 ms). That is ~112
 rows and the next cycle's question; the propositional board (231 vs 248)
 is untouched by any of this.
 
-## Lanes S, I, T and N — feasible first (BUILT 2026-09-20)
+## Lanes S, I, T, N and M — feasible first (BUILT 2026-09-20/21)
 
 Built in cost order on `engine-0.28`. Fixtures first where a fixture can be
 RED at unit scale; where the defect is a scale phenomenon, the fixture pins
@@ -967,6 +967,89 @@ it did. Dirty timing, clean coverage -- spec §7, doing its job.
 Receipts: `benchmarks/probes-0.28/lanes-crucible/` (`run.sh`, the three logs,
 `regress-compare.txt`); the staged raws are in the published checkout under
 `benchmarks/probes/lanes-0.28-regress/`.
+
+### The six IPC-5 boards, THROUGH THE CRUCIBLE -- and what it found
+
+Step 3 of `probes-0.28/lanes-crucible/run.sh`: candidate `c0893fb8`, 788
+cells **banked in 4 passes** -- the rows the referee judged contended were
+re-run on their own, which is the whole of the operator's ask. Against the
+published boards (best-of-N), with the hand-rolled sit beside it:
+
+| board | rows | published | crucible | delta | lost | (ad-hoc sit 2) |
+|---|---:|---:|---:|---:|---:|---:|
+| ipc5-simple-pref | 130 | 119 | 129 | +10 | 1 | 130 |
+| ipc5-qual-pref | 100 | 51 | 95 | +44 | 0 | 99 |
+| ipc5-complex-pref | 108 | 29 | 76 | +47 | 0 | 74 |
+| ipc5-time | 130 | 88 | 126 | +38 | 0 | 126 |
+| ipc5-metric-time | 200 | 64 | 92 | +28 | 0 | 100 |
+| ipc5-constraints | 120 | 28 | 28 | 0 | 0 | 28 |
+| **six boards** | **788** | **379** | **546** | **+167** | **1** | 557 |
+
+Like-for-like against SGPlan5 (the variants it ran): **316 -> 468 of 678**
+against its 612 -- the gap is 144, was 296. `ipc5-tally.txt` has both tables.
+
+**+167, not +178, and the eleven are one defect.** Every cell the crucible
+read lower than the sit -- fifteen of them -- came back `mem-cap`: the
+manifest gives a run 6 GB where the sit's harness default gave 8. (It also
+read four cells HIGHER, `tpp-metric-time` i8 among them: the sit's one "lost"
+row solves at 28.7 s on a fair run, as predicted -- 15 s of rung, 14 s of
+ladder. The one row lost here, `openstacks-preferences-simple` i13, is one of
+the fifteen.) And every one of the fifteen had its plan ALREADY FOUND when
+the watchdog killed it: ten `pipesworld-metric-time` rows the compression
+rung banks in seconds, killed in the snap grounding of the quality chase
+that follows; four `storage-qualitative` rows killed grounding the compiled
+task that only PRICES the plan. Dying of memory with a plan in hand is Lane
+S's sin with a different resource.
+
+### Lane M — memory is a wall too (`mem.rs`)
+
+The engine has always had a memory MODEL (bytes per node x nodes, against
+60 % of the declared budget) and never a MEASUREMENT -- and the model is what
+this roadmap keeps recording as wrong for exactly these classes (528 GB of
+address space under a declared 6; "the internal node cap plainly does not
+hold"). `mem::resident_bytes()` asks the kernel (`/proc/self/status`;
+`task_info` on macOS, declared by hand -- no `libc` dependency, the first
+`unsafe` in the crate, eleven lines). `MemWall` is read at the checkpoints
+that already exist: the best-first batch boundary, every 256 temporal pops,
+every 256 grounding bindings, between grounding phases and inside the
+op-packing loop. A trip is an honest capped return, and what was banked is
+what comes back.
+
+- **Bounded work only.** The first cut armed the wall everywhere, and that
+  is a regression waiting to happen: one run in ten over the record peaks
+  above 4.4 GB, and a first search stopped at 4.5 of 6 loses the solve it was
+  a gigabyte from. The wall arms only inside a `ScopedDeadline`
+  (`search::bounded_work`) -- a chase over a banked plan, the grounding that
+  prices a plan already found, a rung's bet -- where a trip costs an
+  improvement and never a row. `FF_NO_MEM_WALL=1` restores 0.27.
+- **75 % of the budget**, not 85: at 0.85 a snap-compiled pipesworld
+  grounding tripped at 5.1 GB and still peaked at 5.97 of 6. The runner kills
+  AT the budget and a wide task allocates a great deal between two reads.
+- **The hard-goal plan is found on the pair with its SOFT constraints
+  stripped** (`constraints::hard_only_gated`). A soft constraint cannot make a
+  plan invalid, and on the qualitative track the soft monitors are most of
+  the task. Safe by construction: monitors ride ops and add none, and
+  `TRAJ-END` exists iff the pair has HARD constraints, which the stripped
+  pair keeps. (A branch that re-added the latch on lift was written, caught
+  by its own fixture as unreachable, and removed.)
+- `tests/mem_wall.rs`: the chase ring under a 0.25 GB budget and a long wall.
+  **With the wall: back in 0.53 s, peak 209 MB. Hatched to the 0.27 shape: 38.8
+  s and 8.2 GB** -- on a sixteen-bit toy. That is the `mem-cap` class in
+  miniature, and the second leg is kept as the permanent RED record.
+
+| under `FF_MEM_BUDGET_GB=6`, alone | 0.28 before Lane M | with it |
+|---|---|---|
+| pipesworld-metric-time i41 | solved, peak **7.91 GB** (a kill) | solved, 11.7 s, peak 4.89 GB |
+| openstacks-simple i13 | `mem-cap` | solved, metric 115, peak 4.58 GB |
+| storage-qualitative i17 / i18 | `mem-cap` | solved unpriced, peak 5.1 / 5.8 GB |
+| storage-qualitative i20 | `mem-cap` | solved unpriced -- **but peak 7.1 GB** |
+
+**Not fixed, and named:** `storage-qualitative` i19/i20 pass 6 GB before any
+plan exists and before any checkpoint -- `constraints::expand` materialises
+all 2.3 million preference instances and only THEN drops the 98 % that are
+statically true. That wants a streaming expansion (simplify each instance as
+it is produced), which touches the verifier and the temporal scorer too. Two
+rows, and they solve at 8 GB.
 
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
 

@@ -9,7 +9,8 @@ Four engine lanes, all on one theme: **feasible first, better second.** A
 solve is 0.54 s -- so the gap to it on those boards was never the 60 s wall.
 On most rows it solves and ferroplan did not, a valid plan was in hand, or
 milliseconds away, and the route had no way to return it. Board numbers are
-pending the sit recorded in `docs/roadmap-0.28.md`; nothing below claims one.
+recorded in `docs/roadmap-0.28.md` (measured through the crucible, first
+attempt against best-of-N boards); nothing below claims one for the release.
 
 ### Added
 
@@ -57,6 +58,18 @@ pending the sit recorded in `docs/roadmap-0.28.md`; nothing below claims one.
   cap. The test is now direction-aware (`FF_NO_NEED_DIRS=1` restores it).
   Heuristic values are identical; evaluations per second on
   `rovers-metric-time`-shaped tasks rise ~78x.
+- **Memory is a wall too** (`ferroplan::mem`): the engine now MEASURES its own
+  resident size (`/proc/self/status`; `task_info` on macOS) instead of only
+  modelling it, and bounded work over a plan already in hand -- a quality
+  chase, the grounding that prices a found plan, a rung's bet -- stops at 75 %
+  of `FF_MEM_BUDGET_GB` and returns what was banked, where a runner's RSS
+  watchdog used to kill the process and the plan with it. A first search is
+  never cut by it. `FF_NO_MEM_WALL=1` restores 0.27. On a 16-bit toy task the
+  unwalled chase reaches 8.2 GB in 39 s; walled, it is back in half a second
+  at 209 MB.
+- The PDDL3 route plans its hard goals on the pair with SOFT trajectory
+  constraints stripped: they cannot invalidate a plan, and their monitors are
+  most of a qualitative-preference task.
 - The temporal validator (and scorer) fired ends before starts within one
   epoch, which ordered a ZERO-duration step's end ahead of its own start and
   rejected every plan containing one.

@@ -67,6 +67,13 @@ pub fn run_planner(
     // `constrained` records that the gate compiled — the reported plan then
     // strips the synthetic TRAJ-END step (0.8 END construction); never set
     // on the constraint-free byte-identical path.
+    // As in the library path: the pair the PDDL3 route seeds from, taken
+    // before the gate shadows the originals.
+    let seed_pair = if crate::temporal::is_temporal(&domain) {
+        None
+    } else {
+        crate::constraints::hard_only_gated(&domain, &problem).unwrap_or(None)
+    };
     let (domain, problem, constrained) = match crate::constraints::gate(&domain, &problem) {
         Ok(Some((d, p))) => (d, p, true),
         Ok(None) => (domain, problem, false),
@@ -123,6 +130,7 @@ pub fn run_planner(
             &mut out,
             &domain,
             &problem,
+            seed_pair.as_ref(),
             opts.optimize,
             threads,
             cfg,
@@ -297,6 +305,7 @@ fn plan_pddl3(
     out: &mut String,
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
+    seed_pair: Option<&(crate::types::Domain, crate::types::Problem)>,
     optimize: bool,
     threads: usize,
     cfg: crate::search::SearchCfg,
@@ -391,7 +400,8 @@ fn plan_pddl3(
     let groups = crate::invariants::synthesize(&c.domain, &task);
     // Incumbent zero (0.28 Lane I) -- the library path's rule, so text and
     // JSON agree on which rows solve.
-    let seed = pddl3::hard_goal_seed(domain, problem, &task, threads, cfg);
+    let (seed_d, seed_p) = seed_pair.map_or((domain, problem), |(d, p)| (d, p));
+    let seed = pddl3::hard_goal_seed(seed_d, seed_p, &task, threads, cfg);
     // The optimizer improves a plan that could already be reported, so it
     // stops a reserve short of the wall (the Lane S rule): the runner kills
     // AT the wall, and a metric polished until 60.4 s is a row lost.

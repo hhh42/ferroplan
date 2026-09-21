@@ -175,4 +175,30 @@ fn the_seed_lifts_through_the_trajectory_gate() {
         cost, 7.0,
         "the bare walk skips the detour (5) and crosses c2 (2)"
     );
+
+    // What the solve path ACTUALLY seeds from since the first crucible read:
+    // the pair with its SOFT constraints stripped. Soft constraints cannot
+    // make a plan invalid, and on the qualitative track their monitors are
+    // most of the task (storage-qualitative i20 does not ground inside 6 GB
+    // with them). Here they are ALL soft, so the stripped pair carries no
+    // constraints at all -- and neither task has a TRAJ-END, which the gate
+    // emits for HARD constraints only. Monitors ride ops and add none, so the
+    // plan lifts name for name: same plan, same price.
+    let (sd, sp) = ferroplan::constraints::hard_only_gated(&d, &p)
+        .expect("supported")
+        .expect("the pair has soft constraints");
+    assert!(sp.constraints.is_empty() && sd.constraints.is_empty());
+    let names = pddl3::hard_goal_plan(&sd, &sp, 1, SearchCfg::default()).expect("three moves");
+    assert_eq!(names, ["MOVE C0 C1", "MOVE C1 C2", "MOVE C2 C3"]);
+    assert!(
+        !c.task
+            .op_display
+            .iter()
+            .any(|n| n == ferroplan::constraints::END_ACTION),
+        "no hard constraint, no end latch -- in either task"
+    );
+    let lifted = pddl3::lift_seed(&c.task, &names).expect("lifts");
+    assert_eq!(lifted.len(), 3);
+    let (_, cost) = pddl3::close_seed(&c.task, c.cost_fluent, &c.forgos, &lifted).expect("closes");
+    assert_eq!(cost, 7.0, "the same plan at the same price");
 }

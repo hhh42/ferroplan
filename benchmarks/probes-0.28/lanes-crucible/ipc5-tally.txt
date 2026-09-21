@@ -1,0 +1,20 @@
+THE SIX IPC-5 BOARDS THROUGH THE CRUCIBLE -- candidate c0893fb8, 788 cells banked in 4 passes
+
+board                 rows published  crucible  delta  lost | ad-hoc sit 2
+ipc5-simple-pref       130       119       129    +10     1 |          130
+ipc5-qual-pref         100        51        95    +44     0 |           99
+ipc5-complex-pref      108        29        76    +47     0 |           74
+ipc5-time              130        88       126    +38     0 |          126
+ipc5-metric-time       200        64        92    +28     0 |          100
+ipc5-constraints       120        28        28     +0     0 |           28
+six boards             788       379       546   +167     1 |          557
+   lost vs published: ipc5-simple-pref openstacks-preferences-simple/13
+
+variants SGPlan5 ran             rows 0.27 pub  crucible  SGPlan5  gap was  gap now
+ipc5-simple-pref                  130      119       129      129       10        0
+ipc5-qual-pref                    100       51        95      100       49        5
+ipc5-complex-pref                 108       29        76      105       76       29
+ipc5-time                          80       53        76       80       27        4
+ipc5-metric-time                  180       44        72      151      107       79
+ipc5-constraints                   80       20        20       47       27       27
+six boards                        678      316       468      612      296      144

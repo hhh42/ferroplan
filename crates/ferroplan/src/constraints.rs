@@ -242,6 +242,30 @@ pub(crate) fn first_timed(exp: &Expanded) -> Option<&'static str> {
 /// Does the pair carry any soft (`preference`-wrapped) trajectory
 /// constraint? A cheap AST scan — the temporal router's tier question
 /// (0.25 Phase 2), asked before any expansion.
+/// The pair a HARD-GOAL plan should be found on (0.28 Lane I): the original
+/// with every SOFT trajectory constraint dropped, then gated -- so the monitors
+/// it carries are the hard constraints' and no others. A soft constraint
+/// cannot make a plan invalid, only dearer, and on the qualitative tracks the
+/// soft monitors are most of the task: storage-qualitative i20 compiles ~37k
+/// of them onto every op and does not ground inside 6 GB, where the same pair
+/// without them grounds in a moment and its (empty) hard goal is met at once.
+///
+/// `Ok(None)` when the pair has no soft constraints: the caller's own gated
+/// pair is already this one.
+pub fn hard_only_gated(
+    domain: &Domain,
+    problem: &Problem,
+) -> Result<Option<(Domain, Problem)>, String> {
+    if !has_soft_constraints(domain, problem) {
+        return Ok(None);
+    }
+    let (mut d, mut p) = (domain.clone(), problem.clone());
+    let mut ctr = 0usize;
+    d.constraints = map_soft_constraints(&d.constraints, &mut ctr, &mut |_| false);
+    p.constraints = map_soft_constraints(&p.constraints, &mut ctr, &mut |_| false);
+    Ok(Some(gate(&d, &p)?.unwrap_or((d, p))))
+}
+
 pub(crate) fn has_soft_constraints(domain: &Domain, problem: &Problem) -> bool {
     fn scan(c: &Constraint) -> bool {
         match c {

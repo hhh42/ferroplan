@@ -626,7 +626,7 @@ pub struct ScoredPlan {
 /// [`solve`] with the plan's preference score attached (0.28 Lane S) -- the
 /// entry the JSON path uses. The score is the same [`score_soft`] the caller
 /// used to run AFTER the solve returned; what moved is WHEN its expensive
-/// half runs. See [`solve_tiers`].
+/// half runs. See `solve_tiers`.
 pub fn solve_scored(domain: &Domain, problem: &Problem, threads: usize) -> Option<ScoredPlan> {
     solve_tiers(domain, problem, threads, true)
 }
@@ -3190,6 +3190,8 @@ fn temporal_search(
         return None;
     }
     let t0 = crate::clock::Clock::now();
+    let mem_wall = crate::mem::MemWall::arm();
+    let mut pops_since_mem_check = 0u32;
     if dbg {
         eprintln!(
             "[tsearch] pass start: prune={prune} masked={} words={} fv={} rel_fluents={} tils={} ops={}",
@@ -3456,7 +3458,26 @@ fn temporal_search(
         let wall_hit = wall.is_some_and(|d| {
             crate::search::deadline_expired_reserving(d, nodes.len().saturating_mul(per_node))
         }) || crate::search::cancelled(&cancel);
-        if wall_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
+        // The MEASURED memory wall (0.28 Lane M): a kernel read every 256
+        // pops. This arena is the one the `mem-cap` rows die in -- the
+        // modelled cap above does not hold it -- and since the compression
+        // rung this search is often OPTIONAL work over a banked plan, which a
+        // watchdog kill takes with it.
+        let mem_hit = pops_since_mem_check >= 256 && {
+            pops_since_mem_check = 0;
+            mem_wall.hit()
+        };
+        pops_since_mem_check += 1;
+        if mem_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: temporal search MEMORY checkpoint (nodes {}, evaluated {}) at {}ms",
+                nodes.len(),
+                stats.evaluated,
+                t0.elapsed_ms()
+            );
+        }
+        let wall_hit = wall_hit || mem_hit;
+        if wall_hit && !mem_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!(
                 "wall: temporal search checkpoint expired (nodes {}, evaluated {}) at {}ms",
                 nodes.len(),

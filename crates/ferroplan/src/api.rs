@@ -615,6 +615,15 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     // `constrained` records that the gate compiled — the flag that tells
     // reporting to strip the synthetic TRAJ-END step (0.8 END construction);
     // it is never set on the constraint-free byte-identical path.
+    // The pair the PDDL3 route finds its HARD-GOAL plan on, taken before the
+    // gate shadows the originals (see `constraints::hard_only_gated`). Only
+    // classical preference tasks use it; a gate that refuses the stripped
+    // pair refuses the full one below, with the better message.
+    let seed_pair = if crate::temporal::is_temporal(&domain) {
+        None
+    } else {
+        crate::constraints::hard_only_gated(&domain, &problem).unwrap_or(None)
+    };
     let (domain, problem, constrained) = match crate::constraints::gate(&domain, &problem) {
         Ok(Some((d, p))) => (d, p, true),
         Ok(None) => (domain, problem, false),
@@ -662,7 +671,14 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
 
     match mode {
         Mode::Temporal => solve_temporal(&domain, &problem, threads),
-        Mode::Pddl3 => solve_pddl3(&domain, &problem, opts, threads, constrained),
+        Mode::Pddl3 => solve_pddl3(
+            &domain,
+            &problem,
+            seed_pair.as_ref(),
+            opts,
+            threads,
+            constrained,
+        ),
         Mode::Optimal => solve_optimal(&domain, &problem, threads, constrained),
         Mode::Sat => solve_sat(
             &domain,
@@ -1284,6 +1300,9 @@ fn solve_classic(
 fn solve_pddl3(
     domain: &crate::types::Domain,
     problem: &crate::types::Problem,
+    // The soft-constraint-free pair to find the hard-goal plan on; `None`
+    // when the pair has no soft constraints (then `domain`/`problem` IS it).
+    seed_pair: Option<&(crate::types::Domain, crate::types::Problem)>,
     opts: &Options,
     threads: usize,
     // The constraint gate compiled: strip the synthetic TRAJ-END step
@@ -1336,7 +1355,8 @@ fn solve_pddl3(
     // while the plan for its (empty) hard goal is known in milliseconds. A
     // route that grounds first has nothing to return when the wall arrives
     // mid-grounding.
-    let seed_plan = pddl3::hard_goal_plan(domain, problem, threads, opts.search_cfg());
+    let (seed_d, seed_p) = seed_pair.map_or((domain, problem), |(d, p)| (d, p));
+    let seed_plan = pddl3::hard_goal_plan(seed_d, seed_p, threads, opts.search_cfg());
     // From here on a plan may be in hand, so everything stops a reserve
     // short of the wall (the Lane S rule): the runner kills AT the wall.
     let _ground_wall = seed_plan

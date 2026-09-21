@@ -1288,6 +1288,13 @@ pub fn hard_goal_plan(
 /// mutually exclusive by construction ([`compile`]), so "the applicable op
 /// of that name" is well defined; a step with no applicable namesake aborts
 /// the lift.
+///
+/// The names may come from a task with FEWER monitors than `compiled` -- the
+/// solve path plans the hard goals on the pair with its soft constraints
+/// stripped (`constraints::hard_only_gated`) -- and that is safe by
+/// construction: monitors ride ops as conditional effects and add no ops of
+/// their own, and the one op the gate does add, `TRAJ-END`, exists iff the
+/// pair has HARD constraints, which the stripped pair keeps.
 pub fn lift_seed(compiled: &PackedTask, names: &[String]) -> Option<Vec<usize>> {
     let mut by_name: HashMap<&str, Vec<usize>> = HashMap::new();
     for (oi, name) in compiled.op_display.iter().enumerate() {

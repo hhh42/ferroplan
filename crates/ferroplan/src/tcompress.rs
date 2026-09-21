@@ -4,7 +4,7 @@
 //! Every durative action becomes ONE instantaneous action -- condition =
 //! start ∧ over-all ∧ end, effect = start then end -- the classical ladder
 //! plans that, and the plan is laid out on the clock by a left-shift over
-//! the ops' read/write sets. The result is judged by [`temporal::validate`]
+//! the ops' read/write sets. The result is judged by [`crate::temporal::validate`]
 //! against the ORIGINAL pair before anyone sees it, so the rung can be
 //! wrong about a task without ever being wrong about a plan.
 //!

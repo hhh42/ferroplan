@@ -597,7 +597,24 @@ pub(crate) struct ScopedDeadline {
 impl Drop for ScopedDeadline {
     fn drop(&mut self) {
         CALL_BUDGET.with(|b| b.borrow_mut().deadline = self.prev);
+        BOUNDED_WORK.with(|n| n.set(n.get().saturating_sub(1)));
     }
+}
+
+thread_local! {
+    /// How many [`ScopedDeadline`]s are live on this thread.
+    static BOUNDED_WORK: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Is this thread inside work somebody BOUNDED -- a quality chase over a
+/// banked plan, the grounding of a task that only prices a plan already
+/// found, a rung's bet? That is exactly the work the measured memory wall
+/// (`crate::mem`, 0.28 Lane M) may cut: stopping it loses an improvement or
+/// a bet. Everywhere else the engine keeps its 0.27 shape -- a first search
+/// that would have solved at 5.5 GB of a 6 GB budget must not be stopped at
+/// 4.5 by a rule written for work that had a plan to fall back on.
+pub(crate) fn bounded_work() -> bool {
+    BOUNDED_WORK.with(|n| n.get() > 0)
 }
 
 /// What optional work must leave on the wall for a plan ALREADY IN HAND:
@@ -653,6 +670,7 @@ pub(crate) fn tighten_deadline(reserve_secs: f64) -> Option<ScopedDeadline> {
     let rem = wall_remaining_secs()?;
     let tightened = (crate::clock::Clock::now(), (rem - reserve_secs).max(0.0));
     CALL_BUDGET.with(|b| b.borrow_mut().deadline = Some(tightened));
+    BOUNDED_WORK.with(|n| n.set(n.get() + 1));
     Some(ScopedDeadline { prev })
 }
 
@@ -943,6 +961,7 @@ pub fn search_from(
         None => task.state_key_hash(s, cost_fluent),
     };
     let batch = BATCH;
+    let mem_wall = crate::mem::MemWall::arm();
     // Phase-time attribution, printed only under FF_RES_DEBUG at the cap
     // return (measurement only — never affects behavior).
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
@@ -1264,6 +1283,18 @@ pub fn search_from(
         if wall_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!("wall: best-first checkpoint expired at {evaluated} evals (capped return)");
         }
+        // The MEASURED memory wall (0.28 Lane M, `crate::mem`), beside the
+        // modelled one (`node_cap`) this loop has always had: one kernel read
+        // per batch. A trip is the same capped return -- the anytime incumbent
+        // comes back, and so does whatever the caller had banked.
+        let mem_hit = mem_wall.hit();
+        if mem_hit && std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: best-first MEMORY checkpoint at {evaluated} evals, {} nodes (capped return)",
+                nodes.len()
+            );
+        }
+        let wall_hit = wall_hit || mem_hit;
         // The node cap (0.8 Phase 3) trips at the same batch boundary as the
         // eval cap: `nodes.len()` counts INSERTED successors — the quantity
         // that actually holds the memory — and is maintained serially, so the
