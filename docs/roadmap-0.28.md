@@ -1281,8 +1281,55 @@ below withdrew 0.27's +115 for want of exactly this):
 6. Full pre-flight again on the final commit (`RELEASING.md`), push, fast-forward
    `main`, then `./publish.sh` -- the operator's step, not the cycle's.
 
-**Pre-flight on the release-candidate commit, 2026-09-21** -- recorded below
-as it ran.
+**Pre-flight on the release candidate, 2026-09-21** (`RELEASING.md`, rustc
+1.98.1 = latest stable). It ran twice, because the first run found two things
+and one of them was hiding the other.
+
+| step | verdict |
+|---|---|
+| `fmt --check`, clippy `--all-targets --all-features -D warnings`, doc `-D warnings`, `bench --no-run` | clean |
+| `test --release -p ferroplan -p ferroplan-cli -- --include-ignored` | **398 passed, 0 failed** (59 binaries) |
+| `test` (DEBUG) `-p ferroplan -p ferroplan-cli -p ferroplan-mcp` | **394 passed, 0 failed** |
+| `test --release --all` | 435 passed, 0 failed (68 binaries) |
+| `package` + `publish --dry-run -p ferroplan-sat` | clean |
+| `publish --dry-run -p ferroplan` | fails, as `RELEASING.md` says it must until `ferroplan-sat` 0.28.0 is on the index; `build -p ferroplan -p ferroplan-cli -p ferroplan-mcp` clean |
+| `maturin build --release` (ferroplan-py) | `ferroplan-0.28.0-cp38-abi3-macosx_11_0_arm64.whl`. Local, macOS-ARM: the manylinux x86 wheel that ships is UNVERIFIED until CI builds it |
+| `release-notes-roll.py --check` | clean |
+| `crucible/preflight.sh` | every step clean but `tui --dump`, which reads the OPERATOR's repo (the main checkout) and found no `cut28` there yet. Re-run once that checkout is on this commit |
+
+1. **`opt_wall::opt_ladder_spends_the_wall` was never a load flake.** It
+   failed 5 runs in 12 ALONE on an idle box. Its `resume` leg pins the
+   sprint-resume machinery, whose trigger is a FAILED LM-cut probe, and it
+   starved the probe with a slice of the WALL: 0.001 of 30 s. On a quiet M5
+   LM-cut certifies that fixture in 103 evaluations and about 30 ms, so the
+   probe SUCCEEDED half the time (child, 25 runs a setting: handover 14/25 at
+   0.001; 25/25 at 0.0003, 0.0001, 0.00003). It had been filed as a load flake
+   because a loaded box is a slower one -- the condition under which it
+   passes. Re-derived to 0.0001; 20 of 20. The file had already learned this
+   once, for the sprint slice, from the other side.
+2. **Behind it: the compression rung and the actor scheduler.** `cargo test`
+   without `--no-fail-fast` stops at the first failing BINARY, so
+   `opt_wall` had been hiding every ignored test after it in the alphabet, in
+   every run of this pass all cycle. One of them,
+   `escalation_ladder_rescues_predicate_build`, read makespan **47.0** for its
+   documented 109. The plan is valid: `examples/cabin/crew.pddl` is LOCKLESS by
+   design ("one job per worker" is `tsched`'s convention, not a
+   precondition), and Lane T's left-shift overlaps what the PDDL allows -- one
+   worker, four jobs at once. Legal, VAL-valid, and under `FF_TCONC=1` not what
+   was asked for: the rung answered before the actor scheduler was reached.
+   **Fixed:** `tcompress::declines` stands aside when `FF_TCONC` is set, and
+   the cabin crews read 109 / 63 / 47 under the README's flags on 0.27.1 and
+   0.28.0 alike. Without the flag the default route's answer on a lockless
+   domain HAS changed (109 / 152 / 198 -> 47 / 47 / 47), and the changelog, the
+   book and the example say so under "Changed". The test now pins both
+   mechanisms -- the ladder's rescue with the rung hatched off (a child
+   process), and "the smaller makespan wins" on the default route -- and
+   `tests/tcompress.rs` pins the decline. No board sets `FF_TCONC`; nothing
+   measured this cycle moves.
+
+**The lesson for the gate itself:** `publish.sh` and `RELEASING.md` run the
+ignored pass fail-fast. One red binary early in the alphabet turns the rest
+of the gate off without saying so. Both now say `--no-fail-fast`.
 
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
 

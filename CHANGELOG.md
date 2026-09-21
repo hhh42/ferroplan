@@ -55,7 +55,8 @@ recorded negatives included, is
   task before it is returned. It BANKS: the decision-epoch ladder then runs
   as a bounded quality chase and the smaller makespan wins, so a task that
   solved before returns the plan it returned before. Declines required
-  concurrency, timed initial literals and trajectory constraints.
+  concurrency, timed initial literals and trajectory constraints, and stands
+  aside when `FF_TCONC=1` asks for the actor scheduler.
   `FF_NO_TCOMPRESS=1` restores 0.27; `FF_TCOMPRESS_WALL_FRAC` /
   `FF_TCOMPRESS_CHASE_FRAC` size the bet and the chase.
 - **Incumbent zero** for PDDL3 preference optimization
@@ -83,6 +84,20 @@ recorded negatives included, is
   `FF_GROUND_PHASES=1`: measurement knobs for the memory wall and the
   grounder's phases. All documented in the book's
   [tuning chapter](https://hhh42.github.io/ferroplan/tuning.html).
+
+### Changed
+
+- **Default temporal plans can be shorter, and more concurrent, than 0.27's.**
+  The decision-epoch search laid a concurrency-free task out sequentially; the
+  compression rung left-shifts independent work. On a domain that is LOCKLESS
+  by design this overlaps everything the PDDL allows:
+  `examples/cabin/crew-solo.pddl` went from makespan 109 to 47 with one worker
+  on four jobs at once -- legal PDDL2.1, VAL-valid, and not a crew schedule. A
+  resource that can do one thing at a time has to say so in the domain (a busy
+  token), or be scheduled by the actor scheduler: with `FF_TCONC=1` the
+  left-shift stands aside and the cabin crews read 109 / 63 / 47 exactly as in
+  0.27. The game-embedding `Session` has its own temporal entry and is
+  unaffected.
 
 ### Fixed
 

@@ -60,9 +60,14 @@ ff -o examples/cabin/crew.pddl -f examples/cabin/crew-trio.pddl --mode temporal 
 
 This needs the concurrent scheduler, which is gated: set `FF_TDEMAND=1 FF_TCONC=1`
 (or, in the web demo, the example carries flags `tdemand,tconc`). Why a separate
-phase? ferroplan's temporal *search* is guided by action count, not makespan, so on
-its own it lays actions out sequentially (makespan = the serial sum, regardless of
-crew size). The scheduler (`crate::tsched`) searches a single-actor reduction for
+phase? "One job per worker at a time" is a convention the DOMAIN does not state —
+it is lockless — so nothing but the scheduler enforces it. Without the flags you
+get what the PDDL says, not what a crew can do: through 0.27 that was the search's
+own sequential layout (109 / 152 / 198, the serial sum, *growing* with crew size);
+since 0.28 the default route left-shifts independent work, and on a lockless
+domain that overlaps everything — makespan 47 for ANY crew, one worker on four
+jobs at once. Legal PDDL, and not a crew schedule. With `FF_TCONC=1` the
+left-shift stands aside and the numbers above are unchanged. The scheduler (`crate::tsched`) searches a single-actor reduction for
 *what* to do, then repacks it across the crew for *who does what, when* — validated,
 and only kept if it's genuinely shorter. The crew domain is **lockless** (workers
 interchangeable) so the search stays small and the scheduler owns the parallelism.

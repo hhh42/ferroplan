@@ -63,7 +63,16 @@ a plan. It *banks*: the decision-epoch search then runs as a bounded quality
 chase and the smaller makespan wins, so a task that solved before returns the
 plan it returned before. It declines — and says so under `FF_WALL_DEBUG=1` —
 on required concurrency, timed initial literals, trajectory constraints and
-unconstrained durations. `FF_NO_TCOMPRESS=1` restores the 0.27 route.
+unconstrained durations, and it stands aside when `FF_TCONC=1` asks for the
+actor scheduler. `FF_NO_TCOMPRESS=1` restores the 0.27 route.
+
+One consequence to know about: the left-shift overlaps whatever the PDDL
+allows. A domain that is *lockless* by design — the cabin crew, where "one job
+per worker" is the scheduler's convention and not a precondition — now gets
+every independent job at once by default (crew-solo: makespan 109 → 47, one
+worker on four jobs). That is a valid PDDL2.1 plan. If a resource can only do
+one thing at a time, say so in the domain with a busy token, or run the actor
+scheduler (`FF_TCONC=1`), under which the results are exactly 0.27's.
 
 ### A plan in hand comes back inside the budget (0.28)
 

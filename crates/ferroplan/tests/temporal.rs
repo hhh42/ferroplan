@@ -628,16 +628,55 @@ fn escalation_ladder_rescues_predicate_build() {
     // tier's predicate-goal demand seeding — its own header documents
     // `FF_TDEMAND=1`. Under plain defaults the rung-0 search fails; the ladder's
     // Full rung must rescue it (measured makespan 109) without any flag.
+    //
+    // 0.28: the compression rung (Lane T) now answers this task FIRST, so the
+    // ladder is the subject only with the rung hatched off -- a child process,
+    // because the hatch is an environment variable and this binary's tests
+    // share one. Both are pinned: the ladder still rescues, and the default
+    // route returns a plan no longer than the ladder's (the rung BANKS and the
+    // smaller makespan wins). Found at the 0.28 cut pre-flight, where this
+    // test read 47.0 for its documented 109 -- behind an earlier failing
+    // binary that a fail-fast `cargo test` had stopped at.
     let base = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/cabin");
     let d_src = std::fs::read_to_string(format!("{base}/crew.pddl")).unwrap();
     let p_src = std::fs::read_to_string(format!("{base}/crew-solo.pddl")).unwrap();
     let d = parse_domain(&d_src).expect("parses");
     let p = parse_problem(&p_src).expect("parses");
-    let plan = temporal::solve(&d, &p, 1).expect("the escalation ladder must rescue crew-solo");
-    temporal::validate(&d, &p, &plan).expect("escalated plan validates");
+    if std::env::var("ESCALATION_CHILD").is_ok() {
+        let plan = temporal::solve(&d, &p, 1).expect("the escalation ladder must rescue crew-solo");
+        temporal::validate(&d, &p, &plan).expect("escalated plan validates");
+        println!("CHILD-MAKESPAN:{}", plan.makespan);
+        return;
+    }
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "escalation_ladder_rescues_predicate_build",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("ESCALATION_CHILD", "1")
+        .env("FF_NO_TCOMPRESS", "1")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "the ladder leg failed:\n{stdout}");
+    let ladder: f64 = stdout
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("CHILD-MAKESPAN:"))
+        .expect("child printed its makespan")
+        .parse()
+        .unwrap();
     assert!(
-        (plan.makespan - 109.0).abs() < 2.0,
-        "expected the documented ~109 makespan, got {}",
+        (ladder - 109.0).abs() < 2.0,
+        "expected the ladder's documented ~109 makespan, got {ladder}"
+    );
+
+    let plan = temporal::solve(&d, &p, 1).expect("the default route solves crew-solo");
+    temporal::validate(&d, &p, &plan).expect("the default route's plan validates");
+    assert!(
+        plan.makespan <= ladder + 1e-6,
+        "the compression rung banks and the SMALLER makespan wins: {} against the ladder's {ladder}",
         plan.makespan
     );
 }

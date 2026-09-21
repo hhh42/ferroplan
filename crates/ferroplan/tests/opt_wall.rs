@@ -186,9 +186,23 @@ fn run_child(scenario: &str) -> (String, String, f64) {
             // (not reverted to 10) purely to give the RESUMED search
             // generous absolute margin to finish once it is properly
             // forced to happen.
+            //
+            // 0.28 cut pre-flight, the same lesson a second time and from
+            // the other side: "0.001, ~30 ms, reliably too small" was true
+            // of the box it was measured on. On a quiet M5 LM-cut certifies
+            // this fixture in 103 evaluations and ~30 ms, so the probe
+            // SUCCEEDS about half the time (child run 25 times per setting:
+            // handover 14/25 at 0.001; 25/25 at 0.0003, 0.0001 and 0.00003)
+            // and the whole test failed 5 runs in 12 alone on an idle
+            // machine -- it had been filed as a LOAD flake because a loaded
+            // box is a slower one, which is the condition under which it
+            // PASSES. 0.0001 (~3 ms) is a decade under the coin flip. A
+            // fixture whose subject is "the probe fails" has to starve the
+            // probe on the fastest box that will run it, not the one it was
+            // written on.
             cmd.env("FF_TIME_LIMIT", "30")
                 .env("FF_OPT_SPRINT_FRAC_HI", "0.0002")
-                .env("FF_OPT_LMCUT_PROBE_FRAC", "0.001");
+                .env("FF_OPT_LMCUT_PROBE_FRAC", "0.0001");
         }
         "no-resume" => {
             cmd.env("FF_TIME_LIMIT", "30")

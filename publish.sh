@@ -136,9 +136,9 @@ RUSTDOCFLAGS="-D warnings" cargo doc --no-deps -p ferroplan-sat -p ferroplan -p 
 # Skips the `#[ignore]`d IPC-benchmark regression guards (multi-minute solves); those
 # are CI-gated on every push. Set RUN_HEAVY=1 to include them here too (release-built).
 if [[ "${RUN_HEAVY:-0}" == 1 ]]; then
-  cargo test --release -p ferroplan -p ferroplan-cli -- --include-ignored
+  cargo test --release -p ferroplan -p ferroplan-cli --no-fail-fast -- --include-ignored
 else
-  cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp
+  cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp --no-fail-fast
 fi
 # ferroplan-sat has no unpublished path deps of its own, so it packages AND
 # dry-run-publishes cleanly standalone — a real check. ferroplan CANNOT: both

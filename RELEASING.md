@@ -35,10 +35,15 @@ cargo bench --no-run
 
 # BOTH test passes — publish.sh runs both, so a pre-flight that runs one
 # is not a pre-flight. They are not interchangeable:
-cargo test --release -p ferroplan -p ferroplan-cli -- --include-ignored
-cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp   # DEBUG
+cargo test --release -p ferroplan -p ferroplan-cli --no-fail-fast -- --include-ignored
+cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp --no-fail-fast   # DEBUG
 ```
 
+> **`--no-fail-fast`, always.** `cargo test` stops at the first failing test
+> BINARY. At the 0.28 cut a red `opt_wall` had been hiding a second failure,
+> in an ignored test later in the alphabet, for a whole cycle: a gate that
+> stops early reports what it did not run as though it had passed.
+>
 > **Run the DEBUG pass.** It is easy to check `cargo test --all --release`,
 > see it green, and ship — and 0.21 nearly did. An unoptimised build walks the
 > engine ~20x slower, so any test whose assertion is denominated in WALL TIME

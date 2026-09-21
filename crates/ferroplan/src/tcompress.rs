@@ -67,6 +67,15 @@ pub fn declines(domain: &Domain, problem: &Problem) -> Option<&'static str> {
     if crate::sat::requires_concurrency(domain, problem) {
         return Some("required concurrency");
     }
+    // `FF_TCONC=1` asks for the ACTOR scheduler (`tsched`): one job per worker
+    // at a time, a convention that lives outside the domain -- the cabin crew
+    // is lockless on purpose. The left-shift knows read/write sets and nothing
+    // of actors, and on crew-solo it books one worker onto four jobs at once:
+    // legal PDDL, and not what that flag was set to get. The scheduler owns
+    // the layout when it is asked for.
+    if crate::features::tconc() {
+        return Some("FF_TCONC: the actor scheduler owns the layout");
+    }
     None
 }
 

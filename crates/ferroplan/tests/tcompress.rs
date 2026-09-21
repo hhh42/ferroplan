@@ -142,6 +142,43 @@ fn the_rung_declines_what_it_cannot_promise() {
     assert_eq!(tcompress::declines(&kiln, &p), Some("required concurrency"));
 }
 
+/// `FF_TCONC=1` asks for the ACTOR scheduler -- one job per worker at a time, a
+/// convention that lives outside the domain (examples/cabin/crew.pddl is
+/// lockless on purpose). The left-shift knows read/write sets and nothing of
+/// actors: on crew-solo it books the one worker onto four jobs at once, which
+/// is legal PDDL and not what that flag was set to get. Found at the 0.28 cut
+/// pre-flight. A child process: the flag is process-wide and this binary's
+/// tests share one.
+#[test]
+fn the_rung_stands_aside_for_the_actor_scheduler() {
+    let d = parse_domain(SHOP).unwrap();
+    let p = parse_problem(&shop(&[("j1", "m1")], &["m1"])).unwrap();
+    if std::env::var("TCOMPRESS_TCONC_CHILD").is_ok() {
+        println!("CHILD-DECLINES:{:?}", tcompress::declines(&d, &p));
+        return;
+    }
+    assert_eq!(
+        tcompress::declines(&d, &p),
+        None,
+        "unflagged, the rung runs"
+    );
+    let out = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "the_rung_stands_aside_for_the_actor_scheduler",
+            "--nocapture",
+        ])
+        .env("TCOMPRESS_TCONC_CHILD", "1")
+        .env("FF_TCONC", "1")
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("CHILD-DECLINES:Some(\"FF_TCONC"),
+        "with FF_TCONC set the rung must decline, naming it:\n{stdout}"
+    );
+}
+
 #[test]
 #[ignore = "heavy IPC temporal solve; opt-in via --include-ignored"]
 fn pathways_metric_time_p01_solves() {
