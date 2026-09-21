@@ -1084,11 +1084,12 @@ fn solve_temporal(
             } else if unscored {
                 // A valid plan with no metric beats a metric with no plan
                 // (0.28 Lane S): the scorer grounds the ORIGINAL pair, and
-                // a banked plan that arrives with the wall nearly spent is
-                // reported without it rather than lost to the kill.
+                // a banked plan that arrives with the wall nearly spent --
+                // or whose scorer does not fit the memory budget (Lane M) --
+                // is reported without it rather than lost to the kill.
                 notes.push(
-                    "PDDL3 preferences NOT scored: the wall left no room to build \
-                     the scorer; the plan is valid, its metric is omitted"
+                    "PDDL3 preferences NOT scored: the wall or the memory budget left \
+                     no room to build the scorer; the plan is valid, its metric is omitted"
                         .into(),
                 );
             }
