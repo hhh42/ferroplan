@@ -1,0 +1,23 @@
+board              variant                                 sg both empty ours<   =  sg< unpr 0.27 score our score sg score
+ipc5-simple-pref   openstacks-preferences-simple           20   20     0     9   0   11    0       12.2      12.1     16.9
+ipc5-simple-pref   pathways-preferences-simple             30   30    21     0   5   25    0       24.1      24.1     30.0
+ipc5-simple-pref   rovers-metric-preferences-simple        20   20     0    11   2    7    0       19.4      19.4     18.5
+ipc5-simple-pref   storage-preferences-simple              20   20     1     8   0   11    1       12.9      12.7     15.0
+ipc5-simple-pref   tpp-preferences-simple                  20   20     0     0   5   15    0       17.2      17.2     20.0
+ipc5-simple-pref   trucks-preferences-simple               20   20     0     1   7   12    0        9.0       8.4     19.0
+ipc5-simple-pref   TOTAL                                  130  130    22    29  19   81    1       94.8      94.0    119.4
+
+ipc5-qual-pref     openstacks-preferences-qualitative      20   20     0     5   0   15    0       16.4      18.3     19.8
+ipc5-qual-pref     rovers-preferences-qualitative          20   20     0     7   0   13    0        7.0      13.9     17.8
+ipc5-qual-pref     storage-preferences-qualitative         20   19     5     8   0    6    5       12.3      12.9      9.6
+ipc5-qual-pref     tpp-preferences-qualitative             20   20    12     5   1   14    0        7.1       8.5     19.0
+ipc5-qual-pref     trucks-preferences-qualitative          20   19     0     1   2   16    0        3.0       5.6     18.5
+ipc5-qual-pref     TOTAL                                  100   98    17    26   3   64    5       45.8      59.2     84.8
+
+ipc5-complex-pref  pathways-preferences-complex            30   30    29     2   0   27    1        5.3      23.7     28.9
+ipc5-complex-pref  pipesworld-preferences-complex          15   15     0     4   2    5    4        2.0       9.8      9.9
+ipc5-complex-pref  storage-preferences-complex             20    7     6     1   0    4    2        1.0       3.0      4.5
+ipc5-complex-pref  tpp-preferences-complex                 20    8     0     0   0    8    0        0.0       2.4      8.0
+ipc5-complex-pref  trucks-preferences-complex              20   20     0     4   1   15    0       11.8      11.8     16.6
+ipc5-complex-pref  TOTAL                                  105   80    35    11   3   59    7       20.1      50.6     67.9
+

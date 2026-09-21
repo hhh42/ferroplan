@@ -597,7 +597,12 @@ pub(crate) struct ScopedDeadline {
 impl Drop for ScopedDeadline {
     fn drop(&mut self) {
         CALL_BUDGET.with(|b| b.borrow_mut().deadline = self.prev);
-        BOUNDED_WORK.with(|n| n.set(n.get().saturating_sub(1)));
+        BOUNDED_WORK.with(|n| {
+            n.set(n.get().saturating_sub(1));
+            if n.get() == 0 {
+                crate::mem::clear_latch();
+            }
+        });
     }
 }
 
@@ -670,7 +675,14 @@ pub(crate) fn tighten_deadline(reserve_secs: f64) -> Option<ScopedDeadline> {
     let rem = wall_remaining_secs()?;
     let tightened = (crate::clock::Clock::now(), (rem - reserve_secs).max(0.0));
     CALL_BUDGET.with(|b| b.borrow_mut().deadline = Some(tightened));
-    BOUNDED_WORK.with(|n| n.set(n.get() + 1));
+    BOUNDED_WORK.with(|n| {
+        if n.get() == 0 {
+            // A stale mark (this thread was a grounding worker once) must not
+            // close a scope that has not looked at the memory yet.
+            crate::mem::clear_latch();
+        }
+        n.set(n.get() + 1)
+    });
     Some(ScopedDeadline { prev })
 }
 

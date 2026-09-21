@@ -1,0 +1,18 @@
+board                 rows published  crucible  delta  lost  + Lane M  delta  lost
+ipc5-simple-pref       130       119       129    +10     1       130    +11     0
+ipc5-qual-pref         100        51        95    +44     0        98    +47     0
+ipc5-complex-pref      108        29        76    +47     0        82    +53     0
+ipc5-time              130        88       126    +38     0       126    +38     0
+ipc5-metric-time       200        64        92    +28     0       105    +41     0
+ipc5-constraints       120        28        28     +0     0        28     +0     0
+six boards             788       379       546   +167     1       569   +190     0
+   lost vs published: none
+
+variants SGPlan5 ran  rows  0.27 pub  crucible  + Lane M  SGPlan5  gap was  gap now
+ipc5-simple-pref       130       119       129       130      129       10       -1
+ipc5-qual-pref         100        51        95        98      100       49        2
+ipc5-complex-pref      108        29        76        82      105       76       23
+ipc5-time               80        53        76        76       80       27        4
+ipc5-metric-time       180        44        72        85      151      107       66
+ipc5-constraints        80        20        20        20       47       27       27
+six boards             678       316       468       491      612      296      121

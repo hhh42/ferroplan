@@ -1,0 +1,28 @@
+# trip-line experiment, 2026-09-21: at-risk cells x FF_MEM_TRIP_FRAC under FF_MEM_BUDGET_GB=6, threads 1, 60 s wall.
+# peak = /usr/bin/time -l maximum resident set size (TRUE peak, not the watchdog's sample). Binary: Lane M + interning/entry/latch
+# fixes + the replay pricing later REMOVED (replay-pricing-NEGATIVE.patch) -- the storage rows below are what removed it.
+frac	cell	solved	metric	makespan	length	real_s	peak_gb	note
+0.75	elevator-temporal-satisficing-strips/30	True	None	1571.1000000000001	253	6.72	4.50	
+0.75	pipesworld-preferences-complex/16	True	None	14.696333333333333	42	19.32	4.50	PDDL3 preferences NOT scored: the wall left no room to build
+0.75	pipesworld-metric-time/41	True	None	4.26	14	5.66	4.88	
+0.75	pipesworld-metric-time/26	True	None	22.518	49	10.77	4.96	
+0.75	storage-preferences-qualitative/16	True	None	None	0	4.15	5.69	PDDL3 metric NOT priced: the preference task did not ground 
+0.75	storage-preferences-qualitative/18	True	None	None	0	3.18	5.83	PDDL3 metric NOT priced: the preference task did not ground 
+0.75	storage-preferences-qualitative/20	True	None	None	0	4.72	6.18	PDDL3 metric NOT priced: the preference task did not ground 
+0.75	storage-preferences-simple/19	True	5230.0	None	6	54.74	4.42	search bound hit; metric is best-found, not proven optimal
+0.75	storage-preferences-simple/20	True	None	None	0	4.59	5.91	PDDL3 metric NOT priced: the preference task did not ground 
+0.75	openstacks-preferences-simple/13	True	115.0	None	109	24.23	4.58	search bound hit; metric is best-found, not proven optimal
+0.75	tpp-preferences-simple/20	True	2792.0	None	8	35.79	4.51	search bound hit; metric is best-found, not proven optimal
+0.75	pathways-preferences-simple/29	True	29.800000000000004	None	0	40.32	4.52	search bound hit; metric is best-found, not proven optimal
+0.85	elevator-temporal-satisficing-strips/30	True	None	1571.1000000000001	253	7.02	5.10	
+0.85	pipesworld-preferences-complex/16	True	None	14.696333333333333	42	19.85	5.10	PDDL3 preferences NOT scored: the wall left no room to build
+0.85	pipesworld-metric-time/41	True	None	4.26	14	6.74	5.97	
+0.85	pipesworld-metric-time/26	True	None	22.518	49	11.25	5.62	
+0.85	storage-preferences-qualitative/16	True	None	None	0	3.24	5.56	PDDL3 metric NOT priced: the preference task did not ground 
+0.85	storage-preferences-qualitative/18	True	None	None	0	3.13	5.59	PDDL3 metric NOT priced: the preference task did not ground 
+0.85	storage-preferences-qualitative/20	True	None	None	0	4.74	6.20	PDDL3 metric NOT priced: the preference task did not ground 
+0.85	storage-preferences-simple/19	True	5513.0	None	0	11.38	5.62	PDDL3 metric is the hard-goal plan's, by replay, NOT optimiz
+0.85	storage-preferences-simple/20	True	None	None	0	4.66	6.01	PDDL3 metric NOT priced: the preference task did not ground 
+0.85	openstacks-preferences-simple/13	True	115.0	None	109	27.86	5.22	search bound hit; metric is best-found, not proven optimal
+0.85	tpp-preferences-simple/20	True	2792.0	None	8	43.48	5.55	search bound hit; metric is best-found, not proven optimal
+0.85	pathways-preferences-simple/29	True	29.800000000000004	None	0	45.68	5.10	search bound hit; metric is best-found, not proven optimal

@@ -1,0 +1,12 @@
+A  lanes candidate [c0893fb8ccc7]
+B  Lane M engine  [69471da363ec]
+cells 58   A solved 58   B solved 56   lost 2
+quality, like with like (lower is better): same 51  better 0  worse 1  |  B lost its metric (unpriced / not scored) 4  B newly priced 0
+summed solve time over cells both solved: A 2125.8 s   B 1650.0 s   B/A 0.78x
+  LOST     elevator-temporal-satisficing-strips/30   makespan 1571.1 -> None   t 16.82 -> 7.22   ['mem-cap']
+  LOST     pipesworld-preferences-complex/16   metric 39.8 -> None   t 25.11 -> 19.92   ['mem-cap']
+  WORSE    tpp-preferences-simple/17   metric 2409.0 -> 2411.0   t 37.79 -> 31.02   ['search bound hit; metric is best-found, not proven optimal']
+  UNPRICED storage-preferences-qualitative/15   metric 1471.0 -> None   t 55.92 -> 2.83   ['PDDL3 metric NOT priced: the preference task did not ground inside the']
+  UNPRICED storage-preferences-qualitative/16   metric 1706.0 -> None   t 55.72 -> 2.85   ['PDDL3 metric NOT priced: the preference task did not ground inside the']
+  UNPRICED storage-preferences-simple/19   metric 5230.0 -> None   t 54.93 -> 4.4   ['PDDL3 metric NOT priced: the preference task did not ground inside the']
+  UNPRICED storage-preferences-simple/20   metric 5180.0 -> None   t 54.65 -> 4.92   ['PDDL3 metric NOT priced: the preference task did not ground inside the']

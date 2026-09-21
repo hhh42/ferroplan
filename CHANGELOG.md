@@ -66,7 +66,14 @@ attempt against best-of-N boards); nothing below claims one for the release.
   watchdog used to kill the process and the plan with it. A first search is
   never cut by it. `FF_NO_MEM_WALL=1` restores 0.27. On a 16-bit toy task the
   unwalled chase reaches 8.2 GB in 39 s; walled, it is back in half a second
-  at 209 MB.
+  at 209 MB. A trip is STICKY for the scope it happened in: what the scope
+  opens next -- another tier's grounding, another search -- is refused at its
+  first look, not after it has climbed back to the line. The grounder looks
+  inside its interning loop as well as between phases, and EVERY grounding
+  entry is armed inside bounded work, the preference scorer's included: a
+  solved plan may now come back "NOT scored" where it used to be scored at a
+  resident size over the declared budget. `FF_MEM_TRIP_FRAC` moves the line,
+  for measuring it.
 - The PDDL3 route plans its hard goals on the pair with SOFT trajectory
   constraints stripped: they cannot invalidate a plan, and their monitors are
   most of a qualitative-preference task.

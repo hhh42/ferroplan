@@ -1,0 +1,14 @@
+A  lanes candidate [c0893fb8ccc7]
+B  Lane M engine  [62b4f03a51d3]
+cells 58   A solved 58   B solved 58   lost 0
+quality, like with like (lower is better): same 49  better 0  worse 1  |  B lost its metric (unpriced / not scored) 8  B newly priced 0
+summed solve time over cells both solved: A 2167.7 s   B 1656.7 s   B/A 0.76x
+  WORSE    tpp-preferences-simple/17   metric 2409.0 -> 2411.0   t 37.79 -> 31.12   ['search bound hit; metric is best-found, not proven optimal']
+  UNPRICED pipesworld-preferences-complex/12   metric 22.6 -> None   t 11.39 -> 9.07   ['PDDL3 preferences NOT scored: the wall left no room to build the score']
+  UNPRICED pipesworld-preferences-complex/13   metric 92.0 -> None   t 5.95 -> 5.17   ['PDDL3 preferences NOT scored: the wall left no room to build the score']
+  UNPRICED pipesworld-preferences-complex/14   metric 59.0 -> None   t 8.55 -> 5.96   ['PDDL3 preferences NOT scored: the wall left no room to build the score']
+  UNPRICED pipesworld-preferences-complex/15   metric 6.7 -> None   t 12.18 -> 7.77   ['PDDL3 preferences NOT scored: the wall left no room to build the score']
+  UNPRICED pipesworld-preferences-complex/16   metric 39.8 -> None   t 25.11 -> 19.67   ['PDDL3 preferences NOT scored: the wall left no room to build the score']
+  UNPRICED storage-preferences-qualitative/15   metric 1471.0 -> None   t 55.92 -> 3.37   ['PDDL3 metric NOT priced: the preference task did not ground inside the']
+  UNPRICED storage-preferences-qualitative/16   metric 1706.0 -> None   t 55.72 -> 3.37   ['PDDL3 metric NOT priced: the preference task did not ground inside the']
+  UNPRICED storage-preferences-simple/20   metric 5180.0 -> None   t 54.65 -> 4.87   ['PDDL3 metric NOT priced: the preference task did not ground inside the']

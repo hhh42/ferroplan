@@ -1,0 +1,29 @@
+engine  ff 0.27.1 [62b4f03a51d3]
+reap    1 child(ren) recorded by an earlier run
+        58759 already gone
+canary  trucks-propositional/8@62b4f03a51d3 baseline 0.520 s (median of 5 runs, no history yet); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+!! width - -> 9 (full, idle 37774s, foreign 9%)
+subset  54 listed row(s) -- 54 instance(s) of set cut27, staged at /Users/harold/ferroplan/benchmarks/probes/lanes-0.28-mem/0.27.1-62b4f03a51d3
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 5 board(s) outstanding
+!! width 9 -> 8 (full, idle 37894s, foreign 137%)
+!! width 8 -> 9 (full, idle 37914s, foreign 9%)
+   ipc5-metric-time       verdicts: rho 8, solved 13, swap 1
+   ipc5-metric-time       banked   21   22 -> 1
+   ipc5-constraints       verdicts: window 8
+   ipc5-constraints       banked    8   8 -> 0
+   ipc5-simple-pref       verdicts: solved 1
+   ipc5-simple-pref       banked    1   1 -> 0
+!! width 9 -> 8 (full, idle 38194s, foreign 140%)
+   ipc5-qual-pref         verdicts: contended 1, solved 3
+   ipc5-qual-pref         banked    3   4 -> 1
+!! width 8 -> 9 (full, idle 38214s, foreign 9%)
+   ipc5-complex-pref      verdicts: solved 6, window 13
+   ipc5-complex-pref      banked   19   19 -> 0
+== pass 2 -- 2 board(s) outstanding
+   ipc5-metric-time       verdicts: rho 1
+   ipc5-metric-time       banked    1   1 -> 0
+   ipc5-qual-pref         verdicts: window 1
+   ipc5-qual-pref         banked    1   1 -> 0
+SWEEP COMPLETE -- 54 banked in 2 pass(es)

@@ -1,0 +1,7 @@
+ff 0.27.1
+5a102b825552cbe272a567bb07334c5a6bf54d0b
+ M crates/ferroplan/src/ground.rs
+ M crates/ferroplan/src/mem.rs
+ M crates/ferroplan/src/search.rs
+ M crates/ferroplan/src/temporal.rs
+ M crates/ferroplan/tests/mem_wall.rs

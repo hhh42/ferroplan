@@ -3191,7 +3191,9 @@ fn temporal_search(
     }
     let t0 = crate::clock::Clock::now();
     let mem_wall = crate::mem::MemWall::arm();
-    let mut pops_since_mem_check = 0u32;
+    // Starts due: the FIRST pop looks, so a search opened inside a scope that
+    // has already tripped (`mem::latched`) stops before it has built anything.
+    let mut pops_since_mem_check = 256u32;
     if dbg {
         eprintln!(
             "[tsearch] pass start: prune={prune} masked={} words={} fv={} rel_fluents={} tils={} ops={}",

@@ -1,0 +1,12 @@
+board                 pub pub empty |  now now empty now unpriced | gained gained empty  gained, a real plan
+ipc5-simple-pref      119        20 |  130        22            1 |     11            0                   11
+ipc5-qual-pref         51         1 |   98        17            5 |     47           16                   31
+      empty, gained: storage-preferences-qualitative x4
+      empty, gained: tpp-preferences-qualitative x12
+ipc5-complex-pref      29         6 |   82        35            9 |     53           30                   23
+      empty, gained: pathways-preferences-complex x24
+      empty, gained: storage-preferences-complex x6
+ipc5-time              88         0 |  126         0            0 |     38            0                   38
+ipc5-metric-time       64         0 |  105         0            0 |     41            0                   41
+ipc5-constraints       28         0 |   28         0            0 |      0            0                    0
+six boards            379        27 |  569        74           15 |    190           46                  144

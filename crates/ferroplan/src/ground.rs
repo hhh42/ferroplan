@@ -1670,6 +1670,28 @@ fn ground_v(
     fold_fluents: bool,
     walled: bool,
 ) -> Outcome {
+    // A declared memory budget arms the same checkpoint (0.28 Lane M) -- on
+    // EVERY entry, like the per-call budget below and for its reason: `arm`
+    // is live only inside bounded work, and bounded work is where the
+    // validator entry is no longer "a plan found is a plan": since Lane S the
+    // scorer grounds BEFORE the chase, as optional work on a banked row, and
+    // pipesworld-complex i16 took that grounding from 0.2 GB to 6.4 with the
+    // plan in hand and this wall looking the other way. Outside a scope the
+    // validator still grounds a found plan's task whatever it costs.
+    let mem = crate::mem::MemWall::arm();
+    if mem.hit() {
+        // Already over (or this scope already tripped): refuse at the door.
+        // The setup below is seconds and hundreds of MB before the first
+        // binding is counted.
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!("wall: grounding MEMORY checkpoint at entry (no task, no verdict)");
+        }
+        return Outcome::WallExhausted(
+            "memory budget reached before grounding began (FF_MEM_BUDGET_GB): \
+             no task grounded, no verdict"
+                .into(),
+        );
+    }
     // ---- type system ----
     let objects_of_type = objects_by_type(domain, problem);
 
@@ -1784,14 +1806,6 @@ fn ground_v(
         .then(crate::search::wall_deadline)
         .flatten();
     let deadline = crate::search::sooner_deadline(env_wall, budget.deadline);
-    // A declared memory budget arms the same checkpoint on the SOLVE entries
-    // (0.28 Lane M): the validator entry still grounds a found plan's task
-    // whatever it costs, exactly as it does past the wall.
-    let mem = if walled {
-        crate::mem::MemWall::arm()
-    } else {
-        crate::mem::MemWall::unarmed()
-    };
     let gwall: Option<GroundWall> = (deadline.is_some() || budget.cancel.is_some() || mem.armed())
         .then(|| GroundWall {
             deadline,
@@ -2044,6 +2058,9 @@ fn ground_v(
     // would be nondeterministic — honest failure or a whole task,
     // nothing in between.
     if let Some(g) = gwall.as_ref().filter(|g| g.tripped()) {
+        if g.mem_tripped.load(std::sync::atomic::Ordering::Relaxed) {
+            crate::mem::latch(); // a WORKER saw it; the scope is this thread's
+        }
         if std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!(
                 "wall: grounding {} mid-enumeration (no task, no verdict)",
@@ -2100,7 +2117,15 @@ fn ground_v(
         fluent_id: FxHashMap::default(),
     };
     let mut mids: Vec<MidOp> = Vec::with_capacity(raws.len());
-    for r in &raws {
+    for (ri, r) in raws.iter().enumerate() {
+        // `mids` is a second copy of every op while `raws` is still alive:
+        // elevator-strips i30 left the enumeration at 4.3 GB, under the line,
+        // and was at 5.7 before the phase boundary below could look.
+        if ri & 255 == 255 {
+            if let Some(stop) = phase_stop("interning") {
+                return stop;
+            }
+        }
         let mut reads = Vec::new();
         let pre_pos: Vec<u32> = r.pos.iter().map(|k| intern.fact(k)).collect();
         let add: Vec<u32> = r.eff.add.iter().map(|k| intern.fact(k)).collect();

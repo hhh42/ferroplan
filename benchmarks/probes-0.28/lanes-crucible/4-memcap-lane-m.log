@@ -1,0 +1,61 @@
+engine  ff 0.27.1 [69471da363ec]
+reap    35 child(ren) recorded by an earlier run
+        98694 already gone
+        1783 already gone
+        4536 already gone
+        7192 already gone
+        9883 already gone
+        12622 already gone
+        15396 already gone
+        18093 already gone
+        20880 already gone
+        23605 already gone
+        26266 already gone
+        28985 already gone
+        31708 already gone
+        32380 already gone
+        33038 already gone
+        33708 already gone
+        34376 already gone
+        35060 already gone
+        35764 already gone
+        36440 already gone
+        37106 already gone
+        37809 already gone
+        38475 already gone
+        39147 already gone
+        39808 already gone
+        40487 already gone
+        41155 already gone
+        41845 already gone
+        42549 already gone
+        43234 already gone
+        43891 already gone
+        44555 already gone
+        45226 already gone
+        45994 already gone
+        46700 already gone
+canary  trucks-propositional/8@69471da363ec baseline 0.514 s (median of 5 runs, no history yet); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  54 listed row(s) -- 54 instance(s) of set cut27, staged at /Users/harold/ferroplan/benchmarks/probes/lanes-0.28-mem/0.27.1-69471da363ec
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 5 board(s) outstanding
+!! width - -> 9 (full, idle 32515s, foreign 9%)
+!! throttle full -> polite (Foreign(26.099999999999998))
+   ipc5-metric-time       verdicts: rho 9, solved 13
+   ipc5-metric-time       banked   22   22 -> 0
+!! throttle polite -> full (Clear)
+   ipc5-constraints       verdicts: window 8
+   ipc5-constraints       banked    8   8 -> 0
+   ipc5-simple-pref       verdicts: solved 1
+   ipc5-simple-pref       banked    1   1 -> 0
+   ipc5-qual-pref         verdicts: solved 2, window 2
+   ipc5-qual-pref         banked    4   4 -> 0
+!! width 9 -> 8 (full, idle 32975s, foreign 143%)
+!! width 8 -> 9 (full, idle 32995s, foreign 9%)
+   ipc5-complex-pref      verdicts: contended 3, rho 3, window 13
+   ipc5-complex-pref      banked   16   19 -> 3
+== pass 2 -- 1 board(s) outstanding
+   ipc5-complex-pref      verdicts: window 3
+   ipc5-complex-pref      banked    3   3 -> 0
+SWEEP COMPLETE -- 54 banked in 2 pass(es)

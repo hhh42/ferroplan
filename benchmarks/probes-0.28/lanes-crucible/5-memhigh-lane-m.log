@@ -1,0 +1,44 @@
+engine  ff 0.27.1 [69471da363ec]
+canary  trucks-propositional/8@69471da363ec baseline 0.514 s (p25 of the last 100 readings is 0.513 s, against 5 runs now); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+!! width - -> 9 (full, idle 33194s, foreign 17%)
+subset  58 listed row(s) -- 58 instance(s) of set cut27, staged at /Users/harold/ferroplan/benchmarks/probes/lanes-0.28-memhigh/0.27.1-69471da363ec
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 6 board(s) outstanding
+!! width 9 -> 8 (full, idle 33274s, foreign 108%)
+   ipc5-metric-time       verdicts: solved 8
+   ipc5-metric-time       banked    8   8 -> 0
+!! width 8 -> 9 (full, idle 33294s, foreign 9%)
+   ipc2014-tempo          verdicts: solved 1
+   ipc2014-tempo          banked    1   1 -> 0
+   ipc67-temporal         packed: 1 wide x10 (14.5 GB budget), 5 narrow, 0 solo
+   ipc67-temporal         verdicts: solved 4, suspect 2
+   ipc67-temporal         banked    4   6 -> 2
+   ipc5-simple-pref       packed: 1 wide x10 (14.5 GB budget), 10 narrow, 20 solo
+!! canary trucks-propositional/8@69471da363ec at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (full, idle 34554s, foreign 109%)
+   ipc5-simple-pref       verdicts: solved 31
+   ipc5-simple-pref       banked   31   31 -> 0
+!! width 8 -> 9 (full, idle 34574s, foreign 9%)
+   ipc5-qual-pref         verdicts: solved 6
+   ipc5-qual-pref         banked    6   6 -> 0
+   ipc5-complex-pref      verdicts: solved 5, thermal 1
+   ipc5-complex-pref      banked    5   6 -> 1
+== pass 2 -- 2 board(s) outstanding
+   ipc5-complex-pref      verdicts: thermal 1
+   ipc5-complex-pref      banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 8 (full, idle 34854s, foreign 155%)
+   ipc67-temporal         verdicts: contended 1, thermal 1
+   ipc67-temporal         banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! width 8 -> 9 (full, idle 34874s, foreign 14%)
+== pass 3 -- 2 board(s) outstanding
+   ipc5-complex-pref      verdicts: thermal 1
+   ipc5-complex-pref      banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc67-temporal         verdicts: solved 1, window 1
+   ipc67-temporal         banked    2   2 -> 0
+== pass 4 -- 1 board(s) outstanding
+   ipc5-complex-pref      verdicts: thermal 1
+   ipc5-complex-pref      banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   (--max-passes 4 reached)
+stopped after 4 pass(es); 1 still owed -- the next run picks them up
+1 instance(s) still owed -- rows are written, nothing is lost

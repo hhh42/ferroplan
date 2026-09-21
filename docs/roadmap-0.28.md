@@ -1013,7 +1013,8 @@ hold"). `mem::resident_bytes()` asks the kernel (`/proc/self/status`;
 that already exist: the best-first batch boundary, every 256 temporal pops,
 every 256 grounding bindings, between grounding phases and inside the
 op-packing loop. A trip is an honest capped return, and what was banked is
-what comes back.
+what comes back. (As first pushed, `5a102b8`, that list had three holes in
+it; the crucible found them. See the next section.)
 
 - **Bounded work only.** The first cut armed the wall everywhere, and that
   is a regression waiting to happen: one run in ten over the record peaks
@@ -1050,6 +1051,184 @@ all 2.3 million preference instances and only THEN drops the 98 % that are
 statically true. That wants a streaming expansion (simplify each instance as
 it is produced), which touches the verifier and the temporal scorer too. Two
 rows, and they solve at 8 GB.
+
+### Lane M, read THROUGH THE CRUCIBLE -- a win, a regression, and what the regression was
+
+Two subsets (`crucible-spec.md` R3), same set, same 6 GB cap, same referee --
+run twice: on `69471da363ec` (= `5a102b8`, Lane M as first pushed) and, after
+what that found, on `62b4f03a51d3` (the fix). Receipts: `probes-0.28/lanes-crucible/`
+(`run-mem.sh`, `run-memhigh.sh`, `memcap.rows`, `memhigh.rows`, the two logs,
+`memhigh-compare.py`).
+
+**The confirmation: every cell the lanes candidate banked as `mem-cap` on the
+six boards -- 54, not just the fifteen the sit had out-read.** 54 banked in two
+passes, nine minutes. **16 of 54 now solve, all VAL-valid**:
+pipesworld-metric-time 13 of 22, storage-qualitative 2 of 4 (unpriced),
+and openstacks-simple i13 -- the one row the candidate had LOST against the
+published board -- back at metric 115. The other 38 are `mem-cap` still:
+storage-complex 18, storage-time-constraints 8, pipesworld-metric-time 9,
+storage-qualitative 2, pipesworld-complex 1. Those hold no plan when the
+memory goes, and this wall is deliberately blind there.
+
+**The regression read, and it is why this section exists.** The wall trips at
+4.5 GB, so it can only change a cell whose resident set gets there. The
+crucible's database names them: `run.peak_rss >= 3.5 GB` and solved, on the
+candidate -- 58 cells. Equal-N, one banked row per cell per engine:
+
+| 58 cells the candidate solved at >= 3.5 GB | |
+|---|---|
+| solved by both | 56 |
+| **lost** | **2** -- elevator-strips i30, pipesworld-complex i16, both now `mem-cap` |
+| metric priced -> **unpriced** | 4 -- storage-qualitative i15/i16, storage-simple i19/i20 |
+| metric worse | 1 (tpp-simple i17, 2409 -> 2411) |
+| metric better | 0 |
+| summed solve time | 0.78x |
+
+A lane that exists to stop `mem-cap` kills produced two. Neither was what it
+looked like:
+
+- **Both cells were ALWAYS over the cap.** Alone, under `/usr/bin/time -l`,
+  the 0.27-shaped engine (`FF_NO_MEM_WALL=1`) peaks at **6.59 GB** on
+  elevator-strips i30, and pipesworld-complex i16 reaches 6.4 GB inside a
+  grounding no wall was armed on (GB here is 2^30, as the manifest's cap is). The candidate's
+  banked rows say 4.52 and 5.89 GB because **the crucible's `rss-watchdog`
+  SAMPLES**, and a two-second spike fell between two samples. Lane M changed
+  the timing (the chase it cut was where the process used to spend its time)
+  and the same spike got caught, three attempts in three.
+- **And the wall could not see the spike**, for three reasons, each one a
+  trace (`rss_trace.py`: stderr lines stamped with the process's RSS):
+  1. *No checkpoint inside the interning loop.* `mids` is a second copy of
+     every op while `raws` is still alive. elevator-strips i30 -- 3.2 million
+     ops -- left the enumeration at 4.3 GB, UNDER the line, and was at 5.7
+     before the phase boundary could look.
+  2. *A trip was not sticky.* The freed arena goes back to the system, the
+     next tier of the chase reads 3.8 GB, grounds again, and climbs again:
+     three more tiers, 1.5 s and +0.8 GB of setup each before their first
+     counted binding. 5.6 GB at the trip, 6.4 when the process exited.
+  3. *The scorer's grounding was unarmed.* `ground_task` is the validator
+     entry, unwalled on purpose ("a plan found is a plan"). But since Lane S
+     the scorer grounds BEFORE the chase, inside the optional-work scope,
+     where the clock already stops it -- and the memory wall looked away while
+     it took pipesworld-complex i16 from 0.21 GB to 6.4 with the plan banked.
+
+**Fixed** (`mem.rs`, `ground.rs`, `search.rs`, `temporal.rs`): a checkpoint
+every 256 ops inside interning; a trip LATCHES its scope (`mem::latched`,
+cleared when the outermost `ScopedDeadline` closes) so the next grounding is
+refused at the door and the next search on its first pop; every grounding
+entry arms inside bounded work. `tests/mem_wall.rs` pins the latch, RED on
+`5a102b8` (the second tier built 29,708 nodes after the trip).
+
+| alone, `FF_MEM_BUDGET_GB=6`, true peak | `5a102b8` | fixed |
+|---|---|---|
+| elevator-strips i30 | 6.4 GB (a kill), 11 s | **4.50 GB**, 6.7 s, same makespan 1571.1 |
+| pipesworld-complex i16 | 6.4 GB (a kill), 24 s | **4.51 GB**, 19.3 s, banked plan, NOT scored |
+
+**Both subsets again, on the fix** (`run-mem-fixed.sh`, `6-`/`7-*.log`,
+`memhigh-compare-fixed.txt`):
+
+| | `5a102b8` | fixed |
+|---|---|---|
+| the 54 `mem-cap` cells, solved | 16 | **23** -- and none of the 16 lost |
+| the 58 solved at >= 3.5 GB, solved | 56 | **58 of 58, banked in ONE pass** (four, and one row still owed, before) |
+| ... metric identical | 51 | 49 |
+| ... metric worse | 1 | 1 (tpp-simple i17, 2409 -> 2411) |
+| ... **solved, metric given up** | 4 | **8** |
+| ... summed solve time vs the candidate | 0.78x | 0.76x |
+
+The seven more: pipesworld-complex i18, storage-complex i14-i18,
+storage-qualitative i19. The eight that keep their row and lose their number
+are the price, and it is stated rather than netted off: storage-qualitative
+i15/i16 and storage-simple i20 come back unpriced (the compiled preference
+task trips while grounding), and pipesworld-complex i12-i16 come back NOT
+SCORED -- their scorer grounds the whole snap task, 4.4 GB of it, to replay one
+plan. Every one of the eight sat within a gigabyte of the cap on the candidate
+by a SAMPLED peak; two cells that looked just like them were the two kills
+above.
+
+**Named, and next in line: a scorer at plan size.** Lane T already refuses to
+ground a full snap task to validate one plan (`validate_at_plan_size`: the
+domain specialised to the plan's own steps); `SoftScorer::prepare` still does
+exactly that to SCORE one. Five cells here, and every complex-preference solve
+pays it (pathways-complex i20: 12.7 s of scorer grounding). What it needs
+before it can be trusted: `verify::eval_formula` reads "fact never grounded"
+as false, and at plan size an init-true atom no step touches is never
+grounded -- so the fallback to the init has to come first, with a fixture
+that scores the same plan both ways.
+
+**The trip line was measured, not argued** (`trip-frac.tsv`, twelve at-risk
+cells x {0.75, 0.85}, true peaks). Nothing reads better at 0.85 -- same
+metrics, same makespans -- and pipesworld-metric-time i41 peaks at **5.97 of
+6** there against 4.88. 0.75 stays. `FF_MEM_TRIP_FRAC` is the knob that
+measured it.
+
+**RECORDED NEGATIVE -- pricing the unpriced plan by replay.** When the
+compiled preference task does not ground, the hard-goal plan comes back with
+`metric: null`. `verify::verify` can price any plan over the ORIGINAL pair, so
+the fallback called it (`replay-pricing-NEGATIVE.patch`, built, tested,
+removed). Three guards were needed before it told the truth -- a metric with
+any non-`is-violated` term, a precondition preference (tpp: a hard-goal plan
+violates them per step and the replay would not count it -- the number comes
+out too GOOD), a soft trajectory constraint (the replay re-expands every
+instance: storage-qualitative i20 went to 6.18 GB) -- and what was left was
+two cells. On one of them, storage-simple i20, the replay took the peak from
+4.62 GB to **5.91** and still did not fit; at 0.85 it reached 6.01. The prize
+was the price of an EMPTY plan. A banked row is not wagered for that.
+
+**What this says about the instrument** (owed to the crucible, not built):
+`run.peak_rss` is a sampled maximum, and two published-shape "solves" were
+6.6 and 6.4 GB under a 6 GB cap. `wait4` already gives the supervisor
+`ru_maxrss` -- the true peak, free -- beside the CPU time it takes from the
+same call. Until a row carries it, "solved at 5.9 GB" means "was not looking".
+
+### What the six boards' gain is MADE OF -- and the score SGPlan5 was actually ranked on
+
+With Lane M laid over the candidate (`tally.py --mem --mem-engine
+62b4f03a51d3`; an overlay of re-measured cells, so an ESTIMATE until one
+engine runs the whole set at the cut):
+
+| | published 0.27.1 | lanes candidate | + Lane M |
+|---|---:|---:|---:|
+| six IPC-5 boards, of 788 | 379 | 546 (+167, 1 lost) | **569 (+190, 0 lost)** |
+| variants SGPlan5 ran, of 678 (SGPlan5: 612) | 316 | 468 | **491 -- the gap 296 -> 121** |
+
+Per board, against SGPlan5: simple-pref 130 v 129, qual-pref 98 v 100,
+complex-pref 82 v 105, time 76 v 80, metric-time 85 v 151, constraints 20 v 47.
+
+**46 of the +190 are the EMPTY plan** (`composition.py`). Twelve
+tpp-qualitative rows, twenty-four pathways-complex, six storage-complex,
+four storage-qualitative: problems with no hard goal at all, where
+"do nothing" is a valid plan, VAL accepts it, and every preference is
+violated. That is the boards' standing convention, not something this cycle
+invented -- the published 0.27.1 boards carry 27 of them (pathways-simple i7,
+i8, i12-i30) -- but a headline that says +190 without saying **144 real plans
+and 46 empty ones** is a headline this roadmap has withdrawn before. Fifteen
+solved preference rows carry no metric at all.
+
+And coverage is not what IPC-5 ranked these tracks on. `quality.py`: over the
+cells SGPlan5 solved, the IPC score (best metric / ours, 0 for no plan or no
+metric; its `; MetricValue` against our banked metric, all minimised):
+
+| | 0.27.1 | now | SGPlan5 | better / equal / worse than SGPlan5 |
+|---|---:|---:|---:|---|
+| simple-pref (130) | 94.8 | 94.0 | 119.4 | 29 / 19 / 81 |
+| qual-pref (100) | 45.8 | 59.2 | 84.8 | 26 / 3 / 64 |
+| complex-pref (105) | 20.1 | 50.6 | 67.9 | 11 / 3 / 59 |
+
+**The lanes closed coverage and left quality where it was.** qual-pref went
+from 49 rows behind to 2, and from 39 points behind to 26. simple-pref has
+been level on rows since before this cycle and is 25 points behind. Where the
+points are: trucks (qual 5.6 of 18.5, simple 8.4 of 19.0), tpp (qual 8.5 of
+19.0, complex 2.4 of 8.0), pathways. These are the rows where the optimizer
+ends its wall holding exactly what it was handed -- incumbent zero is a FLOOR,
+and on these the floor is also the ceiling.
+
+**So "how do we beat SGPlan5" now has two halves with different answers.**
+Rows: 121 to find, 66 of them metric-time (numeric guidance -- the consumable
+the relaxation cannot see) and 27 constraints (`within`), both untouched this
+cycle. Points: the preference optimizer's first improving step on trucks, tpp
+and pathways -- a plan-side local search over the banked plan is the obvious
+candidate, since SGPlan5's own architecture is exactly that, and nothing here
+has priced it yet.
 
 ## THE INSTRUMENT — a published row is best-of-N, and N was not controlled
 

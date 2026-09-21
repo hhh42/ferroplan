@@ -136,6 +136,27 @@ fn a_banked_plan_survives_the_memory_budget() {
         peak < BUDGET_BYTES,
         "peak resident {peak} must stay under the declared {BUDGET_BYTES}"
     );
+    // A TRIP IS STICKY for the scope it happened in. The arena it freed goes
+    // back to the system, so the chase's next tier reads a resident set under
+    // the line again -- and, until the mark, grounded and searched its way
+    // back up to it (elevator-strips i30 through the crucible: tripped at 5.6
+    // GB, 6.4 three tiers later, killed by the watchdog at 6 with its plan in
+    // hand). After the first trip, whatever the scope opens stops at its FIRST
+    // look: a grounding at the door, a search on its first pop.
+    let trips: Vec<&str> = stderr
+        .lines()
+        .filter(|l| l.contains("MEMORY checkpoint"))
+        .collect();
+    assert!(
+        trips.len() >= 2,
+        "the chase has more than one tier, and each must be seen refusing:\n{stderr}"
+    );
+    for later in &trips[1..] {
+        assert!(
+            later.contains("at entry") || later.contains("(nodes 1, evaluated 0)"),
+            "after a trip the scope must do no more work, but: {later}\n{stderr}"
+        );
+    }
     let secs: f64 = field(&stdout, "CHILD-SECS:").parse().unwrap();
     assert!(
         secs < WALL_SECS * 0.5,

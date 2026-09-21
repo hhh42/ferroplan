@@ -85,8 +85,12 @@ impl MemWall {
     pub fn arm() -> Self {
         let trip_at = if std::env::var("FF_NO_MEM_WALL").is_ok() || !crate::search::bounded_work() {
             None
+        } else if latched() {
+            // This scope has tripped once already: whatever it opens next
+            // trips at its first look, before it has allocated anything.
+            declared_budget_bytes().map(|_| 0)
         } else {
-            declared_budget_bytes().map(|b| (b as f64 * TRIP_FRAC) as u64)
+            declared_budget_bytes().map(|b| (b as f64 * trip_frac()) as u64)
         };
         MemWall { trip_at }
     }
@@ -105,11 +109,54 @@ impl MemWall {
     /// is always `false`.
     #[inline]
     pub fn hit(&self) -> bool {
-        match self.trip_at {
+        let over = match self.trip_at {
+            Some(0) => true,
             Some(line) => resident_bytes().is_some_and(|r| r >= line),
             None => false,
+        };
+        if over {
+            latch();
         }
+        over
     }
+}
+
+thread_local! {
+    // A trip is STICKY for the bounded scope it happened in. Freed pages go
+    // back to the system, so the next tier of a chase reads a resident set
+    // under the line, grounds again, and climbs again -- elevator-strips i30
+    // tripped at 5.6 GB and was at 6.4 GB three tiers later, each one 1.5 s of
+    // setup before its first checkpoint. What did not fit once will not fit
+    // on the next rung of the same ladder: the scope is over.
+    static TRIPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// `FF_MEM_TRIP_FRAC` overrides the default line -- for MEASURING it, which
+/// is how 0.75 was kept (`probes-0.28/lanes-crucible/trip-frac.tsv`: nothing
+/// reads better at 0.85, and pipesworld-metric-time i41 peaks at 5.97 of 6).
+fn trip_frac() -> f64 {
+    std::env::var("FF_MEM_TRIP_FRAC")
+        .ok()
+        .and_then(|v| v.parse::<f64>().ok())
+        .filter(|f| *f > 0.0 && *f <= 1.0)
+        .unwrap_or(TRIP_FRAC)
+}
+
+/// Mark the calling thread's bounded scope as out of memory. [`MemWall::hit`]
+/// does this itself; the grounder calls it for a trip a WORKER saw.
+pub fn latch() {
+    TRIPPED.with(|t| t.set(true));
+}
+
+/// Has this thread's bounded scope tripped? Read by [`MemWall::arm`].
+pub fn latched() -> bool {
+    TRIPPED.with(|t| t.get())
+}
+
+/// The outermost bounded scope opened or closed (`search::ScopedDeadline`):
+/// work outside it, or in the next one, starts from a fresh reading.
+pub(crate) fn clear_latch() {
+    TRIPPED.with(|t| t.set(false));
 }
 
 #[cfg(target_os = "linux")]
@@ -193,6 +240,33 @@ mod imp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A trip is sticky for its scope: the next thing the scope opens trips
+    /// at its first look, whatever the resident set has fallen back to. And
+    /// it is gone with the scope.
+    #[test]
+    fn a_trip_is_sticky_for_its_scope_and_no_longer() {
+        clear_latch();
+        assert!(!latched());
+        latch();
+        assert!(latched());
+        let tripped = MemWall { trip_at: Some(0) };
+        assert!(tripped.hit(), "line 0 is what `arm` hands a latched scope");
+        clear_latch();
+        assert!(!latched());
+        let roomy = MemWall {
+            trip_at: Some(u64::MAX),
+        };
+        assert!(!roomy.hit());
+        assert!(!latched(), "a look that does not trip leaves no mark");
+    }
+
+    #[test]
+    fn the_unarmed_wall_never_trips_and_never_marks() {
+        clear_latch();
+        assert!(!MemWall::unarmed().hit());
+        assert!(!latched());
+    }
 
     #[test]
     #[cfg(any(target_os = "linux", target_os = "macos"))]

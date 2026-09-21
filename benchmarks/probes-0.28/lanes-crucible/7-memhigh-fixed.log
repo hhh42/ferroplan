@@ -1,0 +1,36 @@
+engine  ff 0.27.1 [62b4f03a51d3]
+canary  trucks-propositional/8@62b4f03a51d3 baseline 0.520 s (p25 of the last 100 readings is 0.512 s, against 5 runs now); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+!! width - -> 9 (full, idle 38347s, foreign 9%)
+subset  58 listed row(s) -- 58 instance(s) of set cut27, staged at /Users/harold/ferroplan/benchmarks/probes/lanes-0.28-memhigh/0.27.1-62b4f03a51d3
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 6 board(s) outstanding
+!! width 9 -> 8 (full, idle 38408s, foreign 140%)
+!! width 8 -> 9 (full, idle 38428s, foreign 9%)
+   ipc5-metric-time       verdicts: solved 8
+   ipc5-metric-time       banked    8   8 -> 0
+   ipc2014-tempo          verdicts: solved 1
+   ipc2014-tempo          banked    1   1 -> 0
+   ipc67-temporal         packed: 1 wide x10 (14.5 GB budget), 5 narrow, 0 solo
+   ipc67-temporal         verdicts: solved 6
+   ipc67-temporal         banked    6   6 -> 0
+   ipc5-simple-pref       packed: 1 wide x10 (14.5 GB budget), 10 narrow, 20 solo
+!! throttle full -> polite (Foreign(55.3))
+!! throttle polite -> full (Clear)
+!! width 9 -> 8 (full, idle 38848s, foreign 127%)
+!! width 8 -> 9 (full, idle 38868s, foreign 9%)
+!! width 9 -> 7 (full, idle 39488s, foreign 297%)
+!! width 7 -> 8 (full, idle 39507s, foreign 175%)
+!! throttle full -> polite (Foreign(39.800000000000004))
+!! width 8 -> 9 (polite, idle 39528s, foreign 40%)
+!! width 9 -> 8 (polite, idle 39568s, foreign 103%)
+!! width 8 -> 9 (polite, idle 39588s, foreign 26%)
+   ipc5-simple-pref       verdicts: solved 31
+   ipc5-simple-pref       banked   31   31 -> 0
+!! throttle polite -> full (Clear)
+!! canary trucks-propositional/8@62b4f03a51d3 at 1.48x its baseline -- the box is slow
+   ipc5-qual-pref         verdicts: solved 6
+   ipc5-qual-pref         banked    6   6 -> 0
+   ipc5-complex-pref      verdicts: solved 6
+   ipc5-complex-pref      banked    6   6 -> 0
+SWEEP COMPLETE -- 58 banked in 1 pass(es)

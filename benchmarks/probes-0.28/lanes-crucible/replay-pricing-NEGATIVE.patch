@@ -1,0 +1,228 @@
+diff --git a/crates/ferroplan/src/api.rs b/crates/ferroplan/src/api.rs
+index 303cc3f..81500a1 100644
+--- a/crates/ferroplan/src/api.rs
++++ b/crates/ferroplan/src/api.rs
+@@ -1399,23 +1399,44 @@ fn solve_pddl3(
+                         .collect(),
+                     strip_end,
+                 );
++                // The grounding's scope is over -- and with it its memory
++                // mark. What it built is freed; so is the compiled pair, which
++                // on the big storage tasks is 3 GB of expanded preferences by
++                // itself and would refuse the replay at the door. The replay
++                // grounds the ORIGINAL task, which the seed search already
++                // fitted.
++                drop(_ground_wall);
++                drop(c);
++                let replay: Vec<(String, Vec<String>)> = steps
++                    .iter()
++                    .map(|s| (s.action.clone(), s.args.clone()))
++                    .collect();
++                let metric = pddl3::price_by_replay(domain, problem, &replay);
++                let note = if metric.is_some() {
++                    format!(
++                        "PDDL3 metric is the hard-goal plan's, by replay, NOT optimized: the \
++                         preference task did not ground inside the wall ({why})"
++                    )
++                } else {
++                    format!(
++                        "PDDL3 metric NOT priced: the preference task did not ground inside \
++                         the wall ({why}); this is the hard-goal plan, valid and unoptimized"
++                    )
++                };
+                 return Ok(Solution {
+                     solved: true,
+                     mode: Mode::Pddl3,
+                     plan: Some(Plan {
+                         length: steps.len(),
+                         steps,
+-                        metric: None,
++                        metric,
+                         makespan: None,
+                     }),
+                     statistics: Statistics {
+                         threads,
+                         ..Default::default()
+                     },
+-                    notes: vec![format!(
+-                        "PDDL3 metric NOT priced: the preference task did not ground inside \
+-                         the wall ({why}); this is the hard-goal plan, valid and unoptimized"
+-                    )],
++                    notes: vec![note],
+                 });
+             }
+             return Ok(unsolved(
+diff --git a/crates/ferroplan/src/pddl3.rs b/crates/ferroplan/src/pddl3.rs
+index 8409621..4f841c9 100644
+--- a/crates/ferroplan/src/pddl3.rs
++++ b/crates/ferroplan/src/pddl3.rs
+@@ -309,6 +309,60 @@ fn extract(
+     }
+ }
+ 
++/// `Some(constant)` iff the metric is a MINIMISED weighted sum of
++/// `(is-violated p)` terms plus a constant -- the one shape whose value the
++/// replay verifier ([`crate::verify`]) computes whole. It does not see
++/// `total-cost`, `(sum-traverse-cost)` or any other fluent term, and a wrong
++/// metric is worse than none: rovers and the metric-preference suites answer
++/// `None` here and stay unpriced.
++pub fn pure_violation_metric(problem: &Problem) -> Option<f64> {
++    let (dir, e) = problem.metric.as_ref()?;
++    if matches!(dir, MetricDir::Maximize) {
++        return None;
++    }
++    let (mut w, mut tc, mut others, mut konst, mut other) =
++        (HashMap::new(), 0.0, HashMap::new(), 0.0, false);
++    extract(e, 1.0, &mut w, &mut tc, &mut others, &mut konst, &mut other);
++    (!other && tc == 0.0 && others.is_empty()).then_some(konst)
++}
++
++/// The true metric of a FINISHED plan, by trajectory replay over the
++/// ORIGINAL pair (0.28 Lane M) -- for the plan the optimizer never got to
++/// price because the compiled preference task did not ground inside the wall
++/// or the memory budget. The original task is the one the hard-goal search
++/// already grounded, a fraction of the compiled one; the replay folds every
++/// preference over a few hundred states. Bounded like any other optional
++/// work on a plan in hand: `None` (the caller reports the plan unpriced, as
++/// before) when the metric has a term the replay cannot see, when the domain
++/// has a precondition preference or the problem a soft trajectory constraint,
++/// when the plan does not replay, or when even this does not fit.
++pub fn price_by_replay(
++    domain: &Domain,
++    problem: &Problem,
++    steps: &[(String, Vec<String>)],
++) -> Option<f64> {
++    let konst = pure_violation_metric(problem)?;
++    // A PRECONDITION preference is violated per application, and the replay
++    // does not count those (grounding reads a positive `Pref` as true). An
++    // optimized plan rarely violates one; a hard-goal plan, which never looked
++    // at them, often does -- and the number would come out too GOOD. tpp.
++    if domain.actions.iter().any(|a| goal_has_pref(&a.precond)) {
++        return None;
++    }
++    // A SOFT TRAJECTORY CONSTRAINT makes the replay as big as what it is
++    // standing in for: `constraints::expand` materialises every instance
++    // again (storage-qualitative i20: 2.3 million), and a "last step" that
++    // took i16 from 4.9 GB to 5.7 and i20 past the cap to 6.2 is not one. Goal
++    // preferences only: one grounding the seed search already fitted, and the
++    // final state.
++    if crate::constraints::has_soft_constraints(domain, problem) {
++        return None;
++    }
++    let _wall = crate::search::reserve_for_report(0);
++    let v = crate::mem::last_step(|| crate::verify::verify_pair(domain, problem, steps)).ok()?;
++    (v.hard_goal_met && v.constraints_met).then_some(v.metric + konst)
++}
++
+ /// Predicates never added nor deleted by any action effect — their truth is
+ /// fixed by the initial state. The static complement of [`modified_functions`].
+ pub(crate) fn static_predicates(domain: &Domain) -> HashSet<String> {
+diff --git a/crates/ferroplan/src/verify.rs b/crates/ferroplan/src/verify.rs
+index be4bd63..d642af3 100644
+--- a/crates/ferroplan/src/verify.rs
++++ b/crates/ferroplan/src/verify.rs
+@@ -130,9 +130,20 @@ pub fn verify(
+     let domain = crate::parser::parse_domain(domain_src).map_err(|e| format!("domain: {}", e))?;
+     let problem =
+         crate::parser::parse_problem(problem_src).map_err(|e| format!("problem: {}", e))?;
++    verify_pair(&domain, &problem, plan)
++}
++
++/// [`verify`] over an already-parsed pair (0.28 Lane M): the same replay, for
++/// a caller that holds a plan the optimizer never got to price and wants its
++/// true metric without grounding the compiled preference task.
++pub fn verify_pair(
++    domain: &crate::types::Domain,
++    problem: &crate::types::Problem,
++    plan: &[(String, Vec<String>)],
++) -> Result<Verified, String> {
+     // Compile `:derived` axioms away, like every solve path — replaying against the
+     // raw problem would miss the derived init facts and reject valid plans.
+-    let (domain, problem) = crate::derived::compile(&domain, &problem)?;
++    let (domain, problem) = crate::derived::compile(domain, problem)?;
+     // ground the ORIGINAL problem (soft goals ignored), forcing a Task even when
+     // the hard goal is trivial/empty (preference-only problems) so we can replay.
+     let task = match ground_task(&domain, &problem, 1) {
+diff --git a/crates/ferroplan/tests/pref_seed.rs b/crates/ferroplan/tests/pref_seed.rs
+index e0d187e..3b597f8 100644
+--- a/crates/ferroplan/tests/pref_seed.rs
++++ b/crates/ferroplan/tests/pref_seed.rs
+@@ -202,3 +202,78 @@ fn the_seed_lifts_through_the_trajectory_gate() {
+     let (_, cost) = pddl3::close_seed(&c.task, c.cost_fluent, &c.forgos, &lifted).expect("closes");
+     assert_eq!(cost, 7.0, "the same plan at the same price");
+ }
++
++/// The same walk with its preferences on the GOAL only -- the shape the
++/// replay can price whole.
++const GOALPREF: &str = "(define (problem walk-goalpref) (:domain corridor-plain)
++ (:objects c0 c1 c2 c3 s1 - cell)
++ (:init (at c0)
++        (adj c0 c1) (adj c1 c2) (adj c2 c3) (adj c1 s1) (adj s1 c1))
++ (:goal (and (at c3) (preference sidetrip (visited s1)) (preference home (visited c0))))
++ (:metric minimize (+ 2 (* 3 (is-violated home)) (* 5 (is-violated sidetrip)))))";
++
++const CORRIDOR_PLAIN: &str = "(define (domain corridor-plain)
++ (:requirements :strips :typing :preferences)
++ (:types cell)
++ (:predicates (at ?c - cell) (adj ?a ?b - cell) (visited ?c - cell))
++ (:action move :parameters (?a ?b - cell)
++   :precondition (and (at ?a) (adj ?a ?b))
++   :effect (and (not (at ?a)) (at ?b) (visited ?b))))";
++
++fn steps(names: &[&str]) -> Vec<(String, Vec<String>)> {
++    names
++        .iter()
++        .map(|n| {
++            let mut it = n.split_whitespace();
++            (
++                it.next().unwrap().to_string(),
++                it.map(str::to_string).collect(),
++            )
++        })
++        .collect()
++}
++
++/// 0.28 Lane M: when the compiled preference task does not ground inside the
++/// wall or the memory budget, the hard-goal plan is what comes back -- and
++/// its metric is its TRUE metric, by replay over the original pair, not
++/// `None`. Both preferences violated: 2 + 3 + 5. With the side trip: 2 + 3.
++#[test]
++fn a_plan_the_optimizer_never_priced_is_priced_by_replay() {
++    let d = ferroplan::parser::parse_domain(CORRIDOR_PLAIN).unwrap();
++    let p = ferroplan::parser::parse_problem(GOALPREF).unwrap();
++    assert_eq!(pddl3::pure_violation_metric(&p), Some(2.0));
++    let direct = steps(&["MOVE C0 C1", "MOVE C1 C2", "MOVE C2 C3"]);
++    assert_eq!(pddl3::price_by_replay(&d, &p, &direct), Some(10.0));
++    let sidetrip = steps(&[
++        "MOVE C0 C1",
++        "MOVE C1 S1",
++        "MOVE S1 C1",
++        "MOVE C1 C2",
++        "MOVE C2 C3",
++    ]);
++    assert_eq!(pddl3::price_by_replay(&d, &p, &sidetrip), Some(5.0));
++    // A plan that does not reach the hard goal has no price.
++    assert_eq!(pddl3::price_by_replay(&d, &p, &steps(&["MOVE C0 C1"])), None);
++}
++
++/// A wrong metric is worse than none. The replay does not count a
++/// PRECONDITION preference (violated per application), and it does not see
++/// any metric term that is not an `is-violated`: both are refused.
++#[test]
++fn the_replay_refuses_what_it_cannot_price_whole() {
++    let d = ferroplan::parser::parse_domain(CORRIDOR).unwrap();
++    let p = ferroplan::parser::parse_problem(WALK).unwrap();
++    assert_eq!(pddl3::pure_violation_metric(&p), Some(0.0));
++    let direct = steps(&["MOVE C0 C1", "MOVE C1 C2", "MOVE C2 C3"]);
++    assert_eq!(
++        pddl3::price_by_replay(&d, &p, &direct),
++        None,
++        "`darkstep` is a precondition preference: three dark steps would read as none"
++    );
++    let costed = GOALPREF.replace("(+ 2 ", "(+ (total-cost) ");
++    let p = ferroplan::parser::parse_problem(&costed).unwrap();
++    assert_eq!(pddl3::pure_violation_metric(&p), None);
++    let maximized = GOALPREF.replace("minimize", "maximize");
++    let p = ferroplan::parser::parse_problem(&maximized).unwrap();
++    assert_eq!(pddl3::pure_violation_metric(&p), None);
++}
