@@ -147,6 +147,18 @@ recorded negatives included, is
 - The text path no longer prints "problem proven unsolvable" for a PDDL3
   run that simply ran out of budget before its first plan.
 
+### The site (deployed from `main`; not part of any published crate)
+
+- **The browser demo can be saved for offline use.** A **Save offline** button
+  in the demo's header registers a service worker that keeps the three demo
+  pages, the example corpus and the WASM planner in the browser, so the demo
+  opens and plans with no network. Opt-in: nothing is stored until asked. The
+  copy is refreshed in the background on every online visit, a new deploy
+  (keyed by commit) replaces it whole, the control reports what it holds and
+  removes it on request, and the page is installable as an app. Verified
+  end to end with a headless browser: save, offline reload, plan in the web
+  worker offline, the live pages offline, update to a new build, remove.
+
 ### Harness (the crucible; not part of any published crate)
 
 - **A subset is a sweep over fewer cells.** `crucible sweep --set S [--board

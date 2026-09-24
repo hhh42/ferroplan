@@ -14,6 +14,17 @@ Choose a mode (`auto` routes by problem features), hit **Plan**, and the plan is
 computed in your browser by the same Rust planner core compiled to WASM. It runs the
 gripper example on load so you see a plan immediately.
 
+**Save it for offline.** The header's **Save offline** button keeps a copy of
+the demo in your browser — the three pages, the example corpus and the WASM
+planner, a few megabytes — so it opens and plans with no network at all
+(airplane, lecture hall, the site being down). Nothing is stored until you
+ask. The copy refreshes itself in the background whenever you visit online, a
+new deploy replaces it whole, and the button reports what it holds (files,
+size, the build it came from); the **✕** beside it removes the copy. The page
+is also installable as an app from the browser's menu. Your browser has to
+allow service workers on the origin (it is a secure page, so the only place
+this is hidden is a plain `file://` open).
+
 ## The visual GUI, in your browser
 
 The full Bevy GUI — graph visualizer, plan animation, and the color-coded block

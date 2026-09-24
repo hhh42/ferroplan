@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ferroplan — PDDL planner in your browser</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b0d11">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -40,6 +43,17 @@
   .dot{width:6px; height:6px; border-radius:50%; background:var(--cy); box-shadow:0 0 7px var(--cy);}
   .ghost{display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--mut); border:1px solid var(--edge); border-radius:7px; padding:6px 11px; transition:color .12s,border-color .12s;}
   .ghost:hover{color:var(--ink); border-color:var(--edge2);}
+  /* offline copy (sw.js) */
+  .off{display:none; align-items:center; gap:8px;}
+  .off.show{display:inline-flex;}
+  .off button{all:unset; cursor:pointer; display:inline-flex; align-items:center; gap:7px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--mut); border:1px solid var(--edge); border-radius:7px; padding:6px 11px; white-space:nowrap; transition:color .12s,border-color .12s;}
+  .off button:hover{color:var(--ink); border-color:var(--edge2);}
+  .off button:disabled{cursor:default; opacity:.6;}
+  .off button.saved{color:var(--cy); border-color:color-mix(in oklab, var(--cy), var(--edge) 55%);}
+  .off .rm{padding:6px 8px;}
+  .off .note{font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--faint); white-space:nowrap;}
+  .off .note.warn{color:var(--acc);}
+  @media (max-width:640px){ .off .note{display:none;} }
   /* intro */
   .intro{display:flex; align-items:flex-end; justify-content:space-between; gap:24px; flex-wrap:wrap; padding:26px 4px 18px;}
   .intro h1{margin:0 0 10px; font-size:34px; font-weight:700; letter-spacing:-1.3px; line-height:1.06;}
@@ -160,6 +174,14 @@
       </nav>
     </div>
     <div style="display:flex; align-items:center; gap:14px;">
+      <span class="off" id="off">
+        <button id="offSave" type="button" title="Keep a copy of the demo in this browser — it then works with no network at all">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5h11"/></svg>
+          <span id="offLabel">Save offline</span>
+        </button>
+        <button id="offRemove" class="rm" type="button" title="Remove the saved copy" style="display:none;" aria-label="remove the saved copy">✕</button>
+        <span class="note" id="offNote"></span>
+      </span>
       <span class="chip"><span class="dot"></span> ferroplan&nbsp;<b id="ver">…</b></span>
       <a class="ghost" href="https://github.com/hhh42/ferroplan" target="_blank" rel="noopener">
         <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
@@ -568,6 +590,79 @@ function renderExplain(ex, p) {
 }
 
 showIdle('Pick a domain + problem (or paste your own), then hit Plan.');
+
+// ---- The offline copy (sw.js): opt-in, and says what it holds ----
+// Nothing is registered until the visitor asks. Once saved, the copy is
+// refreshed in the background on every visit and the control reports the
+// build it holds; "remove" unregisters and deletes it. Hidden where service
+// workers cannot run (file://, an insecure origin, an old browser).
+(() => {
+  const box = $('off'), save = $('offSave'), label = $('offLabel'), rm = $('offRemove'), note = $('offNote');
+  if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+  box.classList.add('show');
+  const fmt = (b) => b >= 1 << 20 ? (b / (1 << 20)).toFixed(1) + ' MB' : Math.round(b / 1024) + ' KB';
+  const setNote = (t, warn) => { note.textContent = t; note.classList.toggle('warn', !!warn); };
+  async function status() {
+    const reg = await navigator.serviceWorker.getRegistration('./');
+    const sw = reg && (reg.active || reg.waiting || reg.installing);
+    if (!sw) {
+      save.disabled = false; save.classList.remove('saved'); label.textContent = 'Save offline';
+      rm.style.display = 'none';
+      setNote(navigator.onLine ? '' : 'offline — not saved', !navigator.onLine);
+      return;
+    }
+    if (!reg.active) {
+      save.disabled = true; label.textContent = 'Saving…'; setNote('');
+      return;
+    }
+    const held = await new Promise((resolve) => {
+      const ch = new MessageChannel();
+      ch.port1.onmessage = (e) => resolve(e.data);
+      setTimeout(() => resolve(null), 3000);
+      reg.active.postMessage({ type: 'status' }, [ch.port2]);
+    });
+    save.disabled = true; save.classList.add('saved');
+    label.textContent = 'Saved offline';
+    rm.style.display = '';
+    if (held) {
+      const b = held.build === '__BUILD_ID__' ? 'dev' : held.build.slice(0, 7);
+      setNote((navigator.onLine ? '' : 'offline · ') + held.files + ' files · ' + fmt(held.size) + ' · ' + b, !navigator.onLine);
+    } else {
+      setNote(navigator.onLine ? '' : 'offline — running from the saved copy', !navigator.onLine);
+    }
+  }
+  save.addEventListener('click', async () => {
+    save.disabled = true; label.textContent = 'Saving…'; setNote('');
+    try {
+      const reg = await navigator.serviceWorker.register('./sw.js', { scope: './' });
+      const sw = reg.installing || reg.waiting || reg.active;
+      if (sw && sw.state !== 'activated') {
+        await new Promise((resolve) => {
+          const done = () => { if (sw.state === 'activated' || sw.state === 'redundant') resolve(); };
+          sw.addEventListener('statechange', done); done();
+        });
+      }
+      if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    } catch (e) {
+      save.disabled = false; label.textContent = 'Save offline';
+      setNote('could not save: ' + (e && e.message || e), true);
+      return;
+    }
+    status();
+  });
+  rm.addEventListener('click', async () => {
+    const reg = await navigator.serviceWorker.getRegistration('./');
+    if (reg) await reg.unregister();
+    const keys = await caches.keys();
+    await Promise.all(keys.filter((k) => k.startsWith('ferroplan-demo-')).map((k) => caches.delete(k)));
+    status();
+  });
+  // A new deploy takes over the page silently (skipWaiting + claim); say so.
+  navigator.serviceWorker.addEventListener('controllerchange', () => status());
+  window.addEventListener('online', status);
+  window.addEventListener('offline', status);
+  status();
+})();
 </script>
 </body>
 </html>

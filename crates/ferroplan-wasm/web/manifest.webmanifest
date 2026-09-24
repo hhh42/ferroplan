@@ -1,0 +1,13 @@
+{
+  "name": "ferroplan — PDDL planner",
+  "short_name": "ferroplan",
+  "description": "A data-parallel PDDL planner, running entirely in your browser via WebAssembly.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0d11",
+  "theme_color": "#0b0d11",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

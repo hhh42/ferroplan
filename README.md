@@ -30,7 +30,8 @@ that solver.
 
 > **[▶ Try it live in your browser](https://hhh42.github.io/ferroplan/demo/index.html)** —
 > pick a built-in example or paste your own PDDL; it plans entirely client-side via
-> WebAssembly, no install. There's also a
+> WebAssembly, no install — and **Save offline** keeps a copy in your browser that
+> works with no network at all. There's also a
 > [browser visualizer + block editor](https://hhh42.github.io/ferroplan/gui/index.html).
 
 ## Where it stands

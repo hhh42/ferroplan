@@ -29,6 +29,8 @@ jobs:
               if (!m.DOMAINS || !m.DOMAINS.length) throw new Error('DOMAINS missing/empty');
               console.log(m.DOMAINS.length + ' demo domains OK');
             })"
+          node --check crates/ferroplan-wasm/web/sw.js
+          node -e "JSON.parse(require('fs').readFileSync('crates/ferroplan-wasm/web/manifest.webmanifest','utf8'))"
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Install mdBook
@@ -51,6 +53,13 @@ jobs:
         run: |
           cp -r crates/ferroplan-wasm/web book/book/demo
           cp -r crates/ferroplan-bevy/web book/book/gui
+      # The demo's offline copy (sw.js) is keyed by build: a new deploy is a new
+      # cache, installed whole and swapped in on activation. The id is the
+      # deploying commit; a checkout serves 'dev'.
+      - name: Stamp the offline copy with this deploy
+        run: |
+          sed -i "s/__BUILD_ID__/${GITHUB_SHA}/" book/book/demo/sw.js
+          grep -q "const BUILD = '${GITHUB_SHA}'" book/book/demo/sw.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: book/book
