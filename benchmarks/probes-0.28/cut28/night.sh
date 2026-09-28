@@ -13,8 +13,8 @@ stamp() { echo "== $1  $(date '+%F %T')  load:$(uptime | sed 's/.*load averages*
 while pgrep -f 'crucible.*backfill.*cut28-regress' > /dev/null; do sleep 60; done
 stamp "differential finished"
 cd $R
-python3 /Users/harold/ferroplan-0.28/benchmarks/recheck28.py --list > "$L/recheck28.txt" 2>&1
-python3 /Users/harold/ferroplan-0.28/benchmarks/recheck28.py --reopen >> "$L/recheck28.txt" 2>&1
+python3 /Users/harold/ferroplan-0.28/benchmarks/recheck28.py --repo $R --list > "$L/recheck28.txt" 2>&1
+python3 /Users/harold/ferroplan-0.28/benchmarks/recheck28.py --repo $R --reopen >> "$L/recheck28.txt" 2>&1
 stamp "re-opened; recheck sweep"
 echo "==== recheck $(date '+%F %T') -- rows re-opened by recheck28.py; same engine" >> benchmarks/cut28-sweep.log
 $C --repo $R sweep --set cut28 --headless >> benchmarks/cut28-sweep.log 2>&1

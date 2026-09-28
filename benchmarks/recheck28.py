@@ -24,15 +24,20 @@ Re-opened here (banked = 0, verdict = 'recheck'), so the next
 Nothing is decided here; the sweep decides, and a row that reads the same
 again under a clean canary is what it is and says so.
 
-    python3 benchmarks/recheck28.py            # report only
-    python3 benchmarks/recheck28.py --reopen   # write the re-open
+    python3 benchmarks/recheck28.py --repo /Users/harold/ferroplan            # report only
+    python3 benchmarks/recheck28.py --repo /Users/harold/ferroplan --reopen   # write the re-open
 """
 import json, os, re, sqlite3, sys, collections
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# `--repo`: the OPERATOR's checkout -- the one the crucible is pointed at, where
+# the promoted raws and the cut stages live (they are gitignored). Defaults to
+# this script's own repository, which in a worktree is the wrong one.
+ROOT = sys.argv[sys.argv.index("--repo") + 1] if "--repo" in sys.argv else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DB = os.path.expanduser("~/.crucible/db/crucible.db")
 ENGINE = sys.argv[sys.argv.index("--engine") + 1] if "--engine" in sys.argv else "89cfdc5f06ed"
 PRIOR = sys.argv[sys.argv.index("--prior") + 1] if "--prior" in sys.argv else os.path.join(ROOT, "benchmarks", "air27")
+if not os.path.isdir(PRIOR):
+    sys.exit(f"no 0.27.0 stage at {PRIOR}: pass --repo <the operator's checkout> (or --prior DIR)")
 CANARY_SLOW, WALL_FRAC = 1.5, 0.5
 
 man = open(os.path.join(ROOT, "benchmarks/manifest.toml")).read()
