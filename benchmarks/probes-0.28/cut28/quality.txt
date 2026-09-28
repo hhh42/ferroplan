@@ -1,0 +1,4 @@
+board              cells |  0.27.0  0.28.0  SGPlan5 (vs 0.28.0) | 0.28.0 better / equal / worse than SGPlan5, unpriced
+ipc5-simple-pref     130 |    94.8    82.0                123.0 | 24 / 17 / 79, 10
+ipc5-qual-pref       100 |    45.8    59.2                 92.7 | 23 / 3 / 74, 0
+ipc5-complex-pref    105 |    20.1    51.3                 99.0 | 13 / 4 / 56, 7

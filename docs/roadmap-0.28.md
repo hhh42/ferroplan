@@ -1381,6 +1381,59 @@ crucible:** a sweep that has spawned nothing for N minutes while it owes rows
 and is not SUSPENDED should say so in the log. This one was found by a person
 looking at a process list.
 
+**SWEEP COMPLETE, 2026-09-26 10:12** -- 8,444 of 8,444 banked in 18 passes
+(77 in the run that hung, 8,367 after the relaunch), five days of a box that
+was the operator's by day. Promoted the same morning it was read (09-28):
+**65 % coverage across 32 IPC boards (5,451 / 8,444), 681 certified optima**;
+snapshot 0.28.0 banked. Receipts: `benchmarks/probes-0.28/cut28/`.
+
+**The pre-registered read** (`attempts-estimator.py --a 86302e06d81b --b
+89cfdc5f06ed`): first attempt against first attempt **+531 [+481, +579]**;
+equal-N +545 [+494, +592]; per-run +448; banked +329 [+290, +367]. Every
+estimator agrees in sign, so a delta is claimed -- and this time the banked
+number UNDERSTATES the engine: 0.27.0 was allowed to retry 68.7 % of its
+first-attempt failures and rescued 295, 0.28.0 retried 31.6 % and rescued
+93. Decomposition, exactly: first-attempt +531 + rescues -202 = +329. The
+comparative claim published is the first-attempt one.
+
+**The 24 cells 0.27.0 banked solved and 0.28.0 did not** (`compare --lost`,
+`cut28/lost.rows`): sailing-wind-opt-2026 i10; rovers-propositional i38;
+parking-sat i11, tetris-sat i15/16/19; hiking-agile i18, parking-agile i11;
+coins-2026 i18, line-exchange-snp 3_5_90_100; ext-plant-watering i13,
+rover-numeric i15, sugar i5; openstacks-opt-strips i16, barman-opt i6/7/8,
+openstacks-opt i12; transport-mco i18 (t4 and t8); slitherlink i4;
+organic-synthesis-split-opt i15, petri-net-alignment-opt i12, spider-opt i4.
+The differential (v0.27.1 re-run over them through the crucible,
+`backfill --rows`) was launched 09-28 12:40 and is crawling: the box is the
+operator's by day.
+
+**And a hole in the instrument this cut fell through.** The sweep's middle
+ran beside an iOS Simulator renderer at 111 % CPU for 52 hours (a device a
+Claude session had booted for a watch test and never shut down; found 09-25);
+the canary read the box **2.4-6.7x slow** through 09-23/24. The referee's
+SUSPECT rule re-runs a row that FAILED under bad conditions and never looks at
+one that SOLVED under them. Ten `pathways-preferences-simple` rows (i16, 17,
+19, 21, 24-26, 28-30) solved 09-23 12:03-12:14 at rho 0.3-0.75 under a canary
+of 2.4-6.3x -- the empty plan, "NOT priced: the preference task did not ground
+inside the wall" at 54-59 s, on cells that price in 40 s alone on a quiet box
+and that 0.27.0 priced at 22-39 -- and were BANKED. Coverage cannot see it
+(119 -> 130 on that board). The IPC quality score can: **simple-preferences
+94.8 -> 82.0**. (`cut28/quality.py`, which also corrects
+`lanes-crucible/quality.py`'s SGPlan5 column: it scored SGPlan5 zero wherever
+ferroplan had no metric.)
+
+`benchmarks/recheck28.py` re-opens what the box decided -- 123 banked rows:
+18 solved-unpriced/unscored, 105 solved under a canary above 1.5x having spent
+half their budget or more (qual-pref 48, simple-pref 47, 2023-sat 17,
+complex-pref 8, 2023-opt 3) -- plus the 24 lost, so a `sweep --set cut28` pass
+re-measures them on the same engine on a quiet night, and promote + snapshot
+run again (both idempotent). `cut28/night.sh` sequences it after the
+differential. The release text is written against what THAT says.
+
+**Owed to the crucible, named twice now:** a solved row is trusted whatever
+the conditions. A solve banked under a slow canary near its wall, or a solve
+that returned without its number, should be SUSPECT like a failure is.
+
 **The lesson for the gate itself:** `publish.sh` and `RELEASING.md` run the
 ignored pass fail-fast. One red binary early in the alphabet turns the rest
 of the gate off without saying so. Both now say `--no-fail-fast`.

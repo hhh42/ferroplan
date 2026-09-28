@@ -18,3 +18,20 @@ subset  23 listed row(s) -- 40 instance(s) of set cut27, staged at /Users/harold
 !! width 2 -> 1 (polite, operator active 219s ago, foreign 252%)
 !! width 1 -> 2 (polite, operator active 259s ago, foreign 180%)
 !! width 2 -> 3 (polite, operator active 279s ago, foreign 99%)
+!! width 3 -> 2 (polite, operator active 299s ago, foreign 174%)
+!! width 2 -> 8 (polite, idle 319s, foreign 199%)
+!! width 8 -> 7 (polite, idle 339s, foreign 223%)
+!! width 7 -> 2 (polite, idle 379s, foreign 727%)
+!! width 2 -> 4 (polite, idle 399s, foreign 549%)
+!! width 4 -> 6 (polite, idle 419s, foreign 345%)
+   ipc2014-sat            verdicts: starved 1, suspect 3
+   ipc2014-sat            banked    0   4 -> 4   [DEGRADED -- not banked, work owed]
+!! width 6 -> 7 (polite, idle 499s, foreign 250%)
+!! width 7 -> 8 (polite, idle 519s, foreign 166%)
+!! width 8 -> 3 (polite, idle 559s, foreign 666%)
+   ipc2014-agile          verdicts: solved 1, starved 1
+   ipc2014-agile          banked    1   2 -> 1
+!! width 3 -> 8 (polite, idle 579s, foreign 181%)
+!! width 8 -> 3 (polite, idle 619s, foreign 700%)
+!! width 3 -> 8 (polite, idle 639s, foreign 174%)
+!! width 8 -> 6 (polite, idle 659s, foreign 399%)
