@@ -57,7 +57,12 @@ def connect(db):
     temp file and read that: 25 MB, and the crucible never notices.
     """
     try:
-        return sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+        # `connect` is lazy: a read-only open of a WAL database only fails at
+        # its first statement (it cannot create the -shm), so probe here or
+        # the fallback below is never reached -- it was not, at the 0.28 cut.
+        con.execute("select 1 from engine limit 1").fetchall()
+        return con
     except sqlite3.OperationalError:
         pass
     import shutil

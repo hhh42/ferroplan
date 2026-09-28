@@ -1,0 +1,20 @@
+tag     v0.27.1 at /Users/harold/.crucible/worktrees/v0.27.1
+engine  ff 0.27.1 [d812c2328305]
+canary  trucks-propositional/8@d812c2328305 baseline 0.764 s (p25 of the last 100 readings is 0.650 s, against 5 runs now); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  23 listed row(s) -- 40 instance(s) of set cut27, staged at /Users/harold/ferroplan/benchmarks/probes/cut28-regress/0.27.1-d812c2328305
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 19 board(s) outstanding
+!! width - -> 1 (full, operator active 79s ago, foreign 244%)
+!! throttle full -> polite (Foreign(308.8))
+!! width 1 -> 2 (polite, operator active 119s ago, foreign 174%)
+   ipc2026-opt            verdicts: suspect 1
+   ipc2026-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc5-prop              packed: 1 wide x10 (13.0 GB budget), 0 narrow, 0 solo
+!! width 2 -> 1 (polite, operator active 159s ago, foreign 249%)
+   ipc5-prop              verdicts: suspect 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 199s ago, foreign 174%)
+!! width 2 -> 1 (polite, operator active 219s ago, foreign 252%)
+!! width 1 -> 2 (polite, operator active 259s ago, foreign 180%)
+!! width 2 -> 3 (polite, operator active 279s ago, foreign 99%)
