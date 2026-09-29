@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
-## [0.28.0] - 2026-09-21 — Feasible first, better second
+## [0.28.0] - 2026-09-28 — Feasible first, better second
 
 A 2026-09-20 read of SGPlan5's own IPC-5 solution headers found its MEDIAN
 solve is **0.54 s** -- 89 % of its 860 solves finish inside 60 s, and of the
@@ -16,35 +16,70 @@ a release.
 
 ### Measured
 
-Through the crucible (same referee, contention throttle and re-run rule as a
-cut sweep), on the six IPC-5 boards the work was aimed at, 60 s, one thread:
-
-| | 0.27.1 (published boards) | 0.28.0 |
-|---|---:|---:|
-| six IPC-5 boards, of 788 | 379 | **569** (+190, none lost) |
-| the variants SGPlan5 entered, of 678 -- SGPlan5 solves 612 | 316 | **491** |
-
-Read it with what it is made of. **46 of the +190 are the EMPTY plan**, on
-problems with no hard goal at all (every goal a preference): valid,
-VAL-accepted, and the boards' standing convention -- 0.27.1's carry 27 -- but
-floor quality. 144 are plans that do something. And coverage is not what IPC-5
-ranked these tracks on: by its quality score (best metric / ours, over the
-cells SGPlan5 solved) ferroplan moved 94.8 -> 94.0 on simple preferences
-(SGPlan5 119.4), 45.8 -> 59.2 on qualitative (84.8), 20.1 -> 50.6 on complex
-(67.9). **The lanes closed rows and left points where they were.** The 569 is
-an overlay of re-measured cells across two builds of this cycle, so it is an
-estimate; the 32-board cut sweep is the instrument of record
-([`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md)).
-
-Regression read, equal-N (one banked row per cell per engine), over the 519
-temporal cells the published boards solved: **519 of 519**, summed solve time
-0.91x, makespan better on 181 cells and worse on 6. Over the 58 cells that
-solve at a resident size of 3.5 GB or more -- the only ones the new memory
-wall can touch -- 58 of 58, 49 identical, one metric worse by 2, and **eight
-that keep their row and give up their metric** (they used to be scored at a
-resident size over the declared budget, unnoticed). The full record, the
-recorded negatives included, is
+**65% coverage across 32 IPC boards** (5,466/8,444), **689 certified optima**
+-- 8,444 of 8,444 instances banked, the second sweep to reach a terminal
+state. Full record: [`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md),
 [`docs/roadmap-0.28.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.28.md).
+
+**Against 0.27.0, on the estimator declared before the sweep ran** -- every
+instance's FIRST attempt against its first attempt, because that is the one
+measurement both engines were given equally (0.27's own +115 was withdrawn as
+a delta for want of exactly this):
+
+| estimator | 0.27.0 | 0.28.0 | delta | 95 % CI |
+|---|---:|---:|---:|---|
+| **first attempt** (the claim) | 4,827 | 5,358 | **+531** | [+481, +579] |
+| equal-N | 4,856 | 5,393 | +537 | [+487, +585] |
+| banked -- what the boards show | 5,122 | 5,466 | +344 | [+307, +381] |
+
+Every estimator agrees in sign, and this time the boards UNDERSTATE the
+engine: the referee re-runs failures, 0.27.0 failed first time on 3,617 cells
+and was re-run on 69 % of them (295 rescued), 0.28.0 on 3,086 and 32 % (110).
+
+**Where it moved:** tempo-sat +10.8 pts (509/630, +68 rows),
+complex-preferences +47.2 (80/108), qualitative-preferences +49.0 -- **100/100,
+level with SGPlan5, the track winner** -- time +29.2 (126/130), 2014 tempo-sat
++22.0, metric-time +20.5, simple-preferences +8.5 (130/130), 2023 seq-sat
++5.7, 2023 agile-300s +4.3. Down: 2026 numeric-opt −1.7 (22/60), 2026 numeric
+−0.6, 2023 numeric −0.5. On the six IPC-5 boards the lanes were aimed at,
+379 -> 569 of 788; on the variants SGPlan5 entered, 316 -> 491 of 678 against
+its 612 -- the gap 296 -> 121, most of it metric-time (66) and constraints (27).
+
+**Seven cells 0.27.0 solved that 0.28.0 does not**, every one re-run on both
+engines on a quiet box before it was called anything. Five are real:
+`tetris-sequential-satisficing/15`, `sugar-numeric-satisficing/5`,
+`coins-numeric-2026/18`, `line-exchange-snp-numeric-2026/3_5_90_100`, and
+`sailing-wind-opt-numeric-2026/10` under the optimal mode (its satisficing
+twin solved). Two are the box: v0.27.1 fails `hiking-sequential-agile/18`
+and `rover-numeric-satisficing/15` today as well. Seventeen more read as
+losses on the first pass and were not.
+
+**Read the preference gains with what they are made of.** 76 of the six
+boards' 569 solves are the EMPTY plan -- problems with no hard goal, every
+goal a preference, where doing nothing is valid, VAL-accepted, and the
+boards' standing convention (0.27.0's 379 carried 27) -- and five come back
+without a metric. Coverage is not what IPC-5 ranked these tracks on. By its
+quality score (best metric / ours, over the cells SGPlan5 solved): simple
+94.8 -> 94.1 against SGPlan5's 120.4, qualitative 45.8 -> 59.2 against 92.1,
+complex 20.1 -> 53.4 against 99.0. **The lanes closed rows and left points
+where they were.**
+
+**And a hole in the instrument, found in this read and left open.** The
+referee re-runs a row that FAILED under bad conditions and never one that
+SOLVED under them. Ten pathways-preferences-simple cells solved during a
+52-hour stretch when a stray iOS Simulator held the box 2.4-6.7x slow -- the
+empty plan, unpriced at the wall, on cells that price in 40 s alone -- and
+were banked; simple-preferences quality read 82.0 until 147 such rows were
+re-opened and re-measured (`benchmarks/recheck28.py`). A solve banked under a
+slow canary near its wall should be SUSPECT like a failure is. Owed to the
+crucible.
+
+Regression reads before the cut, equal-N: over the 519 temporal cells the
+published boards solved, **519 of 519**, summed solve time 0.91x, makespan
+better on 181 cells and worse on 6; over the 58 cells that solve at a
+resident size of 3.5 GB or more -- the only ones the new memory wall can
+touch -- 58 of 58, 49 identical, one metric worse by 2, and eight that keep
+their row and give up their metric.
 
 ### Added
 

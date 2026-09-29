@@ -1430,6 +1430,34 @@ re-measures them on the same engine on a quiet night, and promote + snapshot
 run again (both idempotent). `cut28/night.sh` sequences it after the
 differential. The release text is written against what THAT says.
 
+**The re-check, 2026-09-28 16:09-18:16, on the box the operator had just
+left.** The v0.27.1 differential over the 24 lost cells finished at 16:09;
+`recheck28.py` re-opened 147 rows; `sweep --set cut28` banked all 147 in two
+passes; promote and snapshot ran again. **5,466 / 8,444, 689 certified optima.**
+Ten pathways-simple cells carry their metrics again (simple-preferences
+quality 82.0 -> 94.1); +15 rows overall, 0.27.0 banked 5,122.
+
+| estimator | 0.27.0 | 0.28.0 | delta | 95 % CI |
+|---|---:|---:|---:|---|
+| first attempt (the pre-registered claim) | 4,827 | 5,358 | **+531** | [+481, +579] |
+| equal-N | 4,856 | 5,393 | +537 | [+487, +585] |
+| per-run | 4,949.5 | 5,402.2 | +453 | [+410, +493] |
+| banked | 5,122 | 5,466 | +344 | [+307, +381] |
+
+The 24, crossed with the differential: **19 recovered on the re-check**
+(barman-opt i6/7/8, openstacks-opt i12/16, organic-synthesis-split i15,
+petri-net-alignment i12, spider-opt i4, tetris-sat i16/19, parking-sat i11,
+parking-agile i11, slitherlink i4, ext-plant-watering i13, transport-mco i18
+on all three widths, rovers-prop i38, sailing-wind i10 on the satisficing
+board); **2 are the box** (v0.27.1 fails hiking-agile i18 and rover-numeric
+i15 today too); **5 are real** -- tetris-sat i15, sugar i5, coins-2026 i18,
+line-exchange-snp 3_5_90_100, and sailing-wind-opt i10 under the optimal
+mode. Named in the changelog. Quality on the promoted boards
+(`cut28/quality.py`): simple 94.8 -> 94.1 (SGPlan5 120.4), qualitative 45.8
+-> 59.2 (92.1), complex 20.1 -> 53.4 (99.0). Six boards 379 -> 569; 76 of the
+569 are the empty plan (0.27.0: 27 of 379); like-for-like 316 -> 491 of
+SGPlan5's 612.
+
 **Owed to the crucible, named twice now:** a solved row is trusted whatever
 the conditions. A solve banked under a slow canary near its wall, or a solve
 that returned without its number, should be SUSPECT like a failure is.

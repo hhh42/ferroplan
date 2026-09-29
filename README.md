@@ -64,7 +64,7 @@ Metric-FF (EHC reaches goals in dozens of evaluations, not thousands); numeric
 trails and IPC-5 preference quality is competitive-not-winning — see
 [Benchmarks](#benchmarks).
 
-> Status: **v0.28.0** — release candidate on `main`: the 32-board cut sweep that regenerates the table above is in flight, and [crates.io](https://crates.io/crates/ferroplan) carries v0.27.1 (`ferroplan`, `ferroplan-cli`, `ferroplan-mcp`, `ferroplan-sat`) until it lands. APIs may shift before 1.0.
+> Status: **v0.28.0** — `ferroplan`, `ferroplan-cli`, `ferroplan-mcp` and `ferroplan-sat` are on [crates.io](https://crates.io/crates/ferroplan). APIs may shift before 1.0.
 
 <!-- WHATSNEW:BEGIN — newest first; trimmed by scripts/release-notes-roll.py -->
 
@@ -87,18 +87,21 @@ trails and IPC-5 preference quality is competitive-not-winning — see
 > work on a plan it already holds stops at 75 % of `FF_MEM_BUDGET_GB` instead
 > of dying at the runner's cap with the plan in memory.
 >
-> Measured through the harness on the six IPC-5 boards the work was aimed
-> at: **379 → 569 of 788**, none lost, and **316 → 491** on the variants
-> SGPlan5 entered, where it solves 612. Two things the
-> [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md)
-> spells out rather than nets off: 46 of the +190 are the *empty plan* on
+> **65% coverage across 32 IPC boards** (5,466/8,444), **689 certified
+> optima**, every instance banked. Against 0.27.0 on the estimator declared
+> before the sweep — each instance's *first* attempt against its first —
+> **+531 rows [+481, +579]**; the boards' own banked figure moves +344,
+> understating it, because the referee re-runs failures and 0.27.0 had more
+> of them. Qualitative preferences reach **100/100, level with SGPlan5**,
+> the track winner; tempo-sat +68 rows, complex-preferences +51, time +38,
+> metric-time +41. Five instances 0.27.0 solved and 0.28.0 does not are
+> named in the [changelog](https://github.com/hhh42/ferroplan/blob/main/CHANGELOG.md),
+> each re-run on both engines first. Two things it spells out rather than
+> nets off: 76 of the preference boards' 569 solves are the *empty plan* on
 > problems with no hard goal — valid, and the boards' standing convention,
-> but floor quality — and coverage is not what IPC-5 ranked these tracks on.
-> By its quality score ferroplan still trails (qualitative preferences 59 to
-> SGPlan5's 85): this release closed rows and left points where they were.
-> An equal-N regression read over the 519 temporal instances the published
-> boards solved: 519 of 519, 0.91× the solve time, makespan better on 181
-> and worse on 6.
+> but floor quality — and coverage is not what IPC-5 ranked those tracks on.
+> By its quality score ferroplan still trails (qualitative 59 to SGPlan5's
+> 92): this release closed rows and left points where they were.
 >
 > The harness learned to ask small questions: `crucible sweep --board /
 > --only / --rows / --prior / --engine` measures a *subset* under the same
