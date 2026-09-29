@@ -1,0 +1,186 @@
+engine 89cfdc5f06ed: 147 banked rows to re-open
+   105  slow-box, near the wall
+    18  unpriced
+    24  0.27.0 solved it
+        ipc5-qual-pref         48
+        ipc5-simple-pref       47
+        ipc2023-sat            18
+        ipc5-complex-pref      8
+        ipc-opt-2008-11        5
+        ipc2014-sat            4
+        ipc2023-opt            3
+        ipc2023-numeric        3
+        ipc2018-opt            3
+        ipc2014-agile          2
+        ipc2026-numeric        2
+        ipc5-prop              1
+        ipc2026-opt            1
+        ipc7-mco-t4            1
+        ipc7-mco-t8            1
+    ipc-opt-2008-11      barman-sequential-optimal/6      0.27.0 solved it
+    ipc-opt-2008-11      barman-sequential-optimal/7      0.27.0 solved it
+    ipc-opt-2008-11      barman-sequential-optimal/8      0.27.0 solved it
+    ipc-opt-2008-11      openstacks-sequential-optimal/12     0.27.0 solved it
+    ipc-opt-2008-11      openstacks-sequential-optimal-strips/16     0.27.0 solved it
+    ipc2014-agile        hiking-sequential-agile/18     0.27.0 solved it
+    ipc2014-agile        parking-sequential-agile/11     0.27.0 solved it
+    ipc2014-sat          parking-sequential-satisficing/11     0.27.0 solved it
+    ipc2014-sat          tetris-sequential-satisficing/15     0.27.0 solved it
+    ipc2014-sat          tetris-sequential-satisficing/16     0.27.0 solved it
+    ipc2014-sat          tetris-sequential-satisficing/19     0.27.0 solved it
+    ipc2018-opt          organic-synthesis-split-sequential-optimal/15     0.27.0 solved it
+    ipc2018-opt          petri-net-alignment-sequential-optimal/12     0.27.0 solved it
+    ipc2018-opt          spider-sequential-optimal/4      0.27.0 solved it
+    ipc2023-numeric      ext-plant-watering-numeric-satisficing/13     0.27.0 solved it
+    ipc2023-numeric      rover-numeric-satisficing/15     0.27.0 solved it
+    ipc2023-numeric      sugar-numeric-satisficing/5      0.27.0 solved it
+    ipc2023-sat          slitherlink-satisficing/4      0.27.0 solved it
+    ipc2026-numeric      coins-numeric-2026/18     0.27.0 solved it
+    ipc2026-numeric      line-exchange-snp-numeric-2026/3_5_90_100 0.27.0 solved it
+    ipc2026-opt          sailing-wind-opt-numeric-2026/10     0.27.0 solved it
+    ipc5-prop            rovers-propositional/38     0.27.0 solved it
+    ipc7-mco-t4          transport-sequential-multi-core/18     0.27.0 solved it
+    ipc7-mco-t8          transport-sequential-multi-core/18     0.27.0 solved it
+    ipc2023-opt          recharging-robots-optimal/15     slow-box, near the wall
+    ipc2023-opt          ricochet-robots-optimal/15     slow-box, near the wall
+    ipc2023-opt          slitherlink-optimal/4      slow-box, near the wall
+    ipc2023-sat          labyrinth-satisficing/1      slow-box, near the wall
+    ipc2023-sat          labyrinth-satisficing/3      slow-box, near the wall
+    ipc2023-sat          labyrinth-satisficing/8      slow-box, near the wall
+    ipc2023-sat          quantum-layout-satisficing/13     slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/1      slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/11     slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/12     slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/14     slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/17     slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/3      slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/4      slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/8      slow-box, near the wall
+    ipc2023-sat          recharging-robots-satisficing/9      slow-box, near the wall
+    ipc2023-sat          ricochet-robots-satisficing/10     slow-box, near the wall
+    ipc2023-sat          ricochet-robots-satisficing/2      slow-box, near the wall
+    ipc2023-sat          ricochet-robots-satisficing/9      slow-box, near the wall
+    ipc2023-sat          slitherlink-satisficing/2      slow-box, near the wall
+    ipc5-qual-pref       openstacks-preferences-qualitative/3      slow-box, near the wall
+    ipc5-qual-pref       openstacks-preferences-qualitative/4      slow-box, near the wall
+    ipc5-qual-pref       openstacks-preferences-qualitative/6      slow-box, near the wall
+    ipc5-qual-pref       rovers-preferences-qualitative/1      slow-box, near the wall
+    ipc5-qual-pref       rovers-preferences-qualitative/4      slow-box, near the wall
+    ipc5-qual-pref       rovers-preferences-qualitative/7      slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/10     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/11     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/12     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/13     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/14     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/15     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/16     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/17     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/18     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/19     slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/7      slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/8      slow-box, near the wall
+    ipc5-qual-pref       storage-preferences-qualitative/9      slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/10     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/11     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/12     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/13     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/14     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/15     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/16     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/17     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/18     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/19     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/20     slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/5      slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/6      slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/7      slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/8      slow-box, near the wall
+    ipc5-qual-pref       tpp-preferences-qualitative/9      slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/13     slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/14     slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/15     slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/16     slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/17     slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/18     slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/19     slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/2      slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/3      slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/4      slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/5      slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/6      slow-box, near the wall
+    ipc5-qual-pref       trucks-preferences-qualitative/7      slow-box, near the wall
+    ipc5-simple-pref     openstacks-preferences-simple/12     slow-box, near the wall
+    ipc5-simple-pref     openstacks-preferences-simple/13     slow-box, near the wall
+    ipc5-simple-pref     openstacks-preferences-simple/18     slow-box, near the wall
+    ipc5-simple-pref     openstacks-preferences-simple/19     slow-box, near the wall
+    ipc5-simple-pref     openstacks-preferences-simple/20     slow-box, near the wall
+    ipc5-simple-pref     pathways-preferences-simple/23     slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/10     slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/11     slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/12     slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/13     slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/14     slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/15     slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/5      slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/6      slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/7      slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/8      slow-box, near the wall
+    ipc5-simple-pref     storage-preferences-simple/9      slow-box, near the wall
+    ipc5-simple-pref     tpp-preferences-simple/15     slow-box, near the wall
+    ipc5-simple-pref     tpp-preferences-simple/16     slow-box, near the wall
+    ipc5-simple-pref     tpp-preferences-simple/17     slow-box, near the wall
+    ipc5-simple-pref     tpp-preferences-simple/18     slow-box, near the wall
+    ipc5-simple-pref     tpp-preferences-simple/19     slow-box, near the wall
+    ipc5-simple-pref     tpp-preferences-simple/20     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/10     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/11     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/13     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/14     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/15     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/16     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/17     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/18     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/19     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/20     slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/6      slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/7      slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/8      slow-box, near the wall
+    ipc5-simple-pref     trucks-preferences-simple/9      slow-box, near the wall
+    ipc5-complex-pref    pathways-preferences-complex/19     unpriced
+    ipc5-complex-pref    pathways-preferences-complex/24     unpriced
+    ipc5-complex-pref    pathways-preferences-complex/30     unpriced
+    ipc5-complex-pref    pipesworld-preferences-complex/18     unpriced
+    ipc5-complex-pref    storage-preferences-complex/17     unpriced
+    ipc5-complex-pref    storage-preferences-complex/18     unpriced
+    ipc5-complex-pref    storage-preferences-complex/19     unpriced
+    ipc5-complex-pref    storage-preferences-complex/20     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/16     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/17     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/19     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/21     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/24     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/25     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/26     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/28     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/29     unpriced
+    ipc5-simple-pref     pathways-preferences-simple/30     unpriced
+engine 89cfdc5f06ed: 147 banked rows to re-open
+   105  slow-box, near the wall
+    18  unpriced
+    24  0.27.0 solved it
+        ipc5-qual-pref         48
+        ipc5-simple-pref       47
+        ipc2023-sat            18
+        ipc5-complex-pref      8
+        ipc-opt-2008-11        5
+        ipc2014-sat            4
+        ipc2023-opt            3
+        ipc2023-numeric        3
+        ipc2018-opt            3
+        ipc2014-agile          2
+        ipc2026-numeric        2
+        ipc5-prop              1
+        ipc2026-opt            1
+        ipc7-mco-t4            1
+        ipc7-mco-t8            1
+re-opened 147 rows; run `crucible sweep --set cut28` on a quiet box

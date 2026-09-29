@@ -1,0 +1,25 @@
+# cells ff 0.27.0 [86302e06d81b] solved and ff 0.28.0 [89cfdc5f06ed] did not, both banked -- `--rows` format
+sailing-wind-opt-numeric-2026/10   # ipc2026-opt
+rovers-propositional/38   # ipc5-prop
+parking-sequential-satisficing/11   # ipc2014-sat
+tetris-sequential-satisficing/15   # ipc2014-sat
+tetris-sequential-satisficing/16   # ipc2014-sat
+tetris-sequential-satisficing/19   # ipc2014-sat
+hiking-sequential-agile/18   # ipc2014-agile
+parking-sequential-agile/11   # ipc2014-agile
+coins-numeric-2026/18   # ipc2026-numeric
+line-exchange-snp-numeric-2026/3_5_90_100   # ipc2026-numeric
+ext-plant-watering-numeric-satisficing/13   # ipc2023-numeric
+rover-numeric-satisficing/15   # ipc2023-numeric
+sugar-numeric-satisficing/5   # ipc2023-numeric
+openstacks-sequential-optimal-strips/16   # ipc-opt-2008-11
+barman-sequential-optimal/6   # ipc-opt-2008-11
+barman-sequential-optimal/7   # ipc-opt-2008-11
+barman-sequential-optimal/8   # ipc-opt-2008-11
+openstacks-sequential-optimal/12   # ipc-opt-2008-11
+transport-sequential-multi-core/18   # ipc7-mco-t4
+transport-sequential-multi-core/18   # ipc7-mco-t8
+slitherlink-satisficing/4   # ipc2023-sat
+organic-synthesis-split-sequential-optimal/15   # ipc2018-opt
+petri-net-alignment-sequential-optimal/12   # ipc2018-opt
+spider-sequential-optimal/4   # ipc2018-opt

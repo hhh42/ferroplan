@@ -1,0 +1,50 @@
+checking budget stamps against the SWEEPS registry...
+  all 32 raws' budget stamps match the registry
+  promoted ipc5-prop              -> ipc5-prop.md / ipc5-prop.jsonl
+  promoted ipc5-time              -> ipc5-time.md / ipc5-time.jsonl
+  promoted ipc5-metric-time       -> ipc5-metric-time.md / ipc5-metric-time.jsonl
+  promoted ipc5-constraints       -> ipc5-constraints.md / ipc5-constraints.jsonl
+  promoted ipc67-results          -> ipc67-results.md / ipc67-default.jsonl
+  promoted ipc67-temporal         -> ipc67-temporal.md / ipc67-temporal.jsonl
+  promoted ipc67-netben           -> ipc67-netben.md / ipc67-netben.jsonl
+  promoted ipc7-mco-t2            -> ipc7-mco-t2.md / ipc7-mco-t2.jsonl
+  promoted ipc7-mco-t4            -> ipc7-mco-t4.md / ipc7-mco-t4.jsonl
+  promoted ipc7-mco-t8            -> ipc7-mco-t8.md / ipc7-mco-t8.jsonl
+  promoted ipc2014-sat            -> ipc2014-sat.md / ipc2014-sat.jsonl
+  promoted ipc2014-agile          -> ipc2014-agile.md / ipc2014-agile.jsonl
+  promoted ipc2014-tempo          -> ipc2014-tempo.md / ipc2014-tempo.jsonl
+  promoted ipc2014-mco-t4         -> ipc2014-mco-t4.md / ipc2014-mco-t4.jsonl
+  promoted ipc2018-sat            -> ipc2018-sat.md / ipc2018-sat.jsonl
+  promoted ipc2023-agile          -> ipc2023-agile.md / ipc2023-agile.jsonl
+  promoted ipc2023-numeric        -> ipc2023-numeric.md / ipc2023-numeric.jsonl
+  promoted ipc2026-numeric        -> ipc2026-numeric.md / ipc2026-numeric.jsonl
+  promoted ipc2023-agile-300s     -> ipc2023-agile-300s.md / ipc2023-agile-300s.jsonl
+  promoted ipc-opt-2008-11        -> ipc-opt-2008-11.md / ipc-opt-2008-11.jsonl
+  promoted ipc2014-opt            -> ipc2014-opt.md / ipc2014-opt.jsonl
+  promoted ipc2026-opt            -> ipc2026-opt.md / ipc2026-opt.jsonl
+  promoted ipc2014-mco-t2         -> ipc2014-mco-t2.md / ipc2014-mco-t2.jsonl
+  promoted ipc2014-mco-t8         -> ipc2014-mco-t8.md / ipc2014-mco-t8.jsonl
+  promoted ipc2018-opt            -> ipc2018-opt.md / ipc2018-opt.jsonl
+  promoted ipc2023-sat            -> ipc2023-sat.md / ipc2023-sat.jsonl
+  promoted ipc2023-opt            -> ipc2023-opt.md / ipc2023-opt.jsonl
+  promoted ipc2023-numeric-opt    -> ipc2023-numeric-opt.md / ipc2023-numeric-opt.jsonl
+  promoted ipc2026-opt-full       -> ipc2026-opt-full.md / ipc2026-opt-full.jsonl
+  promoted ipc5-simple-pref       -> ipc5-simple-pref.md / ipc5-simple-pref.jsonl
+  promoted ipc5-qual-pref         -> ipc5-qual-pref.md / ipc5-qual-pref.jsonl
+  promoted ipc5-complex-pref      -> ipc5-complex-pref.md / ipc5-complex-pref.jsonl
+
+regenerating standings (the Python oracle writes; crucible must agree)...
+wrote /Users/harold/ferroplan/benchmarks/ipc-standings.md
+wrote /Users/harold/ferroplan/STANDINGS.md
+patched /Users/harold/ferroplan/README.md standings block
+prop-2006 len vs best-of-field: 54W/44T/181L, mean quality 0.90 (279 scored)
+ok    detail   ./benchmarks/ipc-standings.md matches
+ok    summary  ./STANDINGS.md matches
+  crucible standings --check: parity
+
+done — review benchmarks/ipc-standings.md and STANDINGS.md, then:
+  python3 scripts/standings-snapshot.py --version 0.28.0 --measured-at YYYY-MM-DD
+  CHANGELOG.md [0.28.0] + README 'What's new in 0.28.0' + Status line
+  python3 scripts/release-notes-roll.py   (refuses if the README lags)
+snapshotted 0.28.0 on m5-air (2026-09-26): 32 tracks, 5466/8444
+wrote /Users/harold/ferroplan/benchmarks/standings-history.json (10 snapshots)

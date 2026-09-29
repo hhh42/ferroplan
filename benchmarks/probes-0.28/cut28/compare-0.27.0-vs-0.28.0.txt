@@ -7,59 +7,42 @@ ipc5-metric-time                64       0       105       0      +41
 ipc5-constraints                28       0        28       0       +0
 ipc2026-opt                     23       0        22       0       -1
 ipc67-netben                   270       0       270       0       +0
-ipc5-prop                      383       0       383       0       +0
+ipc5-prop                      383       0       384       0       +1
 ipc2023-agile                   47       0        52       0       +5
 ipc2014-tempo                   78       0       122       0      +44
 ipc2018-sat                     94       0        97       0       +3
-ipc2014-sat                    173       0       170       0       -3
-ipc2014-agile                  172       0       171       0       -1
+ipc2014-sat                    173       0       173       0       +0
+ipc2014-agile                  172       0       172       0       +0
 ipc2014-opt                     82       0        82       0       +0
 ipc2026-numeric                225       0       223       0       -2
-ipc2023-numeric                264       0       261       0       -3
-ipc-opt-2008-11                296       0       291       0       -5
+ipc2023-numeric                264       0       262       0       -2
+ipc-opt-2008-11                296       0       296       0       +0
 ipc67-temporal                 441       0       509       0      +68
 ipc67-results                  535       0       538       0       +3
 ipc7-mco-t2                    248       0       249       0       +1
-ipc7-mco-t4                    252       0       252       0       +0
-ipc7-mco-t8                    253       0       252       0       -1
+ipc7-mco-t4                    252       0       253       0       +1
+ipc7-mco-t8                    253       0       253       0       +0
 ipc2014-mco-t4                 172       0       178       0       +6
 ipc2023-agile-300s              60       0        66       0       +6
 ipc5-simple-pref               119       0       130       0      +11
 ipc5-qual-pref                  51       0       100       0      +49
-ipc2023-sat                     45       0        52       0       +7
+ipc2023-sat                     45       0        53       0       +8
 ipc2023-opt                     33       0        33       0       +0
-ipc2018-opt                     93       0        91       0       -2
+ipc2018-opt                     93       0        94       0       +1
 ipc2023-numeric-opt             81       0        81       0       +0
 ipc2026-opt-full                79       0        81       0       +2
 ipc2014-mco-t2                 171       0       175       0       +4
 ipc2014-mco-t8                 173       0       179       0       +6
-ipc5-complex-pref               29       0        82       0      +53
+ipc5-complex-pref               29       0        80       0      +51
 
-net +329 over the 32 board(s) where NEITHER side owes a row
+net +344 over the 32 board(s) where NEITHER side owes a row
 
-cells BOTH engines banked: 353 gained by B, 24 lost by B
+cells BOTH engines banked: 351 gained by B, 7 lost by B
   lost    ipc2026-opt            sailing-wind-opt-numeric-2026/10
-  lost    ipc5-prop              rovers-propositional/38
-  lost    ipc2014-sat            parking-sequential-satisficing/11
   lost    ipc2014-sat            tetris-sequential-satisficing/15
-  lost    ipc2014-sat            tetris-sequential-satisficing/16
-  lost    ipc2014-sat            tetris-sequential-satisficing/19
   lost    ipc2014-agile          hiking-sequential-agile/18
-  lost    ipc2014-agile          parking-sequential-agile/11
   lost    ipc2026-numeric        coins-numeric-2026/18
   lost    ipc2026-numeric        line-exchange-snp-numeric-2026/3_5_90_100
-  lost    ipc2023-numeric        ext-plant-watering-numeric-satisficing/13
   lost    ipc2023-numeric        rover-numeric-satisficing/15
   lost    ipc2023-numeric        sugar-numeric-satisficing/5
-  lost    ipc-opt-2008-11        openstacks-sequential-optimal-strips/16
-  lost    ipc-opt-2008-11        barman-sequential-optimal/6
-  lost    ipc-opt-2008-11        barman-sequential-optimal/7
-  lost    ipc-opt-2008-11        barman-sequential-optimal/8
-  lost    ipc-opt-2008-11        openstacks-sequential-optimal/12
-  lost    ipc7-mco-t4            transport-sequential-multi-core/18
-  lost    ipc7-mco-t8            transport-sequential-multi-core/18
-  lost    ipc2023-sat            slitherlink-satisficing/4
-  lost    ipc2018-opt            organic-synthesis-split-sequential-optimal/15
-  lost    ipc2018-opt            petri-net-alignment-sequential-optimal/12
-  lost    ipc2018-opt            spider-sequential-optimal/4
 lost cells written to /Users/harold/ferroplan-0.28/benchmarks/probes-0.28/cut28/lost.rows

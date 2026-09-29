@@ -35,3 +35,513 @@ subset  23 listed row(s) -- 40 instance(s) of set cut27, staged at /Users/harold
 !! width 8 -> 3 (polite, idle 619s, foreign 700%)
 !! width 3 -> 8 (polite, idle 639s, foreign 174%)
 !! width 8 -> 6 (polite, idle 659s, foreign 399%)
+!! width 6 -> 8 (polite, idle 679s, foreign 185%)
+!! width 8 -> 7 (polite, idle 699s, foreign 205%)
+!! width 7 -> 6 (polite, idle 719s, foreign 321%)
+!! width 6 -> 1 (polite, operator active 0s ago, foreign 805%)
+!! width 1 -> 2 (polite, operator active 2s ago, foreign 154%)
+   ipc2014-opt            verdicts: starved 4
+   ipc2014-opt            banked    0   4 -> 4   [DEGRADED -- not banked, work owed]
+   ipc2026-numeric        packed: 1 wide x10 (13.0 GB budget), 0 narrow, 2 solo
+!! width 2 -> 1 (polite, operator active 19s ago, foreign 616%)
+!! width 1 -> 2 (polite, operator active 0s ago, foreign 159%)
+!! width 2 -> 1 (polite, operator active 4s ago, foreign 205%)
+   ipc2026-numeric        verdicts: demoted 2, solved 1
+   ipc2026-numeric        banked    1   3 -> 2
+!! width 1 -> 2 (polite, operator active 1s ago, foreign 173%)
+!! width 2 -> 1 (polite, operator active 7s ago, foreign 319%)
+!! width 1 -> 2 (polite, operator active 0s ago, foreign 195%)
+   ipc2023-numeric        verdicts: demoted 3
+   ipc2023-numeric        banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 2 -> 3 (polite, operator active 4s ago, foreign 91%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 182%)
+!! width 2 -> 1 (polite, operator active 6s ago, foreign 209%)
+!! canary trucks-propositional/8@d812c2328305 at 4.32x its baseline -- the box is slow
+   ipc-opt-2008-11        verdicts: demoted 5
+   ipc-opt-2008-11        banked    0   5 -> 5   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 54s ago, foreign 186%)
+!! width 2 -> 1 (polite, operator active 4s ago, foreign 422%)
+   ipc67-results          verdicts: demoted 1
+   ipc67-results          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 18s ago, foreign 161%)
+!! width 2 -> 1 (polite, operator active 38s ago, foreign 500%)
+   ipc7-mco-t2            verdicts: suspect 1
+   ipc7-mco-t2            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 11s ago, foreign 188%)
+!! width 2 -> 1 (polite, operator active 31s ago, foreign 301%)
+!! width 1 -> 3 (polite, operator active 51s ago, foreign 91%)
+   ipc7-mco-t4            verdicts: contended 1
+   ipc7-mco-t4            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 3 -> 2 (polite, operator active 71s ago, foreign 115%)
+!! width 2 -> 1 (polite, operator active 111s ago, foreign 544%)
+   ipc7-mco-t8            verdicts: contended 1
+   ipc7-mco-t8            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 3 (polite, operator active 131s ago, foreign 95%)
+!! width 3 -> 1 (polite, operator active 5s ago, foreign 309%)
+   ipc2014-mco-t4         verdicts: contended 1
+   ipc2014-mco-t4         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 20s ago, foreign 103%)
+   ipc2023-sat            verdicts: demoted 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 2 -> 3 (polite, operator active 24s ago, foreign 88%)
+!! width 3 -> 2 (polite, operator active 84s ago, foreign 142%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 87%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 152%)
+   ipc2018-opt            verdicts: demoted 3
+   ipc2018-opt            banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 2 -> 3 (polite, operator active 34s ago, foreign 98%)
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 135%)
+!! width 2 -> 1 (polite, operator active 0s ago, foreign 221%)
+!! width 1 -> 3 (polite, operator active 1s ago, foreign 94%)
+!! width 3 -> 1 (polite, operator active 0s ago, foreign 223%)
+!! width 1 -> 3 (polite, operator active 0s ago, foreign 73%)
+   ipc2023-numeric-opt    verdicts: demoted 3
+   ipc2023-numeric-opt    banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 123%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 91%)
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 102%)
+!! width 2 -> 3 (polite, operator active 5s ago, foreign 92%)
+!! width 3 -> 2 (polite, operator active 25s ago, foreign 103%)
+   ipc2026-opt-full       verdicts: demoted 3
+   ipc2026-opt-full       banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 69%)
+   ipc2014-mco-t2         verdicts: contended 1
+   ipc2014-mco-t2         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 136%)
+   ipc2014-mco-t8         verdicts: contended 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+== pass 2 -- 19 board(s) outstanding
+!! width 2 -> 1 (polite, operator active 1s ago, foreign 689%)
+!! width 1 -> 3 (polite, operator active 0s ago, foreign 95%)
+   ipc2026-opt            verdicts: demoted 1
+   ipc2026-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc5-prop              verdicts: demoted 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 3 -> 1 (polite, operator active 11s ago, foreign 309%)
+!! width 1 -> 3 (polite, operator active 26s ago, foreign 55%)
+   ipc2014-agile          verdicts: demoted 1
+   ipc2014-agile          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 3 -> 1 (polite, operator active 46s ago, foreign 404%)
+!! width 1 -> 3 (polite, operator active 4s ago, foreign 60%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 142%)
+   ipc67-results          verdicts: demoted 1
+   ipc67-results          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 2 -> 1 (polite, operator active 0s ago, foreign 351%)
+   ipc7-mco-t2            verdicts: contended 1
+   ipc7-mco-t2            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 1s ago, foreign 140%)
+!! width 2 -> 1 (polite, operator active 6s ago, foreign 207%)
+   ipc7-mco-t4            verdicts: contended 1
+   ipc7-mco-t4            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 0s ago, foreign 102%)
+   ipc7-mco-t8            verdicts: contended 1
+   ipc7-mco-t8            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 54%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 126%)
+   ipc2014-mco-t4         verdicts: contended 1
+   ipc2014-mco-t4         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 2 -> 1 (polite, operator active 1s ago, foreign 385%)
+!! width 1 -> 2 (polite, operator active 0s ago, foreign 117%)
+!! width 2 -> 3 (polite, operator active 16s ago, foreign 69%)
+   ipc2023-sat            verdicts: demoted 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 3 -> 1 (polite, operator active 0s ago, foreign 224%)
+!! width 1 -> 3 (polite, operator active 5s ago, foreign 92%)
+   ipc2014-mco-t2         verdicts: contended 1
+   ipc2014-mco-t2         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 111%)
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 95%)
+   ipc2014-mco-t8         verdicts: contended 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 3 -> 2 (polite, operator active 2s ago, foreign 103%)
+!! width 2 -> 3 (polite, operator active 26s ago, foreign 98%)
+   ipc2026-numeric        verdicts: demoted 2
+   ipc2026-numeric        banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! width 3 -> 2 (polite, operator active 4s ago, foreign 102%)
+!! width 2 -> 1 (polite, operator active 3s ago, foreign 379%)
+!! width 1 -> 3 (polite, operator active 1s ago, foreign 98%)
+!! width 3 -> 2 (polite, operator active 3s ago, foreign 114%)
+!! width 2 -> 3 (polite, operator active 14s ago, foreign 84%)
+   ipc2023-numeric        verdicts: demoted 3
+   ipc2023-numeric        banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 3 -> 1 (polite, operator active 3s ago, foreign 528%)
+!! width 1 -> 3 (polite, operator active 23s ago, foreign 89%)
+!! width 3 -> 1 (polite, operator active 43s ago, foreign 315%)
+!! width 1 -> 3 (polite, operator active 1s ago, foreign 85%)
+!! width 3 -> 1 (polite, operator active 6s ago, foreign 243%)
+   ipc2018-opt            verdicts: demoted 3
+   ipc2018-opt            banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 0s ago, foreign 146%)
+!! canary trucks-propositional/8@d812c2328305 at 1.33x its baseline -- the box is slow
+!! width 2 -> 1 (polite, operator active 0s ago, foreign 221%)
+   ipc2023-numeric-opt    verdicts: demoted 3
+   ipc2023-numeric-opt    banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 1s ago, foreign 125%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 77%)
+!! width 3 -> 2 (polite, operator active 16s ago, foreign 131%)
+!! width 2 -> 1 (polite, operator active 36s ago, foreign 568%)
+!! width 1 -> 2 (polite, operator active 56s ago, foreign 142%)
+!! width 2 -> 1 (polite, operator active 76s ago, foreign 308%)
+   ipc2026-opt-full       verdicts: demoted 3
+   ipc2026-opt-full       banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 96s ago, foreign 104%)
+!! width 2 -> 1 (polite, operator active 236s ago, foreign 284%)
+!! width 1 -> 2 (polite, operator active 256s ago, foreign 115%)
+!! width 2 -> 1 (polite, operator active 276s ago, foreign 221%)
+!! width 1 -> 8 (polite, idle 316s, foreign 198%)
+   ipc2014-sat            verdicts: demoted 4
+   ipc2014-sat            banked    0   4 -> 4   [DEGRADED -- not banked, work owed]
+!! width 8 -> 5 (polite, idle 356s, foreign 479%)
+!! width 5 -> 8 (polite, idle 376s, foreign 174%)
+!! width 8 -> 7 (polite, idle 416s, foreign 257%)
+!! width 7 -> 6 (polite, idle 436s, foreign 320%)
+!! canary trucks-propositional/8@d812c2328305 at 1.35x its baseline -- the box is slow
+!! width 6 -> 5 (polite, idle 476s, foreign 407%)
+!! width 5 -> 7 (polite, idle 496s, foreign 261%)
+!! width 7 -> 6 (polite, idle 516s, foreign 344%)
+!! width 6 -> 2 (polite, idle 536s, foreign 769%)
+   ipc2014-opt            verdicts: rho 2, thermal 2
+   ipc2014-opt            banked    2   4 -> 2
+!! width 2 -> 7 (polite, idle 556s, foreign 215%)
+!! width 7 -> 6 (polite, idle 576s, foreign 374%)
+!! width 6 -> 5 (polite, idle 596s, foreign 471%)
+!! width 5 -> 8 (polite, idle 616s, foreign 174%)
+!! width 8 -> 7 (polite, idle 636s, foreign 215%)
+!! width 7 -> 4 (polite, idle 736s, foreign 532%)
+!! width 4 -> 3 (polite, idle 757s, foreign 690%)
+!! canary trucks-propositional/8@d812c2328305 at 2.23x its baseline -- the box is slow
+!! width 3 -> 4 (polite, idle 776s, foreign 551%)
+!! width 4 -> 7 (polite, idle 796s, foreign 210%)
+!! width 7 -> 6 (polite, idle 816s, foreign 373%)
+!! width 6 -> 7 (polite, idle 836s, foreign 235%)
+   ipc-opt-2008-11        verdicts: thermal 5
+   ipc-opt-2008-11        banked    0   5 -> 5   [DEGRADED -- not banked, work owed]
+== pass 3 -- 19 board(s) outstanding
+!! width 7 -> 5 (polite, idle 856s, foreign 480%)
+!! width 5 -> 1 (polite, operator active 1s ago, foreign 258%)
+   ipc2026-opt            verdicts: thermal 1
+   ipc2026-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc5-prop              verdicts: demoted 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 101s ago, foreign 106%)
+!! width 2 -> 1 (polite, operator active 141s ago, foreign 224%)
+   ipc2014-agile          verdicts: demoted 1
+   ipc2014-agile          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc67-results          verdicts: demoted 1
+   ipc67-results          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc7-mco-t2            verdicts: contended 1
+   ipc7-mco-t2            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 2 (polite, operator active 93s ago, foreign 161%)
+   ipc7-mco-t4            verdicts: contended 1
+   ipc7-mco-t4            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 2 -> 1 (polite, operator active 133s ago, foreign 222%)
+   ipc7-mco-t8            verdicts: contended 1
+   ipc7-mco-t8            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2014-mco-t4         verdicts: contended 1
+   ipc2014-mco-t4         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! canary trucks-propositional/8@d812c2328305 at 1.65x its baseline -- the box is slow
+   ipc2023-sat            verdicts: demoted 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 4 (polite, idle 314s, foreign 508%)
+!! width 4 -> 5 (polite, idle 333s, foreign 465%)
+   ipc2014-mco-t2         verdicts: contended 1
+   ipc2014-mco-t2         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 5 -> 6 (polite, idle 353s, foreign 384%)
+   ipc2014-mco-t8         verdicts: contended 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 6 -> 4 (polite, idle 453s, foreign 532%)
+!! width 4 -> 6 (polite, idle 473s, foreign 396%)
+!! width 6 -> 7 (polite, idle 493s, foreign 276%)
+!! width 7 -> 8 (polite, idle 513s, foreign 114%)
+   ipc2014-opt            verdicts: thermal 2
+   ipc2014-opt            banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! width 8 -> 6 (polite, idle 533s, foreign 355%)
+!! width 6 -> 5 (polite, idle 554s, foreign 482%)
+!! width 5 -> 7 (polite, idle 574s, foreign 298%)
+!! canary trucks-propositional/8@d812c2328305 at 1.67x its baseline -- the box is slow
+!! width 7 -> 4 (polite, idle 613s, foreign 511%)
+!! width 4 -> 3 (polite, idle 634s, foreign 638%)
+   ipc2026-numeric        verdicts: thermal 2
+   ipc2026-numeric        banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! width 3 -> 5 (polite, idle 654s, foreign 481%)
+!! width 5 -> 3 (polite, idle 674s, foreign 695%)
+!! width 3 -> 4 (polite, idle 714s, foreign 507%)
+!! width 4 -> 7 (polite, idle 753s, foreign 282%)
+!! width 7 -> 6 (polite, idle 773s, foreign 398%)
+!! width 6 -> 7 (polite, idle 793s, foreign 207%)
+!! width 7 -> 8 (polite, idle 813s, foreign 122%)
+   ipc2023-numeric        verdicts: thermal 3
+   ipc2023-numeric        banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 8 -> 7 (polite, idle 834s, foreign 237%)
+!! width 7 -> 8 (polite, idle 854s, foreign 174%)
+!! width 8 -> 6 (polite, idle 873s, foreign 346%)
+!! canary trucks-propositional/8@d812c2328305 at 1.35x its baseline -- the box is slow
+!! width 6 -> 7 (polite, idle 913s, foreign 208%)
+!! width 7 -> 1 (polite, operator active 0s ago, foreign 296%)
+   ipc2018-opt            verdicts: thermal 3
+   ipc2018-opt            banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! throttle polite -> suspended (Game { name: "Steam Helper", cpu: 87.2 })
+!! width 1 -> 0 (suspended, operator active 1s ago, foreign 345%)
+!! canary trucks-propositional/8@d812c2328305 at 2.66x its baseline -- the box is slow
+!! canary trucks-propositional/8@d812c2328305 at 3.15x its baseline -- the box is slow
+!! canary trucks-propositional/8@d812c2328305 at 3.74x its baseline -- the box is slow
+!! canary trucks-propositional/8@d812c2328305 at 5.08x its baseline -- the box is slow
+!! canary trucks-propositional/8@d812c2328305 at 4.73x its baseline -- the box is slow
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 3 (polite, operator active 20s ago, foreign 31%)
+   ipc2023-numeric-opt    verdicts: demoted 3
+   ipc2023-numeric-opt    banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 3 -> 2 (polite, operator active 140s ago, foreign 125%)
+!! width 2 -> 3 (polite, operator active 160s ago, foreign 17%)
+!! width 3 -> 2 (polite, operator active 180s ago, foreign 120%)
+!! width 2 -> 1 (polite, operator active 200s ago, foreign 318%)
+!! width 1 -> 2 (polite, operator active 220s ago, foreign 183%)
+!! width 2 -> 1 (polite, operator active 240s ago, foreign 371%)
+!! width 1 -> 3 (polite, operator active 260s ago, foreign 25%)
+   ipc2026-opt-full       verdicts: demoted 3
+   ipc2026-opt-full       banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 3 -> 8 (polite, idle 320s, foreign 136%)
+!! width 8 -> 3 (polite, idle 340s, foreign 629%)
+!! width 3 -> 9 (polite, idle 360s, foreign 42%)
+!! width 9 -> 3 (polite, idle 420s, foreign 663%)
+!! width 3 -> 9 (polite, idle 440s, foreign 31%)
+!! width 9 -> 7 (polite, idle 460s, foreign 217%)
+!! width 7 -> 6 (polite, idle 480s, foreign 383%)
+!! width 6 -> 3 (polite, idle 500s, foreign 619%)
+   ipc2014-sat            verdicts: demoted 1, solved 2, starved 1
+   ipc2014-sat            banked    2   4 -> 2
+!! width 3 -> 8 (polite, idle 520s, foreign 191%)
+!! width 8 -> 7 (polite, idle 580s, foreign 217%)
+!! width 7 -> 5 (polite, idle 600s, foreign 456%)
+!! canary trucks-propositional/8@d812c2328305 at 1.34x its baseline -- the box is slow
+!! width 5 -> 8 (polite, idle 620s, foreign 120%)
+!! width 8 -> 3 (polite, idle 740s, foreign 643%)
+!! width 3 -> 4 (polite, idle 760s, foreign 567%)
+!! width 4 -> 8 (polite, idle 780s, foreign 157%)
+   ipc-opt-2008-11        verdicts: starved 1, thermal 4
+   ipc-opt-2008-11        banked    0   5 -> 5   [DEGRADED -- not banked, work owed]
+== pass 4 -- 19 board(s) outstanding
+   ipc2026-opt            verdicts: thermal 1
+   ipc2026-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 6 (polite, idle 900s, foreign 334%)
+   ipc5-prop              verdicts: thermal 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 6 -> 7 (polite, idle 920s, foreign 231%)
+!! width 7 -> 8 (polite, idle 940s, foreign 126%)
+   ipc2014-agile          verdicts: starved 1
+   ipc2014-agile          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 3 (polite, idle 980s, foreign 665%)
+!! width 3 -> 8 (polite, idle 1020s, foreign 150%)
+   ipc67-results          verdicts: starved 1
+   ipc67-results          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 7 (polite, idle 1040s, foreign 239%)
+!! width 7 -> 8 (polite, idle 1060s, foreign 115%)
+!! width 8 -> 9 (polite, idle 1080s, foreign 33%)
+   ipc7-mco-t2            verdicts: contended 1
+   ipc7-mco-t2            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 7 (polite, idle 1120s, foreign 273%)
+!! width 7 -> 9 (polite, idle 1140s, foreign 14%)
+   ipc7-mco-t4            verdicts: contended 1
+   ipc7-mco-t4            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 8 (polite, idle 1201s, foreign 199%)
+!! canary trucks-propositional/8@d812c2328305 at 2.34x its baseline -- the box is slow
+   ipc7-mco-t8            verdicts: contended 1
+   ipc7-mco-t8            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 7 (polite, idle 1220s, foreign 299%)
+   ipc2014-mco-t4         verdicts: contended 1
+   ipc2014-mco-t4         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 7 -> 6 (polite, idle 1300s, foreign 311%)
+!! width 6 -> 7 (polite, idle 1320s, foreign 295%)
+   ipc2023-sat            verdicts: thermal 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 7 -> 6 (polite, idle 1340s, foreign 344%)
+!! width 6 -> 7 (polite, idle 1360s, foreign 232%)
+!! width 7 -> 1 (polite, idle 1380s, foreign 832%)
+   ipc2014-mco-t2         verdicts: contended 1
+   ipc2014-mco-t2         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 1 -> 7 (polite, idle 1400s, foreign 223%)
+!! width 7 -> 8 (polite, idle 1420s, foreign 172%)
+   ipc2014-mco-t8         verdicts: contended 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 4 (polite, idle 1460s, foreign 518%)
+!! width 4 -> 8 (polite, idle 1480s, foreign 172%)
+!! width 8 -> 7 (polite, idle 1500s, foreign 214%)
+   ipc2014-sat            verdicts: solved 1, thermal 1
+   ipc2014-sat            banked    1   2 -> 1
+!! width 7 -> 5 (polite, idle 1600s, foreign 438%)
+!! width 5 -> 7 (polite, idle 1620s, foreign 235%)
+!! width 7 -> 5 (polite, idle 1640s, foreign 449%)
+!! width 5 -> 7 (polite, idle 1660s, foreign 222%)
+   ipc2014-opt            verdicts: starved 2
+   ipc2014-opt            banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! width 7 -> 6 (polite, idle 1720s, foreign 338%)
+!! width 6 -> 7 (polite, idle 1740s, foreign 282%)
+!! width 7 -> 6 (polite, idle 1760s, foreign 312%)
+!! width 6 -> 7 (polite, idle 1780s, foreign 206%)
+   ipc2026-numeric        verdicts: starved 2
+   ipc2026-numeric        banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! canary trucks-propositional/8@d812c2328305 at 2.11x its baseline -- the box is slow
+!! width 7 -> 6 (polite, idle 1820s, foreign 311%)
+!! width 6 -> 7 (polite, idle 1880s, foreign 297%)
+!! width 7 -> 1 (polite, idle 1920s, foreign 868%)
+!! width 1 -> 6 (polite, idle 1940s, foreign 316%)
+!! width 6 -> 7 (polite, idle 1960s, foreign 214%)
+   ipc2023-numeric        verdicts: thermal 3
+   ipc2023-numeric        banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 7 -> 4 (polite, idle 2000s, foreign 552%)
+!! width 4 -> 7 (polite, idle 2020s, foreign 216%)
+!! width 7 -> 6 (polite, idle 2060s, foreign 349%)
+!! width 6 -> 7 (polite, idle 2080s, foreign 283%)
+!! width 7 -> 4 (polite, idle 2100s, foreign 595%)
+!! width 4 -> 6 (polite, idle 2120s, foreign 397%)
+!! width 6 -> 7 (polite, idle 2140s, foreign 214%)
+!! width 7 -> 2 (polite, idle 2160s, foreign 707%)
+   ipc2018-opt            verdicts: starved 1, thermal 2
+   ipc2018-opt            banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 2 -> 3 (polite, idle 2180s, foreign 657%)
+!! width 3 -> 7 (polite, idle 2200s, foreign 213%)
+!! width 7 -> 6 (polite, idle 2240s, foreign 339%)
+!! width 6 -> 4 (polite, idle 2260s, foreign 507%)
+!! width 4 -> 6 (polite, idle 2280s, foreign 315%)
+!! width 6 -> 7 (polite, idle 2300s, foreign 231%)
+   ipc2023-numeric-opt    verdicts: starved 3
+   ipc2023-numeric-opt    banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 7 -> 3 (polite, idle 2340s, foreign 641%)
+!! width 3 -> 7 (polite, idle 2360s, foreign 217%)
+!! width 7 -> 8 (polite, idle 2440s, foreign 199%)
+   ipc2026-opt-full       verdicts: starved 3
+   ipc2026-opt-full       banked    0   3 -> 3   [DEGRADED -- not banked, work owed]
+!! width 8 -> 6 (polite, idle 2520s, foreign 305%)
+!! width 6 -> 7 (polite, idle 2540s, foreign 266%)
+!! width 7 -> 8 (polite, idle 2560s, foreign 200%)
+!! width 8 -> 9 (polite, idle 2580s, foreign 30%)
+!! width 9 -> 8 (polite, idle 2640s, foreign 118%)
+!! width 8 -> 7 (polite, idle 2660s, foreign 273%)
+!! width 7 -> 6 (polite, idle 2680s, foreign 367%)
+!! width 6 -> 5 (polite, idle 2701s, foreign 446%)
+!! canary trucks-propositional/8@d812c2328305 at 2.67x its baseline -- the box is slow
+!! width 5 -> 6 (polite, idle 2720s, foreign 309%)
+!! width 6 -> 7 (polite, idle 2740s, foreign 252%)
+!! width 7 -> 6 (polite, idle 2760s, foreign 328%)
+   ipc-opt-2008-11        verdicts: starved 4, thermal 1
+   ipc-opt-2008-11        banked    0   5 -> 5   [DEGRADED -- not banked, work owed]
+== pass 5 -- 19 board(s) outstanding
+!! width 6 -> 8 (polite, idle 2800s, foreign 162%)
+!! width 8 -> 6 (polite, idle 2820s, foreign 390%)
+   ipc2026-opt            verdicts: thermal 1
+   ipc2026-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 6 -> 7 (polite, idle 2840s, foreign 223%)
+!! width 7 -> 6 (polite, idle 2860s, foreign 311%)
+!! width 6 -> 8 (polite, idle 2880s, foreign 100%)
+   ipc5-prop              verdicts: thermal 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 6 (polite, idle 2900s, foreign 385%)
+!! width 6 -> 7 (polite, idle 2920s, foreign 248%)
+   ipc2014-sat            verdicts: thermal 1
+   ipc2014-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 7 -> 8 (polite, idle 2960s, foreign 194%)
+!! width 8 -> 4 (polite, idle 2980s, foreign 544%)
+!! width 4 -> 8 (polite, idle 3000s, foreign 171%)
+   ipc2014-agile          verdicts: thermal 1
+   ipc2014-agile          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! canary trucks-propositional/8@d812c2328305 at 2.35x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 3060s, foreign 33%)
+   ipc67-results          verdicts: thermal 1
+   ipc67-results          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 8 (polite, idle 3120s, foreign 162%)
+   ipc7-mco-t2            verdicts: contended 1
+   ipc7-mco-t2            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 9 (polite, idle 3140s, foreign 46%)
+   ipc7-mco-t4            verdicts: solved 1
+   ipc7-mco-t4            banked    1   1 -> 0
+   ipc7-mco-t8            verdicts: solved 1
+   ipc7-mco-t8            banked    1   1 -> 0
+   ipc2014-mco-t4         verdicts: window 1
+   ipc2014-mco-t4         banked    1   1 -> 0
+   ipc2023-sat            verdicts: solved 1
+   ipc2023-sat            banked    1   1 -> 0
+   ipc2014-mco-t2         verdicts: contended 1
+   ipc2014-mco-t2         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2014-mco-t8         verdicts: contended 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2014-opt            verdicts: rho 2
+   ipc2014-opt            banked    2   2 -> 0
+!! width 9 -> 10 (polite, idle 3640s, foreign -0%)
+!! width 10 -> 7 (polite, idle 3680s, foreign 220%)
+   ipc2026-numeric        verdicts: solved 2
+   ipc2026-numeric        banked    2   2 -> 0
+!! width 7 -> 10 (polite, idle 3700s, foreign -0%)
+!! throttle polite -> full (Clear)
+   ipc2023-numeric        verdicts: rho 1, solved 2
+   ipc2023-numeric        banked    3   3 -> 0
+   ipc2018-opt            verdicts: solved 3
+   ipc2018-opt            banked    3   3 -> 0
+!! width 10 -> 8 (full, idle 4040s, foreign 160%)
+!! width 8 -> 10 (full, idle 4060s, foreign -0%)
+!! width 10 -> 9 (full, idle 4080s, foreign 11%)
+!! width 9 -> 10 (full, idle 4100s, foreign -0%)
+   ipc2023-numeric-opt    verdicts: rho 3
+   ipc2023-numeric-opt    banked    3   3 -> 0
+!! width 10 -> 9 (full, idle 4180s, foreign 13%)
+!! width 9 -> 10 (full, idle 4200s, foreign -0%)
+!! width 10 -> 9 (full, idle 4240s, foreign 9%)
+!! width 9 -> 10 (full, idle 4260s, foreign -0%)
+   ipc2026-opt-full       verdicts: rho 3
+   ipc2026-opt-full       banked    3   3 -> 0
+!! width 10 -> 9 (full, idle 4400s, foreign 86%)
+!! width 9 -> 10 (full, idle 4420s, foreign -0%)
+!! width 10 -> 9 (full, idle 4440s, foreign 11%)
+!! width 9 -> 10 (full, idle 4460s, foreign -0%)
+   ipc-opt-2008-11        verdicts: solved 5
+   ipc-opt-2008-11        banked    5   5 -> 0
+== pass 6 -- 8 board(s) outstanding
+   ipc2026-opt            verdicts: solved 1
+   ipc2026-opt            banked    1   1 -> 0
+!! width 10 -> 9 (full, idle 4580s, foreign 85%)
+!! width 9 -> 6 (full, idle 4600s, foreign 336%)
+!! width 6 -> 10 (full, idle 4620s, foreign -0%)
+   ipc5-prop              verdicts: starved 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 10 -> 9 (full, idle 4660s, foreign 6%)
+!! width 9 -> 10 (full, idle 4680s, foreign -0%)
+   ipc2014-sat            verdicts: solved 1
+   ipc2014-sat            banked    1   1 -> 0
+!! width 10 -> 9 (full, idle 4700s, foreign 98%)
+!! throttle full -> polite (Foreign(267.3))
+!! width 9 -> 7 (polite, idle 4720s, foreign 267%)
+!! width 7 -> 9 (polite, idle 4740s, foreign 75%)
+   ipc2014-agile          verdicts: rho 1
+   ipc2014-agile          banked    1   1 -> 0
+!! width 9 -> 10 (polite, idle 4760s, foreign -0%)
+!! width 10 -> 9 (polite, idle 4780s, foreign 5%)
+   ipc67-results          verdicts: rho 1
+   ipc67-results          banked    1   1 -> 0
+!! width 9 -> 7 (polite, idle 4820s, foreign 217%)
+!! width 7 -> 10 (polite, idle 4840s, foreign -0%)
+   ipc7-mco-t2            verdicts: solved 1
+   ipc7-mco-t2            banked    1   1 -> 0
+!! width 10 -> 9 (polite, idle 4900s, foreign 26%)
+!! width 9 -> 10 (polite, idle 4920s, foreign -0%)
+   ipc2014-mco-t2         verdicts: contended 1
+   ipc2014-mco-t2         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 10 -> 9 (polite, idle 4960s, foreign 12%)
+!! width 9 -> 6 (polite, idle 4980s, foreign 303%)
+   ipc2014-mco-t8         verdicts: contended 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+== pass 7 -- 3 board(s) outstanding
+!! width 6 -> 7 (polite, idle 5000s, foreign 286%)
+!! width 7 -> 8 (polite, idle 5020s, foreign 102%)
+!! width 8 -> 5 (polite, idle 5040s, foreign 405%)
+   ipc5-prop              verdicts: starved 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 5 -> 8 (polite, idle 5060s, foreign 106%)
+   ipc2014-mco-t2         verdicts: contended 1
+   ipc2014-mco-t2         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 6 (polite, idle 5120s, foreign 333%)
+!! canary trucks-propositional/8@d812c2328305 at 1.36x its baseline -- the box is slow
+!! width 6 -> 8 (polite, idle 5140s, foreign 135%)
+   ipc2014-mco-t8         verdicts: contended 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   (--max-passes 6 reached)
+stopped after 7 pass(es); 3 still owed -- the next run picks them up
+3 instance(s) still owed -- rows are written, nothing is lost
