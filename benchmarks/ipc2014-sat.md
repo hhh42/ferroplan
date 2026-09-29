@@ -1,6 +1,6 @@
 # IPC-2008/2011 seq-sat-2014 full-corpus results
 
-timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
+timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL. STITCHED: 280 row(s) reused from a prior pass's clean windows ().
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|
@@ -13,10 +13,10 @@ timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
 | ipc-2014/hiking-sequential-satisficing | 20/20 | 1175 | 249.3s | 20/20 |
 | ipc-2014/maintenance-sequential-satisficing | 16/20 | 1596 | 6.2s | 16/16 |
 | ipc-2014/openstacks-sequential-satisficing | 8/20 | 1144 | 353.6s | 8/8 |
-| ipc-2014/parking-sequential-satisficing | 5/20 | 408 | 279.2s | 5/5 |
-| ipc-2014/tetris-sequential-satisficing | 17/20 | 2633 | 587.2s | 17/17 |
+| ipc-2014/parking-sequential-satisficing | 6/20 | 499 | 338.8s | 6/6 |
+| ipc-2014/tetris-sequential-satisficing | 19/20 | 2949 | 675.9s | 19/19 |
 | ipc-2014/thoughtful-sequential-satisficing | 20/20 | 2091 | 190.5s | 20/20 |
 | ipc-2014/transport-sequential-satisficing | 3/20 | 9449 | 177.9s | 3/3 |
 | ipc-2014/visit-all-sequential-satisficing | 20/20 | 57438 | 219.6s | 20/20 |
 
-total coverage: **170/280**
+total coverage: **173/280**

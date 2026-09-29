@@ -1,6 +1,6 @@
 # IPC-2008/2011 seq-agile-2014 full-corpus results
 
-timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
+timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL. STITCHED: 280 row(s) reused from a prior pass's clean windows ().
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|
@@ -13,10 +13,10 @@ timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
 | ipc-2014/hiking-sequential-agile | 14/20 | 651 | 322.6s | 14/14 |
 | ipc-2014/maintenance-sequential-agile | 16/20 | 1596 | 5.4s | 16/16 |
 | ipc-2014/openstacks-sequential-agile | 12/20 | 1456 | 489.9s | 12/12 |
-| ipc-2014/parking-sequential-agile | 5/20 | 408 | 278.8s | 5/5 |
+| ipc-2014/parking-sequential-agile | 6/20 | 499 | 338.6s | 6/6 |
 | ipc-2014/tetris-sequential-agile | 20/20 | 3127 | 642.0s | 20/20 |
 | ipc-2014/thoughtful-sequential-agile | 20/20 | 2091 | 155.9s | 20/20 |
 | ipc-2014/transport-sequential-agile | 3/20 | 9449 | 179.3s | 3/3 |
 | ipc-2014/visit-all-sequential-agile | 20/20 | 57438 | 188.9s | 20/20 |
 
-total coverage: **171/280**
+total coverage: **172/280**

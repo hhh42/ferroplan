@@ -1,6 +1,6 @@
 # IPC-2008/2011 seq-opt-2014 full-corpus results
 
-timeout 60s/instance, jobs 1, mode optimal. Plans externally validated with VAL.
+timeout 60s/instance, jobs 1, mode optimal. Plans externally validated with VAL. STITCHED: 256 row(s) reused from a prior pass's clean windows ().
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|

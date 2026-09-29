@@ -9,13 +9,13 @@ for scoring semantics and the failure-class definitions.
 
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
-| propositional | yes | 383/450 | len vs best-of-field: 53W/44T/181L, mean quality 0.90 (278 scored) | 67 timeout |
+| propositional | yes | 384/450 | len vs best-of-field: 54W/44T/181L, mean quality 0.90 (279 scored) | 66 timeout |
 | time | yes | 126/130 | makespan vs best-of-field: 31W/3T/92L, mean quality 0.65 (126 scored) | 4 timeout |
 | metric-time | yes | 105/200 | makespan vs best-of-field: 66W/1T/26L, mean quality 0.93 (93 scored) | 9 mem-cap, 86 timeout |
 | constraints | yes | 28/120 | coverage-only (timed modal ops rejected by name) | 33 early-exit, 8 mem-cap, 51 timeout, 12 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
 | simple-preferences (full corpus) | yes | 130/130 | coverage = hard-goal solves; preference metric in the raw | none |
-| qualitative-preferences (full corpus) | yes | 100/100 | coverage = hard-goal solves; preference metric in the raw | 5 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
-| complex-preferences (full corpus) | yes | 82/108 | coverage = hard-goal solves; PDDL3 preference metric scored post-hoc in the raw (0.25 Phase 2 entry) | 12 mem-cap, 14 timeout, 3 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
+| qualitative-preferences (full corpus) | yes | 100/100 | coverage = hard-goal solves; preference metric in the raw | 12 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
+| complex-preferences (full corpus) | yes | 80/108 | coverage = hard-goal solves; PDDL3 preference metric scored post-hoc in the raw (0.25 Phase 2 entry) | 14 mem-cap, 14 timeout, 3 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
 | simple-preferences | yes | see board | reference-scored — [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |
 | qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won outright) | — |
 | complex-preferences | no (modal operators rejected by name) | — | — | feature gap, on the deferred list |
@@ -27,7 +27,7 @@ for scoring semantics and the failure-class definitions.
 | seq-sat | yes | 298/300 | coverage + VAL (no official per-instance archive vendored) | 2 timeout |
 | tempo-sat | yes | 338/390 | coverage + VAL (no official per-instance archive vendored) | 6 mem-cap, 46 timeout |
 | net-benefit | yes | 270/270 | coverage + VAL (no official per-instance archive vendored) | none |
-| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 155/270 | coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 115 timeout |
+| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 156/270 | coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 114 timeout |
 | tempo-opt | out of scope by design (satisficing temporal path) | — | — | — |
 
 ## IPC-7 (2011)
@@ -37,31 +37,31 @@ for scoring semantics and the failure-class definitions.
 | seq-sat | yes | 240/280 | coverage + VAL | 40 timeout |
 | tempo-sat | yes | 171/240 | coverage + VAL | 8 mem-cap, 61 timeout |
 | seq-mco t2 | yes (first entry, 0.16) | 249/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 31 timeout |
-| seq-mco t4 | yes (first entry, 0.16) | 252/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 28 timeout |
-| seq-mco t8 | yes (first entry, 0.16) | 252/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 1 mem-cap, 27 timeout |
-| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 136/280 | coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 144 timeout |
+| seq-mco t4 | yes (first entry, 0.16) | 253/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 27 timeout |
+| seq-mco t8 | yes (first entry, 0.16) | 253/280 | wall-clock per competition rule (--threads N, one instance at a time; 4P+6E box — t8 oversubscribed by construction) | 1 mem-cap, 26 timeout |
+| seq-opt | yes (first entry, 0.19 — Mode::Optimal) | 140/280 | coverage = PROOF RATE (A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 140 timeout |
 
 ## The modern corpora (IPC 2014 / 2018 / 2023 — first entered 0.17)
 
 | track | entered | coverage | quality | failure classes |
 |---|---|---|---|---|
-| 2014 seq-sat | yes (first entry, 0.17) | 170/280 | coverage + VAL | 32 mem-cap, 78 timeout |
-| 2014 seq-agile | yes (first entry, 0.17) | 171/280 | coverage + VAL | 25 mem-cap, 84 timeout |
+| 2014 seq-sat | yes (first entry, 0.17) | 173/280 | coverage + VAL | 30 mem-cap, 77 timeout |
+| 2014 seq-agile | yes (first entry, 0.17) | 172/280 | coverage + VAL | 25 mem-cap, 83 timeout |
 | 2014 tempo-sat | yes (first entry, 0.17) | 122/200 | coverage + VAL | 6 mem-cap, 72 timeout |
 | 2014 seq-mco t2 | yes (FIRST ENTRY, 0.25 — the table grows) | 175/280 | wall-clock per competition rule (one instance at a time; 4P+6E box) | 11 mem-cap, 94 timeout |
 | 2014 seq-mco t4 | yes (first entry, 0.17) | 178/280 | wall-clock per competition rule (--threads 4, one instance at a time; 4P+6E box) | 4 mem-cap, 98 timeout |
 | 2014 seq-mco t8 | yes (FIRST ENTRY, 0.25 — the table grows) | 179/280 | wall-clock per competition rule (one instance at a time; 4P+6E box, t8 oversubscribed by construction) | 1 early-exit, 4 mem-cap, 96 timeout |
 | 2014 seq-opt | yes (first entry, 0.19) | 82/256 | coverage = PROOF RATE (Mode::Optimal, A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 1 early-exit, 173 timeout |
 | 2018 seq-sat | yes (first entry, 0.17) | 97/240 | vs best-known bounds: 0W/2T/29L, mean quality 0.79 (31 scored) | 35 mem-cap, 108 timeout, 10 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
-| 2018 seq-opt | yes (FIRST ENTRY, 0.25 — the table grows) | 91/240 | coverage = PROOF RATE (Mode::Optimal, A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 10 mem-cap, 139 timeout, 10 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
+| 2018 seq-opt | yes (FIRST ENTRY, 0.25 — the table grows) | 94/240 | coverage = PROOF RATE (Mode::Optimal, A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 10 mem-cap, 136 timeout, 10 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
 | 2023 classical | yes (first entry, 0.17) | 52/140 | vs best-known bounds: 1W/21T/30L, mean quality 0.84 (52 scored) | 18 mem-cap, 70 timeout |
-| 2023 seq-sat | yes (FIRST ENTRY, 0.25 — the table grows) | 52/140 | vs best-known bounds: 0W/20T/32L, mean quality 0.83 (52 scored) | 17 mem-cap, 71 timeout |
+| 2023 seq-sat | yes (FIRST ENTRY, 0.25 — the table grows) | 53/140 | vs best-known bounds: 0W/22T/31L, mean quality 0.83 (53 scored) | 17 mem-cap, 70 timeout |
 | 2023 seq-opt | yes (FIRST ENTRY, 0.25 — the table grows) | 33/140 | coverage = PROOF RATE (Mode::Optimal, A* + admissible LM-cut, h^max sprint first; every plan certified + VAL) | 4 mem-cap, 103 timeout |
 | 2023 agile ENTRY (300s) | yes (OFFICIAL-BUDGET entry, 0.19) | 66/140 | OFFICIAL 300 s budget — a competition-methodology ENTRY, not a baseline | 15 mem-cap, 59 timeout |
-| 2023 numeric | yes (first entry, 0.17) | 261/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 4 early-exit, 1 engine-reject/error, 33 mem-cap, 101 timeout, 37 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
+| 2023 numeric | yes (first entry, 0.17) | 262/400 | field CSVs vendored (ipc-2023n/results) — per-domain comparison in the audit record | 4 early-exit, 1 engine-reject/error, 33 mem-cap, 100 timeout, 37 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
 | 2023 numeric-opt | yes (FIRST ENTRY, 0.25 — the table grows) | 81/400 | coverage = PROOF RATE over the numeric corpus; the track's official field CSV (ipc-2023n/results/opt.csv) is the vs-field referee | 165 early-exit, 1 engine-reject/error, 153 timeout, 3 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
 | 2026 numeric (first board) | yes (FIRST ENTRY, 0.20 — new corpus) | 223/320 | coverage + VAL; the corpus ships -sat/-opt domain PAIRS, all swept satisficing-style on this first board | 97 timeout, 11 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
-| 2026 numeric-opt | yes (FIRST ENTRY, 0.21 — the -opt pairs, ⚖️) | 22/60 | coverage = PROOF RATE (Mode::Optimal over the three -opt pairs; LENGTH optima — the vendored corpus carries no active :metric; every certificate VAL-checked) | 20 early-exit, 18 timeout |
+| 2026 numeric-opt | yes (FIRST ENTRY, 0.21 — the -opt pairs, ⚖️) | 22/60 | coverage = PROOF RATE (Mode::Optimal over the three -opt pairs; LENGTH optima — the vendored corpus carries no active :metric; every certificate VAL-checked) | 19 early-exit, 1 mem-cap, 18 timeout |
 | 2026 numeric-opt FULL | yes (FIRST ENTRY, 0.25 — the table grows) | 81/260 | coverage = PROOF RATE over the official 13-domain/260 Overall Optimal constituency (the 3-pair board above is the like-for-like slice) | 115 early-exit, 4 mem-cap, 60 timeout |
 
 The 2023 classical corpus is swept on its agile instances at the standard 60 s satisficing budget (the competition's agile budget is 300 s — these rows are BASELINES, marked as such, not competition entries).

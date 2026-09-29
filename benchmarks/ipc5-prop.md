@@ -1,6 +1,6 @@
 # IPC-2008/2011 prop-2006 full-corpus results
 
-timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
+timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL. STITCHED: 450 row(s) reused from a prior pass's clean windows ().
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|
@@ -10,7 +10,7 @@ timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
 | ipc-2006/pathways-propositional-strips | 27/30 | 3606 | 153.1s | 27/27 |
 | ipc-2006/pipesworld-propositional | 43/50 | 2154 | 354.8s | 43/43 |
 | ipc-2006/pipesworld-propositional-strips | 43/50 | 2066 | 463.4s | 43/43 |
-| ipc-2006/rovers-propositional | 36/40 | 2879 | 71.4s | 36/36 |
+| ipc-2006/rovers-propositional | 37/40 | 3148 | 83.0s | 37/37 |
 | ipc-2006/rovers-propositional-strips | 36/40 | 2730 | 131.7s | 36/36 |
 | ipc-2006/storage-propositional | 26/30 | 1028 | 84.3s | 26/26 |
 | ipc-2006/tpp-propositional | 30/30 | 3654 | 196.6s | 30/30 |
@@ -18,4 +18,4 @@ timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
 | ipc-2006/trucks-propositional | 13/30 | 389 | 79.9s | 13/13 |
 | ipc-2006/trucks-propositional-strips | 15/30 | 460 | 149.5s | 15/15 |
 
-total coverage: **383/450**
+total coverage: **384/450**

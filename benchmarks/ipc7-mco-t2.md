@@ -1,6 +1,6 @@
 # IPC-2008/2011 seq-mco full-corpus results
 
-timeout 60s/instance, jobs 1, mode auto. Plans externally validated with VAL.
+timeout 60s/instance, jobs 1, mode auto. Plans externally validated with VAL. STITCHED: 280 row(s) reused from a prior pass's clean windows ().
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|

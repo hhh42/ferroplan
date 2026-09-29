@@ -1,6 +1,6 @@
 # IPC-2008/2011 numeric-2026 full-corpus results
 
-timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL.
+timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL. STITCHED: 320 row(s) reused from a prior pass's clean windows ().
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|
