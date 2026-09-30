@@ -142,6 +142,36 @@ CPU-spin measurement under the parallel test build -- 3 of 3 alone).
 
 ---
 
+### Phase 0.3 — RUN 2026-09-29 (`probes-0.29/bisect-losses/`)
+
+Each of the five real losses, solo at 60 s, one thread, three reps, on 0.28.0
+under every lane hatch and on v0.27.1 (`run.sh`; `read.py`):
+
+| cell | 0.28.0 | + any hatch | v0.27.1 | verdict |
+|---|---|---|---|---|
+| tetris-sat i15 | **3/3** (30–45 s) | 3/3 | 0/3 | **not a loss** -- the cut and the re-check both banked it unsolved |
+| sugar i5 | 0/3 | 0/3 | 0/3 | the box, or best-of-N: v0.27.1 fails it here too |
+| line-exchange-snp 3_5_90_100 | 0/3 | 0/3 | 0/3 | same |
+| sailing-wind-opt i10 (optimal) | 0/3 | 0/3 | 0/3 | same |
+| **coins-2026 i18** | 0/3 | 0/3 | **3/3 at 54 s** | **REAL, and no hatch restores it** |
+
+So the five are ONE. The pre-registered fork's third arm fires: coins i18 is
+Lane 2's first fixture, and it is a wall-edge cell -- v0.27.1 needs 54 of the
+60 s -- so the first question Lane 2 asks of it is whether 0.28.0 is slower
+on the same search (Lane N's direction-aware fixpoint is value-identical and
+was measured faster, not slower; the per-evaluation deadline reads and the
+report reserve were not) or searching differently. Not answered here.
+
+Two things about the instrument, though, that are. **tetris i15 solves on
+0.28.0 every time alone and was banked unsolved twice** -- by the cut's
+cascade and by the re-check's quiet-night pass -- which means the failure
+side's referee let a timeout bank under conditions that made a 31 s solve a
+60 s miss, and the SUSPECT rule (prior solved, solo attempt < 2) had been
+spent by then. And **three of the five "real" losses were the box's** even
+after a same-night differential: v0.27.1 solves none of them alone today.
+The published 0.27.0 rows for them were rescues, which is the +344 / +531
+story told cell by cell.
+
 ## Lane 1 (headline) — the preference optimizer's first improving step
 
 **Claim:** the IPC quality score on the three preference boards moves toward

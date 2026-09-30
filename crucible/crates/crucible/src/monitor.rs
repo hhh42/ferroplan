@@ -676,6 +676,33 @@ pub fn compare(
         );
     }
     println!();
+    // THE ESTIMATORS (0.29 Phase 0.2): every attempt of every cell both
+    // engines measured, so the comparison is read on the same instrument --
+    // the port of attempts-estimator.py, which two cuts ran by hand.
+    let mut pairs: Vec<(crate::estimator::Cell, crate::estimator::Cell)> = Vec::new();
+    for id in &set.boards {
+        let Ok(bs) = reader.boards_named(id) else {
+            continue;
+        };
+        let Some(&board_id) = bs.first() else {
+            continue;
+        };
+        let declared = census.get(id.as_str()).cloned().unwrap_or_default();
+        if declared.is_empty() {
+            continue;
+        }
+        let keep: HashSet<(String, String)> = declared.iter().cloned().collect();
+        let ra = reader.attempts_by_board(board_id, a_id).unwrap_or_default();
+        let rb = reader.attempts_by_board(board_id, b_id).unwrap_or_default();
+        pairs.extend(crate::estimator::pair_cells(&ra, &rb, Some(&keep)));
+    }
+    if !pairs.is_empty() {
+        print!(
+            "{}",
+            crate::estimator::Report::build(&pairs, 2_000).render()
+        );
+        println!();
+    }
     println!(
         "cells BOTH engines banked: {} gained by B, {} lost by B",
         gained_cells.len(),

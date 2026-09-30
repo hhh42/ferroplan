@@ -166,6 +166,84 @@ impl std::fmt::Display for Wtl {
     }
 }
 
+/// The preference boards' points (0.29 Phase 0.2): the IPC-5 quality score of
+/// our banked metrics against one archive planner's `; MetricValue`, over
+/// the cells that planner solved -- the currency IPC-5 ranked these tracks
+/// on, which coverage cannot see (0.28 closed the rows on these boards and
+/// moved the points by less than a tenth of the gap). Port of
+/// `standings.py`'s `pref_quality`, summed in row iteration order.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PrefScore {
+    pub ours: f64,
+    pub theirs: f64,
+    pub n: usize,
+    pub w: usize,
+    pub t: usize,
+    pub l: usize,
+    pub unpriced: usize,
+}
+
+/// One cell's IPC score: best / own metric (1.0 = the better of the two, 0 =
+/// no plan or no metric); the other planner with no metric makes ours 1.0.
+/// Metrics are minimised on every preference board here.
+fn ipc_score(own: Option<f64>, other: Option<f64>) -> f64 {
+    let Some(own) = own else { return 0.0 };
+    let Some(other) = other else { return 1.0 };
+    let best = own.min(other);
+    if best <= 0.0 {
+        return if own <= other + 1e-9 { 1.0 } else { 0.0 };
+    }
+    best / own
+}
+
+pub const PREF_REFERENCE: &str = "sgplan";
+
+pub fn pref_score(rows: &[RawRow], referee: &Referee, arch: &Ipc5Archive) -> Option<PrefScore> {
+    let mut p = PrefScore {
+        ours: 0.0,
+        theirs: 0.0,
+        n: 0,
+        w: 0,
+        t: 0,
+        l: 0,
+        unpriced: 0,
+    };
+    for r in rows {
+        let Some(inst) = r.instance.as_num() else {
+            continue;
+        };
+        let Some(key) = arch_key(&r.variant, inst) else {
+            continue;
+        };
+        let Some(sg) = arch.metric_of(&key, PREF_REFERENCE) else {
+            continue;
+        };
+        p.n += 1;
+        let solved = referee.is_solved(r);
+        let m = if solved { r.metric } else { None };
+        p.ours += ipc_score(m, Some(sg));
+        p.theirs += ipc_score(Some(sg), m);
+        match m {
+            None if solved => p.unpriced += 1,
+            None => {}
+            Some(m) if m < sg - 1e-9 => p.w += 1,
+            Some(m) if m > sg + 1e-9 => p.l += 1,
+            Some(_) => p.t += 1,
+        }
+    }
+    (p.n > 0).then_some(p)
+}
+
+impl std::fmt::Display for PrefScore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "IPC score vs SGPlan5: {:.1} / {:.1} over {} cells ({}W/{}T/{}L; {} solved unpriced)",
+            self.ours, self.theirs, self.n, self.w, self.t, self.l, self.unpriced
+        )
+    }
+}
+
 /// What goes in a board's quality cell.
 ///
 /// The two arms are not interchangeable: `Scored` is a measurement, `Fixed` is
@@ -176,6 +254,8 @@ impl std::fmt::Display for Wtl {
 pub enum QualityNote {
     Fixed(String),
     Scored(Wtl),
+    /// The preference boards' points against the archive (0.29 Phase 0.2).
+    Points(PrefScore),
 }
 
 impl QualityNote {
@@ -188,10 +268,18 @@ impl QualityNote {
         }
     }
 
+    pub fn points(scored: Option<PrefScore>, fallback: impl Into<String>) -> Self {
+        match scored {
+            Some(p) => QualityNote::Points(p),
+            None => QualityNote::Fixed(fallback.into()),
+        }
+    }
+
     pub fn render(&self) -> String {
         match self {
             QualityNote::Fixed(s) => s.clone(),
             QualityNote::Scored(wtl) => wtl.render(),
+            QualityNote::Points(p) => p.to_string(),
         }
     }
 }
@@ -201,6 +289,7 @@ impl std::fmt::Display for QualityNote {
         match self {
             QualityNote::Fixed(s) => f.write_str(s),
             QualityNote::Scored(wtl) => wtl.fmt(f),
+            QualityNote::Points(p) => p.fmt(f),
         }
     }
 }

@@ -298,6 +298,8 @@ pub struct Measured {
     pub demoted: Option<bool>,
     pub suspended_ms: Option<u64>,
     pub peak_rss: Option<u64>,
+    /// `ru_maxrss` from `wait4`, bytes: the TRUE peak (0.29 Phase 0.4).
+    pub max_rss: Option<u64>,
     /// Which instrument enforced the memory budget, because the two measure
     /// different quantities: `RLIMIT_AS` caps address space, the watchdog caps
     /// resident bytes.
@@ -392,6 +394,21 @@ pub struct AttemptRec {
     pub verdict: Option<String>,
     pub started_at: Option<f64>,
     pub finished_at: Option<f64>,
+}
+
+/// One attempt of one instance under one engine on one board, as the
+/// estimators read it (0.29 Phase 0.2): the fields that decide what a cell
+/// counts for under each way of treating N.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CellAttempt {
+    pub instance_id: i64,
+    pub variant: String,
+    pub label: String,
+    pub attempt: u32,
+    pub solved: bool,
+    pub banked: bool,
+    /// `run.timing_quality`: "clean" / "dirty" / "unknown".
+    pub timing: String,
 }
 
 /// One watcher sample as the dashboard reads it back.

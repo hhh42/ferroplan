@@ -98,6 +98,12 @@ pub fn arch_track(variant: &str) -> (String, Option<String>) {
         "time-strips" => Some("Time/Strips-Time"),
         "metric-time" => Some("MetricTime"),
         "metric-time-strips" => Some("MetricTime/Strips-MetricTime"),
+        // The preference tracks (0.29 Phase 0.2): scored on the archive's
+        // `; MetricValue`, not on length or makespan.
+        "preferences-simple" => Some("SimplePreferences"),
+        "metric-preferences-simple" => Some("MetricSimplePreferences"),
+        "preferences-qualitative" => Some("QualitativePreferences"),
+        "preferences-complex" => Some("ComplexPreferences"),
         _ => None,
     };
     (dom.to_string(), track.map(str::to_string))
@@ -159,6 +165,9 @@ pub enum ArchiveError {
 pub struct Ipc5Archive {
     lengths: BTreeMap<ArchKey, BTreeMap<String, u64>>,
     makespans: BTreeMap<ArchKey, BTreeMap<String, f64>>,
+    /// `; MetricValue` per planner, preference tracks only (0.29 Phase 0.2).
+    /// A `.soln` without the header contributes nothing: absent is absent.
+    metrics: BTreeMap<ArchKey, BTreeMap<String, f64>>,
     warnings: ArchiveWarnings,
 }
 
@@ -281,6 +290,17 @@ impl Ipc5Archive {
             // Time/Strips-Time, MetricTime, MetricTime/Strips-MetricTime and
             // also TimeConstraints and MetricTimeConstraints, which is exactly
             // the inertness described in the module header.
+            // The metric half (0.29 Phase 0.2): the Python's test is the same
+            // substring test, `"Preferences" in track`.
+            if track.contains("Preferences") {
+                if let Some(mv) = metric_value_of(&body) {
+                    out.metrics
+                        .entry((dom.to_string(), track.clone(), inst))
+                        .or_default()
+                        .insert(planner.to_string(), mv);
+                }
+            }
+
             if track.contains("Time") {
                 let (ms, unparsed) = makespan_of(&body);
                 for tok in unparsed {
@@ -365,6 +385,15 @@ impl Ipc5Archive {
     /// The whole length index, for callers that iterate rather than join.
     pub fn lengths_map(&self) -> &BTreeMap<ArchKey, BTreeMap<String, u64>> {
         &self.lengths
+    }
+
+    /// One planner's `; MetricValue` on one cell (0.29 Phase 0.2).
+    pub fn metric_of(&self, k: &ArchKey, planner: &str) -> Option<f64> {
+        self.metrics.get(k).and_then(|m| m.get(planner)).copied()
+    }
+
+    pub fn has_metrics(&self) -> bool {
+        !self.metrics.is_empty()
     }
 
     pub fn makespans_map(&self) -> &BTreeMap<ArchKey, BTreeMap<String, f64>> {
@@ -513,6 +542,22 @@ fn match_step(b: &[u8], p: usize) -> Option<(usize, (usize, usize), Option<(usiz
         }
     }
     Some((end, (i, j), dur))
+}
+
+/// The `; MetricValue N` header of a `.soln` (0.29 Phase 0.2). Python:
+/// `re.search(r"^; *MetricValue +(-?[\d.]+)", body, re.M)`, then `float()`;
+/// a header whose number will not parse contributes nothing, as there.
+pub fn metric_value_of(body: &str) -> Option<f64> {
+    body.lines().find_map(|l| {
+        let rest = l.strip_prefix(';')?.trim_start();
+        let rest = rest.strip_prefix("MetricValue")?;
+        let rest = rest.strip_prefix(' ')?.trim_start();
+        let tok: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.' || *c == '-')
+            .collect();
+        tok.parse::<f64>().ok()
+    })
 }
 
 /// The plan length of one `.soln`: `len(re.findall(...))` over the action lines.

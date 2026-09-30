@@ -684,6 +684,7 @@ fn run_one(
                     demoted: Some(m.demoted),
                     suspended_ms: Some(m.suspended.as_millis() as u64),
                     peak_rss: Some(m.peak_rss),
+                    max_rss: m.max_rss,
                     mem_instrument: Some(m.mem_instrument.to_string()),
                     exit_code: m.exit_code,
                     term_signal: m.term_signal,
@@ -1636,6 +1637,28 @@ pub struct Shared {
     width: std::sync::atomic::AtomicUsize,
 }
 
+/// Has the sweep gone quiet for no reason it can name? (0.29 Phase 0.4.)
+///
+/// Between two children a sweep is idle for seconds; SUSPENDED it is idle on
+/// purpose; held it is idle for a canary's two seconds. Idle for `threshold`
+/// with none of those true is the 09-21 shape -- a worker parked by the width
+/// policy holding the batch's channel open, three hours at 0 % CPU with
+/// nothing in the log but width changes -- and the log should say so, once
+/// per threshold, instead of leaving it to whoever next looks at a process
+/// list.
+/// How long a sweep may sit with no child and no reason before the log says so.
+const STALL_AFTER: Duration = Duration::from_secs(10 * 60);
+
+pub(crate) fn stalled(
+    idle: Duration,
+    level: Level,
+    held: bool,
+    attached: usize,
+    threshold: Duration,
+) -> bool {
+    attached == 0 && !held && level != Level::Suspended && idle >= threshold
+}
+
 /// What a batch worker does at the top of its loop.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Gate {
@@ -2030,6 +2053,8 @@ impl Watcher {
                 let mut throttle = Throttle::new(throttle_cfg);
                 let mut next = Instant::now();
                 let mut window: Option<i64> = None;
+                let mut last_busy = Instant::now();
+                let mut stall_said: u32 = 0;
                 let mut next_canary = canary.as_ref().map(|c| Instant::now() + c.interval);
                 while !flag.load(Ordering::Relaxed) {
                     if let (Some(c), Some(t)) = (&mut canary, next_canary) {
@@ -2112,6 +2137,36 @@ impl Watcher {
                         let mut rec = db::SampleRec::of(&s);
                         rec.canary_factor = shared.canary();
                         writer.sample(rec);
+                        // The no-progress warning (0.29 Phase 0.4).
+                        if shared.attached() > 0 || shared.level() == Level::Suspended {
+                            last_busy = Instant::now();
+                            stall_said = 0;
+                        } else if stalled(
+                            last_busy.elapsed(),
+                            shared.level(),
+                            shared.held(),
+                            shared.attached(),
+                            STALL_AFTER * (stall_said + 1),
+                        ) {
+                            stall_said += 1;
+                            let mins = last_busy.elapsed().as_secs() / 60;
+                            crate::say!(
+                                "!! no planner running for {mins} min while the throttle is {} -- \
+                                 the runner may be stuck (a sweep between children is idle for seconds)",
+                                level_str(shared.level())
+                            );
+                            writer.event(db::EventRec {
+                                at: now_epoch(),
+                                level: "warn",
+                                kind: "stall",
+                                run_id: None,
+                                board_id: None,
+                                message: format!(
+                                    "no planner running for {mins} min, throttle {}",
+                                    level_str(shared.level())
+                                ),
+                            });
+                        }
                         // Overnight the game check is skipped: nobody is
                         // playing at 04:00, so it is a source of false
                         // positives rather than of signal.
@@ -2684,6 +2739,28 @@ fn minutes_past_midnight() -> u32 {
 #[cfg(test)]
 mod r2_tests {
     use super::*;
+
+    /// The no-progress warning (0.29 Phase 0.4): idle with no child, not
+    /// suspended, not held, past the threshold -- and only then.
+    #[test]
+    fn a_sweep_idle_for_no_reason_is_a_stall() {
+        let t = Duration::from_secs(600);
+        assert!(stalled(t, Level::Full, false, 0, t));
+        assert!(stalled(t * 3, Level::Polite, false, 0, t));
+        assert!(!stalled(t / 2, Level::Full, false, 0, t), "not yet");
+        assert!(
+            !stalled(t * 3, Level::Suspended, false, 0, t),
+            "suspended is idle on purpose"
+        );
+        assert!(
+            !stalled(t * 3, Level::Full, true, 0, t),
+            "held for the canary"
+        );
+        assert!(
+            !stalled(t * 3, Level::Full, false, 1, t),
+            "a child is running"
+        );
+    }
 
     /// THE cut28 DEADLOCK, as a rule: an empty queue ends a worker even while
     /// the width policy has it parked. The old order (width first) answers

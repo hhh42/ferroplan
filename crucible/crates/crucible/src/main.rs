@@ -12,6 +12,7 @@
 
 mod backfill;
 mod config;
+mod estimator;
 mod monitor;
 mod out;
 mod repo;

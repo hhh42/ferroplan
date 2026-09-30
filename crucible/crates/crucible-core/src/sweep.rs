@@ -101,6 +101,10 @@ pub struct Measured {
     /// be exported as a measurement.
     pub cancelled: bool,
     pub peak_rss: u64,
+    /// `ru_maxrss` from the child's `wait4`, in bytes -- the true peak beside
+    /// the watchdog's sampled `peak_rss` (0.29 Phase 0.4). `None` when the run
+    /// never reached `wait4` (engine gone, spawn failure).
+    pub max_rss: Option<u64>,
     pub suspended: Duration,
     /// The machine slept mid-run. Every number here is suspect.
     pub clock_jump: Duration,
@@ -370,6 +374,7 @@ fn done(
         demoted: out.is_some_and(|o| o.demoted),
         cancelled: out.is_some_and(|o| o.killed == Some(exec::Killed::Cancelled)),
         peak_rss: out.map_or(0, |o| o.peak_rss),
+        max_rss: out.and_then(|o| o.max_rss_bytes),
         suspended: out.map_or(Duration::ZERO, |o| o.suspended),
         clock_jump: out.map_or(Duration::ZERO, |o| o.clock_jump),
         mem_instrument: mem_cap.instrument(),

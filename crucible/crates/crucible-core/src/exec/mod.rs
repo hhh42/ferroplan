@@ -133,6 +133,12 @@ pub struct RunOutcome {
     /// read as nanoseconds, 41.67x low. Every `cpu_ms` written before this
     /// field existed carries that error; `cpu_instrument` says which.
     pub cpu_ms: u64,
+    /// The child's peak resident set from the same `wait4(2)` rusage
+    /// (`ru_maxrss`; bytes on Darwin, KiB on Linux -- normalised to bytes
+    /// here). The TRUE peak, where the watchdog's `peak_rss` is a sample:
+    /// two cut28 rows banked as solved at 4.5 and 5.9 GB under a 6 GB cap
+    /// had peaked at 6.6 and 6.4 (0.29 Phase 0.4).
+    pub max_rss_bytes: Option<u64>,
     /// `"wait4"`. Rows written by the R1 runner have no instrument stamp and
     /// are treated as CPU-unknown by the referee.
     pub cpu_instrument: &'static str,
@@ -386,6 +392,12 @@ pub fn run<P: Platform>(
     let wall = start.elapsed();
     let effective = wall.saturating_sub(suspended);
     let cpu_ms = timeval_us(&rusage.ru_utime).saturating_add(timeval_us(&rusage.ru_stime)) / 1000;
+    let max_rss_bytes = {
+        let raw = rusage.ru_maxrss as i128;
+        // Darwin reports bytes; Linux (and the BSDs) kilobytes.
+        let scale: i128 = if cfg!(target_os = "macos") { 1 } else { 1024 };
+        (raw > 0).then(|| (raw * scale) as u64)
+    };
 
     let stdout = String::from_utf8_lossy(&out_h.join().unwrap_or_default()).into_owned();
     let stderr = String::from_utf8_lossy(&err_h.join().unwrap_or_default()).into_owned();
@@ -393,6 +405,7 @@ pub fn run<P: Platform>(
     Ok(RunOutcome {
         stdout,
         stderr,
+        max_rss_bytes,
         exit_code: status.code(),
         term_signal: signal_of(&status),
         killed,

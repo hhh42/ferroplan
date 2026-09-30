@@ -196,6 +196,12 @@ def arch_track(variant):
         "time-strips": "Time/Strips-Time",
         "metric-time": "MetricTime",
         "metric-time-strips": "MetricTime/Strips-MetricTime",
+        # The preference tracks (0.29 Phase 0.2): scored on the archive's
+        # `; MetricValue`, not on length or makespan.
+        "preferences-simple": "SimplePreferences",
+        "metric-preferences-simple": "MetricSimplePreferences",
+        "preferences-qualitative": "QualitativePreferences",
+        "preferences-complex": "ComplexPreferences",
     }.get(rest)
     return (dom, track) if track else (dom, None)
 
@@ -361,6 +367,86 @@ def archive_makespans():
             if ms > 0:
                 out[(dom, track, inst)][planner] = ms
     return out
+
+
+def archive_metrics():
+    """(domain, track, instance) -> {planner: MetricValue} from the tgz,
+    preference tracks only (0.29 Phase 0.2). A `.soln` without a
+    `; MetricValue` header contributes nothing: an absent number is absent."""
+    if not os.path.exists(ARCHIVE):
+        return {}
+    out = defaultdict(dict)
+    with tarfile.open(ARCHIVE) as t:
+        for m in t.getmembers():
+            if not m.name.endswith(".soln"):
+                continue
+            parts = m.name.split("/")  # RESULTS/planner/dom/track.../pNN.soln
+            if len(parts) < 5:
+                continue
+            planner, dom = parts[1], parts[2]
+            track = "/".join(parts[3:-1])
+            if "Preferences" not in track:
+                continue
+            inst = int(re.search(r"p(\d+)\.soln", parts[-1]).group(1))
+            body = t.extractfile(m).read().decode(errors="replace")
+            mv = re.search(r"^; *MetricValue +(-?[\d.]+)", body, re.M)
+            if mv:
+                try:
+                    out[(dom, track, inst)][planner] = float(mv.group(1))
+                except ValueError:
+                    pass
+    return out
+
+
+def _ipc_score(own, other):
+    """IPC-5's quality score for one cell: best / own metric (1.0 = the better
+    of the two, 0 = no plan or no metric). Metrics are minimised on every
+    preference board here. The other planner with no metric makes ours 1.0."""
+    if own is None:
+        return 0.0
+    if other is None:
+        return 1.0
+    best = min(own, other)
+    if best <= 0:
+        return 1.0 if own <= other + 1e-9 else 0.0
+    return best / own
+
+
+def pref_quality(rows, arch_m, planner="sgplan"):
+    """The preference boards' quality cell (0.29 Phase 0.2): the IPC score of
+    our banked metrics against `planner`'s `; MetricValue` over the cells that
+    planner solved -- the currency IPC-5 ranked these tracks on, which
+    coverage cannot see (0.28 closed the rows on these boards and moved the
+    points by less than a tenth of the gap). Returns None when nothing was
+    scored, so the fixed note renders instead."""
+    ours = theirs = 0.0
+    n = w = t_ = l = unpriced = 0
+    for r in rows:
+        dom, track = arch_track(r["variant"])
+        if not track:
+            continue
+        field = arch_m.get((dom, track, r["instance"]), {})
+        sg = field.get(planner)
+        if sg is None:
+            continue
+        n += 1
+        m = r.get("metric") if solved(r) else None
+        ours += _ipc_score(m, sg)
+        theirs += _ipc_score(sg, m)
+        if solved(r) and m is None:
+            unpriced += 1
+        elif m is None:
+            pass
+        elif m < sg - 1e-9:
+            w += 1
+        elif m > sg + 1e-9:
+            l += 1
+        else:
+            t_ += 1
+    if not n:
+        return None
+    return (f"IPC score vs SGPlan5: {ours:.1f} / {theirs:.1f} over {n} cells "
+            f"({w}W/{t_}T/{l}L; {unpriced} solved unpriced)")
 
 
 # Makespan W/T/L tie band: one ε slot at the COARSEST granularity on either
@@ -765,6 +851,7 @@ def _delta(label, s, n, prev):
 def main():
     arch = archive_lengths()
     arch_ms = archive_makespans()
+    arch_m = archive_metrics()
     lines = [
         "# IPC standings — the one honest table per competition",
         "",
@@ -853,6 +940,10 @@ def main():
         # quality number it never measured.
         if label in ("time", "metric-time") and arch_ms:
             q = makespan_quality(rows, arch_ms) or q
+        # The preference boards' points (0.29 Phase 0.2): SGPlan5's
+        # MetricValue is the reference; nothing is scored where it has none.
+        if label.endswith("preferences (full corpus)") and arch_m:
+            q = pref_quality(rows, arch_m) or q
         lines.append(f"| {label} | yes | {s}/{n} | {q} | {fails} |")
     lines += [
         "| simple-preferences | yes | see board | reference-scored — "

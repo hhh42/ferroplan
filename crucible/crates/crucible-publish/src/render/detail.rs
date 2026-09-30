@@ -33,7 +33,7 @@
 //! `SWEEPS` and not to the render list, and it was invisible for a cycle.
 
 use crate::fmt::glyph;
-use crate::quality::{bounds_wtl, length_wtl, makespan_wtl, QualityNote};
+use crate::quality::{bounds_wtl, length_wtl, makespan_wtl, pref_score, QualityNote};
 use crate::render::RenderCtx;
 
 // ===========================================================================
@@ -76,6 +76,9 @@ enum Ipc5Scoring {
     Makespan,
     /// Nothing to score against: the cell is its fixed note.
     Coverage,
+    /// The preference boards (0.29 Phase 0.2): our banked METRIC against
+    /// SGPlan5's `; MetricValue`, as the IPC-5 quality score.
+    Points,
 }
 
 /// The IPC-5 board rows, in render order, with their scoring currency and the
@@ -103,17 +106,17 @@ const IPC5_ROWS: &[(&str, Ipc5Scoring, &str)] = &[
     ),
     (
         "simple-preferences (full corpus)",
-        Ipc5Scoring::Coverage,
+        Ipc5Scoring::Points,
         "coverage = hard-goal solves; preference metric in the raw",
     ),
     (
         "qualitative-preferences (full corpus)",
-        Ipc5Scoring::Coverage,
+        Ipc5Scoring::Points,
         "coverage = hard-goal solves; preference metric in the raw",
     ),
     (
         "complex-preferences (full corpus)",
-        Ipc5Scoring::Coverage,
+        Ipc5Scoring::Points,
         "coverage = hard-goal solves; PDDL3 preference metric scored post-hoc \
          in the raw (0.25 Phase 2 entry)",
     ),
@@ -415,6 +418,9 @@ fn section_ipc5(ctx: &RenderCtx, l: &mut Vec<String>) {
                 QualityNote::new(makespan_wtl(rows, &ctx.referee, &ctx.archive), *fallback)
             }
             Ipc5Scoring::Coverage => QualityNote::Fixed((*fallback).to_string()),
+            Ipc5Scoring::Points => {
+                QualityNote::points(pref_score(rows, &ctx.referee, &ctx.archive), *fallback)
+            }
         };
         l.push(format!(
             "| {label} | yes | {}/{} | {} | {} |",

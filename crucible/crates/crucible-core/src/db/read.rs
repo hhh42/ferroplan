@@ -374,6 +374,37 @@ impl Reader {
         Ok(rows.collect::<Result<Vec<_>, _>>()?)
     }
 
+    /// Every done attempt of every instance on one board under one engine,
+    /// oldest attempt first within each instance (0.29 Phase 0.2). What the
+    /// estimators in `crucible compare` are computed from -- all of N, not the
+    /// banked attempt alone.
+    pub fn attempts_by_board(
+        &self,
+        board_id: i64,
+        engine_id: i64,
+    ) -> Result<Vec<CellAttempt>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT r.instance_id, v.name, i.label, r.attempt, r.solved, r.banked, r.timing_quality
+               FROM run r
+               JOIN instance i ON i.id = r.instance_id
+               JOIN variant  v ON v.id = i.variant_id
+              WHERE r.board_id = ?1 AND r.engine_id = ?2 AND r.state = 'done'
+              ORDER BY r.instance_id, r.attempt, r.id",
+        )?;
+        let rows = st.query_map(params![board_id, engine_id], |r| {
+            Ok(CellAttempt {
+                instance_id: r.get(0)?,
+                variant: r.get(1)?,
+                label: r.get(2)?,
+                attempt: r.get::<_, i64>(3)? as u32,
+                solved: r.get::<_, i64>(4)? != 0,
+                banked: r.get::<_, i64>(5)? != 0,
+                timing: r.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    }
+
     /// The live watcher's samples across a span, oldest first.
     pub fn samples_between(&self, start_ts: f64, end_ts: f64) -> Result<Vec<SamplePoint>, DbError> {
         let mut st = self.conn.prepare(

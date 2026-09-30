@@ -19,7 +19,7 @@
 use rusqlite::Connection;
 
 /// The schema version this binary writes.
-pub const USER_VERSION: i32 = 8;
+pub const USER_VERSION: i32 = 9;
 
 /// Refusing to open, with the numbers a human needs to know which binary to run.
 #[derive(Debug, thiserror::Error)]
@@ -510,6 +510,17 @@ ALTER TABLE run ADD COLUMN demoted INTEGER;
 PRAGMA user_version = 8;
 COMMIT;
 "#;
+/// v9 (0.29 Phase 0.4): the child's `ru_maxrss` from `wait4`, in bytes -- the
+/// TRUE peak resident set, beside the watchdog's SAMPLED `peak_rss`. Two
+/// cut28 rows banked as solved at 4.5 and 5.9 GB under a 6 GB cap had peaked
+/// at 6.6 and 6.4; the sample fell between two readings. NULL on every row
+/// before this column and on runs that never reached `wait4`.
+const V9: &str = r#"
+BEGIN;
+ALTER TABLE run ADD COLUMN max_rss INTEGER;
+PRAGMA user_version = 9;
+COMMIT;
+"#;
 
 /// Bring `conn` up to [`USER_VERSION`], or refuse to touch it.
 pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
@@ -553,6 +564,10 @@ pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     if found < 8 {
         conn.execute_batch(V8)
             .map_err(|source| MigrateError::Sql { version: 8, source })?;
+    }
+    if found < 9 {
+        conn.execute_batch(V9)
+            .map_err(|source| MigrateError::Sql { version: 9, source })?;
     }
     Ok(())
 }

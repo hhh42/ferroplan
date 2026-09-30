@@ -73,9 +73,9 @@ pub mod writer;
 
 pub use lock::{DirLock, LockError};
 pub use model::{
-    AttemptRec, BoardFacts, BoardKey, BoardPassRec, Cleanliness, EngineFacts, EngineKey, EventRec,
-    InstanceKey, LiveChild, Measured, PassVerdict, RunRecord, RunState, SamplePoint, SampleRec,
-    ThrottleWindowRec, TimingQuality, ValReason, VariantKey,
+    AttemptRec, BoardFacts, BoardKey, BoardPassRec, CellAttempt, Cleanliness, EngineFacts,
+    EngineKey, EventRec, InstanceKey, LiveChild, Measured, PassVerdict, RunRecord, RunState,
+    SamplePoint, SampleRec, ThrottleWindowRec, TimingQuality, ValReason, VariantKey,
 };
 pub use read::Reader;
 pub use rebuild::{
