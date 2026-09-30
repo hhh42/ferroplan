@@ -142,6 +142,32 @@ CPU-spin measurement under the parallel test build -- 3 of 3 alone).
 
 ---
 
+### Phase 0.2 — BUILT 2026-09-29 (`3fe71b6`, the boards in the commit after)
+
+`crucible compare` prints the estimators over every attempt of every cell
+both engines measured -- banked / any / first / equal-N / per-run / clean-only
+with cell-bootstrap intervals, the re-run trigger table, the decomposition of
+`any`, and a same-sign verdict line. On cut28 it reproduces
+`attempts-estimator.py` to the row on every point estimate (first +531,
+equal-N +537, per-run +452.6, banked +344; the intervals within a few rows,
+a different seeded generator); the Python is retired.
+
+The three preference boards' quality cell is the IPC-5 quality score against
+SGPlan5's `; MetricValue` -- `IPC score vs SGPlan5: 94.1 / 120.4 over 130
+cells (29W/19T/82L; 0 solved unpriced)`, `59.2 / 92.1 over 100 (25W/3T/67L; 5
+unpriced)`, `53.4 / 99.0 over 105 (13W/4T/59L; 2 unpriced)` -- ported in
+lockstep in `standings.py` and `crucible-publish`, and `crucible standings
+--check` renders the regenerated `ipc-standings.md` byte for byte. Lane 1's
+measure now lives where the boards are published, not in a receipt script.
+
+### Phase 0.4 — BUILT 2026-09-29 (`f1bd757`, `3fe71b6`)
+
+The no-progress warning (no child, not SUSPENDED, not held, ten minutes:
+`!! no planner running for N min ... the runner may be stuck`, and an
+event); `ru_maxrss` from `wait4` on every row (`run.max_rss`, schema v9,
+bytes) beside the sampled `peak_rss`; `publish.sh` refuses a crates.io token
+file older than 80 days before spending the pre-flight.
+
 ### Phase 0.3 — RUN 2026-09-29 (`probes-0.29/bisect-losses/`)
 
 Each of the five real losses, solo at 60 s, one thread, three reps, on 0.28.0
