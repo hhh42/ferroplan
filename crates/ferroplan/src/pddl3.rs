@@ -357,6 +357,45 @@ pub struct Polished {
 /// from a fresh start is not one a local step was going to find.
 pub const POLISH_EVALS: usize = 20_000;
 
+/// [`polish`] only when the wall left can hold an attempt. An attempt grounds
+/// the ORIGINAL task, and `ground_secs` -- what the caller's compiled task
+/// cost to ground, parse included -- is the proxy for that. Under twice it
+/// the polish is not started: on pathways-simple/16 the baseline pricing
+/// alone took 8.5 s of a 15 s window and the attempts had nothing left.
+pub fn polish_if_affordable(
+    domain: &Domain,
+    problem: &Problem,
+    incumbent: &[(String, Vec<String>)],
+    threads: usize,
+    cfg: SearchCfg,
+    ground_secs: f64,
+) -> Option<Polished> {
+    if let Some(rem) = crate::search::wall_remaining_secs() {
+        if rem < 2.0 * ground_secs {
+            if std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!(
+                    "[polish] not started: {rem:.2} s left, the task grounded in {ground_secs:.2} s"
+                );
+            }
+            return None;
+        }
+    }
+    polish(domain, problem, incumbent, threads, cfg)
+}
+
+/// A goal conjunct the grounder's DNF takes at width one: a literal, a
+/// numeric comparison, an equality, a universal over those, or an `and` of
+/// them. Anything disjunctive multiplies the goal DNF (see [`polish`]).
+fn dnf_flat(f: &Formula) -> bool {
+    match f {
+        Formula::Atom(..) | Formula::Comp(..) | Formula::Eq(..) | Formula::True => true,
+        Formula::Not(a) => matches!(**a, Formula::Atom(..) | Formula::Eq(..) | Formula::Comp(..)),
+        Formula::And(v) => v.iter().all(dnf_flat),
+        Formula::Forall(_, a) => dnf_flat(a),
+        _ => false,
+    }
+}
+
 /// THE PREFERENCE OPTIMIZER'S FIRST IMPROVING STEP (0.29 Lane 1). From an
 /// incumbent that solves the hard goals, take the preferences it violates,
 /// heaviest first, and for each one plan the hard goals AND everything the
@@ -405,7 +444,16 @@ pub fn polish(
     let mut goal_prefs: Vec<(String, Formula)> = Vec::new();
     let mut ctr = 0;
     split_goal(&problem.goal, &mut hard, &mut goal_prefs, &mut ctr, &objs);
-    let exp = crate::constraints::expand(domain, problem).ok()?;
+    let dbg = std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok();
+    let exp = match crate::constraints::expand(domain, problem) {
+        Ok(e) => e,
+        Err(e) => {
+            if dbg {
+                eprintln!("[polish] no expansion: {e}");
+            }
+            return None;
+        }
+    };
     let weights = pref_weights(domain, problem);
     // The appendable body of each soft constraint instance: a conjunction
     // of `sometime` / `at end` bodies is a state formula a longer plan can
@@ -424,8 +472,26 @@ pub fn polish(
         }
         Some(Formula::And(parts))
     };
-    let baseline = crate::verify::verify_pair(domain, problem, incumbent).ok()?;
+    // The baseline pricing grounds the original task; how long that took is
+    // the floor of an attempt's slice below (an attempt grounds it again).
+    let t_ground = crate::clock::Clock::now();
+    let baseline = match crate::verify::verify_pair(domain, problem, incumbent) {
+        Ok(b) => b,
+        Err(e) => {
+            if dbg {
+                eprintln!("[polish] the incumbent does not price: {e}");
+            }
+            return None;
+        }
+    };
+    let ground_secs = t_ground.elapsed_secs();
     if !baseline.hard_goal_met || !baseline.constraints_met {
+        if dbg {
+            eprintln!(
+                "[polish] the incumbent is not a floor (hard goal met {}, constraints met {})",
+                baseline.hard_goal_met, baseline.constraints_met
+            );
+        }
         return None;
     }
     // Every preference instance, with its body, weight and whether the
@@ -459,6 +525,9 @@ pub fn polish(
         .filter(|&i| !insts[i].held && insts[i].body.is_some() && insts[i].weight > 0.0)
         .collect();
     if order.is_empty() {
+        if dbg {
+            eprintln!("[polish] nothing appendable is violated");
+        }
         return None;
     }
     order.sort_by(|&a, &b| {
@@ -482,31 +551,63 @@ pub fn polish(
         ..cfg
     };
     let total = order.len();
+    if dbg {
+        eprintln!(
+            "[polish] {total} violated candidate(s), heaviest {} ({:.3})",
+            insts[order[0]].name, insts[order[0]].weight
+        );
+    }
+    let mut attempted = 0usize;
     for (k, &i) in order.iter().enumerate() {
         if crate::search::wall_hard_expired() {
+            if dbg {
+                eprintln!("[polish] the wall is hard-expired before candidate {k}");
+            }
             break;
         }
         // One attempt's share of what is left: the remaining wall split over
-        // the remaining candidates, never under half a second. Unwalled, the
-        // evaluation cap is the whole budget.
-        let _slice = crate::search::wall_remaining_secs().and_then(|rem| {
-            if rem < 0.5 {
-                return None;
+        // the remaining candidates, never under a second (grounding the
+        // attempt's task is the floor's reason). The guard reads the wall
+        // BEFORE the slice is cut from it -- read after, a slice cut to
+        // exactly the floor is a few microseconds under it and every
+        // candidate at the floor was skipped (pathways-simple/16, 15 s left,
+        // 20 candidates: "0 of 20 attempted"). Unwalled, the evaluation cap
+        // is the whole budget.
+        // The floor: twice what grounding the original task cost the
+        // baseline pricing, never under a second -- pathways-simple/16
+        // grounds in 8 s, and six 1 s attempts there all died in the
+        // grounder ("0 gained"); one attempt that can ground is worth more.
+        let floor = (2.0 * ground_secs).max(1.0);
+        let rem = crate::search::wall_remaining_secs();
+        if rem.is_some_and(|r| r < floor) {
+            if dbg {
+                eprintln!(
+                    "[polish] {:.2} s left before candidate {k}, under the {floor:.2} s an attempt needs",
+                    rem.unwrap_or(0.0)
+                );
             }
-            let share = (rem / (total - k) as f64).max(0.5).min(rem);
-            crate::search::tighten_deadline(rem - share)
-        });
-        if crate::search::wall_remaining_secs().is_some_and(|r| r < 0.5) {
             break;
         }
+        let _slice = rem.and_then(|rem| {
+            let share = (rem / (total - k) as f64).clamp(floor, rem);
+            crate::search::tighten_deadline(rem - share)
+        });
+        attempted += 1;
         // Skip a candidate a better plan since satisfied.
         if insts[i].held {
             continue;
         }
+        // The held bodies ride along as goals only when the grounder's DNF
+        // takes them at width one; a held `or` / `exists` is guarded by the
+        // pricing below instead (on pathways-simple/16 the twenty held `or`
+        // bodies were 2^20 goal disjuncts, and every attempt expired in the
+        // grounder before it searched).
         let mut goal = hard.clone();
         for inst in insts.iter().filter(|x| x.held) {
             if let Some(b) = &inst.body {
-                goal.push(b.clone());
+                if dnf_flat(b) {
+                    goal.push(b.clone());
+                }
             }
         }
         goal.push(insts[i].body.clone().unwrap());
@@ -522,7 +623,15 @@ pub fn polish(
         let (d2, p2) = match crate::constraints::gate(&d2, &p2) {
             Ok(Some(pair)) => pair,
             Ok(None) => (d2, p2),
-            Err(_) => continue,
+            Err(e) => {
+                if dbg {
+                    eprintln!(
+                        "[polish] {}: the monitor compile refused it: {e}",
+                        insts[i].name
+                    );
+                }
+                continue;
+            }
         };
         let Some(names) = hard_goal_plan(&d2, &p2, threads, cfg) else {
             if dbg {
@@ -539,8 +648,17 @@ pub fn polish(
                     .then(|| (head, it.map(str::to_string).collect()))
             })
             .collect();
-        let Ok(v) = crate::verify::verify_pair(domain, problem, &steps) else {
-            continue;
+        let v = match crate::verify::verify_pair(domain, problem, &steps) {
+            Ok(v) => v,
+            Err(e) => {
+                if dbg {
+                    eprintln!(
+                        "[polish] {}: the candidate does not price: {e}",
+                        insts[i].name
+                    );
+                }
+                continue;
+            }
         };
         if !v.hard_goal_met || !v.constraints_met || v.metric + konst >= best.metric - 1e-9 {
             if dbg {
@@ -579,6 +697,13 @@ pub fn polish(
         for (inst, (_, held)) in insts.iter_mut().skip(n_goal).zip(v.constraint_prefs.iter()) {
             inst.held = *held;
         }
+    }
+    if dbg {
+        eprintln!(
+            "[polish] done: {attempted} of {total} attempted, {} gained, metric {:.3}",
+            best.gained.len(),
+            best.metric
+        );
     }
     (!best.gained.is_empty()).then_some(best)
 }
@@ -1552,7 +1677,20 @@ pub fn hard_goal_plan(
                     .collect(),
             )
         }
-        _ => None,
+        other => {
+            if dbg {
+                eprintln!(
+                    "[seed0] hard-goal grounding gave no task ({}) after {:.2} s",
+                    match &other {
+                        crate::ground::Outcome::GoalFalse(why) => format!("goal false: {why}"),
+                        crate::ground::Outcome::WallExhausted(why) => format!("wall: {why}"),
+                        _ => "not a task".to_string(),
+                    },
+                    t0.elapsed_secs()
+                );
+            }
+            None
+        }
     }
 }
 

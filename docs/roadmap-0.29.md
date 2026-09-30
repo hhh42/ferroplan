@@ -250,8 +250,30 @@ the small gain: on pathways-simple/16 no `[polish]` line at all -- the
 optimizer runs to the report reserve and the polish starts with nothing.
 So the optimizer now runs under a tightened deadline that leaves the polish
 `FF_PREF_POLISH_FRAC` (0.4) of the remaining wall whenever a polish applies
-(`pddl3::polish_applies`), on both the API and the text path. Re-measured
-in the `lanes29` subset below.
+(`pddl3::polish_applies`), on both the API and the text path.
+
+**What the share found on pathways-simple/16 (2026-09-30, solo, 60 s):**
+with 15 s kept back the polish still gained nothing, and the named exits
+say why, in order. (i) Its goal for an attempt conjoined every HELD
+preference body, and on pathways those are `or`s: twenty of them are 2^20
+goal disjuncts, and every attempt expired in the grounder's DNF -- held
+bodies now ride along only when the DNF takes them at width one
+(`dnf_flat`); the rest are guarded by the pricing. (ii) An attempt's slice
+was cut to exactly its half-second floor and then compared against it, so
+every candidate at the floor was skipped ("0 of 20 attempted"): the guard
+now reads the wall before the cut. (iii) Grounding: the plain pathways task
+grounds in 8.4 s, the baseline pricing alone cost 8.5 s of the 15 s window,
+and six 1 s attempts all died in binding enumeration. The floor is now
+twice the baseline's grounding time, and the SHARE is only taken from the
+optimizer -- and the polish only started -- when the wall left is over
+twice what the compiled task cost to ground (`polish_if_affordable`; on
+pathways-simple/16 that is 17 s, so the cell behaves as 0.28 did, with the
+reason logged). **The ceiling this names:** a polish that re-grounds the
+task per attempt cannot reach the slow-grounding domains, and pathways is
+where the simple band is lost (21 of 30 empty plans). The next step is one
+grounding per polish with the goal facts swapped per attempt -- the
+"scorer at plan size" work, mechanism (3) -- not more wall. Re-measured in
+the `lanes29` subset below.
 
 ---
 

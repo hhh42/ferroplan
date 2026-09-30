@@ -1470,10 +1470,15 @@ fn solve_pddl3(
     // optimizer gets the wall minus `FF_PREF_POLISH_FRAC` of it, so the
     // improving step is not left the reserve's crumbs. Scoped to the
     // optimizer call; the polish below runs on what was kept back.
+    // What the compiled task cost to ground (parse included) is the proxy
+    // for what a polish attempt costs; a share that could not hold one is
+    // not taken from the optimizer, and the polish is then not started.
+    let ground_secs = crate::search::wall_elapsed_secs().unwrap_or(0.0);
     let polish_share = pddl3::polish_applies(domain, problem)
         .then(crate::search::wall_remaining_secs)
         .flatten()
-        .map(|rem| rem * pddl3::polish_frac());
+        .map(|rem| rem * pddl3::polish_frac())
+        .filter(|share| *share >= 2.0 * ground_secs);
     let optimized = {
         let _opt_wall = polish_share.and_then(crate::search::tighten_deadline);
         pddl3::metric_optimize_seeded(
@@ -1525,8 +1530,14 @@ fn solve_pddl3(
                 .iter()
                 .map(|s| (s.action.clone(), s.args.clone()))
                 .collect();
-            if let Some(p) = pddl3::polish(domain, problem, &incumbent, threads, opts.search_cfg())
-            {
+            if let Some(p) = pddl3::polish_if_affordable(
+                domain,
+                problem,
+                &incumbent,
+                threads,
+                opts.search_cfg(),
+                ground_secs,
+            ) {
                 notes.push(format!(
                     "preference polish: {} more satisfied ({}), metric {} -> {}",
                     p.gained.len(),

@@ -407,10 +407,12 @@ fn plan_pddl3(
     // AT the wall, and a metric polished until 60.4 s is a row lost.
     let _report_wall = crate::search::reserve_for_report(task.n_ops);
     // The polish's share of the wall (0.29 Lane 1), as in api.rs.
+    let ground_secs = crate::search::wall_elapsed_secs().unwrap_or(0.0);
     let polish_share = pddl3::polish_applies(domain, problem)
         .then(crate::search::wall_remaining_secs)
         .flatten()
-        .map(|rem| rem * pddl3::polish_frac());
+        .map(|rem| rem * pddl3::polish_frac())
+        .filter(|share| *share >= 2.0 * ground_secs);
     let optimized = {
         let _opt_wall = polish_share.and_then(crate::search::tighten_deadline);
         pddl3::metric_optimize_seeded(
@@ -460,7 +462,9 @@ fn plan_pddl3(
                     )
                 })
                 .collect();
-            if let Some(p) = pddl3::polish(domain, problem, &incumbent, threads, cfg) {
+            if let Some(p) =
+                pddl3::polish_if_affordable(domain, problem, &incumbent, threads, cfg, ground_secs)
+            {
                 if let Some(orig) = crate::ground::ground_task(domain, problem, 1) {
                     let ops: Option<Vec<usize>> = p
                         .steps
