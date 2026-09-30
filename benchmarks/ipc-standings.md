@@ -13,9 +13,9 @@ for scoring semantics and the failure-class definitions.
 | time | yes | 126/130 | makespan vs best-of-field: 31W/3T/92L, mean quality 0.65 (126 scored) | 4 timeout |
 | metric-time | yes | 105/200 | makespan vs best-of-field: 66W/1T/26L, mean quality 0.93 (93 scored) | 9 mem-cap, 86 timeout |
 | constraints | yes | 28/120 | coverage-only (timed modal ops rejected by name) | 33 early-exit, 8 mem-cap, 51 timeout, 12 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
-| simple-preferences (full corpus) | yes | 130/130 | coverage = hard-goal solves; preference metric in the raw | none |
-| qualitative-preferences (full corpus) | yes | 100/100 | coverage = hard-goal solves; preference metric in the raw | 12 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
-| complex-preferences (full corpus) | yes | 80/108 | coverage = hard-goal solves; PDDL3 preference metric scored post-hoc in the raw (0.25 Phase 2 entry) | 14 mem-cap, 14 timeout, 3 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
+| simple-preferences (full corpus) | yes | 130/130 | IPC score vs SGPlan5: 94.1 / 120.4 over 130 cells (29W/19T/82L; 0 solved unpriced) | none |
+| qualitative-preferences (full corpus) | yes | 100/100 | IPC score vs SGPlan5: 59.2 / 92.1 over 100 cells (25W/3T/67L; 5 solved unpriced) | 12 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
+| complex-preferences (full corpus) | yes | 80/108 | IPC score vs SGPlan5: 53.4 / 99.0 over 105 cells (13W/4T/59L; 2 solved unpriced) | 14 mem-cap, 14 timeout, 3 solved VAL-unavailable (engine-oracle only; see benchmarks/val-availability.py) |
 | simple-preferences | yes | see board | reference-scored — [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |
 | qualitative-preferences | yes | see board | reference-scored — [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won outright) | — |
 | complex-preferences | no (modal operators rejected by name) | — | — | feature gap, on the deferred list |
