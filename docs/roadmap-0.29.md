@@ -272,8 +272,41 @@ reason logged). **The ceiling this names:** a polish that re-grounds the
 task per attempt cannot reach the slow-grounding domains, and pathways is
 where the simple band is lost (21 of 30 empty plans). The next step is one
 grounding per polish with the goal facts swapped per attempt -- the
-"scorer at plan size" work, mechanism (3) -- not more wall. Re-measured in
-the `lanes29` subset below.
+"scorer at plan size" work, mechanism (3) -- not more wall.
+
+**MEASURED 2026-09-30 (`lanes29` pass 1, engine 17fc6d6f0bd8; the owed
+re-runs of passes 2-3 can move single cells, not the shape):**
+
+| board | 0.28.0 points | 0.29 | delta | better / worse cells | rows 0.28.0 → 0.29 | SGPlan5 |
+|---|---|---|---|---|---|---|
+| simple (130) | 94.1 | **96.0** | +2.0 | 27 / 6 | 130 → 130 | 115.3 |
+| qualitative (100) | 59.2 | **63.3** | +4.1 | 19 / 0 | 100 → 100 | 92.0 |
+| complex (105 priced) | 53.4 | 51.4 | −2.0 | 0 / 0 | 80 → 80 (+1 gained, pathways/27, unpriced) | 99.9 |
+
+A measured win on the two boards the band names, under the band (simple
+wanted 105, qualitative 75): the polish helps where its attempt can ground
+(trucks, storage, tpp) and cannot reach pathways at all, which is where the
+band is. Not one qualitative cell got worse. **Complex is a loss of the
+Lane 1 kill kind, and not the polish's:** the −2.0 is four pipesworld
+cells (i12, i14, i15, i16) that 0.28.0 scored post-hoc and 0.29 banks
+"NOT scored: the wall or the memory budget left no room to build the
+scorer" -- at 6-21 s of the 60, so it is the memory budget: their peak
+RSS went 3.8-4.2 GB → 4.6-5.2 GB, across the memory wall's 4.5 GB trip
+(0.75 × 6 GB), and the scorer, which grounds the original task, is refused.
+**Probed solo the same day (`probes-0.29/lane3/probe-pipes.out`): not the
+lanes'.** 0.28.0's own binary on i14 today: 4.50 GB, 5.9 s, NOT scored;
+0.29 default and under every lane hatch (`FF_NO_TNODE_REFILL`,
+`FF_PREF_NO_STATIC`, `FF_NO_EHC_EXTEND`, `FF_NO_PREF_POLISH`): 4.50 GB,
+5.9 s, NOT scored -- byte for byte the same outcome. `FF_NO_TCOMPRESS=1`:
+0.44 GB and unsolved, so the 4.5 GB is the compression rung's, whose plan
+arrives with the process sitting exactly on the memory wall's trip; whether
+the scorer then fits is the box's call, and the cut's 0.28.0 rows (11-15 s,
+3.8-4.2 GB sampled, scored) were the other side of that coin. The complex
+−2.0 is therefore pricing variance of four wall-edge cells, an instrument
+finding to carry into the memory class: a banked plan whose scorer cannot
+be built because the SOLVER's arena is still resident is Lane 4's second
+mechanism's row, and the "scorer at plan size" (mechanism 3) is what
+removes the grounding from the scorer altogether.
 
 ---
 
@@ -327,6 +360,15 @@ whose unit tests set those variables in-process.
 The consumable-aware relaxation itself (mechanisms a–c above) is not built
 here; it opens on the rovers fixture with this regression out of the way.
 
+**MEASURED 2026-09-30 (`lanes29` phase B, the loss side, engine
+17fc6d6f0bd8):** every row 0.28.0 solved on `ipc2023-numeric` (262) and
+`ipc2026-numeric` (223) re-measured under the inlined build -- pass 1
+banked 230 and 198 of them solved and **not one as a failure**; the rest
+(32 and 25) are owed to a box the operator was using (suspect / demoted /
+thermal verdicts), re-run in passes 2-3. The gain side (the 235 rows
+0.28.0 did not solve, coins i18 among them, each a solo minute) is phase C,
+queued behind this on the same engine; it runs in the box's idle gaps.
+
 ---
 
 ## Lane 3 — the constraints board throws its wall away
@@ -363,8 +405,22 @@ ends "exhausted its budgets with"; refilled, it solves and the note says
 ladder and `tests/ladder_dedup.rs` caught it (an unsolvable ring ran its
 quartet twice over): the refill is now licensed only by a pass that ended
 on its node cap (`NODE_CAP_TRIPPED`), never by one that exhausted its
-space, its evaluation budget or its wall. Measured on `ipc5-constraints`
-in `lanes29`.
+space, its evaluation budget or its wall.
+
+**MEASURED 2026-09-30 (`lanes29` pass 1, engine 17fc6d6f0bd8) -- NEGATIVE
+so far, the kill clause fires.** `ipc5-constraints`: **28 solved of 120,
+the same 28** (84 banked, 36 owed to a box the macOS update daemon was
+loading; their re-runs come with phase C). The note shapes moved the way a
+spent wall moves them: "exhausted its budgets with N s of wall left" 40 →
+30 rows (the survivors mostly 1-6 s left, two with 16-20 s: passes that
+ended on their evaluation budget or the memory wall, not a node cap, so no
+refill licence) and "stopped at the wall" 35 → 46. Spending the wall did
+not solve one of them. Per the kill clause the note must now say what the
+wall was spent on (the refill rounds reached) -- a code change queued
+behind the measurement, since the engine hash must not change under it.
+The refill was also the suspect for the complex board's four unpriced
+cells above; the same-day probe cleared it (0.28.0 reproduces them, and
+`FF_NO_TNODE_REFILL=1` changes nothing on them).
 
 ---
 
@@ -399,6 +455,31 @@ storage rows of the qualitative/complex boards in `lanes29`, memory by
 `ru_maxrss` (Phase 0's `max_rss` column). The achiever index (second
 mechanism) is not built.
 
+**MEASURED 2026-09-30 (`lanes29`, engine 17fc6d6f0bd8) -- NEGATIVE on
+memory, the band's two rows already solved.** Storage rows i17-i20, peak
+RSS by `ru_maxrss` (the sampled peak agrees to the MB), 0.28.0's banked
+attempt beside it:
+
+| cell | 0.28.0 peak (banked attempt) | 0.29 peak | solved 0.28.0 → 0.29 |
+|---|---|---|---|
+| storage-qual i17 | 4.6 GB (3.6 s) | 5.0 GB (4.4 s) | yes → yes |
+| storage-qual i18 | 5.2 GB (3.1 s) | 4.8 GB (4.7 s) | yes → yes |
+| storage-qual i19 | 4.6 GB (6.2 s) | 5.2 GB (5.2 s) | yes → yes |
+| storage-qual i20 | 5.3 GB (54.5 s, its 4th attempt) | 4.9 GB (5.9 s, first attempt) | yes → yes |
+| storage-complex i17 | 5.4 GB | 4.7 GB | yes → yes |
+| storage-complex i18 | 5.4 GB | 5.7 GB | yes → yes |
+| storage-complex i19 | 6.5 GB | 6.3 GB | no → no |
+| storage-complex i20 | 6.2 GB | 6.3 GB | no → no |
+
+The peak is the same 5-6 GB with the expansion streamed, so the
+materialised expansion was not where these cells' memory lives; the mem-cap
+class on storage-complex is the second mechanism's (the ops × monitor
+achiever index), which is not built. The streamed expansion stays as
+correctness (byte-identical, fixture-pinned) and costs nothing; it is not a
+Lane 4 win. i19/i20 on the qualitative board were already 0.28.0 solves
+(rescues); 0.29 banks them first attempt, which is the 0.28 recheck's
+"box" story, not this lane's.
+
 ---
 
 ## Lane W — a declared wall makes the classical ladder worse
@@ -422,8 +503,16 @@ hatch. Fixture recalibrated on the M5 (blocks(30) now solves in 0.03 s):
 blocks(50), EHC alone 0.34 s, at a 1 s wall with the fixed slice a tenth of
 it -- fixed: 0/3, "EHC slice exhausted", the ladder does not rescue it;
 arrival-charged: 3/3 at 0.34 s, "solved by EHC". `ladder_rungs_pay_the_wall`
-stays green (17.8 s). Measured on `ipc2018-sat` and `ipc2023-sat` in
-`lanes29`.
+stays green (17.8 s).
+
+**MEASURED 2026-09-30 (`lanes29` phase B, the loss side, engine
+17fc6d6f0bd8):** every row 0.28.0 solved on `ipc2018-sat` (97) and
+`ipc2023-sat` (53) re-measured under the arrival-charged slice -- 91 and
+29 banked solved, **none banked as a failure**, the rest owed to the
+operator's daytime load and re-run in passes 2-3. The kill's second clause
+("the subsets read ≤ 0") needs the gain side: the 230 rows 0.28.0 did not
+solve are phase D, a quiet night's work, not chained behind the daytime
+phases.
 
 ---
 

@@ -1,0 +1,775 @@
+== lanes29 subset  2026-09-30 03:33:56  engine: ff 0.28.0
+engine  ff 0.28.0 [17fc6d6f0bd8]
+reap    21 child(ren) recorded by an earlier run
+        47863 already gone
+        48543 already gone
+        49132 already gone
+        49727 already gone
+        50324 already gone
+        50926 already gone
+        51520 already gone
+        52116 already gone
+        54604 already gone
+        56986 already gone
+        59374 already gone
+        61810 already gone
+        64184 already gone
+        66566 already gone
+        68956 already gone
+        71348 already gone
+        73748 already gone
+        76209 already gone
+        78590 already gone
+        80967 already gone
+        83452 already gone
+canary  trucks-propositional/8@17fc6d6f0bd8 baseline 0.517 s (median of 5 runs, no history yet); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  boards ipc5-simple-pref,ipc5-qual-pref,ipc5-complex-pref,ipc5-constraints,ipc2018-sat,ipc2023-sat,ipc2023-numeric,ipc2026-numeric -- 1558 instance(s) of set cut28, staged at /Users/harold/ferroplan/benchmarks/probes/lanes29/0.28.0-17fc6d6f0bd8
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 8 board(s) outstanding
+   ipc5-constraints       packed: 28 wide x10 (14.5 GB budget), 0 narrow, 92 solo
+!! width - -> 10 (full, quiet hours, idle 25133s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25194s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 25213s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25254s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 25274s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25293s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 25313s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25334s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 25373s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25413s, foreign 11%)
+!! width 9 -> 10 (full, quiet hours, idle 25433s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25454s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 25474s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25514s, foreign 12%)
+!! width 9 -> 10 (full, quiet hours, idle 25573s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25634s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 25653s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25674s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 25713s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 25774s, foreign 7%)
+!! width 9 -> 8 (full, quiet hours, idle 25793s, foreign 145%)
+!! throttle full -> polite (Foreign(89.5))
+!! width 8 -> 9 (polite, quiet hours, idle 25814s, foreign 90%)
+!! width 9 -> 7 (polite, quiet hours, idle 25854s, foreign 294%)
+!! width 7 -> 9 (polite, quiet hours, idle 25894s, foreign 36%)
+!! width 9 -> 7 (polite, quiet hours, idle 25994s, foreign 203%)
+!! width 7 -> 9 (polite, quiet hours, idle 26013s, foreign 56%)
+!! width 9 -> 7 (polite, quiet hours, idle 26173s, foreign 230%)
+!! width 7 -> 9 (polite, quiet hours, idle 26194s, foreign 6%)
+!! width 9 -> 6 (polite, quiet hours, idle 26213s, foreign 352%)
+!! width 6 -> 8 (polite, quiet hours, idle 26234s, foreign 156%)
+!! width 8 -> 9 (polite, quiet hours, idle 26254s, foreign 83%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 26354s, foreign 104%)
+!! width 8 -> 9 (polite, quiet hours, idle 26394s, foreign 77%)
+!! width 9 -> 7 (polite, quiet hours, idle 26414s, foreign 279%)
+!! width 7 -> 9 (polite, quiet hours, idle 26434s, foreign 39%)
+!! width 9 -> 8 (polite, quiet hours, idle 26454s, foreign 118%)
+!! width 8 -> 3 (polite, quiet hours, idle 26474s, foreign 603%)
+!! width 3 -> 4 (polite, quiet hours, idle 26494s, foreign 572%)
+!! width 4 -> 9 (polite, quiet hours, idle 26514s, foreign 56%)
+!! width 9 -> 10 (polite, quiet hours, idle 26534s, foreign -0%)
+!! width 10 -> 9 (polite, quiet hours, idle 26594s, foreign 12%)
+!! throttle polite -> full (Clear)
+!! width 9 -> 10 (full, quiet hours, idle 26614s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 26674s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 26694s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 26774s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 26793s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 26813s, foreign 30%)
+!! throttle full -> polite (Foreign(88.7))
+!! width 9 -> 10 (polite, quiet hours, idle 26853s, foreign -0%)
+!! width 10 -> 9 (polite, quiet hours, idle 26874s, foreign 5%)
+!! width 9 -> 10 (polite, quiet hours, idle 26894s, foreign -0%)
+!! throttle polite -> full (Clear)
+!! width 10 -> 9 (full, quiet hours, idle 26974s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 27013s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27034s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 27054s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27093s, foreign 13%)
+!! width 9 -> 10 (full, quiet hours, idle 27114s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27134s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 27173s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27214s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 27254s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27374s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 27434s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27474s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 27494s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27553s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 27574s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27634s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 27673s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27694s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 27713s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27814s, foreign 22%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! width 9 -> 10 (full, quiet hours, idle 27853s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27934s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 27954s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28054s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 28073s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28094s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 28114s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28133s, foreign 50%)
+!! width 9 -> 10 (full, quiet hours, idle 28153s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28314s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 28334s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28354s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 28373s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28494s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 28533s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28574s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 28594s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28654s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 28693s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28734s, foreign 25%)
+!! width 9 -> 10 (full, quiet hours, idle 28773s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28814s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 28854s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28874s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 28894s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28974s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 28993s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 29014s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 29094s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 29134s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 29173s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 29253s, foreign 8%)
+   ipc5-constraints       verdicts: contended 7, rho 43, solved 28, swap 1, thermal 28, window 13
+   ipc5-constraints       banked   84   120 -> 36
+   ipc2018-sat            packed: 72 wide x10 (14.5 GB budget), 5 narrow, 163 solo
+!! width 9 -> 10 (full, quiet hours, idle 29274s, foreign -0%)
+   interrupted mid-instance (ipc-2018settlers-sequential-satisficing3); the row is not written
+   interrupted mid-instance (ipc-2018organic-synthesis-split-sequential-satisficing7); the row is not written
+   interrupted mid-instance (ipc-2018nurikabe-sequential-satisficing11); the row is not written
+   interrupted mid-instance (ipc-2018flashfill-sequential-satisficing18); the row is not written
+   interrupted mid-instance (ipc-2018settlers-sequential-satisficing1); the row is not written
+   interrupted mid-instance (ipc-2018settlers-sequential-satisficing2); the row is not written
+   ipc2018-sat            verdicts: solved 41
+   ipc2018-sat            banked   41   240 -> 199
+stopped after 1 pass(es); 1433 still owed -- the next run picks them up
+1433 instance(s) still owed -- rows are written, nothing is lost
+== lanes29 launch 2026-09-30 04:44:20  args: --board ipc5-simple-pref --board ipc5-qual-pref --board ipc5-complex-pref
+engine  ff 0.28.0 [17fc6d6f0bd8]
+reap    4 child(ren) recorded by an earlier run
+        96001 already gone
+        96667 already gone
+        99046 already gone
+        1710 already gone
+canary  trucks-propositional/8@17fc6d6f0bd8 baseline 0.520 s (p25 of the last 100 readings is 0.517 s, against 5 runs now); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  boards ipc5-simple-pref,ipc5-qual-pref,ipc5-complex-pref -- 338 instance(s) of set cut28, staged at /Users/harold/ferroplan/benchmarks/probes/lanes29/0.28.0-17fc6d6f0bd8
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 3 board(s) outstanding
+   ipc5-simple-pref       packed: 52 wide x10 (14.5 GB budget), 23 narrow, 55 solo
+!! width - -> 10 (full, quiet hours, idle 29357s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 29397s, foreign 29%)
+!! width 9 -> 10 (full, quiet hours, idle 29417s, foreign -0%)
+!! width 10 -> 7 (full, quiet hours, idle 29457s, foreign 223%)
+!! width 7 -> 9 (full, quiet hours, idle 29477s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 29498s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 29557s, foreign 12%)
+!! width 9 -> 10 (full, quiet hours, idle 29598s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 29738s, foreign 11%)
+!! width 9 -> 10 (full, quiet hours, idle 29757s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30018s, foreign 33%)
+!! width 9 -> 8 (full, quiet hours, idle 30037s, foreign 145%)
+!! width 8 -> 10 (full, quiet hours, idle 30058s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30118s, foreign 90%)
+!! width 9 -> 10 (full, quiet hours, idle 30157s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30297s, foreign 15%)
+!! width 9 -> 10 (full, quiet hours, idle 30318s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30357s, foreign 36%)
+!! width 9 -> 10 (full, quiet hours, idle 30378s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30477s, foreign 26%)
+!! throttle full -> polite (Foreign(35.099999999999994))
+!! width 9 -> 10 (polite, quiet hours, idle 30517s, foreign -0%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! throttle polite -> full (Clear)
+!! width 10 -> 9 (full, quiet hours, idle 30777s, foreign 37%)
+!! width 9 -> 10 (full, quiet hours, idle 30798s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30818s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 30837s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30877s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 30897s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 30938s, foreign 18%)
+!! width 9 -> 10 (full, quiet hours, idle 30957s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 31078s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 31097s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 31197s, foreign 11%)
+!! width 9 -> 10 (full, quiet hours, idle 31217s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 31257s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 31297s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 31418s, foreign 24%)
+!! width 9 -> 10 (full, quiet hours, idle 31458s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 31638s, foreign 51%)
+!! width 9 -> 10 (full, quiet hours, idle 31677s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 31877s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 31897s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 32058s, foreign 32%)
+!! width 9 -> 10 (full, quiet hours, idle 32077s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 32157s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 32178s, foreign -0%)
+   ipc5-simple-pref       verdicts: solved 123, thermal 7
+   ipc5-simple-pref       banked  123   130 -> 7
+   ipc5-qual-pref         packed: 26 wide x10 (14.5 GB budget), 5 narrow, 69 solo
+!! width 10 -> 9 (full, quiet hours, idle 32657s, foreign 12%)
+!! width 9 -> 8 (full, quiet hours, idle 32677s, foreign 113%)
+!! width 8 -> 10 (full, quiet hours, idle 32698s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 32737s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 32758s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 32838s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 32857s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 32957s, foreign 12%)
+!! width 9 -> 10 (full, quiet hours, idle 32978s, foreign -0%)
+!! width 10 -> 7 (full, quiet hours, idle 33058s, foreign 262%)
+!! width 7 -> 10 (full, quiet hours, idle 33077s, foreign -0%)
+!! width 10 -> 8 (full, quiet hours, idle 33658s, foreign 102%)
+!! width 8 -> 9 (full, quiet hours, idle 33678s, foreign 59%)
+!! width 9 -> 10 (full, quiet hours, idle 33698s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 33817s, foreign 6%)
+!! width 9 -> 10 (full, quiet hours, idle 33837s, foreign -0%)
+!! width 10 -> 9 (full, idle 33918s, foreign 14%)
+!! width 9 -> 10 (full, idle 33958s, foreign -0%)
+!! width 10 -> 9 (full, idle 33997s, foreign 5%)
+!! width 9 -> 10 (full, idle 34097s, foreign -0%)
+!! width 10 -> 9 (full, idle 34158s, foreign 25%)
+!! width 9 -> 10 (full, idle 34197s, foreign -0%)
+!! width 10 -> 9 (full, idle 34318s, foreign 41%)
+!! width 9 -> 10 (full, idle 34357s, foreign -0%)
+!! width 10 -> 9 (full, idle 34558s, foreign 6%)
+!! width 9 -> 10 (full, idle 34578s, foreign -0%)
+!! width 10 -> 9 (full, idle 34618s, foreign 6%)
+!! width 9 -> 10 (full, idle 34638s, foreign -0%)
+!! width 10 -> 9 (full, idle 34718s, foreign 5%)
+!! width 9 -> 10 (full, idle 34738s, foreign -0%)
+!! width 10 -> 9 (full, idle 34757s, foreign 5%)
+!! width 9 -> 10 (full, idle 34777s, foreign -0%)
+!! width 10 -> 9 (full, idle 34818s, foreign 21%)
+!! width 9 -> 10 (full, idle 34838s, foreign -0%)
+!! width 10 -> 2 (full, operator active 3s ago, foreign 134%)
+!! width 2 -> 1 (full, operator active 0s ago, foreign 234%)
+!! width 1 -> 4 (full, operator active 13s ago, foreign -0%)
+!! width 4 -> 1 (full, operator active 0s ago, foreign 202%)
+!! throttle full -> polite (Foreign(119.5))
+!! width 1 -> 2 (polite, operator active 0s ago, foreign 120%)
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 24%)
+!! width 3 -> 2 (polite, operator active 21s ago, foreign 189%)
+!! throttle polite -> suspended (Game { name: "Timberborn", cpu: 92.7 })
+!! width 2 -> 0 (suspended, operator active 3s ago, foreign 117%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.93x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.18x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.57x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.58x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.96x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.58x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.98x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.80x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.36x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.20x its baseline -- the box is slow
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 3 (polite, operator active 87s ago, foreign 8%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! throttle polite -> full (Clear)
+!! width 3 -> 4 (full, operator active 207s ago, foreign -0%)
+!! width 4 -> 3 (full, operator active 227s ago, foreign 20%)
+!! width 3 -> 9 (full, idle 307s, foreign 44%)
+!! throttle full -> polite (Foreign(84.2))
+!! width 9 -> 8 (polite, idle 347s, foreign 100%)
+!! width 8 -> 9 (polite, idle 367s, foreign 8%)
+!! width 9 -> 8 (polite, idle 387s, foreign 155%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 407s, foreign 8%)
+!! width 9 -> 8 (polite, idle 467s, foreign 199%)
+!! width 8 -> 7 (polite, idle 507s, foreign 216%)
+!! width 7 -> 8 (polite, idle 527s, foreign 181%)
+!! width 8 -> 7 (polite, idle 547s, foreign 210%)
+!! width 7 -> 9 (polite, idle 567s, foreign 5%)
+!! width 9 -> 8 (polite, idle 627s, foreign 131%)
+!! width 8 -> 9 (polite, idle 647s, foreign 6%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 707s, foreign 149%)
+!! width 8 -> 9 (polite, idle 727s, foreign 23%)
+!! throttle polite -> full (Clear)
+!! width 9 -> 10 (full, idle 1187s, foreign -0%)
+   ipc5-qual-pref         verdicts: demoted 4, solved 80, thermal 16
+   ipc5-qual-pref         banked   80   100 -> 20
+   ipc5-complex-pref      packed: 28 wide x10 (14.5 GB budget), 5 narrow, 75 solo
+!! width 10 -> 8 (full, idle 1207s, foreign 169%)
+!! width 8 -> 9 (full, idle 1227s, foreign 59%)
+!! throttle full -> polite (Foreign(48.7))
+!! width 9 -> 8 (polite, idle 1427s, foreign 167%)
+!! width 8 -> 9 (polite, idle 1447s, foreign 45%)
+!! width 9 -> 8 (polite, idle 1587s, foreign 188%)
+!! width 8 -> 9 (polite, idle 1607s, foreign 39%)
+!! width 9 -> 8 (polite, idle 1807s, foreign 150%)
+!! width 8 -> 9 (polite, idle 1827s, foreign 91%)
+!! width 9 -> 8 (polite, idle 1887s, foreign 169%)
+!! width 8 -> 9 (polite, idle 1907s, foreign 47%)
+!! width 9 -> 8 (polite, idle 2047s, foreign 106%)
+!! width 8 -> 9 (polite, idle 2067s, foreign 57%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 2507s, foreign 181%)
+!! width 8 -> 9 (polite, idle 2527s, foreign 58%)
+!! width 9 -> 8 (polite, idle 2787s, foreign 113%)
+!! width 8 -> 9 (polite, idle 2807s, foreign 60%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.48x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.48x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 3187s, foreign 143%)
+!! width 8 -> 9 (polite, idle 3207s, foreign 68%)
+!! width 9 -> 8 (polite, idle 3247s, foreign 166%)
+!! width 8 -> 7 (polite, idle 3287s, foreign 236%)
+!! throttle polite -> suspended (MemoryPressure(5376.0))
+!! width 7 -> 0 (suspended, idle 3307s, foreign 245%)
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 7 (polite, idle 3467s, foreign 262%)
+!! width 7 -> 8 (polite, idle 3547s, foreign 146%)
+!! width 8 -> 9 (polite, idle 3587s, foreign 86%)
+!! width 9 -> 10 (polite, idle 3647s, foreign -0%)
+!! width 10 -> 9 (polite, idle 3667s, foreign 8%)
+!! throttle polite -> full (Clear)
+!! width 9 -> 10 (full, idle 3747s, foreign -0%)
+!! width 10 -> 9 (full, idle 3807s, foreign 53%)
+!! width 9 -> 10 (full, idle 3827s, foreign -0%)
+!! width 10 -> 9 (full, idle 3867s, foreign 5%)
+!! width 9 -> 10 (full, idle 3887s, foreign -0%)
+!! width 10 -> 9 (full, idle 3907s, foreign 5%)
+!! width 9 -> 8 (full, idle 3927s, foreign 164%)
+!! width 8 -> 10 (full, idle 3947s, foreign -0%)
+!! width 10 -> 8 (full, idle 3967s, foreign 177%)
+!! throttle full -> polite (Foreign(237.9))
+!! width 8 -> 7 (polite, idle 4007s, foreign 238%)
+!! width 7 -> 9 (polite, idle 4027s, foreign 94%)
+!! width 9 -> 8 (polite, idle 4047s, foreign 113%)
+!! width 8 -> 9 (polite, idle 4067s, foreign 9%)
+!! width 9 -> 10 (polite, idle 4127s, foreign -0%)
+!! width 10 -> 9 (polite, idle 4147s, foreign 90%)
+!! width 9 -> 10 (polite, idle 4167s, foreign -0%)
+!! width 10 -> 9 (polite, idle 4187s, foreign 13%)
+!! width 9 -> 10 (polite, idle 4207s, foreign -0%)
+!! throttle polite -> full (Clear)
+!! width 10 -> 9 (full, idle 4227s, foreign 8%)
+!! width 9 -> 10 (full, idle 4267s, foreign -0%)
+!! width 10 -> 7 (full, idle 4427s, foreign 207%)
+!! width 7 -> 8 (full, idle 4447s, foreign 108%)
+!! throttle full -> polite (Foreign(196.0))
+!! width 8 -> 9 (polite, idle 4487s, foreign 99%)
+!! width 9 -> 8 (polite, idle 4507s, foreign 174%)
+!! width 8 -> 9 (polite, idle 4527s, foreign 100%)
+!! width 9 -> 8 (polite, idle 4647s, foreign 105%)
+!! width 8 -> 7 (polite, idle 4667s, foreign 237%)
+!! width 7 -> 8 (polite, idle 4687s, foreign 106%)
+!! width 8 -> 9 (polite, idle 4727s, foreign 99%)
+!! width 9 -> 8 (polite, idle 4767s, foreign 108%)
+!! width 8 -> 9 (polite, idle 4787s, foreign 99%)
+!! width 9 -> 8 (polite, idle 4807s, foreign 104%)
+!! width 8 -> 9 (polite, idle 4827s, foreign 99%)
+!! width 9 -> 8 (polite, idle 4847s, foreign 178%)
+!! width 8 -> 9 (polite, idle 4867s, foreign 80%)
+!! width 9 -> 2 (polite, operator active 2s ago, foreign 156%)
+!! width 2 -> 1 (polite, operator active 0s ago, foreign 216%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.46x its baseline -- the box is slow
+!! throttle polite -> suspended (Game { name: "Timberborn", cpu: 98.1 })
+!! width 1 -> 0 (suspended, operator active 11s ago, foreign 112%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.49x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.55x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.14x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.09x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 3.68x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.12x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.77x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.70x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.83x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.67x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.17x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.98x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.61x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 3 (polite, operator active 65s ago, foreign 6%)
+!! width 3 -> 4 (polite, operator active 85s ago, foreign -0%)
+!! width 4 -> 3 (polite, operator active 105s ago, foreign 50%)
+!! width 3 -> 4 (polite, operator active 145s ago, foreign -0%)
+!! throttle polite -> full (Clear)
+!! width 4 -> 3 (full, operator active 225s ago, foreign 9%)
+!! width 3 -> 4 (full, operator active 245s ago, foreign -0%)
+!! width 4 -> 10 (full, idle 305s, foreign -0%)
+!! width 10 -> 8 (full, idle 345s, foreign 165%)
+!! throttle full -> polite (Foreign(280.3))
+!! width 8 -> 7 (polite, idle 365s, foreign 280%)
+!! width 7 -> 9 (polite, idle 385s, foreign 88%)
+!! width 9 -> 10 (polite, idle 425s, foreign -0%)
+   ipc5-complex-pref      verdicts: contended 10, demoted 4, packed 1, rho 12, solved 63, starved 1, thermal 18
+   ipc5-complex-pref      banked   75   108 -> 33
+== pass 2 -- 3 board(s) outstanding
+!! throttle polite -> full (Clear)
+!! width 10 -> 9 (full, idle 525s, foreign 12%)
+!! width 9 -> 10 (full, idle 545s, foreign -0%)
+!! width 10 -> 1 (full, operator active 0s ago, foreign 380%)
+!! width 1 -> 2 (full, operator active 0s ago, foreign 104%)
+!! throttle full -> polite (Foreign(140.8))
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 40%)
+!! width 3 -> 1 (polite, operator active 0s ago, foreign 203%)
+!! width 1 -> 4 (polite, operator active 2s ago, foreign -0%)
+!! width 4 -> 2 (polite, operator active 7s ago, foreign 109%)
+!! width 2 -> 3 (polite, operator active 27s ago, foreign 48%)
+!! width 3 -> 4 (polite, operator active 17s ago, foreign -0%)
+   ipc5-simple-pref       verdicts: demoted 5, solved 2
+   ipc5-simple-pref       banked    2   7 -> 5
+!! throttle polite -> full (Clear)
+!! width 4 -> 3 (full, operator active 77s ago, foreign 13%)
+!! width 3 -> 4 (full, operator active 97s ago, foreign -0%)
+!! width 4 -> 3 (full, operator active 157s ago, foreign 18%)
+!! width 3 -> 4 (full, operator active 177s ago, foreign -0%)
+!! width 4 -> 3 (full, operator active 237s ago, foreign 41%)
+!! throttle full -> polite (Foreign(98.1))
+!! width 3 -> 9 (polite, idle 317s, foreign 20%)
+!! width 9 -> 8 (polite, idle 337s, foreign 102%)
+!! width 8 -> 10 (polite, idle 357s, foreign -0%)
+!! width 10 -> 9 (polite, idle 397s, foreign 6%)
+!! throttle polite -> full (Clear)
+!! width 9 -> 10 (full, idle 417s, foreign -0%)
+!! width 10 -> 9 (full, idle 457s, foreign 7%)
+!! width 9 -> 10 (full, idle 537s, foreign -0%)
+!! width 10 -> 9 (full, idle 617s, foreign 22%)
+!! width 9 -> 10 (full, idle 657s, foreign -0%)
+!! width 10 -> 9 (full, idle 677s, foreign 73%)
+!! width 9 -> 8 (full, idle 697s, foreign 103%)
+!! width 8 -> 10 (full, idle 717s, foreign -0%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 10 -> 9 (full, idle 797s, foreign 36%)
+!! width 9 -> 10 (full, idle 817s, foreign -0%)
+!! width 10 -> 9 (full, idle 877s, foreign 6%)
+!! width 9 -> 10 (full, idle 897s, foreign -0%)
+!! width 10 -> 9 (full, idle 917s, foreign 13%)
+!! width 9 -> 10 (full, idle 937s, foreign -0%)
+!! width 10 -> 9 (full, idle 997s, foreign 7%)
+!! width 9 -> 10 (full, idle 1037s, foreign -0%)
+   ipc5-qual-pref         verdicts: demoted 3, solved 10, thermal 7
+   ipc5-qual-pref         banked   10   20 -> 10
+!! width 10 -> 9 (full, idle 1157s, foreign 12%)
+!! width 9 -> 10 (full, idle 1197s, foreign -0%)
+!! width 10 -> 9 (full, idle 1217s, foreign 97%)
+!! throttle full -> polite (Foreign(59.7))
+!! width 9 -> 8 (polite, idle 1317s, foreign 169%)
+!! width 8 -> 9 (polite, idle 1337s, foreign 40%)
+!! width 9 -> 8 (polite, idle 1877s, foreign 113%)
+!! width 8 -> 9 (polite, idle 1897s, foreign 37%)
+!! width 9 -> 7 (polite, idle 1917s, foreign 233%)
+!! width 7 -> 8 (polite, idle 1957s, foreign 162%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 2018s, foreign 284%)
+!! width 7 -> 8 (polite, idle 2037s, foreign 155%)
+!! width 8 -> 6 (polite, idle 2057s, foreign 343%)
+!! width 6 -> 9 (polite, idle 2077s, foreign 35%)
+!! width 9 -> 6 (polite, idle 2097s, foreign 316%)
+!! width 6 -> 8 (polite, idle 2118s, foreign 120%)
+!! width 8 -> 6 (polite, idle 2137s, foreign 330%)
+!! width 6 -> 9 (polite, idle 2157s, foreign 67%)
+!! width 9 -> 8 (polite, idle 2217s, foreign 118%)
+!! width 8 -> 9 (polite, idle 2257s, foreign 46%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+   ipc5-complex-pref      verdicts: contended 4, rho 1, thermal 28
+   ipc5-complex-pref      banked    1   33 -> 32
+== pass 3 -- 3 board(s) outstanding
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 2597s, foreign 107%)
+!! width 8 -> 9 (polite, idle 2617s, foreign 44%)
+!! width 9 -> 8 (polite, idle 2717s, foreign 138%)
+   ipc5-simple-pref       verdicts: thermal 5
+   ipc5-simple-pref       banked    0   5 -> 5   [DEGRADED -- not banked, work owed]
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+   ipc5-qual-pref         verdicts: thermal 10
+   ipc5-qual-pref         banked    0   10 -> 10   [DEGRADED -- not banked, work owed]
+!! width 8 -> 7 (polite, idle 3397s, foreign 223%)
+!! width 7 -> 8 (polite, idle 3417s, foreign 141%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 3617s, foreign 100%)
+!! width 9 -> 8 (polite, idle 3657s, foreign 106%)
+!! width 8 -> 9 (polite, idle 3697s, foreign 100%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 3777s, foreign 107%)
+!! width 8 -> 9 (polite, idle 3797s, foreign 100%)
+!! width 9 -> 8 (polite, idle 3817s, foreign 106%)
+!! width 8 -> 9 (polite, idle 3837s, foreign 100%)
+!! width 9 -> 8 (polite, idle 3877s, foreign 113%)
+!! width 8 -> 9 (polite, idle 3897s, foreign 100%)
+!! width 9 -> 8 (polite, idle 3997s, foreign 180%)
+!! width 8 -> 9 (polite, idle 4017s, foreign 98%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 4097s, foreign 176%)
+!! width 8 -> 7 (polite, idle 4117s, foreign 276%)
+!! width 7 -> 9 (polite, idle 4137s, foreign 97%)
+!! width 9 -> 8 (polite, idle 4157s, foreign 109%)
+!! width 8 -> 9 (polite, idle 4177s, foreign 100%)
+!! width 9 -> 8 (polite, idle 4257s, foreign 137%)
+!! width 8 -> 7 (polite, idle 4277s, foreign 253%)
+!! width 7 -> 8 (polite, idle 4297s, foreign 106%)
+!! width 8 -> 9 (polite, idle 4317s, foreign 100%)
+!! width 9 -> 8 (polite, idle 4357s, foreign 130%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 4417s, foreign 100%)
+!! width 9 -> 8 (polite, idle 4457s, foreign 193%)
+!! width 8 -> 9 (polite, idle 4477s, foreign 100%)
+   ipc5-complex-pref      verdicts: contended 7, rho 1, thermal 24
+   ipc5-complex-pref      banked    1   32 -> 31
+== pass 4 -- 3 board(s) outstanding
+!! width 9 -> 7 (polite, idle 4577s, foreign 244%)
+!! width 7 -> 9 (polite, idle 4597s, foreign 100%)
+!! width 9 -> 8 (polite, idle 4617s, foreign 125%)
+!! width 8 -> 9 (polite, idle 4637s, foreign 100%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 4717s, foreign 105%)
+!! width 8 -> 9 (polite, idle 4737s, foreign 100%)
+   ipc5-simple-pref       verdicts: thermal 5
+   ipc5-simple-pref       banked    0   5 -> 5   [DEGRADED -- not banked, work owed]
+   interrupted mid-instance (ipc-2006tpp-preferences-qualitative13); the row is not written
+   ipc5-qual-pref         banked    0   10 -> 10   [DEGRADED -- not banked, work owed]
+stopped after 4 pass(es); 46 still owed -- the next run picks them up
+46 instance(s) still owed -- rows are written, nothing is lost
+== lanes29 launch 2026-09-30 11:36:43  args: --prior solved --board ipc5-constraints --board ipc2018-sat --board ipc2023-sat --board ipc2023-numeric --board ipc2026-numeric
+engine  ff 0.28.0 [17fc6d6f0bd8]
+reap    54 child(ren) recorded by an earlier run
+        4954 already gone
+        5597 already gone
+        7958 already gone
+        10434 already gone
+        13052 already gone
+        16034 already gone
+        16705 already gone
+        17403 already gone
+        18076 already gone
+        18778 already gone
+        19451 already gone
+        20181 already gone
+        20853 already gone
+        21629 already gone
+        22320 already gone
+        23136 already gone
+        23882 already gone
+        24595 already gone
+        25339 already gone
+        28357 already gone
+        29107 already gone
+        29817 already gone
+        30553 already gone
+        32432 already gone
+        33467 already gone
+        36525 already gone
+        37247 already gone
+        37942 already gone
+        38630 already gone
+        39320 already gone
+        40010 already gone
+        40800 already gone
+        41495 already gone
+        42200 already gone
+        42898 already gone
+        43594 already gone
+        44283 already gone
+        45027 already gone
+        45810 already gone
+        46713 already gone
+        47436 already gone
+        48169 already gone
+        48885 already gone
+        52066 already gone
+        55809 already gone
+        58172 already gone
+        58919 already gone
+        59716 already gone
+        60470 already gone
+        61229 already gone
+        61984 already gone
+        62783 already gone
+        64175 already gone
+        64986 already gone
+canary  trucks-propositional/8@17fc6d6f0bd8 baseline 0.520 s (p25 of the last 100 readings is 0.519 s, against 5 runs now); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+resume  ipc5-constraints       28 row(s) read back, 28 banked -- 0 still owed
+resume  ipc2018-sat            41 row(s) read back, 41 banked -- 56 still owed
+subset  boards ipc5-constraints,ipc2018-sat,ipc2023-sat,ipc2023-numeric,ipc2026-numeric; prior solved -- 663 instance(s) of set cut28, staged at /Users/harold/ferroplan/benchmarks/probes/lanes29/0.28.0-17fc6d6f0bd8
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 4 board(s) outstanding
+   ipc2018-sat            packed: 31 wide x10 (14.5 GB budget), 5 narrow, 20 solo
+!! width - -> 9 (full, idle 5020s, foreign 100%)
+!! throttle full -> polite (Foreign(148.0))
+!! width 9 -> 8 (polite, idle 5040s, foreign 148%)
+!! width 8 -> 9 (polite, idle 5060s, foreign 27%)
+!! width 9 -> 8 (polite, idle 5160s, foreign 165%)
+!! width 8 -> 9 (polite, idle 5180s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5240s, foreign 112%)
+!! width 8 -> 9 (polite, idle 5320s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5340s, foreign 107%)
+!! width 8 -> 7 (polite, idle 5360s, foreign 233%)
+!! width 7 -> 9 (polite, idle 5380s, foreign 100%)
+!! width 9 -> 6 (polite, idle 5480s, foreign 316%)
+!! width 6 -> 9 (polite, idle 5500s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5520s, foreign 105%)
+!! width 8 -> 9 (polite, idle 5540s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5560s, foreign 198%)
+!! width 8 -> 9 (polite, idle 5580s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5620s, foreign 198%)
+!! width 8 -> 9 (polite, idle 5640s, foreign 42%)
+!! width 9 -> 8 (polite, idle 5680s, foreign 150%)
+!! width 8 -> 9 (polite, idle 5700s, foreign 80%)
+!! width 9 -> 8 (polite, idle 5720s, foreign 106%)
+!! width 8 -> 9 (polite, idle 5740s, foreign 99%)
+!! width 9 -> 8 (polite, idle 5800s, foreign 164%)
+!! width 8 -> 9 (polite, idle 5820s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5840s, foreign 109%)
+!! width 8 -> 9 (polite, idle 5900s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5920s, foreign 108%)
+!! width 8 -> 9 (polite, idle 5940s, foreign 100%)
+!! width 9 -> 8 (polite, idle 5960s, foreign 108%)
+!! width 8 -> 9 (polite, idle 5980s, foreign 100%)
+!! width 9 -> 8 (polite, idle 6040s, foreign 117%)
+!! width 8 -> 9 (polite, idle 6060s, foreign 100%)
+!! width 9 -> 7 (polite, idle 6180s, foreign 205%)
+!! width 7 -> 9 (polite, idle 6200s, foreign 100%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 6340s, foreign 183%)
+!! width 8 -> 9 (polite, idle 6360s, foreign 100%)
+!! width 9 -> 10 (polite, idle 6420s, foreign -0%)
+!! width 10 -> 2 (polite, operator active 0s ago, foreign 184%)
+!! width 2 -> 3 (polite, operator active 2s ago, foreign 30%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 150%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 12%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+   ipc2018-sat            verdicts: packed 3, solved 49, suspect 2, thermal 5
+   ipc2018-sat            banked   49   56 -> 7
+   ipc2026-numeric        packed: 213 wide x10 (13.0 GB budget), 6 narrow, 4 solo
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 106%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 76%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 102%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 44%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 3 -> 2 (polite, operator active 3s ago, foreign 140%)
+!! width 2 -> 3 (polite, operator active 4s ago, foreign 58%)
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 123%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 78%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 147%)
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 86%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 132%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 58%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.46x its baseline -- the box is slow
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 145%)
+!! width 2 -> 3 (polite, operator active 5s ago, foreign 55%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 127%)
+!! width 2 -> 3 (polite, operator active 2s ago, foreign 24%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 136%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 50%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 3 -> 2 (polite, operator active 1s ago, foreign 115%)
+!! width 2 -> 3 (polite, operator active 2s ago, foreign 64%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.46x its baseline -- the box is slow
+!! width 3 -> 2 (polite, operator active 70s ago, foreign 127%)
+!! width 2 -> 3 (polite, operator active 3s ago, foreign 68%)
+!! width 3 -> 2 (polite, operator active 4s ago, foreign 156%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 50%)
+!! width 3 -> 2 (polite, operator active 3s ago, foreign 100%)
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 55%)
+   ipc2026-numeric        verdicts: demoted 9, packed 2, solved 198, suspect 16
+   ipc2026-numeric        banked  198   223 -> 25
+   ipc2023-numeric        packed: 246 wide x10 (13.0 GB budget), 12 narrow, 4 solo
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 103%)
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 59%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.46x its baseline -- the box is slow
+!! width 3 -> 2 (polite, operator active 3s ago, foreign 142%)
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 26%)
+!! width 3 -> 2 (polite, operator active 4s ago, foreign 153%)
+!! width 2 -> 3 (polite, operator active 24s ago, foreign 64%)
+!! width 3 -> 2 (polite, operator active 44s ago, foreign 111%)
+!! width 2 -> 3 (polite, operator active 2s ago, foreign 50%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 3 -> 1 (polite, operator active 2s ago, foreign 250%)
+!! width 1 -> 3 (polite, operator active 0s ago, foreign 58%)
+!! width 3 -> 2 (polite, operator active 3s ago, foreign 106%)
+!! width 2 -> 4 (polite, operator active 42s ago, foreign -0%)
+!! width 4 -> 3 (polite, operator active 63s ago, foreign 75%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 3 -> 4 (polite, operator active 103s ago, foreign -0%)
+!! width 4 -> 1 (polite, operator active 122s ago, foreign 213%)
+!! width 1 -> 2 (polite, operator active 143s ago, foreign 134%)
+!! width 2 -> 3 (polite, operator active 162s ago, foreign 9%)
+!! width 3 -> 4 (polite, operator active 222s ago, foreign -0%)
+!! throttle polite -> full (Clear)
+!! width 4 -> 3 (full, operator active 243s ago, foreign 9%)
+!! width 3 -> 4 (full, operator active 263s ago, foreign -0%)
+!! width 4 -> 10 (full, idle 302s, foreign -0%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+!! width 10 -> 7 (full, idle 403s, foreign 244%)
+!! width 7 -> 10 (full, idle 422s, foreign -0%)
+!! width 10 -> 8 (full, idle 442s, foreign 111%)
+!! width 8 -> 10 (full, idle 462s, foreign -0%)
+!! width 10 -> 9 (full, idle 503s, foreign 73%)
+!! width 9 -> 10 (full, idle 523s, foreign -0%)
+!! width 10 -> 9 (full, idle 543s, foreign 21%)
+!! width 9 -> 3 (full, operator active 0s ago, foreign 32%)
+!! throttle full -> polite (Foreign(141.2))
+!! width 3 -> 2 (polite, operator active 5s ago, foreign 141%)
+!! width 2 -> 3 (polite, operator active 1s ago, foreign 29%)
+!! width 3 -> 2 (polite, operator active 15s ago, foreign 117%)
+!! throttle polite -> suspended (Game { name: "Timberborn", cpu: 100.2 })
+!! width 2 -> 0 (suspended, operator active 0s ago, foreign 108%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 3.74x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.38x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.09x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 3 (polite, operator active 0s ago, foreign 82%)
+!! width 3 -> 2 (polite, operator active 2s ago, foreign 170%)
+!! throttle polite -> suspended (Game { name: "Timberborn", cpu: 121.7 })
+!! width 2 -> 0 (suspended, operator active 0s ago, foreign 143%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.09x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.72x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.14x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.19x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.83x its baseline -- the box is slow
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 3 (polite, operator active 63s ago, foreign 36%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! throttle polite -> full (Clear)
+!! width 3 -> 8 (full, idle 303s, foreign 146%)
+!! width 8 -> 9 (full, idle 323s, foreign 7%)
+!! width 9 -> 8 (full, idle 403s, foreign 103%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (full, idle 444s, foreign 10%)
+   ipc2023-numeric        verdicts: demoted 14, packed 4, solved 230, suspect 9, thermal 9
+   ipc2023-numeric        banked  230   262 -> 32
+   ipc2023-sat            packed: 34 wide x10 (14.5 GB budget), 3 narrow, 16 solo
+!! width 9 -> 8 (full, idle 623s, foreign 101%)
+!! width 8 -> 9 (full, idle 643s, foreign 7%)
+!! width 9 -> 7 (full, idle 762s, foreign 273%)
+!! width 7 -> 9 (full, idle 783s, foreign 8%)
+!! width 9 -> 8 (full, idle 963s, foreign 143%)
+!! width 8 -> 9 (full, idle 983s, foreign 9%)
+!! throttle full -> polite (Foreign(79.6))
+   ipc2023-sat            verdicts: solved 29, suspect 1, thermal 23
+   ipc2023-sat            banked   29   53 -> 24
+== pass 2 -- 4 board(s) outstanding
+!! width 9 -> 8 (polite, idle 1623s, foreign 159%)
+!! width 8 -> 9 (polite, idle 1643s, foreign 42%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 1743s, foreign 112%)
+!! width 8 -> 9 (polite, idle 1763s, foreign 48%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+   ipc2018-sat            verdicts: solved 1, thermal 6
+   ipc2018-sat            banked    1   7 -> 6
+   ipc2023-sat            packed: 5 wide x10 (14.5 GB budget), 3 narrow, 16 solo
+!! width 9 -> 2 (polite, operator active 0s ago, foreign 161%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 22%)
+!! width 3 -> 2 (polite, operator active 0s ago, foreign 155%)
+!! throttle polite -> suspended (Game { name: "Timberborn", cpu: 106.1 })
+!! width 2 -> 0 (suspended, operator active 2s ago, foreign 114%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.49x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.23x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.76x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 5.65x its baseline -- the box is slow

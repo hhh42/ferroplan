@@ -1,0 +1,34 @@
+== i14  default
+wall: grounding MEMORY checkpoint while interning (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+6.09 real         5.67 user         0.39 sys
+4832247808  maximum resident set size
+   solved True | PDDL3 preferences NOT scored: the wall or the memory budget left no room to build the scor
+== i14  FF_NO_TNODE_REFILL=1
+wall: grounding MEMORY checkpoint while interning (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+5.97 real         5.53 user         0.43 sys
+4831985664  maximum resident set size
+   solved True | PDDL3 preferences NOT scored: the wall or the memory budget left no room to build the scor
+== i12  default
+wall: grounding MEMORY checkpoint while interning (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+9.14 real         8.77 user         0.36 sys
+4831920128  maximum resident set size
+   solved True | PDDL3 preferences NOT scored: the wall or the memory budget left no room to build the scor
+== i12  FF_NO_TNODE_REFILL=1
+wall: grounding MEMORY checkpoint while interning (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+wall: grounding MEMORY checkpoint at entry (no task, no verdict)
+9.29 real         8.91 user         0.37 sys
+4831920128  maximum resident set size
+   solved True | PDDL3 preferences NOT scored: the wall or the memory budget left no room to build the scor
+i14 0.28.0 (89cfdc5f06ed): 4.50 GB 5.86s NOT scored | solved True
+i14 0.29 default: 4.50 GB 5.94s NOT scored | solved True
+i14 0.29 FF_PREF_NO_STATIC=1: 4.50 GB 5.89s NOT scored | solved True
+i14 0.29 FF_NO_EHC_EXTEND=1: 4.50 GB 5.94s NOT scored | solved True
+i14 0.29 FF_NO_PREF_POLISH=1: 4.50 GB 5.90s NOT scored | solved True
+i14 0.29 FF_NO_TCOMPRESS=1: 0.44 GB 2.36s no note | solved False
