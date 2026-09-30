@@ -62,7 +62,9 @@ total=0; files=0
 # parity and timing probes, the lanes sit) are the same again. A SUBSET's
 # stage under benchmarks/probes/ (spec R3.2) is NOT exempt: crucible wrote
 # those, in the board row shape, and they must round-trip like any raw.
-for f in $(find ../benchmarks -name '*.jsonl' -not -path '*/.ipc-corpus/*' -not -path '*/metrics/*' -not -path '*/air26-probes/*' -not -path '*/probes-0.28/*' | sort); do
+# The 0.29 probes (benchmarks/probes-0.29/: the loss bisection's rows.jsonl,
+# one line per rep, not a board row) are hand-made receipts as well.
+for f in $(find ../benchmarks -name '*.jsonl' -not -path '*/.ipc-corpus/*' -not -path '*/metrics/*' -not -path '*/air26-probes/*' -not -path '*/probes-0.28/*' -not -path '*/probes-0.29/*' | sort); do
   head -1 "$f" | grep -q '"solved"' || continue
   n=$(target/release/crucible-replay roundtrip --raw "$f")
   total=$((total + n)); files=$((files + 1))
