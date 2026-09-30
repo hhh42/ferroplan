@@ -21,6 +21,14 @@ stable Rust:**
 rustup update stable
 ```
 
+**And check the crates.io token's age.** Tokens minted at
+https://crates.io/settings/tokens expire (90 days by default), and
+`cargo publish` is the LAST step of `publish.sh`: the first publish of 0.28.0
+ran the whole pre-flight and then failed `403 authentication failed` on a
+token that had lapsed two days earlier. `publish.sh` now refuses a token file
+older than 80 days unless told to continue; `ls -la ~/.cargo/credentials.toml`
+is the manual check, `cargo login` the fix.
+
 Clippy grows new lints with every release and the pre-flight is
 `-D warnings`, so a dev box on an older toolchain will pass locally and
 then fail `publish.sh` on the release machine. This has bitten twice

@@ -121,6 +121,25 @@ subset's engine hash named beside the number.
 Phase 0 ships as a crucible release on `main` before Lane 1 opens; nothing
 in it changes a board number except by measuring it again.
 
+### Phase 0.1 — BUILT 2026-09-29 (`b4d2778`)
+
+`judge`'s first line is no longer `if f.solved { Banked }`. A solve is
+CLOCK-SENSITIVE when it came back unpriced/unscored or spent
+`solved_wall_frac` (0.5) of its budget or more; such a solve is judged by
+demoted, canary, swap and clock jump -- the process-and-clock signals a
+failure is judged by -- and by nothing else. Calibrated on cut28's database
+before it was written: the rule owes 115 of the 123 solves `recheck28.py`
+re-opened by hand and banks the other eight, all unpriced rows measured on a
+healthy box whose re-run then said the same three times, scored three and
+lost two; on the boards as banked today it would re-run 62 of 5,466 solves.
+The box-wide WINDOW was pre-registered as a condition and is NOT one: 489 of
+the 720 half-budget solves ran under a dirty window, and re-running 7 % of the
+boards every pass buys nothing the canary does not. The population is the
+fixture (`crucible/tests/fixtures/cut28-reopened-solves.json`); the spec's
+R2.1 table has the row; `crucible/preflight.sh` clean (once red on
+`exec_supervision::a_short_spinning_child_is_not_undercounted`, a 120 ms
+CPU-spin measurement under the parallel test build -- 3 of 3 alone).
+
 ---
 
 ## Lane 1 (headline) — the preference optimizer's first improving step

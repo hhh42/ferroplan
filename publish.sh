@@ -127,6 +127,23 @@ fi
 echo "==> Releasing ferroplan ${VERSION} (tag ${TAG})"
 
 echo "==> Pre-flight (scoped to the published crates — does NOT build ferroplan-bevy)"
+# The crates.io token expires (90 days by default). The first publish of
+# 0.28.0 got to `cargo publish` -- after the whole pre-flight -- and failed
+# 403 on a token minted 92 days earlier. Ask before spending the minutes.
+CRED="${CARGO_HOME:-$HOME/.cargo}/credentials.toml"
+if [[ "$DRY_RUN" != 1 ]]; then
+  if [[ ! -f "$CRED" ]] || ! grep -q '^token' "$CRED"; then
+    echo "!! no crates.io token in $CRED -- run \`cargo login\` first" >&2; exit 1
+  fi
+  age_days=$(( ( $(date +%s) - $(stat -f %m "$CRED" 2>/dev/null || stat -c %Y "$CRED") ) / 86400 ))
+  if (( age_days >= 80 )); then
+    echo "!! the crates.io token in $CRED is ${age_days} days old; the default expiry is 90." >&2
+    echo "   Mint a new one at https://crates.io/settings/tokens and \`cargo login\` before publishing." >&2
+    if [[ "$ASSUME_YES" != 1 ]]; then
+      read -r -p "   Continue anyway? [y/N] " go; [[ "$go" == y* ]] || exit 1
+    fi
+  fi
+fi
 cargo fmt --all --check
 # Scope clippy to the crates we publish; a bare `--all-targets` would compile the
 # whole workspace, including the Bevy GUI (minutes of build for nothing — the library
