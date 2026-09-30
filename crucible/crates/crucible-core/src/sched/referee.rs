@@ -50,6 +50,22 @@ pub struct Rule {
     /// which the box was too slow for a timeout to count.
     /// `[referee] canary_max_factor`.
     pub canary_max_factor: f64,
+    /// A SOLVE THAT SPENT THIS FRACTION OF ITS BUDGET IS JUDGED LIKE A
+    /// FAILURE (0.29 Phase 0.1, `[referee] solved_wall_frac`).
+    ///
+    /// Until 0.29 a solve banked whatever the box did, and the cut28 sweep
+    /// fell through that: ten pathways-preferences-simple rows solved at
+    /// rho 0.3-0.75 under a canary of 2.4-6.3x -- the empty plan, unpriced
+    /// because the compiled task's grounding met the wall on cells that price
+    /// in 40 s alone -- and were banked. Coverage cannot see that; the IPC
+    /// quality score read 82.0 for 94.1. Over cut28's re-opened solves the
+    /// rule "half the budget or more, or unpriced" covers every one of the
+    /// 123 (`tests/fixtures/cut28-reopened-solves.json`); over the boards as
+    /// banked today it would re-run 62 of 5,466 solves. The box-wide WINDOW is
+    /// deliberately not a condition here: 489 of the 720 half-budget solves
+    /// were measured under a dirty window, and re-running them every pass
+    /// would cost more than the rows it could change.
+    pub solved_wall_frac: f64,
     /// THE FLOOR BELOW WHICH rho IS NOT A STATISTIC (0.28).
     ///
     /// rho is cpu over effective wall, and a process's wall includes a fixed
@@ -113,6 +129,7 @@ impl Default for Rule {
             rho_min: 0.95,
             swap_growth_mb: 512.0,
             canary_max_factor: 1.15,
+            solved_wall_frac: 0.5,
             // A hard minimum; the operative floor is derived from the
             // overhead below (0.4 / 0.05 = 8 s at the defaults).
             rho_floor_ms: 2_000,
@@ -164,9 +181,26 @@ pub struct Facts {
     /// (1-based; packed attempts do not count -- a miss beside neighbours
     /// is nobody's verdict, so it cannot confirm one either).
     pub solo_attempt: u32,
+    /// The row's armed wall, in ms (`budget` on the row). With
+    /// `effective_ms` it says whether a SOLVE could have depended on the
+    /// clock (0.29 Phase 0.1).
+    pub budget_ms: u64,
+    /// The engine returned a plan without its number ("NOT priced" / "NOT
+    /// scored" in its notes): a wall verdict inside a solve, and the wall
+    /// was whatever the box made of it.
+    pub unpriced: bool,
 }
 
 impl Facts {
+    /// A solve whose OUTCOME could depend on the clock: it came back without
+    /// its price, or it spent `rule.solved_wall_frac` of its budget or more.
+    /// Every other solve is a solve whatever the box did -- a 0.4 s plan on a
+    /// 6x-slow box is the same plan.
+    pub fn clock_sensitive(&self, rule: &Rule) -> bool {
+        self.unpriced
+            || (self.budget_ms > 0
+                && (self.effective_ms as f64) >= rule.solved_wall_frac * self.budget_ms as f64)
+    }
     /// cpu / effective wall. `None` when either is unknown or the run was too
     /// short for the ratio to mean anything.
     pub fn rho(&self) -> Option<f64> {
@@ -268,6 +302,27 @@ impl Verdict {
 /// The verdict table of `crucible-spec.md` R2.1, in the order it is written.
 pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
     if f.solved {
+        // A solve is a solve whatever the box did -- UNLESS its outcome could
+        // have depended on the clock (0.29 Phase 0.1: it came back unpriced,
+        // or it spent half its budget or more). Such a solve is judged by
+        // the signals about THIS process and the box's clock, the ones a
+        // failure is judged by, and the later row banks. Not by the
+        // window, not by rho: a solve's rho is not a statistic either way.
+        if !f.clock_sensitive(rule) {
+            return Verdict::Banked(Bank::Solved);
+        }
+        if f.demoted {
+            return Verdict::Owed(Owe::Demoted);
+        }
+        if f.clock_factor.is_some_and(|c| c > rule.canary_max_factor) {
+            return Verdict::Owed(Owe::Thermal);
+        }
+        if f.swap_growth_mb.is_some_and(|g| g > rule.swap_growth_mb) {
+            return Verdict::Owed(Owe::Swap);
+        }
+        if f.clock_jump {
+            return Verdict::Owed(Owe::ClockJump);
+        }
         return Verdict::Banked(Bank::Solved);
     }
     // Beside our own planners nothing about the box is knowable from this
@@ -364,6 +419,8 @@ mod tests {
             neighbours: 0,
             prior_solved: false,
             solo_attempt: 1,
+            budget_ms: 60_000,
+            unpriced: false,
         }
     }
 
@@ -565,21 +622,140 @@ mod tests {
         assert!(judge(&Rule::default(), &f).box_fault());
     }
 
+    /// A QUICK solve banks whatever the box did: the plan is the same plan.
     #[test]
-    fn a_solve_banks_whatever_the_box_did() {
+    fn a_quick_solve_banks_whatever_the_box_did() {
         let f = Facts {
             solved: true,
             cpu_ms: 5,
+            effective_ms: 400,
             window: Cleanliness::Dirty,
             swap_growth_mb: Some(9_000.0),
             clock_factor: Some(4.0),
+            demoted: true,
             ..unsolved()
+        };
+        assert!(!f.clock_sensitive(&Rule::default()));
+        assert_eq!(judge(&Rule::default(), &f), Verdict::Banked(Bank::Solved));
+    }
+
+    /// THE cut28 HOLE (0.29 Phase 0.1). A solve that spent half its budget
+    /// under a slow canary is owed like a timeout would be; the same row on
+    /// a healthy box banks; and the box-wide window alone never owes it.
+    #[test]
+    fn a_solve_near_its_wall_under_a_slow_box_is_owed() {
+        let slow = Facts {
+            solved: true,
+            cpu_ms: 24_500,
+            effective_ms: 55_800,
+            clock_factor: Some(6.29),
+            window: Cleanliness::Dirty,
+            ..unsolved()
+        };
+        assert!(slow.clock_sensitive(&Rule::default()));
+        assert_eq!(judge(&Rule::default(), &slow), Verdict::Owed(Owe::Thermal));
+        assert!(judge(&Rule::default(), &slow).box_fault());
+        let healthy = Facts {
+            clock_factor: Some(1.0),
+            ..slow.clone()
+        };
+        assert_eq!(
+            judge(&Rule::default(), &healthy),
+            Verdict::Banked(Bank::Solved)
+        );
+        let demoted = Facts {
+            clock_factor: Some(1.0),
+            demoted: true,
+            ..slow.clone()
+        };
+        assert_eq!(
+            judge(&Rule::default(), &demoted),
+            Verdict::Owed(Owe::Demoted)
+        );
+        // Just under the line, the old rule: a solve.
+        let brisk = Facts {
+            effective_ms: 29_000,
+            ..slow.clone()
+        };
+        assert_eq!(
+            judge(&Rule::default(), &brisk),
+            Verdict::Banked(Bank::Solved)
+        );
+    }
+
+    /// A plan that came back without its number is a wall verdict inside a
+    /// solve: clock-sensitive however long it ran. On a healthy box it is
+    /// what it is and banks.
+    #[test]
+    fn an_unpriced_solve_is_clock_sensitive_however_brief() {
+        let f = Facts {
+            solved: true,
+            unpriced: true,
+            cpu_ms: 2_000,
+            effective_ms: 3_000,
+            clock_factor: Some(2.4),
+            ..unsolved()
+        };
+        assert_eq!(judge(&Rule::default(), &f), Verdict::Owed(Owe::Thermal));
+        let f = Facts {
+            clock_factor: Some(1.0),
+            ..f
         };
         assert_eq!(judge(&Rule::default(), &f), Verdict::Banked(Bank::Solved));
     }
 
-    /// An R1 row: no stamp, and a cpu_ms that means nothing. Unsolved, it is
-    /// owed -- exactly as R1 judged it; nothing already banked moves.
+    /// THE POPULATION THE RULE WAS DERIVED FROM, as its test: the 123 solves
+    /// `recheck28.py` re-opened by hand on cut28 (exported from the database
+    /// with what the referee would have been handed). The rule must owe
+    /// every one the BOX decided -- and it must bank the eight it did not:
+    /// unpriced rows measured on a healthy box (canary ~1.0, not demoted,
+    /// solo), which `recheck28.py` re-opened anyway and whose re-run then
+    /// said the same thing three times, scored three, and LOST two
+    /// (storage-complex i19/i20 came back mem-cap). A wall verdict on a
+    /// healthy box is the engine's, not the box's, and re-running it is a
+    /// coin toss the referee has no business calling.
+    #[test]
+    fn the_cut28_reopened_solves_are_owed_exactly_where_the_box_decided() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/fixtures/cut28-reopened-solves.json"
+        );
+        let rows: Vec<serde_json::Value> =
+            serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        assert_eq!(rows.len(), 123);
+        let rule = Rule::default();
+        let mut banked = Vec::new();
+        for r in &rows {
+            let g = |k: &str| r[k].as_f64().unwrap_or(0.0);
+            let f = Facts {
+                solved: true,
+                cpu_ms: g("cpu_ms") as u64,
+                effective_ms: (g("wall_ms") - g("suspended_ms")) as u64,
+                demoted: g("demoted") != 0.0,
+                neighbours: g("neighbours") as u32,
+                clock_factor: r["canary_in_window"].as_f64(),
+                budget_ms: g("budget_ms") as u64,
+                unpriced: g("unpriced") != 0.0,
+                ..unsolved()
+            };
+            if judge(&rule, &f).banked() {
+                let healthy =
+                    !f.demoted && f.clock_factor.is_none_or(|c| c <= rule.canary_max_factor);
+                assert!(
+                    f.unpriced && healthy,
+                    "a re-opened solve the rule banks must be an unpriced row on a healthy box: {}/{} unpriced {} canary {:?} demoted {}",
+                    r["variant"].as_str().unwrap(),
+                    r["label"].as_str().unwrap(),
+                    f.unpriced,
+                    f.clock_factor,
+                    f.demoted
+                );
+                banked.push(r["variant"].as_str().unwrap().to_string());
+            }
+        }
+        assert_eq!(banked.len(), 8, "{banked:?}");
+    }
+
     #[test]
     fn a_row_without_the_stamp_is_cpu_unknown() {
         let f = Facts {
@@ -741,12 +917,23 @@ mod tests {
         );
         assert_eq!(judge(&r, &f), Verdict::Owed(Owe::Demoted));
         assert!(judge(&r, &f).box_fault());
-        let f = Facts {
+        // A QUICK solve on a demoted core is the same plan: it banks. A solve
+        // that spent its budget on that core is judged like the timeout above
+        // (0.29 Phase 0.1).
+        let quick = Facts {
+            demoted: true,
+            solved: true,
+            cpu_ms: 4_000,
+            effective_ms: 4_520,
+            ..unsolved()
+        };
+        assert_eq!(judge(&r, &quick), Verdict::Banked(Bank::Solved));
+        let long = Facts {
             demoted: true,
             solved: true,
             ..unsolved()
         };
-        assert_eq!(judge(&r, &f), Verdict::Banked(Bank::Solved));
+        assert_eq!(judge(&r, &long), Verdict::Owed(Owe::Demoted));
     }
 
     /// Packed: a solve is a solve; a miss is nobody's verdict.

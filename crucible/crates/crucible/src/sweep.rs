@@ -740,6 +740,16 @@ fn run_one(
                 } else {
                     0
                 },
+                budget_ms: (m.row.budget.unwrap_or(ctx.cfg.timeout_secs as f64) * 1000.0) as u64,
+                unpriced: m
+                    .row
+                    .notes
+                    .as_ref()
+                    .map(|n| {
+                        let t = n.text();
+                        t.contains("NOT priced") || t.contains("NOT scored")
+                    })
+                    .unwrap_or(false),
             };
             let verdict = referee::judge(&ctx.rule, &facts);
             rec.timing = referee::timing(&facts);
@@ -2509,6 +2519,7 @@ fn sweep_body(
                 rho_overhead_ms: cfg.referee.rho_overhead_ms,
                 swap_growth_mb: cfg.referee.swap_growth_mb,
                 canary_max_factor: cfg.referee.canary_max_factor,
+                solved_wall_frac: cfg.referee.solved_wall_frac,
             },
             admit_below_full: cfg.referee.admit_below_full,
             progress: progress.clone(),

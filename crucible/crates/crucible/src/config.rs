@@ -168,6 +168,11 @@ pub struct Referee {
     pub canary_baseline_n: u32,
     /// Above this factor a timeout measured in the window is owed.
     pub canary_max_factor: f64,
+    /// A SOLVE that spent this fraction of its budget or more -- or came back
+    /// without its price -- is judged by the same box signals a timeout is
+    /// (demoted, canary, swap, clock jump) instead of banking on sight (0.29
+    /// Phase 0.1; `Rule::solved_wall_frac`). 1.0 restores "a solve is a solve".
+    pub solved_wall_frac: f64,
     /// Start runs under POLITE (demoted to the background band) rather than
     /// waiting for FULL. SUSPENDED always waits. `--quiet-only` overrides to
     /// the old wait-for-FULL behaviour.
@@ -187,6 +192,7 @@ impl Default for Referee {
             canary_interval_secs: 1200,
             canary_baseline_n: 5,
             canary_max_factor: 1.15,
+            solved_wall_frac: 0.5,
             admit_below_full: true,
         }
     }

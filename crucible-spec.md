@@ -493,7 +493,8 @@ effective_wall = wall_ms − suspended_ms
 
 | outcome | banks? | timing_quality |
 |---|---|---|
-| **solved**, VAL-valid | **always** — coverage is coverage | `clean` if ρ ≥ ρ_min ∧ window clean ∧ no neighbours; `packed` if it had neighbours; otherwise `dirty` |
+| **solved**, VAL-valid, quick (under `solved_wall_frac` of its budget) and priced | **always** — coverage is coverage | `clean` if ρ ≥ ρ_min ∧ window clean ∧ no neighbours; `packed` if it had neighbours; otherwise `dirty` |
+| **solved**, but it spent ≥ `solved_wall_frac` (0.5) of its budget, or came back "NOT priced" / "NOT scored" | iff not demoted ∧ no thermal flag ∧ no swap-growth flag ∧ no clock jump — the outcome could depend on the clock, so the clock is checked; ρ and the window are not (0.29 Phase 0.1: cut28 banked ten unpriced solves under a 6× canary) | `clean` / `dirty` as above |
 | **unsolved / timeout** | iff ρ ≥ ρ_min ∧ no clock jump ∧ no thermal flag ∧ no swap-growth flag | `clean` / `dirty` as above |
 | unsolved, otherwise | **no** — re-queued **SOLO** (§R2.2), attempt + 1 | — |
 | error (crash, signal, malformed) | retry once, then bank as today | — |
