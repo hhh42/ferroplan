@@ -1503,14 +1503,46 @@ fn solve_pddl3(
             if !r.proven {
                 notes.push("search bound hit; metric is best-found, not proven optimal".into());
             }
-            let steps = steps_of(&task, &r.ops, Some(&c.synthetic));
+            let mut steps = strip_end_steps(steps_of(&task, &r.ops, Some(&c.synthetic)), strip_end);
+            let mut metric = c.display_metric(r.cost);
+            // THE FIRST IMPROVING STEP (0.29 Lane 1): the optimizer's plan is
+            // a floor; the polish plans one more preference at a time on
+            // top of it, under the same report reserve, and replaces the
+            // plan iff the replay-priced metric fell.
+            let incumbent: Vec<(String, Vec<String>)> = steps
+                .iter()
+                .map(|s| (s.action.clone(), s.args.clone()))
+                .collect();
+            if let Some(p) = pddl3::polish(domain, problem, &incumbent, threads, opts.search_cfg())
+            {
+                notes.push(format!(
+                    "preference polish: {} more satisfied ({}), metric {} -> {}",
+                    p.gained.len(),
+                    p.gained.join(", "),
+                    metric,
+                    p.metric
+                ));
+                metric = p.metric;
+                steps = p
+                    .steps
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, (action, args))| Step {
+                        index,
+                        action,
+                        args,
+                        time: None,
+                        duration: None,
+                    })
+                    .collect();
+            }
             Ok(Solution {
                 solved: true,
                 mode: Mode::Pddl3,
                 plan: Some(Plan {
                     length: steps.len(),
                     steps,
-                    metric: Some(c.display_metric(r.cost)),
+                    metric: Some(metric),
                     makespan: None,
                 }),
                 statistics: stats(&task, 0, threads),

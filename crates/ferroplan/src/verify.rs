@@ -30,6 +30,10 @@ pub struct Verified {
     /// name and whether its trajectory fold ACCEPTED the replay. Instances
     /// expanded from one `forall` preference share the name.
     pub constraint_prefs: Vec<(String, bool)>,
+    /// Per GOAL-preference instance, in [`pddl3::preferences`] order: held in
+    /// the final state? (0.29 Lane 1: the polish keeps what the incumbent
+    /// already satisfies as hard conjuncts, by index.)
+    pub goal_pref_sat: Vec<bool>,
 }
 
 fn disp(pred: &str, args: &[Term]) -> String {
@@ -130,9 +134,20 @@ pub fn verify(
     let domain = crate::parser::parse_domain(domain_src).map_err(|e| format!("domain: {}", e))?;
     let problem =
         crate::parser::parse_problem(problem_src).map_err(|e| format!("problem: {}", e))?;
+    verify_pair(&domain, &problem, plan)
+}
+
+/// [`verify`] over an already-parsed pair (0.29 Lane 1): the same replay,
+/// for a caller that holds a candidate plan and wants its true metric, its
+/// hard-goal verdict and its per-preference verdicts without re-parsing.
+pub fn verify_pair(
+    domain: &crate::types::Domain,
+    problem: &crate::types::Problem,
+    plan: &[(String, Vec<String>)],
+) -> Result<Verified, String> {
     // Compile `:derived` axioms away, like every solve path — replaying against the
     // raw problem would miss the derived init facts and reject valid plans.
-    let (domain, problem) = crate::derived::compile(&domain, &problem)?;
+    let (domain, problem) = crate::derived::compile(domain, problem)?;
     // ground the ORIGINAL problem (soft goals ignored), forcing a Task even when
     // the hard goal is trivial/empty (preference-only problems) so we can replay.
     let task = match ground_task(&domain, &problem, 1) {
@@ -238,13 +253,16 @@ pub fn verify(
     let prefs = pddl3::preferences(&problem.goal, &objs);
     let mut metric = 0.0;
     let (mut sat, mut vio) = (0usize, 0usize);
+    let mut goal_pref_sat = Vec::with_capacity(prefs.len());
     for (name, phi) in &prefs {
         // ground inner quantifiers (e.g. tpp p4A's `(forall (?m) ...)`,
         // storage's `(exists (?s) ...)`) so the evaluation is exact, not
         // best-effort — this is what makes the oracle authoritative on the
         // preference suites (rovers' folded numeric term stays outside it).
         let phi = crate::constraints::expand_quantifiers(phi, &objs);
-        if eval_formula(&task, &s, &phi) {
+        let held = eval_formula(&task, &s, &phi);
+        goal_pref_sat.push(held);
+        if held {
             sat += 1;
         } else {
             vio += 1;
@@ -270,5 +288,6 @@ pub fn verify(
         constraints_met,
         constraint_failures,
         constraint_prefs,
+        goal_pref_sat,
     })
 }

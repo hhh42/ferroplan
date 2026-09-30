@@ -309,6 +309,256 @@ fn extract(
     }
 }
 
+/// `Some(constant)` iff the metric is a MINIMISED weighted sum of
+/// `(is-violated p)` terms plus a constant -- the one shape whose value the
+/// replay verifier ([`crate::verify`]) computes whole. It does not see
+/// `total-cost`, `(sum-traverse-cost)` or any other fluent term, and a wrong
+/// metric is worse than none.
+pub fn pure_violation_metric(problem: &Problem) -> Option<f64> {
+    let (dir, e) = problem.metric.as_ref()?;
+    if matches!(dir, MetricDir::Maximize) {
+        return None;
+    }
+    let (mut w, mut tc, mut others, mut konst, mut other) =
+        (HashMap::new(), 0.0, HashMap::new(), 0.0, false);
+    extract(e, 1.0, &mut w, &mut tc, &mut others, &mut konst, &mut other);
+    (!other && tc == 0.0 && others.is_empty()).then_some(konst)
+}
+
+/// What the polish hands back: the plan, its TRUE metric (by replay over the
+/// original pair, constant included), and the preferences it added.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Polished {
+    pub steps: Vec<(String, Vec<String>)>,
+    pub metric: f64,
+    pub gained: Vec<String>,
+}
+
+/// The evaluation cap of ONE polish attempt (`FF_PREF_POLISH_EVALS`). A
+/// preference the classical ladder cannot reach in this many evaluations
+/// from a fresh start is not one a local step was going to find.
+pub const POLISH_EVALS: usize = 20_000;
+
+/// THE PREFERENCE OPTIMIZER'S FIRST IMPROVING STEP (0.29 Lane 1). From an
+/// incumbent that solves the hard goals, take the preferences it violates,
+/// heaviest first, and for each one plan the hard goals AND everything the
+/// incumbent already satisfies AND that preference as one hard goal, with
+/// the classical ladder under a bounded budget; validate and price the
+/// candidate by replay over the ORIGINAL pair, keep it iff the metric fell,
+/// and go on until the wall's reserve. Monotone by construction: the
+/// incumbent is the floor, and a candidate that breaks a satisfied
+/// preference or a hard trajectory constraint prices worse and is dropped.
+///
+/// The shape it exists for: 0.28.0 ended every simple/qualitative solve
+/// "search bound hit; best-found", and on trucks, tpp and pathways what it
+/// had found was mostly the incumbent it started from -- the seed was a
+/// floor and the floor was the ceiling -- while the empty plan on a problem
+/// with no hard goal (76 of 569 solves) is a floor of exactly nothing.
+/// SGPlan5's own architecture is this loop.
+///
+/// What it does NOT touch, and says so by returning `None`: a metric with a
+/// term the replay cannot price (`total-cost`, rovers' numeric term); a
+/// domain with precondition preferences (violated per application -- an
+/// appended plan could add violations the replay does not count); an
+/// incumbent that does not replay. `FF_NO_PREF_POLISH=1` is the hatch.
+pub fn polish(
+    domain: &Domain,
+    problem: &Problem,
+    incumbent: &[(String, Vec<String>)],
+    threads: usize,
+    cfg: SearchCfg,
+) -> Option<Polished> {
+    if std::env::var("FF_NO_PREF_POLISH").is_ok() {
+        return None;
+    }
+    let konst = pure_violation_metric(problem)?;
+    if domain.actions.iter().any(|a| goal_has_pref(&a.precond)) {
+        return None;
+    }
+    let dbg = std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok();
+    let objs = crate::ground::objects_by_type(domain, problem);
+    let mut hard: Vec<Formula> = Vec::new();
+    let mut goal_prefs: Vec<(String, Formula)> = Vec::new();
+    let mut ctr = 0;
+    split_goal(&problem.goal, &mut hard, &mut goal_prefs, &mut ctr, &objs);
+    let exp = crate::constraints::expand(domain, problem).ok()?;
+    let weights = pref_weights(domain, problem);
+    // The appendable body of each soft constraint instance: a conjunction
+    // of `sometime` / `at end` bodies is a state formula a longer plan can
+    // end in. `always`, `at-most-once`, `sometime-before` and the timed
+    // operators constrain the whole trajectory and are not targets -- a
+    // candidate that breaks one prices worse and is dropped.
+    let traj_body = |ms: &[crate::constraints::Traj]| -> Option<Formula> {
+        let mut parts = Vec::new();
+        for m in ms {
+            match m {
+                crate::constraints::Traj::Sometime(f) | crate::constraints::Traj::AtEnd(f) => {
+                    parts.push(f.clone())
+                }
+                _ => return None,
+            }
+        }
+        Some(Formula::And(parts))
+    };
+    let baseline = crate::verify::verify_pair(domain, problem, incumbent).ok()?;
+    if !baseline.hard_goal_met || !baseline.constraints_met {
+        return None;
+    }
+    // Every preference instance, with its body, weight and whether the
+    // incumbent holds it: goal preferences first (verify's order), then the
+    // soft trajectory instances (expand's order).
+    struct Inst {
+        name: String,
+        body: Option<Formula>,
+        weight: f64,
+        held: bool,
+    }
+    let mut insts: Vec<Inst> = goal_prefs
+        .iter()
+        .zip(baseline.goal_pref_sat.iter())
+        .map(|((name, phi), &held)| Inst {
+            name: name.clone(),
+            body: Some(phi.clone()),
+            weight: weights.get(name).copied().unwrap_or(0.0),
+            held,
+        })
+        .collect();
+    for ((name, members), (_, held)) in exp.soft.iter().zip(baseline.constraint_prefs.iter()) {
+        insts.push(Inst {
+            name: name.clone(),
+            body: traj_body(members),
+            weight: weights.get(name).copied().unwrap_or(0.0),
+            held: *held,
+        });
+    }
+    let mut order: Vec<usize> = (0..insts.len())
+        .filter(|&i| !insts[i].held && insts[i].body.is_some() && insts[i].weight > 0.0)
+        .collect();
+    if order.is_empty() {
+        return None;
+    }
+    order.sort_by(|&a, &b| {
+        insts[b]
+            .weight
+            .partial_cmp(&insts[a].weight)
+            .unwrap()
+            .then_with(|| insts[a].name.cmp(&insts[b].name))
+    });
+    let mut best = Polished {
+        steps: incumbent.to_vec(),
+        metric: baseline.metric + konst,
+        gained: Vec::new(),
+    };
+    let evals = std::env::var("FF_PREF_POLISH_EVALS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(POLISH_EVALS);
+    let cfg = SearchCfg {
+        max_eval: evals,
+        ..cfg
+    };
+    let total = order.len();
+    for (k, &i) in order.iter().enumerate() {
+        if crate::search::wall_hard_expired() {
+            break;
+        }
+        // One attempt's share of what is left: the remaining wall split over
+        // the remaining candidates, never under half a second. Unwalled, the
+        // evaluation cap is the whole budget.
+        let _slice = crate::search::wall_remaining_secs().and_then(|rem| {
+            if rem < 0.5 {
+                return None;
+            }
+            let share = (rem / (total - k) as f64).max(0.5).min(rem);
+            crate::search::tighten_deadline(rem - share)
+        });
+        if crate::search::wall_remaining_secs().is_some_and(|r| r < 0.5) {
+            break;
+        }
+        // Skip a candidate a better plan since satisfied.
+        if insts[i].held {
+            continue;
+        }
+        let mut goal = hard.clone();
+        for inst in insts.iter().filter(|x| x.held) {
+            if let Some(b) = &inst.body {
+                goal.push(b.clone());
+            }
+        }
+        goal.push(insts[i].body.clone().unwrap());
+        let mut d2 = domain.clone();
+        let mut p2 = problem.clone();
+        let mut c2 = 0usize;
+        d2.constraints =
+            crate::constraints::map_soft_constraints(&d2.constraints, &mut c2, &mut |_| false);
+        p2.constraints =
+            crate::constraints::map_soft_constraints(&p2.constraints, &mut c2, &mut |_| false);
+        p2.goal = Formula::And(goal);
+        p2.metric = None;
+        let (d2, p2) = match crate::constraints::gate(&d2, &p2) {
+            Ok(Some(pair)) => pair,
+            Ok(None) => (d2, p2),
+            Err(_) => continue,
+        };
+        let Some(names) = hard_goal_plan(&d2, &p2, threads, cfg) else {
+            if dbg {
+                eprintln!("[polish] {}: no plan inside the budget", insts[i].name);
+            }
+            continue;
+        };
+        let steps: Vec<(String, Vec<String>)> = names
+            .iter()
+            .filter_map(|n| {
+                let mut it = n.split_whitespace();
+                let head = it.next()?.to_string();
+                (head != crate::constraints::END_ACTION)
+                    .then(|| (head, it.map(str::to_string).collect()))
+            })
+            .collect();
+        let Ok(v) = crate::verify::verify_pair(domain, problem, &steps) else {
+            continue;
+        };
+        if !v.hard_goal_met || !v.constraints_met || v.metric + konst >= best.metric - 1e-9 {
+            if dbg {
+                eprintln!(
+                    "[polish] {}: candidate prices {:.3} against {:.3}, dropped",
+                    insts[i].name,
+                    v.metric + konst,
+                    best.metric
+                );
+            }
+            continue;
+        }
+        if dbg {
+            eprintln!(
+                "[polish] {}: {:.3} -> {:.3} ({} steps)",
+                insts[i].name,
+                best.metric,
+                v.metric + konst,
+                steps.len()
+            );
+        }
+        best = Polished {
+            steps,
+            metric: v.metric + konst,
+            gained: {
+                let mut g = best.gained;
+                g.push(insts[i].name.clone());
+                g
+            },
+        };
+        // The new plan's own satisfied set is what the next attempt keeps.
+        for (inst, &held) in insts.iter_mut().zip(v.goal_pref_sat.iter()) {
+            inst.held = held;
+        }
+        let n_goal = v.goal_pref_sat.len();
+        for (inst, (_, held)) in insts.iter_mut().skip(n_goal).zip(v.constraint_prefs.iter()) {
+            inst.held = *held;
+        }
+    }
+    (!best.gained.is_empty()).then_some(best)
+}
+
 /// Predicates never added nor deleted by any action effect — their truth is
 /// fixed by the initial state. The static complement of [`modified_functions`].
 pub(crate) fn static_predicates(domain: &Domain) -> HashSet<String> {

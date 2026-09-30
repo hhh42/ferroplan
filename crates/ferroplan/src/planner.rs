@@ -432,6 +432,62 @@ fn plan_pddl3(
             if !r.proven {
                 note.push_str(" search bound hit; value is best-found, not proven optimal.");
             }
+            // THE FIRST IMPROVING STEP (0.29 Lane 1), the text path's twin of
+            // api.rs: the polished plan lives in the ORIGINAL task's names,
+            // so it is rendered off a grounding of the original pair.
+            let incumbent: Vec<(String, Vec<String>)> = r
+                .ops
+                .iter()
+                .map(|&oi| task.op_display[oi].as_str())
+                .filter(|d| {
+                    let head = d.split_whitespace().next().unwrap_or("");
+                    !c.synthetic.contains(head) && head != crate::constraints::END_ACTION
+                })
+                .map(|d| {
+                    let mut it = d.split_whitespace();
+                    (
+                        it.next().unwrap_or("").to_string(),
+                        it.map(str::to_string).collect(),
+                    )
+                })
+                .collect();
+            if let Some(p) = pddl3::polish(domain, problem, &incumbent, threads, cfg) {
+                if let Some(orig) = crate::ground::ground_task(domain, problem, 1) {
+                    let ops: Option<Vec<usize>> = p
+                        .steps
+                        .iter()
+                        .map(|(a, args)| {
+                            let disp = if args.is_empty() {
+                                a.clone()
+                            } else {
+                                format!("{a} {}", args.join(" "))
+                            };
+                            orig.op_display.iter().position(|d| *d == disp)
+                        })
+                        .collect();
+                    if let Some(ops) = ops {
+                        note.push_str(&format!(
+                            " preference polish: {} more satisfied ({}), metric {} -> {}.",
+                            p.gained.len(),
+                            p.gained.join(", "),
+                            c.display_metric(r.cost),
+                            p.metric
+                        ));
+                        render_plan(
+                            out,
+                            &orig,
+                            &ops,
+                            Some(p.metric),
+                            threads,
+                            &c,
+                            r.iterations,
+                            ipc,
+                            &note,
+                        );
+                        return 0;
+                    }
+                }
+            }
             render_plan(
                 out,
                 &task,
