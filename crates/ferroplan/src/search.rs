@@ -2111,10 +2111,28 @@ fn ehc(
     let total_cap = (200 * task.n_ops).max(30_000).min(max_eval);
     let mut current = init;
     let mut plan: Vec<usize> = Vec::new();
+    // THE PROGRESS-CONDITIONAL SLICE (0.29 Lane W). The slice above is a
+    // fixed share of the wall, and on blocks(30) it is the whole defect: EHC
+    // needs 0.19 s and is handed 0.12 s of a 0.5 s wall, so a task that
+    // solves in a fifth of a second unbudgeted FAILS with a budget declared.
+    // What separates it from the laddertax shape (EHC eats 2x the wall and
+    // finds nothing) is arrival: blocks improves its h every few
+    // milliseconds, laddertax never. So the slice is charged against the
+    // last IMPROVEMENT, not against entry -- a run that keeps arriving keeps
+    // its slice -- under a hard ceiling of `FF_EHC_WALL_MAX_FRAC` (0.6) of
+    // the wall it entered with, so a run that arrives slowly and forever
+    // still hands down. `FF_NO_EHC_EXTEND=1` restores the fixed slice.
+    let extend = std::env::var("FF_NO_EHC_EXTEND").is_err();
+    let ceiling = slice.as_ref().and_then(|(t0, s)| {
+        let frac = wall_frac.unwrap_or_else(|| wall_frac_env("FF_EHC_WALL_FRAC", 0.25));
+        let max_frac = wall_frac_env("FF_EHC_WALL_MAX_FRAC", 0.6).max(frac);
+        (extend && frac > 0.0).then(|| (*t0, s * max_frac / frac))
+    });
+    let mut slice = slice;
     // A tripped slice is narrated HERE (bfs_improve just returns None),
     // and only on the hand-down paths — a plan found before the check is
     // a plan, never discarded.
-    let tripped = |evaluated: usize| {
+    let tripped = |slice: &Option<(crate::clock::Clock, f64)>, evaluated: usize| {
         let hit = slice.as_ref().is_some_and(|(t0, s)| t0.elapsed_secs() > *s) || cancelled(cancel);
         if hit && std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!(
@@ -2136,6 +2154,11 @@ fn ehc(
             cancel,
         ) {
             Some((ops, next, next_h)) => {
+                // An arrival: the slice restarts from now, inside the ceiling.
+                if let (Some((_, s)), Some(c)) = (slice.as_ref(), ceiling.as_ref()) {
+                    let fresh = (crate::clock::Clock::now(), *s);
+                    slice = sooner_deadline(Some(fresh), Some(*c));
+                }
                 plan.extend(ops);
                 current = next;
                 cur_h = next_h;
@@ -2145,12 +2168,12 @@ fn ehc(
                 if evaluated > total_cap {
                     return None; // taking too long — hand off to best-first
                 }
-                if tripped(evaluated) {
+                if tripped(&slice, evaluated) {
                     return None; // wall slice spent — hand off likewise
                 }
             }
             None => {
-                let _ = tripped(evaluated); // narration only
+                let _ = tripped(&slice, evaluated); // narration only
                 return None; // stuck — let best-first take over
             }
         }

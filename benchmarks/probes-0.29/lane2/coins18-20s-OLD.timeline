@@ -1,0 +1,11 @@
+  0.00 wall: remaining Some(1.0), bounded rungs affordable
+  0.21 [novelty-light] capped: 300001 evals (max 300000), 326257 nodes
+  2.84 [novelty-driver] enter: cap 400000, 15 ops
+  3.02 [novelty-driver] capped: 400001 pops (max 400000), 431768 nodes
+ 17.63 wall: best-first checkpoint expired at 1716551 evals (capped return)
+ 17.63 [h] reset 0ms, build 13391ms, extract 1ms (cumulative worker-thread time)
+ 17.63 [search] capped at 1716551 evals: h 13247ms, expand 531ms, insert 669ms, total 14582ms
+ 17.78 wall: refill round 2 (w_h 20, max_eval 20000000)
+ 19.62 wall: best-first checkpoint expired at 250276 evals (capped return)
+ 19.62 [h] reset 0ms, build 14813ms, extract 1ms (cumulative worker-thread time)
+ 19.62 [search] capped at 250276 evals: h 1678ms, expand 82ms, insert 66ms, total 1840ms

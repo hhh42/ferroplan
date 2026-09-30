@@ -233,6 +233,26 @@ Measured through the crucible on `ipc5-simple-pref`, `ipc5-qual-pref`,
 `ipc5-complex-pref` as subsets, points and rows both, engine hash beside
 every number; then on the cut.
 
+### Lane 1 — BUILT 2026-09-29/30 (`pddl3::polish`; `tests/pref_polish.rs`)
+
+Mechanism (1), the plan-side step: from the banked plan, the violated
+appendable preferences (goal preferences, soft `sometime` / `at end`
+members) heaviest-first, each planned as a hard goal from the plan's end
+state with the held ones kept as goals too, priced by the verifier, kept iff
+the metric fell. `FF_NO_PREF_POLISH` hatch; `FF_PREF_POLISH_EVALS` (20,000)
+per attempt. Fixture: a corridor whose optimizer cannot reach two cheap side
+trips inside its budget -- metric 11 → 3, `SIDE1`/`SIDE2` gained, a kept
+preference stays kept, the hatch keeps 11 (4 tests). First subset
+(`probes-0.29/lane1/`, engine 43097c3e63c3): simple **94.1 → 96.6** (17
+better / 1 worse), qualitative **59.2 → 59.7**, complex 53.4 → 51.2 (rows
+100 → 98 on qualitative, 6 owed; unpriced 2 → 5 on complex). Diagnosis of
+the small gain: on pathways-simple/16 no `[polish]` line at all -- the
+optimizer runs to the report reserve and the polish starts with nothing.
+So the optimizer now runs under a tightened deadline that leaves the polish
+`FF_PREF_POLISH_FRAC` (0.4) of the remaining wall whenever a polish applies
+(`pddl3::polish_applies`), on both the API and the text path. Re-measured
+in the `lanes29` subset below.
+
 ---
 
 ## Lane 2 — a relaxation that can see a consumable
@@ -255,6 +275,36 @@ merge. Phase 0.3's bisection decides whether a numeric defect from 0.28
 comes first. Fixtures: the rovers consumable shape at fixture scale, RED on
 0.28.0's evaluation count.
 
+### Lane 2 — the first question answered 2026-09-30 (`probes-0.29/lane2/`)
+
+**Slower on the same search.** coins i18 at 20 s, solo, one thread: 0.28.0
+and v0.27.1 run the identical trajectory (novelty-light 326,257 nodes,
+novelty-driver 431,768, the same h), but 0.28.0's relaxed-graph build costs
+11.0 µs per evaluation against 7.7 (+43%) -- 1,204,680 round-1 evaluations
+against 1,716,551 -- so round 1 never leaves enough wall for the greedier
+refill round (w_h 20), and that round is what solves the cell. Not the
+toolchain: v0.27.1 rebuilt today on the same rustc reproduces 7.69 µs. Not a
+hatch (Phase 0.3; `FF_NO_NEED_DIRS` is +0.4% on the fixed binary). Not the
+per-evaluation deadline reads (equal clock samples in both profiles). The
+`sample` profiles name it: `heuristic::widen` is the top self-time frame in
+0.28.0 and absent from v0.27.1, and `nm` shows the symbol only in the 0.28.0
+binary -- Lane N's `needs` parameter tipped LLVM into keeping `widen` an
+out-of-line call, once per applied op per layer.
+
+**Fix:** `#[inline(always)]` on `widen`, the reason in its doc comment.
+8.5 µs per evaluation; coins i18 solo at 60 s: **0/3 → 3/3 at 54.8–55.0 s**
+(v0.27.1: 3/3 at 54 s; 5,749,216 evaluations all three reps). A wall-edge
+cell, so it banks only on a quiet box. No fixture: a timing assertion flakes
+and a symbol-table assertion pins a mangled name; the receipt is the probe
+directory and the numeric boards' rows, measured through the crucible with
+the rest of the cycle. Left on the record: the residual +10% (candidates:
+the batch closure's per-node deadline read, the `needs` branch), and ~2% in
+`getenv` from `relaxed_to_inner`'s six `FF_NUMPRE_*` reads per evaluation,
+whose unit tests set those variables in-process.
+
+The consumable-aware relaxation itself (mechanisms a–c above) is not built
+here; it opens on the rovers fixture with this regression out of the way.
+
 ---
 
 ## Lane 3 — the constraints board throws its wall away
@@ -276,6 +326,24 @@ is its hatch); the temporal ladder gets the same, under the memory wall.
 are NOT the blocker here; the earlier scoping that said so was wrong, and
 this section is its correction.
 
+### Lane 3 — BUILT 2026-09-30 (`temporal::refill_ladder`; `tests/tnode_refill.rs`)
+
+The temporal ladder's node cap is a thread-local scale (`NODE_CAP_SCALE`)
+that `refill_ladder` doubles, round after round, while more than a second of
+wall remains and the scale is under 64× -- each round under
+`tighten_deadline(0.0)`, so the memory wall is armed for it; no refill at
+all without a declared wall. Called where `solve_prefless` used to decline and
+after the compression rung's second attempt. `FF_NO_TNODE_REFILL` hatch;
+`FF_TEMPORAL_NODE_CAP` is scaled too. Fixture: a 12-link chain under
+`(always (safe))` with the cap forced to 6 and escalation off -- hatched, it
+ends "exhausted its budgets with"; refilled, it solves and the note says
+"temporal node cap refilled x". The first build refilled on ANY empty
+ladder and `tests/ladder_dedup.rs` caught it (an unsolvable ring ran its
+quartet twice over): the refill is now licensed only by a pass that ended
+on its node cap (`NODE_CAP_TRIPPED`), never by one that exhausted its
+space, its evaluation budget or its wall. Measured on `ipc5-constraints`
+in `lanes29`.
+
 ---
 
 ## Lane 4 — the memory class
@@ -294,6 +362,21 @@ Two mechanisms, both named in 0.28 and both with a receipt:
   pipesworld-metric-time (9). Virtual "every monitored op" achievers instead
   of one entry per op per monitor add. Band: storage-complex +8 to +14.
 
+### Lane 4 — streaming expansion BUILT 2026-09-30 (`constraints::expand_simplified`; `tests/constraints_stream.rs`)
+
+The first mechanism. `expand` is now `expand_with(.., None)`; the monitor
+compile calls `expand_simplified`, which threads the static simplifier
+(`static_simplifier`, `None` under `FF_PREF_NO_STATIC`) through
+`walk`/`walk_members` so every member is simplified as it is produced and
+an accepted one is never stored. Fixture: 6×6 instances of a preference
+body over a static predicate -- the streamed expansion is byte-identical
+(`Debug`) to `expand` + `simplify_static` and keeps 12 of 36 members; the
+hatch keeps them all. First build's plumbing stopped at `walk` (the members
+were pushed unsimplified: 36); the fixture caught it. Measured on the
+storage rows of the qualitative/complex boards in `lanes29`, memory by
+`ru_maxrss` (Phase 0's `max_rss` column). The achiever index (second
+mechanism) is not built.
+
 ---
 
 ## Lane W — a declared wall makes the classical ladder worse
@@ -307,6 +390,18 @@ signal is arrival-shaped where LAMA's was not. **Measure first:** both
 fixtures side by side, then `ipc2018-sat` and `ipc2023-sat` as subsets under
 a progress-conditional EHC slice. **Kill:** `laddertax` goes red, or the
 subsets read ≤ 0.
+
+### Lane W — BUILT 2026-09-30 (`search::ehc`; `tests/ehc_extend.rs`)
+
+The slice is charged against the last improvement, not against entry: on
+each `bfs_improve` arrival the slice deadline moves to now + slice, under a
+ceiling of `FF_EHC_WALL_MAX_FRAC` (0.6) of the wall. `FF_NO_EHC_EXTEND`
+hatch. Fixture recalibrated on the M5 (blocks(30) now solves in 0.03 s):
+blocks(50), EHC alone 0.34 s, at a 1 s wall with the fixed slice a tenth of
+it -- fixed: 0/3, "EHC slice exhausted", the ladder does not rescue it;
+arrival-charged: 3/3 at 0.34 s, "solved by EHC". `ladder_rungs_pay_the_wall`
+stays green (17.8 s). Measured on `ipc2018-sat` and `ipc2023-sat` in
+`lanes29`.
 
 ---
 

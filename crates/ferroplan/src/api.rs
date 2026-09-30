@@ -1466,15 +1466,27 @@ fn solve_pddl3(
     // stops a reserve short of the wall (the Lane S rule): the runner kills
     // AT the wall, and a metric polished until 60.4 s is a row lost.
     let _report_wall = crate::search::reserve_for_report(task.n_ops);
-    match pddl3::metric_optimize_seeded(
-        &task,
-        cf,
-        &forgos,
-        &groups,
-        c.folded_metric,
-        threads,
-        seed.as_deref(),
-    ) {
+    // THE POLISH'S SHARE (0.29 Lane 1): where the polish applies, the
+    // optimizer gets the wall minus `FF_PREF_POLISH_FRAC` of it, so the
+    // improving step is not left the reserve's crumbs. Scoped to the
+    // optimizer call; the polish below runs on what was kept back.
+    let polish_share = pddl3::polish_applies(domain, problem)
+        .then(crate::search::wall_remaining_secs)
+        .flatten()
+        .map(|rem| rem * pddl3::polish_frac());
+    let optimized = {
+        let _opt_wall = polish_share.and_then(crate::search::tighten_deadline);
+        pddl3::metric_optimize_seeded(
+            &task,
+            cf,
+            &forgos,
+            &groups,
+            c.folded_metric,
+            threads,
+            seed.as_deref(),
+        )
+    };
+    match optimized {
         Some(pddl3::SeededResult {
             result: r,
             from_seed,

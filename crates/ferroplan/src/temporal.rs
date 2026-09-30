@@ -799,7 +799,14 @@ fn solve_prefless(domain: &Domain, problem: &Problem, threads: usize) -> Option<
         if dbg {
             eprintln!("wall: compression rung declined ({why})");
         }
-        return solve_decision_epoch(domain, problem, threads);
+        let plan = solve_decision_epoch(domain, problem, threads);
+        if plan.is_some() {
+            return plan;
+        }
+        // THE REFILL (0.29 Lane 3): the ladder's caps tripped with wall left
+        // and nothing else will spend it on a task the compression rung
+        // declined. See `refill_ladder`.
+        return refill_ladder(domain, problem, threads);
     }
     match crate::tcompress::solve(domain, problem, threads, crate::tcompress::Bet::First) {
         Some(banked) => {
@@ -843,7 +850,8 @@ fn solve_prefless(domain: &Domain, problem: &Problem, threads: usize) -> Option<
                     problem,
                     threads,
                     crate::tcompress::Bet::Rest,
-                );
+                )
+                .or_else(|| refill_ladder(domain, problem, threads));
             }
             plan
         }
@@ -854,6 +862,7 @@ fn solve_prefless(domain: &Domain, problem: &Problem, threads: usize) -> Option<
 /// decision-epoch ladder, the exhaustion rung -- exactly what
 /// `solve_prefless` was before 0.28.
 fn solve_decision_epoch(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    NODE_CAP_TRIPPED.with(|c| c.set(false));
     // The SAT rung's arming policy (0.24 Phase 3), per the house law (no
     // sweep arms = no evidence): `FF_NO_SAT` is the byte-identity restore
     // — with it set this function IS `solve_ladder`, byte for byte. The
@@ -3082,12 +3091,77 @@ const MAX_NODES: usize = 400_000;
 /// allowance; `FF_TEMPORAL_NODE_CAP` overrides the count directly (`0`
 /// disables). Bounded above by the historical 400k count cap.
 fn temporal_node_cap(task: &PackedTask, til_len: usize, bytes: usize) -> usize {
+    let scale = NODE_CAP_SCALE.with(|c| c.get());
     if let Ok(v) = std::env::var("FF_TEMPORAL_NODE_CAP") {
         if let Ok(n) = v.trim().parse::<usize>() {
-            return if n == 0 { usize::MAX } else { n };
+            return if n == 0 {
+                usize::MAX
+            } else {
+                n.saturating_mul(scale)
+            };
         }
     }
-    (bytes / temporal_per_node_bytes(task, til_len)).min(MAX_NODES)
+    (bytes / temporal_per_node_bytes(task, til_len))
+        .saturating_mul(scale)
+        .min(MAX_NODES)
+}
+
+thread_local! {
+    /// THE REFILL (0.29 Lane 3). The per-pass node cap is a MODEL of what the
+    /// memory budget affords, and on the constraints board the model tripped
+    /// in seconds and the ladder exited with most of a minute unspent -- 37
+    /// cells read "temporal ladder exhausted its budgets with N s of wall
+    /// left" on cut28, and the compression rung's second attempt does not
+    /// cover them because it declines trajectory constraints. When the ladder
+    /// comes back empty with wall to spend, `solve_prefless` doubles this and
+    /// runs it again under the MEASURED memory wall, until a plan, the wall,
+    /// or the 64x round. `FF_NO_TNODE_REFILL=1` restores the single pass.
+    static NODE_CAP_SCALE: std::cell::Cell<usize> = const { std::cell::Cell::new(1) };
+    /// Set by a pass that ended on its NODE cap (not its wall, not its
+    /// evaluation budget); cleared when a ladder starts. The refill's licence:
+    /// an empty ladder that never tripped a cap exhausted its space, and
+    /// running it again larger proves nothing -- `tests/ladder_dedup.rs`
+    /// counts exactly those passes on an unsolvable ring.
+    static NODE_CAP_TRIPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Run the decision-epoch ladder again with the node cap doubled each round
+/// while the last round tripped a node cap and the wall has more than a
+/// second left, under the memory wall (the
+/// refill is optional work in the one sense that matters: a larger arena is
+/// the runner's kill a moment away, and a task with no plan yet is exactly
+/// the one the 0.28 memory wall does not arm on by itself). The scale is
+/// restored on the way out whatever happened.
+fn refill_ladder(domain: &Domain, problem: &Problem, threads: usize) -> Option<TimedPlan> {
+    if std::env::var("FF_NO_TNODE_REFILL").is_ok() {
+        return None;
+    }
+    let dbg = std::env::var("FF_WALL_DEBUG").is_ok();
+    let base = NODE_CAP_SCALE.with(|c| c.get());
+    let mut scale = base;
+    let mut plan = None;
+    // Under a DECLARED wall only: unwalled, a task that ended on its caps
+    // has no clock to spend and an API caller gets the single deterministic
+    // pass it always got (tests/ladder_dedup.rs pins that count).
+    while plan.is_none()
+        && NODE_CAP_TRIPPED.with(|c| c.get())
+        && scale < base * 64
+        && crate::search::wall_remaining_secs().is_some_and(|s| s > 1.0)
+    {
+        scale *= 2;
+        NODE_CAP_SCALE.with(|c| c.set(scale));
+        if dbg {
+            eprintln!(
+                "wall: temporal node cap refilled x{scale} ({:?} s of wall left)",
+                crate::search::wall_remaining_secs()
+            );
+        }
+        // Arms the memory wall for this round (a zero reserve keeps the deadline).
+        let _bounded = crate::search::tighten_deadline(0.0);
+        plan = solve_decision_epoch(domain, problem, threads);
+    }
+    NODE_CAP_SCALE.with(|c| c.set(base));
+    plan
 }
 
 /// The temporal node arena's per-node byte model — the cap's denominator
@@ -3488,6 +3562,9 @@ fn temporal_search(
             );
         }
         if nodes.len() > max_nodes || *budget == 0 || wall_hit {
+            if nodes.len() > max_nodes {
+                NODE_CAP_TRIPPED.with(|c| c.set(true));
+            }
             if dbg {
                 eprintln!(
                     "[tsearch] cap hit (nodes {} / max {max_nodes}, budget left {budget}) at {}ms",

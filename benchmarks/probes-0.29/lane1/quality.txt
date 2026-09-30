@@ -1,0 +1,4 @@
+board              cells |  0.28.0   stage   delta  SGPlan5 | rows 0.28.0 / stage | better/worse than 0.28.0 | unpriced 0.28.0 / stage | empty stage
+ipc5-simple-pref     130 |    94.1    96.6    +2.5    115.7 |  130 / 130         |  17 / 1                    |  0 / 2                   | 23
+ipc5-qual-pref       100 |    59.2    59.7    +0.4     91.7 |  100 / 98          |   6 / 1                    |  5 / 4                   | 16
+ipc5-complex-pref    105 |    53.4    51.2    -2.2     99.9 |   78 / 78          |   0 / 0                    |  2 / 5                   | 33

@@ -206,6 +206,12 @@ impl Scratch {
 /// (effects on fluents that no precondition/goal reads cannot change the
 /// heuristic, so skipping them is exact and also stops irrelevant unbounded
 /// growth). Returns whether any relevant bound changed.
+///
+/// `#[inline(always)]` is load-bearing (0.29 Lane 2): adding the `needs`
+/// parameter in 0.28 tipped LLVM into keeping this a call, and the
+/// per-op-per-layer call on the numeric RPG cost 43% per evaluation on
+/// coins-2026 i18 (7.7 -> 11.0 us; `nm` shows the symbol only in 0.28.0).
+#[inline(always)]
 fn widen(
     neffs: &[NumEff],
     relevant: &[bool],

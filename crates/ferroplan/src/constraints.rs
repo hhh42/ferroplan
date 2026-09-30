@@ -162,6 +162,34 @@ pub struct Expanded {
 /// Expand and validate a task's `(:constraints ...)` trees. Errors name the
 /// unsupported operator (the timed family) or the malformed nesting.
 pub fn expand(domain: &Domain, problem: &Problem) -> Result<Expanded, String> {
+    expand_with(domain, problem, None)
+}
+
+/// [`expand`] with the static simplification applied AS EACH MEMBER IS
+/// PRODUCED (0.29 Lane 4), instead of over the whole materialised set
+/// afterwards. The result is byte-identical to `expand` followed by
+/// `simplify_static`; what changes is the peak: storage-qualitative i20
+/// expands 2.3 million preference instances of which 98 % are statically
+/// accepted, and materialising every expanded body before dropping it took
+/// the process past 6 GB before any plan existed. A member the simplifier
+/// accepts is never stored; an instance keeps its (possibly empty) member
+/// list, exactly as the post-hoc pass left it.
+pub fn expand_simplified(domain: &Domain, problem: &Problem) -> Result<Expanded, String> {
+    match static_simplifier(domain, problem) {
+        Some(simp) => expand_with(domain, problem, Some(&*simp)),
+        None => expand(domain, problem),
+    }
+}
+
+type Simplifier<'a> = &'a dyn Fn(&Traj) -> Option<Traj>;
+/// The owned form [`static_simplifier`] hands out.
+type BoxedSimplifier = Box<dyn Fn(&Traj) -> Option<Traj>>;
+
+fn expand_with(
+    domain: &Domain,
+    problem: &Problem,
+    simp: Option<Simplifier<'_>>,
+) -> Result<Expanded, String> {
     let objs = crate::ground::objects_by_type(domain, problem);
     let mut out = Expanded {
         hard: Vec::new(),
@@ -169,7 +197,7 @@ pub fn expand(domain: &Domain, problem: &Problem) -> Result<Expanded, String> {
     };
     let mut anon = 0usize;
     for c in domain.constraints.iter().chain(problem.constraints.iter()) {
-        walk(c, &objs, &HashMap::new(), &mut anon, &mut out)?;
+        walk(c, &objs, &HashMap::new(), &mut anon, &mut out, simp)?;
     }
     Ok(out)
 }
@@ -387,7 +415,7 @@ pub(crate) fn statically_dead_soft_nodes(domain: &Domain, problem: &Problem) -> 
                 // One TEXTUAL node; dead iff ANY binding's ANY member is.
                 let mut dead = false;
                 let mut members = Vec::new();
-                if walk_members(inner, objs, binding, &mut members).is_ok() {
+                if walk_members(inner, objs, binding, &mut members, None).is_ok() {
                     dead = members.iter().any(dead_member);
                 }
                 out.push(dead);
@@ -476,18 +504,19 @@ fn walk(
     binding: &HashMap<Sym, Sym>,
     anon: &mut usize,
     out: &mut Expanded,
+    simp: Option<Simplifier<'_>>,
 ) -> Result<(), String> {
     match c {
         Constraint::And(v) => {
             for x in v {
-                walk(x, objs, binding, anon, out)?;
+                walk(x, objs, binding, anon, out, simp)?;
             }
         }
         Constraint::Forall(vars, inner) => {
             for combo in combos(vars, objs) {
                 let mut b = binding.clone();
                 b.extend(combo);
-                walk(inner, objs, &b, anon, out)?;
+                walk(inner, objs, &b, anon, out, simp)?;
             }
         }
         Constraint::Pref(name, inner) => {
@@ -500,12 +529,12 @@ fn walk(
             // binding): `and`/`forall` INSIDE the body collect into the
             // instance's member list — violated iff any member is.
             let mut members = Vec::new();
-            walk_members(inner, objs, binding, &mut members)?;
+            walk_members(inner, objs, binding, &mut members, simp)?;
             out.soft.push((name, members));
         }
         _ => {
             let mut members = Vec::new();
-            walk_members(c, objs, binding, &mut members)?;
+            walk_members(c, objs, binding, &mut members, simp)?;
             out.hard.extend(members);
         }
     }
@@ -520,19 +549,32 @@ fn walk_members(
     objs: &HashMap<Sym, Vec<Sym>>,
     binding: &HashMap<Sym, Sym>,
     members: &mut Vec<Traj>,
+    simp: Option<Simplifier<'_>>,
 ) -> Result<(), String> {
     let sub = |f: &Formula| expand_quantifiers(&subst_formula(f, binding), objs);
+    // Every member goes through the simplifier AS IT IS PRODUCED (0.29 Lane
+    // 4): one the simplifier accepts (statically true) is never stored, and
+    // a survivor is stored in its simplified form -- exactly what
+    // [`simplify_static`] would have done to the materialised list.
+    let push = |members: &mut Vec<Traj>, t: Traj| match simp {
+        Some(s) => {
+            if let Some(t) = s(&t) {
+                members.push(t);
+            }
+        }
+        None => members.push(t),
+    };
     match c {
         Constraint::And(v) => {
             for x in v {
-                walk_members(x, objs, binding, members)?;
+                walk_members(x, objs, binding, members, simp)?;
             }
         }
         Constraint::Forall(vars, inner) => {
             for combo in combos(vars, objs) {
                 let mut b = binding.clone();
                 b.extend(combo);
-                walk_members(inner, objs, &b, members)?;
+                walk_members(inner, objs, &b, members, simp)?;
             }
         }
         Constraint::Pref(_, _) => {
@@ -542,23 +584,23 @@ fn walk_members(
                     .into(),
             )
         }
-        Constraint::Always(f) => members.push(Traj::Always(sub(f))),
-        Constraint::Sometime(f) => members.push(Traj::Sometime(sub(f))),
-        Constraint::AtMostOnce(f) => members.push(Traj::AtMostOnce(sub(f))),
-        Constraint::SometimeAfter(a, b) => members.push(Traj::SometimeAfter(sub(a), sub(b))),
-        Constraint::SometimeBefore(a, b) => members.push(Traj::SometimeBefore(sub(a), sub(b))),
-        Constraint::AtEnd(f) => members.push(Traj::AtEnd(sub(f))),
+        Constraint::Always(f) => push(members, Traj::Always(sub(f))),
+        Constraint::Sometime(f) => push(members, Traj::Sometime(sub(f))),
+        Constraint::AtMostOnce(f) => push(members, Traj::AtMostOnce(sub(f))),
+        Constraint::SometimeAfter(a, b) => push(members, Traj::SometimeAfter(sub(a), sub(b))),
+        Constraint::SometimeBefore(a, b) => push(members, Traj::SometimeBefore(sub(a), sub(b))),
+        Constraint::AtEnd(f) => push(members, Traj::AtEnd(sub(f))),
         Constraint::Within(t, f) => {
             if *t < 0.0 {
                 return Err(neg_bound_err("within"));
             }
-            members.push(Traj::Within(*t, sub(f)));
+            push(members, Traj::Within(*t, sub(f)));
         }
         Constraint::AlwaysWithin(t, a, b) => {
             if *t < 0.0 {
                 return Err(neg_bound_err("always-within"));
             }
-            members.push(Traj::AlwaysWithin(*t, sub(a), sub(b)));
+            push(members, Traj::AlwaysWithin(*t, sub(a), sub(b)));
         }
         Constraint::HoldDuring(_, _, _) => return Err(timed_err("hold-during")),
         Constraint::HoldAfter(_, _) => return Err(timed_err("hold-after")),
@@ -733,18 +775,44 @@ impl<'a> Fold<'a> {
 /// A statically-VIOLATED instance (e.g. `always false`) is NEVER dropped —
 /// the monitors must enforce/price it. `FF_PREF_NO_STATIC=1` restores the
 /// blind expansion (the same hatch as the goal-preference pass).
-fn simplify_static(exp: &mut Expanded, domain: &Domain, problem: &Problem) {
-    if std::env::var("FF_PREF_NO_STATIC").is_ok() {
+pub fn simplify_static(exp: &mut Expanded, domain: &Domain, problem: &Problem) {
+    let Some(simp) = static_simplifier(domain, problem) else {
         return;
+    };
+    let h0 = exp.hard.len();
+    let m0: usize = exp.soft.iter().map(|(_, ms)| ms.len()).sum();
+    exp.hard = exp.hard.iter().filter_map(&*simp).collect();
+    for (_, members) in exp.soft.iter_mut() {
+        *members = members.iter().filter_map(&*simp).collect();
+    }
+    let m1: usize = exp.soft.iter().map(|(_, ms)| ms.len()).sum();
+    if std::env::var("FF_RES_DEBUG").is_ok() && (exp.hard.len(), m1) != (h0, m0) {
+        eprintln!(
+            "[P3] constraint static simplification: dropped {} of {} hard, {} of {} soft member(s)",
+            h0 - exp.hard.len(),
+            h0,
+            m0 - m1,
+            m0
+        );
+    }
+}
+
+/// The static member simplifier, as a value (0.29 Lane 4): `None` under
+/// `FF_PREF_NO_STATIC`. [`simplify_static`] applies it after the fact over a
+/// materialised expansion; [`expand_simplified`] applies it to each member
+/// as it is produced, so an accepted member is never stored.
+fn static_simplifier(domain: &Domain, problem: &Problem) -> Option<BoxedSimplifier> {
+    if std::env::var("FF_PREF_NO_STATIC").is_ok() {
+        return None;
     }
     let statics = crate::pddl3::static_predicates(domain);
     let init: std::collections::HashSet<(Sym, Vec<Sym>)> =
         problem.init_atoms.iter().cloned().collect();
-    let peval = |f: &Formula| crate::pddl3::peval_static(f, &statics, &init);
-    let t = |f: &Formula| matches!(f, Formula::True);
-    let fa = |f: &Formula| matches!(f, Formula::False);
-    // Simplify bodies; `None` = statically accepted on every trajectory.
-    let simp = |traj: &Traj| -> Option<Traj> {
+    Some(Box::new(move |traj: &Traj| -> Option<Traj> {
+        let peval = |f: &Formula| crate::pddl3::peval_static(f, &statics, &init);
+        let t = |f: &Formula| matches!(f, Formula::True);
+        let fa = |f: &Formula| matches!(f, Formula::False);
+
         match traj {
             Traj::Always(f) => match peval(f) {
                 f if t(&f) => None,
@@ -800,28 +868,7 @@ fn simplify_static(exp: &mut Expanded, domain: &Domain, problem: &Problem) {
                 }
             }
         }
-    };
-    let h0 = exp.hard.len();
-    let m0: usize = exp.soft.iter().map(|(_, ms)| ms.len()).sum();
-    exp.hard = exp.hard.iter().filter_map(&simp).collect();
-    // Soft: simplify each instance's MEMBERS. An instance whose members all
-    // drop is statically SATISFIED — it stays in the list with an empty
-    // member vec (compile lowers it to `(preference name true)`), so the
-    // pref-instance count the optimizer reports never shrinks; only the
-    // monitor machinery for it disappears.
-    for (_, members) in exp.soft.iter_mut() {
-        *members = members.iter().filter_map(&simp).collect();
-    }
-    let m1: usize = exp.soft.iter().map(|(_, ms)| ms.len()).sum();
-    if std::env::var("FF_RES_DEBUG").is_ok() && (exp.hard.len(), m1) != (h0, m0) {
-        eprintln!(
-            "[P3] constraint static simplification: dropped {} of {} hard, {} of {} soft member(s)",
-            h0 - exp.hard.len(),
-            h0,
-            m0 - m1,
-            m0
-        );
-    }
+    }))
 }
 
 /// Reject inputs whose own names collide with the generated monitor
@@ -1054,7 +1101,9 @@ fn compile_inner(
     timed: bool,
 ) -> Result<(Domain, Problem), String> {
     reject_reserved_names(domain, problem)?;
-    let mut exp = expand(domain, problem)?;
+    // Simplified AS IT EXPANDS (0.29 Lane 4): the peak is the kept members,
+    // not the materialised field. Byte-identical to `expand` + `simplify_static`.
+    let mut exp = expand_simplified(domain, problem)?;
     if !timed {
         if let Some(op) = first_timed(&exp) {
             return Err(classical_timed_err(op));

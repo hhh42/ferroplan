@@ -325,6 +325,24 @@ pub fn pure_violation_metric(problem: &Problem) -> Option<f64> {
     (!other && tc == 0.0 && others.is_empty()).then_some(konst)
 }
 
+/// Would [`polish`] have anything to do on this pair? Cheap, and asked BEFORE
+/// the optimizer runs so the optimizer can be handed a wall that leaves the
+/// polish its share (`FF_PREF_POLISH_FRAC`): on pathways-preferences-simple
+/// the optimizer ran to the report reserve every time and the polish, called
+/// after it, found half a second and did nothing.
+pub fn polish_applies(domain: &Domain, problem: &Problem) -> bool {
+    std::env::var("FF_NO_PREF_POLISH").is_err()
+        && pure_violation_metric(problem).is_some()
+        && !domain.actions.iter().any(|a| goal_has_pref(&a.precond))
+        && (goal_has_pref(&problem.goal)
+            || crate::constraints::has_soft_constraints(domain, problem))
+}
+
+/// The share of the wall left to the polish when it applies (default 0.4).
+pub fn polish_frac() -> f64 {
+    crate::search::wall_frac_env("FF_PREF_POLISH_FRAC", 0.4)
+}
+
 /// What the polish hands back: the plan, its TRUE metric (by replay over the
 /// original pair, constant included), and the preferences it added.
 #[derive(Debug, Clone, PartialEq)]
@@ -368,14 +386,20 @@ pub fn polish(
     threads: usize,
     cfg: SearchCfg,
 ) -> Option<Polished> {
-    if std::env::var("FF_NO_PREF_POLISH").is_ok() {
+    let dbg = std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok();
+    if !polish_applies(domain, problem) {
+        if dbg {
+            eprintln!("[polish] not applicable (hatch, metric shape, or precondition preferences)");
+        }
         return None;
     }
     let konst = pure_violation_metric(problem)?;
-    if domain.actions.iter().any(|a| goal_has_pref(&a.precond)) {
-        return None;
+    if dbg {
+        eprintln!(
+            "[polish] start: {:?} s of wall left",
+            crate::search::wall_remaining_secs()
+        );
     }
-    let dbg = std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok();
     let objs = crate::ground::objects_by_type(domain, problem);
     let mut hard: Vec<Formula> = Vec::new();
     let mut goal_prefs: Vec<(String, Formula)> = Vec::new();
