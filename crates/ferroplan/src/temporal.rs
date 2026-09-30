@@ -3123,6 +3123,17 @@ thread_local! {
     /// running it again larger proves nothing -- `tests/ladder_dedup.rs`
     /// counts exactly those passes on an unsolvable ring.
     static NODE_CAP_TRIPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The largest scale the last [`refill_ladder`] reached (1 = it never
+    /// refilled), so an unsolved verdict can say what the wall was spent
+    /// on (Lane 3's kill clause: `ipc5-constraints` 28 → 28 with the wall
+    /// spent; the note names the rounds).
+    static REFILL_SCALE_REACHED: std::cell::Cell<usize> = const { std::cell::Cell::new(1) };
+}
+
+/// The node-cap scale the last temporal refill reached on this thread: 1
+/// when nothing was refilled, else the x2..x64 the ladder was last run at.
+pub(crate) fn refill_scale_reached() -> usize {
+    REFILL_SCALE_REACHED.with(|c| c.get())
 }
 
 /// Run the decision-epoch ladder again with the node cap doubled each round
@@ -3140,6 +3151,7 @@ fn refill_ladder(domain: &Domain, problem: &Problem, threads: usize) -> Option<T
     let base = NODE_CAP_SCALE.with(|c| c.get());
     let mut scale = base;
     let mut plan = None;
+    REFILL_SCALE_REACHED.with(|c| c.set(1));
     // Under a DECLARED wall only: unwalled, a task that ended on its caps
     // has no clock to spend and an API caller gets the single deterministic
     // pass it always got (tests/ladder_dedup.rs pins that count).
@@ -3150,6 +3162,7 @@ fn refill_ladder(domain: &Domain, problem: &Problem, threads: usize) -> Option<T
     {
         scale *= 2;
         NODE_CAP_SCALE.with(|c| c.set(scale));
+        REFILL_SCALE_REACHED.with(|c| c.set(scale / base));
         if dbg {
             eprintln!(
                 "wall: temporal node cap refilled x{scale} ({:?} s of wall left)",

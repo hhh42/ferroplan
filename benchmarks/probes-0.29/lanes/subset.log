@@ -773,3 +773,97 @@ subset  boards ipc5-constraints,ipc2018-sat,ipc2023-sat,ipc2023-numeric,ipc2026-
 !! canary trucks-propositional/8@17fc6d6f0bd8 at 5.23x its baseline -- the box is slow
 !! canary trucks-propositional/8@17fc6d6f0bd8 at 5.76x its baseline -- the box is slow
 !! canary trucks-propositional/8@17fc6d6f0bd8 at 5.65x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 4.53x its baseline -- the box is slow
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 6.00x its baseline -- the box is slow
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 3 (polite, operator active 77s ago, foreign 31%)
+!! throttle polite -> full (Clear)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 3 -> 8 (full, idle 317s, foreign 154%)
+!! width 8 -> 9 (full, idle 337s, foreign 82%)
+!! width 9 -> 8 (full, idle 437s, foreign 198%)
+!! width 8 -> 7 (full, idle 457s, foreign 208%)
+!! width 7 -> 9 (full, idle 477s, foreign 7%)
+   ipc2023-sat            verdicts: demoted 6, thermal 18
+   ipc2023-sat            banked    0   24 -> 24   [DEGRADED -- not banked, work owed]
+   ipc2026-numeric        packed: 9 wide x10 (14.5 GB budget), 0 narrow, 16 solo
+!! width 9 -> 8 (full, idle 1117s, foreign 190%)
+!! width 8 -> 9 (full, idle 1137s, foreign 7%)
+!! width 9 -> 8 (full, idle 1217s, foreign 146%)
+!! throttle full -> polite (Foreign(53.0))
+!! width 8 -> 9 (polite, idle 1257s, foreign 53%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.48x its baseline -- the box is slow
+   ipc2026-numeric        verdicts: solved 15, thermal 10
+   ipc2026-numeric        banked   15   25 -> 10
+   ipc2023-numeric        packed: 13 wide x10 (14.5 GB budget), 6 narrow, 13 solo
+!! width 9 -> 7 (polite, idle 1637s, foreign 204%)
+!! width 7 -> 9 (polite, idle 1657s, foreign 42%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 1897s, foreign 171%)
+!! width 8 -> 9 (polite, idle 1917s, foreign 64%)
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.49x its baseline -- the box is slow
+   ipc2023-numeric        verdicts: solved 14, thermal 18
+   ipc2023-numeric        banked   14   32 -> 18
+== pass 3 -- 4 board(s) outstanding
+   ipc2018-sat            verdicts: rho 1, solved 3, thermal 2
+   ipc2018-sat            banked    4   6 -> 2
+!! canary trucks-propositional/8@17fc6d6f0bd8 at 1.47x its baseline -- the box is slow
+!! width 9 -> 7 (polite, idle 2797s, foreign 244%)
+!! width 7 -> 9 (polite, idle 2817s, foreign 46%)
+!! width 9 -> 7 (polite, idle 2877s, foreign 265%)
+!! width 7 -> 9 (polite, idle 2897s, foreign 46%)
+   ipc2026-numeric        verdicts: solved 2, thermal 8
+   ipc2026-numeric        banked    2   10 -> 8
+   ipc2023-numeric        packed: 2 wide x10 (14.5 GB budget), 8 narrow, 8 solo
+!! width 9 -> 8 (polite, idle 3297s, foreign 126%)
+!! width 8 -> 9 (polite, idle 3317s, foreign 67%)
+!! width 9 -> 8 (polite, idle 3457s, foreign 123%)
+!! width 8 -> 9 (polite, idle 3477s, foreign 45%)
+!! width 9 -> 10 (polite, idle 3617s, foreign -0%)
+!! throttle polite -> full (Clear)
+!! width 10 -> 9 (full, idle 3697s, foreign 35%)
+!! width 9 -> 10 (full, idle 3717s, foreign -0%)
+!! width 10 -> 9 (full, idle 3757s, foreign 19%)
+   ipc2023-numeric        verdicts: rho 3, solved 15
+   ipc2023-numeric        banked   18   18 -> 0
+   ipc2023-sat            packed: 5 wide x10 (14.5 GB budget), 3 narrow, 16 solo
+!! width 9 -> 10 (full, idle 3797s, foreign -0%)
+!! width 10 -> 9 (full, idle 3857s, foreign 13%)
+!! width 9 -> 10 (full, idle 3877s, foreign -0%)
+!! width 10 -> 9 (full, idle 4097s, foreign 88%)
+!! width 9 -> 10 (full, idle 4117s, foreign -0%)
+!! width 10 -> 9 (full, idle 4137s, foreign 17%)
+!! width 9 -> 8 (full, idle 4157s, foreign 148%)
+!! width 8 -> 10 (full, idle 4177s, foreign -0%)
+!! width 10 -> 9 (full, idle 4257s, foreign 18%)
+!! width 9 -> 10 (full, idle 4277s, foreign -0%)
+!! width 10 -> 9 (full, idle 4417s, foreign 24%)
+!! width 9 -> 10 (full, idle 4437s, foreign -0%)
+!! width 10 -> 8 (full, idle 4457s, foreign 199%)
+!! throttle full -> polite (Foreign(36.2))
+!! width 8 -> 9 (polite, idle 4477s, foreign 36%)
+!! width 9 -> 10 (polite, idle 4497s, foreign -0%)
+!! throttle polite -> full (Clear)
+!! width 10 -> 9 (full, idle 4717s, foreign 7%)
+!! width 9 -> 10 (full, idle 4737s, foreign -0%)
+!! width 10 -> 9 (full, idle 4757s, foreign 5%)
+!! width 9 -> 10 (full, idle 4777s, foreign -0%)
+!! width 10 -> 9 (full, idle 4797s, foreign 79%)
+!! width 9 -> 10 (full, idle 4817s, foreign -0%)
+!! width 10 -> 9 (full, idle 4877s, foreign 6%)
+   ipc2023-sat            verdicts: rho 1, solved 23
+   ipc2023-sat            banked   24   24 -> 0
+== pass 4 -- 2 board(s) outstanding
+!! width 9 -> 10 (full, idle 4897s, foreign -0%)
+   ipc2018-sat            verdicts: solved 2
+   ipc2018-sat            banked    2   2 -> 0
+!! width 10 -> 9 (full, idle 5017s, foreign 43%)
+!! width 9 -> 10 (full, idle 5037s, foreign -0%)
+!! width 10 -> 7 (full, idle 5117s, foreign 208%)
+!! width 7 -> 10 (full, idle 5137s, foreign -0%)
+!! width 10 -> 9 (full, idle 5197s, foreign 7%)
+!! width 9 -> 10 (full, idle 5217s, foreign -0%)
+!! width 10 -> 9 (full, idle 5277s, foreign 21%)
+   ipc2026-numeric        verdicts: solved 8
+   ipc2026-numeric        banked    8   8 -> 0
+SWEEP COMPLETE -- 594 banked in 4 pass(es)

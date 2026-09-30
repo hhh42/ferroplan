@@ -1119,13 +1119,21 @@ fn solve_temporal(
             // hand-back / instant-exhaust shapes). The runner plumbs this
             // into the raws' notes column, so the standings can classify
             // without a decode next time.
-            let note = match crate::search::wall_remaining_secs() {
+            let mut note = match crate::search::wall_remaining_secs() {
                 Some(rem) if rem > 1.0 => {
                     format!("temporal ladder exhausted its budgets with {rem:.0} s of wall left")
                 }
                 Some(_) => "temporal ladder stopped at the wall".to_string(),
                 None => "temporal ladder exhausted its budgets (no wall armed)".to_string(),
             };
+            // What the wall was spent on (0.29 Lane 3's kill clause): the
+            // node-cap refill rounds, if any ran.
+            let refilled = crate::temporal::refill_scale_reached();
+            if refilled > 1 {
+                note.push_str(&format!(
+                    " after refilling the temporal node cap to x{refilled}"
+                ));
+            }
             Ok(unsolved(
                 Mode::Temporal,
                 Statistics {

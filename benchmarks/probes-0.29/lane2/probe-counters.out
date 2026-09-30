@@ -1,0 +1,48 @@
+== i12 0.29           solved True evals 988924 | EHC found no improving state; used weighted best-first
+   peak 6.77 GB
+   real 26.98 s
+   wall: node byte target raised x2 for the re-entry
+   wall: refill round 2 (w_h 20, max_eval 20000000)
+   wall: node byte target raised x4 for the re-entry
+   wall: refill round 3 (w_h 80, max_eval 80000000)
+== i12 0.29-noraise   solved False evals 1664653 | 
+   peak 6.57 GB
+   real 34.88 s
+   wall: refill round 2 (w_h 20, max_eval 20000000)
+   wall: refill round 3 (w_h 80, max_eval 80000000)
+   wall: refill round 4 (w_h 320, max_eval 320000000)
+   wall: refill round 5 (w_h 1280, max_eval 1280000000)
+   wall: refill round 6 (w_h 5120, max_eval 5120000000)
+   wall: refill round 7 (w_h 20480, max_eval 20480000000)
+== i12 0.29-norefill  solved False evals 246379 | 
+   peak 5.04 GB
+   real 14.19 s
+== i12 0.28.0         solved True evals 988924 | EHC found no improving state; used weighted best-first
+   peak 6.78 GB
+   real 27.30 s
+   wall: node byte target raised x2 for the re-entry
+   wall: refill round 2 (w_h 20, max_eval 20000000)
+   wall: node byte target raised x4 for the re-entry
+   wall: refill round 3 (w_h 80, max_eval 80000000)
+== i13 0.29           solved True evals 411518 | EHC found no improving state; used weighted best-first
+   peak 6.82 GB
+   real 20.54 s
+   wall: node byte target raised x2 for the re-entry
+   wall: refill round 2 (w_h 20, max_eval 20000000)
+== i13 0.29-noraise   solved False evals 1294117 | 
+   peak 6.71 GB
+   real 38.83 s
+   wall: refill round 2 (w_h 20, max_eval 20000000)
+   wall: refill round 3 (w_h 80, max_eval 80000000)
+   wall: refill round 4 (w_h 320, max_eval 320000000)
+   wall: refill round 5 (w_h 1280, max_eval 1280000000)
+   wall: refill round 6 (w_h 5120, max_eval 5120000000)
+   wall: refill round 7 (w_h 20480, max_eval 20480000000)
+== i13 0.29-norefill  solved False evals 189031 | 
+   peak 6.63 GB
+   real 16.09 s
+== i13 0.28.0         solved True evals 411518 | EHC found no improving state; used weighted best-first
+   peak 6.87 GB
+   real 21.26 s
+   wall: node byte target raised x2 for the re-entry
+   wall: refill round 2 (w_h 20, max_eval 20000000)

@@ -363,9 +363,30 @@ here; it opens on the rovers fixture with this regression out of the way.
 **MEASURED 2026-09-30 (`lanes29` phase B, the loss side, engine
 17fc6d6f0bd8):** every row 0.28.0 solved on `ipc2023-numeric` (262) and
 `ipc2026-numeric` (223) re-measured under the inlined build -- pass 1
-banked 230 and 198 of them solved and **not one as a failure**; the rest
-(32 and 25) are owed to a box the operator was using (suspect / demoted /
-thermal verdicts), re-run in passes 2-3. The gain side (the 235 rows
+banked 230 and 198 of them solved and not one as a failure; the rest (32
+and 25) were owed to a box the operator was using and re-run in passes 2-3,
+which banked **three failures of one shape: counters-numeric i12, i13,
+i16** (0.28.0: solved at 39 / 25 / 36 s in best-first's first round) now
+"mem-cap (self-inflicted: node byte target raised)" at 16-25 s -- the
+0.22 refill re-entering a node-capped round with its byte target doubled
+into watchdog territory, and the RSS watchdog taking it. Two readings fit:
+the box (i16's first 0.29 attempt SOLVED at 32.8 s and was owed thermal;
+a slower box cuts round 1 short at its wall-fraction checkpoint, and the
+refill's deliberate overshoot does the rest), or the lane (faster
+evaluations reach the same cap sooner). The solo probe on a quiet box
+(`probes-0.29/lane2/probe-counters.sh`) decided it the same afternoon,
+on the quiet box: **the box.** i12 -- 0.29: solved, 988,924 evaluations,
+27.0 s, peak 6.77 GB, byte target raised x2 then x4; 0.28.0: solved,
+988,924 evaluations, 27.3 s, peak 6.78 GB, the same two raises. i13 --
+411,518 evaluations both, 20.5 s against 21.3 s, 6.82 against 6.87 GB,
+one raise each. The inlined build runs the identical trajectory; what
+banked the three rows was a refill that overshoots a 6 GB budget to
+6.8 GB by design (0.22: "watchdog territory, never OOM-the-box") meeting
+a box whose operator held the rest of the memory. Without the raise
+(`FF_NO_NODECAP_REFILL=1`) neither cell solves at all (seven refill rounds
+to the wall); without the refill, neither does. So the overshoot is what
+solves counters, and it is a coin on a 16 GB box running two 6 GB jobs
+-- a memory-class row for the ledger, not Lane 2's. The gain side (the 235 rows
 0.28.0 did not solve, coins i18 among them, each a solo minute) is phase C,
 queued behind this on the same engine; it runs in the box's idle gaps.
 
@@ -416,8 +437,10 @@ spent wall moves them: "exhausted its budgets with N s of wall left" 40 →
 ended on their evaluation budget or the memory wall, not a node cap, so no
 refill licence) and "stopped at the wall" 35 → 46. Spending the wall did
 not solve one of them. Per the kill clause the note must now say what the
-wall was spent on (the refill rounds reached) -- a code change queued
-behind the measurement, since the engine hash must not change under it.
+wall was spent on: an unsolved temporal verdict now ends "after refilling
+the temporal node cap to xN" whenever a refill ran (`temporal::
+refill_scale_reached`), built and gated after phase B so the loss side
+stayed on one engine; phase C's constraints re-runs carry the new note.
 The refill was also the suspect for the complex board's four unpriced
 cells above; the same-day probe cleared it (0.28.0 reproduces them, and
 `FF_NO_TNODE_REFILL=1` changes nothing on them).
@@ -508,13 +531,38 @@ stays green (17.8 s).
 **MEASURED 2026-09-30 (`lanes29` phase B, the loss side, engine
 17fc6d6f0bd8):** every row 0.28.0 solved on `ipc2018-sat` (97) and
 `ipc2023-sat` (53) re-measured under the arrival-charged slice -- 91 and
-29 banked solved, **none banked as a failure**, the rest owed to the
-operator's daytime load and re-run in passes 2-3. The kill's second clause
+29 banked solved, the rest owed to the operator's daytime load and re-run
+in passes 2-3 -- which banked ONE failure: **spider-sat i17**, a cell
+0.28.0 solved at 60.0 s exactly (the wall), unsolved at 60 s on its third,
+clean attempt here -- and on `ipc2023-sat` **labyrinth i9**, 0.28.0's
+second-attempt rescue at 58.5 s, unsolved three times. Two wall-edge cells:
+a coin or the slice's doing; the solo probe (`probes-0.29/laneW/
+probe-spider.out`, both cells, three reps an arm, quiet box) says coin:
+**spider i17 solves at 60.00 s by LAMA in all nine runs** -- 0.29, 0.29
+with `FF_NO_EHC_EXTEND=1`, 0.28.0 alike -- a plan that arrives exactly at
+the wall and banks or not on the runner's clock; **labyrinth i9 fails in
+all nine** ("EHC slice exhausted", the slice extended or not), so its
+0.28.0 row was the rescue coin the estimator's first-attempt view already
+discounts. The loss side is clean. The kill's second clause
 ("the subsets read ≤ 0") needs the gain side: the 230 rows 0.28.0 did not
 solve are phase D, a quiet night's work, not chained behind the daytime
 phases.
 
 ---
+
+## Instrument notes from lanes29 (for Phase 0's ledger)
+
+- `sweep --max-passes 3` ran a FOURTH pass on every launch (an off-by-one
+  in the pass cap); the extra pass re-runs owed rows on a box that just
+  owed them, so it is wall spent, not rows lost. Fix with a fixture.
+- A row solved by 0.28.0 AT the wall (spider-sat i17 at 60.0 s, labyrinth
+  i9 at 58.5 s on its second attempt) is a coin the promoted raw records
+  as heads; the loss side of any later engine flips it. The estimator's
+  first-attempt view is the honest one for those cells.
+- Both daytime phases spent most of their passes owing rows to the
+  operator's load (game detection, memory pressure, thermal canary) --
+  the instrument yielded as designed, and the rows it did bank are clean.
+  Gain-side rows (each a solo minute) want the night.
 
 ## Anti-pots — priced at zero, standing
 
