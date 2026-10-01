@@ -453,8 +453,12 @@ refill re-ran the identical pass six times. The fixture pinned the
 `FF_TEMPORAL_NODE_CAP` path, which never meets the clamp. Fixed: clamp,
 then scale (`scaled_node_cap`, unit-pinned on the ceiling shape), the
 arena bounded by the measured memory wall the refill rounds already run
-under. So the 28 → 28 above measured a no-op, not the mechanism; the
-constraints board is re-measured on the fixed engine in phase C, and the
+under. So the 28 → 28 above measured a no-op, not the mechanism. On the
+fixed build (6dbb801) the same cell reads as designed: caps 400k → 800k →
+1.6M → 3.2M nodes (x16 cut off by the wall at 917k), peak 3.8 GB under the
+memory wall, "exhausted its budgets with 2 s of wall left after refilling
+the temporal node cap to x16" -- the wall spent, the cell still unsolved.
+The constraints board is re-measured on this engine in phase C, and the
 record's verdict waits for it.
 The refill was also the suspect for the complex board's four unpriced
 cells above; the same-day probe cleared it (0.28.0 reproduces them, and
