@@ -458,8 +458,16 @@ fixed build (6dbb801) the same cell reads as designed: caps 400k → 800k →
 1.6M → 3.2M nodes (x16 cut off by the wall at 917k), peak 3.8 GB under the
 memory wall, "exhausted its budgets with 2 s of wall left after refilling
 the temporal node cap to x16" -- the wall spent, the cell still unsolved.
-The constraints board is re-measured on this engine in phase C, and the
-record's verdict waits for it.
+The constraints board, re-measured on this engine (phase C, pass 1,
+2026-09-30 18:40): **28 solved of 120, the same 28**, 71 failures banked
+clean, 21 owed to the box. Spending the wall through a refill that now
+really grows the arena (x2..x16 under the memory wall) solves none of the
+40 cells the lane was named for. **Recorded NEGATIVE; the kill clause's
+both halves are done** -- the wall is spent and the note says on what. The
+mechanism stays (it costs nothing on a row that was failing anyway and
+the fixture pins it), and the 40 cells' next question is why their
+searches do not converge inside 3.2 M nodes, which is a heuristic
+question, not a budget one.
 The refill was also the suspect for the complex board's four unpriced
 cells above; the same-day probe cleared it (0.28.0 reproduces them, and
 `FF_NO_TNODE_REFILL=1` changes nothing on them).
