@@ -440,7 +440,22 @@ not solve one of them. Per the kill clause the note must now say what the
 wall was spent on: an unsolved temporal verdict now ends "after refilling
 the temporal node cap to xN" whenever a refill ran (`temporal::
 refill_scale_reached`), built and gated after phase B so the loss side
-stayed on one engine; phase C's constraints re-runs carry the new note.
+stayed on one engine.
+
+**And the note's first reading named the real defect (2026-09-30 17:40,
+tpp-metric-time-constraints i11 solo under `FF_WALL_DEBUG`):** "exhausted
+its budgets with 38 s of wall left after refilling the temporal node cap
+to x64" -- six refill rounds, and `[tsearch] cap hit (nodes 400003 / max
+400000)` on every one of them at 3 s. `temporal_node_cap` scaled the model
+and THEN clamped it to the historical 400,000-node ceiling, so on a board
+whose model already sat on the ceiling the x2..x64 were all 400,000: the
+refill re-ran the identical pass six times. The fixture pinned the
+`FF_TEMPORAL_NODE_CAP` path, which never meets the clamp. Fixed: clamp,
+then scale (`scaled_node_cap`, unit-pinned on the ceiling shape), the
+arena bounded by the measured memory wall the refill rounds already run
+under. So the 28 → 28 above measured a no-op, not the mechanism; the
+constraints board is re-measured on the fixed engine in phase C, and the
+record's verdict waits for it.
 The refill was also the suspect for the complex board's four unpriced
 cells above; the same-day probe cleared it (0.28.0 reproduces them, and
 `FF_NO_TNODE_REFILL=1` changes nothing on them).

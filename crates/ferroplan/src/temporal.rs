@@ -3089,7 +3089,8 @@ const MAX_NODES: usize = 400_000;
 /// it is identical across thread counts and runs (an eval-count-style budget,
 /// never wall clock). The agenda estimate is TIL count + a small open-interval
 /// allowance; `FF_TEMPORAL_NODE_CAP` overrides the count directly (`0`
-/// disables). Bounded above by the historical 400k count cap.
+/// disables). Bounded above by the historical 400k count cap AT SCALE ONE:
+/// the refill's scale multiplies past it, under the measured memory wall.
 fn temporal_node_cap(task: &PackedTask, til_len: usize, bytes: usize) -> usize {
     let scale = NODE_CAP_SCALE.with(|c| c.get());
     if let Ok(v) = std::env::var("FF_TEMPORAL_NODE_CAP") {
@@ -3101,9 +3102,18 @@ fn temporal_node_cap(task: &PackedTask, til_len: usize, bytes: usize) -> usize {
             };
         }
     }
-    (bytes / temporal_per_node_bytes(task, til_len))
-        .saturating_mul(scale)
-        .min(MAX_NODES)
+    scaled_node_cap(bytes / temporal_per_node_bytes(task, til_len), scale)
+}
+
+/// The model cap, clamped to the historical count ceiling, THEN scaled. The
+/// first build of the refill (0.29 Lane 3) scaled first and clamped after, so
+/// on every task whose model already sat on the ceiling -- the whole
+/// constraints board -- x2 through x64 were all 400,000 nodes: six identical
+/// 3 s passes and "exhausted its budgets with 38 s of wall left" (tpp-
+/// metric-time-constraints i11, solo). The env-cap fixture never saw it; the
+/// unit pin below does.
+fn scaled_node_cap(model_cap: usize, scale: usize) -> usize {
+    model_cap.min(MAX_NODES).saturating_mul(scale)
 }
 
 thread_local! {
@@ -5396,6 +5406,18 @@ fn epsilon_separate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_refill_scale_survives_the_count_ceiling() {
+        // A model that sits on the ceiling (the constraints board's shape).
+        assert_eq!(scaled_node_cap(10 * MAX_NODES, 1), MAX_NODES);
+        assert_eq!(scaled_node_cap(10 * MAX_NODES, 2), 2 * MAX_NODES);
+        assert_eq!(scaled_node_cap(10 * MAX_NODES, 64), 64 * MAX_NODES);
+        // A model under the ceiling scales from where it is.
+        assert_eq!(scaled_node_cap(1_000, 4), 4_000);
+        // Saturation, never a wrap.
+        assert_eq!(scaled_node_cap(usize::MAX, usize::MAX), usize::MAX);
+    }
 
     /// The 0.23 Phase 2 pin, unit half (integration half:
     /// tests/temporal_constraints.rs): a monitor's violation flip is

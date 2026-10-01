@@ -1,6 +1,8 @@
 #!/bin/sh
 # Score the lanes29 subset (docs/roadmap-0.29.md), lane by lane, from the
-# operator checkout. Usage: score.sh <engine-hash-prefix, e.g. 17fc6d6f0bd8>
+# operator checkout. Usage: score.sh <engine-hash-prefix>
+#   17fc6d6f0bd8 = phases A/B (pref boards, loss sides); 4b4d6af75955 = phase C (numeric gain
+#   sides, constraints) -- a note-only rebuild of the same code, search behaviour identical.
 set -u
 B=${1:?engine hash prefix}
 REPO=/Users/harold/ferroplan

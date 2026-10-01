@@ -867,3 +867,85 @@ subset  boards ipc5-constraints,ipc2018-sat,ipc2023-sat,ipc2023-numeric,ipc2026-
    ipc2026-numeric        verdicts: solved 8
    ipc2026-numeric        banked    8   8 -> 0
 SWEEP COMPLETE -- 594 banked in 4 pass(es)
+== lanes29 launch 2026-09-30 16:57:06  args: --board ipc2023-numeric --board ipc2026-numeric --board ipc5-constraints
+engine  ff 0.28.0 [4b4d6af75955]
+reap    42 child(ren) recorded by an earlier run
+        68381 already gone
+        69249 already gone
+        70034 already gone
+        70785 already gone
+        71705 already gone
+        72437 already gone
+        73117 already gone
+        73845 already gone
+        74738 already gone
+        75536 already gone
+        76289 already gone
+        77097 already gone
+        79893 already gone
+        80560 already gone
+        81310 already gone
+        82105 already gone
+        82824 already gone
+        83500 already gone
+        84175 already gone
+        84845 already gone
+        85540 already gone
+        86265 already gone
+        86990 already gone
+        90010 already gone
+        90700 already gone
+        91491 already gone
+        92188 already gone
+        92859 already gone
+        93528 already gone
+        94357 already gone
+        95048 already gone
+        95820 already gone
+        98738 already gone
+        99459 already gone
+        263 already gone
+        1127 already gone
+        1842 already gone
+        2591 already gone
+        3332 already gone
+        4026 already gone
+        4809 already gone
+        7791 already gone
+canary  trucks-propositional/8@4b4d6af75955 baseline 0.520 s (median of 5 runs, no history yet); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  boards ipc2023-numeric,ipc2026-numeric,ipc5-constraints -- 840 instance(s) of set cut28, staged at /Users/harold/ferroplan/benchmarks/probes/lanes29/0.28.0-4b4d6af75955
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 3 board(s) outstanding
+   ipc5-constraints       packed: 28 wide x10 (14.5 GB budget), 0 narrow, 92 solo
+!! width - -> 10 (full, idle 7161s, foreign -0%)
+!! width 10 -> 9 (full, idle 7181s, foreign 5%)
+!! width 9 -> 10 (full, idle 7201s, foreign -0%)
+!! width 10 -> 9 (full, idle 7301s, foreign 6%)
+!! width 9 -> 10 (full, idle 7321s, foreign -0%)
+!! width 10 -> 9 (full, idle 7341s, foreign 6%)
+!! width 9 -> 10 (full, idle 7361s, foreign -0%)
+!! width 10 -> 9 (full, idle 7381s, foreign 6%)
+!! width 9 -> 10 (full, idle 7421s, foreign -0%)
+!! width 10 -> 9 (full, idle 7441s, foreign 58%)
+!! width 9 -> 10 (full, idle 7461s, foreign -0%)
+!! width 10 -> 9 (full, idle 7481s, foreign 6%)
+!! width 9 -> 10 (full, idle 7501s, foreign -0%)
+!! width 10 -> 9 (full, idle 7541s, foreign 6%)
+!! width 9 -> 10 (full, idle 7581s, foreign -0%)
+!! width 10 -> 9 (full, idle 7601s, foreign 7%)
+!! width 9 -> 10 (full, idle 7621s, foreign -0%)
+!! width 10 -> 9 (full, idle 7641s, foreign 89%)
+!! width 9 -> 10 (full, idle 7661s, foreign -0%)
+!! width 10 -> 9 (full, idle 7761s, foreign 6%)
+!! width 9 -> 10 (full, idle 7801s, foreign -0%)
+!! throttle full -> suspended (MemoryPressure(6912.0))
+!! width 10 -> 0 (suspended, idle 7841s, foreign 19%)
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 10 (polite, idle 8001s, foreign -0%)
+!! width 10 -> 9 (polite, idle 8021s, foreign 46%)
+!! throttle polite -> suspended (MemoryPressure(6904.0))
+   ipc5-constraints       verdicts: rho 11, solved 28, starved 1, swap 1, window 13
+   ipc5-constraints       banked   52   120 -> 68
+stopped after 1 pass(es); 788 still owed -- the next run picks them up
+788 instance(s) still owed -- rows are written, nothing is lost
