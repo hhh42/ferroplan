@@ -390,6 +390,26 @@ solves counters, and it is a coin on a 16 GB box running two 6 GB jobs
 0.28.0 did not solve, coins i18 among them, each a solo minute) is phase C,
 queued behind this on the same engine; it runs in the box's idle gaps.
 
+**VERDICT 2026-10-01 (`lanes29` phase C on the fixed build be638e381c26,
+`crucible compare --a 89cfdc5f06ed --b be638e381c26`, the pre-registered
+first-attempt estimator):**
+
+| board | first-attempt B − A | 95 % CI | cells both banked | the cells |
+|---|---|---|---|---|
+| ipc2026-numeric (320) | **+2** | [+0, +5] | 1 gained, 0 lost | coins-2026 i18 (solved 2 of 3 attempts, 56.9 / 56.5 s, the third a 54.2 s miss; every attempt owed by the canary loop, so unbanked), line-exchange-snp 3_5_90_100 (banked, 52.9 s) |
+| ipc2023-numeric (400) | −1 | [−5, +3] | 1 gained, 1 lost | gained zenotravel i20 (banked, 24.3 s); lost counters i13 -- the cell probed solo the day before: identical evaluations, peaks and refill raises under both binaries, both solve; the box's coin |
+
+The tool declines a delta on both boards (the estimators disagree in sign
+because the owed rows sit in `banked` and nowhere else); `first` is the
+claim and it reads +2 and −1 with the intervals above. **What the lane set
+out to do it did: the one real 0.28.0 loss, coins i18, is back** (0/3 →
+2/3 at the wall's edge), with two more wall-edge numeric cells beside it
+and nothing lost that was not a probed coin. **What the lane was NAMED
+for -- the consumable-aware relaxation and the metric-time band -- was not
+attempted this cycle**; the 24-of-110 metric-time shape and the rovers
+fixture stand as written, and the lane stays open on them.
+
+
 ---
 
 ## Lane 3 — the constraints board throws its wall away
@@ -575,7 +595,35 @@ discounts. The loss side is clean. The kill's second clause
 solve are phase D, a quiet night's work, not chained behind the daytime
 phases.
 
+**VERDICT 2026-10-01 (phase D, the gain side, fixed build be638e381c26):
+the subsets read 0 -- recorded NEGATIVE on rows.** `ipc2018-sat`: 0 of
+the 143 unsolved rows solve (26 failures banked clean, the rest owed);
+`ipc2023-sat`: 0 of 87. Both sides together: nothing gained, nothing
+lost but two wall-edge coins the probes called. The mechanism stays as a
+default on the fixture's evidence alone, which the 60 s boards cannot
+see: a declared 1 s wall on blocks(50) is 0/3 with the fixed slice and
+3/3 with the slice charged to arrival, and `laddertax` stays green -- an
+API caller with a short wall gets the plan it was being denied. On the
+boards it is a zero, and it is recorded as one.
+
 ---
+
+## Where 0.29 stands (2026-10-01, main at the records' commit)
+
+| lane | claim | measured (lanes29, engine beside each number in the records) | verdict |
+|---|---|---|---|
+| 1 preference quality | points toward SGPlan5 | simple **94.1 → 96.0**, qualitative **59.2 → 63.3** (0 cells worse), complex 53.4 → 51.4 (four wall-edge pricing coins, 0.28.0 reproduces them) | **win, under the band**; the ceiling is named (re-grounding per attempt; pathways at 8 s a ground) |
+| 2 numeric | coins i18 back; the consumable relaxation | coins i18 0/3 → 2/3, 2026-numeric first +2 [0, +5], 2023-numeric −1 [−5, +3]; the 0.28 codegen regression found and fixed (`widen` inlined, −23 % per evaluation) | **the regression fixed; the relaxation open** |
+| 3 constraints wall | +10 to +25 rows | 28 → 28 of 120 with the refill really growing the arena (first build's refill was a no-op: scale clamped) | **negative**, kill clause done both halves |
+| 4 memory | storage i19/i20, the replay | storage peaks 5-6 GB before and after the streamed expansion | **negative on memory**; correctness kept |
+| W EHC slice | sat subsets > 0 | 0 gained, 0 lost on 2018-sat / 2023-sat; blocks(50) at 1 s 0/3 → 3/3 in the fixture | **negative on rows**; kept for short walls |
+
+Instrument findings carried into Phase 0's ledger below: the pass cap
+that does not apply to subsets, the thermal canary measured at width
+against a solo baseline, the wall-edge coins. Next for the cycle, in
+order: the canary and the pass cap (every daytime number this cycle paid
+for them), Lane 1's one-grounding polish, Lane 2's relaxation on the
+rovers fixture, Lane 4's achiever index.
 
 ## Instrument notes from lanes29 (for Phase 0's ledger)
 

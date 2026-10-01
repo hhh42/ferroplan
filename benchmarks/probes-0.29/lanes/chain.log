@@ -2,3 +2,5 @@ chain: waiting for phase A  07:07:44
 chain: waiting for phase A  11:34:35
 chain: waiting for phase A  11:35:42
 chain: phase B (loss side, --prior solved)  11:36:43
+chain2: waiting for phase C'  17:40:39
+chain2: phase D (sat gain side, --prior unsolved)  03:44:36
