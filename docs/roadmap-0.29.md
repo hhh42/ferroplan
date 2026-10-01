@@ -579,9 +579,11 @@ phases.
 
 ## Instrument notes from lanes29 (for Phase 0's ledger)
 
-- `sweep --max-passes 3` ran a FOURTH pass on every launch (an off-by-one
-  in the pass cap); the extra pass re-runs owed rows on a box that just
-  owed them, so it is wall spent, not rows lost. Fix with a fixture.
+- `sweep --max-passes 3` does not hold: every launch ran a fourth pass,
+  and phase C ran a FIFTH before it was stopped by hand -- the cap is not
+  an off-by-one, it is not applied to a subset's passes at all. With the
+  canary loop below, an uncapped run re-owes the same rows for ever. Fix
+  with a fixture that counts passes on a subset.
 - A row solved by 0.28.0 AT the wall (spider-sat i17 at 60.0 s, labyrinth
   i9 at 58.5 s on its second attempt) is a coin the promoted raw records
   as heads; the loss side of any later engine flips it. The estimator's
