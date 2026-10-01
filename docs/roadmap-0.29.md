@@ -590,6 +590,15 @@ phases.
   operator's load (game detection, memory pressure, thermal canary) --
   the instrument yielded as designed, and the rows it did bank are clean.
   Gain-side rows (each a solo minute) want the night.
+- **The thermal canary reads 1.50x its baseline at width 9-10 with no
+  foreign load at all** (quiet hours, 00:30, idle 2.5 h): the canary job
+  runs beside nine others and is measured against a solo baseline, so a
+  packed pass owes every solo row it touches ("thermal 94" on
+  ipc2023-numeric's pass 2 at night), and the owed rows are re-run packed
+  again under the same conditions. A loop, not a slow box. Phase 0's
+  ledger: the canary's baseline must be taken at the width it runs at,
+  or the owed re-runs must run solo; until then, read owed rows through
+  the estimator's per-run view, not the banked one.
 
 ## Anti-pots — priced at zero, standing
 
