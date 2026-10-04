@@ -234,6 +234,14 @@ pub fn pref_score(rows: &[RawRow], referee: &Referee, arch: &Ipc5Archive) -> Opt
     (p.n > 0).then_some(p)
 }
 
+impl PrefScore {
+    /// The front page's clause: "ours/theirs", one decimal each, as
+    /// `_front_rows` prints it beside the board's rows.
+    pub fn brief(&self) -> String {
+        format!("{:.1}/{:.1}", self.ours, self.theirs)
+    }
+}
+
 impl std::fmt::Display for PrefScore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

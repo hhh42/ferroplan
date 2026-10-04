@@ -6,6 +6,7 @@ Today the same board is described in five places that can disagree:
   benchmarks/standings.py   SWEEPS          raw.jsonl -> (label, competition, budget)
                             AIR_REBASELINED which box produced it
                             PROOF_TRACKS    coverage IS proof rate
+                            CAPABILITIES    the README front page's groups
                             MD_FOR          the .md naming exceptions
   benchmarks/ipc67.py       TRACK_PATTERNS  regex over corpus variant dirs
                             TRACK_IPCS      which ipc-YYYY dirs to scan
@@ -187,6 +188,13 @@ def main():
         if name in ("cut25", "entries25", "post-entries25"):
             cut26.extend(i for i in ids if i not in cut26)
     sets.append(("cut26", "benchmarks/air26", cut26, "0.26"))
+    # The 0.27 and 0.28 cut sets: the same 32 boards, each its own stage and
+    # version gate (their comments are emitted below). cut27 stays as it is:
+    # it is the set every 0.28 probe and regression read was taken over
+    # (crucible-spec R3), and the promoted boards a subset reads as its prior
+    # are its product.
+    sets.append(("cut27", "benchmarks/air27", list(cut26), "0.27"))
+    sets.append(("cut28", "benchmarks/air28", list(cut26), "0.28"))
 
     L = ["# benchmarks/manifest.toml -- the sweep instrument, versioned with the planner.",
          "#",
@@ -273,6 +281,11 @@ def main():
             L.append("extra_args = [" + ", ".join(q(a) for a in rest) + "]")
         if label in S.PROOF_TRACKS:
             L.append("proof_track = true           # coverage IS proof rate")
+        if label in S.CAPABILITIES:
+            group, short = S.CAPABILITIES[label]
+            L.append(f"capability = {q(group)}   # the README front page's group")
+            if short != label:
+                L.append(f"front_name = {q(short)}")
         L.append("rebaselined_on = [" +
                  ('"m5-air"' if label in S.AIR_REBASELINED else "") + "]")
         L.append("")
@@ -283,7 +296,18 @@ def main():
           "# and the cut record carries TWO headlines.",
           "# ---------------------------------------------------------------------------",
           ""]
+    SET_NOTES = {
+        "cut27": ["# The 0.27 cut set: the same 32 boards as cut26, its own stage, the",
+                  "# 0.27 version gate. Swept by crucible R2's packed scheduler."],
+        "cut28": ["# The 0.28 cut set: the same 32 boards as cut27, its own stage, the",
+                  "# 0.28 version gate. cut27 stays as it is: it is the set every 0.28 probe",
+                  "# and regression read was taken over (crucible-spec R3), and the promoted",
+                  "# boards a subset reads as its prior are its product."],
+    }
     for name, stage, ids, ver in sets:
+        if name in SET_NOTES:
+            L.append("")
+            L.extend(SET_NOTES[name])
         L.append("[[set]]")
         L.append(f"name = {q(name)}")
         L.append(f"stage = {q(stage)}")

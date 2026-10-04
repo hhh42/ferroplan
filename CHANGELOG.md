@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **The README's standings block is a capability table.** The front page's
+  generated block now says what the planner is good at and against whom --
+  one row per capability (temporal, PDDL3 preferences, classical satisficing,
+  optimal with proofs, numeric), each board's coverage beside its rank in that
+  competition's field and the leader's count, and the preference boards' IPC
+  quality beside their rows -- in place of the best-five-by-coverage list,
+  every row of which read ~100 %. `benchmarks/manifest.toml` carries each
+  board's `capability` / `front_name` (generated from `standings.py`, as
+  `proof_track` is); `crucible standings --check` now covers the README block
+  as well as the two tables; the IPC-5 simple-preferences field is
+  archive-counted into `field-results.json`. The notes that still called the
+  timed constraint operators "rejected by name" (constraints and
+  complex-preferences rows; README Limitations; the book's standings intro)
+  are corrected: `within` / `always-within` have been enforced on
+  durative-action domains since 0.24, and only `hold-during` / `hold-after`
+  are rejected.
+
 ## [0.28.0] - 2026-09-28 — Feasible first, better second
 
 A 2026-09-20 read of SGPlan5's own IPC-5 solution headers found its MEDIAN

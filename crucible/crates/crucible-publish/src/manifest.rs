@@ -405,12 +405,34 @@ pub struct BoardSpec {
     /// optimality certificate.
     #[serde(default)]
     pub proof_track: bool,
+    /// The README front page's capability group (0.29), one of
+    /// [`CAPABILITIES`]' keys. A board is on the front page iff it names one;
+    /// `None` keeps it to `STANDINGS.md`.
+    #[serde(default)]
+    pub capability: Option<String>,
+    /// What the front page calls this board inside its group ("2014" under
+    /// "classical satisficing", where the group already names the track).
+    /// Defaults to the label.
+    #[serde(default)]
+    pub front_name: Option<String>,
     /// Which boxes have produced this board. EMPTY is meaningful: it marks a
     /// cloud-era board that was never re-baselined, whose absence of a raw must
     /// render "see git history" and not "sweep in flight".
     #[serde(default)]
     pub rebaselined_on: Vec<String>,
 }
+
+/// The front page's groups, in the order its rows print: (key, title). The
+/// Python `CAPABILITY_ORDER`, and the only values `BoardSpec::capability` may
+/// take -- a typo there would silently drop a board off the front page, so
+/// `validate` refuses it.
+pub const CAPABILITIES: &[(&str, &str)] = &[
+    ("temporal", "temporal planning"),
+    ("preferences", "PDDL3 preferences"),
+    ("classical", "classical satisficing"),
+    ("optimal", "optimal, with proofs"),
+    ("numeric", "numeric"),
+];
 
 /// `[[set]]` -- what one driver invocation sweeps.
 ///
@@ -493,6 +515,24 @@ impl Manifest {
         let mut raws: BTreeSet<&str> = BTreeSet::new();
         let mut labels: BTreeSet<&str> = BTreeSet::new();
         for b in &self.boards {
+            if let Some(c) = &b.capability {
+                if !CAPABILITIES.iter().any(|(k, _)| k == c) {
+                    out.push(format!(
+                        "board `{}` names capability `{c}`, which is not one of {}",
+                        b.id,
+                        CAPABILITIES
+                            .iter()
+                            .map(|(k, _)| format!("`{k}`"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+            } else if b.front_name.is_some() {
+                out.push(format!(
+                    "board `{}` has a front_name but no capability: it is not on the front page",
+                    b.id
+                ));
+            }
             if !ids.insert(&b.id) {
                 out.push(format!("duplicate board id `{}`", b.id));
             }
@@ -684,6 +724,19 @@ impl Manifest {
     /// `PROOF_TRACKS`, as data: is this label's coverage a proof rate?
     pub fn is_proof_track(&self, label: &str) -> bool {
         self.board_by_label(label).is_some_and(|b| b.proof_track)
+    }
+
+    /// The front page's group for `label`, if it is on the front page.
+    pub fn capability(&self, label: &str) -> Option<&str> {
+        self.board_by_label(label)
+            .and_then(|b| b.capability.as_deref())
+    }
+
+    /// What the front page calls `label`: its `front_name`, else the label.
+    pub fn front_name<'a>(&'a self, label: &'a str) -> &'a str {
+        self.board_by_label(label)
+            .and_then(|b| b.front_name.as_deref())
+            .unwrap_or(label)
     }
 }
 
@@ -1344,6 +1397,34 @@ boards = ["ipc67-results"]
         assert!(!m.is_proof_track("no such label"));
     }
 
+    /// `CAPABILITIES`, as data: the front page's grouping is a board property
+    /// the manifest carries, with the short name beside it. A value outside
+    /// the declared groups is an error, not a board quietly off the page.
+    #[test]
+    fn capability_is_a_board_property() {
+        let m = fixture(&board(
+            "front",
+            "2014 seq-sat",
+            "capability = \"classical\"\nfront_name = \"2014\"\n",
+        ));
+        assert_eq!(m.capability("2014 seq-sat"), Some("classical"));
+        assert_eq!(m.front_name("2014 seq-sat"), "2014");
+        assert_eq!(m.capability("seq-sat"), None);
+        assert_eq!(m.front_name("seq-sat"), "seq-sat");
+        assert!(m.errors().is_empty(), "{:?}", m.errors());
+
+        let m = fixture(&board("typo", "l", "capability = \"temporal planning\"\n"));
+        let errs = m.errors();
+        assert!(
+            errs.iter().any(|e| e.contains("`temporal planning`")),
+            "{errs:?}"
+        );
+
+        let m = fixture(&board("orphan", "l", "front_name = \"x\"\n"));
+        let errs = m.errors();
+        assert!(errs.iter().any(|e| e.contains("front_name")), "{errs:?}");
+    }
+
     /// A key the loader does not know is refused, not ignored. `proof_tracks =
     /// true`, one letter off, would otherwise turn a proof board into a
     /// satisficing one with no message anywhere.
@@ -1564,6 +1645,9 @@ boards = ["ipc67-results"]
         assert_eq!(m.board_by_label("seq-mco t4").unwrap().jobs, Some(1));
         assert!(m.is_proof_track("2026 numeric-opt FULL"));
         assert!(!m.is_proof_track("2023 numeric"));
+        assert_eq!(m.capability("2014 seq-sat"), Some("classical"));
+        assert_eq!(m.front_name("2014 seq-sat"), "2014");
+        assert_eq!(m.capability("seq-mco t4"), None);
         assert!(m.rebaselined_on("propositional", "m5-air"));
         assert!(!m.rebaselined_on("propositional", "cloud-4core"));
         assert_eq!(

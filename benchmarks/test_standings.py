@@ -104,5 +104,76 @@ class ClassifyBudgetStamp(unittest.TestCase):
         self.assertEqual(standings.classify(row, 30), "timeout")
 
 
+class PrefPoints(unittest.TestCase):
+    """The preference boards' points as NUMBERS (0.29): the front page prints
+    them beside the rows, ipc-standings.md prints them as a sentence, and
+    both must come from one sum."""
+    ARCH = {("storage", "QualitativePreferences", 1): {"sgplan": 10.0},
+            ("storage", "QualitativePreferences", 2): {"sgplan": 10.0},
+            ("storage", "QualitativePreferences", 3): {"sgplan": 10.0}}
+
+    def rows(self):
+        v = "storage-preferences-qualitative"
+        return [
+            {"variant": v, "instance": 1, "solved": True, "val": True,
+             "metric": 5.0},     # we win: ours 1.0, theirs 0.5
+            {"variant": v, "instance": 2, "solved": True, "val": True,
+             "metric": None},    # solved unpriced: ours 0, theirs 1.0
+            {"variant": v, "instance": 3, "solved": False, "val": True},
+        ]
+
+    def test_points_and_sentence_agree(self):
+        p = standings.pref_points(self.rows(), self.ARCH)
+        self.assertEqual(p["n"], 3)
+        self.assertAlmostEqual(p["ours"], 1.0)
+        self.assertAlmostEqual(p["theirs"], 2.5)
+        self.assertEqual((p["w"], p["t"], p["l"], p["unpriced"]), (1, 0, 0, 1))
+        self.assertEqual(
+            standings.pref_quality(self.rows(), self.ARCH),
+            "IPC score vs SGPlan5: 1.0 / 2.5 over 3 cells (1W/0T/0L; "
+            "1 solved unpriced)")
+
+    def test_nothing_scored_is_none(self):
+        self.assertIsNone(standings.pref_points(self.rows(), {}))
+
+
+class BoardPlacement(unittest.TestCase):
+    """`_placement` (STANDINGS.md) and `_placement_brief` (the README) render
+    ONE rank: the brief form drops the words, never the number."""
+    COHORT = {"entrants": [["LAMA", 281, 300], ["FF", 225, 270]],
+              "field_size": 10}
+
+    def test_both_forms_share_the_rank(self):
+        self.assertEqual(standings._placement(self.COHORT, 298, 300),
+                         "~1st of 11 by rate (leader LAMA 281/300)")
+        self.assertEqual(standings._placement_brief(self.COHORT, 298, 300),
+                         "~1st of 11 (LAMA 281/300)")
+        self.assertEqual(standings._placement_brief(self.COHORT, 240, 300),
+                         "~3rd of 11 (LAMA 281/300)")
+        self.assertIsNone(standings._placement_brief(self.COHORT, 0, 0))
+
+    def test_front_rows_group_split_and_dash(self):
+        """A split board renders one slot per competition, the first named;
+        a board with no cohort takes its slot as a dash; an empty group is
+        not a row; order is SWEEPS order."""
+        rows_ss = [{"ipc": "ipc-2008", "variant": "x", "instance": 1,
+                    "solved": True, "val": True},
+                   {"ipc": "ipc-2011", "variant": "x", "instance": 1,
+                    "solved": False, "val": True}]
+        rows_18 = [{"ipc": "ipc-2018", "variant": "x", "instance": 1,
+                    "solved": True, "val": True}]
+        data = {label: None for label, _c, _b in standings.SWEEPS.values()}
+        live = [("seq-sat", 1, 2, 50.0, rows_ss),
+                ("2018 seq-sat", 1, 1, 100.0, rows_18)]
+        field = {"seq-sat": {"splits": {
+            "ipc-2008": {"entrants": [["LAMA", 1, 2]], "field_size": 3},
+            "ipc-2011": {"entrants": [["LAMA-2011", 2, 2]]}}}}
+        out = standings._front_rows(data, live, field, {})
+        self.assertEqual(out, [(
+            "classical satisficing",
+            "seq-sat 2008 1/1 · 2011 0/1 · 2018 1/1",
+            "~1st of 4 (LAMA 1/2) · 2nd of 2 (LAMA-2011 2/2) · —")])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

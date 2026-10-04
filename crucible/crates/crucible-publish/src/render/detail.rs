@@ -102,7 +102,7 @@ const IPC5_ROWS: &[(&str, Ipc5Scoring, &str)] = &[
     (
         "constraints",
         Ipc5Scoring::Coverage,
-        "coverage-only (timed modal ops rejected by name)",
+        "coverage-only (no quality currency recorded)",
     ),
     (
         "simple-preferences (full corpus)",
@@ -127,8 +127,8 @@ const IPC5_ROWS: &[(&str, Ipc5Scoring, &str)] = &[
 /// The first two are reference-scored on their own curated 8-instance
 /// scoreboards and are LINKED rather than recomputed here -- recomputing them
 /// off a coverage sweep would replace a reference score with a different
-/// measurement under the same name. The third records a feature gap: a track
-/// entered as "no", which is a result.
+/// measurement under the same name. The third is the curated board's name
+/// pointing at the full-corpus board that superseded it (0.25 Phase 2).
 const IPC5_TRAILER: &[&str] = &[
     "| simple-preferences | yes | see board | reference-scored — \
      [`ipc5-scoreboard.md`](ipc5-scoreboard.md) | — |",
@@ -136,8 +136,8 @@ const IPC5_TRAILER: &[&str] = &[
      [`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md) \
      (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp won \
      outright) | — |",
-    "| complex-preferences | no (modal operators rejected by name) | — | — | \
-     feature gap, on the deferred list |",
+    "| complex-preferences | superseded — the full-corpus board above (entered \
+     0.25) | — | — | — |",
 ];
 
 /// The IPC-6 satisficing rows. Label and split key are the same string: the
@@ -623,7 +623,7 @@ mod tests {
     #[test]
     fn the_fixed_rows_render_without_any_raw() {
         let out = render(&ctx(&[], "m5-air"));
-        assert!(out.contains("| complex-preferences | no (modal operators rejected by name) |"));
+        assert!(out.contains("| complex-preferences | superseded — the full-corpus board above"));
         assert!(out.contains(TEMPO_OPT_ROW));
         assert!(out.contains("[`ipc5-scoreboard.md`](ipc5-scoreboard.md)"));
     }

@@ -148,6 +148,7 @@ label = "propositional"
 competition = "ipc5"
 budget_secs = 60
 track = "prop-2006"
+capability = "classical"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -158,6 +159,7 @@ label = "time"
 competition = "ipc5"
 budget_secs = 60
 track = "time-2006"
+capability = "temporal"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -168,6 +170,7 @@ label = "metric-time"
 competition = "ipc5"
 budget_secs = 60
 track = "metric-time-2006"
+capability = "temporal"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -188,6 +191,7 @@ label = "seq-sat"
 competition = "ipc67"
 budget_secs = 60
 track = "seq-sat"
+capability = "classical"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -198,6 +202,7 @@ label = "tempo-sat"
 competition = "ipc67"
 budget_secs = 60
 track = "tempo-sat"
+capability = "temporal"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -208,6 +213,7 @@ label = "net-benefit"
 competition = "ipc67"
 budget_secs = 60
 track = "net-benefit"
+capability = "preferences"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -254,6 +260,8 @@ label = "2014 seq-sat"
 competition = "modern"
 budget_secs = 60
 track = "seq-sat-2014"
+capability = "classical"   # the README front page's group
+front_name = "2014"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -296,6 +304,8 @@ label = "2018 seq-sat"
 competition = "modern"
 budget_secs = 60
 track = "sat-2018"
+capability = "classical"   # the README front page's group
+front_name = "2018"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -316,6 +326,8 @@ label = "2023 numeric"
 competition = "modern"
 budget_secs = 60
 track = "numeric-2023"
+capability = "numeric"   # the README front page's group
+front_name = "2023"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -326,6 +338,8 @@ label = "2026 numeric (first board)"
 competition = "modern"
 budget_secs = 60
 track = "numeric-2026"
+capability = "numeric"   # the README front page's group
+front_name = "2026"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -349,6 +363,7 @@ track = "seq-opt"
 mode = "optimal"
 jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
+capability = "optimal"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -362,6 +377,8 @@ track = "seq-opt-2014"
 mode = "optimal"
 jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
+capability = "optimal"   # the README front page's group
+front_name = "2014"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -375,6 +392,7 @@ track = "opt-2026"
 mode = "optimal"
 jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
+capability = "optimal"   # the README front page's group
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -412,6 +430,8 @@ track = "opt-2018"
 mode = "optimal"
 jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
+capability = "optimal"   # the README front page's group
+front_name = "2018"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -422,6 +442,8 @@ label = "2023 seq-sat"
 competition = "modern"
 budget_secs = 60
 track = "sat-2023"
+capability = "classical"   # the README front page's group
+front_name = "2023"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -435,6 +457,8 @@ track = "opt-2023"
 mode = "optimal"
 jobs = 1                     # proof boards solo: attribution-0.26 finding
 proof_track = true           # coverage IS proof rate
+capability = "optimal"   # the README front page's group
+front_name = "2023"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -471,6 +495,8 @@ label = "simple-preferences (full corpus)"
 competition = "ipc5"
 budget_secs = 60
 track = "simple-pref-2006"
+capability = "preferences"   # the README front page's group
+front_name = "simple"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -481,6 +507,8 @@ label = "qualitative-preferences (full corpus)"
 competition = "ipc5"
 budget_secs = 60
 track = "qual-pref-2006"
+capability = "preferences"   # the README front page's group
+front_name = "qualitative"
 rebaselined_on = ["m5-air"]
 
 [[board]]
@@ -491,6 +519,8 @@ label = "complex-preferences (full corpus)"
 competition = "ipc5"
 budget_secs = 60
 track = "complex-pref-2006"
+capability = "preferences"   # the README front page's group
+front_name = "complex"
 rebaselined_on = ["m5-air"]
 
 # ---------------------------------------------------------------------------

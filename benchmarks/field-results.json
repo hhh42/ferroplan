@@ -426,6 +426,33 @@
       "note": "the official Overall Optimal 3-domain shared slice — matched corpus",
       "confidence": "medium-high"
     },
+    "simple-preferences (full corpus)": {
+      "entrants": [
+        [
+          "SGPlan5",
+          130,
+          130
+        ],
+        [
+          "MIPS-XXL",
+          64,
+          130
+        ],
+        [
+          "MIPS-BDD",
+          29,
+          130
+        ],
+        [
+          "YochanPS",
+          24,
+          130
+        ]
+      ],
+      "field_size": 4,
+      "note": "archive-counted on the matched 130-instance corpus (SimplePreferences 110 + MetricSimplePreferences 20): a planner's `; MetricValue` present = solved; YochanPS's Grounded* re-entries excluded",
+      "confidence": "medium"
+    },
     "complex-preferences (full corpus)": {
       "entrants": [
         [

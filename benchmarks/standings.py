@@ -412,13 +412,13 @@ def _ipc_score(own, other):
     return best / own
 
 
-def pref_quality(rows, arch_m, planner="sgplan"):
-    """The preference boards' quality cell (0.29 Phase 0.2): the IPC score of
-    our banked metrics against `planner`'s `; MetricValue` over the cells that
+def pref_points(rows, arch_m, planner="sgplan"):
+    """The preference boards' points (0.29 Phase 0.2): the IPC score of our
+    banked metrics against `planner`'s `; MetricValue` over the cells that
     planner solved -- the currency IPC-5 ranked these tracks on, which
     coverage cannot see (0.28 closed the rows on these boards and moved the
     points by less than a tenth of the gap). Returns None when nothing was
-    scored, so the fixed note renders instead."""
+    scored; otherwise the numbers, for whichever table wants them."""
     ours = theirs = 0.0
     n = w = t_ = l = unpriced = 0
     for r in rows:
@@ -445,8 +445,18 @@ def pref_quality(rows, arch_m, planner="sgplan"):
             t_ += 1
     if not n:
         return None
-    return (f"IPC score vs SGPlan5: {ours:.1f} / {theirs:.1f} over {n} cells "
-            f"({w}W/{t_}T/{l}L; {unpriced} solved unpriced)")
+    return {"ours": ours, "theirs": theirs, "n": n, "w": w, "t": t_, "l": l,
+            "unpriced": unpriced}
+
+
+def pref_quality(rows, arch_m, planner="sgplan"):
+    """`pref_points`, as ipc-standings.md's quality cell renders it."""
+    p = pref_points(rows, arch_m, planner)
+    if p is None:
+        return None
+    return (f"IPC score vs SGPlan5: {p['ours']:.1f} / {p['theirs']:.1f} over "
+            f"{p['n']} cells ({p['w']}W/{p['t']}T/{p['l']}L; "
+            f"{p['unpriced']} solved unpriced)")
 
 
 # Makespan W/T/L tie band: one ε slot at the COARSEST granularity on either
@@ -527,6 +537,44 @@ PROOF_TRACKS = {"seq-opt", "2014 seq-opt", "2026 numeric-opt",
                 "2018 seq-opt", "2023 seq-opt", "2023 numeric-opt",
                 "2026 numeric-opt FULL"}
 
+# The front page (0.29): the README block says what the planner is good at and
+# against whom, grouped by CAPABILITY, instead of the best five boards by
+# percentage -- which read ~100 % across the board and said nothing. A board
+# is on the front page iff it has an entry here; the short name is what the
+# row calls it (the group names the track, so "2014" is enough). Transcribed
+# into benchmarks/manifest.toml (`capability`, `front_name`) by
+# crucible/tools/gen-manifest.py, and verified there, so the Rust renderer
+# reads the same grouping. Order within a group is SWEEPS order, never by
+# percentage: a front page must not reshuffle between cuts.
+CAPABILITY_ORDER = [
+    ("temporal", "temporal planning"),
+    ("preferences", "PDDL3 preferences"),
+    ("classical", "classical satisficing"),
+    ("optimal", "optimal, with proofs"),
+    ("numeric", "numeric"),
+]
+CAPABILITIES = {
+    "time": ("temporal", "time"),
+    "metric-time": ("temporal", "metric-time"),
+    "tempo-sat": ("temporal", "tempo-sat"),
+    "simple-preferences (full corpus)": ("preferences", "simple"),
+    "qualitative-preferences (full corpus)": ("preferences", "qualitative"),
+    "complex-preferences (full corpus)": ("preferences", "complex"),
+    "net-benefit": ("preferences", "net-benefit"),
+    "propositional": ("classical", "propositional"),
+    "seq-sat": ("classical", "seq-sat"),
+    "2014 seq-sat": ("classical", "2014"),
+    "2018 seq-sat": ("classical", "2018"),
+    "2023 seq-sat": ("classical", "2023"),
+    "seq-opt": ("optimal", "seq-opt"),
+    "2014 seq-opt": ("optimal", "2014"),
+    "2018 seq-opt": ("optimal", "2018"),
+    "2023 seq-opt": ("optimal", "2023"),
+    "2026 numeric-opt": ("optimal", "2026 numeric-opt"),
+    "2023 numeric": ("numeric", "2023"),
+    "2026 numeric (first board)": ("numeric", "2026"),
+}
+
 
 # --------------------------------------------------------------------------
 # The vs-field column (0.25 Phase 1): field placement as DATA, not a
@@ -593,11 +641,13 @@ def _ord(n):
     return {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
 
 
-def _placement(cohort, s, n):
+def _rank(cohort, s, n):
     """Rank our s/n among a cohort's entrants by coverage RATE (the only
     currency that survives mismatched denominators). '~' marks a field
     with unlocated entrants — the rank is a floor on ignorance, and says
-    so by being approximate."""
+    so by being approximate. Returns (approx, rank, total, leader) or None;
+    `_placement` and `_placement_brief` are its two renderings, so the
+    front page and STANDINGS.md cannot disagree about a rank."""
     ents = cohort.get("entrants") or []
     if not ents or not n:
         return None
@@ -624,8 +674,26 @@ def _placement(cohort, s, n):
             floor = 1
     if floor > r:
         r, approx = floor, "≥"
+    return approx, r, total, lead
+
+
+def _placement(cohort, s, n):
+    """The STANDINGS.md cell: rank, and who leads with what."""
+    rk = _rank(cohort, s, n)
+    if rk is None:
+        return None
+    approx, r, total, lead = rk
     return (f"{approx}{r}{_ord(r)} of {total} by rate "
             f"(leader {lead[0]} {lead[1]}/{lead[2]})")
+
+
+def _placement_brief(cohort, s, n):
+    """The front page's cell: the same rank, in the room a README row has."""
+    rk = _rank(cohort, s, n)
+    if rk is None:
+        return None
+    approx, r, total, lead = rk
+    return f"{approx}{r}{_ord(r)} of {total} ({lead[0]} {lead[1]}/{lead[2]})"
 
 
 def field_cell(field, label, rows, s, n):
@@ -670,7 +738,7 @@ def _bar(pct, width=20):
     return "█" * filled + "░" * (width - filled)
 
 
-def write_summary(data):
+def write_summary(data, arch_m=None):
     """STANDINGS.md — the at-a-glance view.
 
     ipc-standings.md is the reference table: every track, every failure class,
@@ -783,19 +851,76 @@ def write_summary(data):
     with open(SUMMARY, "w") as f:
         f.write("\n".join(L) + "\n")
     print(f"wrote {SUMMARY}")
-    _patch_readme(live, tot_s, tot_n, proofs, box)
+    _patch_readme(data, live, tot_s, tot_n, proofs, box, field, arch_m)
 
 
 README_BEGIN = "<!-- STANDINGS:BEGIN"
 README_END = "<!-- STANDINGS:END -->"
 
 
-def _patch_readme(live, tot_s, tot_n, proofs, box):
+def _front_rows(data, live, field, arch_m):
+    """The front page's table, one row per capability (0.29).
+
+    Each row joins its boards' coverage in one cell and their placements in
+    the next, position for position, so a reader matches "2011 240/280" to
+    "2nd of 28 (LAMA-2011 250/280)" by order. A board with no cohort still
+    takes its slot (an em dash) so the columns stay aligned. A split cohort
+    (seq-sat 2008 / 2011) is one slot per split, the first carrying the
+    board's name. The preference row carries its points beside its rows,
+    because rows are not what IPC-5 ranked those tracks on and a front page
+    that showed 130/130 alone would be hiding the open gap.
+    """
+    by_label = {label: (s, n, rows) for label, s, n, _pct, rows in live}
+    out = []
+    for group, title in CAPABILITY_ORDER:
+        boards, ranks, points = [], [], []
+        proof = False
+        for label in data:  # SWEEPS order
+            cap = CAPABILITIES.get(label)
+            if not cap or cap[0] != group or label not in by_label:
+                continue
+            s, n, rows = by_label[label]
+            short = cap[1]
+            proof = proof or label in PROOF_TRACKS
+            cohort = field.get(label)
+            if cohort and "splits" in cohort:
+                first = True
+                for ipc, sub in sorted(cohort["splits"].items()):
+                    rs = [r for r in rows if r.get("ipc") == ipc]
+                    if not rs:
+                        continue
+                    ss = sum(1 for r in rs if solved(r))
+                    name = f"{short} {ipc[-4:]}" if first else ipc[-4:]
+                    first = False
+                    boards.append(f"{name} {ss}/{len(rs)}")
+                    ranks.append(_placement_brief(sub, ss, len(rs)) or "—")
+                continue
+            boards.append(f"{short} {s}/{n}")
+            ranks.append((_placement_brief(cohort, s, n) if cohort else None)
+                         or "—")
+            if label.endswith("preferences (full corpus)") and arch_m:
+                pts = pref_points(rows, arch_m)
+                if pts:
+                    points.append(f"{pts['ours']:.1f}/{pts['theirs']:.1f}")
+        if not boards:
+            continue
+        rank_cell = " · ".join(ranks)
+        if points:
+            rank_cell += "; IPC quality vs SGPlan5 " + " · ".join(points)
+        out.append((title + (" ⚖️" if proof else ""), " · ".join(boards),
+                    rank_cell))
+    return out
+
+
+def _patch_readme(data, live, tot_s, tot_n, proofs, box, field, arch_m):
     """Rewrite the README's headline block between its markers.
 
-    Hand-maintained numbers on a front page drift the moment a sweep lands, and
-    a stale headline is worse than none — so the shop window is generated from
-    the same data as the table behind it.
+    Hand-maintained numbers on a front page drift the moment a sweep lands,
+    and a stale headline is worse than none -- so the shop window is generated
+    from the same data as the table behind it. Since 0.29 the window is a
+    capability table (`_front_rows`): what the planner is good at, against
+    whom, and where it ranks -- the best-five-by-percentage it replaced read
+    ~100 % on every row and said nothing.
     """
     p = os.path.join(ROOT, "README.md")
     if not os.path.exists(p) or not tot_n:
@@ -805,17 +930,17 @@ def _patch_readme(live, tot_s, tot_n, proofs, box):
     if i < 0 or j < 0:
         return
     head_end = text.find("-->", i) + 3
-    top = [f"| track | coverage | |", "|---|---|---|"]
-    for label, s, n, pct, _rows in live[:5]:
-        mark = " ⚖️" if label in PROOF_TRACKS else ""
-        top.append(f"| {label}{mark} | {s}/{n} | `{_bar(pct, 16)}` {pct:.0f}% |")
+    table = ["| good at | boards (solved/total) | where it ranks, by coverage rate |",
+             "|---|---|---|"]
+    for title, boards, ranks in _front_rows(data, live, field, arch_m):
+        table.append(f"| {title} | {boards} | {ranks} |")
     block = [
         "",
         f"**{100.0 * tot_s / tot_n:.0f}% coverage across {len(live)} IPC "
         f"boards** ({tot_s:,}/{tot_n:,}) on `{box}`"
         + (f", including **{proofs:,} certified optima**." if proofs else "."),
         "",
-        *top,
+        *table,
         "",
         # ABSOLUTE urls, always. This block is generated into README.md, which
         # ships as the crate README (`readme = "../../README.md"`), and
@@ -823,9 +948,14 @@ def _patch_readme(live, tot_s, tot_n, proofs, box):
         # so `STANDINGS.md` there resolves to crates/ferroplan/STANDINGS.md
         # and 404s. Every other link in that README is absolute for the same
         # reason.
-        f"Best five shown. **[Full standings → `STANDINGS.md`]({GH_BLOB}STANDINGS.md)** · "
-        "per-track detail, quality scoring and failure classes in "
-        f"[`benchmarks/ipc-standings.md`]({GH_BLOB}benchmarks/ipc-standings.md).",
+        "Rank is by coverage rate against that competition's located "
+        "entrants, at ~1/30th of the official budget; `~` = entrants "
+        "unlocated, `—` = no field data held, ⚖️ = coverage is proof rate. "
+        f"**[Full standings → `STANDINGS.md`]({GH_BLOB}STANDINGS.md)** · "
+        "per-track quality and failure classes in "
+        f"[`benchmarks/ipc-standings.md`]({GH_BLOB}benchmarks/ipc-standings.md)"
+        " · how the ranks are computed in "
+        f"[`docs/ipc-rankings.md`]({GH_BLOB}docs/ipc-rankings.md).",
         "",
     ]
     with open(p, "w") as f:
@@ -887,7 +1017,7 @@ def main():
         ("time", "coverage-only (raw predates the 0.22 makespan column)"),
         ("metric-time",
          "coverage-only (raw predates the 0.22 makespan column)"),
-        ("constraints", "coverage-only (timed modal ops rejected by name)"),
+        ("constraints", "coverage-only (no quality currency recorded)"),
         # 0.25 Phase 1: the preference tracks at full corpus (the curated
         # 8-instance reference-scored boards keep their own files).
         ("simple-preferences (full corpus)",
@@ -952,8 +1082,8 @@ def main():
         "[`ipc5-qualitative-scoreboard.md`](ipc5-qualitative-scoreboard.md)"
         " (24W/4T/10L vs SGPlan5 — ahead of the winner; rovers/storage/tpp"
         " won outright) | — |",
-        "| complex-preferences | no (modal operators rejected by name) "
-        "| — | — | feature gap, on the deferred list |",
+        "| complex-preferences | superseded — the full-corpus board above "
+        "(entered 0.25) | — | — | — |",
         "",
     ]
 
@@ -1190,7 +1320,7 @@ def main():
     with open(OUT, "w") as f:
         f.write("\n".join(lines) + "\n")
     print(f"wrote {OUT}")
-    write_summary(data)
+    write_summary(data, arch_m)
     if prop_quality:
         print(f"prop-2006 {prop_quality}")
 

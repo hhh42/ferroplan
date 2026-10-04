@@ -131,7 +131,10 @@ impl Cohort {
     /// `None` where there is nothing to rank against -- no entrants, or an
     /// empty board -- which the caller renders as an em-dash. Python:
     /// `if not ents or not n: return None`.
-    pub fn placement(&self, s: usize, n: usize) -> Option<String> {
+    /// The rank itself, before either rendering. `placement` (STANDINGS.md)
+    /// and `placement_brief` (the README front page) both format this, so
+    /// the two documents cannot disagree about a rank.
+    fn rank(&self, s: usize, n: usize) -> Option<Rank<'_>> {
         if self.entrants.is_empty() || n == 0 {
             return None;
         }
@@ -186,14 +189,56 @@ impl Cohort {
             approx = GE;
         }
 
+        Some(Rank {
+            approx,
+            rank,
+            total,
+            lead,
+        })
+    }
+
+    /// Rank `s`/`n` among this cohort's entrants by coverage rate, as the
+    /// `STANDINGS.md` cell renders it.
+    ///
+    /// `None` where there is nothing to rank against -- no entrants, or an
+    /// empty board -- which the caller renders as an em-dash. Python:
+    /// `if not ents or not n: return None`.
+    pub fn placement(&self, s: usize, n: usize) -> Option<String> {
+        let r = self.rank(s, n)?;
         Some(format!(
-            "{approx}{rank}{suffix} of {total} by rate (leader {name} {solved}/{of})",
-            suffix = ordinal_suffix(rank),
-            name = lead.name,
-            solved = lead.solved,
-            of = lead.of,
+            "{}{}{} of {} by rate (leader {} {}/{})",
+            r.approx,
+            r.rank,
+            ordinal_suffix(r.rank),
+            r.total,
+            r.lead.name,
+            r.lead.solved,
+            r.lead.of,
         ))
     }
+
+    /// The same rank, in the room a README row has: `_placement_brief`.
+    pub fn placement_brief(&self, s: usize, n: usize) -> Option<String> {
+        let r = self.rank(s, n)?;
+        Some(format!(
+            "{}{}{} of {} ({} {}/{})",
+            r.approx,
+            r.rank,
+            ordinal_suffix(r.rank),
+            r.total,
+            r.lead.name,
+            r.lead.solved,
+            r.lead.of,
+        ))
+    }
+}
+
+/// One cohort's verdict on our coverage, before rendering.
+struct Rank<'a> {
+    approx: &'static str,
+    rank: i64,
+    total: usize,
+    lead: &'a Entrant,
 }
 
 /// Every cohort we hold, plus everything that looked wrong on the way in.
@@ -295,6 +340,12 @@ impl FieldBook {
         self.cohorts.get(label)
     }
 
+    /// A cohort by hand, for a hermetic renderer test.
+    #[cfg(test)]
+    pub(crate) fn insert_for_test(&mut self, label: &str, c: Cohort) {
+        self.cohorts.insert(label.to_string(), c);
+    }
+
     /// The half of the splits check that needs a board to check against: a key
     /// whose shape is fine but which matches no row's `ipc`, so its side of the
     /// cell silently renders as nothing.
@@ -375,7 +426,7 @@ fn is_ipc_dir_name(k: &str) -> bool {
 
 /// Python's `s[-4:]`, which slices by codepoint and returns the whole string
 /// when it is shorter than four.
-fn tail4(s: &str) -> &str {
+pub(crate) fn tail4(s: &str) -> &str {
     match s.char_indices().rev().nth(3) {
         Some((i, _)) => &s[i..],
         None => s,

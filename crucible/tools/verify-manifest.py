@@ -66,6 +66,10 @@ for raw, (label, comp, budget) in S.SWEEPS.items():
     eq(f"{raw} budget_secs", b["budget_secs"], budget)
     eq(f"{raw} proof_track", b.get("proof_track", False), label in S.PROOF_TRACKS)
     eq(f"{raw} rebaselined", bool(b.get("rebaselined_on")), label in S.AIR_REBASELINED)
+    cap = S.CAPABILITIES.get(label)
+    eq(f"{raw} capability", b.get("capability"), cap[0] if cap else None)
+    eq(f"{raw} front_name", b.get("front_name", label if cap else None),
+       cap[1] if cap else None)
 
 # The .md naming exceptions, as standings.py's main() applies them.
 MD_FOR = {"ipc67-default.jsonl": "ipc67-results.md",

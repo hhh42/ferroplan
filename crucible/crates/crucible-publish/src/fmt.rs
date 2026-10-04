@@ -99,8 +99,8 @@ pub mod glyph {
 }
 
 /// The bar width `_bar` defaults to, and the width `STANDINGS.md` is rendered
-/// at. `_patch_readme` overrides it to 16 for the front-page block, which is
-/// why `bar` takes the width rather than assuming it.
+/// at. (The front-page block drew a 16-wide bar until 0.29; it is a rank table
+/// now and draws none.)
 pub const BAR_WIDTH: usize = 20;
 
 /// Python's `round(x, ndigits)`: round-half-to-EVEN on the decimal value.

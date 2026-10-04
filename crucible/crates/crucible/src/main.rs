@@ -149,7 +149,7 @@ enum Cmd {
     },
     /// Regenerate (or check) the standings documents.
     Standings {
-        /// detail | summary | all
+        /// detail | summary | readme | all
         #[arg(long, default_value = "all")]
         doc: String,
         /// Render in memory and diff against disk; write nothing. Exits
@@ -722,34 +722,45 @@ fn standings(
     let ctx = render::RenderCtx::load(repo, BoxId::new(&cfg.sweep.box_id))
         .with_context(|| format!("loading standings inputs from {}", repo.display()))?;
 
-    let targets: Vec<(&str, std::path::PathBuf, String)> = match which {
-        "detail" => vec![(
+    // (name, path, the file as it should read on disk, what a bare run prints).
+    // The README is the one document whose file is not the rendering: the
+    // block is spliced between its markers, so `--check`/`--write` deal in the
+    // patched README while a bare run prints just the block.
+    let detail = || {
+        let t = render::detail::render(&ctx);
+        (
             "detail",
             repo.join("benchmarks/ipc-standings.md"),
-            render::detail::render(&ctx),
-        )],
-        "summary" => vec![(
-            "summary",
-            repo.join("STANDINGS.md"),
-            render::summary::render(&ctx),
-        )],
-        "all" => vec![
-            (
-                "detail",
-                repo.join("benchmarks/ipc-standings.md"),
-                render::detail::render(&ctx),
-            ),
-            (
-                "summary",
-                repo.join("STANDINGS.md"),
-                render::summary::render(&ctx),
-            ),
-        ],
-        other => anyhow::bail!("unknown document {other:?}; try detail, summary or all"),
+            t.clone(),
+            t,
+        )
+    };
+    let summary = || {
+        let t = render::summary::render(&ctx);
+        ("summary", repo.join("STANDINGS.md"), t.clone(), t)
+    };
+    let readme = || -> anyhow::Result<_> {
+        let path = repo.join("README.md");
+        let on_disk = std::fs::read_to_string(&path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let block = render::readme::block(&ctx)
+            .ok_or_else(|| anyhow::anyhow!("no live board: the README block declines to render"))?;
+        let patched = render::readme::patch(&on_disk, &block)
+            .ok_or_else(|| anyhow::anyhow!("README.md does not carry both STANDINGS markers"))?;
+        Ok(("readme", path, patched, block))
+    };
+    let targets: Vec<(&str, std::path::PathBuf, String, String)> = match which {
+        "detail" => vec![detail()],
+        "summary" => vec![summary()],
+        "readme" => vec![readme()?],
+        "all" => vec![detail(), summary(), readme()?],
+        other => {
+            anyhow::bail!("unknown document {other:?}; try detail, summary, readme or all")
+        }
     };
 
     let mut differs = 0;
-    for (name, path, text) in &targets {
+    for (name, path, text, shown) in &targets {
         if check {
             let have = std::fs::read_to_string(path).unwrap_or_default();
             if &have == text {
@@ -773,7 +784,7 @@ fn standings(
             std::fs::write(path, text)?;
             println!("wrote {}", path.display());
         } else {
-            print!("{text}");
+            print!("{shown}");
         }
     }
     if check && differs > 0 {

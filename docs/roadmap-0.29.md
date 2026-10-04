@@ -625,6 +625,133 @@ order: the canary and the pass cap (every daytime number this cycle paid
 for them), Lane 1's one-grounding polish, Lane 2's relaxation on the
 rovers fixture, Lane 4's achiever index.
 
+## Re-plan 2026-10-04 — significant gains on the competition
+
+Agreed with the operator three days after the lanes' first round, with the
+gap table below in hand. Two decisions and a re-ordering:
+
+- **The headline is rows first: Lane 2's consumable-aware relaxation.** The
+  largest measured pool is metric-time (24 of 110 on rovers/tpp/pathways,
+  every miss "temporal ladder stopped at the wall"), and the same defect
+  caps the numeric boards (markettrader 1/20, settlers 3/20, expedition
+  5/20, sailing-wind 0/20). Lane 1's one-grounding polish (points) follows
+  it, not the other way round.
+- **A classical memory lane opens (Lane 5).** 82 mem-cap rows on 2014/2018/
+  2023 seq-sat trip at a median 19–27 s with half the wall unspent
+  (city-car 15, child-snack 10, maintenance 4; caldera 16,
+  organic-synthesis 8+2, snake 5; folding 16, which trips at 7 s and is
+  grounding). The classical ladder never arms the memory wall, so the runner's
+  cap kills a search that could have handed its wall to a leaner rung.
+- **The README's standings block is a capability table**, landed on `main`
+  2026-10-04 with 0.28.0's numbers (what the planner is good at, its rank in
+  each competition's field, the preference boards' points beside their rows);
+  it regenerates at the cut. `benchmarks/manifest.toml` carries
+  `capability` / `front_name`; `crucible standings --check` covers the README.
+
+### The gap table the lanes are chosen from (0.28.0 boards vs field leaders, by rate)
+
+| board | ours | leader | rows to leader's rate | pool shape |
+|---|---|---|---|---|
+| IPC-5 propositional | 384/450 | SGPlan5 218/220 | +62 | near-wall timeouts 57–59 s, 0 mem-cap (trucks 13/30, pathways 26/30, storage 26/30) |
+| 2014 seq-opt (proof) | 82/256 | SymBA*-2 151/280 | +56 | wall; admissible-heuristic work, out of scope this cycle |
+| IPC-5 metric-time | 105/200 | SGPlan5 151/200 | +46 | 76 "stopped at the wall" — Lane 2 |
+| IPC-5 constraints | 28/120 | SGPlan5 47/80 | +42 | Lane 3 negative; a heuristic question, not budget |
+| 2014 seq-sat | 173/280 | IBaCoP2 198/280 | +25 | 30 mem-cap + 77 timeouts — Lane 5 |
+| complex-pref | 80/108 | SGPlan5 105/108 | +25 | 14 mem-cap (storage) — Lane 4; 13 wall (tpp) |
+| 2011 seq-sat | 240/280 | LAMA-2011 250/280 | +10 | floor-tile 8/20, transport 11/20 |
+| 2018 seq-sat | 97/240 | field mean 94 (winner not held) | — | 35 mem-cap + 108 timeouts — Lane 5 |
+| 2023 seq-sat | 53/140 | — | — | 17 mem-cap (folding 16, trips at 7 s = grounding) |
+| 2023 numeric | 262/400 | ENHSP ref 267/400 | +5 | 33 mem-cap (pathwaysmetric 10, markettrader 9, tpp 7) + 104 timeouts |
+| preference points | qual 63/92, simple 96/120, complex 51/99 | SGPlan5 | points, not rows | Lane 1 |
+
+Ahead of the leader already: time, tempo-sat 2008/2011, 2008 seq-sat,
+net-benefit, 2026 numeric-opt (a tie). Those are the README's "good at" rows.
+
+### The order from here
+
+**Phase 0.5 (instrument) → Lane 2 (headline) → Lane 5 (classical memory) →
+Lane 1 (one-grounding polish) → Lane 4 (achiever index) → the trucks probe →
+the cut.** Fixtures first, band and kill pre-registered, every number through
+the crucible with the engine hash beside it, `main` fast-forwarded when a
+lane's record is written; sweeps at night, no cargo on the box while one runs.
+
+**Phase 0.5.** (a) `--max-passes` on subsets: `sweep.rs::wait` checks
+`passes >= max`, yet `lanes29` ran a fifth pass under `--max-passes 3`; find
+whether the subset path never increments `passes` or bypasses `wait`; fixture
+in `crucible/tests/subset.rs`, a permanently-owed row under `--max-passes 2`
+runs exactly two passes. (b) The canary baseline at width: `Canary::calibrate`
+takes solo readings and the running canary sits beside nine jobs (1.5× on a
+quiet box), so packed passes owe every solo row and re-run them packed — a
+loop; record the pack width with every reading and key the baseline percentile
+(`Reader::canary_baseline`) by width, or take `baseline_n` readings at the
+configured width; fixture: a width-9 reading against a width-9 baseline is
+clean, against a solo one it is not; measured by re-running `lanes29`'s owed
+rows and counting "thermal" owings per pass. (c) Record only: the failure-side
+referee banked tetris i15 unsolved twice under conditions a 31 s solve could
+not survive.
+
+**Lane 2, the mechanism steps** (section above holds claim / band / kill):
+(1) fixture `tests/numeric_consumable.rs` — the rovers shape at fixture scale,
+a fluent every achiever of a needed fact decreases, stock enough for k firings,
+goal needs k+1, RED on 0.28.0 by evaluation count with the expected h sequence
+pinned (the plateau half of `a_dead_end_with_a_draining_consumable_is_a_fixpoint`);
+(2) charge consumption in `build_rpg`: a fluent only ever decreased along
+applied ops and read by a needed precondition bounds its achievers' firings by
+stock / per-firing cost, so the relaxed plan's cost grows as the resource runs
+short — value-identical where no consumable is read (Lane N's 123/123 pin);
+(3) saturate growing bounds at the first layer no needed comparison can
+change, instead of running to `LAYER_CAP`; (4) the probe's residue — cache the
+six `FF_NUMPRE_*` reads in `relaxed_to_inner` (2 % of every evaluation; the
+unit tests that set them in-process reworked first) and the residual +10 % per
+evaluation; (5) the partition subplanner keeping its Phase-A subplans only if
+(2)+(3) leave the band unmet and the solo probe says the search is what is
+left. Measured: `sweep --board ipc5-metric-time --only rovers,tpp,pathways`,
+then the loss side of `ipc2023-numeric` / `ipc2026-numeric`, `compare` on the
+first-attempt estimator, evaluations/s before and after on rovers-metric-time
+i10 solo.
+
+### Lane 5 — the classical memory class (new)
+
+**Claim:** the 82 mem-cap rows on 2014/2018/2023 seq-sat (and the same shape
+on 2014 agile, 25, and 2023 numeric, 33) spend their remaining wall instead
+of dying at the runner's 6 GB cap at 19–27 s. **Band:** +15 to +30 rows
+across the three seq-sat boards on the first-attempt estimator, no row lost.
+**Kill:** the rows end unsolved with the wall spent → recorded, and the note
+says what the wall was spent on.
+
+Day one measures where the memory goes (`probes-0.29/lane5/`): six
+representatives solo under `FF_RES_DEBUG=1`, RSS after grounding and at the
+trip — city-car i6, child-snack, maintenance; caldera i4, organic-synthesis;
+folding. Two classes expected: the node store (20–27 s trips) and grounding
+(folding). Mechanisms in order: (1) **arm the memory wall in the classical
+rungs** — `search_from` already calls `MemWall::arm()`, but `arm()` is gated
+on `BOUNDED_WORK` (a `ScopedDeadline` scope), so a plain classical solve runs
+unarmed and the city-car rows die in weighted best-first at the runner's cap;
+arm it whenever a budget is DECLARED, so a rung ends at 75 % with a "memory
+wall" note and the ladder's next rung gets the rest of the wall with a fresh,
+smaller table (EHC / novelty with a bounded closed set) instead of the
+SIGKILL; fixture on the `tests/mem_wall.rs` pattern — a classical task under a
+small `FF_MEM_BUDGET_GB` ends "memory wall" with a note, not a kill, and the
+next rung runs. (2) **A leaner node store** — states once in an arena, the
+closed set as 64-bit hashes with the collision list, parent/op as `u32`,
+`Node` packed; bytes per node measured before and after on city-car i6.
+(3) Grounding-bound rows (folding): record only, unless the probe shows the
+packed-op tables are the peak, in which case they join Lane 4's achiever
+work. Measured: `sweep --board ipc2014-sat --only city-car,child-snack,
+maintenance`, `--board ipc2018-sat --only caldera,organic-synthesis,snake`,
+`--board ipc2023-sat --only folding`, then the loss side of all three boards,
+`max_rss` beside every row.
+
+### The trucks / propositional probe (one day; record only)
+
+`probes-0.29/trucks/`: trucks-propositional i10/i15/i16, pathways-prop
+i17–19, storage-prop i27–30, solo at 60 s and at 300 s, three reps, `sample`
+on one. The question is whether these are wall-edge speed
+(field-gaps-0.26 §1e: 57–59 s timeouts) or lost searches. Trucks is weak on
+every track it appears on (prop −15, time −19, preference quality 5.6 of
+18.5), so a mechanism found here pays on several boards; the record names it
+for 0.30 unless it is a one-line fix.
+
 ## Instrument notes from lanes29 (for Phase 0's ledger)
 
 - `sweep --max-passes 3` does not hold: every launch ran a fourth pass,
