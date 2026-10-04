@@ -301,6 +301,10 @@ fn append_til_setters(
         }
         b.push_row(std::iter::empty());
         task.add_by_fact = b.finish();
+        // ... and the shared-add mark grows the same row (0.29 Lane 4).
+        let mut sa = task.shared_add.to_vec();
+        sa.push(false);
+        task.shared_add = sa.into();
     }
     let mut op_display = task.op_display.to_vec();
     op_display.extend(names);

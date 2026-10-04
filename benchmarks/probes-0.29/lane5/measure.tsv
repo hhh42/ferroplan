@@ -1,0 +1,14 @@
+cell	cap	evaluated	peak_rss_mb	secs	note
+city-car-sequential-satisficing/6	1	None	31	0.1	
+city-car-sequential-satisficing/6	200000	None	2925	120.0	no json
+child-snack-sequential-satisficing/10	1	None	21	0.1	
+child-snack-sequential-satisficing/10	200000	None	4932	120.0	no json
+maintenance-sequential-satisficing/4	1	None	8	0.1	
+maintenance-sequential-satisficing/4	200000	None	1177	1.2	EHC found no improving state; used weighted best-first
+caldera-sequential-satisficing/4	1	None	5928	43.8	
+caldera-sequential-satisficing/4	200000	None	5816	42.5	
+organic-synthesis-sequential-satisficing/8	1	None	3648	120.0	no json
+organic-synthesis-sequential-satisficing/8	200000	None	3648	120.1	no json
+folding-sequential-satisficing/3	1	None	2	0.0	no json
+folding-sequential-satisficing/3	200000	None	2	0.0	no json
+MEASURE DONE

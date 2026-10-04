@@ -195,7 +195,7 @@ pub fn trip_bound(task: &PackedTask, groups: &[Vec<u32>], init: &[u64]) -> Optio
         .iter()
         .copied()
         .filter(|&g| {
-            task.add_by_fact.slice(g as usize).iter().any(|&oi| {
+            task.achievers(g as usize).any(|oi| {
                 task.add
                     .slice(oi as usize)
                     .iter()

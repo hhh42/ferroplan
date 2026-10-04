@@ -1365,7 +1365,8 @@ fn solve_pddl3(
     // route that grounds first has nothing to return when the wall arrives
     // mid-grounding.
     let (seed_d, seed_p) = seed_pair.map_or((domain, problem), |(d, p)| (d, p));
-    let seed_plan = pddl3::hard_goal_plan(seed_d, seed_p, threads, opts.search_cfg());
+    let (seed_plan, seed_task) =
+        pddl3::hard_goal_plan_with_task(seed_d, seed_p, threads, opts.search_cfg());
     // From here on a plan may be in hand, so everything stops a reserve
     // short of the wall (the Lane S rule): the runner kills AT the wall.
     let _ground_wall = seed_plan
@@ -1486,7 +1487,7 @@ fn solve_pddl3(
         .then(crate::search::wall_remaining_secs)
         .flatten()
         .map(|rem| rem * pddl3::polish_frac())
-        .filter(|share| *share >= 2.0 * ground_secs);
+        .filter(|share| *share >= pddl3::polish_min_share(ground_secs, seed_task.as_ref()));
     let optimized = {
         let _opt_wall = polish_share.and_then(crate::search::tighten_deadline);
         pddl3::metric_optimize_seeded(
@@ -1545,6 +1546,7 @@ fn solve_pddl3(
                 threads,
                 opts.search_cfg(),
                 ground_secs,
+                seed_task.as_ref(),
             ) {
                 notes.push(format!(
                     "preference polish: {} more satisfied ({}), metric {} -> {}",

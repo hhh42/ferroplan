@@ -123,6 +123,10 @@ pub struct Scratch {
     lb: Vec<f64>,
     ub: Vec<f64>,
     selected: Vec<u32>,
+    /// How many times a selected op was charged (`select`'s `reps`), valid
+    /// iff `selected == gen`. The consumption charge (0.29 Lane 2) sums a
+    /// selected op's decreases that many times.
+    sel_reps: Vec<i32>,
     need_fact: Vec<u32>,
     queue: Vec<u32>,
     /// applied ops with ≥1 relevant numeric effect (re-widened each layer).
@@ -156,6 +160,7 @@ impl Scratch {
             lb: vec![0.0; nfl],
             ub: vec![0.0; nfl],
             selected: vec![0; task.n_ops],
+            sel_reps: vec![0; task.n_ops],
             need_fact: vec![0; task.n_facts],
             queue: Vec::with_capacity(task.n_facts),
             num_applied: Vec::with_capacity(task.n_ops),
@@ -1091,6 +1096,27 @@ fn relaxed_extract(
         }
     }
 
+    // The CONSUMPTION charge (0.29 Lane 2): the relaxation drops deletes,
+    // and a `decrease` is a delete on a number -- so a relaxed plan of five
+    // drives at 8 energy each reads "energy >= 8" against a stock of 10 and
+    // is satisfied, and nothing in h ever says the rover must recharge. On
+    // the compressed rovers-metric-time the search's best h reached 11 and
+    // sat there for 900k evaluations: every state with the same drives left
+    // read the same h whatever its energy, so spending the resource cost
+    // nothing and refilling it bought nothing. Sum what the selected plan
+    // SPENDS of every fluent its own preconditions read from below, against
+    // the stock in THIS state plus what the plan already puts back; a
+    // deficit prices its best raiser (`numeric_achiever`, the same pricing
+    // the pre_num charge uses) for ceil(deficit / per-firing) firings. A
+    // task whose relaxed plan spends nothing it reads is byte-identical.
+    // `FF_NO_CONSUME=1` restores the blind h.
+    if task.charge_pre_num
+        && !task.pre_num.flat.is_empty()
+        && std::env::var("FF_NO_CONSUME").is_err()
+    {
+        consumption_charge(task, sc, bits, fv, def, &mut count, &mut head);
+    }
+
     // The h-surgery end gate (0.21 Phase 8 probe, opt-in FF_H_ENDGATE=1):
     // h^FF pays for a snap-START the moment it fires while the interval
     // delivers nothing until its END lands — the start-credit plateau (TMS's
@@ -1114,6 +1140,28 @@ fn relaxed_extract(
     }
 
     Some(count)
+}
+
+/// The relaxed plan's ops toward an arbitrary subgoal (0.29 Lane 1): which
+/// ops the extraction SELECTED, ascending. `None` is a relaxed dead end. The
+/// polish reads what a candidate's relaxed plan needs so it can forbid the
+/// rest of what a held preference keeps false.
+#[allow(clippy::too_many_arguments)]
+pub fn relaxed_plan_ops(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    goal_pos: &[u32],
+    goal_num: &[NumPre],
+) -> Option<Vec<usize>> {
+    relaxed_to(task, sc, bits, fv, def, goal_pos, goal_num)?;
+    Some(
+        (0..task.n_ops)
+            .filter(|&oi| sc.selected[oi] == sc.gen)
+            .collect(),
+    )
 }
 
 /// Convenience: relaxed-plan heuristic toward the task's own goal.
@@ -1328,6 +1376,107 @@ pub fn relaxed_plan_cost(
 /// relaxed-plan extraction left in `sc` (valid until the next reset), each
 /// evaluated against this state's fluent values. Ops count once (set
 /// semantics) — an underestimate when a plan must repeat an op.
+/// The consumption charge (0.29 Lane 2); see the call site in
+/// `relaxed_extract` for why. Stock fluents are those some SELECTED op reads
+/// with a lower-bound comparison on the bare fluent (`(>= (energy) 8)`); the
+/// spend is every selected op's evaluable `decrease` of it, times the op's
+/// charged repetitions; the plan's own evaluable `increase`s (charged raisers
+/// included -- they are selected ops by now) come off the bill. A deficit is
+/// priced as a synthetic `fluent >= stock + deficit` through
+/// `numeric_achiever`; a raiser already in the plan is charged its extra
+/// repetitions without re-selecting it, a new one is selected and its
+/// preconditions chased like any charge.
+#[allow(clippy::too_many_arguments)]
+fn consumption_charge(
+    task: &PackedTask,
+    sc: &mut Scratch,
+    bits: &[u64],
+    fv: &[f64],
+    def: &[bool],
+    count: &mut i32,
+    head: &mut usize,
+) {
+    let selected_ops: Vec<usize> = (0..task.n_ops)
+        .filter(|&oi| sc.selected[oi] == sc.gen)
+        .collect();
+    // (fluent, spent, gained, read-from-below)
+    let mut ledger: Vec<(u32, f64, f64, bool)> = Vec::new();
+    let entry = |ledger: &mut Vec<(u32, f64, f64, bool)>, f: u32| -> usize {
+        match ledger.iter().position(|e| e.0 == f) {
+            Some(i) => i,
+            None => {
+                ledger.push((f, 0.0, 0.0, false));
+                ledger.len() - 1
+            }
+        }
+    };
+    for &oi in &selected_ops {
+        for np in task.pre_num.slice(oi) {
+            if let (NExpr::Fluent(f), NExpr::Num(_), CompOp::Ge | CompOp::Gt) =
+                (&np.lhs, &np.rhs, np.op)
+            {
+                let i = entry(&mut ledger, *f);
+                ledger[i].3 = true;
+            }
+        }
+        let reps = sc.sel_reps[oi].max(1) as f64;
+        for ne in task.num_eff.slice(oi) {
+            let Some(v) = ne.value.eval(fv, def) else {
+                continue;
+            };
+            match ne.op {
+                AssignOp::Decrease if v > 0.0 => {
+                    let i = entry(&mut ledger, ne.target);
+                    ledger[i].1 += v * reps;
+                }
+                AssignOp::Increase if v > 0.0 => {
+                    let i = entry(&mut ledger, ne.target);
+                    ledger[i].2 += v * reps;
+                }
+                _ => {}
+            }
+        }
+    }
+    for (f, spent, gained, read) in ledger {
+        if !read || spent <= 0.0 || !def[f as usize] {
+            continue;
+        }
+        let stock = fv[f as usize];
+        let deficit = spent - gained - stock;
+        if deficit <= 1e-9 {
+            continue;
+        }
+        let np = NumPre {
+            lhs: NExpr::Fluent(f),
+            op: CompOp::Ge,
+            rhs: NExpr::Num(stock + deficit),
+        };
+        let Some((ai, reps)) = numeric_achiever(task, &np, fv, def, &sc.op_stamp, sc.gen) else {
+            continue;
+        };
+        if sc.selected[ai] == sc.gen {
+            // Already in the plan: the extra firings are owed, its
+            // preconditions are queued already.
+            *count = count.saturating_add(reps.max(1));
+            sc.sel_reps[ai] = sc.sel_reps[ai].saturating_add(reps.max(1));
+            continue;
+        }
+        select(task, sc, ai, reps, count);
+        while *head < sc.queue.len() {
+            let f2 = sc.queue[*head] as usize;
+            *head += 1;
+            if bitset::test(bits, f2) {
+                continue;
+            }
+            if let Some(o2) = achiever(task, &sc.op_layer, &sc.op_stamp, sc.gen, &sc.fact_layer, f2)
+            {
+                select(task, sc, o2, 1, count);
+                queue_cond_for(task, sc, o2, f2);
+            }
+        }
+    }
+}
+
 fn selected_increase_sum(
     task: &PackedTask,
     sc: &Scratch,
@@ -1389,7 +1538,7 @@ fn achiever(
     }
     let mut best = None;
     let mut best_layer = INF;
-    for &oi in task.add_by_fact.slice(f) {
+    for oi in task.achievers(f) {
         let oi = oi as usize;
         if op_stamp[oi] == gen && op_layer[oi] < fl && op_layer[oi] < best_layer {
             best_layer = op_layer[oi];
@@ -1439,6 +1588,7 @@ fn select(task: &PackedTask, sc: &mut Scratch, oi: usize, reps: i32, count: &mut
         return;
     }
     sc.selected[oi] = sc.gen;
+    sc.sel_reps[oi] = reps.max(1);
     // a selected op applicable in the current state (layer 0) is a helpful action.
     if sc.op_stamp[oi] == sc.gen && sc.op_layer[oi] == 0 {
         sc.helpful.push(oi as u32);
@@ -1989,6 +2139,78 @@ mod tests {
         let far = DRAIN_PRB.replace("(= (energy) 5)", "(= (energy) -92)");
         let task = task_of(&dom, &far);
         assert_eq!(goal_layers_init(&task), RpgExit::GoalAt(100));
+    }
+
+    // ---- 0.29 Lane 2: the plan's spend is charged against the stock ----
+
+    /// Four drives down a corridor at 8 energy each, a recharge worth 8, a
+    /// stock of 24: the relaxed plan spends 32, so one recharge is owed and
+    /// h(init) = 4 + 1. With 8 in the tank the same four drives owe three.
+    /// Before the charge both read 4 -- the plateau every state with the
+    /// same drives left sat on, whatever its energy.
+    const DRIVE_DOM: &str = "(define (domain drive)
+      (:requirements :fluents)
+      (:predicates (at1) (at2) (at3) (at4) (at5) (sun))
+      (:functions (energy))
+      (:action d1 :parameters () :precondition (and (at1) (>= (energy) 8))
+        :effect (and (at2) (not (at1)) (decrease (energy) 8)))
+      (:action d2 :parameters () :precondition (and (at2) (>= (energy) 8))
+        :effect (and (at3) (not (at2)) (decrease (energy) 8)))
+      (:action d3 :parameters () :precondition (and (at3) (>= (energy) 8))
+        :effect (and (at4) (not (at3)) (decrease (energy) 8)))
+      (:action d4 :parameters () :precondition (and (at4) (>= (energy) 8))
+        :effect (and (at5) (not (at4)) (decrease (energy) 8)))
+      (:action recharge :parameters () :precondition (sun)
+        :effect (increase (energy) 8)))";
+    const DRIVE_PRB: &str = "(define (problem drv) (:domain drive)
+      (:init (at1) (sun) (= (energy) 24)) (:goal (at5)))";
+
+    #[test]
+    fn the_plan_pays_for_what_it_spends() {
+        let _g = DAMP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let task = task_of(DRIVE_DOM, DRIVE_PRB);
+        assert_eq!(
+            h_init(&task),
+            Some(5),
+            "4 drives + 1 recharge for the 8 short"
+        );
+        let low = task_of(
+            DRIVE_DOM,
+            &DRIVE_PRB.replace("(= (energy) 24)", "(= (energy) 8)"),
+        );
+        assert_eq!(
+            h_init(&low),
+            Some(7),
+            "4 drives + 3 recharges for the 24 short"
+        );
+        let full = task_of(
+            DRIVE_DOM,
+            &DRIVE_PRB.replace("(= (energy) 24)", "(= (energy) 40)"),
+        );
+        assert_eq!(
+            h_init(&full),
+            Some(4),
+            "nothing owed: byte-identical to the blind h"
+        );
+        std::env::set_var("FF_NO_CONSUME", "1");
+        let blind = (h_init(&task), h_init(&low));
+        std::env::remove_var("FF_NO_CONSUME");
+        assert_eq!(blind, (Some(4), Some(4)), "the hatch restores the plateau");
+    }
+
+    /// A raiser the plan already selected (for a goal gap) is charged its
+    /// extra firings, not re-selected: stock 0, a goal `energy >= 8` prices
+    /// one recharge, and the four drives' 32 on top of the 8 owe four more.
+    #[test]
+    fn a_selected_raiser_is_charged_its_extra_firings() {
+        let _g = DAMP_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let prb = DRIVE_PRB
+            .replace("(= (energy) 24)", "(= (energy) 0)")
+            .replace("(:goal (at5))", "(:goal (and (at5) (>= (energy) 8)))");
+        let task = task_of(DRIVE_DOM, &prb);
+        // 4 drives + 1 (goal gap 8) + 4 (32 spent, 8 put back, 0 in stock -> 24 short + 8 goal... )
+        // the goal's recharge is in the plan with reps 1 (gained 8); spent 32 - gained 8 - stock 0 = 24 -> 3 more
+        assert_eq!(h_init(&task), Some(8));
     }
 
     // ---- 0.22 Phase 4 L0: the numeric-admissible layer bound + audit ----

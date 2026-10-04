@@ -403,9 +403,9 @@ fn regress_predicate_preconds(task: &PackedTask, kind: &[Kind]) -> Vec<Subgoal> 
     // Bridge a fact `f`'s achiever (an END snap) to its matching START (via the
     // RUNNING token, like extract_landmarks) and run `body` on each such START.
     let on_start_achiever = |f: u32, body: &mut dyn FnMut(usize)| {
-        for &end in task.add_by_fact.slice(f as usize) {
+        for end in task.achievers(f as usize) {
             for &pf in task.pre_pos.slice(end as usize) {
-                for &s in task.add_by_fact.slice(pf as usize) {
+                for s in task.achievers(pf as usize) {
                     if matches!(kind[s as usize], Kind::Start { .. }) {
                         body(s as usize);
                     }
@@ -434,11 +434,11 @@ fn regress_predicate_preconds(task: &PackedTask, kind: &[Kind]) -> Vec<Subgoal> 
     let mut out: Vec<u32> = Vec::new();
     let mut seen: FxHashSet<u32> = FxHashSet::default();
     for &gf in &task.goal_pos {
-        for &oi in task.add_by_fact.slice(gf as usize) {
+        for oi in task.achievers(gf as usize) {
             // bridge the goal-fact achiever END -> its START, take that START's
             // PREDICATE preconds (the `forall`-expanded sub-structures).
             for &f in task.pre_pos.slice(oi as usize) {
-                for &start in task.add_by_fact.slice(f as usize) {
+                for start in task.achievers(f as usize) {
                     if !matches!(kind[start as usize], Kind::Start { .. }) {
                         continue;
                     }

@@ -236,7 +236,11 @@ fn duration_reads_assigned(e: &Expr, assigned: &HashSet<&Sym>) -> bool {
 
 pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
     let mut d = domain.clone();
+    let mut p = problem.clone();
     let mut snaps = Vec::new();
+    // Lazily built: only an action whose end-side `?duration` reads a
+    // dynamic fluent needs the object table (below).
+    let mut objs: Option<HashMap<Sym, Vec<Sym>>> = None;
 
     for da in &domain.durative_actions {
         let running = format!("RUNNING-{}", da.name);
@@ -249,7 +253,7 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
             .collect();
         let run_types: Vec<Sym> = da.params.iter().map(|(_, t)| t.clone()).collect();
 
-        d.predicates.push((running.clone(), run_types));
+        d.predicates.push((running.clone(), run_types.clone()));
         let invariant = pick_conditions(da, TimeSpec::All);
 
         // PDDL2.1 `?duration` inside conditions/effects: substitute the
@@ -269,13 +273,36 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
         };
         let start_uses = uses_dur(&start_cond0, &start_effs0);
         let end_uses = uses_dur(&end_cond0, &end_effs0) || formula_has_duration(&invariant);
+        // The END side's `?duration`, when the duration reads a fluent some
+        // action assigns (0.29 Lane 2): rovers' `recharge` lasts
+        // `(/ (- 80 (energy ?x)) (recharge-rate ?x))` and pays
+        // `(* ?duration (recharge-rate ?x))` at its end -- the whole of the
+        // IPC-5 rovers metric-time board recharges this way, and until 0.29
+        // every such action was SKIPPED by this compile ("never compiled
+        // wrong"), so the decision-epoch search could never recharge at all
+        // and the compression rung's plans, which do, failed the validator
+        // by the name of an action it never had. PDDL2.1 fixes `?duration`
+        // when the action STARTS, so that is what the compile does: a hidden
+        // fluent `(DUR-<action> ?params)`, defined 0 at init for every
+        // binding, is ASSIGNED the duration expression by the start snap
+        // (exact: the start state is the one the duration is fixed in) and
+        // stands in for `?duration` on the end side and in the invariant.
+        let mut dur_fluent: Option<Expr> = None;
         let dur_expr = if start_uses || end_uses {
             match da.duration.chosen() {
                 Some(e) if !expr_has_duration(e) => {
                     if end_uses {
                         let assigned: HashSet<&Sym> = assigned_fluent_names(domain);
                         if duration_reads_assigned(e, &assigned) {
-                            continue; // end-side `?duration` over a dynamic read: unsupported
+                            let fname = format!("DUR-{}", da.name);
+                            d.functions.push((fname.clone(), run_types.clone()));
+                            let table = objs.get_or_insert_with(|| {
+                                crate::ground::objects_by_type(domain, problem)
+                            });
+                            for b in bindings_of(&da.params, table) {
+                                p.init_fluents.push(((fname.clone(), b), 0.0));
+                            }
+                            dur_fluent = Some(Expr::Fluent(fname, run_args.clone()));
                         }
                     }
                     Some(e.clone())
@@ -285,6 +312,10 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
         } else {
             None
         };
+        // At START `?duration` is the expression itself; at END (and across
+        // the interval) it is the value fixed at start -- the hidden fluent
+        // where one exists, the expression where the read is static.
+        let end_dur = dur_fluent.clone().or_else(|| dur_expr.clone());
         let subst_f = |f: &Formula| match &dur_expr {
             Some(dexp) => formula_map_exprs(f, &|e| expr_subst_duration(e, dexp)),
             None => f.clone(),
@@ -293,7 +324,16 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
             Some(dexp) => effect_map_exprs(eff, &|e| expr_subst_duration(e, dexp)),
             None => eff.clone(),
         };
-        let invariant = subst_f(&invariant);
+        let subst_f_end = |f: &Formula| match &end_dur {
+            Some(dexp) => formula_map_exprs(f, &|e| expr_subst_duration(e, dexp)),
+            None => f.clone(),
+        };
+        let subst_e_end = |eff: &Effect| match &end_dur {
+            Some(dexp) => effect_map_exprs(eff, &|e| expr_subst_duration(e, dexp)),
+            None => eff.clone(),
+        };
+        let invariant_start = subst_f(&invariant);
+        let invariant = subst_f_end(&invariant);
 
         // start snap: (at-start conditions + invariant) -> at-start effects + token.
         // The invariant is also checked at both endpoints. Endpoint checks alone
@@ -302,8 +342,16 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
         // transition guard ([`InvMap`], `inv_ok`) closes that for conjunctive
         // propositional invariants (0.14) and numeric comparison conjuncts
         // (0.15, fuel-gap fixture — only actual true→false flips block).
-        let start_pre = and_formulas(vec![subst_f(&start_cond0), invariant.clone()]);
+        let start_pre = and_formulas(vec![subst_f(&start_cond0), invariant_start]);
         let mut start_eff: Vec<Effect> = start_effs0.iter().map(&subst_e).collect();
+        if let (Some(Expr::Fluent(fname, _)), Some(dexp)) = (&dur_fluent, &dur_expr) {
+            start_eff.push(Effect::Num(
+                AssignOp::Assign,
+                fname.clone(),
+                run_args.clone(),
+                dexp.clone(),
+            ));
+        }
         start_eff.push(Effect::Add(running.clone(), run_args.clone()));
         d.actions.push(Action {
             name: start_name.clone(),
@@ -315,11 +363,11 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 
         // end snap: (at-end conditions + invariant + token) -> at-end effects, drop token
         let end_pre = and_formulas(vec![
-            subst_f(&end_cond0),
+            subst_f_end(&end_cond0),
             invariant.clone(),
             Formula::Atom(running.clone(), run_args.clone()),
         ]);
-        let mut end_eff: Vec<Effect> = end_effs0.iter().map(&subst_e).collect();
+        let mut end_eff: Vec<Effect> = end_effs0.iter().map(&subst_e_end).collect();
         end_eff.push(Effect::Del(running.clone(), run_args.clone()));
         d.actions.push(Action {
             name: end_name.clone(),
@@ -367,10 +415,29 @@ pub fn compile(domain: &Domain, problem: &Problem) -> TemporalCompiled {
 
     TemporalCompiled {
         domain: d,
-        problem: problem.clone(),
+        problem: p,
         snaps,
         til_ops,
     }
+}
+
+/// Every binding of `params` over the problem's objects, in object-table
+/// order: the init rows of a hidden per-action fluent.
+fn bindings_of(params: &[(Sym, Sym)], objs: &HashMap<Sym, Vec<Sym>>) -> Vec<Vec<Sym>> {
+    let mut out: Vec<Vec<Sym>> = vec![Vec::new()];
+    for (_, ty) in params {
+        let cands: &[Sym] = objs.get(ty).map(Vec::as_slice).unwrap_or(&[]);
+        let mut next = Vec::with_capacity(out.len() * cands.len());
+        for b in &out {
+            for c in cands {
+                let mut b2 = b.clone();
+                b2.push(c.clone());
+                next.push(b2);
+            }
+        }
+        out = next;
+    }
+    out
 }
 
 // ---------------------------------------------------------------------------
@@ -1434,12 +1501,7 @@ pub(crate) fn trpg_info(
     for (&end_op, (pos, _neg, _num)) in inv.iter() {
         let mut wins: Vec<TrpgWindow> = Vec::new();
         for &p in pos {
-            let mut adders: Vec<usize> = task
-                .add_by_fact
-                .slice(p as usize)
-                .iter()
-                .map(|&o| o as usize)
-                .collect();
+            let mut adders: Vec<usize> = task.achievers(p as usize).map(|o| o as usize).collect();
             adders.sort_unstable();
             adders.dedup();
             let init_true = crate::bitset::test(&task.init_bits, p as usize);
@@ -2340,11 +2402,11 @@ fn predicate_goal_thresholds(task: &PackedTask, kind: &[Kind], goal_pos: &[u32])
         }
     };
     for &gf in goal_pos {
-        for &oi in task.add_by_fact.slice(gf as usize) {
+        for oi in task.achievers(gf as usize) {
             let oi = oi as usize;
             collect_thr(oi, &mut out); // classical / direct numeric precond
             for &f in task.pre_pos.slice(oi) {
-                for &start in task.add_by_fact.slice(f as usize) {
+                for start in task.achievers(f as usize) {
                     if matches!(kind[start as usize], Kind::Start { .. }) {
                         collect_thr(start as usize, &mut out); // bridged START precond
                     }
@@ -2402,7 +2464,7 @@ fn extract_landmarks(task: &PackedTask, seed: &[NumPre]) -> Vec<NumPre> {
             // recipe's numeric inputs are on the matching START snap — bridge via the
             // RUNNING token (END requires it, START adds it).
             for &f in task.pre_pos.slice(oi) {
-                for &start in task.add_by_fact.slice(f as usize) {
+                for start in task.achievers(f as usize) {
                     add_pre_num(start as usize, &mut work);
                 }
             }
@@ -2525,7 +2587,7 @@ fn compute_demand(task: &PackedTask, kind: &[Kind], seed: &[NumPre], weight: i64
         let mut consumers: FxHashSet<usize> = FxHashSet::default();
         consumers.insert(oi);
         for &f in task.pre_pos.slice(oi) {
-            for &start in task.add_by_fact.slice(f as usize) {
+            for start in task.achievers(f as usize) {
                 if matches!(kind[start as usize], Kind::Start { .. }) {
                     consumers.insert(start as usize);
                 }

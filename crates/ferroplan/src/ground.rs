@@ -3258,14 +3258,11 @@ fn ground_v(
                 add_buckets[remap(f) as usize].push(oi as u32);
             }
         }
-        if op.monitored {
-            // shared_cond was remapped above — its ids are already packed ids
-            for ce in &shared_cond {
-                for &f in &ce.add {
-                    add_buckets[f as usize].push(oi as u32);
-                }
-            }
-        }
+        // The shared monitor block's adds are NOT pushed per op (0.29 Lane
+        // 4): they are the same for every monitored op, so `shared_add` marks
+        // the facts and `monitored_ops` names the ops, and `achievers` merges
+        // the two -- the ops x monitors table this loop used to build was the
+        // storage-complex `mem-cap` class.
     }
     if let Some(stop) = phase_wall("packing the ops") {
         return stop;
@@ -3274,6 +3271,18 @@ fn ground_v(
     for bucket in add_buckets {
         add_by_fact.push_row(bucket);
     }
+    let mut shared_add = vec![false; n_facts_packed];
+    for ce in &shared_cond {
+        for &f in &ce.add {
+            shared_add[f as usize] = true;
+        }
+    }
+    let monitored_ops: Vec<u32> = monitored_v
+        .iter()
+        .enumerate()
+        .filter(|(_, &m)| m)
+        .map(|(oi, _)| oi as u32)
+        .collect();
     let mut neff_by_fluent = CsrBuilder::new();
     for bucket in neff_buckets {
         neff_by_fluent.push_row(bucket);
@@ -3371,6 +3380,8 @@ fn ground_v(
         shared_cond: shared_cond.into(),
         monitored: monitored_v.into(),
         add_by_fact: add_by_fact.finish(),
+        shared_add: shared_add.into(),
+        monitored_ops: monitored_ops.into(),
         neff_by_fluent: neff_by_fluent.finish(),
         relevant_fluent,
         rel_fluents,

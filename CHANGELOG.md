@@ -4,6 +4,50 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+- **Temporal: an end-side `?duration` over a dynamic read compiles** (0.29
+  Lane 2). A durative action whose duration reads a fluent some action assigns
+  and whose END uses `?duration` -- rovers' `recharge`, lasting
+  `(/ (- 80 (energy ?x)) (recharge-rate ?x))` and paying
+  `(* ?duration (recharge-rate ?x))` at its end -- was SKIPPED by the snap
+  compile ("never compiled wrong"), so the temporal search could never
+  recharge, and the compression rung's plans, which do, failed the validator
+  by the name of an action it never had. PDDL2.1 fixes `?duration` at the
+  START, so the compile does the same: a hidden per-action fluent is assigned
+  the duration expression by the start snap and stands in for `?duration` on
+  the end side. Fixture: `tests/dur_fluent.rs`.
+- **The relaxed plan pays for what it spends** (0.29 Lane 2). A `decrease` is
+  a delete on a number and the relaxation dropped it: a plan of five drives at
+  8 energy each read `energy >= 8` against a stock of 10 and was satisfied,
+  so every state with the same drives left had the same h whatever its
+  energy. Extraction now sums a selected plan's spend of each fluent its own
+  preconditions read from below, against the stock in hand plus what the plan
+  puts back, and prices a deficit through the best raiser. `FF_NO_CONSUME=1`
+  restores the blind h; byte-identical where a plan spends nothing it reads.
+- **One grounding per polish** (0.29 Lane 1). The preference polish grounded
+  the task twice per attempt -- once to search a candidate, once to price it
+  -- which on pathways (8 s a grounding) left it nothing to attempt. The
+  hard-goal task is grounded once and each candidate swaps its goal facts in;
+  the verifier is a prepared context (`verify::VerifyCtx`) that grounds once
+  and replays many; with the route's hard-goal seed task in hand -- a plain
+  grounding of the pair -- the polish grounds nothing at all. An `or` body is
+  one goal per disjunct; held `(not ...)` bodies forbid their achievers in a
+  candidate's search; an atom the grounder dropped reads from the init
+  instead of as false. Pinned by fixtures counting the groundings (two, and
+  zero with the seed task).
+- **The achiever index is no longer ops x monitors** (0.29 Lane 4). The
+  shared monitor block's adds belong to every monitored op, and the index
+  carried one entry per op per monitor add -- hundreds of millions of `u32`
+  on storage-complex, its `mem-cap` class. `add_by_fact` holds each op's own
+  adds; `PackedTask::achievers` merges in every monitored op for a fact the
+  block adds, ascending, each once.
+- **crucible** (0.29 Phase 0.5): `--max-passes` is a cap on passes,
+  productive or not (it was consulted only after a pass that banked nothing,
+  so a subset banking a few owed rows a pass ran on past it); the canary's
+  factor is read against the box's own line at the width it ran at (schema
+  v10 records the width), since a chip that has been running nine planners is
+  throttled whether they are paused for the read or not, and against the solo
+  line until that width has readings.
+
 - **The README's standings block is a capability table.** The front page's
   generated block now says what the planner is good at and against whom --
   one row per capability (temporal, PDDL3 preferences, classical satisficing,

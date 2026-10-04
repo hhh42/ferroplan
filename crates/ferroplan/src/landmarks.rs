@@ -63,7 +63,7 @@ pub fn landmarks_for(
         }
         // First achievers: ops adding f from a strictly earlier layer.
         let mut common: Option<Vec<u32>> = None;
-        for &oi in task.add_by_fact.slice(f) {
+        for oi in task.achievers(f) {
             let oi = oi as usize;
             if op_layer[oi] >= fl {
                 continue;

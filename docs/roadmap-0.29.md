@@ -742,6 +742,164 @@ maintenance`, `--board ipc2018-sat --only caldera,organic-synthesis,snake`,
 `--board ipc2023-sat --only folding`, then the loss side of all three boards,
 `max_rss` beside every row.
 
+### Phase 0.5 — BUILT 2026-10-04 (crucible)
+
+**The pass cap.** Not a subset defect: `--max-passes` was checked in the
+runner's `wait`, which the loop consults only after a pass that banked
+NOTHING -- a subset whose every pass banked a few owed rows never stalled,
+so never saw the cap. It is `LoopConfig::max_passes` now, checked at the top
+of every pass, with an `Event::Capped` before the `Stopped`; fixtures: a
+queue banking one row a pass under `--max-passes 2` runs two passes and
+stops owing ten, a queue draining under the cap is complete.
+
+**The canary at width.** The canary pauses our planners for its two seconds,
+but a chip that has been running nine of them is throttled either way, so at
+width 9-10 on an idle box at 00:30 it read 1.50x its SOLO line and every
+packed pass owed every solo row. Every reading now records its width (schema
+v10, `canary.width`: how many of ours were attached when the read began; 0
+at calibration), and the factor is read against the box's own p25 line at
+that width once it holds `canary_baseline_n` readings -- seeded from the
+database's last 100 at each width at sweep start -- and against the solo
+line until then, which owes rows rather than banking under a line nothing has
+measured (`sweep::canary_factor`, unit-pinned: 1.5 s at width 9 is 1.00x the
+width-9 line and 1.50x without one; foreign load at width 9 still reads over
+the line; the line never drops below solo). *Pre-registered risk:* a width's
+first readings taken under foreign load set a lenient line; the p25 of five
+and the database prior are the guards, and the "thermal" owings per pass are
+what the next subset run reports.
+
+### Lane 2 — the first finding was the route, not the heuristic (2026-10-04)
+
+The consumption charge was built first (`heuristic::consumption_charge`,
+hatch `FF_NO_CONSUME`, fixture `the_plan_pays_for_what_it_spends`: four
+drives at 8 energy on a stock of 24 owe one recharge, h 4 -> 5; on a stock
+of 8 they owe three, h 4 -> 7; a full tank is byte-identical). Then
+rovers-metric-time i10 under `FF_WALL_DEBUG`:
+
+    compression rung: a plan after 202 evals, 0.01 s
+    left-shifted layout refused by the validator: `RECHARGE--STEP3` is not a durative action
+
+The compression rung had the plan in 10 ms, in BOTH arms (193 evals blind).
+The validator specialises the domain per plan step (`RECHARGE--STEP3`, a
+parameterless copy) and replays through the snap compile -- and the snap
+compile SKIPS every durative action whose END uses `?duration` when the
+duration reads a fluent some action assigns ("end-side `?duration` over a
+dynamic read: unsupported", never compiled wrong). Rovers' `recharge` lasts
+`(/ (- 80 (energy ?x)) (recharge-rate ?x))` and pays `(* ?duration
+(recharge-rate ?x))` at its end: the whole board recharges this way. So the
+decision-epoch search could never recharge at all, and the one rung that
+could was refused by name. **Fixed in `temporal::compile`:** PDDL2.1 fixes
+`?duration` at the START, so a hidden fluent `(DUR-<action> ?params)`,
+defined 0 at init for every binding, is ASSIGNED the duration expression by
+the start snap and stands in for `?duration` on the end side and in the
+invariant. Fixture `tests/dur_fluent.rs`: the action compiles, solves with
+the durations fixed at each start (3.5 s and 2 s), validates; a drain between
+a fill's start and end does not change what the fill pays, and a tampered
+duration is refused as a duration, not a goal.
+
+**Solo, 60 s, one thread (`probes-0.29/lane2b/probe.tsv`), both arms:**
+
+| cell | 0.28.0 board | fixed build | `FF_NO_CONSUME=1` |
+|---|---|---|---|
+| rovers-metric-time i10, i12 | unsolved | **solved** (makespan 173, 105) | solved |
+| rovers-metric-time i14, i16, i18 | unsolved | **solved** (186, 253, 177) | solved (182, 253, 212) |
+| rovers-metric-time i20 | unsolved | unsolved: the compression rung finds no plan in 2,188 evals / 10 s, the temporal ladder stops at the wall | same |
+| tpp-metric-time i10, i20 | unsolved | unsolved, "temporal ladder stopped at the wall" | same |
+| pathways-metric-time i10, i20 | unsolved | unsolved, same note | same |
+
+Five rovers cells of the eight probed are the compile fix's; the charge is
+neutral on rows here (a better makespan on i18, a worse one on i14). Rovers
+was 8/40 on the board; the board read is the crucible's. tpp and pathways
+metric-time are NOT this defect: their note is the ladder's, and whether the
+compression rung reaches a plan there is the next question for the lane.
+The 0.28 residue note ("rovers best-h 28 -> 11 then flat") described the
+compressed task's search on a plan the route then threw away.
+
+### Lane 1 — one grounding per polish, BUILT 2026-10-04
+
+The first build grounded twice per attempt (once to search, once to price)
+and on pathways-simple/16 -- 32.7 s to ground the compiled task, 8 s the
+plain one -- never started. Now: the route's hard-goal seed keeps its
+grounded task (`pddl3::SeedTask`), and when it is a PLAIN grounding (no
+monitor block, no END action -- the simple and qualitative boards) the
+polish searches every candidate on it with the goal facts swapped in (the
+packed tables sit behind `Arc`; a clone is the goal) and prices every
+candidate on it through `verify::VerifyCtx::from_task` -- ZERO groundings;
+otherwise `VerifyCtx::prepare` grounds once and the hard task is grounded
+once (two), and a body the fast path cannot express (an `exists`) takes the
+per-candidate grounding it always did. The polish's wall share is taken
+whenever a second of wall is left, not `2 x ground_secs`. An `or` body is one
+goal per disjunct, tried in order; the held `(not atom)` bodies forbid their
+atoms' achievers in the candidate's search, minus what the candidate's own
+relaxed plan needs, with an unforbidden search as the fall-back; an atom the
+grounder dropped reads from the init when priced. Fixtures (tests/
+pref_polish.rs, counted in a child process): the corridor polish grounds
+twice without a seed task and NOTHING with one.
+
+**Solo, pathways-simple/16, 60 s (`probes-0.29/lane1b-pathways16.err`):**
+before, "[polish] not started: 0.00 s left, the task grounded in 32.71 s";
+now the polish starts with 11-25 s left, reuses the seed's 1,705-op task,
+and attempts **20 of 20** candidates. Every one prices WORSE (28.4-33.2
+against the empty plan's 25.7): a product's plan must choose reagents, and
+22 of the 42 preferences are `(not (chosen ...))`, held by the empty plan
+and worth more together than the product (1.2-1.4). With all 22 forbidden
+no candidate is reachable; with the relaxed plan's needs exempted (1,155 of
+1,705 ops still forbidden) none is either -- the relaxed plan names fewer
+reagents than a real plan must choose. **The mechanism's ceiling on
+pathways is named: the candidate search is not cost-aware.** A plan that
+chooses the FEWEST held-false atoms is what an improving step there needs
+(action costs = the broken preferences' weights, through the ladder's
+cost term), the next step for this lane. The boards' points are the
+crucible's read; the first step's gains (trucks, storage, tpp) are
+untouched by this one.
+
+### Lane 4 — the achiever index, BUILT 2026-10-04
+
+`add_by_fact` carried one entry per op per shared-monitor add (ops x
+monitors). It now holds each op's OWN adds; `shared_add[f]` marks the facts
+the monitor block adds and `monitored_ops` names the ops, and
+`PackedTask::achievers(f)` merges the two ascending, each op once (the old
+buckets held an op twice when its own add and its own conditional add both
+named the fact). All ten readers walk `achievers`. Fixture
+`tests/achiever_index.rs`: on a monitored task the walk equals the op scan
+for every fact, the table is exactly the own adds, and the shared facts
+route to every monitored op; without a block the walk is the table's row.
+Measured where the class lives: storage-complex and pipesworld-metric-time
+through the crucible (`max_rss` beside every row) -- not yet run.
+
+### Lane 5 — the classical memory class, MEASURED 2026-10-04
+
+Six representatives solo, one thread, peak RSS by `/usr/bin/time -l`, at a
+node cap of 1 (the grounding's footprint) and 200,000 evaluations
+(`probes-0.29/lane5/measure.tsv`; the 120 s alarm cut three):
+
+| cell | grounded | at 200k evaluations | class |
+|---|---|---|---|
+| city-car i6 | 31 MB | 2.9 GB (alarm at 120 s) | the search |
+| child-snack i10 | 21 MB | 4.9 GB (alarm) | the search |
+| maintenance i4 | 8 MB | 1.2 GB in 1.2 s | the search: ~6 KB per evaluated node |
+| caldera i4 | 5.9 GB in 44 s | 5.8 GB | the grounding |
+| organic-synthesis i8 | 3.6 GB and still grounding at 120 s | same | the grounding |
+| folding i3 | the grounder exits at once: "wall budget exhausted during binding enumeration" with the whole wall unspent | -- | a grounder defect, named below |
+
+Two classes, as expected, and the search class's number is the finding:
+6-15 KB per EVALUATED node against the per-node byte model's ~200 B. The
+best-first search stores every GENERATED successor's state in its arena
+at generation (deferred evaluation: a pushed `Node` holds the full
+`State`), so the arena is the frontier times the branching factor, not the
+closed set -- which is why city-car dies at 6 GB in 20 s. The mechanism
+this names is a LAZY frontier: an open node holds (father, op, key) and
+regenerates its state on pop, the exact duplicate check kept against the
+closed states and a hash against the open ones -- a branching-factor cut
+in bytes per node, measured on city-car i6 before any row is claimed. Not
+built this cycle; the measurement is the record. The grounding class
+(caldera, organic-synthesis) is the grounder's binding enumeration, Lane
+4's neighbour, not a node store. **Folding is a third thing:** the
+grounder returns "wall budget exhausted" in 0.0 s with FF_TIME_LIMIT=20,
+so the 16 folding `mem-cap` rows at 7 s on the board are a grounder that
+gives up, not one that runs out; the next question is why `GroundWall`
+trips on it at once.
+
 ### The trucks / propositional probe (one day; record only)
 
 `probes-0.29/trucks/`: trucks-propositional i10/i15/i16, pathways-prop
@@ -776,6 +934,23 @@ for 0.30 unless it is a one-line fix.
   ledger: the canary's baseline must be taken at the width it runs at,
   or the owed re-runs must run solo; until then, read owed rows through
   the estimator's per-run view, not the banked one.
+
+## Instrument notes from the 2026-10-04 build (for Phase 0's ledger)
+
+- `tests/ehc_extend.rs::a_run_that_keeps_arriving_keeps_its_slice` is a
+  TIMING fixture (blocks(50) under a 1 s wall through `ferroplan::solve`,
+  EHC needs ~0.34 s of the 0.6 s slice ceiling) and it read RED 1-3 runs in
+  3 on this afternoon's box with `mediaanalysisd` at 214 %, then
+  `hybridsearchd` and `ANECompilerService` at 90-100 % beside it (load
+  averages 7-12). The engine is not the cause: the real `ff` under
+  `FF_TIME_LIMIT=1` solves the cell by EHC 3 of 3, unwalled it runs the
+  identical 21,767 evaluations on this build and on 0.28.0, 0.375 s against
+  0.358 s wall. The suite otherwise reads 394 passed. The fixture wants a
+  quiet box, as every timing fixture here does; it is not re-calibrated on a
+  loaded one.
+- Lane 5's probe wrote `evaluated = None` for every row: `ff --json` carries
+  the count under `statistics.evaluated_states`, not a top-level key. The
+  peaks and seconds are what the record uses.
 
 ## Anti-pots — priced at zero, standing
 

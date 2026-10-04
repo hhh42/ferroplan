@@ -111,6 +111,36 @@ pub fn build_succ(pre_pos: &Csr<u32>, n_facts: usize, n_ops: usize) -> (Csr<u32>
 /// and is shared by every clone; only the small per-clone state (current
 /// facts/fluents, goal, fluent relevance) is copied. `Session::fork` builds a
 /// population of minds over ONE world this way.
+/// The merged, deduplicated achiever walk behind [`PackedTask::achievers`]:
+/// two ascending op-id lists, yielded in ascending order, an op in both
+/// yielded once. (The pre-0.29 buckets held such an op twice.)
+pub struct Achievers<'a> {
+    own: &'a [u32],
+    shared: &'a [u32],
+}
+
+impl Iterator for Achievers<'_> {
+    type Item = u32;
+    #[inline]
+    fn next(&mut self) -> Option<u32> {
+        let v = match (self.own.first(), self.shared.first()) {
+            (Some(&a), Some(&b)) => a.min(b),
+            (Some(&a), None) => a,
+            (None, Some(&b)) => b,
+            (None, None) => return None,
+        };
+        // Past every copy of `v` in both lists: an op whose own add and own
+        // conditional add both name the fact sits twice in its own row.
+        while self.own.first() == Some(&v) {
+            self.own = &self.own[1..];
+        }
+        while self.shared.first() == Some(&v) {
+            self.shared = &self.shared[1..];
+        }
+        Some(v)
+    }
+}
+
 #[derive(Clone)]
 pub struct PackedTask {
     pub n_facts: usize,
@@ -151,8 +181,18 @@ pub struct PackedTask {
     /// synthetic bookkeeping ops (P3*, TRAJ-END, REACH-GOAL).
     pub monitored: Arc<[bool]>,
 
-    /// fact id -> ops that add it (achiever lookup, avoids O(n_ops) scans).
+    /// fact id -> ops that add it by their OWN effects (unconditional and
+    /// conditional). The shared monitor block's adds are NOT in here (0.29
+    /// Lane 4): they belong to every monitored op, and one entry per op per
+    /// monitor add was ops x monitors wide -- hundreds of millions of `u32`
+    /// on storage-complex, the `mem-cap` class there. Read achievers through
+    /// [`Self::achievers`], which merges the two.
     pub add_by_fact: Csr<u32>,
+    /// fact id -> is it added by some member of [`Self::shared_cond`]? Such a
+    /// fact's achievers are every op in [`Self::monitored_ops`], virtually.
+    pub shared_add: Arc<[bool]>,
+    /// The ops whose [`Self::monitored`] bit is set, ascending.
+    pub monitored_ops: Arc<[u32]>,
     /// fluent id -> ops with a numeric effect on it (numeric-achiever lookup).
     pub neff_by_fluent: Csr<u32>,
     /// fluent id -> read by some numeric precondition or goal (widening filter).
@@ -412,6 +452,22 @@ impl PackedTask {
 
     pub fn goal_met(&self, s: &State) -> bool {
         self.goal_met_with(s, &self.goal_pos, &self.goal_num)
+    }
+
+    /// Every op that adds fact `f`, ascending by op id, each once: the op's
+    /// own adds from `add_by_fact` merged with -- when the shared monitor
+    /// block adds `f` -- every monitored op (0.29 Lane 4). On a task without
+    /// a monitor block this IS `add_by_fact`'s row, in its order.
+    pub fn achievers(&self, f: usize) -> Achievers<'_> {
+        let shared: &[u32] = if self.shared_add.get(f).copied().unwrap_or(false) {
+            &self.monitored_ops
+        } else {
+            &[]
+        };
+        Achievers {
+            own: self.add_by_fact.slice(f),
+            shared,
+        }
     }
 
     /// Visited-set key: facts + only the RELEVANT fluent values. A fluent is

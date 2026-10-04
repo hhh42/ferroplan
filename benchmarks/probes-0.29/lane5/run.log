@@ -1,0 +1,4 @@
+benchmarks/probes-0.29/lane5/measure.sh: line 11: 53171 Alarm clock: 14         /usr/bin/time -l perl -e 'alarm shift; exec @ARGV' 120 $FF -o $dom -f $prb --threads 1 --max-evaluated $cap --json > out.json 2> time.err
+benchmarks/probes-0.29/lane5/measure.sh: line 11: 53320 Alarm clock: 14         /usr/bin/time -l perl -e 'alarm shift; exec @ARGV' 120 $FF -o $dom -f $prb --threads 1 --max-evaluated $cap --json > out.json 2> time.err
+benchmarks/probes-0.29/lane5/measure.sh: line 11: 53571 Alarm clock: 14         /usr/bin/time -l perl -e 'alarm shift; exec @ARGV' 120 $FF -o $dom -f $prb --threads 1 --max-evaluated $cap --json > out.json 2> time.err
+benchmarks/probes-0.29/lane5/measure.sh: line 11: 53681 Alarm clock: 14         /usr/bin/time -l perl -e 'alarm shift; exec @ARGV' 120 $FF -o $dom -f $prb --threads 1 --max-evaluated $cap --json > out.json 2> time.err

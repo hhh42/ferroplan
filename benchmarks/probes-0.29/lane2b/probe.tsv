@@ -1,0 +1,18 @@
+cell	arm	solved	makespan	note
+rovers-metric-time/14	new	True	185.969	
+rovers-metric-time/14	blind	True	182.285	
+rovers-metric-time/16	new	True	252.95600000000002	
+rovers-metric-time/16	blind	True	252.95600000000002	
+rovers-metric-time/18	new	True	177.019	
+rovers-metric-time/18	blind	True	212.391	
+rovers-metric-time/20	new	False	None	temporal ladder stopped at the wall
+rovers-metric-time/20	blind	False	None	temporal ladder stopped at the wall
+tpp-metric-time/10	new	False	None	temporal ladder stopped at the wall
+tpp-metric-time/10	blind	False	None	temporal ladder stopped at the wall
+tpp-metric-time/20	new	False	None	temporal ladder stopped at the wall
+tpp-metric-time/20	blind	False	None	temporal ladder stopped at the wall
+pathways-metric-time/10	new	False	None	temporal ladder stopped at the wall
+pathways-metric-time/10	blind	False	None	temporal ladder stopped at the wall
+pathways-metric-time/20	new	False	None	temporal ladder stopped at the wall
+pathways-metric-time/20	blind	False	None	temporal ladder stopped at the wall
+PROBE DONE

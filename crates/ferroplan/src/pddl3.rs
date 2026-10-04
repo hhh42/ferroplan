@@ -23,7 +23,7 @@ use std::collections::{HashMap, HashSet};
 use crate::packed::PackedTask;
 use crate::search::{plan, solve_subgoal_bounded, ClosureCost, PrefPhi, SatGuidance, SearchCfg};
 use crate::types::{
-    Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, Problem, Sym, Term,
+    Action, AssignOp, Domain, Effect, Expr, Formula, MetricDir, NExpr, NumPre, Problem, Sym, Term,
 };
 
 pub const COST: &str = "TOTAL-COST";
@@ -369,18 +369,54 @@ pub fn polish_if_affordable(
     threads: usize,
     cfg: SearchCfg,
     ground_secs: f64,
+    seed: Option<&SeedTask>,
 ) -> Option<Polished> {
+    let need = polish_min_share(ground_secs, seed);
     if let Some(rem) = crate::search::wall_remaining_secs() {
-        if rem < 2.0 * ground_secs {
+        if rem < need {
             if std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok() {
                 eprintln!(
-                    "[polish] not started: {rem:.2} s left, the task grounded in {ground_secs:.2} s"
+                    "[polish] not started: {rem:.2} s left, under the {need:.2} s it needs \
+                     (the task grounded in {ground_secs:.2} s)"
                 );
             }
             return None;
         }
     }
-    polish(domain, problem, incumbent, threads, cfg)
+    polish(domain, problem, incumbent, threads, cfg, seed)
+}
+
+/// The hard-goal seed's grounded task, kept for the polish (0.29 Lane 1):
+/// the route grounds it first for incumbent zero, and when it is a PLAIN
+/// grounding of the pair -- no monitor block, no END action -- it is also
+/// the task the polish searches candidates on and prices them against, so
+/// the polish grounds nothing at all.
+pub struct SeedTask {
+    pub task: PackedTask,
+    /// What grounding it cost, parse included -- the floor of an attempt
+    /// when the task cannot be reused.
+    pub ground_secs: f64,
+}
+
+/// Is this seed task a plain grounding the polish can reuse? A hard
+/// trajectory constraint compiles its goal into a forced END action and
+/// marks the monitored ops; neither survives a goal swap.
+pub fn seed_is_plain(t: &PackedTask) -> bool {
+    !t.monitored.iter().any(|&m| m)
+        && !t
+            .op_display
+            .iter()
+            .any(|d| d.split_whitespace().next() == Some(crate::constraints::END_ACTION))
+}
+
+/// The least wall a polish is worth starting on: one attempt's floor when
+/// the seed task is in hand, twice the compiled task's grounding otherwise
+/// (an attempt then grounds the original task).
+pub fn polish_min_share(ground_secs: f64, seed: Option<&SeedTask>) -> f64 {
+    match seed {
+        Some(s) if seed_is_plain(&s.task) => 1.0,
+        _ => 2.0 * ground_secs,
+    }
 }
 
 /// A goal conjunct the grounder's DNF takes at width one: a literal, a
@@ -418,13 +454,145 @@ fn dnf_flat(f: &Formula) -> bool {
 /// domain with precondition preferences (violated per application -- an
 /// appended plan could add violations the replay does not count); an
 /// incumbent that does not replay. `FF_NO_PREF_POLISH=1` is the hatch.
+/// How many times the polish grounded a task, for the fixture that pins
+/// "one grounding per polish" (0.29 Lane 1): the hard-goal task once, the
+/// verifier's context once, and a per-candidate grounding only on the
+/// fallback path (a body the fast path cannot express as goal facts).
+pub static POLISH_GROUNDINGS: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+
+/// A candidate body as goal facts over an already-grounded task (0.29 Lane
+/// 1, the one-grounding polish): `Some(true)` with `pos`/`num` filled, `Some
+/// (false)` when an atom of it is unreachable (the grounder dropped it and the
+/// init does not hold it -- no plan can satisfy it), `None` when the shape is
+/// not a flat conjunction the goal can carry (an `or`, an `exists`, a negated
+/// literal), which is the per-candidate grounding's job.
+fn goal_of(
+    task: &PackedTask,
+    init: &HashSet<String>,
+    f: &Formula,
+    pos: &mut Vec<u32>,
+    num: &mut Vec<NumPre>,
+) -> Option<bool> {
+    fn term(t: &Term) -> Option<&str> {
+        match t {
+            Term::Const(c) => Some(c.as_str()),
+            Term::Var(_) => None,
+        }
+    }
+    fn disp(p: &str, args: &[Term]) -> Option<String> {
+        let a: Vec<&str> = args.iter().map(term).collect::<Option<_>>()?;
+        Some(if a.is_empty() {
+            format!("({p})")
+        } else {
+            format!("({p} {})", a.join(" "))
+        })
+    }
+    fn nexpr(task: &PackedTask, e: &Expr) -> Option<NExpr> {
+        Some(match e {
+            Expr::Num(n) => NExpr::Num(*n),
+            Expr::Fluent(f, args) => {
+                let d = disp(f, args)?;
+                match task.fluent_id(&d) {
+                    Some(id) => NExpr::Fluent(id as u32),
+                    None => NExpr::Num(task.static_fluent(&d)?),
+                }
+            }
+            Expr::Add(a, b) => NExpr::Add(Box::new(nexpr(task, a)?), Box::new(nexpr(task, b)?)),
+            Expr::Sub(a, b) => NExpr::Sub(Box::new(nexpr(task, a)?), Box::new(nexpr(task, b)?)),
+            Expr::Mul(a, b) => NExpr::Mul(Box::new(nexpr(task, a)?), Box::new(nexpr(task, b)?)),
+            Expr::Div(a, b) => NExpr::Div(Box::new(nexpr(task, a)?), Box::new(nexpr(task, b)?)),
+            Expr::Neg(a) => NExpr::Neg(Box::new(nexpr(task, a)?)),
+        })
+    }
+    match f {
+        Formula::True => Some(true),
+        Formula::And(v) => {
+            for x in v {
+                if !goal_of(task, init, x, pos, num)? {
+                    return Some(false);
+                }
+            }
+            Some(true)
+        }
+        Formula::Atom(p, args) => {
+            let d = disp(p, args)?;
+            match task.fact_id(&d) {
+                Some(id) => {
+                    let id = id as u32;
+                    if !pos.contains(&id) {
+                        pos.push(id);
+                    }
+                    Some(true)
+                }
+                None => Some(init.contains(&d)),
+            }
+        }
+        Formula::Comp(op, l, r) => {
+            num.push(NumPre {
+                op: *op,
+                lhs: nexpr(task, l)?,
+                rhs: nexpr(task, r)?,
+            });
+            Some(true)
+        }
+        _ => None,
+    }
+}
+
+/// The atoms a held body of the shape `(not atom)` / `(and (not atom) ...)`
+/// keeps FALSE: the candidate search forbids their achievers, so a plan for
+/// one more preference cannot buy it by breaking these (pathways: 22 of 42
+/// preferences are `(not (chosen ...))`, held by the empty plan, and every
+/// candidate that chose a reaction broke several of them and priced worse).
+/// `None` for any other shape (positives are goals, `or`s are guarded by the
+/// pricing).
+fn kept_false_atoms(f: &Formula, out: &mut Vec<String>) -> Option<()> {
+    fn disp(p: &str, args: &[Term]) -> Option<String> {
+        let a: Vec<&str> = args
+            .iter()
+            .map(|t| match t {
+                Term::Const(c) => Some(c.as_str()),
+                Term::Var(_) => None,
+            })
+            .collect::<Option<_>>()?;
+        Some(if a.is_empty() {
+            format!("({p})")
+        } else {
+            format!("({p} {})", a.join(" "))
+        })
+    }
+    match f {
+        Formula::Not(inner) => match &**inner {
+            Formula::Atom(p, args) => {
+                out.push(disp(p, args)?);
+                Some(())
+            }
+            _ => None,
+        },
+        Formula::And(v) => {
+            for x in v {
+                match x {
+                    Formula::Not(_) => kept_false_atoms(x, out)?,
+                    Formula::Atom(..) | Formula::True => {}
+                    _ => return None,
+                }
+            }
+            Some(())
+        }
+        _ => None,
+    }
+}
+
 pub fn polish(
     domain: &Domain,
     problem: &Problem,
     incumbent: &[(String, Vec<String>)],
     threads: usize,
     cfg: SearchCfg,
+    seed: Option<&SeedTask>,
 ) -> Option<Polished> {
+    let reuse: Option<&PackedTask> = seed.map(|s| &s.task).filter(|t| seed_is_plain(t));
     let dbg = std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok();
     if !polish_applies(domain, problem) {
         if dbg {
@@ -474,8 +642,27 @@ pub fn polish(
     };
     // The baseline pricing grounds the original task; how long that took is
     // the floor of an attempt's slice below (an attempt grounds it again).
+    // ONE grounding for every pricing (0.29 Lane 1): the verifier's context
+    // holds the grounded original pair, and the baseline and every candidate
+    // replay on it.
     let t_ground = crate::clock::Clock::now();
-    let baseline = match crate::verify::verify_pair(domain, problem, incumbent) {
+    let vctx = match reuse {
+        Some(t) => crate::verify::VerifyCtx::from_task(domain, problem, t.clone()),
+        None => {
+            POLISH_GROUNDINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            crate::verify::VerifyCtx::prepare(domain, problem)
+        }
+    };
+    let vctx = match vctx {
+        Ok(c) => c,
+        Err(e) => {
+            if dbg {
+                eprintln!("[polish] the original pair does not ground for pricing: {e}");
+            }
+            return None;
+        }
+    };
+    let baseline = match vctx.replay(incumbent) {
         Ok(b) => b,
         Err(e) => {
             if dbg {
@@ -537,6 +724,53 @@ pub fn polish(
             .unwrap()
             .then_with(|| insts[a].name.cmp(&insts[b].name))
     });
+    // ONE grounding for every search (0.29 Lane 1): the hard-goal task with
+    // the soft constraints mapped away, grounded once; each candidate swaps
+    // the goal facts in (the packed tables sit behind `Arc`, so a clone is
+    // the goal and nothing else) and runs the ladder. A body the fast path
+    // cannot express (an `or`, an `exists`) takes the per-candidate grounding
+    // it always did. On pathways the task grounds in 8 s and every attempt
+    // paid it twice -- once to search, once to price -- which is why the
+    // polish never reached the domain the simple band is lost on.
+    let hard_task: Option<PackedTask> = if let Some(t) = reuse {
+        if dbg {
+            eprintln!(
+                "[polish] the seed's task is reused: {} ops, no grounding",
+                t.n_ops
+            );
+        }
+        Some(t.clone())
+    } else {
+        let mut d2 = domain.clone();
+        let mut p2 = problem.clone();
+        let mut c2 = 0usize;
+        d2.constraints =
+            crate::constraints::map_soft_constraints(&d2.constraints, &mut c2, &mut |_| false);
+        p2.constraints =
+            crate::constraints::map_soft_constraints(&p2.constraints, &mut c2, &mut |_| false);
+        p2.goal = Formula::And(hard.clone());
+        p2.metric = None;
+        match crate::constraints::gate(&d2, &p2) {
+            // A hard trajectory constraint compiles the goal into its END
+            // action: the goal is not a swappable fact set there.
+            Ok(Some(_)) if !d2.constraints.is_empty() || !p2.constraints.is_empty() => None,
+            Ok(_) => {
+                let t_h = crate::clock::Clock::now();
+                let t = crate::ground::ground_task(&d2, &p2, threads);
+                POLISH_GROUNDINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if dbg {
+                    eprintln!(
+                        "[polish] the hard-goal task grounded once: {} ({:.2} s)",
+                        t.as_ref()
+                            .map_or("no task".to_string(), |t| format!("{} ops", t.n_ops)),
+                        t_h.elapsed_secs()
+                    );
+                }
+                t
+            }
+            Err(_) => None,
+        }
+    };
     let mut best = Polished {
         steps: incumbent.to_vec(),
         metric: baseline.metric + konst,
@@ -577,7 +811,11 @@ pub fn polish(
         // baseline pricing, never under a second -- pathways-simple/16
         // grounds in 8 s, and six 1 s attempts there all died in the
         // grounder ("0 gained"); one attempt that can ground is worth more.
-        let floor = (2.0 * ground_secs).max(1.0);
+        let floor = if hard_task.is_some() {
+            1.0
+        } else {
+            (2.0 * ground_secs).max(1.0)
+        };
         let rem = crate::search::wall_remaining_secs();
         if rem.is_some_and(|r| r < floor) {
             if dbg {
@@ -602,6 +840,132 @@ pub fn polish(
         // pricing below instead (on pathways-simple/16 the twenty held `or`
         // bodies were 2^20 goal disjuncts, and every attempt expired in the
         // grounder before it searched).
+        // The fast path: goal facts over the task grounded once.
+        let mut fast: Option<Option<Vec<String>>> = None;
+        if let Some(ht) = &hard_task {
+            let pos = ht.goal_pos.clone();
+            let num = ht.goal_num.clone();
+            let init = vctx.init_atoms();
+            let cand = insts[i].body.as_ref().unwrap();
+            // A disjunctive body (pathways: every preference is an `or` of
+            // ways to make a product) is one goal per disjunct, tried in
+            // order under the attempt's slice; the first that plans wins.
+            // A conjunction is one goal. Anything else falls through.
+            let disjuncts: Option<Vec<&Formula>> = match cand {
+                Formula::Or(v) => Some(v.iter().collect()),
+                _ => Some(vec![cand]),
+            };
+            // What the held `(not ...)` bodies keep false. The candidate's
+            // search forbids their achievers -- except what the candidate's
+            // own relaxed plan needs, since a product that needs a reagent
+            // chosen cannot be made without choosing it; the pricing then
+            // says whether the trade paid. (Forbidding all of them made
+            // every pathways candidate unreachable; forbidding none made
+            // every candidate choose far more than it needed.)
+            let mut kept: Vec<u32> = Vec::new();
+            for inst in insts.iter().filter(|x| x.held) {
+                if let Some(b) = &inst.body {
+                    let mut atoms = Vec::new();
+                    if kept_false_atoms(b, &mut atoms).is_some() {
+                        kept.extend(atoms.iter().filter_map(|a| ht.fact_id(a)).map(|f| f as u32));
+                    }
+                }
+            }
+            let init_state = ht.initial();
+            let mut sc = crate::heuristic::Scratch::new(ht);
+            let mut reachable = false;
+            let mut expressible = false;
+            for d in disjuncts.unwrap_or_default() {
+                let (mut dpos, mut dnum) = (pos.clone(), num.clone());
+                match goal_of(ht, init, d, &mut dpos, &mut dnum) {
+                    Some(true) => {}
+                    Some(false) => {
+                        expressible = true;
+                        continue;
+                    }
+                    None => continue,
+                }
+                expressible = true;
+                reachable = true;
+                for inst in insts.iter().filter(|x| x.held) {
+                    if let Some(b) = &inst.body {
+                        // a held body rides along when it is flat and
+                        // reachable; otherwise the pricing guards it
+                        let (mut p2, mut n2) = (dpos.clone(), dnum.clone());
+                        if goal_of(ht, init, b, &mut p2, &mut n2) == Some(true) {
+                            dpos = p2;
+                            dnum = n2;
+                        }
+                    }
+                }
+                let mut t2 = ht.clone();
+                t2.goal_pos = dpos;
+                t2.goal_num = dnum;
+                let mut forbidden: Vec<bool> = vec![false; ht.n_ops];
+                if !kept.is_empty() {
+                    let needed: Vec<u32> = crate::heuristic::relaxed_plan_ops(
+                        ht,
+                        &mut sc,
+                        &init_state.bits,
+                        &init_state.fv,
+                        &init_state.fdef,
+                        &t2.goal_pos,
+                        &t2.goal_num,
+                    )
+                    .map(|ops| {
+                        ops.iter()
+                            .flat_map(|&oi| ht.add.slice(oi).iter().copied())
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                    for &f in &kept {
+                        if needed.contains(&f) {
+                            continue;
+                        }
+                        for oi in ht.achievers(f as usize) {
+                            forbidden[oi as usize] = true;
+                        }
+                    }
+                }
+                let n_forbid = forbidden.iter().filter(|&&b| b).count();
+                let mut o = crate::search::plan_avoiding(&t2, threads, cfg, true, &forbidden, None);
+                if o.ops.is_none() && n_forbid > 0 && !crate::search::wall_hard_expired() {
+                    // Kept nothing extra: the forbidden search found no plan,
+                    // so take any plan and let the pricing decide.
+                    o = plan(&t2, threads, cfg, true, None);
+                }
+                if dbg {
+                    eprintln!(
+                        "[polish] {}: {} ops forbidden for {} kept-false atoms, {}",
+                        insts[i].name,
+                        n_forbid,
+                        kept.len(),
+                        if o.ops.is_some() { "a plan" } else { "no plan" }
+                    );
+                }
+                if let Some(ops) = o.ops {
+                    fast = Some(Some(
+                        ops.iter().map(|&oi| t2.op_display[oi].clone()).collect(),
+                    ));
+                    break;
+                }
+                if crate::search::wall_hard_expired() {
+                    break;
+                }
+            }
+            if fast.is_none() {
+                if expressible && !reachable {
+                    if dbg {
+                        eprintln!("[polish] {}: unreachable, skipped", insts[i].name);
+                    }
+                    continue;
+                }
+                if expressible {
+                    // every expressible disjunct was tried and none planned
+                    fast = Some(None);
+                }
+            }
+        }
         let mut goal = hard.clone();
         for inst in insts.iter().filter(|x| x.held) {
             if let Some(b) = &inst.body {
@@ -633,11 +997,24 @@ pub fn polish(
                 continue;
             }
         };
-        let Some(names) = hard_goal_plan(&d2, &p2, threads, cfg) else {
-            if dbg {
-                eprintln!("[polish] {}: no plan inside the budget", insts[i].name);
+        let names = match fast {
+            Some(Some(names)) => names,
+            Some(None) => {
+                if dbg {
+                    eprintln!("[polish] {}: no plan inside the budget", insts[i].name);
+                }
+                continue;
             }
-            continue;
+            None => {
+                POLISH_GROUNDINGS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let Some(names) = hard_goal_plan(&d2, &p2, threads, cfg) else {
+                    if dbg {
+                        eprintln!("[polish] {}: no plan inside the budget", insts[i].name);
+                    }
+                    continue;
+                };
+                names
+            }
         };
         let steps: Vec<(String, Vec<String>)> = names
             .iter()
@@ -648,7 +1025,7 @@ pub fn polish(
                     .then(|| (head, it.map(str::to_string).collect()))
             })
             .collect();
-        let v = match crate::verify::verify_pair(domain, problem, &steps) {
+        let v = match vctx.replay(&steps) {
             Ok(v) => v,
             Err(e) => {
                 if dbg {
@@ -1641,8 +2018,18 @@ pub fn hard_goal_plan(
     threads: usize,
     cfg: SearchCfg,
 ) -> Option<Vec<String>> {
+    hard_goal_plan_with_task(domain, problem, threads, cfg).0
+}
+
+/// [`hard_goal_plan`], keeping the grounded task for the polish ([`SeedTask`]).
+pub fn hard_goal_plan_with_task(
+    domain: &Domain,
+    problem: &Problem,
+    threads: usize,
+    cfg: SearchCfg,
+) -> (Option<Vec<String>>, Option<SeedTask>) {
     if std::env::var("FF_PREF_NO_SEED").is_ok() {
-        return None;
+        return (None, None);
     }
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     let t0 = crate::clock::Clock::now();
@@ -1653,8 +2040,17 @@ pub fn hard_goal_plan(
         .map(|rem| rem * (1.0 - frac))
         .and_then(crate::search::tighten_deadline);
     match crate::ground::ground(domain, problem, threads) {
-        crate::ground::Outcome::GoalTrue => Some(Vec::new()),
+        // A trivial hard goal (every goal a preference): the plan is empty,
+        // and the task the polish wants is grounded by force.
+        crate::ground::Outcome::GoalTrue => (
+            Some(Vec::new()),
+            crate::ground::ground_task(domain, problem, threads).map(|task| SeedTask {
+                task,
+                ground_secs: t0.elapsed_secs(),
+            }),
+        ),
         crate::ground::Outcome::Task(hard) => {
+            let ground_secs = t0.elapsed_secs();
             // EHC is what finds this plan when anything does; it gets the
             // larger share of the wall here (see `SearchCfg::ehc_wall_frac`).
             let cfg = SearchCfg {
@@ -1670,11 +2066,17 @@ pub fn hard_goal_plan(
                     t0.elapsed_secs()
                 );
             }
-            Some(
-                o.ops?
-                    .into_iter()
+            let names = o.ops.map(|ops| {
+                ops.into_iter()
                     .map(|oi| hard.op_display[oi].clone())
-                    .collect(),
+                    .collect()
+            });
+            (
+                names,
+                Some(SeedTask {
+                    task: hard,
+                    ground_secs,
+                }),
             )
         }
         other => {
@@ -1689,7 +2091,7 @@ pub fn hard_goal_plan(
                     t0.elapsed_secs()
                 );
             }
-            None
+            (None, None)
         }
     }
 }
@@ -1735,7 +2137,19 @@ pub fn hard_goal_seed(
     threads: usize,
     cfg: SearchCfg,
 ) -> Option<Vec<usize>> {
-    lift_seed(compiled, &hard_goal_plan(domain, problem, threads, cfg)?)
+    hard_goal_seed_with_task(domain, problem, compiled, threads, cfg).0
+}
+
+/// [`hard_goal_seed`], keeping the grounded task for the polish.
+pub fn hard_goal_seed_with_task(
+    domain: &Domain,
+    problem: &Problem,
+    compiled: &PackedTask,
+    threads: usize,
+    cfg: SearchCfg,
+) -> (Option<Vec<usize>>, Option<SeedTask>) {
+    let (names, seed) = hard_goal_plan_with_task(domain, problem, threads, cfg);
+    (names.and_then(|n| lift_seed(compiled, &n)), seed)
 }
 
 fn metric_optimize_inner(
@@ -3290,10 +3704,8 @@ fn build_espc_partition(
     let mut assoc: crate::hash::FxHashMap<u32, Vec<u32>> = crate::hash::FxHashMap::default();
     for &g in &real_goals {
         let mut ds: Vec<u32> = task
-            .add_by_fact
-            .slice(g as usize)
-            .iter()
-            .flat_map(|&oi| task.pre_pos.slice(oi as usize))
+            .achievers(g as usize)
+            .flat_map(|oi| task.pre_pos.slice(oi as usize))
             .filter_map(|p| by_cond.get(p))
             .flatten()
             .copied()

@@ -401,7 +401,7 @@ fn plan_pddl3(
     // Incumbent zero (0.28 Lane I) -- the library path's rule, so text and
     // JSON agree on which rows solve.
     let (seed_d, seed_p) = seed_pair.map_or((domain, problem), |(d, p)| (d, p));
-    let seed = pddl3::hard_goal_seed(seed_d, seed_p, &task, threads, cfg);
+    let (seed, seed_task) = pddl3::hard_goal_seed_with_task(seed_d, seed_p, &task, threads, cfg);
     // The optimizer improves a plan that could already be reported, so it
     // stops a reserve short of the wall (the Lane S rule): the runner kills
     // AT the wall, and a metric polished until 60.4 s is a row lost.
@@ -412,7 +412,7 @@ fn plan_pddl3(
         .then(crate::search::wall_remaining_secs)
         .flatten()
         .map(|rem| rem * pddl3::polish_frac())
-        .filter(|share| *share >= 2.0 * ground_secs);
+        .filter(|share| *share >= pddl3::polish_min_share(ground_secs, seed_task.as_ref()));
     let optimized = {
         let _opt_wall = polish_share.and_then(crate::search::tighten_deadline);
         pddl3::metric_optimize_seeded(
@@ -462,9 +462,15 @@ fn plan_pddl3(
                     )
                 })
                 .collect();
-            if let Some(p) =
-                pddl3::polish_if_affordable(domain, problem, &incumbent, threads, cfg, ground_secs)
-            {
+            if let Some(p) = pddl3::polish_if_affordable(
+                domain,
+                problem,
+                &incumbent,
+                threads,
+                cfg,
+                ground_secs,
+                seed_task.as_ref(),
+            ) {
                 if let Some(orig) = crate::ground::ground_task(domain, problem, 1) {
                     let ops: Option<Vec<usize>> = p
                         .steps
