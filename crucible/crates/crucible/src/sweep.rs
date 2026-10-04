@@ -819,7 +819,6 @@ pub struct Setup<'s> {
     pub engine: SweepEngine,
     pub val: Option<PathBuf>,
     pub quiet_only: bool,
-    pub max_passes: Option<u32>,
     /// The throttle level the watcher publishes, and the channel to the
     /// running child it drives.
     pub shared: Arc<Shared>,
@@ -868,12 +867,9 @@ pub struct SweepRunner<'a> {
     /// same hole forever.
     engine_gone: Option<String>,
     quiet_only: bool,
-    /// Stop after this many passes. `None` is the resident behaviour: a board
-    /// that cannot bank because the box is never quiet is not FAILING, it is
-    /// waiting, and a harness meant to live in a pane for three days should go
-    /// on waiting. A bounded run is for a smoke test, or for "make one pass
-    /// tonight and show me".
-    max_passes: Option<u32>,
+    /// The pass being run, for the log. The pass CAP is `LoopConfig::max_passes`
+    /// (0.29: it moved into the loop, which checks it at the top of every pass
+    /// -- a runner-side check in `wait` saw only stalled passes).
     passes: u32,
     db: Option<DbCtx>,
 }
@@ -968,7 +964,6 @@ impl<'a> SweepRunner<'a> {
             engine,
             val,
             quiet_only,
-            max_passes,
             shared,
             rule,
             admit_below_full,
@@ -1125,7 +1120,6 @@ impl<'a> SweepRunner<'a> {
             stop: false,
             engine_gone: None,
             quiet_only,
-            max_passes,
             passes: 0,
             db,
         };
@@ -1487,12 +1481,6 @@ impl Runner for SweepRunner<'_> {
         if self.stop {
             return Next::Stop;
         }
-        if let Some(max) = self.max_passes {
-            if self.passes >= max {
-                crate::say!("   (--max-passes {max} reached)");
-                return Next::Stop;
-            }
-        }
         let until = Instant::now() + backoff.min(Duration::from_secs(60));
         while Instant::now() < until {
             if exec::interrupted() {
@@ -1545,6 +1533,9 @@ impl Runner for SweepRunner<'_> {
             } => crate::say!(
                 "!! stalled after {consecutive} passes; backing off {backoff:?}, {remaining} owed"
             ),
+            Event::Capped { max, remaining } => {
+                crate::say!("   (--max-passes {max} reached; {remaining} still owed)")
+            }
             Event::Finished { passes, banked } => {
                 crate::say!("SWEEP COMPLETE -- {banked} banked in {passes} pass(es)")
             }
@@ -1884,7 +1875,42 @@ pub struct Canary {
     interval: Duration,
     max_factor: f64,
     label: String,
+    /// This box's readings at each width of our own planners (newest last):
+    /// the database's recent window at sweep start, plus every reading taken
+    /// since. The factor for a reading at width w is read against THIS line
+    /// once it holds `baseline_n` readings (`canary_factor`), and against the
+    /// solo baseline until then.
+    at_width: std::collections::BTreeMap<u32, Vec<f64>>,
 }
+
+/// The canary's clock factor for one reading, against the right line.
+///
+/// `solo` is the calibration baseline (no planner of ours attached). `window`
+/// is what this box has read at the SAME width before -- and once it holds
+/// `n` readings its `pct` percentile, never below the solo line, is the line
+/// this reading is held to. The canary pauses our planners for its two
+/// seconds, but a chip that has been running nine of them is throttled
+/// whether they are paused or not: at width 9-10 on an idle box at 00:30 it
+/// read 1.50x the solo line, every packed pass owed every solo row, and the
+/// owed rows were re-run packed into the same reading. Against the width's
+/// own line that reading is 1.0x, and foreign load at width 9 still shows
+/// as a factor over it. The first `n` readings at a new width are held to
+/// the solo line, which owes rows (the 0.28 behaviour) rather than banking
+/// under a line nothing has measured yet.
+pub(crate) fn canary_factor(secs: f64, solo: f64, window: &[f64], n: usize, pct: f64) -> f64 {
+    let mut line = solo;
+    if n > 0 && window.len() >= n {
+        let mut w: Vec<f64> = window.to_vec();
+        w.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        let idx = ((w.len() - 1) as f64 * pct.clamp(0.0, 1.0)).round() as usize;
+        line = line.max(w[idx]);
+    }
+    secs / line.max(0.001)
+}
+
+/// The percentile of a width's window that is its line: the same p25 the
+/// solo baseline uses over its recent readings (`Reader::canary_baseline`).
+pub(crate) const WIDTH_LINE_PCT: f64 = 0.25;
 
 impl Canary {
     /// `None` when the configured instance is not on disk: a sweep on a box
@@ -1939,6 +1965,7 @@ impl Canary {
             interval: Duration::from_secs(r.canary_interval_secs.max(60)),
             max_factor: r.canary_max_factor,
             label: format!("{}/{}@{engine_hash}", r.canary_variant, r.canary_instance),
+            at_width: Default::default(),
         })
     }
 
@@ -2008,13 +2035,31 @@ impl Canary {
         self.baseline
     }
 
-    /// One reading: `(secs, secs / baseline)`. The baseline does not move
-    /// within a run -- a faster reading is information about the box, not
-    /// a new line to hold every later row to.
-    pub fn read(&mut self, on_spawn: Option<&dyn Fn(Pid, f64)>) -> Option<(f64, f64)> {
-        let base = self.baseline?;
+    /// Seed a width's window from the database's recent readings at that
+    /// width (newest first, as the reader returns them), so the line is on
+    /// from the first reading of a sweep rather than `baseline_n` readings
+    /// in.
+    pub fn seed_width(&mut self, width: u32, newest_first: Vec<f64>) {
+        let w = self.at_width.entry(width).or_default();
+        w.extend(newest_first.into_iter().rev());
+    }
+
+    /// One reading beside `width` of our own planners: `(secs, factor)`,
+    /// the factor read against the width's own line where this box has one
+    /// (`canary_factor`) and the solo baseline otherwise. The reading joins
+    /// the width's window AFTER its factor is taken, so a slow reading can
+    /// never raise the line it is judged by.
+    pub fn read(&mut self, width: u32, on_spawn: Option<&dyn Fn(Pid, f64)>) -> Option<(f64, f64)> {
+        let base = self.baseline?.as_secs_f64();
         let secs = self.run_once(on_spawn)?.as_secs_f64();
-        Some((secs, secs / base.as_secs_f64().max(0.001)))
+        let window = self.at_width.get(&width).map(Vec::as_slice).unwrap_or(&[]);
+        let f = canary_factor(secs, base, window, self.baseline_n as usize, WIDTH_LINE_PCT);
+        let w = self.at_width.entry(width).or_default();
+        w.push(secs);
+        if w.len() > 100 {
+            w.remove(0);
+        }
+        Some((secs, f))
     }
 
     pub fn label(&self) -> &str {
@@ -2093,13 +2138,23 @@ impl Watcher {
                                     eprintln!("!! could not register the canary child {pid}: {e}");
                                 }
                             };
-                            let reading = c.read(Some(&reg as &dyn Fn(Pid, f64)));
+                            // The width is what was attached when the read
+                            // began: the line the factor is read against is
+                            // the box's own at that width (v10).
+                            let width = paused as u32;
+                            let reading = c.read(width, Some(&reg as &dyn Fn(Pid, f64)));
                             if pause && shared.level() != Level::Suspended {
                                 shared.send(Ctl::Cont);
                             }
                             shared.hold(false);
                             if let Some((secs, _)) = reading {
-                                writer.canary(now_epoch(), c.label().to_string(), secs, pause);
+                                writer.canary(
+                                    now_epoch(),
+                                    c.label().to_string(),
+                                    secs,
+                                    pause,
+                                    width,
+                                );
                             }
                             if let Some((_, f)) = reading {
                                 shared.set_canary(f);
@@ -2488,7 +2543,8 @@ fn sweep_body(
                 let label = c.label().to_string();
                 let record = |secs: f64| {
                     if let Some(d) = &dbctx {
-                        d.db.writer().canary(now_epoch(), label.clone(), secs, true);
+                        d.db.writer()
+                            .canary(now_epoch(), label.clone(), secs, true, 0);
                     }
                 };
                 match c.calibrate(prior, &record, None) {
@@ -2508,6 +2564,30 @@ fn sweep_body(
                             c.max_factor
                         );
                         shared.set_canary(1.0);
+                        // The box's own line at every width it may pack to,
+                        // from the database's recent readings there (v10).
+                        if let Some(d) = &dbctx {
+                            let top = if quiet_only {
+                                1
+                            } else {
+                                Pack::from_config(&cfg.scheduler).width as u32
+                            };
+                            let mut seeded = 0usize;
+                            for w in 1..=top {
+                                if let Ok(v) = d.reader.canary_at_width(c.label(), w, 100) {
+                                    if !v.is_empty() {
+                                        seeded += 1;
+                                        c.seed_width(w, v);
+                                    }
+                                }
+                            }
+                            if seeded > 0 {
+                                crate::say!(
+                                    "canary  the box has its own line at {seeded} width(s); \
+                                     a reading is held to the line at its width"
+                                );
+                            }
+                        }
                         Some(c)
                     }
                     None => {
@@ -2566,7 +2646,6 @@ fn sweep_body(
             },
             val,
             quiet_only,
-            max_passes,
             shared: Arc::clone(&shared),
             rule: referee::Rule {
                 rho_min: cfg.referee.cpu_ratio_min,
@@ -2658,6 +2737,7 @@ fn sweep_body(
         &mut runner,
         &LoopConfig {
             stall_after: cfg.scheduler.stall_attempts,
+            max_passes,
             ..Default::default()
         },
     );
@@ -2739,6 +2819,26 @@ fn minutes_past_midnight() -> u32 {
 #[cfg(test)]
 mod r2_tests {
     use super::*;
+
+    /// The canary at width (0.29 Phase 0.5). A reading of 1.5 s at width 9
+    /// is 1.50x the solo line and 1.00x the box's own width-9 line; against
+    /// no width-9 history it is still 1.50x (the solo line stands in, which
+    /// owes rows rather than banks under a line nothing measured); foreign
+    /// load at width 9 still reads over the width's line; and the width's
+    /// line never drops below the solo one.
+    #[test]
+    fn the_canary_is_read_against_the_line_at_its_width() {
+        let w9 = [1.5, 1.52, 1.49, 1.51, 1.5];
+        assert!((canary_factor(1.5, 1.0, &w9, 5, WIDTH_LINE_PCT) - 1.0).abs() < 1e-6);
+        assert!((canary_factor(1.5, 1.0, &[], 5, WIDTH_LINE_PCT) - 1.5).abs() < 1e-6);
+        assert!((canary_factor(1.5, 1.0, &w9[..4], 5, WIDTH_LINE_PCT) - 1.5).abs() < 1e-6);
+        assert!((canary_factor(3.0, 1.0, &w9, 5, WIDTH_LINE_PCT) - 2.0).abs() < 1e-6);
+        let fast = [0.8, 0.8, 0.8, 0.8, 0.8];
+        assert!((canary_factor(1.0, 1.0, &fast, 5, WIDTH_LINE_PCT) - 1.0).abs() < 1e-6);
+        // The window's p25, not its minimum: one lucky reading is not a line.
+        let lucky = [0.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5];
+        assert!((canary_factor(1.5, 1.0, &lucky, 5, WIDTH_LINE_PCT) - 1.0).abs() < 1e-6);
+    }
 
     /// The no-progress warning (0.29 Phase 0.4): idle with no child, not
     /// suspended, not held, past the threshold -- and only then.

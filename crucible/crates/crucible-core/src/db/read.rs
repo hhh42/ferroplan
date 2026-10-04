@@ -511,6 +511,26 @@ impl Reader {
         Ok(Some(secs[idx]))
     }
 
+    /// The most recent `window` canary readings taken at exactly `width` of
+    /// our own planners (v10), newest first. The per-width line
+    /// (`sweep::canary_factor`) is a percentile of these; empty before the
+    /// box has read at that width, and the solo baseline then stands in.
+    pub fn canary_at_width(
+        &self,
+        label: &str,
+        width: u32,
+        window: usize,
+    ) -> Result<Vec<f64>, DbError> {
+        let mut st = self.conn.prepare(
+            "SELECT secs FROM canary WHERE label = ?1 AND width = ?2
+              ORDER BY at DESC LIMIT ?3",
+        )?;
+        let secs: Vec<f64> = st
+            .query_map(params![label, width as i64, window as i64], |r| r.get(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(secs)
+    }
+
     /// How many SOLO done attempts (no neighbours) this instance already has
     /// under this engine. The suspect rule counts these, not attempts.
     pub fn solo_attempts(

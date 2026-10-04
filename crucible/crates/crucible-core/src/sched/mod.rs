@@ -143,6 +143,12 @@ pub enum Event {
         backoff: Duration,
         remaining: usize,
     },
+    /// `LoopConfig::max_passes` reached with work still owed. Reported BEFORE
+    /// the `Stopped` that follows, so the log says why the run ended.
+    Capped {
+        max: u32,
+        remaining: usize,
+    },
     Finished {
         passes: u32,
         banked: usize,
@@ -162,6 +168,16 @@ pub struct LoopConfig {
     /// The ceiling on the doubling. About an hour: long enough not to hammer a
     /// box somebody is working on, short enough to catch the evening.
     pub max_backoff: Duration,
+    /// Stop after this many passes, owed or not. `None` is the resident
+    /// behaviour: a board owes rows until it does not.
+    ///
+    /// Checked HERE, at the top of every pass, and nowhere else. Until 0.29
+    /// the cap lived in the runner's `wait`, which the loop consults only
+    /// after a pass that banked NOTHING -- so a subset whose every pass banked
+    /// a few owed rows ran a fourth and a fifth pass under `--max-passes 3`
+    /// (lanes29, 2026-09-30), and with the canary owing rows at width the
+    /// uncapped run re-owed the same rows for ever.
+    pub max_passes: Option<u32>,
 }
 
 impl Default for LoopConfig {
@@ -170,6 +186,7 @@ impl Default for LoopConfig {
             stall_after: 3,
             retry_backoff: Duration::from_secs(60),
             max_backoff: Duration::from_secs(3600),
+            max_passes: None,
         }
     }
 }
@@ -278,6 +295,23 @@ pub fn run(r: &mut dyn Runner, cfg: &LoopConfig) -> Outcome {
                 complete: true,
                 remaining: 0,
             };
+        }
+        if let Some(max) = cfg.max_passes {
+            if pass >= max {
+                let remaining: usize = ordered.iter().map(|b| b.remaining).sum();
+                r.event(Event::Capped { max, remaining });
+                r.event(Event::Stopped {
+                    passes: pass,
+                    remaining,
+                });
+                return Outcome {
+                    passes: pass,
+                    attempts,
+                    banked,
+                    complete: false,
+                    remaining,
+                };
+            }
         }
         pass += 1;
         r.event(Event::PassStarted {
@@ -457,6 +491,55 @@ mod tests {
         fn event(&mut self, event: Event) {
             self.events.push(event);
         }
+    }
+
+    /// `--max-passes` is a cap on PASSES, productive or not. The 0.29 subset
+    /// runs banked a few owed rows every pass, never stalled, and so never
+    /// reached the runner's `wait` where the cap used to be checked: a fourth
+    /// and a fifth pass under `--max-passes 3`. Two passes means two.
+    #[test]
+    fn the_pass_cap_holds_on_productive_passes() {
+        let mut f = Fake::with(&[("slow", 1, 12)]);
+        let out = run(
+            &mut f,
+            &LoopConfig {
+                max_passes: Some(2),
+                ..Default::default()
+            },
+        );
+        assert!(!out.complete);
+        assert_eq!(out.passes, 2);
+        assert_eq!(out.banked, 2);
+        assert_eq!(out.remaining, 10);
+        assert!(f.waits.is_empty(), "nothing stalled, so nothing waited");
+        assert!(f.events.contains(&Event::Capped {
+            max: 2,
+            remaining: 10
+        }));
+        assert!(matches!(
+            f.events.last(),
+            Some(Event::Stopped {
+                passes: 2,
+                remaining: 10
+            })
+        ));
+    }
+
+    /// A queue that drains inside the cap finishes as complete: the cap is a
+    /// ceiling, not a verdict.
+    #[test]
+    fn a_queue_draining_under_the_cap_is_complete() {
+        let mut f = Fake::with(&[("quick", 12, 12)]);
+        let out = run(
+            &mut f,
+            &LoopConfig {
+                max_passes: Some(3),
+                ..Default::default()
+            },
+        );
+        assert!(out.complete);
+        assert_eq!(out.passes, 1);
+        assert!(!f.events.iter().any(|e| matches!(e, Event::Capped { .. })));
     }
 
     /// THE POINT OF THE REWRITE. Twelve instances that bank one per attempt is

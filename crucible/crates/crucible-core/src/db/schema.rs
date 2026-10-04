@@ -19,7 +19,7 @@
 use rusqlite::Connection;
 
 /// The schema version this binary writes.
-pub const USER_VERSION: i32 = 9;
+pub const USER_VERSION: i32 = 10;
 
 /// Refusing to open, with the numbers a human needs to know which binary to run.
 #[derive(Debug, thiserror::Error)]
@@ -521,6 +521,21 @@ ALTER TABLE run ADD COLUMN max_rss INTEGER;
 PRAGMA user_version = 9;
 COMMIT;
 "#;
+/// v10 (0.29 Phase 0.5): how many of our own planners were attached when the
+/// canary read -- its WIDTH. The canary pauses them for its two seconds, but
+/// a chip that has been running nine planners is throttled whether they are
+/// paused or not: at width 9-10 it read 1.5x its SOLO baseline on an idle box
+/// at 00:30, every packed pass owed every solo row, and the owed rows were
+/// re-run packed into the same reading -- a loop, not a slow box. The factor
+/// is now read against the box's own line at that width (`sweep::Canary`),
+/// which needs the width on the record. NULL on every reading before this
+/// column; a calibration reading is width 0.
+const V10: &str = r#"
+BEGIN;
+ALTER TABLE canary ADD COLUMN width INTEGER;
+PRAGMA user_version = 10;
+COMMIT;
+"#;
 
 /// Bring `conn` up to [`USER_VERSION`], or refuse to touch it.
 pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
@@ -568,6 +583,13 @@ pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
     if found < 9 {
         conn.execute_batch(V9)
             .map_err(|source| MigrateError::Sql { version: 9, source })?;
+    }
+    if found < 10 {
+        conn.execute_batch(V10)
+            .map_err(|source| MigrateError::Sql {
+                version: 10,
+                source,
+            })?;
     }
     Ok(())
 }
