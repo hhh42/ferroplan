@@ -941,6 +941,19 @@ polish FIRST is the right shape outright: **40 / 40, points 19.4 → 26.2**
 on the subset (the share version read 22.5), 25 better / 1 worse (rovers
 i15, 3294 → 3398), 0 unpriced -- the five rovers regressions are gone.
 
+**Half the share, MEASURED 2026-10-05 05:55 (`half1s`, engine 3279a9e045ed,
+the same 60 simple cells):** 60 / 60 rows, 25 better / 5 worse, points +0.6
+on the subset; storage i17-i20 still UNPRICED (four, from five) and trucks
+i11/i13 still 2 and 6 against optima of 0 -- the 12 s the first polish
+takes before the compiled grounding is what storage's 5-6 GB grounding and
+trucks' optimizer were short of, and the seed-grounding skip (a tenth of the
+wall) does not see storage coming because its seed task grounds fast. The
+polish first fired on 35 of 60. Where the three shapes stand on the simple
+subset against 0.28.0: share-after +1.6 but storage i18 LOST; polish-first
++0.3; half share +0.6, no row lost. On qualitative the polish first is +6.8
+with nothing lost. A skip rule that sees the compiled task's size coming
+is the next (and last) turn of this knob before the boards decide.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
