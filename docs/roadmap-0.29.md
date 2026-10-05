@@ -968,6 +968,16 @@ cells. The last turn: skip the first polish where the seed task is large
 (the compiled task is larger still) -- the threshold read off the seed
 sizes below.
 
+The seed sizes do not separate them (trucks i13: 18,876 ops and the polish
+first helps; storage i16: 14,488 and it hurts), nor do the preference
+counts (rovers-qualitative i20 has 274 and gains +6.8). What does is the
+**peak resident set after the seed's grounding**, read at the polish:
+storage i16 5.45 GB, storage-qualitative i18 4.22, storage i12 1.74,
+storage i8 0.36, trucks i13 0.05, openstacks i10 0.01 -- storage's
+preference expansion fills the memory before the compiled task exists
+(0.28 Lane M's class). So: no first polish where that peak is past a
+quarter of the declared budget (`FF_MEM_BUDGET_GB`); re-read as `mem1s`.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
