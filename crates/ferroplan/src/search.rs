@@ -380,6 +380,9 @@ struct Node {
     father: usize,
     op: usize,
     g: usize,
+    /// The path's accumulated per-op penalty (0.29 Lane 1), in key units;
+    /// zero everywhere without an [`OP_PENALTY`] table.
+    pen: i64,
     /// Landmarks accepted along the path (0.11 Phase 3, `w_lm` only;
     /// empty — no allocation — when the term is off).
     lm_acc: Vec<u64>,
@@ -936,6 +939,34 @@ impl SatGuidance {
     }
 }
 
+thread_local! {
+    /// A per-op penalty table for the searches inside [`with_op_penalty`]
+    /// (0.29 Lane 1). `None` everywhere else, which is the byte-identical
+    /// path: no node reads it.
+    static OP_PENALTY: std::cell::RefCell<Option<std::sync::Arc<[i64]>>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Run `f` with best-first charging `table[op]` (key units: the heap key
+/// is `w_g * g + w_h * h + ...`, so a unit of `w_g` is one step) on every
+/// path through `op`. The polish prices the held preferences a candidate's
+/// plan would break: an op that makes a kept-false atom true costs that
+/// preference's weight, so the search prefers the plan that breaks the
+/// fewest, and the pricing afterwards says whether the trade paid. EHC and
+/// the other rungs ignore the table; the caller runs best-first alone.
+pub fn with_op_penalty<R>(table: std::sync::Arc<[i64]>, f: impl FnOnce() -> R) -> R {
+    let prev = OP_PENALTY.with(|p| p.replace(Some(table)));
+    struct Restore(Option<std::sync::Arc<[i64]>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            let prev = self.0.take();
+            OP_PENALTY.with(|p| *p.borrow_mut() = prev);
+        }
+    }
+    let _r = Restore(prev);
+    f()
+}
+
 /// Solve toward an ARBITRARY (sub)goal from an arbitrary start state over a
 /// shared grounded task — the reusable subplanner entry point for SGPlan-style
 /// partition-and-resolve. `search` is the whole-task convenience wrapper.
@@ -1033,11 +1064,16 @@ pub fn search_from(
     if !clms.is_empty() {
         clm_accept_into(&mut root_clm, &clms, &init);
     }
+    // The per-op penalty table, if a caller scoped one (0.29 Lane 1): the
+    // polish prices the held preferences a candidate's plan would break as
+    // op costs, so best-first prefers the plan that breaks the fewest.
+    let penalty: Option<std::sync::Arc<[i64]>> = OP_PENALTY.with(|p| p.borrow().clone());
     let mut nodes: Vec<Node> = vec![Node {
         state: init.clone(),
         father: usize::MAX,
         op: usize::MAX,
         g: 0,
+        pen: 0,
         lm_acc: root_clm,
     }];
     // Deferred evaluation: a node's priority is set from its PARENT's h at
@@ -1439,6 +1475,7 @@ pub fn search_from(
                 if g >= cfg.g_bound || g >= len_bound {
                     continue; // cannot beat the length incumbent (see SearchCfg)
                 }
+                let pen = nodes[pi].pen + penalty.as_ref().map_or(0, |t| t[oi]);
                 let bucket = visited.entry(k).or_default();
                 // Orbit dedup pays canonicalization per COLLISION (the
                 // candidate once, plus each bucket occupant) — genuine
@@ -1486,6 +1523,7 @@ pub fn search_from(
                             father: pi,
                             op: oi,
                             g,
+                            pen,
                             lm_acc: acc,
                         });
                         let key = cfg.w_g * g as i64
@@ -1493,7 +1531,8 @@ pub fn search_from(
                             + cfg.w_lm * un
                             + res_term
                             + sat_pen
-                            + cost_term;
+                            + cost_term
+                            + pen;
                         heap.push(Reverse((key, idx)));
                         if cfg.pref_ops {
                             expanded.push(false);
@@ -1509,6 +1548,7 @@ pub fn search_from(
                         father: pi,
                         op: oi,
                         g,
+                        pen,
                         lm_acc: Vec::new(),
                     });
                     let key = cfg.w_g * g as i64
@@ -1516,7 +1556,8 @@ pub fn search_from(
                         + lm_term
                         + res_term
                         + sat_pen
-                        + cost_term;
+                        + cost_term
+                        + pen;
                     heap.push(Reverse((key, idx)));
                     if cfg.pref_ops {
                         expanded.push(false);

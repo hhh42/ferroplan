@@ -352,6 +352,12 @@ pub struct Polished {
     pub gained: Vec<String>,
 }
 
+/// How many STEPS a unit of preference weight is worth in the candidate
+/// search's key: a held preference of weight 1 costs the plan as much as
+/// this many extra actions. Large, so the search breaks a held preference
+/// only when the candidate cannot be had otherwise.
+pub const POLISH_PENALTY_STEPS: f64 = 50.0;
+
 /// The evaluation cap of ONE polish attempt (`FF_PREF_POLISH_EVALS`). A
 /// preference the classical ladder cannot reach in this many evaluations
 /// from a fresh start is not one a local step was going to find.
@@ -862,17 +868,32 @@ pub fn polish(
             // says whether the trade paid. (Forbidding all of them made
             // every pathways candidate unreachable; forbidding none made
             // every candidate choose far more than it needed.)
-            let mut kept: Vec<u32> = Vec::new();
+            // ... priced as op PENALTIES (0.29 Lane 1, the cost-aware
+            // candidate search): an op that makes a kept-false atom true
+            // costs that preference's weight, in best-first's key units
+            // (one step = w_g), so the candidate's plan breaks the fewest
+            // and cheapest held preferences it can; the pricing then says
+            // whether the trade paid. Forbidding them made pathways'
+            // candidates unreachable; ignoring them made every plan choose
+            // far more than it needed.
+            let mut penalty: Vec<i64> = vec![0; ht.n_ops];
+            let mut kept_any = false;
             for inst in insts.iter().filter(|x| x.held) {
                 if let Some(b) = &inst.body {
                     let mut atoms = Vec::new();
                     if kept_false_atoms(b, &mut atoms).is_some() {
-                        kept.extend(atoms.iter().filter_map(|a| ht.fact_id(a)).map(|f| f as u32));
+                        let w =
+                            (inst.weight * cfg.w_g as f64 * POLISH_PENALTY_STEPS).round() as i64;
+                        for f in atoms.iter().filter_map(|a| ht.fact_id(a)) {
+                            for oi in ht.achievers(f) {
+                                penalty[oi as usize] = penalty[oi as usize].saturating_add(w);
+                                kept_any = true;
+                            }
+                        }
                     }
                 }
             }
-            let init_state = ht.initial();
-            let mut sc = crate::heuristic::Scratch::new(ht);
+            let penalty: Option<std::sync::Arc<[i64]>> = kept_any.then(|| penalty.into());
             let mut reachable = false;
             let mut expressible = false;
             for d in disjuncts.unwrap_or_default() {
@@ -901,46 +922,22 @@ pub fn polish(
                 let mut t2 = ht.clone();
                 t2.goal_pos = dpos;
                 t2.goal_num = dnum;
-                let mut forbidden: Vec<bool> = vec![false; ht.n_ops];
-                if !kept.is_empty() {
-                    let needed: Vec<u32> = crate::heuristic::relaxed_plan_ops(
-                        ht,
-                        &mut sc,
-                        &init_state.bits,
-                        &init_state.fv,
-                        &init_state.fdef,
-                        &t2.goal_pos,
-                        &t2.goal_num,
-                    )
-                    .map(|ops| {
-                        ops.iter()
-                            .flat_map(|&oi| ht.add.slice(oi).iter().copied())
-                            .collect()
-                    })
-                    .unwrap_or_default();
-                    for &f in &kept {
-                        if needed.contains(&f) {
-                            continue;
-                        }
-                        for oi in ht.achievers(f as usize) {
-                            forbidden[oi as usize] = true;
-                        }
-                    }
-                }
-                let n_forbid = forbidden.iter().filter(|&&b| b).count();
-                let mut o = crate::search::plan_avoiding(&t2, threads, cfg, true, &forbidden, None);
-                if o.ops.is_none() && n_forbid > 0 && !crate::search::wall_hard_expired() {
-                    // Kept nothing extra: the forbidden search found no plan,
-                    // so take any plan and let the pricing decide.
-                    o = plan(&t2, threads, cfg, true, None);
-                }
+                // Under a penalty table the search is best-first alone (EHC
+                // reads no costs); without one the ladder runs as it would.
+                let o = match &penalty {
+                    Some(table) => crate::search::with_op_penalty(table.clone(), || {
+                        plan(&t2, threads, cfg, false, None)
+                    }),
+                    None => plan(&t2, threads, cfg, true, None),
+                };
                 if dbg {
                     eprintln!(
-                        "[polish] {}: {} ops forbidden for {} kept-false atoms, {}",
+                        "[polish] {}: {} ({} ops carry a penalty)",
                         insts[i].name,
-                        n_forbid,
-                        kept.len(),
-                        if o.ops.is_some() { "a plan" } else { "no plan" }
+                        if o.ops.is_some() { "a plan" } else { "no plan" },
+                        penalty
+                            .as_ref()
+                            .map_or(0, |t| t.iter().filter(|&&p| p > 0).count())
                     );
                 }
                 if let Some(ops) = o.ops {

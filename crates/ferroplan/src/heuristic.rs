@@ -110,7 +110,49 @@ pub struct TrpgInfo {
 }
 
 /// Reusable per-worker working memory for `relaxed`.
+/// The `FF_*` hatches the relaxation reads, taken ONCE per [`Scratch`]
+/// (0.29 Lane 2's residue): `relaxed_to_inner` read up to six of them per
+/// evaluation through `std::env::var`, which takes the environment lock and
+/// scans it -- ~2 % of every numeric evaluation in the coins i18 profiles.
+/// A worker builds its `Scratch` once per solve, so a test that sets a
+/// hatch and then evaluates sees it, and the hot path reads a bool.
+#[derive(Clone, Copy, Debug)]
+pub struct Hatches {
+    pub no_need_dirs: bool,
+    pub no_numpre: bool,
+    pub nodamp: bool,
+    pub noskip: bool,
+    pub nosum: bool,
+    pub no_chain: bool,
+    pub depth_cap: usize,
+    pub no_consume: bool,
+    pub no_numh: bool,
+}
+
+impl Hatches {
+    pub fn from_env() -> Self {
+        let on = |v: &str| std::env::var(v).is_ok();
+        Hatches {
+            no_need_dirs: on("FF_NO_NEED_DIRS"),
+            no_numpre: on("FF_NO_NUMPRE"),
+            nodamp: on("FF_NUMPRE_NODAMP"),
+            noskip: on("FF_NUMPRE_NOSKIP"),
+            nosum: on("FF_NUMPRE_NOSUM"),
+            no_chain: on("FF_NO_NUMPRE_CHAIN"),
+            depth_cap: std::env::var("FF_NUMPRE_DEPTH")
+                .ok()
+                .and_then(|v| v.trim().parse().ok())
+                .filter(|&n| n > 0)
+                .unwrap_or(4),
+            no_consume: on("FF_NO_CONSUME"),
+            no_numh: on("FF_NO_NUMH"),
+        }
+    }
+}
+
 pub struct Scratch {
+    /// The hatches, read once at construction.
+    pub hatch: Hatches,
     reached: Vec<bool>,
     fact_layer: Vec<u32>,
     op_layer: Vec<u32>,
@@ -151,6 +193,7 @@ impl Scratch {
     pub fn new(task: &PackedTask) -> Self {
         let nfl = task.fv0.len();
         Scratch {
+            hatch: Hatches::from_env(),
             reached: vec![false; task.n_facts],
             fact_layer: vec![INF; task.n_facts],
             op_layer: vec![INF; task.n_ops],
@@ -645,7 +688,7 @@ fn build_rpg(
         if !changed {
             return RpgExit::Fixpoint;
         }
-        if layer == NEED_PROBE_LAYER && std::env::var("FF_NO_NEED_DIRS").is_err() {
+        if layer == NEED_PROBE_LAYER && !sc.hatch.no_need_dirs {
             needs = Some(need_dirs(task, goal_num));
         }
         if layer > LAYER_CAP {
@@ -903,7 +946,9 @@ fn relaxed_extract(
         if eval_numpre(np, fv, def).unwrap_or(false) {
             continue;
         }
-        if let Some((oi, reps)) = numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen) {
+        if let Some((oi, reps)) =
+            numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen, sc.hatch.no_numh)
+        {
             select(task, sc, oi, reps, &mut count);
             while head < sc.queue.len() {
                 let f = sc.queue[head] as usize;
@@ -934,10 +979,7 @@ fn relaxed_extract(
     // byte-identical, and the temporal groundings clear `charge_pre_num`
     // unless `FF_NUMPRE_TEMPORAL` arms it (0.26 F3 — see packed.rs).
     // `FF_NO_NUMPRE=1` restores the plateau regardless.
-    if task.charge_pre_num
-        && !task.pre_num.flat.is_empty()
-        && std::env::var("FF_NO_NUMPRE").is_err()
-    {
+    if task.charge_pre_num && !task.pre_num.flat.is_empty() && !sc.hatch.no_numpre {
         let selected_ops: Vec<usize> = (0..task.n_ops)
             .filter(|&oi| sc.selected[oi] == sc.gen)
             .collect();
@@ -981,9 +1023,9 @@ fn relaxed_extract(
         // charges even mover-covered preconditions (correction 2 off);
         // `FF_NUMPRE_NOSUM=1` selects first-wins instead of accumulating
         // (correction 1 off). Both together ≡ NODAMP.
-        let damp = std::env::var("FF_NUMPRE_NODAMP").is_err();
-        let skip_half = damp && std::env::var("FF_NUMPRE_NOSKIP").is_err();
-        let sum_half = damp && std::env::var("FF_NUMPRE_NOSUM").is_err();
+        let damp = !sc.hatch.nodamp;
+        let skip_half = damp && !sc.hatch.noskip;
+        let sum_half = damp && !sc.hatch.nosum;
         let mut charges: Vec<(usize, i32)> = Vec::new();
         for oi in &selected_ops {
             for np in task.pre_num.slice(*oi) {
@@ -993,7 +1035,8 @@ fn relaxed_extract(
                 if skip_half && selected_mover_exists(task, &selected_ops, np, fv, def) {
                     continue;
                 }
-                let Some((ai, reps)) = numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen)
+                let Some((ai, reps)) =
+                    numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen, sc.hatch.no_numh)
                 else {
                     continue;
                 };
@@ -1041,12 +1084,8 @@ fn relaxed_extract(
         // `FF_NO_NUMPRE_CHAIN=1` restores the one-level charge; the
         // do-not-give-back pins are fo-sailing i8's fixture pair
         // (tests/numpre.rs) and the sailing/watering unit pins here.
-        if sum_half && std::env::var("FF_NO_NUMPRE_CHAIN").is_err() {
-            let depth_cap: usize = std::env::var("FF_NUMPRE_DEPTH")
-                .ok()
-                .and_then(|v| v.trim().parse().ok())
-                .filter(|&n| n > 0)
-                .unwrap_or(4);
+        if sum_half && !sc.hatch.no_chain {
+            let depth_cap: usize = sc.hatch.depth_cap;
             let mut chained: Vec<usize> = Vec::new();
             let mut frontier: Vec<(usize, usize)> =
                 charges.iter().map(|&(ai, _)| (ai, 1)).collect();
@@ -1066,7 +1105,7 @@ fn relaxed_extract(
                         continue;
                     }
                     let Some((aj, reps)) =
-                        numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen)
+                        numeric_achiever(task, np, fv, def, &sc.op_stamp, sc.gen, sc.hatch.no_numh)
                     else {
                         continue;
                     };
@@ -1110,10 +1149,7 @@ fn relaxed_extract(
     // the pre_num charge uses) for ceil(deficit / per-firing) firings. A
     // task whose relaxed plan spends nothing it reads is byte-identical.
     // `FF_NO_CONSUME=1` restores the blind h.
-    if task.charge_pre_num
-        && !task.pre_num.flat.is_empty()
-        && std::env::var("FF_NO_CONSUME").is_err()
-    {
+    if task.charge_pre_num && !task.pre_num.flat.is_empty() && !sc.hatch.no_consume {
         consumption_charge(task, sc, bits, fv, def, &mut count, &mut head);
     }
 
@@ -1451,7 +1487,9 @@ fn consumption_charge(
             op: CompOp::Ge,
             rhs: NExpr::Num(stock + deficit),
         };
-        let Some((ai, reps)) = numeric_achiever(task, &np, fv, def, &sc.op_stamp, sc.gen) else {
+        let Some((ai, reps)) =
+            numeric_achiever(task, &np, fv, def, &sc.op_stamp, sc.gen, sc.hatch.no_numh)
+        else {
             continue;
         };
         if sc.selected[ai] == sc.gen {
@@ -1672,8 +1710,9 @@ fn numeric_achiever_linear(
     def: &[bool],
     op_stamp: &[u32],
     gen: u32,
+    no_numh: bool,
 ) -> Option<(usize, i32)> {
-    if std::env::var("FF_NO_NUMH").is_ok() {
+    if no_numh {
         return None;
     }
     let mut coeffs: Vec<(u32, f64)> = Vec::new();
@@ -1825,14 +1864,15 @@ fn numeric_achiever(
     def: &[bool],
     op_stamp: &[u32],
     gen: u32,
+    no_numh: bool,
 ) -> Option<(usize, i32)> {
     let target = match &np.lhs {
         NExpr::Fluent(i) => *i,
-        _ => return numeric_achiever_linear(task, np, fv, def, op_stamp, gen),
+        _ => return numeric_achiever_linear(task, np, fv, def, op_stamp, gen, no_numh),
     };
     let want = match &np.rhs {
         NExpr::Num(n) => *n,
-        _ => return numeric_achiever_linear(task, np, fv, def, op_stamp, gen),
+        _ => return numeric_achiever_linear(task, np, fv, def, op_stamp, gen, no_numh),
     };
     let cur = if def[target as usize] {
         fv[target as usize]

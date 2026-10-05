@@ -948,6 +948,15 @@ for 0.30 unless it is a one-line fix.
   0.358 s wall. The suite otherwise reads 394 passed. The fixture wants a
   quiet box, as every timing fixture here does; it is not re-calibrated on a
   loaded one.
+- Under Timberborn at 185-200 % CPU (the afternoon's box), pathways-simple
+  i16 through `ff --json` at `FF_TIME_LIMIT=60`: the compiled task's
+  grounding checkpoint expired mid-enumeration and the process still
+  returned at **81 s** -- 21 s past the wall -- with the empty plan,
+  unpriced. The report reserve is sized for a quiet box; a grounding that
+  trips its checkpoint on a loaded one spends the teardown past the wall.
+  The runner kills at 60 s, so the row would read `mem-cap`/timeout, not
+  this; an instrument note for the memory class, with the receipt in
+  `probes-0.29/lane1b-pathways16.out`.
 - Lane 5's probe wrote `evaluated = None` for every row: `ff --json` carries
   the count under `statistics.evaluated_states`, not a top-level key. The
   peaks and seconds are what the record uses.
