@@ -400,8 +400,20 @@ pub fn polish_first(
             )
         })
         .collect();
-    let _slice = crate::search::wall_remaining_secs()
-        .map(|rem| rem * (1.0 - polish_frac()))
+    // The slice is the cost: at `polish_frac` (0.4) of the wall before the
+    // compiled grounding, storage's 5-6 GB grounding no longer fit (i16-i20
+    // unpriced) and trucks' optimizer lost its optima (first1s). So the
+    // first polish takes HALF the share (`FF_PREF_POLISH_FIRST_FRAC`, 0.2)
+    // -- its attempts are cheap, zero groundings -- and is skipped outright
+    // where the seed task itself was slow to ground (over a tenth of the
+    // wall left), the sign that the compiled task will be dearer still.
+    let rem = crate::search::wall_remaining_secs();
+    if rem.is_some_and(|r| seed.ground_secs > 0.1 * r) {
+        return None;
+    }
+    let first_frac = crate::search::wall_frac_env("FF_PREF_POLISH_FIRST_FRAC", 0.5 * polish_frac());
+    let _slice = rem
+        .map(|rem| rem * (1.0 - first_frac))
         .and_then(crate::search::tighten_deadline);
     let p = polish(domain, problem, &incumbent, threads, cfg, Some(seed))?;
     let names = p
