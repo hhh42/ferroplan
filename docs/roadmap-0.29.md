@@ -815,6 +815,27 @@ compression rung reaches a plan there is the next question for the lane.
 The 0.28 residue note ("rovers best-h 28 -> 11 then flat") described the
 compressed task's search on a plan the route then threw away.
 
+**MEASURED 2026-10-04 22:15 (`lanes-1004/lane2`, engine 771d3808e167, the
+metric-time rovers|tpp|pathways subset, 110 cells, two passes, `compare
+--a 89cfdc5f06ed --b 771d3808e167`):**
+
+| estimator | 0.28.0 | 0.29 | delta | 95 % CI |
+|---|---:|---:|---:|---|
+| first attempt (the claim) | 24 | 37 | **+13** | [+6, +20] |
+| banked | 24 | 39 | +15 | [+8, +23] |
+| equal-N | 24 | 37 | +13 | [+6, +20] |
+
+Every estimator agrees in sign. 16 cells gained, 1 lost:
+**rovers-metric-time i28**, which 0.28.0 banked solved and 0.29 did not in
+three attempts -- owed a solo differential on both binaries (the 0.28.0
+engine must be rebuilt from its tag first) before it is called anything.
+The gains are the compile fix's (rovers); tpp and pathways stayed where they
+were, as the solo probe said. The lane's band was +15 to +30 on the whole
+200-cell board; this is the 110-cell subset it was named for, and reads at
+the band's floor on `first`. The engine carried the consumption charge,
+the cost-aware polish and the plan-sized scorer as well; none of those
+touches this board.
+
 ### Lane 1 — one grounding per polish, BUILT 2026-10-04
 
 The first build grounded twice per attempt (once to search, once to price)
