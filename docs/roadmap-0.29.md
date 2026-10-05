@@ -1070,7 +1070,12 @@ for 0.30 unless it is a one-line fix.
   tonight and `rho` is the contention referee. The per-width lines
   (Phase 0.5) fill from this run's readings. Read tonight's owed/thermal
   counts with that in mind; a re-run of the owed rows on a cold morning
-  box is the clean read.
+  box is the clean read. **The idle line, measured at 02:03 when the
+  gate re-read calibrated on the empty box: 0.520 s** -- the night's
+  1.27 s was 2.4x lenient, the 18:03 launch's 1.775 s 3.4x, the game's
+  2.58 s 5x. A calibration taken beside ANY foreign load is a lenient
+  night; the crucible should refuse to calibrate while the throttle reads
+  foreign load, and wait -- owed to Phase 0's ledger.
 - Lane 5's probe wrote `evaluated = None` for every row: `ff --json` carries
   the count under `statistics.evaluated_states`, not a top-level key. The
   peaks and seconds are what the record uses.
