@@ -982,9 +982,29 @@ so the 16 folding `mem-cap` rows at 7 s on the board are a grounder that
 gives up, not one that runs out; the next question is why `GroundWall`
 trips on it at once.
 
-### The trucks / propositional probe (one day; record only)
+### The trucks / propositional probe — RUN 2026-10-05 01:29-02:02 (record only)
 
-`probes-0.29/trucks/`: trucks-propositional i10/i15/i16, pathways-prop
+Solo, one thread, three reps at 60 s and one at 300 s, engine 771d3808e167,
+on the night's idle box (`probes-0.29/trucks/probe.tsv`):
+
+| cell | 60 s (3 reps) | 300 s | reading |
+|---|---|---|---|
+| trucks-propositional i10 | unsolved at 1.95-2.18 M evaluations | **solved**, 2.92 M | a near-miss: 60 s buys ~2.1 M of the 2.9 M it needs -- speed, 1.4x |
+| trucks-propositional i15 | unsolved, 0.54 M | unsolved, 3.79 M | a lost search |
+| trucks-propositional i16 | unsolved, 0.50 M | unsolved, 3.15 M | a lost search |
+| storage-propositional i27 | unsolved, 0.24-0.26 M | unsolved, 2.33 M | a lost search |
+| storage-propositional i28 | unsolved, 0.27-0.28 M | **solved**, 0.99 M | speed, 3.7x: the ladder reaches 0.27 M in a minute here against 2.1 M on trucks i10 -- storage's evaluations are eight times dearer |
+| pathways-propositional i17, i18 | not run: the script asked for one shared domain file and pathways ships one per instance | | a probe defect, re-run owed |
+
+So the propositional pool is two things. Two of five probed cells are speed
+(1.4x and 3.7x), which a faster evaluation or a wider box buys and which
+SGPlan5's 1,800 s bought outright; three are searches that do not converge
+in five minutes, which no budget buys -- the heuristic question Lane 3's
+constraints cells and the compressed tpp search also pose, and the next
+cycle's. The per-evaluation cost difference (storage 4.5k/s against trucks
+35k/s) names the first thing to profile.
+
+`probes-0.29/trucks/` (as scoped): trucks-propositional i10/i15/i16, pathways-prop
 i17–19, storage-prop i27–30, solo at 60 s and at 300 s, three reps, `sample`
 on one. The question is whether these are wall-edge speed
 (field-gaps-0.26 §1e: 57–59 s timeouts) or lost searches. Trucks is weak on
