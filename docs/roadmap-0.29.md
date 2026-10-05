@@ -892,6 +892,19 @@ seed task is plain AND some violated-able body is expressible by the fast
 path; otherwise the optimizer keeps its wall and the polish runs on what
 is left, as 0.28 did. Re-read on `--only storage|trucks|openstacks`.
 
+**MEASURED 2026-10-05 00:21 (`lanes-1004/lane1q`, engine 771d3808e167,
+ipc5-qual-pref, 100 cells, one pass):** rows **100 / 100** both engines, 0
+lost, first-attempt +2 [+0, +5]. Points **59.2 → 65.2** (+6.0; the first
+round read 63.3), 25 better / 6 worse, **0 solved unpriced** (0.28.0 had 5),
+13 empty plans; the polish gained on 28 cells (rovers 12, trucks 11, storage
+2). The six worse are all rovers (i1 68 → 98, i2 33 → 61, i3 29 → 82, i4
+26 → 55, i7 38 → 46, i18 6256 → 7203): rovers' metric carries a numeric
+term beside the violations, and the optimizer that chased it lost the wall
+the polish share took -- the simple board's storage shape again, so the
+same share gate (plain seed task AND an expressible body) is its fix, to be
+re-read on `--only rovers` with it. Against SGPlan5's 92.8 the gap is now
+27.6 of a band that asked for 75.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
