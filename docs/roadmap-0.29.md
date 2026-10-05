@@ -975,6 +975,18 @@ for 0.30 unless it is a one-line fix.
   The runner kills at 60 s, so the row would read `mem-cap`/timeout, not
   this; an instrument note for the memory class, with the receipt in
   `probes-0.29/lane1b-pathways16.out`.
+- **The overnight chain of 2026-10-04 (`probes-0.29/lanes-1004/`)** launched
+  three times. 16:56: suspended at once by the throttle (Timberborn at
+  185 %); its canary rows for engine 7caf433e532d, calibrated under the
+  game at 2.58 s, deleted. 18:03: the waiter launched it beside a stray
+  folding grounding of mine (foreign 301 %), calibrating at 1.775 s; rows
+  kept (a handful at width 1), its canary rows deleted, relaunched 18:17
+  on engine 771d3808e167 at **1.270 s** with Mail and Spotlight indexing at
+  315 % foreign -- still not a solo-quiet line, so the canary is LENIENT
+  tonight and `rho` is the contention referee. The per-width lines
+  (Phase 0.5) fill from this run's readings. Read tonight's owed/thermal
+  counts with that in mind; a re-run of the owed rows on a cold morning
+  box is the clean read.
 - Lane 5's probe wrote `evaluated = None` for every row: `ff --json` carries
   the count under `statistics.evaluated_states`, not a top-level key. The
   peaks and seconds are what the record uses.
