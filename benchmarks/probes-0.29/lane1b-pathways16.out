@@ -1,0 +1,17 @@
+{
+  "solved": true,
+  "mode": "pddl3",
+  "plan": {
+    "steps": [],
+    "length": 0
+  },
+  "statistics": {
+    "grounded_facts": 0,
+    "grounded_actions": 0,
+    "evaluated_states": 0,
+    "threads": 1
+  },
+  "notes": [
+    "PDDL3 metric NOT priced: the preference task did not ground inside the wall (wall budget exhausted during binding enumeration (Options::wall_ms): no task grounded, no verdict); this is the hard-goal plan, valid and unoptimized"
+  ]
+}

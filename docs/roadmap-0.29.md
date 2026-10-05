@@ -978,6 +978,22 @@ preference expansion fills the memory before the compiled task exists
 (0.28 Lane M's class). So: no first polish where that peak is past a
 quarter of the declared budget (`FF_MEM_BUDGET_GB`); re-read as `mem1s`.
 
+**MEASURED 2026-10-05 07:43 (`mem1s`, engine 80e6335515b7 = commit
+5277afe, the same 60):** 60 / 60 rows, 28 better / 5 worse, points +1.3;
+storage i16-i18 priced again, **i19 and i20 unpriced as on the night's
+engine** (they were on 0.28.0's board too in its first pass); the first
+polish skipped on storage 16-20 and fired on 8 storage, 7 trucks, 20
+openstacks cells. trucks i11/i13 read 2 and 6 where `latch1s` had them at
+0 under the same code -- the optimizer's optimum there is a wall-edge
+coin, not a mechanism. **Where the simple subset stands by shape:**
+share-after +1.6 (a row LOST), polish-first +0.3, half +0.6, latch +2.3,
+memory-skip +1.3; the last two are the same engine up to a skip that only
+storage sees, and their difference is trucks' coin. **This is where the
+knob stops; the three full boards on 80e6335515b7 are the referee**, with
+the night's full-board reads (771d3808e167: simple 95.8, qual 65.2, complex
+53.7, storage i18 lost under the share) as the comparison. The candidate
+engine for the cut is 5277afe unless the boards say otherwise.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
