@@ -359,10 +359,13 @@ pub fn polish_fast_expressible(domain: &Domain, problem: &Problem) -> bool {
             other => flat(other),
         }
     }
+    // MOST of them, not one: storage-simple i17 has 161 violated candidates
+    // of which a handful are flat, and the first polish spent its whole
+    // slice on the slow path for the rest (half1s).
     let objs = crate::ground::objects_by_type(domain, problem);
-    preferences(&problem.goal, &objs)
-        .iter()
-        .any(|(_, phi)| expressible(phi))
+    let prefs = preferences(&problem.goal, &objs);
+    let n = prefs.len();
+    n > 0 && prefs.iter().filter(|(_, phi)| expressible(phi)).count() * 2 >= n
 }
 
 /// THE POLISH FIRST (0.29 Lane 1, the third shape). The share taken from
@@ -415,7 +418,13 @@ pub fn polish_first(
     let _slice = rem
         .map(|rem| rem * (1.0 - first_frac))
         .and_then(crate::search::tighten_deadline);
-    let p = polish(domain, problem, &incumbent, threads, cfg, Some(seed))?;
+    let p = polish(domain, problem, &incumbent, threads, cfg, Some(seed));
+    // A memory trip inside the polish is the polish's: it latched the scope
+    // (sticky, for a chase's sake) and the compiled grounding that follows
+    // then bailed at entry -- storage i17-i20 came back unpriced for exactly
+    // this (half1s). The slice's scope is closed; start the grounding clean.
+    crate::mem::clear_latch();
+    let p = p?;
     let names = p
         .steps
         .iter()
