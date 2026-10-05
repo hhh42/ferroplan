@@ -414,6 +414,21 @@ pub fn polish_first(
     if rem.is_some_and(|r| seed.ground_secs > 0.1 * r) {
         return None;
     }
+    // The compiled task's cost, seen coming: where the SEED's grounding
+    // already peaked past a quarter of the declared memory budget -- storage
+    // i16 at 5.45 GB of 6, storage-qualitative i18 at 4.22 (the preference
+    // expansion at grounding; trucks and openstacks sit under 0.1 GB) -- the
+    // compiled grounding is the row's whole wall and the first polish's
+    // slice is what left storage i16-i20 unpriced (latch1s). No budget
+    // declared, no skip.
+    if let (Some(peak), Some(budget)) = (
+        crate::mem::peak_resident_bytes(),
+        crate::mem::declared_budget_bytes(),
+    ) {
+        if peak > budget / 4 {
+            return None;
+        }
+    }
     let first_frac = crate::search::wall_frac_env("FF_PREF_POLISH_FIRST_FRAC", 0.5 * polish_frac());
     let _slice = rem
         .map(|rem| rem * (1.0 - first_frac))
@@ -842,8 +857,10 @@ pub fn polish(
     let hard_task: Option<PackedTask> = if let Some(t) = reuse {
         if dbg {
             eprintln!(
-                "[polish] the seed's task is reused: {} ops, no grounding",
-                t.n_ops
+                "[polish] the seed's task is reused: {} ops, no grounding (seed grounded in {:.2} s; peak RSS {:.2} GB)",
+                t.n_ops,
+                seed.map_or(0.0, |s| s.ground_secs),
+                crate::mem::peak_resident_bytes().unwrap_or(0) as f64 / 1e9
             );
         }
         Some(t.clone())
