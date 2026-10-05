@@ -1367,6 +1367,27 @@ fn solve_pddl3(
     let (seed_d, seed_p) = seed_pair.map_or((domain, problem), |(d, p)| (d, p));
     let (seed_plan, seed_task) =
         pddl3::hard_goal_plan_with_task(seed_d, seed_p, threads, opts.search_cfg());
+    // THE POLISH FIRST (0.29 Lane 1): on the seed's own task, before the
+    // compiled grounding; its plan becomes the optimizer's seed, and the seed
+    // task is dropped here so the grounding has the memory to itself.
+    let mut polish_note: Option<String> = None;
+    let seed_plan = match (&seed_plan, &seed_task) {
+        (Some(names), Some(st)) => {
+            match pddl3::polish_first(domain, problem, names, st, threads, opts.search_cfg()) {
+                Some((polished, metric)) => {
+                    polish_note = Some(format!(
+                        "preference polish before the optimizer: {} steps, metric {metric}",
+                        polished.len()
+                    ));
+                    Some(polished)
+                }
+                None => seed_plan,
+            }
+        }
+        _ => seed_plan,
+    };
+    drop(seed_task);
+    let seed_task: Option<pddl3::SeedTask> = None;
     // From here on a plan may be in hand, so everything stops a reserve
     // short of the wall (the Lane S rule): the runner kills AT the wall.
     let _ground_wall = seed_plan
@@ -1513,6 +1534,9 @@ fn solve_pddl3(
             from_seed,
         }) => {
             let mut notes = Vec::new();
+            if let Some(n) = polish_note.take() {
+                notes.push(n);
+            }
             if from_seed {
                 notes.push(
                     "the optimizer found nothing cheaper inside its budget; this is the \

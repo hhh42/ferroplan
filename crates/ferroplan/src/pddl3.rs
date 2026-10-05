@@ -365,6 +365,59 @@ pub fn polish_fast_expressible(domain: &Domain, problem: &Problem) -> bool {
         .any(|(_, phi)| expressible(phi))
 }
 
+/// THE POLISH FIRST (0.29 Lane 1, the third shape). The share taken from
+/// the optimizer AFTER it ran cost storage its plans and trucks i13 its
+/// optimum, and holding the seed task through the compiled task's 5-6 GB
+/// grounding cost storage i18 its row (`mem-cap`) and i19/i20 their pricing
+/// (lanes-1004/gate1s). So the polish runs on incumbent zero BEFORE the
+/// compiled task is grounded -- on the seed's own plain task, under
+/// `polish_frac` of the wall, zero groundings -- and its plan is the SEED
+/// the optimizer starts from with its whole wall; the seed task is dropped
+/// before the grounding. `None` when nothing applies or nothing was gained;
+/// `Some(names, metric)` is the polished plan in the hard task's display
+/// names and its replay-priced metric.
+pub fn polish_first(
+    domain: &Domain,
+    problem: &Problem,
+    seed_names: &[String],
+    seed: &SeedTask,
+    threads: usize,
+    cfg: SearchCfg,
+) -> Option<(Vec<String>, f64)> {
+    if !polish_applies(domain, problem) || !seed_is_plain(&seed.task) {
+        return None;
+    }
+    if !polish_fast_expressible(domain, problem) {
+        return None;
+    }
+    let incumbent: Vec<(String, Vec<String>)> = seed_names
+        .iter()
+        .map(|n| {
+            let mut it = n.split_whitespace();
+            (
+                it.next().unwrap_or("").to_string(),
+                it.map(str::to_string).collect(),
+            )
+        })
+        .collect();
+    let _slice = crate::search::wall_remaining_secs()
+        .map(|rem| rem * (1.0 - polish_frac()))
+        .and_then(crate::search::tighten_deadline);
+    let p = polish(domain, problem, &incumbent, threads, cfg, Some(seed))?;
+    let names = p
+        .steps
+        .iter()
+        .map(|(h, a)| {
+            if a.is_empty() {
+                h.clone()
+            } else {
+                format!("{h} {}", a.join(" "))
+            }
+        })
+        .collect();
+    Some((names, p.metric))
+}
+
 /// The share of the wall left to the polish when it applies (default 0.4).
 pub fn polish_frac() -> f64 {
     crate::search::wall_frac_env("FF_PREF_POLISH_FRAC", 0.4)

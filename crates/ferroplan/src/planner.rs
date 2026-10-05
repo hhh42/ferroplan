@@ -401,7 +401,33 @@ fn plan_pddl3(
     // Incumbent zero (0.28 Lane I) -- the library path's rule, so text and
     // JSON agree on which rows solve.
     let (seed_d, seed_p) = seed_pair.map_or((domain, problem), |(d, p)| (d, p));
-    let (seed, seed_task) = pddl3::hard_goal_seed_with_task(seed_d, seed_p, &task, threads, cfg);
+    let (seed_names, seed_task) = pddl3::hard_goal_plan_with_task(seed_d, seed_p, threads, cfg);
+    // THE POLISH FIRST (0.29 Lane 1), as in api.rs: on the seed's task,
+    // before anything else spends the wall; the seed task is dropped after.
+    let mut polish_note: Option<String> = None;
+    let seed_names = match (&seed_names, &seed_task) {
+        (Some(names), Some(st)) => {
+            match pddl3::polish_first(domain, problem, names, st, threads, cfg) {
+                Some((polished, metric)) => {
+                    polish_note = Some(format!(
+                        "preference polish before the optimizer: {} steps, metric {metric}",
+                        polished.len()
+                    ));
+                    Some(polished)
+                }
+                None => seed_names,
+            }
+        }
+        _ => seed_names,
+    };
+    drop(seed_task);
+    let seed_task: Option<pddl3::SeedTask> = None;
+    let seed = seed_names
+        .as_deref()
+        .and_then(|names| pddl3::lift_seed(&task, names));
+    if let Some(n) = &polish_note {
+        out.push_str(&format!("; {n}\n"));
+    }
     // The optimizer improves a plan that could already be reported, so it
     // stops a reserve short of the wall (the Lane S rule): the runner kills
     // AT the wall, and a metric polished until 60.4 s is a row lost.
