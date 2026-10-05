@@ -954,6 +954,20 @@ subset against 0.28.0: share-after +1.6 but storage i18 LOST; polish-first
 with nothing lost. A skip rule that sees the compiled task's size coming
 is the next (and last) turn of this knob before the boards decide.
 
+**The latch cleared and most-bodies-expressible, MEASURED 2026-10-05 06:34
+(`latch1s`, engine a6b1728ff000, the same 60):** the trace of storage i17
+had shown the first polish's own candidate grounding tripping the memory
+wall with the 21,660-op seed task resident, the trip LATCHING the scope,
+and the compiled grounding bailing at entry; cleared, the subset reads
+**60 / 60, points +2.3** (the best of the four shapes: share-after +1.6 with
+a row lost, polish-first +0.3, half +0.6), 26 better / 2 worse (storage i12
+1023 → 1105, i14 1971 → 1981), trucks' optima back. Storage i16-i20 are
+still unpriced: there the first polish's 12 s is wall the 5-6 GB compiled
+grounding needs, latch or no latch; the polish first fired on 9 storage
+cells. The last turn: skip the first polish where the seed task is large
+(the compiled task is larger still) -- the threshold read off the seed
+sizes below.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
