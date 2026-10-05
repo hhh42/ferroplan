@@ -451,6 +451,18 @@ fn validate_at_plan_size(
     problem: &Problem,
     plan: &TimedPlan,
 ) -> Result<(), String> {
+    let (special, renamed) = specialise(domain, plan)?;
+    crate::temporal::validate(&special, problem, &renamed)
+}
+
+/// The domain specialised to ONE plan: a parameterless durative action per
+/// distinct ground step, its parameters substituted, and the plan renamed to
+/// match (`HEAD--STEPn`, instantaneous steps untouched). Each specialised
+/// action IS the ground instance the step named, so anything replayed on a
+/// grounding of this pair -- the validator, the soft scorer (0.29 Lane 1,
+/// the scorer at plan size) -- gets the original semantics at a grounding
+/// of `steps` ops instead of the task's.
+pub(crate) fn specialise(domain: &Domain, plan: &TimedPlan) -> Result<(Domain, TimedPlan), String> {
     let by_name: HashMap<String, &DurativeAction> = domain
         .durative_actions
         .iter()
@@ -514,14 +526,13 @@ fn validate_at_plan_size(
             duration: step.duration,
         });
     }
-    crate::temporal::validate(
-        &special,
-        problem,
-        &TimedPlan {
+    Ok((
+        special,
+        TimedPlan {
             steps,
             makespan: plan.makespan,
         },
-    )
+    ))
 }
 
 /// How much one attempt at the rung may spend.

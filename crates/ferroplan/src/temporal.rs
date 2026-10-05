@@ -4639,8 +4639,25 @@ pub struct SoftScorer<'a> {
     objs: HashMap<Sym, Vec<Sym>>,
     goal_prefs: Vec<(String, Formula)>,
     exp: crate::constraints::Expanded,
-    c: TemporalCompiled,
-    task: PackedTask,
+    /// The FULL snap compile and its grounding -- only under `FF_SCORE_FULL`
+    /// (0.29 Lane 1, the scorer at plan size): grounding the whole task to
+    /// score one plan cost 4.4 GB on pipesworld-complex and 12.7 s on
+    /// pathways-complex i20, and four complex cells banked "NOT scored"
+    /// because the memory budget left no room for it. By default `score`
+    /// specialises the domain to the plan's own steps and grounds THAT
+    /// (`tcompress::specialise`), so the scorer costs what the plan is.
+    full: Option<(TemporalCompiled, PackedTask)>,
+    /// The original init's atoms by display: a fact the plan-sized grounding
+    /// never reaches reads from here when a preference asks (static-true
+    /// facts are compiled away; nothing else the plan did not touch is
+    /// true).
+    init: std::collections::HashSet<String>,
+    /// The last plan-sized grounding, keyed by the plan's distinct ground
+    /// steps: the tiers score the banked plan and then the chase's, and a
+    /// chase that returned the same plan (or none) scores on the grounding
+    /// already built -- a replay, as the full scorer's second score was.
+    #[allow(clippy::type_complexity)]
+    cache: std::cell::RefCell<Option<(Vec<String>, TemporalCompiled, PackedTask)>>,
 }
 
 impl<'a> SoftScorer<'a> {
@@ -4660,32 +4677,100 @@ impl<'a> SoftScorer<'a> {
         if goal_prefs.is_empty() && exp.soft.is_empty() && !cond_prefs_declared {
             return None;
         }
-        let c = compile(domain, problem);
-        let task = crate::ground::ground_task(&c.domain, &c.problem, 1)?;
+        let full = if std::env::var("FF_SCORE_FULL").is_ok() {
+            let c = compile(domain, problem);
+            let task = crate::ground::ground_task(&c.domain, &c.problem, 1)?;
+            Some((c, task))
+        } else {
+            None
+        };
+        let init = problem
+            .init_atoms
+            .iter()
+            .map(|(p, a)| {
+                if a.is_empty() {
+                    format!("({p})")
+                } else {
+                    format!("({p} {})", a.join(" "))
+                }
+            })
+            .collect();
         Some(SoftScorer {
             domain,
             problem,
             objs,
             goal_prefs,
             exp,
-            c,
-            task,
+            full,
+            init,
+            cache: std::cell::RefCell::new(None),
         })
+    }
+
+    /// [`Self::prepare`] with the FULL grounding, whatever the hatch says --
+    /// the fixture that pins the plan-sized scorer to it.
+    pub fn prepare_full(domain: &'a Domain, problem: &'a Problem) -> Option<Self> {
+        let mut s = Self::prepare(domain, problem)?;
+        if s.full.is_none() {
+            let c = compile(domain, problem);
+            let task = crate::ground::ground_task(&c.domain, &c.problem, 1)?;
+            s.full = Some((c, task));
+        }
+        Some(s)
     }
 
     /// Score one plan. `None` when the plan does not replay, or when it
     /// touches no preference at all (a pair whose only preferences are
     /// action conditions, and a plan that applies none of those actions).
     pub fn score(&self, plan: &TimedPlan) -> Option<SoftScore> {
+        if let Some((c, task)) = &self.full {
+            return self.replay(c, task, plan, plan);
+        }
+        // The scorer at plan size: the domain specialised to this plan's
+        // steps, compiled and grounded -- `steps` ops, not the task's.
+        let (special, renamed) = crate::tcompress::specialise(self.domain, plan).ok()?;
+        let mut sig: Vec<String> = plan.steps.iter().map(|s| s.action.clone()).collect();
+        sig.sort();
+        sig.dedup();
+        let hit = self
+            .cache
+            .borrow()
+            .as_ref()
+            .is_some_and(|(k, _, _)| *k == sig);
+        if !hit {
+            let c = compile(&special, self.problem);
+            let task = crate::ground::ground_task(&c.domain, &c.problem, 1)?;
+            *self.cache.borrow_mut() = Some((sig, c, task));
+        }
+        let cache = self.cache.borrow();
+        let (_, c, task) = cache.as_ref()?;
+        self.replay(c, task, &renamed, plan)
+    }
+
+    /// Replay `ops_plan` (the plan as the grounded `task` names its actions)
+    /// and score it; `plan` is the original, whose step heads name the
+    /// durative actions the condition preferences live on. The two are the
+    /// same object on the full grounding and the renamed/original pair on
+    /// the plan-sized one.
+    fn replay(
+        &self,
+        c: &TemporalCompiled,
+        task: &PackedTask,
+        ops_plan: &TimedPlan,
+        plan: &TimedPlan,
+    ) -> Option<SoftScore> {
         let SoftScorer {
             domain,
             problem,
             objs,
             goal_prefs,
             exp,
-            c,
-            task,
+            ..
         } = self;
+        let init = Some(&self.init);
+        let ev = |task: &PackedTask, state: &State, phi: &Formula| {
+            crate::verify::eval_formula_init(task, state, phi, init)
+        };
         // Condition preferences (0.28 Lane B): `(preference p (at start phi))`
         // on a durative action, bound per plan step. The search drops them
         // (grounding reads a positive Pref as true); the count lives here, one
@@ -4743,7 +4828,7 @@ impl<'a> SoftScorer<'a> {
             step: Option<usize>,
         }
         let mut hs: Vec<H> = Vec::new();
-        for (si, step) in plan.steps.iter().enumerate() {
+        for (si, step) in ops_plan.steps.iter().enumerate() {
             let mut it = step.action.splitn(2, ' ');
             let head = it.next().unwrap_or("");
             let rest = it.next();
@@ -4808,9 +4893,7 @@ impl<'a> SoftScorer<'a> {
             }
         }
         for (_, f) in &mut folds {
-            f.step_at(0.0, &mut |phi| {
-                crate::verify::eval_formula(task, &state, phi)
-            });
+            f.step_at(0.0, &mut |phi| ev(task, &state, phi));
         }
         // (step, condition index, violated so far) for each open `over all`
         // preference: it reads every state strictly inside its action's
@@ -4819,7 +4902,7 @@ impl<'a> SoftScorer<'a> {
         let mut cond_seen: Vec<(String, bool)> = Vec::new();
         for h in &hs {
             for (s, k, v) in &mut open {
-                if !*v && !crate::verify::eval_formula(task, &state, &cond_prefs[*s][*k].2) {
+                if !*v && !ev(task, &state, &cond_prefs[*s][*k].2) {
                     *v = true;
                 }
             }
@@ -4829,7 +4912,7 @@ impl<'a> SoftScorer<'a> {
                         (ts, h.is_start),
                         (TimeSpec::Start, true) | (TimeSpec::End, false)
                     ) {
-                        let held = crate::verify::eval_formula(task, &state, phi);
+                        let held = ev(task, &state, phi);
                         cond_seen.push((name.clone(), !held));
                     }
                 }
@@ -4856,9 +4939,7 @@ impl<'a> SoftScorer<'a> {
                 }
             }
             for (_, f) in &mut folds {
-                f.step_at(h.time, &mut |phi| {
-                    crate::verify::eval_formula(task, &state, phi)
-                });
+                f.step_at(h.time, &mut |phi| ev(task, &state, phi));
             }
         }
 
@@ -4888,7 +4969,7 @@ impl<'a> SoftScorer<'a> {
             }
         }
         for (name, phi) in goal_prefs.iter() {
-            if crate::verify::eval_formula(task, &state, phi) {
+            if ev(task, &state, phi) {
                 satisfied += 1;
             } else {
                 violated.push(name.clone());

@@ -853,6 +853,24 @@ cost term), the next step for this lane. The boards' points are the
 crucible's read; the first step's gains (trucks, storage, tpp) are
 untouched by this one.
 
+### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
+
+`temporal::score_soft` grounded the whole snap-compiled task to price one
+plan: 4.4 GB on pipesworld-complex, 12.7 s on pathways-complex i20, and the
+four complex cells the first round banked "NOT scored: the wall or the
+memory budget left no room to build the scorer". `SoftScorer::score` now
+specialises the domain to the plan's own steps (`tcompress::specialise`,
+the validator's construction, shared), compiles and grounds THAT -- `steps`
+ops -- and replays on it; an atom the small grounding never reaches reads
+from the init (`eval_formula_init`). The last grounding is cached by the
+plan's distinct steps, so the chase's second score of the same plan is a
+replay, as before. `FF_SCORE_FULL=1` keeps the full grounding. Fixture
+`tests/score_plan_size.rs`: on a tank domain with goal, numeric, static,
+trajectory (`sometime`, `at-most-once`) and `total-time` terms, the solver's
+plan and three hand-built ones price IDENTICALLY on both groundings
+(violated set, satisfied count, metric), and the numbers are asserted
+outright. The complex board is tonight's read.
+
 ### Lane 4 — the achiever index, BUILT 2026-10-04
 
 `add_by_fact` carried one entry per op per shared-monitor add (ops x

@@ -33,7 +33,13 @@ All notable changes to this project are documented here.
   one goal per disjunct; held `(not ...)` bodies forbid their achievers in a
   candidate's search; an atom the grounder dropped reads from the init
   instead of as false. Pinned by fixtures counting the groundings (two, and
-  zero with the seed task).
+  zero with the seed task). The polish's candidate search prices the held
+  preferences a plan would break as per-op penalties and runs best-first
+  under them, so a candidate breaks the fewest it can. And the temporal
+  preference scorer prices a plan on a grounding of the plan's own steps
+  (`tcompress::specialise`) instead of the whole task -- 4.4 GB on
+  pipesworld-complex before; `FF_SCORE_FULL=1` keeps the old grounding --
+  pinned to it by a fixture scoring four plans both ways.
 - **The achiever index is no longer ops x monitors** (0.29 Lane 4). The
   shared monitor block's adds belong to every monitored op, and the index
   carried one entry per op per monitor add -- hundreds of millions of `u32`
