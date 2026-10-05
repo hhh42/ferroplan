@@ -338,6 +338,33 @@ pub fn polish_applies(domain: &Domain, problem: &Problem) -> bool {
             || crate::constraints::has_soft_constraints(domain, problem))
 }
 
+/// Can the polish's FAST path express at least one goal-preference body of
+/// this pair -- a conjunction of atoms and comparisons, or an `or` of such?
+/// The share of the optimizer's wall is taken only when it can (and the seed
+/// task is plain): on storage-preferences-simple every body is an `exists`,
+/// so each candidate took the per-candidate grounding, gained nothing, and
+/// the optimizer had lost 40 % of the wall that found its better plans
+/// (seven storage cells and trucks i13's optimum, lanes-1004/lane1s).
+pub fn polish_fast_expressible(domain: &Domain, problem: &Problem) -> bool {
+    fn flat(f: &Formula) -> bool {
+        match f {
+            Formula::Atom(..) | Formula::Comp(..) | Formula::True => true,
+            Formula::And(v) => v.iter().all(flat),
+            _ => false,
+        }
+    }
+    fn expressible(f: &Formula) -> bool {
+        match f {
+            Formula::Or(v) => v.iter().any(flat),
+            other => flat(other),
+        }
+    }
+    let objs = crate::ground::objects_by_type(domain, problem);
+    preferences(&problem.goal, &objs)
+        .iter()
+        .any(|(_, phi)| expressible(phi))
+}
+
 /// The share of the wall left to the polish when it applies (default 0.4).
 pub fn polish_frac() -> f64 {
     crate::search::wall_frac_env("FF_PREF_POLISH_FRAC", 0.4)

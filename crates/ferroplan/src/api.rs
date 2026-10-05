@@ -1483,11 +1483,18 @@ fn solve_pddl3(
     // for what a polish attempt costs; a share that could not hold one is
     // not taken from the optimizer, and the polish is then not started.
     let ground_secs = crate::search::wall_elapsed_secs().unwrap_or(0.0);
-    let polish_share = pddl3::polish_applies(domain, problem)
-        .then(crate::search::wall_remaining_secs)
-        .flatten()
-        .map(|rem| rem * pddl3::polish_frac())
-        .filter(|share| *share >= pddl3::polish_min_share(ground_secs, seed_task.as_ref()));
+    // The share is taken only when the polish can USE it: a plain seed task
+    // to search on and a body its fast path can express (lanes-1004/lane1s:
+    // on storage the share bought nothing and cost the optimizer its plans).
+    let polish_share = (pddl3::polish_applies(domain, problem)
+        && seed_task
+            .as_ref()
+            .is_some_and(|s| pddl3::seed_is_plain(&s.task))
+        && pddl3::polish_fast_expressible(domain, problem))
+    .then(crate::search::wall_remaining_secs)
+    .flatten()
+    .map(|rem| rem * pddl3::polish_frac())
+    .filter(|share| *share >= pddl3::polish_min_share(ground_secs, seed_task.as_ref()));
     let optimized = {
         let _opt_wall = polish_share.and_then(crate::search::tighten_deadline);
         pddl3::metric_optimize_seeded(
