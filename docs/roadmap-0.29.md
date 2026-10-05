@@ -936,6 +936,10 @@ each); the polish-first fired on 38 of 60 cells, the post-optimizer polish
 on one. Next (written 04:40): the first polish takes half the share (0.2,
 `FF_PREF_POLISH_FIRST_FRAC`) and is skipped where the seed task itself
 took over a tenth of the wall to ground -- re-read on the same 60.
+On the qualitative subset (`first1q`, rovers|trucks, 40 cells, 04:57) the
+polish FIRST is the right shape outright: **40 / 40, points 19.4 → 26.2**
+on the subset (the share version read 22.5), 25 better / 1 worse (rovers
+i15, 3294 → 3398), 0 unpriced -- the five rovers regressions are gone.
 
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
