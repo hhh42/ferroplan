@@ -923,6 +923,18 @@ plan and three hand-built ones price IDENTICALLY on both groundings
 (violated set, satisfied count, metric), and the numbers are asserted
 outright. The complex board is tonight's read.
 
+**MEASURED 2026-10-05 01:29 (`lanes-1004/lane4`, engine 771d3808e167, the
+whole ipc5-complex-pref board, 108 cells, three passes):** rows banked
+**80 → 81** (+1 [+0, +3]: pathways i27 gained, none lost); the first-attempt
+estimator reads −2 [−7, +3], the estimators disagree in sign, so no delta is
+claimed and the banked +1 is the standing read. Points **53.4 → 53.7**;
+solved unpriced **3 → 2** -- pipesworld i18 and storage i17 are PRICED now
+(the scorer at plan size; the first round's four unpriced pipesworld cells
+are none), pathways i27 and storage i18 remain; `mem-cap` 17 → 14 (the
+achiever index's doing, on storage); trucks i1 worse, 0 → 4, the share
+shape again. The lane-4 band (storage-complex +8 to +14) is NOT met: the
+index took three mem-caps off the class and converted no row.
+
 ### Lane 4 — the achiever index, BUILT 2026-10-04
 
 `add_by_fact` carried one entry per op per shared-monitor add (ops x
