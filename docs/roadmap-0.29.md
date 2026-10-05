@@ -874,6 +874,24 @@ cost term), the next step for this lane. The boards' points are the
 crucible's read; the first step's gains (trucks, storage, tpp) are
 untouched by this one.
 
+**MEASURED 2026-10-04 23:14 (`lanes-1004/lane1s`, engine 771d3808e167,
+ipc5-simple-pref, 130 cells, two passes):** rows **130 / 130** both engines,
+0 lost, first-attempt +3 [-1, +8]. Points (`lane1/quality.py` on the stage):
+**94.1 → 95.8** (+1.7; the first round's polish read 96.0), 29 cells better /
+9 worse, 2 solved unpriced (pathways/27, storage/19), 22 empty plans. The
+polish gained on 27 cells (openstacks 18, trucks 6, tpp 2, storage 2). The
+nine worse: seven storage cells (i5 25 → 47, i8 104 → 252, i9 525 → 577,
+i11, i12, i14, i7), openstacks i4 (16 → 23) and **trucks i13, whose 0.28.0
+optimum of 0 became 5**. The shape: the optimizer now hands the polish 40 %
+of its remaining wall whenever a second is left, and on storage the
+preference bodies are `exists` forms the fast path cannot express, so every
+candidate took the per-candidate grounding, gained nothing, and the
+optimizer had lost the wall that found its better plans. **The fix, written
+tonight, compiled when the chain ends:** the share is taken only when the
+seed task is plain AND some violated-able body is expressible by the fast
+path; otherwise the optimizer keeps its wall and the polish runs on what
+is left, as 0.28 did. Re-read on `--only storage|trucks|openstacks`.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
