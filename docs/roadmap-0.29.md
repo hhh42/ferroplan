@@ -925,6 +925,18 @@ trucks, 40 cells, 03:31) said the same: 40 / 40 rows, 23 better / 5 worse
 against 0.28.0, the five the same rovers cells (i1, i2, i3, i4, i18) --
 the gate changed nothing there either.
 
+**The polish FIRST, MEASURED 2026-10-05 04:06 (`first1s`, engine
+a3a38f0c694e, the same 60 simple cells):** rows **60 / 60 -- storage i18
+is back** (the seed task dropped before the grounding), 26 better / 6
+worse, points +0.3 on the subset (the share version read +1.6). The slice
+is the cost: 40 % of the wall before the compiled grounding left storage
+i16-i20 UNPRICED (the 5-6 GB grounding no longer fit) and the optimizer
+short on trucks (i11 0 → 2, i13 0 → 6, storage i7/i11/i12/i14 a few points
+each); the polish-first fired on 38 of 60 cells, the post-optimizer polish
+on one. Next (written 04:40): the first polish takes half the share (0.2,
+`FF_PREF_POLISH_FIRST_FRAC`) and is skipped where the seed task itself
+took over a tenth of the wall to ground -- re-read on the same 60.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
