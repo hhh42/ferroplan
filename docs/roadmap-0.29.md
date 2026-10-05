@@ -905,6 +905,23 @@ same share gate (plain seed task AND an expressible body) is its fix, to be
 re-read on `--only rovers` with it. Against SGPlan5's 92.8 the gap is now
 27.6 of a band that asked for 75.
 
+**The share gate, MEASURED 2026-10-05 02:51 (`lanes-1004/gate1s`, engine
+d4f103fe60a4, simple-pref `storage|trucks|openstacks`, 60 cells):** the gate
+changed NOTHING on these cells (0 worse, 5 better against the night's
+engine); against 0.28.0 the same seven are worse (storage i7, i8, i9, i11,
+i12, i14; trucks i13 0 → 4), and worse than that: **storage i18 is LOST**
+(`mem-cap` at 45.9 s; 0.28.0 solved it at 4149) and storage i19/i20 come
+back unpriced ("memory budget reached before grounding began"). The seed
+task, held alive for the polish through the compiled task's 5-6 GB
+grounding, is the memory; the up-front 40 % share, not the gate, is the
+points. So the third shape, written at 03:00 and compiled when the
+qualitative gate subset ends: **the polish runs FIRST** -- on incumbent
+zero, on the seed's own plain task, under `polish_frac` of the wall, zero
+groundings -- its plan is the optimizer's seed, the seed task is dropped
+before the compiled grounding, and the optimizer keeps its whole wall. The
+Lane 1 kill clause fires on storage i18 for the engines 771d3808e167 and
+d4f103fe60a4; neither ships.
+
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
 `temporal::score_soft` grounded the whole snap-compiled task to price one
