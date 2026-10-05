@@ -920,7 +920,10 @@ zero, on the seed's own plain task, under `polish_frac` of the wall, zero
 groundings -- its plan is the optimizer's seed, the seed task is dropped
 before the compiled grounding, and the optimizer keeps its whole wall. The
 Lane 1 kill clause fires on storage i18 for the engines 771d3808e167 and
-d4f103fe60a4; neither ships.
+d4f103fe60a4; neither ships. The qualitative gate subset (`gate1q`, rovers|
+trucks, 40 cells, 03:31) said the same: 40 / 40 rows, 23 better / 5 worse
+against 0.28.0, the five the same rovers cells (i1, i2, i3, i4, i18) --
+the gate changed nothing there either.
 
 ### Lane 1, mechanism 3 — the scorer at plan size, BUILT 2026-10-04 (evening)
 
