@@ -645,9 +645,17 @@ fn driver_ladder_pins() {
     // down through its own 5A slice knob (it walks the mini grid solo
     // otherwise — boards are where it plateaus), so the pin reads pure:
     // light dispatches, the driver is never entered.
+    // Since 0.29 Lane W the EHC slice is charged against ARRIVAL, so a
+    // slice knob alone no longer stands EHC down on a mini it keeps arriving
+    // on (it solved this one in 3 ms one run in two); the extension is
+    // hatched off here so the pin reads the ladder order, which is its point.
     let (stdout, stderr) = run_child(
         "canary",
-        &[("FF_TIME_LIMIT", "30"), ("FF_EHC_WALL_FRAC", "0.0001")],
+        &[
+            ("FF_TIME_LIMIT", "30"),
+            ("FF_EHC_WALL_FRAC", "0.0001"),
+            ("FF_NO_EHC_EXTEND", "1"),
+        ],
     );
     assert!(stdout.contains("CHILD-CANARY-SOLVED:true"), "{stdout}");
     assert!(

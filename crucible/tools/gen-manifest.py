@@ -195,6 +195,7 @@ def main():
     # are its product.
     sets.append(("cut27", "benchmarks/air27", list(cut26), "0.27"))
     sets.append(("cut28", "benchmarks/air28", list(cut26), "0.28"))
+    sets.append(("cut29", "benchmarks/air29", list(cut26), "0.29"))
 
     L = ["# benchmarks/manifest.toml -- the sweep instrument, versioned with the planner.",
          "#",
@@ -303,6 +304,9 @@ def main():
                   "# 0.28 version gate. cut27 stays as it is: it is the set every 0.28 probe",
                   "# and regression read was taken over (crucible-spec R3), and the promoted",
                   "# boards a subset reads as its prior are its product."],
+        "cut29": ["# The 0.29 cut set: the same 32 boards, its own stage, the 0.29 version",
+                  "# gate. cut28 stays: every 0.29 subset (lanes29, lanes-1004) was read over",
+                  "# it, and its promoted boards are the prior those subsets compare against."],
     }
     for name, stage, ids, ver in sets:
         if name in SET_NOTES:

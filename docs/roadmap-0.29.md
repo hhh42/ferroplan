@@ -1186,6 +1186,26 @@ Everything 0.28 listed, plus:
 
 ---
 
+## THE CUT — opened 2026-10-11
+
+Six days after the night of 2026-10-04 (nothing ran in between), the cut
+opens on the engine the knob stopped at: **commit 5277afe plus the bump**
+-- the polish first on the seed's own task (half share, latch cleared,
+skipped past a quarter of the memory budget, most bodies expressible), the
+cost-aware candidate search, the plan-sized scorer, the end-side-duration
+compile fix, the consumption charge, the achiever index, the hatch cache,
+and Phase 0.5's crucible. Version bumped to 0.29.0 across the six pins and
+the Python lock; `cut29` is a set in the manifest (`benchmarks/air29`,
+requires 0.29). The order: the release gates and the full suite on the
+bumped tree, the operator checkout rebuilt (`ff 0.29.0`), the 32-board
+`cut29` sweep detached and headless, then promote, snapshot, the release
+text, the pre-flight with the token's age, and the publish -- the user's
+step. Both declared measures are read on the sweep: rows by the
+pre-registered first-attempt estimator against 0.28.0 (`compare --a
+89cfdc5f06ed --b <cut29 hash>`), points by the quality column of
+`ipc-standings.md` against SGPlan5; the five 0.28 losses and rovers-
+metric-time i28 are re-run on both engines before any is named.
+
 ## The cut rule
 
 The 32-board `cut29` set, the same instrument; both declared measures read
