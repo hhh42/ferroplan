@@ -196,6 +196,10 @@ pub fn search_subgoal(
     slice: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
     let node_cap = crate::search::node_cap_for(task);
+    // The MEASURED memory wall for a bounded rung (0.30 Lane 5; see
+    // `MemWall::arm_rung`): the modelled cap under-charges these nodes, and
+    // the ladder's novelty-first arm reached 5.2 GB on city-car i6.
+    let mem_wall = crate::mem::MemWall::arm_rung();
     let words = start.bits.len();
     let dbg = std::env::var("FF_RES_DEBUG").is_ok();
     if dbg {
@@ -280,6 +284,15 @@ pub fn search_subgoal(
             if std::env::var("FF_RES_DEBUG").is_ok() {
                 eprintln!(
                     "[novelty] capped: {evaluated} evals (max {max_eval}), {} nodes (cap {node_cap})",
+                    nodes.len()
+                );
+            }
+            return None;
+        }
+        if mem_wall.hit() {
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: novelty MEMORY checkpoint at {evaluated} evals, {} nodes, handing down the ladder",
                     nodes.len()
                 );
             }
@@ -412,6 +425,10 @@ pub fn search_light(
         )
     });
     let node_cap = crate::search::node_cap_for(task);
+    // The MEASURED memory wall for a bounded rung (0.30 Lane 5; see
+    // `MemWall::arm_rung`): the modelled cap under-charges these nodes, and
+    // the ladder's novelty-first arm reached 5.2 GB on city-car i6.
+    let mem_wall = crate::mem::MemWall::arm_rung();
     let init = task.initial();
     let goal_pos = &task.goal_pos;
     let goal_num = &task.goal_num;
@@ -445,6 +462,15 @@ pub fn search_light(
             if std::env::var("FF_RES_DEBUG").is_ok() {
                 eprintln!(
                     "[novelty-light] capped: {evaluated} evals (max {max_eval}), {} nodes",
+                    nodes.len()
+                );
+            }
+            return None;
+        }
+        if evaluated & 0xFF == 0 && mem_wall.hit() {
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: novelty-light MEMORY checkpoint at {evaluated} pops, {} nodes, handing down the ladder",
                     nodes.len()
                 );
             }
@@ -658,6 +684,10 @@ pub fn search_driver(
     cfg: &DriverCfg,
 ) -> Option<(Vec<usize>, usize)> {
     let node_cap = crate::search::node_cap_for(task);
+    // The MEASURED memory wall for a bounded rung (0.30 Lane 5; see
+    // `MemWall::arm_rung`): the modelled cap under-charges these nodes, and
+    // the ladder's novelty-first arm reached 5.2 GB on city-car i6.
+    let mem_wall = crate::mem::MemWall::arm_rung();
     let init = task.initial();
     let goal_pos = &task.goal_pos;
     let goal_num = &task.goal_num;
@@ -736,27 +766,67 @@ pub fn search_driver(
     }
     mark_pairs(root_cell, &r_true, &r_new, &mut pairs);
 
+    // THE LAZY FRONTIER (0.30 Lane 5). `nodes` holds only the POPPED
+    // states -- an open entry is (key, father, op) on the heap and its
+    // state is regenerated from the father's when it is popped. The eager
+    // shape stored every generated successor's `State` and `r_acc` at
+    // generation, and on city-car i6 this rung held 3,880,241 of them at
+    // the memory wall after 29,952 pops: ~130 stored states per evaluated
+    // one, a frontier the search never looked at. Duplicate detection is
+    // by state-key hash at generation (a 64-bit key; the eager shape
+    // compared the stored states exactly), so an open entry costs the heap
+    // tuple and a hash-set entry instead of a state.
     let mut nodes = vec![DNode {
         state: init.clone(),
         father: usize::MAX,
         op: usize::MAX,
         r_acc: root_acc,
     }];
-    let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
-    heap.push(Reverse((0, 0)));
-    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
-    visited.insert(task.state_key_hash(&init, None), vec![0]);
+    // (key, father in `nodes`, op); `op == u32::MAX` is the root, already
+    // in `nodes` at `father`.
+    let mut heap: BinaryHeap<Reverse<(i64, u32, u32)>> = BinaryHeap::new();
+    heap.push(Reverse((0, 0, u32::MAX)));
+    let mut seen_keys: FxHashMap<u64, ()> = FxHashMap::default();
+    seen_keys.insert(task.state_key_hash(&init, None), ());
     let mut evaluated = 0usize;
 
-    while let Some(Reverse((_, ni))) = heap.pop() {
+    while let Some(Reverse((_, father, op))) = heap.pop() {
+        let ni = if op == u32::MAX {
+            father as usize
+        } else {
+            let father = father as usize;
+            let ns = task.apply(op as usize, &nodes[father].state);
+            let mut acc = nodes[father].r_acc.clone();
+            r_accept_into(&mut acc, &r_facts, &ns);
+            nodes.push(DNode {
+                state: ns,
+                father,
+                op: op as usize,
+                r_acc: acc,
+            });
+            nodes.len() - 1
+        };
         if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
             return Some((d_reconstruct(&nodes, ni), evaluated));
         }
         evaluated += 1;
-        if evaluated > max_eval || nodes.len() > node_cap {
+        // The node cap counts what is HELD: the closed states and the open
+        // entries, as the eager shape's `nodes.len()` did.
+        if evaluated > max_eval || nodes.len() + heap.len() > node_cap {
             if std::env::var("FF_RES_DEBUG").is_ok() {
                 eprintln!(
-                    "[novelty-driver] capped: {evaluated} pops (max {max_eval}), {} nodes",
+                    "[novelty-driver] capped: {evaluated} pops (max {max_eval}), {} nodes ({} closed)",
+                    nodes.len() + heap.len(),
+                    nodes.len()
+                );
+            }
+            return None;
+        }
+        if evaluated & 0xFF == 0 && mem_wall.hit() {
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: novelty-driver MEMORY checkpoint at {evaluated} pops, {} nodes ({} closed), handing down the ladder",
+                    nodes.len() + heap.len(),
                     nodes.len()
                 );
             }
@@ -789,14 +859,11 @@ pub fn search_driver(
             }
             let ns = task.apply(oi, &nodes[ni].state);
             let k = task.state_key_hash(&ns, None);
-            let bucket = visited.entry(k).or_default();
-            if bucket
-                .iter()
-                .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &ns, None))
-            {
+            if seen_keys.insert(k, ()).is_some() {
                 continue;
             }
-            bucket.push(nodes.len() as u32);
+            // Transient: the child's accepted-R count prices its key; the
+            // vector itself is rebuilt from the father's if it is popped.
             let mut acc = nodes[ni].r_acc.clone();
             r_accept_into(&mut acc, &r_facts, &ns);
             let r_count = acc.iter().map(|w| w.count_ones() as u16).sum::<u16>();
@@ -831,14 +898,7 @@ pub fn search_driver(
                 2
             };
             let key = rank * W_NOVEL + g as i64 * W_GOALS + (r_len as i64 - r_count as i64);
-            let idx = nodes.len();
-            nodes.push(DNode {
-                state: ns,
-                father: ni,
-                op: oi,
-                r_acc: acc,
-            });
-            heap.push(Reverse((key, idx)));
+            heap.push(Reverse((key, ni as u32, oi as u32)));
         }
     }
     if std::env::var("FF_RES_DEBUG").is_ok() {

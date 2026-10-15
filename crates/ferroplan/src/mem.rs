@@ -101,6 +101,28 @@ impl MemWall {
         MemWall { trip_at: None }
     }
 
+    /// A BOUNDED RUNG of the classical ladder (0.30 Lane 5): LAMA,
+    /// novelty-light and novelty are bets with the complete best-first
+    /// beneath them, which is exactly the work the "bounded work only" rule
+    /// above was written for -- stopping one costs a bet, never a row. So a
+    /// rung is armed whenever a budget is DECLARED, scope or no scope: on
+    /// city-car i6 the LAMA rung reached the runner's 6 GB cap at 20 s
+    /// (1.98 GB at 5 s, 5.9 GB at 20 s) while the best-first beneath it
+    /// would have run the whole wall in under a gigabyte, and the row was a
+    /// SIGKILL with forty seconds unspent. Inside bounded work the scope's
+    /// own rule (the latch) applies, as before.
+    pub fn arm_rung() -> Self {
+        if crate::search::bounded_work() {
+            return Self::arm();
+        }
+        let trip_at = if std::env::var("FF_NO_MEM_WALL").is_ok() {
+            None
+        } else {
+            declared_budget_bytes().map(|b| (b as f64 * trip_frac()) as u64)
+        };
+        MemWall { trip_at }
+    }
+
     pub fn armed(&self) -> bool {
         self.trip_at.is_some()
     }

@@ -407,6 +407,26 @@ solve is the subset sweep's question (the cells whose novelty rung trips
 early get most of the wall back). The 3.88 M-node driver store is (2)'s
 first target, ahead of LAMA's.
 
+**Mechanism 2, the driver's lazy frontier — BUILT 2026-10-15** (`novelty::
+search_driver`: an open entry is `(key, father, op)` on the heap plus a
+state-key hash in a set, the state regenerated from its father's on pop;
+duplicate detection by the 64-bit key at generation where the eager shape
+compared stored states; the node cap counts open + closed as before).
+**City-car i6 solo on the built engine (`measure3.sh`, `citycar6-lazydriver`):**
+the driver ran to its NODE cap — **17,179,987 held nodes, 179,622 closed**
+— against the eager shape's 3,880,241 at the memory wall after 29,952
+pops: six times the pops and 4.4× the frontier inside ~0.8 GB of growth
+over LAMA's residue (RSS 3.4 → 4.2 GB across the slice; ~47 B per open
+entry against ~1.2 KB). Peak **4,357 MB** (from 4,836); no "MEMORY
+checkpoint" line any more; still unsolved, the best-first 44,026
+evaluations after it. **The peak is LAMA's now** (3.2 GB at 10 s, 3.4 GB
+when its slice ends at 13 s), and LAMA's `Node { state, accepted }` per
+generated successor is the next target — the same change, with the
+batch pop regenerating its batch. Fixture `tests/lazy_frontier.rs`: k
+agents on a ring whose goal reverses their cyclic order (impossible,
+invisible to the relaxation, C(40, 8) states), the bytes the child
+process grows by per held node under 160.
+
 ---
 
 ## Lane 6 — the price of an evaluation

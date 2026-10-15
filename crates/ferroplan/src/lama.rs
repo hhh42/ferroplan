@@ -110,6 +110,12 @@ pub fn search_subgoal(
     let lms = crate::landmarks::landmarks_for(task, start, goal_pos);
     let lm_words = lms.len().div_ceil(64);
     let node_cap = crate::search::node_cap_for(task);
+    // The MEASURED memory wall for a bounded rung (0.30 Lane 5): the
+    // modelled cap above under-charges this rung's nodes (`accepted` per
+    // generated successor), and city-car i6 reached the runner's 6 GB at
+    // 20 s here. One kernel read per batch; a trip hands down like any
+    // exhausted budget.
+    let mem_wall = crate::mem::MemWall::arm_rung();
 
     let init = start.clone();
     let mut accepted0 = vec![0u64; lm_words];
@@ -261,6 +267,15 @@ pub fn search_subgoal(
         evaluated += popped.len();
         if evaluated > max_eval || evaluated > eval_ceiling || nodes.len() > node_cap {
             // budget spent: the incumbent (if any), else hand off to the fallback
+            return best_plan.map(|p| (p, evaluated));
+        }
+        if mem_wall.hit() {
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: LAMA MEMORY checkpoint at {evaluated} evals, {} nodes, handing down the ladder",
+                    nodes.len()
+                );
+            }
             return best_plan.map(|p| (p, evaluated));
         }
         // The wall slice (0.22 Phase 5A a1) + the hard checkpoint (Phase 2
