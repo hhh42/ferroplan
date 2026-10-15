@@ -1,0 +1,15 @@
+Phase 0.1 (docs/roadmap-0.30.md): the twelve reproduced 0.29.0 losses, solo, 3 reps, 60 s, 2026-10-15 12:49-14:50
+cell                                   0.29.0           FF_NO_CONSUME=1  0.28.0 rebuilt  
+driver-log-temporal-satisficing/6 t1   0/3              0/3              2/3 @22s        
+elevator-sequential-multi-core/19 t2   0/3              0/3              3/3 @60s        
+elevator-sequential-multi-core/19 t4   0/3              0/3              3/3 @58s        
+elevator-sequential-multi-core/20 t2   0/3              0/3              3/3 @60s        
+pipesworld-metric-time/36 t1           0/6 alarm6       0/3 alarm3       0/3 alarm3      
+rovers-metric-time/28 t1               0/3              3/3 @24s         3/3 @26s        
+settlers-snp-numeric-2026/5 t1         0/3              3/3 @8s          3/3 @8s         
+sugar-numeric-satisficing/17 t1        0/3              3/3 @47s         2/3 @52s        
+transport-sequential-multi-core/18 t2  0/3              0/3              0/3             
+transport-sequential-multi-core/18 t4  0/3              0/3              3/3 @60s        
+ztalloc-sum-numeric-2026/12 t1         0/3              3/3 @3s          3/3 @3s         
+ztalloc-sum-numeric-2026/9 t1          0/3              3/3 @34s         3/3 @34s        
+foreign_pcpu at row start: median 62%, max 1038%

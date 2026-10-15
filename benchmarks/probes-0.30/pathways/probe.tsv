@@ -1,0 +1,14 @@
+cell	wall	rep	solved	evals	secs	foreign_pcpu	note
+pathways-propositional/17	60	1	False	637858	58	36	
+pathways-propositional/17	60	2	False	502887	54	20	
+pathways-propositional/17	60	3	False	506622	55	15	
+pathways-propositional/17	300	4	False	5088816	293	19	
+pathways-propositional/18	60	1	False	1562271	59	97	
+pathways-propositional/18	60	2	False	1735685	58	156	
+pathways-propositional/18	60	3	False	1023099	55	11	
+pathways-propositional/18	300	4	False	7954209	290	395	
+pathways-propositional/19	60	1	False	390842	58	320	
+pathways-propositional/19	60	2	False	300704	58	600	
+pathways-propositional/19	60	3	False	473400	57	508	
+pathways-propositional/19	300	4	False	6661982	288	288	
+PROBE DONE

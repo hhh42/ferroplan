@@ -111,6 +111,33 @@ on it before its rows are.
      alarm** on its first rep (`solved: crash`, 75.6 s) — a 60 s wall
      overrun of more than 15 s beside ~330 % foreign load: Phase 0.6's
      report-reserve receipt, reproduced on a second shape.
+   **READ 2026-10-15 14:50 (`losses29/summary.txt`, all twelve cells, the
+   box at a median 62 % foreign CPU and bursts to 1,038 %):**
+
+   | cell | 0.29.0 | `FF_NO_CONSUME=1` | 0.28.0 rebuilt |
+   |---|---|---|---|
+   | rovers-metric-time i28 | 0/3 | **3/3 @ 24 s** | 3/3 @ 26 s |
+   | settlers-snp i5 | 0/3 | **3/3 @ 8 s** | 3/3 @ 8 s |
+   | sugar i17 | 0/3 | **3/3 @ 47 s** | 2/3 @ 52 s |
+   | ztalloc-sum i9 | 0/3 | **3/3 @ 34 s** | 3/3 @ 34 s |
+   | ztalloc-sum i12 | 0/3 | **3/3 @ 3 s** | 3/3 @ 3 s |
+   | pipesworld-metric-time i36 | 0/6, every rep past the 75 s alarm | 0/3, alarm | 0/3, alarm |
+   | driver-log-temporal i6 | 0/3 | 0/3 | 2/3 @ 22 s |
+   | elevator-mco i19 t2 / t4, i20 t2 | 0/3 each | 0/3 each | 3/3 @ 58–60 s each |
+   | transport-mco i18 t2 / t4 | 0/3 | 0/3 | 0/3 / 3/3 @ 60 s |
+
+   **The fork's first branch, five times over: the consumption charge is
+   the loss on every numeric cell.** Each is restored by the hatch to
+   0.28.0's own solve time — ztalloc i12 from unsolved at 60 s to 3 s. The
+   charge that bought +27 rows on 2023 numeric takes these five; Lane 2b
+   opens on them as fixtures (the question is what the charge does to the
+   relaxed plan's cost on these shapes — a plateau or a cliff — not whether
+   to keep it). The elevator cells and transport t4 are 0.28.0 solves AT
+   the wall (58–60 s): coins, as the record suspected, not a mechanism.
+   driver-log i6 (0.28.0 2/3 at 22 s, 0.29.0 never) is a real loss not the
+   charge's — temporal, so the duration compile is the next suspect, owed
+   a hatch. pipesworld i36 overran a 60 s wall by 15 s on BOTH engines
+   under this load: the Phase 0.6 reserve question, not a differential.
 0.2 **A solve the referee voids must have COST something.** Three of cut29's
    21 lost cells (pipesworld-prop i50, counters i16, mco-t8 transport i18)
    were solved on a first attempt the referee voided as thermal / swap and
@@ -213,6 +240,14 @@ on it before its rows are.
    6.2–6.5 GB** on engine 23 — the compiled preference task's grounding,
    Lane 5's grounding class. Only the pathways-propositional rows remain
    a probe here (`probes-0.30/pathways/run.sh`, per-instance domains).
+   **RUN 2026-10-15 (`pathways/probe.tsv`, solo, 60 s ×3 and 300 s ×1):**
+   i17 unsolved at 0.5–0.64 M evaluations in 60 s and **5.09 M in 300 s**;
+   i18 unsolved at 1.0–1.7 M and 7.95 M; i19 unsolved at 0.3–0.47 M and
+   6.66 M. All three are **lost searches**, not wall-edge speed: five
+   minutes and 5–8 M evaluations do not reach a plan. They join the trucks
+   i15/i16 and storage i27 note — a heuristic question for the
+   propositional board, and evidence that Lane 6's speed buys pathways
+   nothing by itself (10–27k evaluations/s here already).
 0.6 **Small and owed:** the probe scripts read `statistics.evaluated_states`
    (Lane 5's probe wrote `None` for every row); the report reserve on a
    loaded box (pathways-simple i16 returned at 81 s past a 60 s wall when
