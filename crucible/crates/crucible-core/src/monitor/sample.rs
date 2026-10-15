@@ -56,6 +56,45 @@ impl Sample {
     pub fn is_clean(&self) -> bool {
         self.competitors_total < SAMPLE_CLEAN_PCPU
     }
+
+    /// The loudest named competitor, for a message that says WHAT is loading
+    /// the box rather than only how much.
+    pub fn top_competitor(&self) -> Option<(&str, f64)> {
+        self.competitors
+            .iter()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(k, v)| (k.as_str(), *v))
+    }
+}
+
+/// Whether the canary's BASELINE may be taken now (0.30 Phase 0.3).
+#[derive(Debug, Clone, PartialEq)]
+pub enum CalibrationGate {
+    /// The box is clean by the sample's own line: calibrate.
+    Take,
+    /// Foreign load at or over the clean line: wait, and say what it is.
+    Wait {
+        foreign_pcpu: f64,
+        top: Option<(String, f64)>,
+    },
+}
+
+/// A baseline taken beside foreign load is a lenient night: the 0.29 cycle
+/// calibrated at 2.58 s under a game, 1.775 s beside a stray grounding and
+/// 1.27 s under Spotlight, against an idle line of 0.520 s, and every
+/// reading after was judged against the slow line. The gate is the sample's
+/// own clean line -- the same 25 % the throttle goes polite at -- so a
+/// calibration is refused exactly when a row beside the same load would be
+/// dirty.
+pub fn calibration_gate(s: &Sample) -> CalibrationGate {
+    if s.is_clean() {
+        CalibrationGate::Take
+    } else {
+        CalibrationGate::Wait {
+            foreign_pcpu: s.competitors_total,
+            top: s.top_competitor().map(|(k, v)| (k.to_string(), v)),
+        }
+    }
 }
 
 /// Parse `ps -Ao pcpu,comm -r` output into the competitor tally.
@@ -174,6 +213,41 @@ mod tests {
             ..Default::default()
         };
         assert!(!dirty.is_clean());
+    }
+
+    /// The calibration gate (0.30 Phase 0.3): a clean box calibrates; a box
+    /// under Spotlight at 77 % waits, and the wait names the load. The line
+    /// is the sample's own clean line, so the two can never disagree.
+    #[test]
+    fn a_baseline_is_refused_beside_foreign_load() {
+        let quiet = Sample {
+            competitors_total: 3.0,
+            ..Default::default()
+        };
+        assert_eq!(calibration_gate(&quiet), CalibrationGate::Take);
+        let mut competitors = BTreeMap::new();
+        competitors.insert("spotlightknowledged".to_string(), 76.6);
+        competitors.insert("cfprefsd".to_string(), 5.0);
+        let loaded = Sample {
+            competitors,
+            competitors_total: 81.6,
+            ..Default::default()
+        };
+        assert_eq!(
+            calibration_gate(&loaded),
+            CalibrationGate::Wait {
+                foreign_pcpu: 81.6,
+                top: Some(("spotlightknowledged".to_string(), 76.6)),
+            }
+        );
+        let at_the_line = Sample {
+            competitors_total: SAMPLE_CLEAN_PCPU,
+            ..Default::default()
+        };
+        assert!(matches!(
+            calibration_gate(&at_the_line),
+            CalibrationGate::Wait { .. }
+        ));
     }
 
     /// The mco case, which is the whole reason the verdict moved off idle: a

@@ -496,12 +496,20 @@ impl Reader {
         window: usize,
         pct: f64,
     ) -> Result<Option<f64>, DbError> {
+        // A reading stamped beside foreign load (0.30 Phase 0.3) is not a
+        // reading of this box's line: left out, so a lenient night cannot
+        // raise the next sweep's baseline. Unstamped (NULL) rows predate
+        // the column and are kept.
         let mut st = self.conn.prepare(
             "SELECT secs FROM canary WHERE label = ?1 AND solo = 1
+              AND (foreign_pcpu IS NULL OR foreign_pcpu < ?3)
               ORDER BY at DESC LIMIT ?2",
         )?;
         let mut secs: Vec<f64> = st
-            .query_map(params![label, window as i64], |r| r.get(0))?
+            .query_map(
+                params![label, window as i64, crate::monitor::SAMPLE_CLEAN_PCPU],
+                |r| r.get(0),
+            )?
             .collect::<Result<Vec<_>, _>>()?;
         if secs.is_empty() {
             return Ok(None);

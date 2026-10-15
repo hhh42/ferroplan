@@ -5,5 +5,5 @@ pub mod sample;
 pub mod throttle;
 
 pub use games::{GameRules, Proc};
-pub use sample::{Sample, SAMPLE_CLEAN_PCPU};
+pub use sample::{calibration_gate, CalibrationGate, Sample, SAMPLE_CLEAN_PCPU};
 pub use throttle::{Config, GameState, Level, Reason, Throttle, Transition};

@@ -1866,6 +1866,12 @@ fn games_now(plat: &platform::Host) -> monitor::GameState {
 /// window. This is the instrument for what `rho` cannot see: the packing
 /// calibration put four planners on four P-cores, each at rho 0.99, and
 /// they ran 1.73x slower than solo.
+/// How long the sweep waits between box samples while foreign load holds
+/// the canary's calibration off (0.30 Phase 0.3). Spotlight's indexing and
+/// a photo analysis run for minutes, not seconds; a game for hours, and a
+/// sweep that starts under one should say so every half minute, not spin.
+const CALIBRATION_WAIT: Duration = Duration::from_secs(30);
+
 pub struct Canary {
     argv: Vec<String>,
     envs: Vec<(std::ffi::OsString, std::ffi::OsString)>,
@@ -2148,12 +2154,17 @@ impl Watcher {
                             }
                             shared.hold(false);
                             if let Some((secs, _)) = reading {
+                                // Stamped with the foreign load it was read
+                                // beside, so the baseline percentile can
+                                // leave it out (0.30 Phase 0.3).
+                                let beside = sample_box(&plat).competitors_total;
                                 writer.canary(
                                     now_epoch(),
                                     c.label().to_string(),
                                     secs,
                                     pause,
                                     width,
+                                    Some(beside),
                                 );
                             }
                             if let Some((_, f)) = reading {
@@ -2541,10 +2552,43 @@ fn sweep_body(
                         .flatten()
                 });
                 let label = c.label().to_string();
+                // The baseline is refused beside foreign load (0.30 Phase
+                // 0.3): the 0.29 cycle calibrated under a game, a stray
+                // grounding and Spotlight, each a lenient night. Wait for
+                // the box's own clean line, saying what is loading it, and
+                // stamp the readings with what they were taken beside.
+                let plat = platform::host();
+                let foreign = loop {
+                    let s = sample_box(&plat);
+                    match monitor::calibration_gate(&s) {
+                        monitor::CalibrationGate::Take => break s.competitors_total,
+                        monitor::CalibrationGate::Wait { foreign_pcpu, top } => {
+                            if exec::interrupted() {
+                                anyhow::bail!("interrupted while waiting to calibrate the canary");
+                            }
+                            crate::say!(
+                                "canary  calibration waits: foreign load {:.0}%{} -- a baseline \
+                                 taken beside it would be a lenient night",
+                                foreign_pcpu,
+                                match &top {
+                                    Some((name, pcpu)) => format!(" ({name} {pcpu:.0}%)"),
+                                    None => String::new(),
+                                }
+                            );
+                            std::thread::sleep(CALIBRATION_WAIT);
+                        }
+                    }
+                };
                 let record = |secs: f64| {
                     if let Some(d) = &dbctx {
-                        d.db.writer()
-                            .canary(now_epoch(), label.clone(), secs, true, 0);
+                        d.db.writer().canary(
+                            now_epoch(),
+                            label.clone(),
+                            secs,
+                            true,
+                            0,
+                            Some(foreign),
+                        );
                     }
                 };
                 match c.calibrate(prior, &record, None) {

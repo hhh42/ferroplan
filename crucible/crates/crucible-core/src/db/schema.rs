@@ -19,7 +19,7 @@
 use rusqlite::Connection;
 
 /// The schema version this binary writes.
-pub const USER_VERSION: i32 = 10;
+pub const USER_VERSION: i32 = 11;
 
 /// Refusing to open, with the numbers a human needs to know which binary to run.
 #[derive(Debug, thiserror::Error)]
@@ -536,6 +536,20 @@ ALTER TABLE canary ADD COLUMN width INTEGER;
 PRAGMA user_version = 10;
 COMMIT;
 "#;
+/// v11 (0.30 Phase 0.3): the FOREIGN load the canary read beside -- the
+/// named-competitor total of the box sample taken just before the read, in
+/// percent of a core. The 0.29 cycle calibrated its baseline beside a game
+/// (2.58 s), a stray grounding (1.775 s) and Spotlight (1.27 s) against an
+/// idle line of 0.520 s; each made the night lenient, and `canary_baseline`'s
+/// percentile then carried the slow readings into the next sweep's line. A
+/// reading stamped at or above the clean line is left out of the baseline
+/// percentile; NULL (every reading before this column) is kept, as before.
+const V11: &str = r#"
+BEGIN;
+ALTER TABLE canary ADD COLUMN foreign_pcpu REAL;
+PRAGMA user_version = 11;
+COMMIT;
+"#;
 
 /// Bring `conn` up to [`USER_VERSION`], or refuse to touch it.
 pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
@@ -588,6 +602,13 @@ pub fn migrate(conn: &Connection) -> Result<(), MigrateError> {
         conn.execute_batch(V10)
             .map_err(|source| MigrateError::Sql {
                 version: 10,
+                source,
+            })?;
+    }
+    if found < 11 {
+        conn.execute_batch(V11)
+            .map_err(|source| MigrateError::Sql {
+                version: 11,
                 source,
             })?;
     }

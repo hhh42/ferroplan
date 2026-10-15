@@ -538,3 +538,43 @@ fn the_per_process_breakdown_survives_the_batch() {
         vec![("corespotlightd".to_string(), 12.0)]
     );
 }
+
+/// The canary's baseline percentile leaves out readings stamped beside
+/// foreign load (0.30 Phase 0.3). Five idle readings at 0.52 s and five
+/// taken under Spotlight at 1.27 s: the p25 is the idle line, not a blend;
+/// an unstamped reading (NULL, from before the column) still counts.
+#[test]
+fn a_reading_beside_foreign_load_does_not_set_the_baseline() {
+    let scratch = Scratch::new("canary-foreign");
+    let db = Db::open(&scratch.join("db")).expect("open");
+    let w = db.writer();
+    for i in 0..5 {
+        w.canary(100.0 + i as f64, "c".into(), 0.52, true, 0, Some(3.0));
+        w.canary(200.0 + i as f64, "c".into(), 1.27, true, 0, Some(315.0));
+    }
+    w.flush().expect("flush");
+    let r = db.reader().expect("reader");
+    let line = r
+        .canary_baseline("c", 100, 0.25)
+        .expect("baseline")
+        .expect("rows");
+    assert!(
+        (line - 0.52).abs() < 1e-9,
+        "the Spotlight readings raised the line to {line}"
+    );
+    // A lenient night's readings alone give no line at all, rather than a
+    // slow one.
+    let w = db.writer();
+    for i in 0..5 {
+        w.canary(300.0 + i as f64, "d".into(), 2.58, true, 0, Some(185.0));
+    }
+    w.flush().expect("flush");
+    assert_eq!(r.canary_baseline("d", 100, 0.25).expect("baseline"), None);
+    // Unstamped rows are the pre-column history and still count.
+    w.canary(400.0, "e".into(), 0.77, true, 0, None);
+    w.flush().expect("flush");
+    assert_eq!(
+        r.canary_baseline("e", 100, 0.25).expect("baseline"),
+        Some(0.77)
+    );
+}

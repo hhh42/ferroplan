@@ -47,7 +47,7 @@ enum Cmd {
     Run(Box<RunRecord>, Sender<Result<i64, DbError>>),
     Sample(Box<SampleRec>),
     Event(Box<EventRec>),
-    Canary(f64, String, f64, bool, u32),
+    Canary(f64, String, f64, bool, u32, Option<f64>),
     ThrottleOpen(ThrottleWindowRec, Sender<Result<i64, DbError>>),
     ThrottleClose {
         id: i64,
@@ -102,8 +102,20 @@ impl WriterHandle {
     /// `width` is how many of our own planners were attached at the reading
     /// (0 for a calibration run): the line the factor is read against is per
     /// width (v10).
-    pub fn canary(&self, at: f64, label: String, secs: f64, solo: bool, width: u32) {
-        let _ = self.tx.send(Cmd::Canary(at, label, secs, solo, width));
+    /// `foreign_pcpu` is the named-competitor load the reading was taken
+    /// beside (0.30 Phase 0.3), `None` when nothing sampled the box first.
+    pub fn canary(
+        &self,
+        at: f64,
+        label: String,
+        secs: f64,
+        solo: bool,
+        width: u32,
+        foreign_pcpu: Option<f64>,
+    ) {
+        let _ = self
+            .tx
+            .send(Cmd::Canary(at, label, secs, solo, width, foreign_pcpu));
     }
 
     /// Append one log line. Fire-and-forget, same reasoning.
@@ -396,12 +408,13 @@ fn immediate(conn: &Connection, ids: &mut Ids, cmd: Cmd) -> bool {
         Cmd::Flush(reply) => {
             let _ = reply.send(Ok(()));
         }
-        Cmd::Canary(at, label, secs, solo, width) => {
+        Cmd::Canary(at, label, secs, solo, width, foreign_pcpu) => {
             // Fire-and-forget telemetry: a lost canary row costs a reading,
             // never a verdict already made.
             let _ = conn.execute(
-                "INSERT INTO canary (at, label, secs, solo, width) VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![at, label, secs, solo as i64, width as i64],
+                "INSERT INTO canary (at, label, secs, solo, width, foreign_pcpu)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![at, label, secs, solo as i64, width as i64, foreign_pcpu],
             );
         }
         Cmd::Stop => return true,
