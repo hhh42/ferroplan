@@ -132,3 +132,71 @@ fn an_open_node_costs_a_tuple_not_a_state() {
         "{per_node:.0} bytes per held node ({growth} over {nodes}); the eager shape read 350+\n{capped}"
     );
 }
+
+/// The same receipt for the LAMA rung (its frontier went lazy after the
+/// driver's): on the ring it caps on `max_eval`, and the bytes the child
+/// grows by per held node (open on the normal heap + closed) stay under the
+/// line. LAMA's nodes carried a landmark `accepted` vector each as well as
+/// the state; the ring has one landmark per goal `at`, so the vector is
+/// small here and the state is what the line measures.
+#[test]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn a_lama_open_node_costs_a_tuple_not_a_state() {
+    if std::env::var("LAZY_LAMA_CHILD").is_ok() {
+        let (m, k, max_eval) = if cfg!(debug_assertions) {
+            (24, 6, 3_000)
+        } else {
+            (40, 8, 20_000)
+        };
+        let (dom, prb) = ring(m, k);
+        let d = ferroplan::parser::parse_domain(&dom).unwrap();
+        let p = ferroplan::parser::parse_problem(&prb).unwrap();
+        let task = ferroplan::ground::ground_task(&d, &p, 1).unwrap();
+        let before = ferroplan::mem::resident_bytes().expect("readable here");
+        let r = ferroplan::lama::search(&task, 1, max_eval, &[], None);
+        let peak = ferroplan::mem::peak_resident_bytes().expect("readable here");
+        println!("CHILD-SOLVED:{}", r.is_some());
+        println!("CHILD-GROWTH:{}", peak.saturating_sub(before));
+        return;
+    }
+    let exe = std::env::current_exe().unwrap();
+    let out = Command::new(&exe)
+        .args([
+            "--exact",
+            "a_lama_open_node_costs_a_tuple_not_a_state",
+            "--nocapture",
+        ])
+        .env("LAZY_LAMA_CHILD", "1")
+        .env("FF_RES_DEBUG", "1")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "child failed");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        field(&stdout, "CHILD-SOLVED:"),
+        "false",
+        "the reversal is impossible on a ring:\n{stdout}\n{stderr}"
+    );
+    // "[lama] capped: E evals (max M), N nodes (C closed)"
+    let capped = stderr
+        .lines()
+        .find(|l| l.contains("[lama] capped:"))
+        .unwrap_or_else(|| panic!("LAMA must cap on the ring:\n{stderr}"));
+    let nodes: f64 = capped
+        .split("), ")
+        .nth(1)
+        .and_then(|s| s.split(' ').next())
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| panic!("unparsed cap line: {capped}"));
+    let growth: f64 = field(&stdout, "CHILD-GROWTH:").parse().unwrap();
+    let per_node = growth / nodes;
+    assert!(
+        nodes > 50_000.0,
+        "the ring must hold a real frontier: {nodes} nodes\n{capped}"
+    );
+    assert!(
+        per_node < BYTES_PER_NODE_MAX,
+        "{per_node:.0} bytes per held node ({growth} over {nodes}); the eager shape read 350+\n{capped}"
+    );
+}

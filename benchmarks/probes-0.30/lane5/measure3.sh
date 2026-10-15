@@ -6,7 +6,7 @@
 echo $$ > run3.pid
 FF=/Users/harold/ferroplan-0.30/target/release/ff
 CC=/Users/harold/ferroplan/benchmarks/.ipc-corpus/ipc-2014/domains/city-car-sequential-satisficing
-tag=citycar6-lazydriver
+tag=citycar6-lazylama
 env FF_TIME_LIMIT=60 FF_MEM_BUDGET_GB=6 FF_WALL_DEBUG=1 FF_RES_DEBUG=1 \
   $FF -o $CC/domain.pddl -f $CC/instances/instance-6.pddl --json --threads 1 > "$tag.json" 2> "$tag.err" &
 pid=$!; t0=$(date +%s); : > "$tag.rss"

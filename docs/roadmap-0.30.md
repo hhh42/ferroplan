@@ -256,6 +256,23 @@ on it before its rows are.
    `--max-passes` subset fixture from 0.29 Phase 0.5 is confirmed to still
    hold on the cut29 database.
 
+   **0.6, READ 2026-10-15:** the probe scripts of this cycle read
+   `statistics.evaluated_states` (and `plan.makespan` / `plan.cost`);
+   `crucible/tests/subset.rs` (the pass cap on a subset) passed in today's
+   suite (6/6); the report reserve on a loaded box is OPEN with three
+   receipts now — pathways-simple i16 at 81 s (0.29), pipesworld-metric-
+   time i36 at 75+ s on both engines, folding i3 at 68.7 s solo — all
+   three a grounding whose clock stride (8,192 bindings) is long when each
+   binding is a wide product; the fixture owed is a grounding that must
+   return inside wall + reserve however slow the box, which means a
+   time-based stride, not a count. It joins Lane 6 (the enumeration's
+   cost is Lane 6's question too) rather than holding Phase 0.
+
+**Phase 0 closed 2026-10-15** (0.1 read, 0.2 record, 0.3 built, 0.4 read
+and built, 0.5 run, 0.6 read with one item handed to Lane 6); the crucible
+changes are on `engine-0.30` (`6e5bdc0`, `c193948`) and go to `main` with
+the branch's next push.
+
 Phase 0 ships as a crucible release on `main` before the folding fix
 opens; nothing in it changes a board number except by measuring it again.
 
@@ -461,6 +478,28 @@ batch pop regenerating its batch. Fixture `tests/lazy_frontier.rs`: k
 agents on a ring whose goal reverses their cyclic order (impossible,
 invisible to the relaxation, C(40, 8) states), the bytes the child
 process grows by per held node under 160.
+
+**LAMA's lazy frontier — BUILT 2026-10-15** (`lama::search_subgoal`: the
+same shape; both heaps carry `(key, father, op)`, a key map marks a hash
+open or closed so the preferred heap's copy of an entry the normal heap
+already closed is skipped as the eager `expanded` flag skipped it; the
+node cap counts closed + the normal heap). **City-car i6 solo
+(`citycar6-lazylama`): peak 3,525 MB** — 5,784 → 4,836 → 4,357 → 3,525
+across the four Lane 5 steps — LAMA's slice unchanged (268,205
+evaluations at 13.3 s), the driver at its node cap as before, the
+best-first 32,808 evaluations after; unsolved. What is left is the COUNT:
+~130 successors per LAMA evaluation make ~35 M open entries at ~64 B
+(two heap tuples where the op was helpful, a key-map slot) — 2.2 GB by
+6 s. A cheaper entry (one heap, a packed key set) buys at most 2×; the
+next real lever on this cell would be a bounded open list for the
+bounded rungs (keep the best N entries, drop the tail — LAMA is a bet
+with a complete rung beneath it), and that is a search change to be
+measured on rows, not a store change. **Named, not built.** Two fixture
+notes: `rung_mem_wall` had to lift the MODELLED node cap
+(`FF_SEARCH_NODE_CAP=0`) because at ~50 B an entry the model's ~200 B
+charge trips first — the model is conservative now, which is the right
+side to be wrong on; and the rung-wall fixture moved to the ring task
+when the lazy LAMA stopped outgrowing a 32 MB headroom on the grid.
 
 ---
 

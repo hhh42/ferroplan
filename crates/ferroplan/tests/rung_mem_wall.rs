@@ -8,54 +8,51 @@
 //! and the row was a SIGKILL with forty seconds unspent
 //! (`benchmarks/probes-0.30/lane5/measure2.tsv`).
 //!
-//! The fixture is the visit-all grid LAMA cannot finish at fixture scale
-//! (every cell a landmark, h_FF's plateau), run in a CHILD process so the
-//! kernel's peak-resident reading is the child's own: the budget is derived
-//! from the child's resident set after grounding, so the line sits a fixed
-//! distance above whatever the test harness itself costs. Walled, LAMA ends
-//! on the memory wall with the peak under the declared budget; hatched
-//! (`FF_NO_MEM_WALL=1`), the same search outgrows it -- the RED shape.
+//! The fixture is k agents on a ring of m cells whose goal reverses their
+//! cyclic order -- impossible, invisible to the relaxation, C(m, k) states
+//! wide, so LAMA fills memory for as long as it is allowed to (the lazy
+//! frontier made the visit-all grid of the first version too cheap to
+//! trip). It runs in a CHILD process so the kernel's peak-resident reading
+//! is the child's own: the budget is derived from the child's resident set
+//! after grounding, so the line sits a fixed distance above whatever the
+//! test harness itself costs. Walled, LAMA ends on the memory wall with
+//! the peak under the declared budget; hatched (`FF_NO_MEM_WALL=1`), the
+//! same search outgrows it -- the RED shape.
 
 use std::process::Command;
 
 /// How far above the post-grounding baseline the TRIP line sits.
-const HEADROOM_BYTES: u64 = 32 << 20;
+const HEADROOM_BYTES: u64 = 16 << 20;
 
-fn grid(n: usize) -> (String, String) {
-    let dom = "(define (domain visitgrid)
+/// `k` agents on a ring of `m` cells, goal: their cyclic order reversed.
+fn ring(m: usize, k: usize) -> (String, String) {
+    let dom = "(define (domain agentring)
       (:requirements :strips)
-      (:predicates (at ?x) (conn ?x ?y) (visited ?x))
+      (:predicates (at ?a ?c) (free ?c) (adj ?c1 ?c2))
       (:action move
-        :parameters (?from ?to)
-        :precondition (and (at ?from) (conn ?from ?to))
-        :effect (and (not (at ?from)) (at ?to) (visited ?to))))"
+        :parameters (?a ?from ?to)
+        :precondition (and (at ?a ?from) (adj ?from ?to) (free ?to))
+        :effect (and (not (at ?a ?from)) (at ?a ?to) (free ?from) (not (free ?to)))))"
         .to_string();
     let mut objs = String::new();
-    let mut conn = String::new();
+    let mut init = String::new();
     let mut goal = String::new();
-    for i in 0..n {
-        for j in 0..n {
-            objs.push_str(&format!(" c{i}-{j}"));
-            goal.push_str(&format!(" (visited c{i}-{j})"));
-            if j + 1 < n {
-                conn.push_str(&format!(
-                    " (conn c{i}-{j} c{i}-{}) (conn c{i}-{} c{i}-{j})",
-                    j + 1,
-                    j + 1
-                ));
-            }
-            if i + 1 < n {
-                conn.push_str(&format!(
-                    " (conn c{i}-{j} c{}-{j}) (conn c{}-{j} c{i}-{j})",
-                    i + 1,
-                    i + 1
-                ));
-            }
+    for c in 0..m {
+        objs.push_str(&format!(" c{c}"));
+        let n = (c + 1) % m;
+        init.push_str(&format!(" (adj c{c} c{n}) (adj c{n} c{c})"));
+        if c >= k {
+            init.push_str(&format!(" (free c{c})"));
         }
     }
+    for a in 0..k {
+        objs.push_str(&format!(" a{a}"));
+        init.push_str(&format!(" (at a{a} c{a})"));
+        goal.push_str(&format!(" (at a{a} c{})", k - 1 - a));
+    }
     let prb = format!(
-        "(define (problem vg) (:domain visitgrid) (:objects{objs}) \
-         (:init (at c0-0) (visited c0-0){conn}) (:goal (and{goal})))"
+        "(define (problem ring) (:domain agentring) (:objects{objs}) \
+         (:init{init}) (:goal (and{goal})))"
     );
     (dom, prb)
 }
@@ -69,7 +66,11 @@ fn run_child(hatched: bool) -> (String, String) {
         "--nocapture",
     ])
     .env("RUNG_MEM_WALL_CHILD", "1")
-    .env("FF_WALL_DEBUG", "1");
+    .env("FF_WALL_DEBUG", "1")
+    // The MODELLED node cap (`search::node_cap_for`, ~200 B a held node)
+    // now trips before the measured wall on a lazy frontier (~50 B an
+    // open entry); lift it, so the measured wall is what ends the rung.
+    .env("FF_SEARCH_NODE_CAP", "0");
     if hatched {
         cmd.env("FF_NO_MEM_WALL", "1");
     }
@@ -92,12 +93,12 @@ fn field<'a>(stdout: &'a str, key: &str) -> &'a str {
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn a_bounded_rung_stops_at_the_memory_wall() {
     if std::env::var("RUNG_MEM_WALL_CHILD").is_ok() {
-        let (n, max_eval) = if cfg!(debug_assertions) {
-            (12, 15_000)
+        let (m, k, max_eval) = if cfg!(debug_assertions) {
+            (24, 6, 60_000)
         } else {
-            (20, 60_000)
+            (40, 8, 150_000)
         };
-        let (dom, prb) = grid(n);
+        let (dom, prb) = ring(m, k);
         let d = ferroplan::parser::parse_domain(&dom).unwrap();
         let p = ferroplan::parser::parse_problem(&prb).unwrap();
         let task = ferroplan::ground::ground_task(&d, &p, 1).unwrap();
@@ -130,7 +131,7 @@ fn a_bounded_rung_stops_at_the_memory_wall() {
     );
     assert!(
         stderr.contains("wall: LAMA MEMORY checkpoint"),
-        "the rung must have been ended by the memory wall:\n{stderr}"
+        "the rung must have been ended by the memory wall:\n{stdout}\n{stderr}"
     );
     let budget: u64 = field(&stdout, "CHILD-BUDGET:").parse().unwrap();
     let peak: u64 = field(&stdout, "CHILD-PEAK:").parse().unwrap();
@@ -149,6 +150,6 @@ fn a_bounded_rung_stops_at_the_memory_wall() {
     assert!(
         peak > budget,
         "unwalled, the rung was expected to outgrow its budget (the RED shape): \
-         peak {peak} against {budget} -- raise the grid or lower the headroom"
+         peak {peak} against {budget} -- raise the cap or lower the headroom"
     );
 }

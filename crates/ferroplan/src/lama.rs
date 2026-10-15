@@ -130,17 +130,68 @@ pub fn search_subgoal(
         return Some((Vec::new(), 0));
     }
 
-    let mut pref_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
-    let mut norm_heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
-    norm_heap.push(Reverse((0, 0)));
-    // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
-    // arena state, no second bitset copy per entry (see search_from).
-    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
-    visited.insert(task.state_key_hash(&init, None), vec![0]);
-    // A node can sit in BOTH heaps (preferred successors do, so the normal
-    // queue's completeness is untouched); expand it only once.
-    let mut expanded = vec![false; 1];
+    // THE LAZY FRONTIER (0.30 Lane 5, after the novelty driver's): `nodes`
+    // holds the POPPED states only. An open entry is (key, father, op) on
+    // a heap -- on both heaps when the op was helpful, so the normal
+    // queue's completeness is untouched -- and its state is regenerated
+    // from the father's when it is popped. `keys` maps a state-key hash to
+    // the closed index of that state, or `OPEN` while it is only on a
+    // heap: a hash seen at generation is a duplicate (the eager shape
+    // compared stored states exactly, 0.20 Phase 4), and a hash already
+    // closed at pop time is the other heap's copy of the same entry (the
+    // eager `expanded` flag). On city-car i6 this rung held the process's
+    // peak -- 3.2 GB at 10 s, 3.4 GB when its slice ended at 13 s -- in
+    // generated successors it never evaluated.
+    const OPEN: u32 = u32::MAX;
+    let mut pref_heap: BinaryHeap<Reverse<(i64, u32, u32)>> = BinaryHeap::new();
+    let mut norm_heap: BinaryHeap<Reverse<(i64, u32, u32)>> = BinaryHeap::new();
+    // The root is already closed at 0: `op == u32::MAX` marks it.
+    norm_heap.push(Reverse((0, 0, u32::MAX)));
+    let mut keys: FxHashMap<u64, u32> = FxHashMap::default();
+    keys.insert(task.state_key_hash(&init, None), 0);
     let mut evaluated = 0usize;
+
+    /// Take up to `n` entries off `heap` into `popped`, regenerating each
+    /// open entry's state and closing it; an entry whose state the other
+    /// heap already closed is skipped, as the eager `expanded` flag skipped
+    /// it. Counts attempts, as the eager loop did.
+    fn pop_lazy(
+        heap: &mut BinaryHeap<Reverse<(i64, u32, u32)>>,
+        n: usize,
+        task: &PackedTask,
+        lms: &[u32],
+        nodes: &mut Vec<Node>,
+        keys: &mut FxHashMap<u64, u32>,
+        popped: &mut Vec<usize>,
+    ) {
+        for _ in 0..n {
+            let Some(Reverse((_, father, op))) = heap.pop() else {
+                break;
+            };
+            if op == u32::MAX {
+                popped.push(father as usize);
+                continue;
+            }
+            let f = father as usize;
+            let ns = task.apply(op as usize, &nodes[f].state);
+            let k = task.state_key_hash(&ns, None);
+            match keys.get_mut(&k) {
+                Some(slot) if *slot == OPEN => {
+                    let mut accepted = nodes[f].accepted.clone();
+                    accept_into(&mut accepted, lms, &ns);
+                    *slot = nodes.len() as u32;
+                    nodes.push(Node {
+                        state: ns,
+                        father: f,
+                        op: op as usize,
+                        accepted,
+                    });
+                    popped.push(nodes.len() - 1);
+                }
+                _ => continue,
+            }
+        }
+    }
     // Length-anytime incumbent (see search.rs SearchCfg::len_anytime): keep
     // draining the same dual open lists for a strictly shorter plan until the
     // drain ceiling (evals-at-first-incumbent × 2).
@@ -210,26 +261,24 @@ pub fn search_subgoal(
         // Deterministic mixed batch: boosted share from the preferred heap,
         // the rest from the normal one.
         let mut popped: Vec<usize> = Vec::with_capacity(PREF_BATCH + NORM_BATCH);
-        for _ in 0..PREF_BATCH {
-            match pref_heap.pop() {
-                Some(Reverse((_, ni))) if !expanded[ni] => {
-                    expanded[ni] = true;
-                    popped.push(ni);
-                }
-                Some(_) => continue,
-                None => break,
-            }
-        }
-        for _ in 0..NORM_BATCH {
-            match norm_heap.pop() {
-                Some(Reverse((_, ni))) if !expanded[ni] => {
-                    expanded[ni] = true;
-                    popped.push(ni);
-                }
-                Some(_) => continue,
-                None => break,
-            }
-        }
+        pop_lazy(
+            &mut pref_heap,
+            PREF_BATCH,
+            task,
+            &lms,
+            &mut nodes,
+            &mut keys,
+            &mut popped,
+        );
+        pop_lazy(
+            &mut norm_heap,
+            NORM_BATCH,
+            task,
+            &lms,
+            &mut nodes,
+            &mut keys,
+            &mut popped,
+        );
         if popped.is_empty() {
             // both open lists exhausted (with an incumbent: it is final)
             return best_plan.map(|p| (p, evaluated));
@@ -265,14 +314,28 @@ pub fn search_subgoal(
             },
         );
         evaluated += popped.len();
-        if evaluated > max_eval || evaluated > eval_ceiling || nodes.len() > node_cap {
+        // The node cap counts what is HELD: the closed states and the open
+        // entries on the normal heap (every open entry is there), as the
+        // eager shape's `nodes.len()` did.
+        if evaluated > max_eval
+            || evaluated > eval_ceiling
+            || nodes.len() + norm_heap.len() > node_cap
+        {
             // budget spent: the incumbent (if any), else hand off to the fallback
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!(
+                    "[lama] capped: {evaluated} evals (max {max_eval}), {} nodes ({} closed)",
+                    nodes.len() + norm_heap.len(),
+                    nodes.len()
+                );
+            }
             return best_plan.map(|p| (p, evaluated));
         }
         if mem_wall.hit() {
             if std::env::var("FF_WALL_DEBUG").is_ok() {
                 eprintln!(
-                    "wall: LAMA MEMORY checkpoint at {evaluated} evals, {} nodes, handing down the ladder",
+                    "wall: LAMA MEMORY checkpoint at {evaluated} evals, {} nodes ({} closed), handing down the ladder",
+                    nodes.len() + norm_heap.len(),
                     nodes.len()
                 );
             }
@@ -375,15 +438,14 @@ pub fn search_subgoal(
         // SERIAL: dedup + insert (deterministic).
         for chunk in chunks {
             for (pi, oi, s, k, ph, pref) in chunk {
-                let bucket = visited.entry(k).or_default();
-                if bucket
-                    .iter()
-                    .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &s, None))
-                {
+                if keys.contains_key(&k) {
                     continue;
                 }
-                bucket.push(nodes.len() as u32);
+                keys.insert(k, OPEN);
                 {
+                    // Transient: the successor's accepted set prices its
+                    // key; the vector is rebuilt from the father's if the
+                    // entry is popped.
                     let mut accepted = nodes[pi].accepted.clone();
                     accept_into(&mut accepted, &lms, &s);
                     // Landmark count is EXACT for the successor (cheap bit
@@ -400,17 +462,9 @@ pub fn search_subgoal(
                         improved = true;
                     }
                     let key = W_FF * ph as i64 + W_LM * h_lm;
-                    let idx = nodes.len();
-                    nodes.push(Node {
-                        state: s,
-                        father: pi,
-                        op: oi,
-                        accepted,
-                    });
-                    expanded.push(false);
-                    norm_heap.push(Reverse((key, idx)));
+                    norm_heap.push(Reverse((key, pi as u32, oi as u32)));
                     if pref {
-                        pref_heap.push(Reverse((key, idx)));
+                        pref_heap.push(Reverse((key, pi as u32, oi as u32)));
                     }
                 }
             }
