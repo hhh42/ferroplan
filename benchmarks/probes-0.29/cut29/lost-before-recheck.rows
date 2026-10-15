@@ -1,0 +1,24 @@
+# cells ff 0.28.0 [89cfdc5f06ed] solved and ff 0.29.0 [7fdf185b91e6] did not, both banked -- `--rows` format
+pipesworld-metric-time/36   # ipc5-metric-time
+rovers-metric-time/28   # ipc5-metric-time
+pipesworld-propositional/50   # ipc5-prop
+driver-log-temporal-satisficing/5   # ipc2014-tempo
+driver-log-temporal-satisficing/6   # ipc2014-tempo
+settlers-snp-numeric-2026/5   # ipc2026-numeric
+ztalloc-sum-numeric-2026/9   # ipc2026-numeric
+ztalloc-sum-numeric-2026/12   # ipc2026-numeric
+counters-numeric-satisficing/16   # ipc2023-numeric
+sugar-numeric-satisficing/17   # ipc2023-numeric
+elevator-sequential-multi-core/19   # ipc7-mco-t2
+elevator-sequential-multi-core/20   # ipc7-mco-t2
+tidybot-sequential-multi-core/19   # ipc7-mco-t2
+transport-sequential-multi-core/18   # ipc7-mco-t2
+elevator-sequential-multi-core/19   # ipc7-mco-t4
+elevator-sequential-multi-core/20   # ipc7-mco-t4
+transport-sequential-multi-core/18   # ipc7-mco-t4
+transport-sequential-multi-core/18   # ipc7-mco-t8
+labyrinth-satisficing/9   # ipc2023-sat
+forestfire-numeric-2026/14   # ipc2026-opt-full
+gear-car-numeric-2026/8   # ipc2026-opt-full
+parking-sequential-multi-core/17   # ipc2014-mco-t8
+storage-preferences-complex/18   # ipc5-complex-pref

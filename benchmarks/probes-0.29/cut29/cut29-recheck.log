@@ -1,0 +1,106 @@
+engine  ff 0.29.0 [7fdf185b91e6]
+canary  trucks-propositional/8@7fdf185b91e6 baseline 0.758 s (p25 of the last 100 readings is 0.758 s, against 5 runs now); read every 1200 s, slow above 1.15x
+canary  the box has its own line at 7 width(s); a reading is held to the line at its width
+db      /Users/harold/.crucible/db/crucible.db
+resume  ipc5-time              130 row(s) read back, 130 banked -- 0 still owed
+resume  ipc5-metric-time       200 row(s) read back, 198 banked -- 2 still owed
+resume  ipc5-constraints       120 row(s) read back, 120 banked -- 0 still owed
+resume  ipc2026-opt            60 row(s) read back, 60 banked -- 0 still owed
+resume  ipc67-netben           270 row(s) read back, 270 banked -- 0 still owed
+resume  ipc5-prop              450 row(s) read back, 449 banked -- 1 still owed
+resume  ipc2023-agile          140 row(s) read back, 140 banked -- 0 still owed
+resume  ipc2014-tempo          200 row(s) read back, 198 banked -- 2 still owed
+resume  ipc2018-sat            240 row(s) read back, 240 banked -- 0 still owed
+resume  ipc2014-sat            280 row(s) read back, 280 banked -- 0 still owed
+resume  ipc2014-agile          280 row(s) read back, 280 banked -- 0 still owed
+resume  ipc2014-opt            256 row(s) read back, 256 banked -- 0 still owed
+resume  ipc2026-numeric        320 row(s) read back, 317 banked -- 3 still owed
+resume  ipc2023-numeric        400 row(s) read back, 398 banked -- 2 still owed
+resume  ipc-opt-2008-11        550 row(s) read back, 550 banked -- 0 still owed
+resume  ipc67-temporal         630 row(s) read back, 630 banked -- 0 still owed
+resume  ipc67-results          580 row(s) read back, 580 banked -- 0 still owed
+resume  ipc7-mco-t2            280 row(s) read back, 276 banked -- 4 still owed
+resume  ipc7-mco-t4            280 row(s) read back, 277 banked -- 3 still owed
+resume  ipc7-mco-t8            280 row(s) read back, 279 banked -- 1 still owed
+resume  ipc2014-mco-t4         280 row(s) read back, 280 banked -- 0 still owed
+resume  ipc2023-agile-300s     140 row(s) read back, 140 banked -- 0 still owed
+resume  ipc5-simple-pref       130 row(s) read back, 129 banked -- 1 still owed
+resume  ipc5-qual-pref         100 row(s) read back, 100 banked -- 0 still owed
+resume  ipc2023-sat            140 row(s) read back, 139 banked -- 1 still owed
+resume  ipc2023-opt            140 row(s) read back, 140 banked -- 0 still owed
+resume  ipc2018-opt            240 row(s) read back, 240 banked -- 0 still owed
+resume  ipc2023-numeric-opt    400 row(s) read back, 400 banked -- 0 still owed
+resume  ipc2026-opt-full       260 row(s) read back, 258 banked -- 2 still owed
+resume  ipc2014-mco-t2         280 row(s) read back, 280 banked -- 0 still owed
+resume  ipc2014-mco-t8         280 row(s) read back, 279 banked -- 1 still owed
+resume  ipc5-complex-pref      108 row(s) read back, 107 banked -- 1 still owed
+!! width - -> 10 (full, idle 30149s, foreign -0%)
+set     cut29: 8444 instances
+== pass 1 -- 13 board(s) outstanding
+!! width 10 -> 9 (full, idle 30169s, foreign 8%)
+!! width 9 -> 10 (full, idle 30209s, foreign -0%)
+!! width 10 -> 9 (full, idle 30229s, foreign 69%)
+!! width 9 -> 10 (full, idle 30249s, foreign -0%)
+   ipc5-metric-time       verdicts: rho 1, swap 1
+   ipc5-metric-time       banked    1   2 -> 1
+!! width 10 -> 9 (full, idle 30329s, foreign 5%)
+   ipc5-prop              verdicts: rho 1
+   ipc5-prop              banked    1   1 -> 0
+!! width 9 -> 10 (full, idle 30349s, foreign -0%)
+!! width 10 -> 9 (full, idle 30409s, foreign 11%)
+!! width 9 -> 10 (full, idle 30429s, foreign -0%)
+   ipc2014-tempo          verdicts: rho 2
+   ipc2014-tempo          banked    2   2 -> 0
+!! width 10 -> 9 (full, idle 30489s, foreign 55%)
+!! width 9 -> 10 (full, idle 30509s, foreign -0%)
+!! width 10 -> 9 (full, idle 30569s, foreign 9%)
+!! width 9 -> 10 (full, idle 30589s, foreign -0%)
+!! width 10 -> 9 (full, idle 30609s, foreign 11%)
+   ipc2026-numeric        verdicts: rho 3
+   ipc2026-numeric        banked    3   3 -> 0
+!! width 9 -> 10 (full, idle 30629s, foreign -0%)
+!! width 10 -> 9 (full, idle 30669s, foreign 10%)
+!! width 9 -> 10 (full, idle 30689s, foreign -0%)
+   ipc2023-numeric        verdicts: rho 2
+   ipc2023-numeric        banked    2   2 -> 0
+!! width 10 -> 9 (full, idle 30729s, foreign 51%)
+!! width 9 -> 10 (full, idle 30749s, foreign -0%)
+!! width 10 -> 9 (full, idle 30849s, foreign 10%)
+!! width 9 -> 10 (full, idle 30889s, foreign -0%)
+   ipc7-mco-t2            verdicts: contended 1, window 3
+   ipc7-mco-t2            banked    3   4 -> 1
+!! width 10 -> 9 (full, idle 31049s, foreign 17%)
+!! width 9 -> 10 (full, idle 31069s, foreign -0%)
+!! width 10 -> 9 (full, idle 31089s, foreign 7%)
+   ipc7-mco-t4            verdicts: window 3
+   ipc7-mco-t4            banked    3   3 -> 0
+!! width 9 -> 10 (full, idle 31109s, foreign -0%)
+   ipc7-mco-t8            verdicts: window 1
+   ipc7-mco-t8            banked    1   1 -> 0
+!! width 10 -> 9 (full, idle 31209s, foreign 91%)
+   ipc5-simple-pref       verdicts: solved 1
+   ipc5-simple-pref       banked    1   1 -> 0
+!! width 9 -> 10 (full, idle 31229s, foreign -0%)
+   ipc2023-sat            verdicts: rho 1
+   ipc2023-sat            banked    1   1 -> 0
+   ipc2026-opt-full       verdicts: rho 2
+   ipc2026-opt-full       banked    2   2 -> 0
+!! width 10 -> 9 (full, idle 31369s, foreign 48%)
+   ipc2014-mco-t8         verdicts: solved 1
+   ipc2014-mco-t8         banked    1   1 -> 0
+   ipc5-complex-pref      verdicts: solved 1
+   ipc5-complex-pref      banked    1   1 -> 0
+== pass 2 -- 2 board(s) outstanding
+!! width 9 -> 10 (full, idle 31429s, foreign -0%)
+!! width 10 -> 9 (full, idle 31449s, foreign 6%)
+   ipc5-metric-time       verdicts: swap 1
+   ipc5-metric-time       banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 10 (full, idle 31489s, foreign -0%)
+!! width 10 -> 9 (full, idle 31509s, foreign 18%)
+   ipc7-mco-t2            verdicts: window 1
+   ipc7-mco-t2            banked    1   1 -> 0
+== pass 3 -- 1 board(s) outstanding
+!! width 9 -> 10 (full, idle 31529s, foreign -0%)
+   ipc5-metric-time       verdicts: rho 1
+   ipc5-metric-time       banked    1   1 -> 0
+SWEEP COMPLETE -- 24 banked in 3 pass(es)

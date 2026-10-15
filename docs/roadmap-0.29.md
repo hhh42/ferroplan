@@ -1213,3 +1213,62 @@ on it under the rules above; the five 0.28 losses and Lane 1's cells re-run
 on both engines before any is named; `recheck` is the referee's job now, not
 a script's. Nothing is published until `main` has it and the pre-flight —
 with the token's age on the checklist — is green.
+
+---
+
+## THE CUT — read 2026-10-15
+
+`cut29` swept on `ff 0.29.0 [7fdf185b91e6]` (main = engine-0.29 = `43847be`),
+2026-10-11 to 10-15: **8,444 of 8,444 banked in seven passes**, no stop by
+hand. Receipts: `benchmarks/probes-0.29/cut29/` (`compare.txt`, the lost cells
+before and after the re-check, the three-engine table, the promote log).
+
+**Rows** (`crucible compare --a 89cfdc5f06ed --b 7fdf185b91e6`, after the
+re-check): first attempt 5,358 -> 5,476 = **+118 [+89, +149]**; equal-N +125;
+banked 5,466 -> 5,555 = +89 [+67, +112]. Equal-N +125. 110 cells gained, 21 lost. **Points** (`ipc-standings.md`): simple 94.1/120.4 -> 97.3/115.1,
+qualitative 59.2/92.1 -> 64.6/91.4, complex 53.4/99.0 -> 54.5/100.0.
+
+**The re-check.** `recheck29.py` re-opened 24 banked rows (the 23 cells
+0.28.0 solved that 0.29.0 did not, and one more); `sweep --set cut29`
+re-measured them in three passes; 23 -> 21 lost. Separately, the 23
+were re-run on a `v0.28.0` rebuilt by `crucible backfill --tag` in
+`~/.crucible/worktrees/v0.28.0` (engine `bb07d50d2015`: the same source as the
+baseline `89cfdc5f06ed` but not byte-identical): **12 reproduce** (0.28.0
+solves, 0.29.0 never), **8 do not** (0.28.0 cannot re-solve them), **one wall
+coin** (mco-t8 transport i18). The 12: rovers-metric-time i28, pipesworld-
+metric-time i36, settlers-snp i5, ztalloc-sum i9 and i12, sugar i17,
+driver-log i6, elevator i19 / i20 and transport i18 on mco-t2, elevator i19
+and transport i18 on mco-t4. The consumption charge and the duration compile
+change the numeric trajectory; these are candidates for a 0.30 differential,
+not yet attributed to a mechanism.
+
+**Against the bands.** Lane 1 (points): simple 94.1 -> 97.3 against a band to
+105 of 120, qualitative 59.2 -> 64.6 against a band to 75 of 92: a win under
+the band; no preference board lost rows net. Lane 2: metric-time +14
+against +15 to +30 (one short); 2023 numeric +27, 2026 numeric +1, both above
+0.28.0. Lane 4 (achiever index): complex-preferences +1 row against +8 to
++14: not met. Lane 5 (classical memory): measured, not built (the lazy
+frontier, 6-15 KB per evaluated node, is the named mechanism). Lanes 3 and W:
+negative on rows, kept. Rows moved on boards no lane aimed at (2014 seq-sat
++7, 2014 multi-core +6/+6/+7, the IPC-6/7 seq-sat board +5): unattributed -- the
+`widen` inlining (-23 % per evaluation, engine-wide) is the candidate; not
+attributed.
+
+**Instrument notes from the cut.**
+- Failure classes moved even where rows did not: 2018 seq-opt mem-cap 10 ->
+  21, 2026 opt-full 4 -> 24, 2023 numeric 33 -> 52, 2014 mco-t8 4 -> 11; 2014 seq-sat 30
+  -> 4, 2014 agile 25 -> 1, 2018 seq-sat 35 -> 24 fell.
+- Three of the 21 lost cells (pipesworld-prop i50, counters i16, mco-t8
+  transport i18) were SOLVED by 0.29.0 on a first attempt the referee voided
+  (thermal / swap) and not reproduced: the first-attempt estimator counts them,
+  the banked figure does not. Worth a look at what "thermal" voided on a solve
+  that took a few seconds.
+- Pass 2 degraded on the operator's activity (Steam, a game, then a Timberborn
+  session) and on foreign load; lone memory-heavy rows (ipc5-metric-time) read
+  `swap`; ipc7-mco-t8 (oversubscribed on the 4P+6E box by construction) read
+  `contended` / `window` in the later passes. The crucible should refuse to calibrate the canary under foreign load.
+
+**Owed to 0.30.** rovers-metric-time i28 and the eleven other reproduced
+losses, solo, with an A/B on the consumption charge (`FF_NO_CONSUME=1`);
+trucks i11/i13 optima (wall-edge coins); storage i19/i20; the lazy frontier
+(Lane 5); tpp / pathways metric-time (unsolved); pathways-propositional probe rows.

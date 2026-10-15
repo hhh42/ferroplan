@@ -1,0 +1,27 @@
+engine  ff 0.29.0 [7fdf185b91e6]
+reap    2 child(ren) recorded by an earlier run
+        35776 already gone
+        39201 already gone
+canary  trucks-propositional/8@7fdf185b91e6 baseline 0.760 s (p25 of the last 100 readings is 0.760 s, against 5 runs now); read every 1200 s, slow above 1.15x
+canary  the box has its own line at 7 width(s); a reading is held to the line at its width
+db      /Users/harold/.crucible/db/crucible.db
+resume  ipc5-metric-time       2 row(s) read back, 2 banked -- 0 still owed
+!! width - -> 9 (full, idle 30054s, foreign 40%)
+resume  ipc5-prop              1 row(s) read back, 1 banked -- 0 still owed
+resume  ipc2014-tempo          2 row(s) read back, 2 banked -- 0 still owed
+resume  ipc2026-numeric        5 row(s) read back, 5 banked -- 0 still owed
+resume  ipc2023-numeric        2 row(s) read back, 2 banked -- 0 still owed
+resume  ipc7-mco-t2            5 row(s) read back, 5 banked -- 0 still owed
+resume  ipc7-mco-t4            5 row(s) read back, 5 banked -- 0 still owed
+resume  ipc7-mco-t8            5 row(s) read back, 5 banked -- 0 still owed
+resume  ipc2014-mco-t4         2 row(s) read back, 2 banked -- 0 still owed
+resume  ipc2023-sat            1 row(s) read back, 1 banked -- 0 still owed
+resume  ipc2023-numeric-opt    2 row(s) read back, 2 banked -- 0 still owed
+resume  ipc2026-opt-full       5 row(s) read back, 5 banked -- 0 still owed
+resume  ipc2014-mco-t2         2 row(s) read back, 2 banked -- 0 still owed
+resume  ipc2014-mco-t8         2 row(s) read back, 2 banked -- 0 still owed
+resume  ipc5-complex-pref      1 row(s) read back, 1 banked -- 0 still owed
+subset  19 listed row(s) -- 42 instance(s) of set cut29, staged at /Users/harold/ferroplan/benchmarks/probes/cut29/0.29.0-7fdf185b91e6
+        no board is marked done and no pass is recorded: the rows are the record
+SWEEP COMPLETE -- 0 banked in 0 pass(es)
+LOSTRUN DONE

@@ -990,6 +990,143 @@
      "total": 108
     }
    }
+  },
+  {
+   "version": "0.29.0",
+   "released": "2026-10-15",
+   "measured_on": "m5-air",
+   "measured_at": "2026-10-15",
+   "note": "",
+   "tracks": {
+    "propositional": {
+     "solved": 386,
+     "total": 450
+    },
+    "time": {
+     "solved": 126,
+     "total": 130
+    },
+    "metric-time": {
+     "solved": 119,
+     "total": 200
+    },
+    "constraints": {
+     "solved": 28,
+     "total": 120
+    },
+    "seq-sat": {
+     "solved": 543,
+     "total": 580
+    },
+    "tempo-sat": {
+     "solved": 512,
+     "total": 630
+    },
+    "net-benefit": {
+     "solved": 270,
+     "total": 270
+    },
+    "seq-mco t2": {
+     "solved": 249,
+     "total": 280
+    },
+    "seq-mco t4": {
+     "solved": 253,
+     "total": 280
+    },
+    "seq-mco t8": {
+     "solved": 255,
+     "total": 280
+    },
+    "2014 seq-sat": {
+     "solved": 180,
+     "total": 280
+    },
+    "2014 seq-agile": {
+     "solved": 174,
+     "total": 280
+    },
+    "2014 tempo-sat": {
+     "solved": 124,
+     "total": 200
+    },
+    "2014 seq-mco t4": {
+     "solved": 184,
+     "total": 280
+    },
+    "2018 seq-sat": {
+     "solved": 99,
+     "total": 240
+    },
+    "2023 classical": {
+     "solved": 52,
+     "total": 140
+    },
+    "2023 numeric": {
+     "solved": 289,
+     "total": 400
+    },
+    "2026 numeric (first board)": {
+     "solved": 224,
+     "total": 320
+    },
+    "2023 agile ENTRY (300s)": {
+     "solved": 67,
+     "total": 140
+    },
+    "seq-opt": {
+     "solved": 297,
+     "total": 550
+    },
+    "2014 seq-opt": {
+     "solved": 82,
+     "total": 256
+    },
+    "2026 numeric-opt": {
+     "solved": 23,
+     "total": 60
+    },
+    "2014 seq-mco t2": {
+     "solved": 181,
+     "total": 280
+    },
+    "2014 seq-mco t8": {
+     "solved": 186,
+     "total": 280
+    },
+    "2018 seq-opt": {
+     "solved": 94,
+     "total": 240
+    },
+    "2023 seq-sat": {
+     "solved": 52,
+     "total": 140
+    },
+    "2023 seq-opt": {
+     "solved": 33,
+     "total": 140
+    },
+    "2023 numeric-opt": {
+     "solved": 82,
+     "total": 400
+    },
+    "2026 numeric-opt FULL": {
+     "solved": 80,
+     "total": 260
+    },
+    "simple-preferences (full corpus)": {
+     "solved": 130,
+     "total": 130
+    },
+    "qualitative-preferences (full corpus)": {
+     "solved": 100,
+     "total": 100
+    },
+    "complex-preferences (full corpus)": {
+     "solved": 81,
+     "total": 108
+    }
+   }
   }
  ]
 }

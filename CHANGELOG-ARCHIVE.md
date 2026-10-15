@@ -7,6 +7,65 @@ everything before that lands here, newest first, verbatim and unedited.
 `publish.sh` reads release notes from BOTH files, so archiving a version
 never breaks `--release-only <old-version>`.
 
+## [0.27.1] - 2026-09-11 — A budget the caller can set, and withdraw
+
+No engine change. Coverage is unchanged from 0.27.0 (5,122/8,444) because
+nothing here touches how the planner searches — the additions are inert
+unless you set them.
+
+### Added
+
+Two fields on `Options`, both `None` by default:
+
+- **`wall_ms: Option<u64>`** — this call's wall, in milliseconds. Armed at
+  the top of `solve`, so it bounds parsing and GROUNDING as well as
+  search. That is the budget the existing knobs could not express:
+  `max_evaluated` caps evaluated states, and grounding runs before the
+  first state exists, so a call capped at fifty thousand evaluations can
+  still spend minutes. `FF_TIME_LIMIT` could not express it either, for
+  the opposite reason — it is armed once per PROCESS from the first solve,
+  so in a long-lived host it either bounds nothing or eventually refuses
+  everything.
+- **`should_continue: Option<Arc<AtomicBool>>`** — flip it to `false` to
+  stop this call. Polled wherever the wall is: the grounding checkpoint
+  (every 256 bindings), the best-first batch boundary, EHC's
+  per-evaluation slice, and the temporal pop. `#[serde(skip)]`, since a
+  live handle has no JSON form.
+
+A stop from either returns `solved: false` with a note naming which budget
+bound and where — `grounding stopped at the declared budget: …` or
+`search stopped at the declared budget: …` — and never the word
+"unsolvable". Running out of time is not a proof.
+
+The budget is held per call, in a thread-local armed by an RAII guard, so
+concurrent `solve` calls on different threads each carry their own and a
+spent budget cannot leak into the next call on its thread.
+`FF_NO_RUNG_WALLCAP` does not disable it: that hatch governs the
+environment wall, and a budget passed in code outranks an environment
+variable.
+
+### Why this is a patch release
+
+It answers a consumer blocked on it. `solve` was blocking and
+uninterruptible, so a host that abandoned the work leaked that thread for
+the life of the process; their own instrumentation recorded 213 solves
+completed, then 2 abandoned, after which the pool was dead — 0 completed,
+4 abandoned. The rest of the 0.28 cycle is unmeasured and stays on its
+branch until it has been swept.
+
+### Note
+
+The search ladder rations a wall across its rungs, so a budget is not
+simply "time until I stop" — each rung sees a fraction of it. A 30-block
+instance that solves in 34 ms unbudgeted is stopped by a 120 ms wall and
+solved under a 200 ms one. That is not new to this release: `FF_TIME_LIMIT`
+of 0.12 s fails the same instance and 0.2 s solves it. Measure your own
+domain rather than assuming a 250 ms wall buys 250 ms of search.
+
+---
+
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (29 earlier releases, 0.1.0–0.27.0).
+
 ## [0.27.0] - 2026-09-10 — One lever in the engine, and an instrument that can finally finish
 
 **61% coverage across 32 IPC boards** (5,122/8,444), **687 certified

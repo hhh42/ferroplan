@@ -1,0 +1,82 @@
+A  ff 0.28.0 [89cfdc5f06ed]
+B  ff 0.29.0 [7fdf185b91e6]
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc5-time                      126       0       126       0       +0
+ipc5-metric-time               105       0       119       0      +14
+ipc5-constraints                28       0        28       0       +0
+ipc2026-opt                     22       0        23       0       +1
+ipc67-netben                   270       0       270       0       +0
+ipc5-prop                      384       0       386       0       +2
+ipc2023-agile                   52       0        52       0       +0
+ipc2014-tempo                  122       0       124       0       +2
+ipc2018-sat                     97       0        99       0       +2
+ipc2014-sat                    173       0       180       0       +7
+ipc2014-agile                  172       0       174       0       +2
+ipc2014-opt                     82       0        82       0       +0
+ipc2026-numeric                223       0       224       0       +1
+ipc2023-numeric                262       0       289       0      +27
+ipc-opt-2008-11                296       0       297       0       +1
+ipc67-temporal                 509       0       512       0       +3
+ipc67-results                  538       0       543       0       +5
+ipc7-mco-t2                    249       0       249       0       +0
+ipc7-mco-t4                    253       0       253       0       +0
+ipc7-mco-t8                    253       0       255       0       +2
+ipc2014-mco-t4                 178       0       184       0       +6
+ipc2023-agile-300s              66       0        67       0       +1
+ipc5-simple-pref               130       0       130       0       +0
+ipc5-qual-pref                 100       0       100       0       +0
+ipc2023-sat                     53       0        52       0       -1
+ipc2023-opt                     33       0        33       0       +0
+ipc2018-opt                     94       0        94       0       +0
+ipc2023-numeric-opt             81       0        82       0       +1
+ipc2026-opt-full                81       0        80       0       -1
+ipc2014-mco-t2                 175       0       181       0       +6
+ipc2014-mco-t8                 179       0       186       0       +7
+ipc5-complex-pref               80       0        81       0       +1
+
+net +89 over the 32 board(s) where NEITHER side owes a row
+
+8444 cells measured by BOTH engines, every attempt counted
+  A: 10997 runs, mean N=1.30, max N=18, 21% clean
+  B: 9872 runs, mean N=1.17, max N=8, 34% clean
+
+  what triggers a re-run (a re-run is fired by FAILURE, so extra attempts can only add solves):
+  engine  attempt 1 SOLVED              attempt 1 FAILED              rescued
+  A       5358 cells                    3086 cells, re-run 31.6%      110
+  B       5476 cells                    2968 cells, re-run 24.4%      82
+  decomposition of `any`: first-attempt +118  +  rescues -28  =  +90
+
+  estimator           A        B    B - A    95% CI (cell bootstrap)
+  banked         5466.0   5555.0    +89.0    [+67, +112]
+  any            5468.0   5558.0    +90.0    [+68, +113]
+  first          5358.0   5476.0   +118.0    [+89, +149]
+  equal-N        5397.0   5522.0   +125.0    [+95, +155]
+  per-run        5402.2   5495.8    +93.6    [+69, +120]
+  clean-only      787.0    813.3    +26.3    [+13, +40]
+
+  the estimators agree in sign: `first` is the comparative claim, `banked` the boards' standing number
+
+cells BOTH engines banked: 110 gained by B, 21 lost by B
+  lost    ipc5-metric-time       pipesworld-metric-time/36
+  lost    ipc5-metric-time       rovers-metric-time/28
+  lost    ipc5-prop              pipesworld-propositional/50
+  lost    ipc2014-tempo          driver-log-temporal-satisficing/5
+  lost    ipc2014-tempo          driver-log-temporal-satisficing/6
+  lost    ipc2026-numeric        settlers-snp-numeric-2026/5
+  lost    ipc2026-numeric        ztalloc-sum-numeric-2026/9
+  lost    ipc2026-numeric        ztalloc-sum-numeric-2026/12
+  lost    ipc2023-numeric        counters-numeric-satisficing/16
+  lost    ipc2023-numeric        sugar-numeric-satisficing/17
+  lost    ipc7-mco-t2            elevator-sequential-multi-core/19
+  lost    ipc7-mco-t2            elevator-sequential-multi-core/20
+  lost    ipc7-mco-t2            tidybot-sequential-multi-core/19
+  lost    ipc7-mco-t2            transport-sequential-multi-core/18
+  lost    ipc7-mco-t4            elevator-sequential-multi-core/19
+  lost    ipc7-mco-t4            elevator-sequential-multi-core/20
+  lost    ipc7-mco-t4            transport-sequential-multi-core/18
+  lost    ipc7-mco-t8            transport-sequential-multi-core/18
+  lost    ipc2023-sat            labyrinth-satisficing/9
+  lost    ipc2026-opt-full       forestfire-numeric-2026/14
+  lost    ipc2026-opt-full       gear-car-numeric-2026/8
+lost cells written to /private/tmp/claude-501/-Users-harold-ferroplan/56df3502-f435-4187-be2c-c2b4d1a3d68f/scratchpad/lost29b.rows

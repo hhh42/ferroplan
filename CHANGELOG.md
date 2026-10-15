@@ -4,6 +4,102 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+## [0.29.0] - 2026-10-15 — Points, and a relaxation that counts
+
+0.28.0 closed the ROW gap to SGPlan5 on the IPC-5 preference boards and left
+the POINT gap where it was, so this cycle declared two measures before any
+lane ran: rows, by the first-attempt estimator against 0.28.0, and points, by
+the IPC quality score on the preference boards. Four engine lanes and a
+harness phase came out of that; two lanes were recorded negative. A
+2026-09-30 read found that the first thing wrong with coins-2026 i18 was not
+the heuristic at all but a code-generation regression in 0.28.0 itself.
+
+### Measured
+
+**66% coverage across 32 IPC boards** (5,555/8,444), **691 certified optima**
+-- 8,444 of 8,444 instances banked in seven passes, then 24 rows re-opened
+and re-measured by the re-check below. Full record:
+[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md),
+[`docs/roadmap-0.29.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.29.md).
+
+**Rows, against 0.28.0, on the estimator declared before the sweep** -- each
+instance's FIRST attempt against its first:
+
+| estimator | 0.28.0 | 0.29.0 | delta | 95 % CI |
+|---|---:|---:|---:|---|
+| **first attempt** (the claim) | 5,358 | 5,476 | **+118** | [+89, +149] |
+| equal-N | 5,397 | 5,522 | +125 | [+95, +155] |
+| banked -- what the boards show | 5,466 | 5,555 | +89 | [+67, +112] |
+
+Every estimator agrees in sign. Banked reads lower than first-attempt because
+the referee re-runs failures and 0.28.0's re-run rescued more of its failures
+than 0.29.0's did (net -28). Of the cells both engines banked, 110 were gained
+and 21 lost.
+
+**Where it moved (rows):** 2023 numeric +27 (289/400, now ahead of the vendored
+field's best, ENHSP at 267), metric-time +14 (119/200), 2014 seq-sat +7, the
+2014 multi-core boards +6 / +6 / +7, IPC-2011 seq-sat +5 and tempo-sat +3, 2014
+tempo-sat +2, 2014 agile +2, 2018 seq-sat +2, propositional +2. Down: 2023
+seq-sat -1, 2026 numeric-opt (full) -1. 
+
+**Points, the second declared measure** -- the IPC-5 quality score (best
+metric / ours, over the cells SGPlan5 solved), SGPlan5's own score beside:
+
+| track | rows | 0.28.0 | 0.29.0 | SGPlan5 |
+|---|---|---|---|---|
+| simple-preferences | 130/130 | 94.1 / 120.4 | **97.3 / 115.1** | 129/130 |
+| qualitative-preferences | 100/100 | 59.2 / 92.1 | **64.6 / 91.4** | 100/100 |
+| complex-preferences | 81/108 | 53.4 / 99.0 | 54.5 / 100.0 | 105/108 |
+
+The headline lane moved points in the right direction on all three boards and
+**landed under its pre-registered band** (simple 96 -> 105 of 120, qualitative
+63 -> 75 of 92): ferroplan is closer to SGPlan5 on quality, not level with it.
+Read the denominators: each cell's score is best-known over own, so a better
+plan from either planner moves the other's total.
+
+**The 21 cells 0.28.0 solved that 0.29.0 banked unsolved**, each re-run on
+both engines before being named (0.29.0 with up to eight attempts; 0.28.0
+rebuilt from tag `v0.28.0` under the crucible's own prefix, engine
+`bb07d50d2015`, which is not byte-identical to the baseline's `89cfdc5f06ed`).
+**Twelve reproduce**: the rebuilt 0.28.0 solves them and 0.29.0 does not in
+any attempt -- `rovers-metric-time/28`, `pipesworld-metric-time/36`,
+`settlers-snp-numeric-2026/5`, `ztalloc-sum-numeric-2026/9` and `/12`,
+`sugar-numeric-satisficing/17`, `driver-log-temporal-satisficing/6`, and five
+IPC-2011 multi-core cells (`elevator` 19 and 20 and `transport` 18 at two
+threads, `elevator` 19 and `transport` 18 at four).
+**Eight are noise**: the rebuilt 0.28.0 cannot re-solve them either
+(`driver-log-temporal-satisficing/5`, `tidybot` 19, `elevator` 20 at four
+threads, `labyrinth-satisficing/9`, `forestfire-numeric-2026/14`,
+`gear-car-numeric-2026/8`, and `pipesworld-propositional/50` and
+`counters-numeric-satisficing/16`, which 0.29.0 itself solved on a first
+attempt that the referee voided as thermal / swap and could not reproduce).
+**One is a wall coin**: `transport` 18 at eight threads is solved by the
+rebuilt 0.28.0 twice in two and by 0.29.0 on a first attempt the referee
+voided, then missed three times.
+
+**What the failure classes did.** Coverage is the claim; the unsolved rows'
+reasons moved with it. `mem-cap` fell on 2014 seq-sat (30 -> 4), 2018 seq-sat
+(35 -> 24), 2014 tempo-sat (6 -> 2) and 2014 agile (25 -> 1), and rose where
+the memory wall now ends a rung early: 2018 seq-opt (10 -> 21), 2023 numeric
+(33 -> 52), 2023 numeric-opt, 2026 numeric-opt full (4 -> 24), 2014 multi-core
+t8 (4 -> 11). On the optimal boards the same rows end unsolved either way.
+
+**Not met.** Metric-time +14 against a +15 to +30 band, short by one. The
+achiever index (Lane 4) did not move storage-complex (complex-preferences +1
+row, band +8 to +14).
+The classical memory lane (Lane 5) was measured, not built: a lazy frontier is
+named (6-15 KB per evaluated node against a 200 B model) and left for 0.30.
+Propositional stands at 386/450 against SGPlan5's 218/220.
+
+### Added
+
+- **`benchmarks/recheck29.py`** and **`benchmarks/promote-air29.sh`**: the
+  cut's re-check (every banked solve whose price is missing, every solve under
+  a slow canary near its wall, every cell the previous release solved) and
+  promotion, for the next cut to copy.
+
+### Changed
+
 - **Temporal: an end-side `?duration` over a dynamic read compiles** (0.29
   Lane 2). A durative action whose duration reads a fluent some action assigns
   and whose END uses `?duration` -- rovers' `recharge`, lasting
@@ -46,6 +142,42 @@ All notable changes to this project are documented here.
   on storage-complex, its `mem-cap` class. `add_by_fact` holds each op's own
   adds; `PackedTask::achievers` merges in every monitored op for a fact the
   block adds, ascending, each once.
+- **The preference polish runs first, on the seed's own task** (0.29 Lane 1).
+  It takes half the optimizer's wall share, clears its memory trip before the
+  compiled grounding, is skipped where the seed's grounding peaked past a
+  quarter of `FF_MEM_BUDGET_GB` or grounded slowly, and needs most preference
+  bodies expressible. Its candidate search prices the preferences a plan would
+  break as per-op penalties (`search::with_op_penalty`) instead of forbidding
+  their achievers. `FF_PREF_POLISH_FRAC` (0.4) sizes the share.
+- **Temporal node-cap refill** (0.29 Lane 3, `temporal::refill_ladder`) and
+  **EHC slice extension** (Lane W, `search::ehc`): built, fixtures green,
+  recorded negative on rows (constraints 28 -> 28 of 120; sat subsets 0 gained,
+  0 lost) and kept for short walls. `FF_NO_TNODE_REFILL`, `FF_NO_EHC_EXTEND`,
+  `FF_EHC_WALL_MAX_FRAC` (0.6).
+- **Streamed expansion of the constraints simplifier** (0.29 Lane 4,
+  `constraints::expand_simplified`): a member the static simplifier accepts is
+  never stored. Byte-identical; storage still peaks at 5-6 GB. `FF_PREF_NO_STATIC`.
+
+### Fixed
+
+- **A 0.28.0 code-generation regression.** `heuristic::widen`, which Lane N's
+  `needs` parameter had tipped LLVM into keeping an out-of-line call, cost the
+  relaxed-graph build 11.0 us per evaluation against v0.27.1's 7.7 (+43 %) on
+  the identical search trajectory. `#[inline(always)]` brings it to 8.5 us;
+  coins-2026 i18 solo at 60 s went from 0/3 to 3/3. The heuristic's nine
+  `FF_*` hatches are also read once per `Scratch` instead of up to six
+  `std::env::var` reads per evaluation.
+
+### Harness (the crucible; not part of any published crate)
+
+- **A solve can be SUSPECT** (0.29 Phase 0.1). The referee re-ran a row that
+  failed under bad conditions and never one that solved under them; a solve
+  that came back without its price, or spent half its budget or more, is now
+  judged by the signals about its own process and the box's clock (demoted,
+  canary, swap growth, clock jump). `[referee] solved_wall_frac` (1.0 restores
+  "a solve is a solve"). Pinned by the population the rule came from.
+- **`publish.sh` asks how old the crates.io token is** before spending the
+  pre-flight, and refuses a token file older than 80 days.
 - **crucible** (0.29 Phase 0.5): `--max-passes` is a cap on passes,
   productive or not (it was consulted only after a pass that banked nothing,
   so a subset banking a few owed rows a pass ran on past it); the canary's
@@ -276,61 +408,6 @@ their row and give up their metric.
   at 4.5 and 5.9 GB under a 6 GB cap truly peaked at 6.6 and 6.4. `wait4`
   already returns `ru_maxrss`.
 
-## [0.27.1] - 2026-09-11 — A budget the caller can set, and withdraw
-
-No engine change. Coverage is unchanged from 0.27.0 (5,122/8,444) because
-nothing here touches how the planner searches — the additions are inert
-unless you set them.
-
-### Added
-
-Two fields on `Options`, both `None` by default:
-
-- **`wall_ms: Option<u64>`** — this call's wall, in milliseconds. Armed at
-  the top of `solve`, so it bounds parsing and GROUNDING as well as
-  search. That is the budget the existing knobs could not express:
-  `max_evaluated` caps evaluated states, and grounding runs before the
-  first state exists, so a call capped at fifty thousand evaluations can
-  still spend minutes. `FF_TIME_LIMIT` could not express it either, for
-  the opposite reason — it is armed once per PROCESS from the first solve,
-  so in a long-lived host it either bounds nothing or eventually refuses
-  everything.
-- **`should_continue: Option<Arc<AtomicBool>>`** — flip it to `false` to
-  stop this call. Polled wherever the wall is: the grounding checkpoint
-  (every 256 bindings), the best-first batch boundary, EHC's
-  per-evaluation slice, and the temporal pop. `#[serde(skip)]`, since a
-  live handle has no JSON form.
-
-A stop from either returns `solved: false` with a note naming which budget
-bound and where — `grounding stopped at the declared budget: …` or
-`search stopped at the declared budget: …` — and never the word
-"unsolvable". Running out of time is not a proof.
-
-The budget is held per call, in a thread-local armed by an RAII guard, so
-concurrent `solve` calls on different threads each carry their own and a
-spent budget cannot leak into the next call on its thread.
-`FF_NO_RUNG_WALLCAP` does not disable it: that hatch governs the
-environment wall, and a budget passed in code outranks an environment
-variable.
-
-### Why this is a patch release
-
-It answers a consumer blocked on it. `solve` was blocking and
-uninterruptible, so a host that abandoned the work leaked that thread for
-the life of the process; their own instrumentation recorded 213 solves
-completed, then 2 abandoned, after which the pool was dead — 0 completed,
-4 abandoned. The rest of the 0.28 cycle is unmeasured and stays on its
-branch until it has been swept.
-
-### Note
-
-The search ladder rations a wall across its rungs, so a budget is not
-simply "time until I stop" — each rung sees a fraction of it. A 30-block
-instance that solves in 34 ms unbudgeted is stopped by a 120 ms wall and
-solved under a 200 ms one. That is not new to this release: `FF_TIME_LIMIT`
-of 0.12 s fails the same instance and 0.2 s solves it. Measure your own
-domain rather than assuming a 250 ms wall buys 250 ms of search.
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (29 earlier releases, 0.1.0–0.27.0).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (30 earlier releases, 0.1.0–0.27.1).

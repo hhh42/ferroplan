@@ -4,10 +4,10 @@ timeout 60s/instance, jobs 2, mode auto. Plans externally validated with VAL. ST
 
 | variant | coverage | summed cost | solve time | val |
 |---|---|---|---|---|
-| ipc-2006/openstacks-time | 20/20 | 1504 | 30.4s | 20/20 |
-| ipc-2006/openstacks-time-strips | 20/20 | 1504 | 5.9s | 20/20 |
-| ipc-2006/storage-time | 26/30 | 980 | 211.9s | 26/26 |
-| ipc-2006/trucks-time | 30/30 | 2557 | 289.4s | 30/30 |
-| ipc-2006/trucks-time-strips | 30/30 | 2507 | 284.0s | 30/30 |
+| ipc-2006/openstacks-time | 20/20 | 1504 | 32.6s | 20/20 |
+| ipc-2006/openstacks-time-strips | 20/20 | 1504 | 6.1s | 20/20 |
+| ipc-2006/storage-time | 26/30 | 972 | 208.0s | 26/26 |
+| ipc-2006/trucks-time | 30/30 | 2557 | 304.1s | 30/30 |
+| ipc-2006/trucks-time-strips | 30/30 | 2507 | 300.3s | 30/30 |
 
 total coverage: **126/130**

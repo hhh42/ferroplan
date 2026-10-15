@@ -1,0 +1,497 @@
+tag     v0.28.0 at /Users/harold/.crucible/worktrees/v0.28.0
+engine  ff 0.28.0 [bb07d50d2015]
+reap    373 child(ren) recorded by an earlier run
+        7336 already gone
+        10914 already gone
+        11791 already gone
+        18747 already gone
+        22352 already gone
+        25690 already gone
+        29468 already gone
+        32521 already gone
+        35546 already gone
+        39791 already gone
+        42846 already gone
+        45936 already gone
+        48966 already gone
+        52119 already gone
+        55179 already gone
+        58220 already gone
+        58977 already gone
+        62015 already gone
+        65061 already gone
+        68266 already gone
+        71362 already gone
+        74435 already gone
+        77439 already gone
+        80701 already gone
+        83731 already gone
+        86770 already gone
+        89788 already gone
+        92826 already gone
+        95822 already gone
+        98831 already gone
+        2474 already gone
+        5567 already gone
+        8597 already gone
+        11963 already gone
+        18906 already gone
+        22353 already gone
+        26220 already gone
+        27133 already gone
+        28005 already gone
+        28868 already gone
+        29746 already gone
+        30611 already gone
+        31479 already gone
+        32344 already gone
+        33204 already gone
+        34121 already gone
+        37596 already gone
+        38472 already gone
+        39339 already gone
+        40200 already gone
+        41053 already gone
+        41921 already gone
+        42771 already gone
+        43635 already gone
+        44549 already gone
+        45554 already gone
+        46446 already gone
+        47304 already gone
+        48305 already gone
+        49182 already gone
+        50079 already gone
+        50989 already gone
+        51843 already gone
+        52706 already gone
+        53554 already gone
+        54418 already gone
+        55273 already gone
+        56157 already gone
+        57021 already gone
+        57869 already gone
+        58714 already gone
+        62215 already gone
+        65617 already gone
+        69055 already gone
+        72579 already gone
+        73439 already gone
+        74284 already gone
+        75138 already gone
+        76045 already gone
+        76926 already gone
+        81718 already gone
+        85146 already gone
+        86034 already gone
+        89494 already gone
+        92961 already gone
+        96397 already gone
+        495 already gone
+        4237 already gone
+        7659 already gone
+        11234 already gone
+        14826 already gone
+        18700 already gone
+        22223 already gone
+        25652 already gone
+        29105 already gone
+        32588 already gone
+        36012 already gone
+        39432 already gone
+        42905 already gone
+        46418 already gone
+        47282 already gone
+        50770 already gone
+        54236 already gone
+        57670 already gone
+        61990 already gone
+        65619 already gone
+        69040 already gone
+        72040 already gone
+        75115 already gone
+        78229 already gone
+        81775 already gone
+        85256 already gone
+        88278 already gone
+        91253 already gone
+        94293 already gone
+        97393 already gone
+        596 already gone
+        4031 already gone
+        7162 already gone
+        10325 already gone
+        13399 already gone
+        16761 already gone
+        17553 already gone
+        23733 already gone
+        26979 already gone
+        30094 already gone
+        33296 already gone
+        36333 already gone
+        39357 already gone
+        42473 already gone
+        45601 already gone
+        48697 already gone
+        51815 already gone
+        55027 already gone
+        58486 already gone
+        61904 already gone
+        65323 already gone
+        68741 already gone
+        72302 already gone
+        75734 already gone
+        79246 already gone
+        82660 already gone
+        83523 already gone
+        84440 already gone
+        85300 already gone
+        86160 already gone
+        87003 already gone
+        87859 already gone
+        88701 already gone
+        89589 already gone
+        90437 already gone
+        91290 already gone
+        92140 already gone
+        92992 already gone
+        93845 already gone
+        94716 already gone
+        95569 already gone
+        96443 already gone
+        97286 already gone
+        98180 already gone
+        99028 already gone
+        99921 already gone
+        1003 already gone
+        2002 already gone
+        2863 already gone
+        6368 already gone
+        7222 already gone
+        10660 already gone
+        14075 already gone
+        17669 already gone
+        21462 already gone
+        22319 already gone
+        23175 already gone
+        24037 already gone
+        24900 already gone
+        25768 already gone
+        26726 already gone
+        27611 already gone
+        28477 already gone
+        29363 already gone
+        30255 already gone
+        31126 already gone
+        32051 already gone
+        32931 already gone
+        33881 already gone
+        34791 already gone
+        35665 already gone
+        36583 already gone
+        37517 already gone
+        38389 already gone
+        39253 already gone
+        40153 already gone
+        41052 already gone
+        41914 already gone
+        42818 already gone
+        43724 already gone
+        44614 already gone
+        45523 already gone
+        46466 already gone
+        47376 already gone
+        48291 already gone
+        49168 already gone
+        50089 already gone
+        50943 already gone
+        51798 already gone
+        52656 already gone
+        53605 already gone
+        54488 already gone
+        55356 already gone
+        56211 already gone
+        57079 already gone
+        57936 already gone
+        58821 already gone
+        59682 already gone
+        60571 already gone
+        61430 already gone
+        62324 already gone
+        63266 already gone
+        64222 already gone
+        65106 already gone
+        65989 already gone
+        69430 already gone
+        72813 already gone
+        76185 already gone
+        80558 already gone
+        81405 already gone
+        82247 already gone
+        83247 already gone
+        84141 already gone
+        84979 already gone
+        85814 already gone
+        89190 already gone
+        90026 already gone
+        90863 already gone
+        94209 already gone
+        95059 already gone
+        98438 already gone
+        2160 already gone
+        5509 already gone
+        9023 already gone
+        12169 already gone
+        15109 already gone
+        18028 already gone
+        20965 already gone
+        23916 already gone
+        26865 already gone
+        29827 already gone
+        35702 already gone
+        38697 already gone
+        41792 already gone
+        44796 already gone
+        47807 already gone
+        50786 already gone
+        53796 already gone
+        54537 already gone
+        57504 already gone
+        60492 already gone
+        63459 already gone
+        66464 already gone
+        69472 already gone
+        72552 already gone
+        73289 already gone
+        76262 already gone
+        79396 already gone
+        82420 already gone
+        85376 already gone
+        88329 already gone
+        91414 already gone
+        94921 already gone
+        95785 already gone
+        99233 already gone
+        3129 already gone
+        6525 already gone
+        7440 already gone
+        8385 already gone
+        11816 already gone
+        15319 already gone
+        18758 already gone
+        19922 already gone
+        21039 already gone
+        22185 already gone
+        23296 already gone
+        24403 already gone
+        25607 already gone
+        26725 already gone
+        27831 already gone
+        28939 already gone
+        30055 already gone
+        31171 already gone
+        32299 already gone
+        33490 already gone
+        34605 already gone
+        35769 already gone
+        36893 already gone
+        38020 already gone
+        39207 already gone
+        40325 already gone
+        41528 already gone
+        42646 already gone
+        43828 already gone
+        45032 already gone
+        46191 already gone
+        47368 already gone
+        48489 already gone
+        49614 already gone
+        50737 already gone
+        51904 already gone
+        53027 already gone
+        54162 already gone
+        55309 already gone
+        56416 already gone
+        57283 already gone
+        58127 already gone
+        58989 already gone
+        59833 already gone
+        60681 already gone
+        61531 already gone
+        64949 already gone
+        68324 already gone
+        71748 already gone
+        75157 already gone
+        78668 already gone
+        82081 already gone
+        85484 already gone
+        88890 already gone
+        92303 already gone
+        95704 already gone
+        99077 already gone
+        2964 already gone
+        6344 already gone
+        9684 already gone
+        10518 already gone
+        13909 already gone
+        17291 already gone
+        20645 already gone
+        24010 already gone
+        27382 already gone
+        30775 already gone
+        31657 already gone
+        35049 already gone
+        38453 already gone
+        41893 already gone
+        45319 already gone
+        48759 already gone
+        52146 already gone
+        55510 already gone
+        58481 already gone
+        61476 already gone
+        64499 already gone
+        65256 already gone
+        68212 already gone
+        71178 already gone
+        74126 already gone
+        77122 already gone
+        80195 already gone
+        83159 already gone
+        86113 already gone
+        89102 already gone
+        92039 already gone
+        92796 already gone
+        95773 already gone
+        98818 already gone
+        99571 already gone
+        2939 already gone
+        5899 already gone
+        8887 already gone
+        11871 already gone
+        14864 already gone
+        17848 already gone
+        20860 already gone
+        23793 already gone
+        26854 already gone
+        29826 already gone
+canary  trucks-propositional/8@bb07d50d2015 baseline 0.520 s (median of 5 runs, no history yet); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+subset  19 listed row(s) -- 42 instance(s) of set cut29, staged at /Users/harold/ferroplan/benchmarks/probes/cut29/0.28.0-bb07d50d2015
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 15 board(s) outstanding
+   ipc5-metric-time       packed: 2 wide x10 (14.5 GB budget), 0 narrow, 0 solo
+!! width - -> 10 (full, quiet hours, idle 27360s, foreign -0%)
+   ipc5-metric-time       verdicts: packed 1, solved 2
+   ipc5-metric-time       banked    2   2 -> 0
+!! width 10 -> 9 (full, quiet hours, idle 27460s, foreign 5%)
+!! width 9 -> 10 (full, quiet hours, idle 27480s, foreign -0%)
+   ipc5-prop              verdicts: suspect 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2014-tempo          packed: 2 wide x10 (14.5 GB budget), 0 narrow, 0 solo
+!! width 10 -> 9 (full, quiet hours, idle 27560s, foreign 13%)
+!! width 9 -> 10 (full, quiet hours, idle 27620s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27640s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 27680s, foreign -0%)
+   ipc2014-tempo          verdicts: packed 4, solved 1, suspect 1
+   ipc2014-tempo          banked    1   2 -> 1
+   ipc2026-numeric        packed: 3 wide x10 (14.5 GB budget), 1 narrow, 1 solo
+!! width 10 -> 9 (full, quiet hours, idle 27760s, foreign 7%)
+!! width 9 -> 10 (full, quiet hours, idle 27780s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 27800s, foreign 92%)
+   ipc2026-numeric        verdicts: solved 5
+   ipc2026-numeric        banked    5   5 -> 0
+!! width 9 -> 10 (full, quiet hours, idle 27880s, foreign -0%)
+   ipc2023-numeric        verdicts: solved 1, suspect 1
+   ipc2023-numeric        banked    1   2 -> 1
+!! width 10 -> 9 (full, quiet hours, idle 28020s, foreign 9%)
+!! width 9 -> 10 (full, quiet hours, idle 28080s, foreign -0%)
+   ipc7-mco-t2            verdicts: solved 3, suspect 2
+   ipc7-mco-t2            banked    3   5 -> 2
+!! width 10 -> 9 (full, quiet hours, idle 28360s, foreign 8%)
+!! width 9 -> 10 (full, quiet hours, idle 28380s, foreign -0%)
+   ipc7-mco-t4            verdicts: solved 4, suspect 1
+   ipc7-mco-t4            banked    4   5 -> 1
+!! canary trucks-propositional/8@bb07d50d2015 at 1.49x its baseline -- the box is slow
+   ipc7-mco-t8            verdicts: solved 3, suspect 1, thermal 1
+   ipc7-mco-t8            banked    3   5 -> 2
+!! width 10 -> 9 (full, quiet hours, idle 28640s, foreign 99%)
+!! width 9 -> 10 (full, quiet hours, idle 28660s, foreign -0%)
+!! width 10 -> 9 (full, quiet hours, idle 28740s, foreign 10%)
+   ipc2014-mco-t4         verdicts: thermal 1, window 1
+   ipc2014-mco-t4         banked    1   2 -> 1
+!! width 9 -> 10 (full, idle 28800s, foreign -0%)
+   ipc2023-sat            verdicts: suspect 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 10 -> 9 (full, idle 28840s, foreign 29%)
+!! width 9 -> 10 (full, idle 28860s, foreign -0%)
+   ipc2023-numeric-opt    verdicts: thermal 2
+   ipc2023-numeric-opt    banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+   ipc2026-opt-full       packed: 1 wide x10 (14.5 GB budget), 1 narrow, 3 solo
+!! width 10 -> 9 (full, idle 28900s, foreign 16%)
+!! width 9 -> 10 (full, idle 28920s, foreign -0%)
+   ipc2026-opt-full       verdicts: suspect 2, thermal 3
+   ipc2026-opt-full       banked    0   5 -> 5   [DEGRADED -- not banked, work owed]
+!! width 10 -> 9 (full, idle 29000s, foreign 43%)
+!! width 9 -> 10 (full, idle 29020s, foreign -0%)
+!! width 10 -> 9 (full, idle 29060s, foreign 5%)
+!! width 9 -> 10 (full, idle 29080s, foreign -0%)
+   ipc2014-mco-t2         verdicts: contended 1, window 1
+   ipc2014-mco-t2         banked    1   2 -> 1
+!! width 10 -> 9 (full, idle 29100s, foreign 11%)
+!! width 9 -> 10 (full, idle 29120s, foreign -0%)
+!! width 10 -> 9 (full, idle 29160s, foreign 18%)
+!! width 9 -> 10 (full, idle 29180s, foreign -0%)
+   ipc2014-mco-t8         verdicts: thermal 1, window 1
+   ipc2014-mco-t8         banked    1   2 -> 1
+   ipc5-complex-pref      packed: 1 wide x10 (14.5 GB budget), 0 narrow, 0 solo
+   ipc5-complex-pref      verdicts: suspect 1
+   ipc5-complex-pref      banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+== pass 2 -- 13 board(s) outstanding
+!! width 10 -> 9 (full, idle 29260s, foreign 8%)
+!! width 9 -> 10 (full, idle 29280s, foreign -0%)
+   ipc5-prop              verdicts: thermal 1
+   ipc5-prop              banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 10 -> 9 (full, idle 29320s, foreign 5%)
+!! width 9 -> 10 (full, idle 29340s, foreign -0%)
+   ipc2014-tempo          verdicts: thermal 1
+   ipc2014-tempo          banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2023-numeric        verdicts: thermal 1
+   ipc2023-numeric        banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc7-mco-t4            verdicts: window 1
+   ipc7-mco-t4            banked    1   1 -> 0
+!! width 10 -> 9 (full, idle 29420s, foreign 13%)
+!! width 9 -> 10 (full, idle 29460s, foreign -0%)
+   ipc2014-mco-t4         verdicts: window 1
+   ipc2014-mco-t4         banked    1   1 -> 0
+!! width 10 -> 9 (full, idle 29480s, foreign 8%)
+!! width 9 -> 10 (full, idle 29500s, foreign -0%)
+   ipc2023-sat            verdicts: thermal 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2014-mco-t2         verdicts: window 1
+   ipc2014-mco-t2         banked    1   1 -> 0
+!! width 10 -> 9 (full, idle 29640s, foreign 7%)
+   ipc2014-mco-t8         verdicts: thermal 1
+   ipc2014-mco-t8         banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 10 (full, idle 29660s, foreign -0%)
+   ipc5-complex-pref      verdicts: thermal 1
+   ipc5-complex-pref      banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 10 -> 8 (full, idle 29740s, foreign 105%)
+!! width 8 -> 10 (full, idle 29760s, foreign -0%)
+!! canary trucks-propositional/8@bb07d50d2015 at 1.49x its baseline -- the box is slow
+   ipc7-mco-t2            verdicts: contended 1, thermal 1
+   ipc7-mco-t2            banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! width 10 -> 9 (full, idle 29860s, foreign 5%)
+!! width 9 -> 10 (full, idle 29880s, foreign -0%)
+   ipc7-mco-t8            verdicts: thermal 2
+   ipc7-mco-t8            banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+   ipc2023-numeric-opt    verdicts: thermal 2
+   ipc2023-numeric-opt    banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+!! width 10 -> 8 (full, idle 29940s, foreign 148%)
+!! width 8 -> 10 (full, idle 29960s, foreign -0%)
+!! width 10 -> 9 (full, idle 30000s, foreign 6%)
+!! width 9 -> 10 (full, idle 30020s, foreign -0%)
+   ipc2026-opt-full       verdicts: rho 2, thermal 3
+   ipc2026-opt-full       banked    2   5 -> 3
+   (--max-passes 2 reached; 15 still owed)
+stopped after 2 pass(es); 15 still owed -- the next run picks them up
+15 instance(s) still owed -- rows are written, nothing is lost
