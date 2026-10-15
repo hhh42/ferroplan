@@ -30,6 +30,16 @@ pub struct Engine {
     pub ver: String,
     /// The identity the resume gate actually compares.
     pub blake3: String,
+    /// The CONTENT hash (0.30 Phase 0.4): blake3 of the file with the Mach-O
+    /// `LC_UUID` payload and the code-signature blob zeroed. Two builds of
+    /// one commit with one toolchain differ in exactly those bytes (ld64
+    /// derives the UUID from its inputs, the ad-hoc signature covers the
+    /// UUID page): the `v0.29.0` rebuild of 2026-10-15 differed from the
+    /// board's `7fdf185b91e6` in 47 bytes of 3,250,336, all there. `blake3`
+    /// stays the identity the database keys on; this answers "is that
+    /// rebuilt binary the board's engine?" without a diff. Equal to
+    /// `blake3` on a file that is not a 64-bit Mach-O.
+    pub content: String,
     /// Which `--mode` values this build accepts. An old tag that predates
     /// `Mode::Optimal` must SKIP the proof boards, not record zero coverage --
     /// "the feature does not exist, and recording a zero would be a lie the
@@ -71,10 +81,12 @@ impl Engine {
         }
         let bytes = std::fs::read(path)?;
         let blake3 = blake3::hash(&bytes).to_hex().to_string();
+        let content = content_hash(&bytes);
         Ok(Engine {
             path: path.to_path_buf(),
             ver,
             blake3,
+            content,
             modes: probe_modes(path),
             tag: None,
         })
@@ -233,6 +245,54 @@ pub fn worktree_for(worktree_dir: &Path, tag: &str) -> PathBuf {
     worktree_dir.join(tag)
 }
 
+/// blake3 of `bytes` with the two regions a rebuild legitimately differs in
+/// zeroed: the 16-byte `LC_UUID` payload and the `LC_CODE_SIGNATURE` blob
+/// of a 64-bit Mach-O (0.30 Phase 0.4). Anything else -- an ELF, a fat
+/// binary, a truncated header -- hashes as it is. Only the load commands
+/// are parsed, bounds-checked; a malformed table falls back to the plain
+/// hash rather than panicking on a planner binary.
+pub fn content_hash(bytes: &[u8]) -> String {
+    const MH_MAGIC_64: u32 = 0xfeed_facf;
+    const LC_UUID: u32 = 0x1b;
+    const LC_CODE_SIGNATURE: u32 = 0x1d;
+    let u32_at = |b: &[u8], o: usize| -> Option<u32> {
+        b.get(o..o + 4)
+            .map(|s| u32::from_le_bytes([s[0], s[1], s[2], s[3]]))
+    };
+    let masked = (|| -> Option<Vec<u8>> {
+        if u32_at(bytes, 0)? != MH_MAGIC_64 {
+            return None;
+        }
+        let ncmds = u32_at(bytes, 16)? as usize;
+        let mut out = bytes.to_vec();
+        let mut off = 32usize;
+        for _ in 0..ncmds {
+            let cmd = u32_at(bytes, off)?;
+            let size = u32_at(bytes, off + 4)? as usize;
+            if size < 8 {
+                return None;
+            }
+            match cmd {
+                LC_UUID => {
+                    out.get_mut(off + 8..off + 24)?.fill(0);
+                }
+                LC_CODE_SIGNATURE => {
+                    let data_off = u32_at(bytes, off + 8)? as usize;
+                    let data_size = u32_at(bytes, off + 12)? as usize;
+                    out.get_mut(data_off..data_off + data_size)?.fill(0);
+                }
+                _ => {}
+            }
+            off += size;
+        }
+        Some(out)
+    })();
+    match masked {
+        Some(m) => blake3::hash(&m).to_hex().to_string(),
+        None => blake3::hash(bytes).to_hex().to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -242,9 +302,45 @@ mod tests {
             path: PathBuf::from("/x/ff"),
             ver: ver.into(),
             blake3: "a".repeat(64),
+            content: "a".repeat(64),
             modes: modes.iter().map(|s| s.to_string()).collect(),
             tag: None,
         }
+    }
+
+    /// A synthetic 64-bit Mach-O: a header, an `LC_UUID`, an
+    /// `LC_CODE_SIGNATURE` pointing at a blob, some "code" between. Two
+    /// copies that differ only in the UUID and the signature blob share a
+    /// content hash and not a blake3; a copy that differs in the code
+    /// shares neither; a non-Mach-O file's content hash is its blake3.
+    #[test]
+    fn the_content_hash_ignores_the_uuid_and_the_signature() {
+        fn mach(uuid: u8, sig: u8, code: u8) -> Vec<u8> {
+            let mut b = vec![0u8; 32];
+            b[0..4].copy_from_slice(&0xfeed_facfu32.to_le_bytes());
+            b[16..20].copy_from_slice(&2u32.to_le_bytes()); // ncmds
+                                                            // LC_UUID: cmd, size 24, 16 bytes of uuid
+            b.extend_from_slice(&0x1bu32.to_le_bytes());
+            b.extend_from_slice(&24u32.to_le_bytes());
+            b.extend_from_slice(&[uuid; 16]);
+            // LC_CODE_SIGNATURE: cmd, size 16, dataoff, datasize
+            let data_off = 32 + 24 + 16 + 8; // after the "code" below
+            b.extend_from_slice(&0x1du32.to_le_bytes());
+            b.extend_from_slice(&16u32.to_le_bytes());
+            b.extend_from_slice(&(data_off as u32).to_le_bytes());
+            b.extend_from_slice(&4u32.to_le_bytes());
+            b.extend_from_slice(&[code; 8]); // the code
+            b.extend_from_slice(&[sig; 4]); // the signature blob
+            b
+        }
+        let a = mach(1, 1, 7);
+        let b = mach(2, 2, 7);
+        let c = mach(1, 1, 8);
+        assert_ne!(blake3::hash(&a), blake3::hash(&b));
+        assert_eq!(content_hash(&a), content_hash(&b));
+        assert_ne!(content_hash(&a), content_hash(&c));
+        let elf = b"\x7fELF not a mach-o at all".to_vec();
+        assert_eq!(content_hash(&elf), blake3::hash(&elf).to_hex().to_string());
     }
 
     /// The gate every sweep driver opens with.

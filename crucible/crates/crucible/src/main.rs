@@ -640,6 +640,10 @@ fn engine(repo: &std::path::Path) -> anyhow::Result<()> {
     // The identity the resume gate actually compares -- the version string
     // cannot tell two builds of one cycle apart.
     println!("blake3  {}", e.blake3);
+    // The same engine rebuilt elsewhere differs only in its Mach-O UUID and
+    // signature (0.30 Phase 0.4): THIS is the hash two builds of one
+    // commit share.
+    println!("content {}", e.content);
     println!(
         "modes   {}",
         if e.modes.is_empty() {

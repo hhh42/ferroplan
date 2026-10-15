@@ -1,0 +1,4 @@
+citycar6-bfs-only	peak_rss_mb=905	evals=89502
+citycar6-lama-held	peak_rss_mb=5892	evals=44994
+citycar6-nov-only	peak_rss_mb=5192	evals=21444
+DONE

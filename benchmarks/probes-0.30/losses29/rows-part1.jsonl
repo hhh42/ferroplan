@@ -1,0 +1,12 @@
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.29.0","hatch":"","rep":1,"solved":false,"wall":60.0,"evaluated":0,"metric":null,"foreign_pcpu":151}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.29.0","hatch":"","rep":2,"solved":false,"wall":60.1,"evaluated":0,"metric":null,"foreign_pcpu":341}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.29.0","hatch":"","rep":3,"solved":false,"wall":60.0,"evaluated":0,"metric":null,"foreign_pcpu":353}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.29.0","hatch":"FF_NO_CONSUME=1","rep":1,"solved":true,"wall":24.4,"evaluated":0,"metric":278.029,"foreign_pcpu":330}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.29.0","hatch":"FF_NO_CONSUME=1","rep":2,"solved":true,"wall":24.5,"evaluated":0,"metric":278.029,"foreign_pcpu":348}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.29.0","hatch":"FF_NO_CONSUME=1","rep":3,"solved":true,"wall":24.5,"evaluated":0,"metric":278.029,"foreign_pcpu":338}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.28.0","hatch":"","rep":1,"solved":true,"wall":25.8,"evaluated":0,"metric":278.029,"foreign_pcpu":352}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.28.0","hatch":"","rep":2,"solved":true,"wall":25.8,"evaluated":0,"metric":278.029,"foreign_pcpu":345}
+{"cell":"rovers-metric-time/28","threads":1,"arm":"0.28.0","hatch":"","rep":3,"solved":true,"wall":25.9,"evaluated":0,"metric":278.029,"foreign_pcpu":202}
+{"cell":"pipesworld-metric-time/36","threads":1,"arm":"0.29.0","hatch":"","rep":1,"solved":crash,"wall":75.6,"evaluated":null,"metric":null,"foreign_pcpu":333}
+{"cell":"pipesworld-metric-time/36","threads":1,"arm":"0.29.0","hatch":"","rep":2,"solved":crash,"wall":76.0,"evaluated":null,"metric":null,"foreign_pcpu":139}
+{"cell":"pipesworld-metric-time/36","threads":1,"arm":"0.29.0","hatch":"","rep":3,"solved":crash,"wall":36.4,"evaluated":null,"metric":null,"foreign_pcpu":135}

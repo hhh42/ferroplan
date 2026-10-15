@@ -97,6 +97,20 @@ on it before its rows are.
    the same table (`FF_NO_NEED_DIRS`, the compile has no hatch — one is
    added first); nothing restores it → the box, recorded. Receipts in
    `probes-0.30/losses29/`.
+   **RUNNING 2026-10-15 from 12:49** (`losses29/run.sh`, rows.jsonl; the
+   box is NOT idle — Apple's `textunderstandingd` / `mediaanalysisd` and a
+   Docker VM hold 150–350 % foreign CPU through the afternoon, recorded on
+   every row as `foreign_pcpu`). First cells read:
+   - **rovers-metric-time i28 is the consumption charge's loss.** 0.29.0
+     unsolved 3/3 at the wall; `FF_NO_CONSUME=1` solved 3/3 at **24.4 s,
+     metric 278.03**; 0.28.0 solved 3/3 at 25.8 s, the same 278.03. The
+     fork's first branch: the charge has a defect on this shape, and the
+     cell is a Lane 2b fixture (the compressed task's search under the
+     charge does not reach the plan the uncharged relaxation reaches).
+   - **pipesworld-metric-time i36 on 0.29.0 ran PAST the probe's 75 s
+     alarm** on its first rep (`solved: crash`, 75.6 s) — a 60 s wall
+     overrun of more than 15 s beside ~330 % foreign load: Phase 0.6's
+     report-reserve receipt, reproduced on a second shape.
 0.2 **A solve the referee voids must have COST something.** Three of cut29's
    21 lost cells (pipesworld-prop i50, counters i16, mco-t8 transport i18)
    were solved on a first attempt the referee voided as thermal / swap and
@@ -107,6 +121,17 @@ on it before its rows are.
    pathways-simple shape (solved at the wall, unpriced, canary 3×) is still
    owed. Measured: `recheck29.py`'s population must select the same 24 rows
    minus these three.
+   **READ 2026-10-15 — a record, no change.** The premise was wrong: none
+   of the three was a seconds-long solve. From the database (engine 23):
+   counters i16 solved at **33.5 s** (peak 5.5 GB; its two re-runs
+   `mem-cap` at 6.2–6.5 GB, "self-inflicted: node byte target raised"),
+   pipesworld-prop i50 at **40.2 s** beside one neighbour, mco-t8 transport
+   i18 at **59.5 s**. All three are past `solved_wall_frac` (0.5), so the
+   rule did exactly what 0.29 Phase 0.1 wrote: a solve that spent half its
+   wall under a bad clock is re-run and the later row banks. They are wall-
+   edge (and one memory-edge) coins, not a referee defect. The counters
+   shape — a 5.5 GB solve whose refill re-entry raises the node byte target
+   past the watchdog — is Lane 5's fixture, not Phase 0's.
 0.3 **The canary refuses to calibrate under foreign load.**
    `sweep.rs::calibrate` took its baseline beside Timberborn (2.58 s), a
    folding grounding (1.775 s) and Spotlight (1.27 s) against an idle line
@@ -116,6 +141,18 @@ on it before its rows are.
    the foreign load it was taken under. Fixture in `crucible/tests/`: a
    calibration under synthetic foreign load is refused; at idle it is
    taken and stamped.
+   **BUILT 2026-10-15 (`6e5bdc0`).** `monitor::calibration_gate` is the
+   pure rule (the sample's own clean line, 25 %, so a refused calibration
+   and a dirty row never disagree); `sweep_body` samples the box before
+   `calibrate` and waits 30 s at a time, naming the loudest competitor;
+   the canary table gains `foreign_pcpu` (schema v11), every reading —
+   baseline and in-sweep — is stamped with the named-competitor total
+   sampled beside it, and `Reader::canary_baseline` leaves stamped-foreign
+   readings out of its percentile (unstamped history kept). Fixtures:
+   `a_baseline_is_refused_beside_foreign_load` (sample.rs) and
+   `a_reading_beside_foreign_load_does_not_set_the_baseline`
+   (db_roundtrip.rs). Not measured on a sweep yet: the first night sweep of
+   the cycle says whether the wait ever fires and how long it holds.
 0.4 **The baseline is reproducible or it is not a baseline.** The 0.28.0
    rebuilt by `backfill --tag` (`bb07d50d2015`) is not byte-identical to the
    board's `89cfdc5f06ed`. Before any engine is rebuilt from a tag again:
@@ -124,12 +161,58 @@ on it before its rows are.
    rebuild of `v0.29.0` reproduces `7fdf185b91e6`. If it does not, the
    record says what differs (`cargo --locked`, the profile, the host) and
    the compare's baseline is the BANKED 0.29.0 rows, never a rebuild.
+   **READ 2026-10-15 — the 0.28 difference is SOURCE, not the toolchain.**
+   The cut28 binary `89cfdc5f06ed` was built at the bump (`310eb22`,
+   09-21); the tag `v0.28.0` is `843138b` (09-28), and between them
+   `crates/ferroplan/src/tcompress.rs` gained nine lines (`94b067d`, the
+   pre-flight's fixture fix: the compression rung declines under
+   `FF_TCONC=1`). Gated on a flag no board sets, so the rebuilt
+   `bb07d50d2015` is behaviourally the board's engine and byte-different
+   by construction. Between the 0.29 bump (`43847be`) and `v0.29.0` only
+   `Cargo.lock`'s own version lines and a test file moved, so a rebuild
+   from that tag should reproduce `7fdf185b91e6` — verified below once the
+   box is free. The rule this writes: **the engine the boards run is built
+   from the commit the tag will point at**, or the tag is moved to the
+   bump; a pre-flight edit to `crates/` after the sweep's binary is built
+   is a different engine, and `backfill --tag` records the tag's commit
+   against the board's engine hash so the next reader sees it.
+   **REBUILT 2026-10-15 13:15 (`probes-0.30/rebuild29/`, worktree
+   `~/.crucible/worktrees/v0.29.0-repro`, commit `67f359b`, rustc 1.99.0,
+   `cargo build --release -p ferroplan-cli`, 27 s):** blake3
+   `cf01f4b0f2a4…` against the board's `7fdf185b91e6…` — NOT byte-identical,
+   and `cmp -l` says why: **47 bytes of 3,250,336 differ**, the 16-byte
+   Mach-O `LC_UUID` payload at offset 1,945 and 31 bytes inside the ad-hoc
+   code signature at 3,224,976+; same size, 1,645 identical symbol names,
+   no build path embedded (`strings`). ld64 derives the UUID from its
+   inputs and the signature covers the UUID page, so no rebuild at another
+   path can ever match the board's blake3 — and the toolchain DOES
+   reproduce the engine. So 0.28's `bb07d50d2015` was the tcompress change
+   AND this, and 0.29's rebuild is this alone. **Built:** `repo::Engine`
+   carries a `content` hash (blake3 with the UUID payload and the signature
+   blob zeroed, plain blake3 for anything that is not a 64-bit Mach-O),
+   `crucible engine` prints it beside `blake3`; the rule is **two engines
+   are the same engine when their content hashes agree**. The database
+   still keys on `blake3` (an identity, not an equivalence); wiring
+   `compare`/`backfill` to match on content is owed, not done.
+   **Confirmed 2026-10-15 13:45:** `crucible engine` on the board's binary
+   and on the rebuild — blake3 `7fdf185b91e6…` / `cf01f4b0f2a4…`, content
+   **`c0b1fe63376e…` on both**. The v0.29.0 tag reproduces the 0.29.0
+   engine; Phase 0.4 closes with the rule above and the content hash in
+   the tool.
 0.5 **The owed probe rows, run.** pathways-propositional i17–19 (the trucks
    probe's script asked for one shared domain and pathways ships one per
    instance — fix `probes-0.29/trucks/run.sh`, re-run solo at 60 s and
    300 s); trucks i11 / i13 optima and storage i19 / i20, three reps solo
    each, so the wall-edge coins are read as coins or as cells. Record only;
    they feed Lanes 5 and 6.
+   **Re-read 2026-10-15:** the two names in the owed list are not probe
+   rows. "trucks i11/i13 optima" are simple-preferences POINTS cells
+   (0.29 Lane 1: metric 2 and 6 against SGPlan5's 0, the optimizer short
+   of the 12 s the first polish takes) — Lane 1b's. "storage i19/i20" are
+   `storage-preferences-complex` `mem-cap` rows at **2.3–3.8 s with
+   6.2–6.5 GB** on engine 23 — the compiled preference task's grounding,
+   Lane 5's grounding class. Only the pathways-propositional rows remain
+   a probe here (`probes-0.30/pathways/run.sh`, per-instance domains).
 0.6 **Small and owed:** the probe scripts read `statistics.evaluated_states`
    (Lane 5's probe wrote `None` for every row); the report reserve on a
    loaded box (pathways-simple i16 returned at 81 s past a 60 s wall when
@@ -166,6 +249,43 @@ the grounding class, joins Lane 5's caldera / organic-synthesis note.
 rung grounds afresh must ground, not trip at its first look — the latch is
 per-rung-scope or it is a defect. **Measured:** `sweep --board ipc2023-sat
 --only folding`, `max_rss` beside every row.
+
+**READ 2026-10-15 — there is no grounder defect; the 0.29 probe's path was
+wrong.** `probes-0.29/lane5/measure.sh` named the cell
+`folding-sequential-satisficing/3`; the corpus directory is
+`ipc-2023/domains/folding-satisficing` (one shared `domain.pddl`). `ff`
+failed on a missing file: the receipt is peak RSS **2 MB, 0.0 s, "no
+json"** on both caps — not a grounding, not a trip. On the board itself
+(engine 23, `ipc2023-sat`) folding i2–i13 read `mem-cap` at **6.1–7.4 s with
+6.2–6.4 GB** peak on the quiet pass, and 2.6–4.2 GB at 60 s on the demoted
+passes — the memory grows with the speed of the search, ~900 MB/s on a
+healthy core. folding is the memory class, Lane 5's, and the question it
+carries there is whether that growth is the node store or the grounding;
+answered by one solo run under `FF_WALL_DEBUG` / `FF_RES_DEBUG` at
+`--max-evaluated 1` and at 200k once the box is free. The "fix" closes
+as a probe-path defect; the 0.29 record's sentence about `GroundWall`
+tripping at once is withdrawn.
+
+**MEASURED 2026-10-15 13:20 (`probes-0.30/lane5/`, solo, the board's env,
+`--max-evaluated 1`):** folding i3 is **the grounding, and the grounding
+never finishes**: peak RSS **6,112 MB**, `68.74 s real` against a 60 s
+wall — "grounding checkpoint expired mid-enumeration (no task, no
+verdict)", 0 facts, 0 actions. The binding enumeration of an `:adl`
+domain (five actions, one over `?n1 - node ?n1x ?n1y - coord ?n1dir -
+direction`, 65 objects) allocates to the runner's cap in 7 s on the board
+and to 6.1 GB solo, and the measured memory wall never looked, because
+`MemWall::arm` is gated on bounded work and a first grounding is not.
+Two things for the ledger: (a) the enumeration overran the wall by 8.7 s
+solo (the 8192-binding clock stride is long when each binding is a wide
+ADL product — Phase 0.6's overrun, a third shape); (b) folding joins
+caldera, organic-synthesis and storage-preferences-complex i19/i20 as
+**the grounding class** — a grounder that cannot finish the task inside
+the budget, ~50 rows across 2023 sat/agile, 2018 sat and complex-pref.
+That class is not Lane 5's node store and not Lane 6's evaluation; it is
+a candidate lane of its own ("the grounding that never finishes"), named
+here and NOT opened this cycle unless Lanes 5 and 6 close early. The
+cheap honest step is Lane 5's mechanism 1 anyway: an armed wall ends the
+enumeration at 4.5 GB in ~5 s with the note, instead of the SIGKILL.
 
 ---
 
@@ -212,6 +332,80 @@ row, `compare` on the first-attempt estimator. The grounding class
 (caldera 5.9 GB in 44 s, organic-synthesis 3.6 GB still grounding at 120 s)
 is NOT this lane: record only, unless the profile in Lane 6 shows the
 packed-op tables are the peak.
+
+### Lane 5 — day one, re-measured 2026-10-15 (`probes-0.30/lane5/`)
+
+Solo, one thread, the board's env (`FF_TIME_LIMIT=60`, `FF_MEM_BUDGET_GB=6`),
+`/usr/bin/time -l`, engine `7fdf185b91e6`:
+
+| cell | cap 1 (the grounding) | the board's run | reading |
+|---|---|---|---|
+| folding i3 | **6,112 MB, 68.7 s, no task** | 6,152 MB, no task | the grounding class (recorded under the "fix" above) |
+| city-car i6 | 30 MB (696 facts, 3,058 ops) | **5,784 MB**, unsolved; novelty-light 6.1 s (86k pops), LAMA 13.3 s (276,909 evals), best-first 38,548 evals to the wall, `[h] build 9.7 s` | the search — but NOT "6–15 KB per node" |
+
+The 0.29 figure was read at `--max-evaluated 200000` on a different route;
+on the board's route city-car's states are eleven words (88 B), the
+per-node model says ~220 B, and the run peaks at 5.8 GB after 38,548
+best-first evaluations — **~150 KB per evaluated node** if the best-first
+holds it, which no state store explains. Either an earlier rung (LAMA's
+276,909 evaluations, or the novelty driver, which printed nothing) holds
+the peak and never gives it back, or the best-first's arena is the
+frontier at a very wide branching factor. The next read is per rung with
+an RSS timeline (`measure2.sh`: best-first alone, LAMA holding the wall,
+novelty alone); the mechanism is chosen from that, not from the 0.29
+sentence. The "lazy frontier" stays the candidate only if the best-first
+arm reproduces the peak.
+
+**Per rung, MEASURED 2026-10-15 13:40 (`measure2.sh`, RSS sampled every
+second beside `FF_WALL_DEBUG`):**
+
+| arm | peak RSS | evaluations | the timeline |
+|---|---:|---:|---|
+| best-first alone (`FF_NO_NOVLIGHT FF_NO_LAMA FF_NO_NOVELTY`) | **905 MB** | 89,502 | 170 MB at 5 s, 437 at 21 s, 874 at 56 s — ~15 MB/s |
+| LAMA holding the wall (`FF_LAMA_WALL_FRAC=0.9`, no novelty-light) | **5,892 MB** | 44,994 (the best-first after it) | **1,982 MB at 5 s, 3,536 at 10 s, 5,892 at 20 s**; the best-first that follows runs at 2.5–4 GB on what the allocator kept |
+| the ladder with novelty first (`FF_NOVELTY_ONLY=1`) | 5,192 MB | 21,444 | 1,846 MB at 5 s, 4,341 at 15 s, 5,192 at 35 s |
+
+**The memory hog on city-car is the LAMA rung** (and the novelty rungs),
+not the best-first fallback: LAMA allocates ~400 MB/s and reaches the
+runner's cap at 20 s — the board's death time — while the complete rung
+beneath it would have run the whole wall in under a gigabyte. The 0.29
+sentence named the wrong rung, because it was read at `--max-evaluated
+200000` with the refill disarmed. And no bounded rung reads the memory
+wall: `MemWall::arm` is called by the grounder, `search_from` and the
+temporal ladder only; `lama.rs` and `novelty.rs` have no kernel read at
+all, and the wall is unarmed outside bounded work anyway.
+
+**The mechanism, re-ordered:** (1) **the bounded rungs ARE bounded work**
+— LAMA, novelty-light and novelty are bets with a complete rung beneath
+them, which is what `mem.rs`'s "bounded work only" rule was written for;
+each gets the kernel-read checkpoint at its batch boundary, armed when a
+budget is declared, and ends with a "memory wall" note handing the ladder
+down with the wall it did not spend. Fixture: city-car's shape at fixture
+scale under a small `FF_MEM_BUDGET_GB` — LAMA ends on the wall, the
+best-first runs, peak RSS stays under the budget, the process is never
+killed. Measured first on city-car i6 solo (peak RSS and whether the
+best-first's 60 s is bought), then the subset sweep. (2) LAMA's node
+store itself — `lama::Node { accepted: Vec<u64>, .. }` per GENERATED
+successor — gets the lazy frontier if (1) leaves the band unmet. (3) The
+best-first's lazy frontier moves to third: 15 MB/s is not what kills the
+rows.
+
+**Mechanism 1 BUILT 2026-10-15** (`mem::MemWall::arm_rung`; LAMA, novelty,
+novelty-light and the novelty driver read it at their batch or every 256
+pops; fixture `tests/rung_mem_wall.rs`: LAMA on a visit-all grid in a child
+process whose budget is derived from its own post-grounding RSS — walled,
+"LAMA MEMORY checkpoint" with the peak under the budget; hatched, the peak
+over it; 2.2 s release). **First read, city-car i6 solo on the built engine
+(`measure3.sh`):** novelty-light 6.3 s, LAMA slice 13.3 s at ~3.4 GB (under
+the line), then **"novelty-driver MEMORY checkpoint at 29,952 pops,
+3,880,241 nodes, handing down"** — ~130 stored successors per pop — and the
+best-first ran 50,438 evaluations to the wall; **peak 4,836 MB**, the board
+would not have killed it. Still unsolved: the best-first had 35 s on the
+3–4.8 GB the allocator kept. So (1) turns a SIGKILL at 20 s into an honest
+unsolved row at 60 s on this cell; whether it turns any `mem-cap` row into a
+solve is the subset sweep's question (the cells whose novelty rung trips
+early get most of the wall back). The 3.88 M-node driver store is (2)'s
+first target, ahead of LAMA's.
 
 ---
 
