@@ -1,0 +1,128 @@
+=== storage-propositional/28
+=== trucks-propositional/10
+=== pathways-propositional/18
+DONE
+=== storage-propositional/28
+
+ff: parsing domain file
+domain 'STORAGE-PROPOSITIONAL' defined
+ ... done.
+ff: parsing problem file
+problem 'STORAGE-28' defined
+ ... done.
+
+
+no metric specified. plan length assumed.
+
+checking for cyclic := effects --- OK.
+
+ff: search configuration is SGPlan partition-and-resolve over the ffdp subplanner [1 threads]
+
+
+search cap reached! no plan found within budget (search space NOT exhausted).
+
+
+830934 self-time samples — top hotspots:
+
+ 15.2%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+ 11.4%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  8.6%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  6.9%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  6.7%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  6.7%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  4.5%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  3.7%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  3.3%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  3.0%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  2.6%  _RINvNtNtNtNtCsjIpoRzUjyHQ_4core5slice4sort8unstable9quicksort9quicksortmNvYmNtNtBa_3cmp
+  1.1%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic8achiever
+  1.0%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  1.0%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  0.7%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic8achiever
+  0.6%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic8achiever
+  0.6%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic9build_rpg
+  0.5%  _RNvNtCsgweDCSUFlgJ_9ferroplan9heuristic8achiever
+  0.5%  _RNvMs0_NtCsgweDCSUFlgJ_9ferroplan6orbitsNtB5_8OrbitMap12member_sigma
+=== trucks-propositional/10
+
+ff: parsing domain file
+domain 'TRUCKS' defined
+ ... done.
+ff: parsing problem file
+problem 'TRUCK-10' defined
+ ... done.
+
+
+no metric specified. plan length assumed.
+
+checking for cyclic := effects --- OK.
+
+ff: search configuration is SGPlan partition-and-resolve over the ffdp subplanner [1 threads]
+
+
+ff: found legal plan as follows
+
+step    0: DRIVE TRUCK1 L3 L2 T0 T1
+        1: LOAD PACKAGE2 TRUCK1 A1 L2
+        2: DRIVE TRUCK1 L2 L3 T1 T2
+        3: UNLOAD PACKAGE2 TRUCK1 A1 L3
+        4: DELIVER PACKAGE2 L3 T2 T4
+        5: DRIVE TRUCK1 L3 L2 T2 T3
+        6: LOAD PACKAGE1 TRUCK1 A1 L2
+        7: DRIVE TRUCK1 L2 L4 T3 T4
+        8: UNLOAD PACKAGE1 TRUCK1 A1 L4
+        9: DELIVER PACKAGE1 L4 T4 T4
+       10: LOAD PACKAGE4 TRUCK1 A1 L4
+       11: DRIVE TRUCK1 L4 L1 T4 T5
+       12: UNLOAD PACKAGE4 TRUCK1 A1 L1
+       13: DELIVER PACKAGE4 L1 T5 T5
+       14: DRIVE TRUCK1 L1 L4 T5 T6
+       15: LOAD PACKAGE6 TRUCK1 A1 L4
+       16: DRIVE TRUCK1 L4 L1 T6 T7
+       17: UNLOAD PACKAGE6 TRUCK1 A1 L1
+       18: DELIVER PACKAGE6 L1 T7 T8
+       19: DRIVE TRUCK1 L1 L4 T7 T8
+       20: LOAD PACKAGE5 TRUCK1 A1 L4
+       21: DRIVE TRUCK1 L4 L2 T8 T9
+=== pathways-propositional/18
+
+ff: parsing domain file
+domain 'PATHWAYS-PROPOSITIONAL' defined
+ ... done.
+ff: parsing problem file
+problem 'PATHWAYS-18' defined
+ ... done.
+
+
+no metric specified. plan length assumed.
+
+checking for cyclic := effects --- OK.
+
+ff: search configuration is SGPlan partition-and-resolve over the ffdp subplanner [1 threads]
+
+
+ff: found legal plan as follows
+
+step    0: CHOOSE P130 L1 L0
+        1: CHOOSE HDAC1 L2 L1
+        2: CHOOSE GE2 L3 L2
+        3: CHOOSE E2F4 L4 L3
+        4: CHOOSE DP12 L5 L4
+        5: INITIALIZE P130
+        6: INITIALIZE HDAC1
+        7: INITIALIZE GE2
+        8: INITIALIZE E2F4
+        9: INITIALIZE DP12
+       10: ASSOCIATE E2F4 DP12 E2F4-DP12
+       11: ASSOCIATE P130 E2F4-DP12 P130-E2F4-DP12
+       12: ASSOCIATE HDAC1 P130-E2F4-DP12 HDAC1-P130-E2F4-DP12
+       13: ASSOCIATE HDAC1-P130-E2F4-DP12 GE2 HDAC1-P130-E2F4-DP12-GE2
+       14: DUMMY-ACTION-1
+       15: CHOOSE P27 L6 L5
+       16: CHOOSE E2F13P1-DP12 L7 L6
+       17: CHOOSE CYCH L8 L7
+       18: CHOOSE CDK7 L9 L8
+       19: CHOOSE CDK2P1 L10 L9
+       20: CHOOSE CDK2 L11 L10
+       21: INITIALIZE P27
+DONE

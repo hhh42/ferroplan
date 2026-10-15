@@ -1,0 +1,6 @@
+evals-in-30s storage-propositional/28 57735
+evals-in-30s trucks-propositional/10 501680
+evals-in-30s pathways-propositional/18 139646
+evals-in-30s storage-propositional/28 70633
+evals-in-30s trucks-propositional/10 880375
+evals-in-30s pathways-propositional/18 154195

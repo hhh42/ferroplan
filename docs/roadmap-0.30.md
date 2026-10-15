@@ -270,8 +270,10 @@ on it before its rows are.
 
 **Phase 0 closed 2026-10-15** (0.1 read, 0.2 record, 0.3 built, 0.4 read
 and built, 0.5 run, 0.6 read with one item handed to Lane 6); the crucible
-changes are on `engine-0.30` (`6e5bdc0`, `c193948`) and go to `main` with
-the branch's next push.
+changes are on `engine-0.30` (`6e5bdc0`, `c193948`), and `main` was
+fast-forwarded to `493e70f` at 15:50 with the engine suite green (the one
+red, `ehc_extend`'s timing fixture, passed alone a minute later — the
+0.29 ledger's loaded-box shape, mediaanalysisd at 246 %).
 
 Phase 0 ships as a crucible release on `main` before the folding fix
 opens; nothing in it changes a board number except by measuring it again.
@@ -384,6 +386,19 @@ row, `compare` on the first-attempt estimator. The grounding class
 (caldera 5.9 GB in 44 s, organic-synthesis 3.6 GB still grounding at 120 s)
 is NOT this lane: record only, unless the profile in Lane 6 shows the
 packed-op tables are the peak.
+
+**The subset sweep LAUNCHED 2026-10-15 16:05** (`lane5/sweep.sh`, engine
+`9df92e323f0a` = `493e70f`'s build, `--only` city-car|child-snack|
+maintenance|caldera|organic-synthesis|snake|folding on the 2014/2018/2023
+sat boards; the regex also takes the `-split` variants). Its first launch
+at 15:40 sat at the new calibration gate for sixteen 30 s rounds
+(mediaanalysisd, spotlightknowledged at 136–387 %) — the gate's first
+night, working. **Instrument note:** for its first five minutes the sweep
+ran beside a probe chain of mine (ztalloc traces, a partition-mode check)
+whose `ff` the box sample excludes by name; packed solves in that window
+are solves, but caldera i5 (16:09) and i6 (16:10) banked `rho` unsolved
+beside that load and are re-run before the lane's read. The chain was
+stopped by PID at 16:10; nothing else runs beside the sweep.
 
 ### Lane 5 — day one, re-measured 2026-10-15 (`probes-0.30/lane5/`)
 
@@ -530,6 +545,24 @@ trucks,storage,pathways`, then the loss side of `ipc5-prop`, `ipc2014-sat`,
 precedent (−23 %/evaluation, ~+20 unattributed rows) is the prior; this
 lane names what it buys this time.
 
+### Lane 6 — the first profile, 2026-10-15 (`probes-0.30/lane6/`)
+
+Solo, one thread, the 0.30 engine (`493e70f`), the box at 250–400 %
+foreign CPU all afternoon (every absolute number below is depressed; the
+ratios are the reading). Evaluations in 30 s on the release binary:
+**storage-propositional i28 70,633 · trucks i10 880,375 · pathways i18
+154,195** — trucks evaluates 12.5× faster than storage, 5.7× faster than
+pathways. The headless hotspot list (`benchmarks/profile.py`, the
+profiling build under samply, 40 s): on storage i28 **~75 % of self-time
+is `heuristic::build_rpg`** (a dozen address ranges inside it, 15.2 %
+the largest), the candidate sort 2.6 %, `achiever` ~3 %, orbit sigma
+0.5 %. The relaxed planning graph IS the evaluation on storage; the
+question the lane now asks is what in storage's grounded task makes one
+layer-by-layer build cost 12× trucks' (ops × preconditions per layer, the
+conditional-effect expansion, or a fixpoint that runs to the cap) — read
+from the two tasks' shapes (`grounded_actions`, preconditions per op,
+layers to the goal) before any code moves.
+
 ---
 
 ## Lane 2b — metric-time beyond rovers
@@ -542,6 +575,25 @@ estimator; rovers i20 and i28 counted with them. **Kill:** the compression
 rung reaches no plan on the subset after (1) and (2) below → the decision-
 epoch search is the limit; recorded, and the partition subplanner's
 Phase-A step is the next cycle's question, not this one's.
+
+**Phase 0.1 handed this lane five fixtures (2026-10-15):** rovers-metric-
+time i28, settlers-snp i5, sugar i17, ztalloc-sum i9 and i12 — each
+unsolved on 0.29.0 and solved under `FF_NO_CONSUME=1` at 0.28.0's own
+time. **The shape, read on ztalloc i12 (`FF_HTRACE`):** charged, `best_h`
+falls 4264 → 1 by 1,352 evaluations in 9 ms and then **sits at 1 for
+305,000 evaluations to the wall**; uncharged, it falls to 2 by 2,500 and
+LAMA solves. ztalloc's actions are TRANSFERS — `(decrease (value ?r)
+(value ?r))` beside `(increase (work-value ?r) (value ?r))`, read from
+below by `(>= (value ?r) 1)` — and the charge bills a transfer as
+consumption: the goal-adjacent state's relaxed plan "spends" the value it
+is about to move, the deficit prices a raiser, and every near-goal state
+reads h = 1 whatever it does. A plateau at the last step, not a cliff at
+the first. The fixture is that shape at fixture scale (a transfer the
+goal needs, charged h at the goal-adjacent state against the true
+distance); the mechanism is for the charge to see a decrease whose amount
+the same op moves into another fluent as a transfer, or to charge only
+when the deficit's raiser is not the plan's own transfer — decided on the
+five cells plus the 2023-numeric rows the charge won (+27).
 
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,

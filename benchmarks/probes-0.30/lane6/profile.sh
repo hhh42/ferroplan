@@ -12,7 +12,7 @@ for cell in storage-propositional/28 trucks-propositional/10 pathways-propositio
   v=${cell%/*}; i=${cell#*/}
   dom=$C/$v/domain.pddl; [ -f "$dom" ] || dom=$C/$v/domains/domain-$i.pddl
   echo "=== $cell" >> $OUT/hotspots.txt
-  FF_TIME_LIMIT=40 FF_MEM_BUDGET_GB=6 python3 benchmarks/profile.py "$dom" "$C/$v/instances/instance-$i.pddl" -- --threads 1 2>>$OUT/profile.err | head -40 >> $OUT/hotspots.txt
+  FF_TIME_LIMIT=40 FF_MEM_BUDGET_GB=6 python3 benchmarks/profile.py "$dom" "$C/$v/instances/instance-$i.pddl" 2>>$OUT/profile.err | head -40 >> $OUT/hotspots.txt
   # evaluations per second on the ordinary release binary, same cell, 30 s
   s=$(FF_TIME_LIMIT=30 FF_MEM_BUDGET_GB=6 perl -e 'alarm shift; exec @ARGV' 45 target/release/ff -o "$dom" -f "$C/$v/instances/instance-$i.pddl" --json --threads 1 2>/dev/null | python3 -c 'import sys,json
 try: d=json.load(sys.stdin); print(d["statistics"]["evaluated_states"])
