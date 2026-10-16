@@ -784,6 +784,32 @@ other three cells (rovers i28, settlers i5, sugar i17), read next with
 the same dump. The fixture stays as written (both arms must solve); the
 mechanism it will green is the achiever's, with the charge left on.
 
+**settlers i5 and sugar i17, read 2026-10-15 20:10 (`--search best-first`,
+`FF_HTRACE=3`, 20 s):**
+
+| cell | arm | evaluations/s | best h and its plan |
+|---|---|---|---|
+| sugar i17 | charged | **~3.1 k** (48,532 in 15.5 s) | 7 — 5 ops, the same shape as uncharged |
+| sugar i17 | uncharged | **~44 k** (117,285 in 2.7 s) | 7 — 4–5 ops |
+| settlers i5 | charged | **~2 k** (39,802 in 20 s) | 16 — 8–9 ops: `LOAD1 … STONE ×3`, `UNLOAD1 … STONE ×3`, `UNLOAD1 … ×2`, `×2`, … |
+| settlers i5 | uncharged | **~37 k** (156,527 in 4.3 s) | 1 — `BUILDHOUSE1 LOCATION1`; solved in round 2 |
+
+**The charge's first defect is its COST: 14× per evaluation on sugar, 18×
+on settlers**, on tasks where it changes the landscape little (sugar) or
+flattens it (settlers: a load/unload chain billed at every hop, a
+transfer again). `consumption_charge` begins with `(0..task.n_ops)
+.filter(selected)` — a scan of every grounded op on every evaluation —
+and then chases each deficit's raiser through `select` and the queue;
+the uncharged extraction never touches `n_ops`. Mechanism (a), first and
+mechanical: the extraction keeps the list of ops it selects, the charge
+reads that list, and the chase is bounded by the plan, not the task.
+Measured on the five cells' evaluations/s and solves, then the
+`ipc2023-numeric` loss side (the charge's +27 must stay). Mechanism (b),
+the transfer: a decrease whose op moves the same amount into another
+fluent (ztalloc's `copy-reset`, settlers' `load`/`unload`) is not spending
+— after (a), on the cells (a) leaves. Mechanism (c), the achiever's
+Eq-goal overshoot (ztalloc) — its own fixture, after (b).
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
