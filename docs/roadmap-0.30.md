@@ -958,6 +958,16 @@ times its repetitions, and on a task where the plan is "build twice,
 having hauled twice" the raisers' chase is a landscape of its own. Not
 built this cycle; the board read says what it costs.
 
+**The board read, in progress (`lane2b/sweep.sh`, engine `13eb6b53a361`
+= `83e8151`'s build, from 11:35; interim at 15:00, banked cells only):**
+metric-time 146 cells 118 = 118; 2023 numeric 110 cells flat; **2026
+numeric 268 cells: +10, −0 — every one a ztalloc cell**: i9 (1.0 s), i11
+(1.8), i12 (1.8), i13 (9.9), i14 (2.3), i16 (2.5), i17 (4.6), i18 (2.8),
+i19 (2.8), i20 (3.1). Two of those were the lost cells; the other eight
+neither 0.28.0 nor 0.29.0 ever solved — the Eq-goal rule (c) opened the
+register machine's whole upper half. The final compare follows the
+sweep; nothing is claimed from a sweep in flight.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
