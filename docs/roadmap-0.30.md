@@ -810,6 +810,22 @@ fluent (ztalloc's `copy-reset`, settlers' `load`/`unload`) is not spending
 — after (a), on the cells (a) leaves. Mechanism (c), the achiever's
 Eq-goal overshoot (ztalloc) — its own fixture, after (b).
 
+**(a) WITHDRAWN before it was built — the profile, 2026-10-15 20:20
+(`profile.py`, settlers i5, `--search best-first`, 25 s, both arms):** the
+two self-time lists are the same list — `eval_iv` 5 %, `build_rpg` 2–3 %
+a dozen times, `state_key_eq` / `state_key_hash` 1–2 % — and
+`consumption_charge` is not in either; settlers grounds to 950 ops and
+sugar to 236, so the `n_ops` scan is nothing. The 14–18× in evaluations
+per second is not the price of an evaluation, it is WHERE the charged
+search goes: states with many more applicable ops per pop (settlers'
+load/unload fan-out), each pop paying for its successors. That is the
+landscape, which is (b)'s question. The order is now **(b) transfers,
+then (c) the Eq-goal overshoot**, each measured on the five cells and the
+2023-numeric loss side; `tests/consume_transfer.rs` stays the fixture
+for (c), and (b) gets one of its own on the settlers shape (a load that
+moves stock onto a vehicle, an unload that moves it off, a goal that
+needs it moved twice).
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
