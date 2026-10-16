@@ -400,9 +400,9 @@ are solves, but caldera i5 (16:09) and i6 (16:10) banked `rho` unsolved
 beside that load and are re-run before the lane's read. The chain was
 stopped by PID at 16:10; nothing else runs beside the sweep.
 
-### Lane 5 — MEASURED 2026-10-15 18:40 (`lane5/compare.txt`, `memory.txt`)
+### Lane 5 — MEASURED 2026-10-15 18:12 (`lane5/compare.txt`, `memory.txt`)
 
-**SWEEP COMPLETE, 180 cells banked in four passes** (16:05–18:35, the box
+**SWEEP COMPLETE, 180 cells banked in four passes** (16:05–18:10, the box
 at 0–460 % foreign load, 12 % of B's runs clean against 42 % of A's — B
 measured on the louder afternoon). `crucible compare --a 7fdf185b91e6 --b
 9df92e323f0a` on the subset:
@@ -439,7 +439,7 @@ its 35–45 s on what the rungs leave and reaches no plan on these cells.
 `mem-cap` rows on the subset **45 → 24**; mean peak RSS down 20–50 % on
 every search-class variant.
 
-**The two lost cells, read 2026-10-15 19:00:** caldera i3 and i4 both
+**The two lost cells, read 2026-10-15 18:15:** caldera i3 and i4 both
 SOLVED on the 0.30 engine (58.9 s and 39.6 s, 5.6 GB) on attempts the
 referee voided as `swap`, and their re-runs were **`mem-cap` kills at 19 s
 and 6.17 GB**; 0.29.0 solved both at 38.8 s. The cause is mechanism 1 on
@@ -454,7 +454,7 @@ runner's cap. Fixture arm `a_rung_entered_above_the_line_runs_unwalled`
 (the budget declared below the child's baseline: no checkpoint, LAMA runs
 to its own cap). Measured next on caldera i3 solo and the caldera cells
 through the crucible on the revised engine.
-**caldera i3 solo on the revised engine (`b2769c241a16`, 19:20):** solved
+**caldera i3 solo on the revised engine (`b2769c241a16`, 18:19):** solved
 — **by EHC in 27 evaluations after a 38 s grounding, peak 6.49 GB**, the
 bounded rungs SKIPPED as unaffordable (36 % of the wall left). So the
 rungs were never the cause on this cell: the 19 s `mem-cap` re-runs were
@@ -465,7 +465,7 @@ and i4 are **memory coins of the grounding class**, on both engines; the
 the line, not as the fix for these two. The caldera-only sweep on the
 revised engine says whether the board agrees.
 
-**The caldera-only sweep on the revised engine (`b2769c241a16`, 19:25–19:45,
+**The caldera-only sweep on the revised engine (`b2769c241a16`, 18:19–18:33,
 20 cells, two passes; `compare-caldera.txt`): 6 = 6, +0 [−4, +4]** — i5
 and i14 GAINED (5.9–6.0 GB solves), i3 and i4 lost again (`mem-cap` at
 6.19 GB). Caldera's twenty cells run at 5.1–6.4 GB peak on both engines;
@@ -675,6 +675,17 @@ unsolved on both at 60 s (1.74 M and 1.68 M evaluations); a direct
 `--mode partition` check at 60 s was interrupted by the sweep and is owed
 — if it holds, the propositional board's lever is the route, not the
 speed.
+**Checked 2026-10-15 18:38 (`--mode partition`, 60 s solo, engine
+`b2769c241a16`):** trucks i10 unsolved (58 s), pathways i18 unsolved (60 s)
+— the 40 s "plans" in the profile were the profiling run's own luck or its
+shorter wall reading differently — but **pathways i17 SOLVED at 35 s, plan
+length 172**, a cell the auto ladder never solves (0.5 M evaluations in
+60 s, 5.1 M in 300 s this afternoon). The route moves a row the search
+cannot. Probe owed and launched tonight: every unsolved cell of the IPC-5
+propositional board under `--mode partition` at 60 s solo
+(`probes-0.30/lane6/partition.sh`); if more than a handful solve, the
+lane's cheapest lever is the auto route's choice on this board's shapes,
+ahead of any `build_rpg` work.
 
 ---
 
@@ -720,6 +731,24 @@ achiever (`numeric_achiever_linear`) prices the sum's gap through `double`
 each register must run; which of the two the h = 1 floor comes from is the
 first thing the mechanism's work reads, on the fixture, with the state at
 h = 1 printed.
+
+**The state at h = 1, read 2026-10-15 18:40 (`FF_HTRACE=2`, new: the best
+state's depth and defined fluents):** both arms climb the same way —
+`double` r1 twelve times to **(4096, 1, 1, 1, 1)**, sum 4,100 of 4,269, at
+g 12 — and there the charged h reads **1**, the uncharged **2**. The true
+distance from that state is twenty-odd actions (the last 169 = 128 + 32 +
+8 + 1 is four more registers doubled up and a division or two); both
+heuristics are optimistic by an order of magnitude because the linear
+achiever prices the sum's gap with one more `double` (reps = ⌈169 /
+value⌉ against a value that doubling would overshoot). The uncharged
+ladder survives it — LAMA's landmarks cross the plateau in 3 s; the
+charged ladder's LAMA fails its slice and the best-first wanders 575,000
+evaluations at h = 1. So the charge is not inventing the plateau, it is
+flattening a heuristic that was already flat here (2 → 1) and taking the
+landmark rung with it. The next read is the two RELAXED PLANS at that
+state (what each selects for the last 169), which decides whether the
+mechanism is in the charge (a transfer billed) or in the linear achiever
+(a doubling priced as if it could stop at 169).
 
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,

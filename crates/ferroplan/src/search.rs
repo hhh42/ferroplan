@@ -1384,7 +1384,8 @@ pub fn search_from(
                 capped: true,
             };
         }
-        for h in hs.iter().flatten() {
+        for (i, h) in hs.iter().enumerate() {
+            let Some(h) = h else { continue };
             if *h < best {
                 best = *h;
                 advance.push(*h);
@@ -1393,6 +1394,21 @@ pub fn search_from(
                         "htrace: best_h {h} at {evaluated} evaluated ({:.3} s)",
                         c.elapsed_secs()
                     );
+                    // `FF_HTRACE=2`: the state that set the new best, by
+                    // its depth and its defined fluents (0.30 Lane 2b: the
+                    // consumption charge's plateau at h = 1 on ztalloc is
+                    // read from WHICH state reads 1, not from the number).
+                    if std::env::var("FF_HTRACE").is_ok_and(|v| v.trim() == "2") {
+                        let n = &nodes[popped[i]];
+                        let fluents: Vec<String> = task
+                            .fluent_names
+                            .iter()
+                            .zip(n.state.fv.iter().zip(n.state.fdef.iter()))
+                            .filter(|(_, (_, d))| **d)
+                            .map(|(name, (v, _))| format!("{name}={v}"))
+                            .collect();
+                        eprintln!("htrace:   at g {} with {}", n.g, fluents.join(" "));
+                    }
                 }
             }
         }
