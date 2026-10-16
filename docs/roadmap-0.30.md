@@ -478,7 +478,65 @@ every interval**.
 rows** — the band (+15 to +30) is not met; `mem-cap` rows fall 45 → 24
 and peak RSS 20–50 % on the search class, and the cells that were
 memory-bound are now search-bound and unsolved at the wall. The engine
-changes stay. Owed from here: the bounded open list for the bounded rungs
+changes stay.
+
+**A loss the subset could not see, found 2026-10-16 10:45 through Lane
+2b's probe:** rovers-metric-time i28, uncharged (`FF_NO_CONSUME=1`), solo
+×3 at 60 s — **0.29.0 board binary 3/3 at 24 s; the Lane 5 engine
+(`c7fd313`, `~/.crucible/worktrees/lane5-final`) 0/3; the Lane 2b engine
+0/3.** A temporal cell: the compressed task's search runs the same
+classical ladder, and the lazy frontiers (duplicate detection by hash at
+generation, a different tie order among equal keys) or the rung wall
+changed where it goes. Bisected next across `de90ccb` (driver lazy + the
+rung wall) and `493e70f` (LAMA lazy), with `FF_NO_MEM_WALL` and
+`FF_NO_NOVELTY` as the hatches on the first failing one; the cut's
+compare on the metric-time board is where this is finally counted, and
+the lane's "no row lost" clause now has one candidate against it.
+**Bisected 11:05 (`~/.crucible/worktrees/bisect-*`):** `de90ccb` (the
+driver's lazy frontier and the rung wall) **solves** rovers i28 uncharged;
+`493e70f` (LAMA's lazy frontier) **does not** — the loss is LAMA's lazy
+frontier. One mechanism is visible in the code before any trace: the
+lazy LAMA's node cap counts `nodes.len() + norm_heap.len()`, and the
+normal heap keeps a stale copy of every entry the preferred heap already
+closed, so the modelled cap trips EARLIER than the eager shape's exact
+count did and LAMA hands down sooner; the other is tie order among equal
+keys (`(key, father, op)` against `(key, index)`). Read next with
+`FF_WALL_DEBUG` on both builds — which rung solved on `de90ccb`, and
+where the lazy LAMA ends — and fixed before the numeric sweep runs,
+since that sweep reads the engine as a whole. The sweep is held at its
+gate meanwhile (nothing banked).
+
+**Read 11:30–12:00.** Not the cap: with `FF_SEARCH_NODE_CAP=0` the lazy
+LAMA stalls the same way (key 44 → 42 → 36 → 34 across its windows where
+the eager one goes 42 → 16 → 10 and solves at 7.7 s), and it leaves by the
+per-call wall, silently. Not the order: every tie-break path traced is
+equivalent (`applicable_ops` is ascending by op index; a father's closed
+index follows its pop order). **The hash.** Instrumented, the lazy LAMA
+on rovers i28 reports **3 hash-only drops against a DIFFERENT closed
+state** among ~865,000 keys (15,049 evaluations, 849,771 held) — a
+collision rate ~10⁵ above a random 64-bit hash's. `state_key_hash` is
+FxHash — rotate, xor, multiply, no avalanche — and was always a ROUTER:
+the eager frontiers verified `state_key_eq` behind it. The lazy frontiers
+trusted it, and on rovers' structured fluent vectors (energies quantized
+×10⁶) it collides; the open side, which cannot be checked, dropped
+distinct successors on the path. **Fixed:** `PackedTask::state_key_hash128`
+— the same content through two independently seeded passes, each
+finished with murmur3's fmix64 — keys the lazy LAMA and the lazy driver;
+the eager router keeps its 64 bits. Eight bytes more per open entry.
+Measured next: rovers i28 both arms, the Lane 5 fixtures, city-car's peak
+on the 128-bit keys; then the held numeric sweep runs on this engine.
+**Measured 12:20:** rovers i28 uncharged **2/3 at 26–27 s with 0 false
+drops** (the miss: LAMA at 16,411 evaluations when the per-call wall
+fell — its windows are wall-time, so a loaded moment moves a 26 s solve
+past its slice; a wall-edge coin now, where it was 0/3 with collisions);
+charged unsolved (the charge's own rovers shape, open). City-car i6 peak
+**2,646 MB** (from 3,525 — the collision-free dedup holds fewer
+entries). `rung_mem_wall` read red on its `peak < budget` arm: at fixture
+scale the 24-byte-entry key map doubles in one allocation larger than a
+16 MB headroom's 25 % allowance; the fixture now trips at half the
+budget (`FF_MEM_TRIP_FRAC=0.5`, the engine's own knob) so one doubling
+fits between the line and the budget, as 1.5 GB of 6 does on a board.
+The bisect worktrees are removed. Owed from here: the bounded open list for the bounded rungs
 (the search question the lane uncovered), and the grounding class as its
 own lane — folding, caldera, organic-synthesis — where the memory is
 spent before any search begins. What the record names for the

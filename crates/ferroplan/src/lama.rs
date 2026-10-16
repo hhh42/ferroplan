@@ -34,7 +34,7 @@ const W_LM: i64 = 4;
 
 /// One expansion candidate: (parent idx, op, successor state, visited key,
 /// parent's FF h, reached via a helpful op).
-type Cand = (usize, usize, State, u64, i32, bool);
+type Cand = (usize, usize, State, u128, i32, bool);
 
 struct Node {
     state: State,
@@ -147,9 +147,13 @@ pub fn search_subgoal(
     let mut norm_heap: BinaryHeap<Reverse<(i64, u32, u32)>> = BinaryHeap::new();
     // The root is already closed at 0: `op == u32::MAX` marks it.
     norm_heap.push(Reverse((0, 0, u32::MAX)));
-    let mut keys: FxHashMap<u64, u32> = FxHashMap::default();
-    keys.insert(task.state_key_hash(&init, None), 0);
+    let mut keys: FxHashMap<u128, u32> = FxHashMap::default();
+    keys.insert(task.state_key_hash128(&init, None), 0);
     let mut evaluated = 0usize;
+    // Instrument (0.30 Lane 5): generation-time drops by hash whose CLOSED
+    // twin is not the same state -- a false duplicate. The open side has no
+    // state to compare; this counts the half that can be checked.
+    let mut false_drops = 0usize;
 
     /// Take up to `n` entries off `heap` into `popped`, regenerating each
     /// open entry's state and closing it; an entry whose state the other
@@ -161,7 +165,7 @@ pub fn search_subgoal(
         task: &PackedTask,
         lms: &[u32],
         nodes: &mut Vec<Node>,
-        keys: &mut FxHashMap<u64, u32>,
+        keys: &mut FxHashMap<u128, u32>,
         popped: &mut Vec<usize>,
     ) {
         for _ in 0..n {
@@ -174,7 +178,7 @@ pub fn search_subgoal(
             }
             let f = father as usize;
             let ns = task.apply(op as usize, &nodes[f].state);
-            let k = task.state_key_hash(&ns, None);
+            let k = task.state_key_hash128(&ns, None);
             match keys.get_mut(&k) {
                 Some(slot) if *slot == OPEN => {
                     let mut accepted = nodes[f].accepted.clone();
@@ -324,7 +328,7 @@ pub fn search_subgoal(
             // budget spent: the incumbent (if any), else hand off to the fallback
             if std::env::var("FF_RES_DEBUG").is_ok() {
                 eprintln!(
-                    "[lama] capped: {evaluated} evals (max {max_eval}), {} nodes ({} closed)",
+                    "[lama] capped: {evaluated} evals (max {max_eval}), {} nodes ({} closed, cap {node_cap}; {false_drops} hash-only drops against a different closed state)",
                     nodes.len() + norm_heap.len(),
                     nodes.len()
                 );
@@ -395,7 +399,8 @@ pub fn search_subgoal(
                             eprintln!(
                                 "wall: LAMA slice exhausted ({rule} refused: key {key_now:?} \
                                  drop {key_drop:?} affordable {affordable}; {evaluated} evals in \
-                                 {now:.2}s), handing down the ladder"
+                                 {now:.2}s; {false_drops} hash-only drops against a different \
+                                 closed state), handing down the ladder"
                             );
                         }
                         return best_plan.map(|p| (p, evaluated));
@@ -404,6 +409,13 @@ pub fn search_subgoal(
             }
         }
         if crate::search::wall_hard_expired() {
+            if std::env::var("FF_RES_DEBUG").is_ok() {
+                eprintln!(
+                    "[lama] wall: {evaluated} evals, {} nodes ({} closed); {false_drops} hash-only drops against a different closed state",
+                    nodes.len() + norm_heap.len(),
+                    nodes.len()
+                );
+            }
             return best_plan.map(|p| (p, evaluated));
         }
 
@@ -426,7 +438,7 @@ pub fn search_subgoal(
                     }
                     {
                         let ns = task.apply(oi, st);
-                        let k = task.state_key_hash(&ns, None);
+                        let k = task.state_key_hash128(&ns, None);
                         let pref = helpful.contains(&(oi as u32));
                         v.push((ni, oi, ns, k, ph, pref));
                     }
@@ -438,7 +450,10 @@ pub fn search_subgoal(
         // SERIAL: dedup + insert (deterministic).
         for chunk in chunks {
             for (pi, oi, s, k, ph, pref) in chunk {
-                if keys.contains_key(&k) {
+                if let Some(&slot) = keys.get(&k) {
+                    if slot != OPEN && !task.state_key_eq(&nodes[slot as usize].state, &s, None) {
+                        false_drops += 1;
+                    }
                     continue;
                 }
                 keys.insert(k, OPEN);

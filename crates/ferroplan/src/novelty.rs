@@ -786,8 +786,10 @@ pub fn search_driver(
     // in `nodes` at `father`.
     let mut heap: BinaryHeap<Reverse<(i64, u32, u32)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0, u32::MAX)));
-    let mut seen_keys: FxHashMap<u64, ()> = FxHashMap::default();
-    seen_keys.insert(task.state_key_hash(&init, None), ());
+    // A 128-bit key (0.30 Lane 5): the 64-bit router hash collided on
+    // rovers-metric-time i28 and the lazy LAMA lost the cell to it.
+    let mut seen_keys: FxHashMap<u128, ()> = FxHashMap::default();
+    seen_keys.insert(task.state_key_hash128(&init, None), ());
     let mut evaluated = 0usize;
 
     while let Some(Reverse((_, father, op))) = heap.pop() {
@@ -858,7 +860,7 @@ pub fn search_driver(
                 continue;
             }
             let ns = task.apply(oi, &nodes[ni].state);
-            let k = task.state_key_hash(&ns, None);
+            let k = task.state_key_hash128(&ns, None);
             if seen_keys.insert(k, ()).is_some() {
                 continue;
             }

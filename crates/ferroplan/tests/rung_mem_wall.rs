@@ -67,6 +67,11 @@ fn run_child(hatched: bool) -> (String, String) {
     ])
     .env("RUNG_MEM_WALL_CHILD", "1")
     .env("FF_WALL_DEBUG", "1")
+    // The trip line at HALF the budget (the engine's own knob; the boards
+    // run at 0.75): at fixture scale the lazy frontier's key map (24 B an
+    // entry) doubles in one allocation, and that step must fit between the
+    // line and the budget -- 16 MB of 32 here, as 1.5 GB of 6 on a board.
+    .env("FF_MEM_TRIP_FRAC", "0.5")
     // The MODELLED node cap (`search::node_cap_for`, ~200 B a held node)
     // now trips before the measured wall on a lazy frontier (~50 B an
     // open entry); lift it, so the measured wall is what ends the rung.
@@ -103,9 +108,10 @@ fn a_bounded_rung_stops_at_the_memory_wall() {
         let p = ferroplan::parser::parse_problem(&prb).unwrap();
         let task = ferroplan::ground::ground_task(&d, &p, 1).unwrap();
         let base = ferroplan::mem::resident_bytes().expect("readable here");
-        // The trip line is 75 % of the declared budget (`mem::TRIP_FRAC`):
-        // declare the budget that puts the line HEADROOM above the baseline.
-        let budget = ((base + HEADROOM_BYTES) as f64 / 0.75) as u64;
+        // The trip line is HALF the declared budget here (`FF_MEM_TRIP_FRAC`
+        // in `run_child`): declare the budget that puts the line HEADROOM
+        // above the baseline, and the same HEADROOM again above the line.
+        let budget = ((base + HEADROOM_BYTES) as f64 / 0.5) as u64;
         std::env::set_var(
             "FF_MEM_BUDGET_GB",
             format!("{:.6}", budget as f64 / (1u64 << 30) as f64),

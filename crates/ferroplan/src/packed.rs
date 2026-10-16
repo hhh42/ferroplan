@@ -541,6 +541,45 @@ impl PackedTask {
         h.finish()
     }
 
+    /// A 128-bit key of the same content, for a frontier that holds KEYS and
+    /// not states (0.30 Lane 5, the lazy LAMA and novelty driver). The
+    /// 64-bit [`Self::state_key_hash`] is a ROUTER -- `state_key_eq` decides
+    /// -- and FxHash's rotate-xor-multiply has no avalanche: on
+    /// rovers-metric-time i28 it collided 3 times among ~865k keys on the
+    /// closed side alone (a rate ~10^5 above a random 64-bit hash), and the
+    /// lazy LAMA, trusting it, dropped distinct successors and lost the cell.
+    /// Two independently seeded passes, each finished with murmur3's fmix64,
+    /// make a collision a 2^-128 event; 8 bytes more per open entry.
+    pub fn state_key_hash128(&self, s: &State, cost_fluent: Option<usize>) -> u128 {
+        use std::hash::Hasher;
+        #[inline]
+        fn fmix64(mut x: u64) -> u64 {
+            x ^= x >> 33;
+            x = x.wrapping_mul(0xff51_afd7_ed55_8ccd);
+            x ^= x >> 33;
+            x = x.wrapping_mul(0xc4ce_b9fe_1a85_ec53);
+            x ^= x >> 33;
+            x
+        }
+        let mut a = crate::hash::FxHasher::default();
+        let mut b = crate::hash::FxHasher::default();
+        b.write_u64(0x9e37_79b9_7f4a_7c15);
+        for &w in &s.bits {
+            a.write_u64(w);
+            b.write_u64(w.rotate_left(17) ^ 0xa076_1d64_78bd_642f);
+        }
+        for &i in self.rel_fluents.iter() {
+            let q = Self::quantized(s, i as usize);
+            a.write_i64(q);
+            b.write_i64(q.wrapping_mul(0x2545_f491_4f6c_dd1d));
+        }
+        if let Some(cf) = cost_fluent {
+            let q = Self::quantized(s, cf);
+            a.write_i64(q);
+            b.write_i64(q.wrapping_mul(0x2545_f491_4f6c_dd1d));
+        }
+        ((fmix64(a.finish()) as u128) << 64) | fmix64(b.finish() ^ 0xd1b5_4a32_d192_ed03) as u128
+    }
     /// Exact equality of the [`Self::state_key_with_cost`] content between
     /// two states — the collision check behind [`Self::state_key_hash`].
     pub fn state_key_eq(&self, a: &State, b: &State, cost_fluent: Option<usize>) -> bool {
