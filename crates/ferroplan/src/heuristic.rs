@@ -168,7 +168,9 @@ pub struct Scratch {
     /// How many times a selected op was charged (`select`'s `reps`), valid
     /// iff `selected == gen`. The consumption charge (0.29 Lane 2) sums a
     /// selected op's decreases that many times.
-    sel_reps: Vec<i32>,
+    /// Read by the search's `FF_HTRACE=3` dump (0.30 Lane 2b) beside
+    /// `relaxed_plan_ops`; written only here.
+    pub(crate) sel_reps: Vec<i32>,
     need_fact: Vec<u32>,
     queue: Vec<u32>,
     /// applied ops with ≥1 relevant numeric effect (re-widened each layer).

@@ -1409,6 +1409,47 @@ pub fn search_from(
                             .collect();
                         eprintln!("htrace:   at g {} with {}", n.g, fluents.join(" "));
                     }
+                    // `FF_HTRACE=3`: the state AND the relaxed plan the
+                    // extraction selects from it -- which ops, and how many
+                    // firings each is charged (0.30 Lane 2b: whether the
+                    // plateau at (4096, 1, 1, 1, 1) is the charge's or the
+                    // linear achiever's is read from what the plan selects
+                    // for the last 169).
+                    if std::env::var("FF_HTRACE").is_ok_and(|v| v.trim() == "3") {
+                        let n = &nodes[popped[i]];
+                        let mut sc = crate::heuristic::Scratch::new(task);
+                        let plan = crate::heuristic::relaxed_plan_ops(
+                            task,
+                            &mut sc,
+                            &n.state.bits,
+                            &n.state.fv,
+                            &n.state.fdef,
+                            &task.goal_pos,
+                            &task.goal_num,
+                        );
+                        match plan {
+                            Some(ops) => {
+                                let shown: Vec<String> = ops
+                                    .iter()
+                                    .map(|&oi| {
+                                        let reps = sc.sel_reps.get(oi).copied().unwrap_or(0);
+                                        if reps > 1 {
+                                            format!("{}x{reps}", task.op_display[oi])
+                                        } else {
+                                            task.op_display[oi].to_string()
+                                        }
+                                    })
+                                    .collect();
+                                eprintln!(
+                                    "htrace:   relaxed plan at g {} ({} ops): {}",
+                                    n.g,
+                                    ops.len(),
+                                    shown.join(", ")
+                                );
+                            }
+                            None => eprintln!("htrace:   relaxed plan at g {}: dead end", n.g),
+                        }
+                    }
                 }
             }
         }

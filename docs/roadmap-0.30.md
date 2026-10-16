@@ -765,6 +765,25 @@ state (what each selects for the last 169), which decides whether the
 mechanism is in the charge (a transfer billed) or in the linear achiever
 (a doubling priced as if it could stop at 169).
 
+**The relaxed plans, read 2026-10-15 19:55 (`FF_HTRACE=3`, new: the plan
+the extraction selects at a best state, with each op's charged firings):
+IDENTICAL on both arms** — at g 10 `DOUBLE R1 ×4`, at g 11 `DOUBLE R1 ×2`,
+at g 12 (4096, 1, 1, 1, 1) **`DOUBLE R1`, one firing**. The linear
+achiever (`numeric_achiever_linear`) prices the sum's gap of 169 by the
+op that raises the sum fastest, and doubling r1 raises it by 4,096 — one
+firing "covers" the gap and OVERSHOOTS an equality goal. The relaxation is
+blind here on both arms; the charge adds nothing to the plan and shifts h
+by a constant (1 against 2), and that constant changes LAMA's
+deterministic order from a 3 s solve to a failed slice. **So ztalloc's
+mechanism is not the charge's semantics; it is the Eq-goal overshoot in
+the linear achiever:** a raiser whose per-firing delta exceeds the gap
+does not achieve `=`, and the honest price is the smallest-delta raiser
+(DOUBLE R2 at delta 1: 169 firings), which is a gradient toward growing
+the other registers. The charge's own semantics are still open on the
+other three cells (rovers i28, settlers i5, sugar i17), read next with
+the same dump. The fixture stays as written (both arms must solve); the
+mechanism it will green is the achiever's, with the charge left on.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
