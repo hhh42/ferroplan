@@ -492,7 +492,7 @@ rung wall) and `493e70f` (LAMA lazy), with `FF_NO_MEM_WALL` and
 `FF_NO_NOVELTY` as the hatches on the first failing one; the cut's
 compare on the metric-time board is where this is finally counted, and
 the lane's "no row lost" clause now has one candidate against it.
-**Bisected 11:05 (`~/.crucible/worktrees/bisect-*`):** `de90ccb` (the
+**Bisected 10:45 (`~/.crucible/worktrees/bisect-*`):** `de90ccb` (the
 driver's lazy frontier and the rung wall) **solves** rovers i28 uncharged;
 `493e70f` (LAMA's lazy frontier) **does not** — the loss is LAMA's lazy
 frontier. One mechanism is visible in the code before any trace: the
@@ -506,7 +506,7 @@ where the lazy LAMA ends — and fixed before the numeric sweep runs,
 since that sweep reads the engine as a whole. The sweep is held at its
 gate meanwhile (nothing banked).
 
-**Read 11:30–12:00.** Not the cap: with `FF_SEARCH_NODE_CAP=0` the lazy
+**Read 10:45–11:10.** Not the cap: with `FF_SEARCH_NODE_CAP=0` the lazy
 LAMA stalls the same way (key 44 → 42 → 36 → 34 across its windows where
 the eager one goes 42 → 16 → 10 and solves at 7.7 s), and it leaves by the
 per-call wall, silently. Not the order: every tie-break path traced is
@@ -525,7 +525,7 @@ finished with murmur3's fmix64 — keys the lazy LAMA and the lazy driver;
 the eager router keeps its 64 bits. Eight bytes more per open entry.
 Measured next: rovers i28 both arms, the Lane 5 fixtures, city-car's peak
 on the 128-bit keys; then the held numeric sweep runs on this engine.
-**Measured 12:20:** rovers i28 uncharged **2/3 at 26–27 s with 0 false
+**Measured 11:20:** rovers i28 uncharged **2/3 at 26–27 s with 0 false
 drops** (the miss: LAMA at 16,411 evaluations when the per-call wall
 fell — its windows are wall-time, so a loaded moment moves a 26 s solve
 past its slice; a wall-edge coin now, where it was 0/3 with collisions);
