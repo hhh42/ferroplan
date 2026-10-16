@@ -760,6 +760,25 @@ sees on pathways that it does not on trucks, so the route can be keyed
 on the task and not on a domain name. Lane 6's `build_rpg` work stays
 behind it in the order.
 
+**The route as it stands, read 2026-10-16 12:05 (`api.rs::solve`,
+`resolve.rs`):** `Mode::Auto` sends every classical task to the ladder
+(`Mode::Ff`); partition-and-resolve is reached only by `--mode partition`.
+Inside it, `interaction_partition(task, mutex_groups)` is the first
+decision — how many goal groups the task falls into — and the subplans
+run under a 100k-evaluation cap each, with the process wall read for
+merges. **The proposal:** in auto, when the task falls into several
+groups, run the partition route first under a slice of the wall (the
+ladder's own affordability rule, a rung like LAMA's), and the ladder
+after it; the key is the group count, not a domain name. Before any
+code: `lane6/groups.sh` reads that count on three instances of every
+IPC-5 propositional variant (`FF_WALL_DEBUG`'s "partition entry: N
+groups") — if pathways decomposes and trucks does not, the key exists;
+if both decompose, the key is elsewhere (what the subplans' merge does
+on pathways' reaction goals). Measured on the whole `ipc5-prop` board
+through the crucible, with the other classical boards' loss sides, since
+a route change touches every classical cell. Runs after the numeric
+sweep.
+
 ---
 
 ## Lane 2b — metric-time beyond rovers
