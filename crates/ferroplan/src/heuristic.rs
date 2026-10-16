@@ -1806,6 +1806,9 @@ fn numeric_achiever_linear(
         return None; // already satisfiable-side; the caller's eval said no, stay silent
     }
     let mut best: Option<(usize, i32)> = None;
+    // The best mover whose one firing does not pass an `=` goal's point
+    // (0.30 Lane 2b): preferred over `best` for Eq when it exists.
+    let mut best_exact: Option<(usize, i32)> = None;
     let mut seen_ops: Vec<u32> = Vec::new();
     for &(f, _) in &coeffs {
         for &oi in task.neff_by_fluent.slice(f as usize) {
@@ -1843,9 +1846,6 @@ fn numeric_achiever_linear(
             // smallest-delta mover prices the gap honestly (`DOUBLE R2` at
             // 1: 169 firings), a gradient toward growing the other
             // registers. Ge/Gt keep the fastest mover, as before.
-            if np.op == CompOp::Eq && toward > gap + 1e-9 {
-                continue;
-            }
             if toward > 1e-9 && combo_delta.is_finite() {
                 let reps = ((gap / toward).ceil() as i32).max(1);
                 if best
@@ -1854,10 +1854,34 @@ fn numeric_achiever_linear(
                 {
                     best = Some((oi as usize, reps));
                 }
+                // The non-overshooting movers for an `=` goal, ranked the
+                // same way. Preferred below when one exists; the fastest
+                // mover stays the fallback -- the first version of this
+                // rule skipped overshooting movers outright and left
+                // rovers-metric-time i28 with no mover at all (a relaxed
+                // dead end on both arms, 0/3 where 3/3).
+                if np.op == CompOp::Eq
+                    && toward <= gap + 1e-9
+                    && best_exact
+                        .map(|(bo, r)| reps < r || (reps == r && (oi as usize) < bo))
+                        .unwrap_or(true)
+                {
+                    best_exact = Some((oi as usize, reps));
+                }
             }
         }
     }
-    best
+    // An EQUALITY goal is not achieved by overshooting it: on ztalloc i12
+    // at (4096, 1, 1, 1, 1) the sum's gap of 169 was priced by one more
+    // `DOUBLE R1` (delta 4,096) and every near-goal state read h = 1 on
+    // both arms of the charge; `DOUBLE R2` at delta 1 prices it as 169
+    // firings, a gradient toward growing the other registers. The fastest
+    // mover remains the answer when no mover can land on the point.
+    if np.op == CompOp::Eq {
+        best_exact.or(best)
+    } else {
+        best
+    }
 }
 
 /// Does any ALREADY-SELECTED op move `np`'s linear combination toward

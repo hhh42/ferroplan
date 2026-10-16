@@ -842,6 +842,45 @@ the 2023 / 2026 numeric boards and metric-time in full through the
 crucible (`lane2b/sweep.sh`) — the charge's +27 must stay, with the five
 cells back.
 
+**The five cells on the first build (`lane2b/rows-first.jsonl`, 09:57–10:17,
+solo ×3, 60 s):** ztalloc i9 **3/3 at 0 s** and i12 **3/3 at 1 s** on both
+arms (0.28.0 took 34 s and 3 s), sugar i17 **3/3 at 44 s** both arms —
+three of five back, and faster than they ever were. settlers i5 charged
+0/3 against uncharged 3/3 at 7 s — the transfer rule did pair its
+load/unload (each decrease beside an increase of a resource by one), so
+settlers' charge is something else, read next with the dump on this
+engine. And **rovers i28 0/3 on BOTH arms**, where yesterday's uncharged
+arm solved 3/3 at 24 s: a regression of mechanism (c) on the uncharged
+path — skipping every overshooting mover outright leaves a precondition
+with NO mover where the only one overshoots, and the relaxed plan reads
+a dead end. The sweep launched on that build (`c7fc54037d88`, 10:17) was
+stopped at its calibration gate by PID; nothing of it banked. **(c)
+narrowed:** the non-overshooting mover is PREFERRED for an `=` goal when
+one exists, and the fastest mover stays the fallback — the fixtures (the
+ztalloc shape has `DOUBLE R2`), the five cells and the sweep again on the
+narrowed build.
+
+**The five cells on the narrowed build (10:20–10:40, same probe):** ztalloc
+i9 / i12 3/3 at 0–1 s both arms; **sugar i17 charged 0/3, uncharged 3/3 at
+51 s** (the first build's harsher rule carried a 44 s solve across a 60 s
+wall; the narrowed one does not — a wall-edge cell either way, the board
+decides); settlers i5 charged 0/3, uncharged 3/3 at 11 s; **rovers i28 0/3
+on both arms again, so it was never (c):** yesterday's "uncharged 3/3 at
+24 s" was read on the 0.29.0 BOARD binary (`losses29/run.sh`), today's on
+the 0.30 engine — Lane 5's lazy frontiers changed the compressed task's
+search order, and the attribution is a build of the Lane 5 commit
+(`c7fd313`) run on the cell, owed before anything is said. **settlers,
+read with the dump on this engine:** charged `best_h` 4 at 75,000
+evaluations with the plan `BUILDHOUSE1 LOCATION3 ×2, BUILDHOUSE1
+LOCATION1 ×2` plus the raisers the builds' timber and stone owe —
+consumption billed exactly as the charge was designed to, and it still
+misleads the search where the uncharged plan (`BUILDHOUSE1 LOCATION1 ×2`,
+h 2) walks to a solve in 7–11 s. That is the charge's one open cell: the
+deficit is priced from THIS state's stock against the plan's spend
+times its repetitions, and on a task where the plan is "build twice,
+having hauled twice" the raisers' chase is a landscape of its own. Not
+built this cycle; the board read says what it costs.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
