@@ -1,0 +1,20 @@
+Lane 5 memory receipt (docs/roadmap-0.30.md), banked rows on the subset, engine 23 = ff 0.29.0 [7fdf185b91e6], engine 25 = 0.30 [9df92e323f0a] (493e70f), 2026-10-15
+variant|e|n|solved|memcap|max_mb|avg_mb
+caldera-sequential-satisficing|23|20|6|14|6522.0|5374.0
+caldera-sequential-satisficing|25|20|4|3|6190.0|3669.0
+caldera-split-sequential-satisficing|23|20|3|0|5620.0|3515.0
+caldera-split-sequential-satisficing|25|20|3|0|3692.0|1667.0
+child-snack-sequential-satisficing|23|20|8|0|5956.0|4303.0
+child-snack-sequential-satisficing|25|20|9|0|4286.0|2873.0
+city-car-sequential-satisficing|23|20|4|0|5601.0|4778.0
+city-car-sequential-satisficing|25|20|4|0|4608.0|3416.0
+folding-satisficing|23|20|1|17|6444.0|5844.0
+folding-satisficing|25|20|1|14|6387.0|5619.0
+maintenance-sequential-satisficing|23|20|16|4|6384.0|1287.0
+maintenance-sequential-satisficing|25|20|16|2|6344.0|1219.0
+organic-synthesis-sequential-satisficing|23|20|4|10|6667.0|4188.0
+organic-synthesis-sequential-satisficing|25|20|4|5|6562.0|3534.0
+organic-synthesis-split-sequential-satisficing|23|20|8|0|6131.0|2592.0
+organic-synthesis-split-sequential-satisficing|25|20|8|0|4983.0|2230.0
+snake-sequential-satisficing|23|20|6|0|5536.0|2627.0
+snake-sequential-satisficing|25|20|6|0|4270.0|2221.0

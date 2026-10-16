@@ -1,0 +1,35 @@
+A  ff 0.29.0 [7fdf185b91e6]
+B  ff 0.29.0 [9df92e323f0a]
+over boards ipc2014-sat,ipc2018-sat,ipc2023-sat; only /city-car|child-snack|maintenance|caldera|organic-synthesis|snake|folding/
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc2018-sat                     27       0        25       0       -2
+ipc2014-sat                     28       0        29       0       +1
+ipc2023-sat                      1       0         1       0       +0
+
+net -1 over the 3 board(s) where NEITHER side owes a row
+
+180 cells measured by BOTH engines, every attempt counted
+  A: 208 runs, mean N=1.16, max N=4, 42% clean
+  B: 208 runs, mean N=1.16, max N=4, 12% clean
+
+  what triggers a re-run (a re-run is fired by FAILURE, so extra attempts can only add solves):
+  engine  attempt 1 SOLVED              attempt 1 FAILED              rescued
+  A       55 cells                      125 cells, re-run 17.6%       1
+  B       54 cells                      126 cells, re-run 13.5%       3
+  decomposition of `any`: first-attempt -1  +  rescues +2  =  +1
+
+  estimator           A        B    B - A    95% CI (cell bootstrap)
+  banked           56.0     55.0     -1.0    [-5, +2]
+  any              56.0     57.0     +1.0    [+0, +3]
+  first            55.0     54.0     -1.0    [-6, +3]
+  equal-N          55.0     54.0     -1.0    [-6, +3]
+  per-run          54.8     54.8     +0.0    [-3, +3]
+  clean-only        1.0      0.0     -1.0    [-3, +0]
+
+  the estimators agree in sign: `first` is the comparative claim, `banked` the boards' standing number
+
+cells BOTH engines banked: 1 gained by B, 2 lost by B
+  lost    ipc2018-sat            caldera-sequential-satisficing/3
+  lost    ipc2018-sat            caldera-sequential-satisficing/4
+lost cells written to ./lost.rows

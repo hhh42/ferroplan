@@ -153,3 +153,61 @@ fn a_bounded_rung_stops_at_the_memory_wall() {
          peak {peak} against {budget} -- raise the cap or lower the headroom"
     );
 }
+
+/// A rung ENTERED above the line runs unwalled (the caldera shape: the
+/// grounding alone sits at 5.9 GB of 6, so an armed rung would trip at its
+/// first look, hand down at once, and the fallback would die at the cap --
+/// 0.29.0's rungs solved i3 and i4 on the sliver left). Declared budget
+/// BELOW the child's post-grounding baseline: no "MEMORY checkpoint", and
+/// LAMA runs to its own evaluation cap.
+#[test]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn a_rung_entered_above_the_line_runs_unwalled() {
+    if std::env::var("RUNG_ABOVE_CHILD").is_ok() {
+        let (m, k, max_eval) = if cfg!(debug_assertions) {
+            (24, 6, 2_000)
+        } else {
+            (40, 8, 5_000)
+        };
+        let (dom, prb) = ring(m, k);
+        let d = ferroplan::parser::parse_domain(&dom).unwrap();
+        let p = ferroplan::parser::parse_problem(&prb).unwrap();
+        let task = ferroplan::ground::ground_task(&d, &p, 1).unwrap();
+        let base = ferroplan::mem::resident_bytes().expect("readable here");
+        // Half the baseline: the line (75 % of it) is well below where the
+        // process already is.
+        let budget = base / 2;
+        std::env::set_var(
+            "FF_MEM_BUDGET_GB",
+            format!("{:.6}", budget as f64 / (1u64 << 30) as f64),
+        );
+        let r = ferroplan::lama::search(&task, 1, max_eval, &[], None);
+        println!("CHILD-SOLVED:{}", r.is_some());
+        println!("CHILD-EVALS:{}", r.map_or(0, |(_, e)| e));
+        return;
+    }
+    let exe = std::env::current_exe().unwrap();
+    let out = Command::new(&exe)
+        .args([
+            "--exact",
+            "a_rung_entered_above_the_line_runs_unwalled",
+            "--nocapture",
+        ])
+        .env("RUNG_ABOVE_CHILD", "1")
+        .env("FF_WALL_DEBUG", "1")
+        .env("FF_RES_DEBUG", "1")
+        .env("FF_SEARCH_NODE_CAP", "0")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "child failed");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        !stderr.contains("MEMORY checkpoint"),
+        "a rung entered above the line must not be walled:\n{stderr}"
+    );
+    assert!(
+        stderr.contains("[lama] capped:"),
+        "LAMA must have run to its own evaluation cap:\n{stdout}\n{stderr}"
+    );
+}

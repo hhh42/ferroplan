@@ -400,6 +400,73 @@ are solves, but caldera i5 (16:09) and i6 (16:10) banked `rho` unsolved
 beside that load and are re-run before the lane's read. The chain was
 stopped by PID at 16:10; nothing else runs beside the sweep.
 
+### Lane 5 — MEASURED 2026-10-15 18:40 (`lane5/compare.txt`, `memory.txt`)
+
+**SWEEP COMPLETE, 180 cells banked in four passes** (16:05–18:35, the box
+at 0–460 % foreign load, 12 % of B's runs clean against 42 % of A's — B
+measured on the louder afternoon). `crucible compare --a 7fdf185b91e6 --b
+9df92e323f0a` on the subset:
+
+| estimator | 0.29.0 | 0.30 | delta | 95 % CI |
+|---|---:|---:|---:|---|
+| first attempt (the claim) | 55 | 54 | **−1** | [−6, +3] |
+| banked | 56 | 55 | −1 | [−5, +2] |
+| any | 56 | 57 | +1 | [0, +3] |
+| equal-N | 55 | 54 | −1 | [−6, +3] |
+
+1 gained (child-snack i?), 2 lost: **caldera i3 and i4** — 0.29.0 solves at
+58.9 s on the grounding class's edge (i3's first 0.30 attempt solved at
+58.87 s and was voided `swap`); re-run solo on both engines before they
+are named (`lane5-lost`). **The band (+15 to +30) is not met; the kill
+clause holds: the rows end unsolved with the wall spent**, and the note
+says what the wall was spent on — the best-first beneath the rungs runs
+its 35–45 s on what the rungs leave and reaches no plan on these cells.
+
+**The memory half, banked rows, satisficing boards (`memory.txt`):**
+
+| variant | solved 0.29.0 → 0.30 | `mem-cap` rows | mean peak RSS |
+|---|---|---|---|
+| caldera | 6 → 4 (the two coins above) | **14 → 3** | 5.4 → 3.7 GB |
+| caldera-split | 3 → 3 | 0 → 0 | 3.5 → 1.7 GB |
+| child-snack | 8 → **9** | 0 → 0 | 4.3 → 2.9 GB |
+| city-car | 4 → 4 | 0 → 0 | 4.8 → 3.4 GB |
+| folding | 1 → 1 | 17 → 14 | 5.8 → 5.6 GB (the grounding) |
+| maintenance | 16 → 16 | 4 → 2 | 1.3 → 1.2 GB |
+| organic-synthesis | 4 → 4 | **10 → 5** | 4.2 → 3.5 GB |
+| organic-synthesis-split | 8 → 8 | 0 → 0 | 2.6 → 2.2 GB |
+| snake | 6 → 6 | 0 → 0 | 2.6 → 2.2 GB |
+
+`mem-cap` rows on the subset **45 → 24**; mean peak RSS down 20–50 % on
+every search-class variant.
+
+**The two lost cells, read 2026-10-15 19:00:** caldera i3 and i4 both
+SOLVED on the 0.30 engine (58.9 s and 39.6 s, 5.6 GB) on attempts the
+referee voided as `swap`, and their re-runs were **`mem-cap` kills at 19 s
+and 6.17 GB**; 0.29.0 solved both at 38.8 s. The cause is mechanism 1 on
+the grounding class: caldera's grounding alone sits at 5.9 GB of 6, so an
+armed rung trips at its FIRST look (the resident set is already past the
+4.5 GB line), hands straight down, and the unwalled best-first grows to
+the cap — where 0.29.0's rungs ran on the sliver the grounding left and
+solved. **Revised (`MemWall::arm_rung`):** a rung entered above the line
+is not armed — above the line there is no headroom to spend honestly and
+the rung is the ladder's only chance; it runs as it did before, under the
+runner's cap. Fixture arm `a_rung_entered_above_the_line_runs_unwalled`
+(the budget declared below the child's baseline: no checkpoint, LAMA runs
+to its own cap). Measured next on caldera i3 solo and the caldera cells
+through the crucible on the revised engine.
+
+**The lane's verdict (pending the caldera re-read): a measured win on
+memory, a recorded negative on rows.** What the record names for the
+rows: (a) the cells are not memory-bound once the rungs are honest — they
+are search-bound, and the complete rung beneath does not solve them in
+the wall it is handed; (b) a bounded open list for the bounded rungs
+(the lever named under LAMA's build) would let the rungs run their whole
+slice without handing down at all, which is the next search question;
+(c) the grounding class (folding, caldera, organic-synthesis) does not
+move and was never this lane's. The engine changes stay (every fixture
+green, the suite green, the peak memory lower on every search cell); the
+claim on rows is withdrawn for this cycle.
+
 ### Lane 5 — day one, re-measured 2026-10-15 (`probes-0.30/lane5/`)
 
 Solo, one thread, the board's env (`FF_TIME_LIMIT=60`, `FF_MEM_BUDGET_GB=6`),
@@ -563,6 +630,27 @@ conditional-effect expansion, or a fixpoint that runs to the cap) — read
 from the two tasks' shapes (`grounded_actions`, preconditions per op,
 layers to the goal) before any code moves.
 
+**The shapes, read 2026-10-15 18:30:** storage i28 grounds to **1,760 facts
+and 19,540 ops** (five schemas, ten negated preconditions); trucks i10 to
+656 facts and 3,168 ops (four schemas, two `forall`s); pathways i18 to 772
+facts and 1,396 ops (29 schemas, 24 disjunctions). Storage's evaluation
+costs 12.5× trucks' because its relaxed planning graph is 6.2× the ops and
+2.7× the facts per layer — the size of the grounded task, not a defect in
+the build. (The 0.29 trucks probe also found the three remaining
+propositional cells, trucks i15/i16 and storage i27, to be lost searches;
+today's pathways i17–19 are the same, at 5–8 M evaluations.) So the lane's
+mechanism is generic speed of `build_rpg` per op — a layer that visits only
+the ops whose preconditions changed (the incremental RPG, Metric-FF's own
+shape) rather than every op every layer — and its measure is evaluations
+per second on the six-cell panel. And one more reading from the profile:
+`profile.py` runs `ff` in its DEFAULT mode, partition-and-resolve, and in
+that mode **trucks i10 and pathways i18 printed plans inside 40 s** where
+the auto ladder reaches none in 60 s. The release engine in auto mode is
+unsolved on both at 60 s (1.74 M and 1.68 M evaluations); a direct
+`--mode partition` check at 60 s was interrupted by the sweep and is owed
+— if it holds, the propositional board's lever is the route, not the
+speed.
+
 ---
 
 ## Lane 2b — metric-time beyond rovers
@@ -594,6 +682,19 @@ distance); the mechanism is for the charge to see a decrease whose amount
 the same op moves into another fluent as a transfer, or to charge only
 when the deficit's raiser is not the plan's own transfer — decided on the
 five cells plus the 2023-numeric rows the charge won (+27).
+
+**The fixture, RED 2026-10-15 18:45 (`tests/consume_transfer.rs`, ignored
+until the mechanism lands):** ztalloc i12's own shape embedded — five
+registers at 1, the goal a sum of 4,269 with every register normal — through
+`ferroplan::solve` at 400k evaluations: **uncharged solved; charged
+unsolved at 400,086 evaluations.** A single register with a point goal
+(730 → 243, the first draft) did NOT show it: both arms solved at once. So
+the plateau needs the SUM goal over several registers — the linear
+achiever (`numeric_achiever_linear`) prices the sum's gap through `double`
+(reps = ⌈gap / value⌉), and the charge then bills the division sequences
+each register must run; which of the two the h = 1 floor comes from is the
+first thing the mechanism's work reads, on the fixture, with the state at
+h = 1 printed.
 
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,

@@ -111,16 +111,31 @@ impl MemWall {
     /// would have run the whole wall in under a gigabyte, and the row was a
     /// SIGKILL with forty seconds unspent. Inside bounded work the scope's
     /// own rule (the latch) applies, as before.
+    ///
+    /// A rung ENTERED above the line is not armed. caldera's grounding alone
+    /// is 5.9 GB of the runner's 6 (the grounding class): armed at 4.5 GB,
+    /// every rung tripped at its first look, handed straight down, and the
+    /// unwalled best-first grew to the cap -- the 0.30 subset sweep lost
+    /// caldera i3 and i4, which 0.29.0's rungs solved at 38 s on the sliver
+    /// the grounding left. Above the line there is no headroom to spend
+    /// honestly and the rung is the ladder's only chance: it runs as it did
+    /// before, under the runner's cap.
     pub fn arm_rung() -> Self {
         if crate::search::bounded_work() {
             return Self::arm();
         }
-        let trip_at = if std::env::var("FF_NO_MEM_WALL").is_ok() {
-            None
-        } else {
-            declared_budget_bytes().map(|b| (b as f64 * trip_frac()) as u64)
+        if std::env::var("FF_NO_MEM_WALL").is_ok() {
+            return MemWall { trip_at: None };
+        }
+        let Some(line) = declared_budget_bytes().map(|b| (b as f64 * trip_frac()) as u64) else {
+            return MemWall { trip_at: None };
         };
-        MemWall { trip_at }
+        if resident_bytes().is_some_and(|r| r >= line) {
+            return MemWall { trip_at: None };
+        }
+        MemWall {
+            trip_at: Some(line),
+        }
     }
 
     pub fn armed(&self) -> bool {
