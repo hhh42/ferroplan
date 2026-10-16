@@ -826,6 +826,22 @@ for (c), and (b) gets one of its own on the settlers shape (a load that
 moves stock onto a vehicle, an unload that moves it off, a goal that
 needs it moved twice).
 
+**(b) and (c) BUILT 2026-10-16 morning.** (b) `consumption_charge`'s
+ledger skips a decrease whose op increases another RESOURCE by the same
+evaluated amount — a resource being a fluent some op reads from below
+(`Scratch::read_from_below`, computed once per task), so `(increase
+(labour) 1)` beside `(decrease (stone) 1)` still bills the stone. (c)
+`numeric_achiever_linear` skips, for an `=` goal, a mover whose single
+firing passes the point (`toward > gap`); Ge/Gt keep the fastest mover.
+Fixtures: `tests/consume_move.rs` (the haul: a cart, a quarry, a site
+that needs two stones — **charged evaluations == uncharged**, green) and
+`tests/consume_transfer.rs` (ztalloc i12's shape — **charged solved in
+0.30 s**, from unsolved at 400,086 evaluations, green). Measured next:
+the five cells solo ×3 both arms on this engine (`lane2b/cells.sh`), then
+the 2023 / 2026 numeric boards and metric-time in full through the
+crucible (`lane2b/sweep.sh`) — the charge's +27 must stay, with the five
+cells back.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is

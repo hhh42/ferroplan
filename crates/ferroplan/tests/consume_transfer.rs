@@ -87,11 +87,10 @@ fn solve(charged: bool) -> (bool, usize) {
     (sol.solved, sol.statistics.evaluated_states)
 }
 
-/// RED on 2026-10-15 (400,086 evaluations charged, a 3 s solve uncharged):
-/// ignored until Lane 2b's mechanism lands, so the suite reads the engine
-/// as it is; run it with `--ignored` to see the shape.
+/// RED on 2026-10-15 (400,086 evaluations charged, a 3 s solve uncharged)
+/// until the linear achiever stopped pricing an equality goal with a mover
+/// that overshoots it (0.30 Lane 2b, mechanism (c)).
 #[test]
-#[ignore = "0.30 Lane 2b: RED by design until the charge sees a transfer"]
 fn a_sum_the_goal_needs_is_not_billed_as_spending() {
     let (solved, evals) = solve(false);
     assert!(

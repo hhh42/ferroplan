@@ -171,6 +171,12 @@ pub struct Scratch {
     /// Read by the search's `FF_HTRACE=3` dump (0.30 Lane 2b) beside
     /// `relaxed_plan_ops`; written only here.
     pub(crate) sel_reps: Vec<i32>,
+    /// Per fluent: some op's precondition reads it from below (`(>= f c)`
+    /// on the bare fluent) -- a RESOURCE, as opposed to a counter nothing
+    /// ever waits on (`total-cost`, `labour`). Computed once; the
+    /// consumption charge's transfer rule (0.30 Lane 2b) pairs a decrease
+    /// only with an increase of a resource.
+    read_from_below: Vec<bool>,
     need_fact: Vec<u32>,
     queue: Vec<u32>,
     /// applied ops with ≥1 relevant numeric effect (re-widened each layer).
@@ -206,6 +212,7 @@ impl Scratch {
             ub: vec![0.0; nfl],
             selected: vec![0; task.n_ops],
             sel_reps: vec![0; task.n_ops],
+            read_from_below: read_from_below(task),
             need_fact: vec![0; task.n_facts],
             queue: Vec::with_capacity(task.n_facts),
             num_applied: Vec::with_capacity(task.n_ops),
@@ -1414,6 +1421,25 @@ pub fn relaxed_plan_cost(
 /// relaxed-plan extraction left in `sc` (valid until the next reset), each
 /// evaluated against this state's fluent values. Ops count once (set
 /// semantics) — an underestimate when a plan must repeat an op.
+/// Per fluent, whether any op's precondition reads it from below -- the
+/// bare-fluent `(>= f c)` / `(> f c)` shape the consumption charge bills.
+/// Task-level, computed once per `Scratch` (0.30 Lane 2b).
+fn read_from_below(task: &PackedTask) -> Vec<bool> {
+    let mut read = vec![false; task.fluent_names.len()];
+    for oi in 0..task.n_ops {
+        for np in task.pre_num.slice(oi) {
+            if let (NExpr::Fluent(f), NExpr::Num(_), CompOp::Ge | CompOp::Gt) =
+                (&np.lhs, &np.rhs, np.op)
+            {
+                if let Some(slot) = read.get_mut(*f as usize) {
+                    *slot = true;
+                }
+            }
+        }
+    }
+    read
+}
+
 /// The consumption charge (0.29 Lane 2); see the call site in
 /// `relaxed_extract` for why. Stock fluents are those some SELECTED op reads
 /// with a lower-bound comparison on the bare fluent (`(>= (energy) 8)`); the
@@ -1458,12 +1484,42 @@ fn consumption_charge(
             }
         }
         let reps = sc.sel_reps[oi].max(1) as f64;
+        // THE TRANSFER RULE (0.30 Lane 2b). A decrease whose op increases
+        // some OTHER resource by the same amount is a move, not spending:
+        // ztalloc's `copy-reset` (`decrease value by value`, `increase
+        // work-value by value`), settlers' `load` / `unload` (a unit off a
+        // place onto a vehicle, a unit of space the other way). Billed as
+        // spending, every hop of a load/unload chain owed a raiser and the
+        // charged h on settlers i5 read 16 where the plan was two builds.
+        // Only a resource pairs -- a fluent some op reads from below -- so
+        // `(increase (total-cost) 1)` beside `(decrease (stock) 1)` is still
+        // consumption.
+        let moved: Vec<(u32, f64)> = task
+            .num_eff
+            .slice(oi)
+            .iter()
+            .filter(|ne| {
+                ne.op == AssignOp::Increase
+                    && sc
+                        .read_from_below
+                        .get(ne.target as usize)
+                        .copied()
+                        .unwrap_or(false)
+            })
+            .filter_map(|ne| ne.value.eval(fv, def).map(|w| (ne.target, w)))
+            .collect();
         for ne in task.num_eff.slice(oi) {
             let Some(v) = ne.value.eval(fv, def) else {
                 continue;
             };
             match ne.op {
                 AssignOp::Decrease if v > 0.0 => {
+                    let transfer = moved
+                        .iter()
+                        .any(|&(g, w)| g != ne.target && (w - v).abs() <= 1e-9);
+                    if transfer {
+                        continue;
+                    }
                     let i = entry(&mut ledger, ne.target);
                     ledger[i].1 += v * reps;
                 }
@@ -1779,6 +1835,17 @@ fn numeric_achiever_linear(
             } else {
                 -combo_delta
             };
+            // An EQUALITY goal is not achieved by overshooting it (0.30 Lane
+            // 2b): on ztalloc i12 at (4096, 1, 1, 1, 1) the sum's gap of 169
+            // was priced by one more `DOUBLE R1` -- delta 4,096 -- and every
+            // near-goal state read h = 1 on both arms of the charge. A raiser
+            // whose one firing passes the point is not a raiser for `=`; the
+            // smallest-delta mover prices the gap honestly (`DOUBLE R2` at
+            // 1: 169 firings), a gradient toward growing the other
+            // registers. Ge/Gt keep the fastest mover, as before.
+            if np.op == CompOp::Eq && toward > gap + 1e-9 {
+                continue;
+            }
             if toward > 1e-9 && combo_delta.is_finite() {
                 let reps = ((gap / toward).ceil() as i32).max(1);
                 if best
