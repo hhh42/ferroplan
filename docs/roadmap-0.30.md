@@ -686,6 +686,21 @@ propositional board under `--mode partition` at 60 s solo
 (`probes-0.30/lane6/partition.sh`); if more than a handful solve, the
 lane's cheapest lever is the auto route's choice on this board's shapes,
 ahead of any `build_rpg` work.
+**RUN 2026-10-15 18:45–19:45 (`lane6/partition.tsv`, 64 cells, solo, 60 s):
+6 solved, all pathways** — pathways-propositional i17 (34 s), i19 (29 s),
+i21 (25 s) and pathways-propositional-strips i17 (12 s), i19 (7 s), i21
+(7 s); pathways i18 and every trucks (32 cells), pipesworld (15), rovers
+(6) and storage (4) cell unsolved. The partition-and-resolve route is a
+**pathways lever, not a board lever**: six rows the ladder never reaches
+on any budget (i17 at 5 M evaluations in 300 s), nothing elsewhere. The
+mechanism this names is small and precise — the auto route tries the
+partition subplanner on the pathways shape (29 schemas, 24 disjunctive
+preconditions, goals that decompose by reaction) — and its band is those
+six rows with no loss elsewhere on the board; the question before any
+code is what, in the grounded task, the partition's invariant synthesis
+sees on pathways that it does not on trucks, so the route can be keyed
+on the task and not on a domain name. Lane 6's `build_rpg` work stays
+behind it in the order.
 
 ---
 
