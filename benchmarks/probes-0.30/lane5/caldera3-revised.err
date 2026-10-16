@@ -1,0 +1,20 @@
+wall: remaining Some(0.36648333333333327), bounded rungs SKIPPED
+wall: solved by EHC
+       38.29 real        31.77 user         6.11 sys
+          6492962816  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             4285996  page reclaims
+                 100  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   5  voluntary context switches
+                6744  involuntary context switches
+        892236560521  instructions retired
+        162655580309  cycles elapsed
+         16325177200  peak memory footprint

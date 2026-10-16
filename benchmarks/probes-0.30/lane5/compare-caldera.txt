@@ -1,0 +1,33 @@
+A  ff 0.29.0 [7fdf185b91e6]
+B  ff 0.29.0 [b2769c241a16]
+over boards ipc2018-sat; only /caldera-sequential/
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc2018-sat                      6       0         6       0       +0
+
+net +0 over the 1 board(s) where NEITHER side owes a row
+
+20 cells measured by BOTH engines, every attempt counted
+  A: 20 runs, mean N=1.00, max N=1, 55% clean
+  B: 22 runs, mean N=1.10, max N=2, 32% clean
+
+  what triggers a re-run (a re-run is fired by FAILURE, so extra attempts can only add solves):
+  engine  attempt 1 SOLVED              attempt 1 FAILED              rescued
+  A       6 cells                       14 cells, re-run 0.0%         0
+  B       6 cells                       14 cells, re-run 14.3%        0
+  decomposition of `any`: first-attempt +0  +  rescues +0  =  +0
+
+  estimator           A        B    B - A    95% CI (cell bootstrap)
+  banked            6.0      6.0     +0.0    [-4, +4]
+  any               6.0      6.0     +0.0    [-4, +4]
+  first             6.0      6.0     +0.0    [-4, +4]
+  equal-N           6.0      6.0     +0.0    [-4, +4]
+  per-run           6.0      6.0     +0.0    [-4, +4]
+  clean-only        2.0      0.0     -2.0    [-5, +0]
+
+  the estimators agree in sign: `first` is the comparative claim, `banked` the boards' standing number
+
+cells BOTH engines banked: 2 gained by B, 2 lost by B
+  lost    ipc2018-sat            caldera-sequential-satisficing/3
+  lost    ipc2018-sat            caldera-sequential-satisficing/4
+lost cells written to lost-caldera.rows

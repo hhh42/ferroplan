@@ -454,9 +454,34 @@ runner's cap. Fixture arm `a_rung_entered_above_the_line_runs_unwalled`
 (the budget declared below the child's baseline: no checkpoint, LAMA runs
 to its own cap). Measured next on caldera i3 solo and the caldera cells
 through the crucible on the revised engine.
+**caldera i3 solo on the revised engine (`b2769c241a16`, 19:20):** solved
+— **by EHC in 27 evaluations after a 38 s grounding, peak 6.49 GB**, the
+bounded rungs SKIPPED as unaffordable (36 % of the wall left). So the
+rungs were never the cause on this cell: the 19 s `mem-cap` re-runs were
+the grounding itself peaking past the runner's cap, and 0.29.0's 38.8 s
+solves lived at the same edge (its caldera peaks 6.2–6.5 GB). caldera i3
+and i4 are **memory coins of the grounding class**, on both engines; the
+`arm_rung` revision stands as the right behaviour for a rung entered above
+the line, not as the fix for these two. The caldera-only sweep on the
+revised engine says whether the board agrees.
 
-**The lane's verdict (pending the caldera re-read): a measured win on
-memory, a recorded negative on rows.** What the record names for the
+**The caldera-only sweep on the revised engine (`b2769c241a16`, 19:25–19:45,
+20 cells, two passes; `compare-caldera.txt`): 6 = 6, +0 [−4, +4]** — i5
+and i14 GAINED (5.9–6.0 GB solves), i3 and i4 lost again (`mem-cap` at
+6.19 GB). Caldera's twenty cells run at 5.1–6.4 GB peak on both engines;
+which four of them cross the runner's cap on a given pass is a coin, and
+the lane does not claim or concede them. The subset's reading with
+caldera flat is child-snack's +1 and nothing else: **+1 of 180, inside
+every interval**.
+
+**The lane's verdict: a measured win on memory, a recorded negative on
+rows** — the band (+15 to +30) is not met; `mem-cap` rows fall 45 → 24
+and peak RSS 20–50 % on the search class, and the cells that were
+memory-bound are now search-bound and unsolved at the wall. The engine
+changes stay. Owed from here: the bounded open list for the bounded rungs
+(the search question the lane uncovered), and the grounding class as its
+own lane — folding, caldera, organic-synthesis — where the memory is
+spent before any search begins. What the record names for the
 rows: (a) the cells are not memory-bound once the rungs are honest — they
 are search-bound, and the complete rung beneath does not solve them in
 the wall it is handed; (b) a bounded open list for the bounded rungs
