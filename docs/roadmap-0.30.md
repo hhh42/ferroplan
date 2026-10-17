@@ -1001,7 +1001,7 @@ binary) names the rule per family; the rule is narrowed or reverted on
 that reading, and the three families re-swept before the lane claims
 anything. The ztalloc ten stand on their own fixture.
 
-**The bisect, 22:10–23:00.** The first run of `lost.sh` was INVALID after
+**The bisect, 22:10–22:40.** The first run of `lost.sh` was INVALID after
 its first 0.29.0 arm: `BIN=$FF29 run …` is an env prefix on a shell
 function, and in zsh the assignment leaked, so every later arm — sugar,
 hydropower, markettrader, delivery, gear-car — ran on the 0.29.0 binary
@@ -1020,6 +1020,34 @@ solves, inside a few seconds each (236 ops). The rewritten bisect (the
 binary an explicit argument; a `both-off` arm) runs on sugar i16,
 hydropower i11, markettrader i1, delivery i20, gear-car i9; its `both-off`
 arm says whether these are the charge's rules or Lane 5's lazy LAMA.
+
+**The bisect, read 22:40 (`lost.tsv`, solo ×2, 60 s):**
+
+| cell | default | transfer off | Eq off | both off | charge off | 0.29.0 |
+|---|---|---|---|---|---|---|
+| sugar i16 | 0/2 | **2/2 @ 1–2 s** | 0/2 | 2/2 | 0/2 | 2/2 @ 1–2 s |
+| hydropower i11 | 0/2 | **2/2 @ 8 s** | 0/2 | 2/2 | 0/2 | 2/2 @ 8–9 s |
+| markettrader i1 | 0/2 | **2/2 @ 2–3 s** | 0/2 | 2/2 | 0/2 | 2/2 @ 2 s |
+| delivery i20 | 0/2 @ 55 s | 0/2 | 0/2 | 0/2 | 0/2 | 2/2 @ 55–56 s |
+| gear-car i9 | 2/2 @ 58 s | 2/2 | 2/2 | 2/2 | 2/2 | 2/2 @ 58 s |
+
+**The transfer rule (b) is the regression on all three families; the Eq
+rule (c) is innocent of them**; "the charge off" fails the same three
+cells, which is to say the 0.29 charge WINS them, and the transfer rule
+took exactly that away. Why is plain: an unload depletes the truck's
+content whatever the depot gains, and billing it against the truck's
+stock is what prices the load before it — the "load before you unload"
+gradient the delete relaxation cannot see. The rule was motivated by
+settlers (which it did not fix) and ztalloc (which (c) fixed), so it
+stood on nothing. Delivery i20 is a 55 s coin on every arm, gear-car i9
+a 58 s coin; petri-net 9-1 is restored by either rule off, so by the
+withdrawal. **(b) WITHDRAWN:** the rule, its hatch, its `read_from_below`
+table and `tests/consume_move.rs` (whose claim, "charged equals
+uncharged on a haul", was the wrong claim) are removed; the lazy LAMA
+was never implicated here. (c) stays, narrowed, with its hatch and
+`tests/consume_transfer.rs`. Then: the fixtures and the suite, the lost
+cells and the ztalloc ten solo on the withdrawn engine, and the three
+boards re-swept overnight.
 
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
