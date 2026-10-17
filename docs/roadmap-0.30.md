@@ -791,6 +791,22 @@ on pathways' reaction goals). Measured on the whole `ipc5-prop` board
 through the crucible, with the other classical boards' loss sides, since
 a route change touches every classical cell. Runs after the numeric
 sweep.
+**RUN 2026-10-17 10:50 (`lane6/groups.tsv`, three instances per variant,
+`--mode partition` at 5 s):** the key does not exist. Every variant
+decomposes — openstacks 20–30 groups, pathways 14–27, rovers 10–20, tpp
+10–15, trucks 9–13, storage 4–10, pipesworld 1–10 — so a route keyed on
+the group count would fire on every board. What pathways has that trucks
+does not is SUBPLANS THAT SUCCEED (a reaction goal is one chain), which
+no key short of running them reads. (Also seen: pathways' grounding takes
+1.3–2.5 s of a 5 s wall where every other variant's takes none — 29
+schemas with 24 disjunctions; i20 grounded past 5 s.) **So the lever is
+a rung, not a route:** in auto, a bounded partition-and-resolve attempt
+under a slice of the wall (`tighten_deadline` to leave the rest; the
+subplans already honour the call budget), then the ladder as today;
+hatch `FF_NO_PARTITION_RUNG`. Band: the pathways six on `ipc5-prop` and
+no classical board losing net; kill: any board loses more than it gains.
+Measured on the full propositional board and the solved side of the
+2008/2011/2014/2018/2023 sat boards, at night. Built next.
 
 ---
 
