@@ -268,6 +268,19 @@ on it before its rows are.
    time-based stride, not a count. It joins Lane 6 (the enumeration's
    cost is Lane 6's question too) rather than holding Phase 0.
 
+   **Ledger, 2026-10-17 05:00 (the Lane 2b re-sweep):** in quiet hours at
+   width 8–9 the canary read 1.49–1.50× "its baseline" and 44 rows in forty
+   minutes were owed `thermal` — the 0.29 loop again, with a reason the
+   per-width line (0.29 Phase 0.5) does not cover: the canary's history is
+   keyed by `variant/instance@engine`, so **a new engine hash is a new
+   label with no width history**, and every width is judged against the
+   solo line until `baseline_n` readings accumulate there (each width
+   separately, as the pack moves 8 ↔ 9). Owed to Phase 0's ledger: the
+   per-width window should carry over from the previous engine on the
+   same box (the box's slowness at width 9 is the box's, not the engine's),
+   or the first pass at a new engine should seed each width with one
+   reading before the referee uses the solo line.
+
 **Phase 0 closed 2026-10-15** (0.1 read, 0.2 record, 0.3 built, 0.4 read
 and built, 0.5 run, 0.6 read with one item handed to Lane 6); the crucible
 changes are on `engine-0.30` (`6e5bdc0`, `c193948`), and `main` was
