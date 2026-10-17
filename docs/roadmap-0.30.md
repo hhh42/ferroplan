@@ -842,6 +842,37 @@ banked): +6, −0** — pathways-propositional i17 (33.8 s), i19 (29.2 s), i21
 (8.0 s); nothing lost on the 352 cells 0.29.0 solved among them. The
 unsolved tail and the six solved-side classical boards follow; nothing
 is claimed from a sweep in flight.
+Interim 13:40, 430 banked: **+6, −8.** Lost: openstacks-propositional and
+-strips i28, i29, i30 (0.29.0 at 5–32 s; 0.30 unsolved at 60 s on every
+attempt, solo included) and pathways-propositional i26, i28 (0.29.0 at
+27–30 s). openstacks i30 solved in 5 s on 0.29.0 and fails with thirty
+seconds left — the ladder after the rung is not 0.29.0's ladder, and the
+code says why: `plan_avoiding`'s affordability rule (0.22 Phase 5A)
+enters a bounded rung only while more than 40 % of the WHOLE wall
+remains, re-read at each rung's entry. After the rung's half and EHC's
+quarter of what is left, 37 % remains: novelty-light, LAMA and novelty
+are all skipped and the ladder collapses to EHC and the best-first,
+which is what openstacks i30 cannot be solved by. **The fix is the
+ladder's, not the rung's:** affordability read against the wall the
+ladder was HANDED at entry (its own budget), not the process wall — the
+0.22 rule's intent, which was written when the ladder always started at
+the whole wall. Not the general rule, though: `api::solve` arms the wall
+BEFORE grounding on purpose ("the ladder's affordability gate must see
+grounding time as spent budget"), so re-basing every ladder entry would
+reopen a 0.22 decision. The base is set only by the rung's hand-down
+(`search::hand_ladder_wall`, taken once by the next `plan_avoiding`);
+without the rung every ladder entry is byte-identical. Pinned as the
+third arm of `tests/partition_rung.rs` (the handed base narrated; no
+rung skipped as unaffordable on the freshly handed ladder). Re-swept
+(propositional in full, the solved sides again); the pathways six are
+kept only if the openstacks six come back.
+Final read of the unfixed engine, propositional complete at 13:45
+(the solved-side half of the sweep stopped unstarted — it would have
+measured the engine the fix replaces): **+6, −14; banked −22 [−34, −11],
+first −43 [−58, −30]** (`lane6/lost-prop-55cb.tsv`). Pipesworld joined
+the losses late in the pass (i25, i28 and strips i28, i29, i36, i38):
+the same collapse. Recorded as the rung's negative in its first shape;
+the band is re-read on the handed-wall shape (engine 8e1e6b61a0b9).
 
 ---
 
@@ -1236,6 +1267,15 @@ read is the three preference boards in full on this engine, after Lane
   half moved the proofs, the record says so; if the wall is now spent
   honestly, the heuristic (LM-cut's probe fraction, `FF_OPT_LMCUT_PROBE_FRAC`)
   is the next cycle's question. Nothing symbolic or bidirectional.
+- **Classic text mode runs its partition-first attempt with no wall armed
+  (found 2026-10-17 while calibrating the Lane 6 fixture).** `run_planner`
+  (the `ff` default without `--json`) grounds and tries `resolve::solve`
+  BEFORE `crate::solve` arms `FF_TIME_LIMIT`: a ring(40,12) under
+  `FF_TIME_LIMIT=12` narrated `remaining None` and ran past 30 s. The
+  boards and every probe go through `--json` (`crate::solve`), so no
+  measurement is touched; the text path is the drop-in's, and arming the
+  wall at `run_planner`'s entry is a one-line fix owed to 0.31 with a
+  fixture (text mode, armed wall, returns inside it).
 
 ---
 

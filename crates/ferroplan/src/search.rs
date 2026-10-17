@@ -543,6 +543,28 @@ thread_local! {
         const { std::cell::RefCell::new(CallBudget { deadline: None, cancel: None }) };
 }
 
+thread_local! {
+    /// THE WALL THE NEXT LADDER IS HANDED (0.30 Lane 6). The ladder's
+    /// affordability gate (`plan_avoiding`, "a bounded rung only while more
+    /// than 40 % remains") reads the fraction against the WHOLE wall: the
+    /// 0.22 shape, written when the ladder always started at the whole
+    /// wall less grounding. The partition rung runs before it on half of
+    /// what is left, so a ladder entered after the rung's hand-down starts
+    /// at ~49 % and loses every bounded rung the moment EHC's quarter is
+    /// spent -- openstacks i30, solved at 5 s on 0.29.0, fell unsolved at
+    /// 60 s on the first board read. The rung sets this to the seconds it
+    /// hands down; the ladder takes it (once) and judges affordability
+    /// against it. Never set when the rung did not run, so every other
+    /// ladder entry is byte-identical.
+    static LADDER_BASE: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+}
+
+/// The partition rung's hand-down: the ladder entered next on this thread
+/// judges its bounded rungs against `secs`, the wall it is handed.
+pub(crate) fn hand_ladder_wall(secs: f64) {
+    LADDER_BASE.with(|b| b.set(Some(secs)));
+}
+
 /// This thread's current call budget (default = unarmed = byte-identical to
 /// every shape before 0.28).
 pub(crate) fn call_budget() -> CallBudget {
@@ -1734,11 +1756,25 @@ pub fn plan_avoiding(
     // stale "affordable" verdict. `FF_NO_RUNG_WALLCAP=1` restores the
     // compute-once shape; without an armed limit both read `true`
     // forever, so the no-wall ladder is untouched.
-    let afford_once = wall_remaining_frac().map_or(true, |f| f > 0.4);
+    //
+    // 0.30 Lane 6: a ladder the partition rung hands down to is judged
+    // against the wall it was HANDED (`hand_ladder_wall`), not the whole
+    // wall the rung already spent half of; without the rung the base is
+    // unset and the gate is the 0.22 rule unchanged.
+    let handed = LADDER_BASE.with(|b| b.take()).filter(|s| *s > 0.0);
+    let affordable_now = move || match (wall_remaining_frac(), handed) {
+        (None, _) => true,
+        (Some(_), Some(base)) => wall_remaining_secs().map_or(true, |rem| rem / base > 0.4),
+        (Some(f), None) => f > 0.4,
+    };
+    if let (Some(base), true) = (handed, std::env::var("FF_WALL_DEBUG").is_ok()) {
+        eprintln!("wall: ladder handed {base:.2}s, bounded rungs judged against it");
+    }
+    let afford_once = affordable_now();
     let reeval_afford = rung_wallcap_on();
     let rungs_affordable = move |rung: &str| {
         let now = if reeval_afford {
-            wall_remaining_frac().map_or(true, |f| f > 0.4)
+            affordable_now()
         } else {
             afford_once
         };

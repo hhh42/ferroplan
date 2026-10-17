@@ -14,7 +14,12 @@
 //! -- k agents on a ring whose goal reverses their cyclic order, impossible
 //! and invisible to the relaxation -- is handed down inside the slice and
 //! the whole solve still returns inside the wall: the rung never spends
-//! the ladder's half. `FF_NO_PARTITION_RUNG=1` is the hatch, pinned on (1).
+//! the ladder's half. (3) That ladder is judged against the wall it was
+//! handed (`search::hand_ladder_wall`), so its bounded rungs are not
+//! skipped as unaffordable at 49 % of a wall the rung already spent half
+//! of -- a big ring under a 0.9 slice hands down a tenth of the wall and
+//! the ladder still runs its rungs. `FF_NO_PARTITION_RUNG=1` is the
+//! hatch, pinned on (1).
 
 use std::process::Command;
 
@@ -80,6 +85,12 @@ fn child(which: &str, hatched: bool) -> (String, String) {
     .env("PARTITION_RUNG_CHILD", which)
     .env("FF_WALL_DEBUG", "1")
     .env("FF_TIME_LIMIT", WALL_SECS.to_string());
+    if which == "ring-big" {
+        // The rung takes nine tenths of the wall and the big ring burns all
+        // of it (the subgoals' own ladders eat the slice), so the ladder is
+        // handed ~1.2 s of a 12 s wall: 10 % of the whole, 100 % of its own.
+        cmd.env("FF_PARTITION_RUNG_FRAC", "0.9");
+    }
     if hatched {
         cmd.env("FF_NO_PARTITION_RUNG", "1");
     }
@@ -104,10 +115,10 @@ fn field<'a>(stdout: &'a str, key: &str) -> &'a str {
 #[test]
 fn the_partition_rung_runs_first_and_hands_down() {
     if let Ok(which) = std::env::var("PARTITION_RUNG_CHILD") {
-        let (dom, prb) = if which == "counters" {
-            counters()
-        } else {
-            ring(16, 5)
+        let (dom, prb) = match which.as_str() {
+            "counters" => counters(),
+            "ring-big" => ring(40, 12),
+            _ => ring(16, 5),
         };
         let opts = ferroplan::Options {
             threads: 1,
@@ -160,5 +171,41 @@ fn the_partition_rung_runs_first_and_hands_down() {
     assert!(
         secs < WALL_SECS * 1.5,
         "the solve must return near its wall, rung and ladder together: {secs:.1} s of {WALL_SECS}"
+    );
+    // (3) The ladder after the hand-down is judged against the wall it is
+    // HANDED, not the whole wall the rung already spent: the first board
+    // read lost openstacks i28-30 (0.29.0 at 5-32 s) because the 0.22
+    // gate ("a bounded rung only above 40 % of the wall") read ~49 % at
+    // the ladder's entry and skipped novelty-light, LAMA and novelty the
+    // moment EHC's quarter was spent. The small ring hands down in under a
+    // second, which no gate notices; the big one under a 0.9 slice hands
+    // down a tenth of the wall, and the 0.22 gate skipped every rung on
+    // it (the inner ladders' own skips, before the hand-down, are the
+    // rung's business and not read). Calibrated solo: the rung's slice is
+    // burnt whole, the hand-down leaves ~1.2 s, novelty-light and LAMA run.
+    let (stdout, stderr) = child("ring-big", false);
+    assert_eq!(
+        field(&stdout, "CHILD-SOLVED:"),
+        "false",
+        "{stdout}\n{stderr}"
+    );
+    let after = stderr
+        .split_once("wall: partition rung handed down")
+        .map(|(_, rest)| rest)
+        .unwrap_or_else(|| panic!("the big ring must hand down:\n{stderr}"));
+    assert!(
+        after.contains("wall: ladder handed"),
+        "the ladder must be handed its wall:\n{after}"
+    );
+    for rung in ["novelty-light", "LAMA"] {
+        assert!(
+            !after.contains(&format!("wall: {rung} skipped")),
+            "{rung} skipped as unaffordable on a freshly handed ladder:\n{after}"
+        );
+    }
+    let secs: f64 = field(&stdout, "CHILD-SECS:").parse().unwrap();
+    assert!(
+        secs < WALL_SECS * 1.5,
+        "the solve must return near its wall: {secs:.1} s of {WALL_SECS}"
     );
 }

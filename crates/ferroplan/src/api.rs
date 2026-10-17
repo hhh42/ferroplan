@@ -1250,10 +1250,16 @@ fn solve_classic(
                         match r {
                             Solved::Plan(ops, _) => Some(ops),
                             Solved::Unsolvable { .. } => {
+                                // The ladder after the rung is judged
+                                // against what it is handed, not the
+                                // whole wall (search.rs `LADDER_BASE`).
+                                let left = search::wall_remaining_secs();
+                                if let Some(left) = left {
+                                    search::hand_ladder_wall(left);
+                                }
                                 if std::env::var("FF_WALL_DEBUG").is_ok() {
                                     eprintln!(
-                                        "wall: partition rung handed down (remaining {:?})",
-                                        search::wall_remaining_secs()
+                                        "wall: partition rung handed down (remaining {left:?})"
                                     );
                                 }
                                 None
