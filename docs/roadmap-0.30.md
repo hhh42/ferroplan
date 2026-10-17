@@ -1062,6 +1062,26 @@ was never implicated here. (c) stays, narrowed, with its hatch and
 cells and the ztalloc ten solo on the withdrawn engine, and the three
 boards re-swept overnight.
 
+**The withdrawn engine (`43ae25e1a523` = `9738517`'s build), solo at 22:49:**
+sugar i16 2 s, hydropower i11 8 s, markettrader i1 3 s, petri-net 9-1
+17 s — back; ztalloc i12 1 s and i17 10 s — kept; settlers i5 and sugar
+i17 miss, as on 0.29.0. **Re-swept 22:52–07:10 (`compare-withdrawn.txt`),
+stopped at its pass cap with 57 rows owed** — the night's thermal loop
+(the ledger note under Phase 0.3): the canary's width history is keyed
+by engine label, and a new hash judged every packed pass against the solo
+line until its widths filled in. On the cells BOTH engines banked —
+first-attempt **+6 [−2, +14]**, banked **+9 [+3, +15]**, every estimator
+positive — **10 gained, 0 lost**: metric-time 119 = 119, 2026 numeric 224
+→ 234 (the ztalloc ten), 2023 numeric 289 → 288 with 46 rows owed. The
+owed tail is the boards' hard end (settlers-numeric i11–20, expedition,
+counters, block-grouping, factory-robot, drone — cells 0.29.0 never
+solved either) plus four prior solves looping on `suspect` (sugar i5,
+hydropower i10, delivery i17 and i20); the resume runs them now, and the
+lane's number is read again when they bank. **What stands:** mechanism
+(c) and its ten rows; the charge's semantics untouched (settlers and
+rovers i28 remain its open cells); the transfer rule withdrawn with its
+reason on the record.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
