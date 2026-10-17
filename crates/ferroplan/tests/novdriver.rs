@@ -486,7 +486,11 @@ fn run_child(scenario: &str, extra_env: &[(&str, &str)]) -> (String, String) {
     let mut cmd = Command::new(&exe);
     cmd.args(["--exact", "driver_ladder_pins", "--nocapture"])
         .env("NOVDRIVER_CHILD", scenario)
-        .env("FF_WALL_DEBUG", "1");
+        .env("FF_WALL_DEBUG", "1")
+        // These pins read the LADDER's order. The partition rung (0.30 Lane
+        // 6, tests/partition_rung.rs) runs before the ladder on a wall of
+        // ten seconds or more and would take the light rung's win here.
+        .env("FF_NO_PARTITION_RUNG", "1");
     for (k, v) in extra_env {
         cmd.env(k, v);
     }

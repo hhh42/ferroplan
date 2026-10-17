@@ -29,7 +29,12 @@ fn run_child(scenario: &str) -> (String, String) {
     cmd.args(["--exact", "refill_loop_spends_the_wall", "--nocapture"])
         .env("REFILL_CHILD", scenario)
         .env("FF_SEARCH_NODE_CAP", "3000")
-        .env("FF_WALL_DEBUG", "1");
+        .env("FF_WALL_DEBUG", "1")
+        // This fixture counts the LADDER's refill rounds. The partition rung
+        // (0.30 Lane 6) runs first on a wall of ten seconds or more, and its
+        // subplans refill under the same forced cap, so the count would
+        // read the rung's rounds as well.
+        .env("FF_NO_PARTITION_RUNG", "1");
     match scenario {
         "refill" => {
             cmd.env("FF_TIME_LIMIT", "600");

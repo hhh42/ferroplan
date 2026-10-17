@@ -828,6 +828,12 @@ full, then the SOLVED side of 2014/2018/2023 sat, 2014/2023 agile and the
 IPC-6/7 seq-sat board — the rung costs every cell half its wall before
 the ladder, and the cells the ladder solved late are the risk the band
 ("no board loses net") is written for.
+Three fixtures that pin the LADDER itself — `tests/ladder_wall.rs`'s
+slices, `tests/novdriver.rs`'s ladder order, `tests/refill.rs`'s refill
+rounds — now run with `FF_NO_PARTITION_RUNG=1`: on their 30–600 s walls
+the rung ran first and took the witness (the light rung's solve, or six
+counted refill rounds the rung's own subplans added to). The rung's own
+behaviour is `tests/partition_rung.rs`'s.
 
 ---
 
