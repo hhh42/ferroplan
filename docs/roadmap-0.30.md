@@ -808,6 +808,27 @@ no classical board losing net; kill: any board loses more than it gains.
 Measured on the full propositional board and the solved side of the
 2008/2011/2014/2018/2023 sat boards, at night. Built next.
 
+**BUILT 2026-10-17 11:00–11:20 (`api.rs::solve_classical`).** In auto, with
+a wall armed, never on a constrained task: `invariants::synthesize` +
+`resolve::solve` under `tighten_deadline` leaving `1 − FF_PARTITION_RUNG_FRAC`
+(0.5) of the wall, the ladder after it with the rest; the note "partition
+rung: solved by partition-and-resolve" when it solves, "wall: partition
+rung handed down" under `FF_WALL_DEBUG` when it does not; hatch
+`FF_NO_PARTITION_RUNG=1`. **And a floor of ten seconds of wall:** the
+first build ran the rung on any wall and `tests/ladder_wall.rs`'s pin —
+a 3 s wall on the openstacks shape, EHC's slice then novelty-light inside
+the wall — read unsolved, the rung's half having left the ladder a second
+and a half; a partition attempt does nothing useful in that time anyway,
+so short walls are the ladder's alone. Fixture `tests/partition_rung.rs`
+(12 s walls, child processes): two independent counters solve through the
+rung and say so, the hatch takes the rung away, and the impossible agent
+ring is handed down inside the slice with the whole solve back inside
+the wall. The board read is tonight's `lane6/sweep.sh`: `ipc5-prop` in
+full, then the SOLVED side of 2014/2018/2023 sat, 2014/2023 agile and the
+IPC-6/7 seq-sat board — the rung costs every cell half its wall before
+the ladder, and the cells the ladder solved late are the risk the band
+("no board loses net") is written for.
+
 ---
 
 ## Lane 2b — metric-time beyond rovers

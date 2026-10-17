@@ -1208,12 +1208,76 @@ fn solve_classic(
             Solved::Unsolvable { .. } => (None, 0),
         }
     } else {
+        // THE PARTITION RUNG (0.30 Lane 6). In auto, before the ladder: one
+        // bounded partition-and-resolve attempt under a slice of the wall
+        // that is left (`FF_PARTITION_RUNG_FRAC`, 0.5), the ladder after
+        // it with the rest. Under `--mode partition` at 60 s the route
+        // solved six pathways cells the ladder never reaches on any
+        // budget (i17 at 34 s, i19, i21 and their strips twins at 7-29 s)
+        // and nothing on trucks, pipesworld, rovers or storage; a key on
+        // the task (`lane6/groups.tsv`) does not exist -- every variant
+        // decomposes -- so the attempt is a rung with a slice, as LAMA
+        // is, and the whole classical board is its measure. Only with a
+        // wall armed (the slice must exist), never on a constrained task
+        // (`strip_end`: the monitor-compiled goal is not decomposable),
+        // off under `FF_NO_PARTITION_RUNG=1`.
         let ehc_first = opts.search != Search::BestFirst;
-        let o = search::plan(&task, threads, opts.search_cfg(), ehc_first, orbit.as_ref());
-        if o.ehc_fell_back && o.ops.is_some() {
-            notes.push("EHC found no improving state; used weighted best-first".into());
+        let rung_on =
+            opts.mode == Mode::Auto && !strip_end && std::env::var("FF_NO_PARTITION_RUNG").is_err();
+        let from_rung = if rung_on {
+            let frac = std::env::var("FF_PARTITION_RUNG_FRAC")
+                .ok()
+                .and_then(|v| v.trim().parse::<f64>().ok())
+                .filter(|f| *f > 0.0 && *f < 1.0)
+                .unwrap_or(0.5);
+            // A floor of ten seconds: on a 3 s wall (tests/ladder_wall.rs,
+            // the openstacks shape) the rung's half left the ladder too
+            // little, and a partition attempt does nothing useful in a
+            // second or two anyway. Short walls are the ladder's.
+            match search::wall_remaining_secs() {
+                Some(rem) if rem >= 10.0 => {
+                    let slice = search::tighten_deadline(rem * (1.0 - frac));
+                    if slice.is_some() {
+                        let groups = crate::invariants::synthesize(domain, &task);
+                        let r = resolve::solve(
+                            &task,
+                            threads,
+                            opts.search_cfg(),
+                            &groups,
+                            orbit.as_ref(),
+                        );
+                        drop(slice);
+                        match r {
+                            Solved::Plan(ops, _) => Some(ops),
+                            Solved::Unsolvable { .. } => {
+                                if std::env::var("FF_WALL_DEBUG").is_ok() {
+                                    eprintln!(
+                                        "wall: partition rung handed down (remaining {:?})",
+                                        search::wall_remaining_secs()
+                                    );
+                                }
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        } else {
+            None
+        };
+        if let Some(ops) = from_rung {
+            notes.push("partition rung: solved by partition-and-resolve".into());
+            (Some(ops), 0)
+        } else {
+            let o = search::plan(&task, threads, opts.search_cfg(), ehc_first, orbit.as_ref());
+            if o.ehc_fell_back && o.ops.is_some() {
+                notes.push("EHC found no improving state; used weighted best-first".into());
+            }
+            (o.ops, o.evaluated)
         }
-        (o.ops, o.evaluated)
     };
 
     match ops {
