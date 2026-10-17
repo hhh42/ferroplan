@@ -835,6 +835,14 @@ the rung ran first and took the witness (the light rung's solve, or six
 counted refill rounds the rung's own subplans added to). The rung's own
 behaviour is `tests/partition_rung.rs`'s.
 
+**The board read, in progress (`lane6/sweep.sh`, engine `55cb4b6a9d58`,
+gate opened ~11:20; interim 12:10, 364 of 450 propositional cells
+banked): +6, −0** — pathways-propositional i17 (33.8 s), i19 (29.2 s), i21
+(26.4 s) and pathways-propositional-strips i17 (11.9 s), i19 (7.2 s), i21
+(8.0 s); nothing lost on the 352 cells 0.29.0 solved among them. The
+unsolved tail and the six solved-side classical boards follow; nothing
+is claimed from a sweep in flight.
+
 ---
 
 ## Lane 2b — metric-time beyond rovers
