@@ -433,7 +433,18 @@ pub fn polish_first(
     let _slice = rem
         .map(|rem| rem * (1.0 - first_frac))
         .and_then(crate::search::tighten_deadline);
-    let p = polish(domain, problem, &incumbent, threads, cfg, Some(seed));
+    // Anytime (0.30 Lane 1b): the pass again from its own improvement
+    // while the share lasts; a further pass is worth twice the seed's
+    // grounding, as one attempt is.
+    let p = polish_rounds(
+        domain,
+        problem,
+        &incumbent,
+        threads,
+        cfg,
+        Some(seed),
+        (2.0 * seed.ground_secs).max(1.0),
+    );
     // A memory trip inside the polish is the polish's: it latched the scope
     // (sticky, for a chase's sake) and the compiled grounding that follows
     // then bailed at entry -- storage i17-i20 came back unpriced for exactly
@@ -457,6 +468,84 @@ pub fn polish_first(
 /// The share of the wall left to the polish when it applies (default 0.4).
 pub fn polish_frac() -> f64 {
     crate::search::wall_frac_env("FF_PREF_POLISH_FRAC", 0.4)
+}
+
+/// THE ANYTIME POLISH (0.30 Lane 1b): the pass over the held preferences,
+/// run again from the plan it improved while the share has wall left and
+/// the last pass gained something, at most `FF_PREF_POLISH_ROUNDS` (4)
+/// times. One pass tries each held preference once, in order, each under a
+/// slice of what is left; a candidate capped by its slice in the first
+/// pass has a longer slice in the second (fewer candidates share the
+/// rest), and the preferences accepted earlier ride along as held goals.
+/// `floor_secs` is the least wall a further pass is worth starting with
+/// (the caller's: twice the grounding, or `polish_min_share`). Gains
+/// accumulate across rounds; the metric is the last round's.
+pub fn polish_rounds(
+    domain: &Domain,
+    problem: &Problem,
+    incumbent: &[(String, Vec<String>)],
+    threads: usize,
+    cfg: SearchCfg,
+    seed: Option<&SeedTask>,
+    floor_secs: f64,
+) -> Option<Polished> {
+    let max_rounds = std::env::var("FF_PREF_POLISH_ROUNDS")
+        .ok()
+        .and_then(|v| v.trim().parse::<usize>().ok())
+        .filter(|&n| n >= 1)
+        .unwrap_or(4);
+    let dbg = std::env::var("FF_WALL_DEBUG").is_ok() || std::env::var("FF_RES_DEBUG").is_ok();
+    let mut best: Option<Polished> = None;
+    let mut current: Vec<(String, Vec<String>)> = incumbent.to_vec();
+    for round in 0..max_rounds {
+        if round > 0 {
+            if let Some(rem) = crate::search::wall_remaining_secs() {
+                if rem < floor_secs {
+                    if dbg {
+                        eprintln!(
+                            "[polish] round {}: not started, {rem:.2} s left under the {floor_secs:.2} s floor",
+                            round + 1
+                        );
+                    }
+                    break;
+                }
+            }
+        }
+        let Some(p) = polish(domain, problem, &current, threads, cfg, seed) else {
+            // `polish` is monotone: on a plan it has polished it finds
+            // nothing more and says so with `None`.
+            if dbg {
+                eprintln!("[polish] round {}: nothing more gained", round + 1);
+            }
+            break;
+        };
+        if p.gained.is_empty() || best.as_ref().is_some_and(|b| p.metric >= b.metric) {
+            if dbg {
+                eprintln!("[polish] round {}: nothing more gained", round + 1);
+            }
+            break;
+        }
+        if dbg {
+            eprintln!(
+                "[polish] round {}: {} gained, metric {}; {:?} s left",
+                round + 1,
+                p.gained.len(),
+                p.metric,
+                crate::search::wall_remaining_secs()
+            );
+        }
+        current = p.steps.clone();
+        best = Some(match best.take() {
+            Some(mut b) => {
+                b.steps = p.steps;
+                b.metric = p.metric;
+                b.gained.extend(p.gained);
+                b
+            }
+            None => p,
+        });
+    }
+    best
 }
 
 /// What the polish hands back: the plan, its TRUE metric (by replay over the
@@ -505,7 +594,9 @@ pub fn polish_if_affordable(
             return None;
         }
     }
-    polish(domain, problem, incumbent, threads, cfg, seed)
+    // Anytime (0.30 Lane 1b): the pass again while the wall lasts; a
+    // further pass is worth what the first one needed.
+    polish_rounds(domain, problem, incumbent, threads, cfg, seed, need)
 }
 
 /// The hard-goal seed's grounded task, kept for the polish (0.29 Lane 1):

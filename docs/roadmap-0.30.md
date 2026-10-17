@@ -1185,6 +1185,24 @@ may move them for free; counted here only after those lanes' records.
 **Measured:** `sweep --board ipc5-complex-pref` and the two sibling boards
 in full (130 + 100 + 108 cells), the quality column on ONE engine.
 
+**Mechanism (1) BUILT 2026-10-17 11:15 (`pddl3::polish_rounds`).** The
+pass over the held preferences runs again from the plan it improved
+while the share has wall left and the last pass gained something, at
+most `FF_PREF_POLISH_ROUNDS` (4) times — in the first polish on the
+seed's task (floor: twice the seed's grounding) and in the final polish
+after the optimizer (floor: `polish_min_share`). What a second pass can
+buy: a candidate capped by its slice in the first pass has a longer slice
+in the second (fewer candidates share the rest), and the preferences
+accepted earlier ride along as held goals. Gains accumulate across
+rounds. Fixture `tests/polish_rounds.rs` (20 s walls, child processes):
+two soft goals met in the first round, a second round that starts and
+reports nothing more, `FF_PREF_POLISH_ROUNDS=1` keeping the single pass.
+Mechanism (2), one grounding per solve, is not built: the 0.29 polish
+already grounds once per polish and reuses the seed's task; what a round
+re-does is the pricing and the expansion, not the grounding. The points
+read is the three preference boards in full on this engine, after Lane
+6's sweep (one crucible per database).
+
 ---
 
 ## Probes only — recorded, never claimed this cycle
