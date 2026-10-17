@@ -3,32 +3,33 @@ B  ff 0.29.0 [43ae25e1a523]
 over boards ipc2023-numeric,ipc2026-numeric,ipc5-metric-time
 
 board                     A solved  A owed  B solved  B owed    B - A
-ipc5-metric-time               119       0       119       5       --
-ipc2026-numeric                224       0       234       6       --
-ipc2023-numeric                289       0       288      46       --
+ipc5-metric-time               119       0       119       0       +0
+ipc2026-numeric                224       0       234       0      +10
+ipc2023-numeric                289       0       288       2       --
 
-net +0 over the 0 board(s) where NEITHER side owes a row
-(3 board(s) shown as `--`: one side still owes rows, and an owed row is one that could still change its board's number)
+net +10 over the 2 board(s) where NEITHER side owes a row
+(1 board(s) shown as `--`: one side still owes rows, and an owed row is one that could still change its board's number)
 
 920 cells measured by BOTH engines, every attempt counted
   A: 1015 runs, mean N=1.10, max N=8, 34% clean
-  B: 1200 runs, mean N=1.30, max N=4, 25% clean
+  B: 1344 runs, mean N=1.46, max N=8, 23% clean
 
   what triggers a re-run (a re-run is fired by FAILURE, so extra attempts can only add solves):
   engine  attempt 1 SOLVED              attempt 1 FAILED              rescued
   A       632 cells                     288 cells, re-run 27.8%       1
-  B       638 cells                     282 cells, re-run 47.9%       3
-  decomposition of `any`: first-attempt +6  +  rescues +2  =  +8
+  B       638 cells                     282 cells, re-run 47.9%       4
+  decomposition of `any`: first-attempt +6  +  rescues +3  =  +9
 
   estimator           A        B    B - A    95% CI (cell bootstrap)
   banked          632.0    641.0     +9.0    [+3, +15]
-  any             633.0    641.0     +8.0    [+1, +15]
+  any             633.0    642.0     +9.0    [+3, +16]
   first           632.0    638.0     +6.0    [-2, +14]
   equal-N         632.0    638.0     +6.0    [-2, +14]
-  per-run         631.8    639.5     +7.7    [+1, +14]
+  per-run         631.8    639.8     +7.9    [+1, +14]
   clean-only       71.5     78.0     +6.5    [+2, +12]
 
   the estimators agree in sign: `first` is the comparative claim, `banked` the boards' standing number
 
-cells BOTH engines banked: 10 gained by B, 0 lost by B
+cells BOTH engines banked: 10 gained by B, 1 lost by B
+  lost    ipc2023-numeric        delivery-numeric-satisficing/20
 lost cells written to lost-withdrawn.rows

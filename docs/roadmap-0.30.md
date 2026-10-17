@@ -1082,6 +1082,35 @@ lane's number is read again when they bank. **What stands:** mechanism
 rovers i28 remain its open cells); the transfer rule withdrawn with its
 reason on the record.
 
+### Lane 2b — CLOSED 2026-10-17 10:45 (`lane2b/compare-withdrawn.txt`)
+
+The resume banked all but two rows (counters i18, drone i17 — cells
+0.29.0 never solved either). `compare --a 7fdf185b91e6 --b 43ae25e1a523`
+on the three boards:
+
+| board | 0.29.0 | 0.30 | delta |
+|---|---:|---:|---:|
+| ipc5-metric-time | 119 | 119 | +0 |
+| ipc2026-numeric | 224 | 234 | **+10** |
+| ipc2023-numeric | 289 | 288 | −1 (delivery i20, a 55 s coin on every arm; 2 owed) |
+
+| estimator | delta | 95 % CI |
+|---|---:|---|
+| first attempt (the claim) | **+6** | [−2, +14] |
+| banked | **+9** | [+3, +15] |
+| equal-N | +6 | [−2, +14] |
+
+10 gained (ztalloc i9, i11–14, i16–20), 1 lost (delivery i20). **Verdict:
+a measured win on the numeric boards** — the Eq-goal rule (c) and the
+register machine's upper half — below the lane's band (+8 to +20 was
+written for tpp/pathways metric-time, which did not move: those cells
+stay the ladder's, as Lane 2 left them), and with the charge's own
+semantics untouched: settlers i5 and rovers i28 remain its open cells,
+sugar i17 a wall-edge coin. The transfer rule's day on the boards (−32)
+and its withdrawal are the lane's instrument lesson: a rule motivated by
+two cells and fixed by neither is measured on the board before it is
+believed, and a bisect's binary is an argument, never an env prefix.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
