@@ -1001,6 +1001,26 @@ binary) names the rule per family; the rule is narrowed or reverted on
 that reading, and the three families re-swept before the lane claims
 anything. The ztalloc ten stand on their own fixture.
 
+**The bisect, 22:10–23:00.** The first run of `lost.sh` was INVALID after
+its first 0.29.0 arm: `BIN=$FF29 run …` is an env prefix on a shell
+function, and in zsh the assignment leaked, so every later arm — sugar,
+hydropower, markettrader, delivery, gear-car — ran on the 0.29.0 binary
+(`lost-leaked.tsv`: "default" matched 0.29.0 exactly, and "the charge
+off" failed because 0.29.0 without its charge fails these). Only
+petri-net 9-1's five arms are genuine: **0.30 default 0/2 at 57 s; the
+transfer rule off 2/2 at 17 s; the Eq rule off 2/2 at 17 s; the whole
+charge off 0/2; 0.29.0 2/2 at 17 s** — the two rules interact there. Then
+the engine itself, solo on an idle box: **sugar i16 unsolved at 57 s on
+`83e8151` (the sweep's commit) and on `41ab48f`, three runs; 0.29.0 solves
+it in 2 s "by LAMA".** Under `FF_RES_DEBUG` the 0.30 ladder on sugar i16
+is fast and wrong: novelty-light to its 300,001-pop cap, LAMA to its
+400,045-evaluation cap (2,988,766 held, 0 hash-only drops), the driver to
+its 400,001-pop cap, then the refilling best-first to the wall — none
+solves, inside a few seconds each (236 ops). The rewritten bisect (the
+binary an explicit argument; a `both-off` arm) runs on sugar i16,
+hydropower i11, markettrader i1, delivery i20, gear-car i9; its `both-off`
+arm says whether these are the charge's rules or Lane 5's lazy LAMA.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is
