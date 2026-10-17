@@ -987,6 +987,20 @@ sugar i16 and i3 beside petri-net 9_1, delivery i20, gear-car i9) names
 the rule; the rule is narrowed on its fixture; sugar is re-swept. Nothing
 goes to `main` until the 2023 board's loss side is back.
 
+**SWEEP COMPLETE 21:30 (four passes, one row still owed; `lane2b/
+compare.txt`): first-attempt −32 [−47, −18]**, banked −13 [−25, −1]; 12
+gained, **25 lost**. Metric-time 119 = 119. 2026 numeric 224 → 232 (+10
+ztalloc, −gear-car i9, −petri-net 9_1). 2023 numeric 289 → 268: sugar i17
+and tpp i14 gained; lost **markettrader ×10, sugar ×7, hydropower ×5,
+delivery i20** — three families 0.29.0 solved in seconds, unsolved at the
+wall on this engine. **The two rules as built are a net loss on the
+numeric boards and do not stay as they are.** The hatched bisect
+(`lost.sh`: one cell of each family and the singletons, under
+`FF_NO_TRANSFER`, `FF_NO_EQ_EXACT`, `FF_NO_CONSUME`, and on the 0.29.0
+binary) names the rule per family; the rule is narrowed or reverted on
+that reading, and the three families re-swept before the lane claims
+anything. The ztalloc ten stand on their own fixture.
+
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,
 or does it stop at `FF_TCOMPRESS_WALL_FRAC`? If it reaches one, the route is

@@ -1,0 +1,59 @@
+A  ff 0.29.0 [7fdf185b91e6]
+B  ff 0.29.0 [13eb6b53a361]
+over boards ipc2023-numeric,ipc2026-numeric,ipc5-metric-time
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc5-metric-time               119       0       119       0       +0
+ipc2026-numeric                224       0       232       0       +8
+ipc2023-numeric                289       0       268       1       --
+
+net +8 over the 2 board(s) where NEITHER side owes a row
+(1 board(s) shown as `--`: one side still owes rows, and an owed row is one that could still change its board's number)
+
+920 cells measured by BOTH engines, every attempt counted
+  A: 1015 runs, mean N=1.10, max N=8, 34% clean
+  B: 1240 runs, mean N=1.35, max N=4, 2% clean
+
+  what triggers a re-run (a re-run is fired by FAILURE, so extra attempts can only add solves):
+  engine  attempt 1 SOLVED              attempt 1 FAILED              rescued
+  A       632 cells                     288 cells, re-run 27.8%       1
+  B       600 cells                     320 cells, re-run 70.9%       19
+  decomposition of `any`: first-attempt -32  +  rescues +18  =  -14
+
+  estimator           A        B    B - A    95% CI (cell bootstrap)
+  banked          632.0    619.0    -13.0    [-25, -1]
+  any             633.0    619.0    -14.0    [-26, -2]
+  first           632.0    600.0    -32.0    [-47, -18]
+  equal-N         632.0    600.0    -32.0    [-47, -18]
+  per-run         631.8    608.6    -23.2    [-37, -11]
+  clean-only        8.0      5.0     -3.0    [-7, +0]
+
+  the estimators agree in sign: `first` is the comparative claim, `banked` the boards' standing number
+
+cells BOTH engines banked: 12 gained by B, 25 lost by B
+  lost    ipc2026-numeric        gear-car-numeric-2026/9
+  lost    ipc2026-numeric        petri-net-numeric-2026/9_1
+  lost    ipc2023-numeric        delivery-numeric-satisficing/20
+  lost    ipc2023-numeric        hydropower-numeric-satisficing/11
+  lost    ipc2023-numeric        hydropower-numeric-satisficing/13
+  lost    ipc2023-numeric        hydropower-numeric-satisficing/15
+  lost    ipc2023-numeric        hydropower-numeric-satisficing/16
+  lost    ipc2023-numeric        hydropower-numeric-satisficing/17
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/1
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/2
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/4
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/5
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/8
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/9
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/10
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/11
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/13
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/16
+  lost    ipc2023-numeric        sugar-numeric-satisficing/3
+  lost    ipc2023-numeric        sugar-numeric-satisficing/7
+  lost    ipc2023-numeric        sugar-numeric-satisficing/13
+  lost    ipc2023-numeric        sugar-numeric-satisficing/16
+  lost    ipc2023-numeric        sugar-numeric-satisficing/18
+  lost    ipc2023-numeric        sugar-numeric-satisficing/19
+  lost    ipc2023-numeric        sugar-numeric-satisficing/20
+lost cells written to lost.rows

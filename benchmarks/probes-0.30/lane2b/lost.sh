@@ -39,4 +39,14 @@ ROOT=$C23 BIN=$FF29 run sugar/16 sugar-numeric-satisficing 16 0.29.0 FF_X=0
 ROOT=$C23 run sugar/3 sugar-numeric-satisficing 3 default FF_X=0
 ROOT=$C23 run sugar/3 sugar-numeric-satisficing 3 no-transfer FF_NO_TRANSFER=1
 ROOT=$C23 run sugar/3 sugar-numeric-satisficing 3 no-eq-exact FF_NO_EQ_EXACT=1
+ROOT=$C23 run hydropower/11 hydropower-numeric-satisficing 11 default FF_X=0
+ROOT=$C23 run hydropower/11 hydropower-numeric-satisficing 11 no-transfer FF_NO_TRANSFER=1
+ROOT=$C23 run hydropower/11 hydropower-numeric-satisficing 11 no-eq-exact FF_NO_EQ_EXACT=1
+ROOT=$C23 run hydropower/11 hydropower-numeric-satisficing 11 no-consume FF_NO_CONSUME=1
+ROOT=$C23 BIN=$FF29 run hydropower/11 hydropower-numeric-satisficing 11 0.29.0 FF_X=0
+ROOT=$C23 run markettrader/1 markettrader-numeric-satisficing 1 default FF_X=0
+ROOT=$C23 run markettrader/1 markettrader-numeric-satisficing 1 no-transfer FF_NO_TRANSFER=1
+ROOT=$C23 run markettrader/1 markettrader-numeric-satisficing 1 no-eq-exact FF_NO_EQ_EXACT=1
+ROOT=$C23 run markettrader/1 markettrader-numeric-satisficing 1 no-consume FF_NO_CONSUME=1
+ROOT=$C23 BIN=$FF29 run markettrader/1 markettrader-numeric-satisficing 1 0.29.0 FF_X=0
 echo "PROBE DONE" >> lost.tsv
