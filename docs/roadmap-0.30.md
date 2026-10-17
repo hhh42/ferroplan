@@ -967,6 +967,25 @@ i19 (2.8), i20 (3.1). Two of those were the lost cells; the other eight
 neither 0.28.0 nor 0.29.0 ever solved — the Eq-goal rule (c) opened the
 register machine's whole upper half. The final compare follows the
 sweep; nothing is claimed from a sweep in flight.
+Interim at 18:00: 2023 numeric 267 cells **+1 (sugar i17, 44.0 s)**; 2026
+numeric 313 cells **+10, −2**: gear-car i9 (0.29.0 at 57.06 s; 0.30
+unsolved at 58.3 s twice — a wall-edge coin) and **petri-net 9_1** (0.29.0
+at 17.2 s; 0.30 unsolved at 53–59 s twice — a real loss, and a Petri net
+is the shape both rules touch: a transition MOVES tokens between places,
+and the goals are `=` on counts). Read solo after the sweep with a hatch
+per rule (`FF_NO_TRANSFER`, `FF_NO_EQ_EXACT`), which the rules get now so
+the bisect is one run each.
+Interim at 21:00, 357 of 400 banked on 2023 numeric: **+2, −8** — sugar
+i17 and tpp i14 gained; delivery i20 lost at the wall edge (55 s on both
+engines); and **seven sugar cells 0.29.0 solved in 1.8–8.8 s are unsolved
+at the wall on 0.30** — i3, i7, i13, i16, i18, i19, i20, each twice (a
+`suspect` first attempt, then solo). A regression of one of the two rules
+on sugar's easy half, where the same engine gained the hard i17: sugar
+is trucks carrying brands between mills and depots, so the transfer rule
+touches every load and unload. The hatched bisect (`lane2b/lost.sh`,
+sugar i16 and i3 beside petri-net 9_1, delivery i20, gear-car i9) names
+the rule; the rule is narrowed on its fixture; sugar is re-swept. Nothing
+goes to `main` until the 2023 board's loss side is back.
 
 **The questions, in order:** (1) does the compression rung REACH a plan on
 tpp i10 / pathways i10 solo (`FF_WALL_DEBUG`), as it did on rovers in 10 ms,

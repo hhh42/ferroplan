@@ -127,6 +127,10 @@ pub struct Hatches {
     pub depth_cap: usize,
     pub no_consume: bool,
     pub no_numh: bool,
+    /// `FF_NO_TRANSFER=1`: the consumption charge bills a decrease even
+    /// where the op moves the same amount into another resource (0.30 Lane
+    /// 2b's transfer rule off) -- the bisect hatch for petri-net 9_1.
+    pub no_transfer: bool,
 }
 
 impl Hatches {
@@ -146,6 +150,7 @@ impl Hatches {
                 .unwrap_or(4),
             no_consume: on("FF_NO_CONSUME"),
             no_numh: on("FF_NO_NUMH"),
+            no_transfer: on("FF_NO_TRANSFER"),
         }
     }
 }
@@ -1517,7 +1522,7 @@ fn consumption_charge(
                     let transfer = moved
                         .iter()
                         .any(|&(g, w)| g != ne.target && (w - v).abs() <= 1e-9);
-                    if transfer {
+                    if transfer && !sc.hatch.no_transfer {
                         continue;
                     }
                     let i = entry(&mut ledger, ne.target);
@@ -1877,7 +1882,11 @@ fn numeric_achiever_linear(
     // both arms of the charge; `DOUBLE R2` at delta 1 prices it as 169
     // firings, a gradient toward growing the other registers. The fastest
     // mover remains the answer when no mover can land on the point.
-    if np.op == CompOp::Eq {
+    // `FF_NO_EQ_EXACT=1` restores the fastest mover for `=` goals too (the
+    // bisect hatch for petri-net 9_1 and its kind); read once per process.
+    static NO_EQ_EXACT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let no_eq_exact = *NO_EQ_EXACT.get_or_init(|| std::env::var("FF_NO_EQ_EXACT").is_ok());
+    if np.op == CompOp::Eq && !no_eq_exact {
         best_exact.or(best)
     } else {
         best
