@@ -98,8 +98,11 @@ fn field<'a>(stdout: &'a str, key: &str) -> &'a str {
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn a_bounded_rung_stops_at_the_memory_wall() {
     if std::env::var("RUNG_MEM_WALL_CHILD").is_ok() {
+        // The debug baseline RSS is larger, so the budget (headroom above
+        // it, twice) sits higher: the unwalled arm needs the evals to
+        // outgrow it (60k read 37.7 MB against 48.4 at the 0.30 cut).
         let (m, k, max_eval) = if cfg!(debug_assertions) {
-            (24, 6, 60_000)
+            (24, 6, 150_000)
         } else {
             (40, 8, 150_000)
         };

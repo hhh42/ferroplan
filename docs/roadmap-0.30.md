@@ -1293,7 +1293,32 @@ re-does is the pricing and the expansion, not the grounding. The points
 read is the three preference boards in full on this engine, after Lane
 6's sweep (one crucible per database).
 
----
+### Lane 1b — MEASURED 2026-10-18 (engine `f6e30ce1e815`, `lane1b/`)
+
+The three boards in full, 23:16 → 05:53 in four passes at the quiet-hours
+width (nine to ten): 309 of 338 banked, 29 owed as **thermal** — the
+polish runs every cell to the wall on every core, nine at once throttle
+the Air (the canary at 1.48× its baseline) and the referee refuses the
+wall-edge rows. Resumed 05:53 at pack width 6 (`lane1b/config.toml`,
+rules untouched). Points, off the stage with every row written
+(`quality.py`, `quality-interim.txt`): **simple 97.3 → 97.3, qualitative
+64.6 → 64.3, complex 54.5 → 54.1** (77 of 79 rows, two owed). Rows
+(`compare`, 309 banked): first-attempt +13 [+7, +21] on wall-edge coins,
+cells both engines banked 0 gained / 0 lost. **Flat — the kill clause.**
+A second polish pass from the improved plan has nothing to buy: the first
+pass already prices every candidate the search can see, and what it
+cannot see a second round cannot see either. The candidate search is the
+limit, as the clause predicted; the loop stays (harmless, pinned, a gain
+on the corridor fixture's shape), and 0.31's preference lane starts from
+the candidate generator, not the loop.
+**Final, 06:46** (the resume banked 25 of the 29 in four passes at width
+6; 4 complex rows still owed thermal — the Air does not cool under this
+workload at any width): points unchanged from the interim (`quality.txt`:
+simple 97.3 / 97.3, qualitative 64.6 / 64.3, complex 54.5 / 54.1, SGPlan5
+115.0 / 91.8 / 100.0); rows (`compare.txt`): first +13 [+7, +21], equal-N
++5 [+0, +11], banked −5 [−10, −1], cells both banked 0 gained / 2 lost
+(storage-preferences-complex i16, i18 — wall-edge rows under the thermal
+referee; the cut sweep re-reads them). Closed as flat.
 
 ## Probes only — recorded, never claimed this cycle
 

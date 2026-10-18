@@ -123,8 +123,15 @@ fn an_open_node_costs_a_tuple_not_a_state() {
         .unwrap_or_else(|| panic!("unparsed cap line: {capped}"));
     let growth: f64 = field(&stdout, "CHILD-GROWTH:").parse().unwrap();
     let per_node = growth / nodes;
+    // The floor is a REAL frontier, not a number: the debug build walks
+    // the smaller ring above to ~24k (driver) / ~9k (LAMA) held nodes.
+    let floor = if cfg!(debug_assertions) {
+        5_000.0
+    } else {
+        50_000.0
+    };
     assert!(
-        nodes > 50_000.0,
+        nodes > floor,
         "the ring must hold a real frontier: {nodes} nodes\n{capped}"
     );
     assert!(
@@ -191,8 +198,15 @@ fn a_lama_open_node_costs_a_tuple_not_a_state() {
         .unwrap_or_else(|| panic!("unparsed cap line: {capped}"));
     let growth: f64 = field(&stdout, "CHILD-GROWTH:").parse().unwrap();
     let per_node = growth / nodes;
+    // The floor is a REAL frontier, not a number: the debug build walks
+    // the smaller ring above to ~24k (driver) / ~9k (LAMA) held nodes.
+    let floor = if cfg!(debug_assertions) {
+        5_000.0
+    } else {
+        50_000.0
+    };
     assert!(
-        nodes > 50_000.0,
+        nodes > floor,
         "the ring must hold a real frontier: {nodes} nodes\n{capped}"
     );
     assert!(

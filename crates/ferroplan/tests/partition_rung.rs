@@ -123,7 +123,16 @@ fn the_partition_rung_runs_first_and_hands_down() {
     if let Ok(which) = std::env::var("PARTITION_RUNG_CHILD") {
         let (dom, prb) = match which.as_str() {
             "counters" => counters(),
-            "ring-big" => ring(120, 40),
+            // The debug build's subgoal solves are ~20x slower and their
+            // own checkpoints overshoot a slice this short; a smaller ring
+            // keeps the cascade's expiry the thing measured.
+            "ring-big" => {
+                if cfg!(debug_assertions) {
+                    ring(60, 20)
+                } else {
+                    ring(120, 40)
+                }
+            }
             _ => ring(16, 5),
         };
         let opts = ferroplan::Options {

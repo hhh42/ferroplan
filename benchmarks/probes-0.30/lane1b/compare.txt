@@ -1,0 +1,8 @@
+  A       296 cells                     42 cells, re-run 59.5%        15
+  B       309 cells                     29 cells, re-run 55.2%        0
+  banked          311.0    306.0     -5.0    [-10, -1]
+  first           296.0    309.0    +13.0    [+7, +21]
+  equal-N         304.0    309.0     +5.0    [+0, +11]
+cells BOTH engines banked: 0 gained by B, 2 lost by B
+  lost    ipc5-complex-pref      storage-preferences-complex/16
+  lost    ipc5-complex-pref      storage-preferences-complex/18

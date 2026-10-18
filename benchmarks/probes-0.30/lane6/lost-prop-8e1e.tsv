@@ -1,0 +1,16 @@
+# cells ff 0.29.0 [7fdf185b91e6] solved and ff 0.29.0 [8e1e6b61a0b9] did not, both banked -- `--rows` format
+openstacks-propositional/28   # ipc5-prop
+openstacks-propositional/29   # ipc5-prop
+openstacks-propositional/30   # ipc5-prop
+openstacks-propositional-strips/28   # ipc5-prop
+openstacks-propositional-strips/29   # ipc5-prop
+openstacks-propositional-strips/30   # ipc5-prop
+pipesworld-propositional-strips/28   # ipc5-prop
+pipesworld-propositional-strips/45   # ipc5-prop
+rovers-propositional-strips/37   # ipc5-prop
+tpp-propositional/29   # ipc5-prop
+tpp-propositional/30   # ipc5-prop
+tpp-propositional-strips/29   # ipc5-prop
+tpp-propositional-strips/30   # ipc5-prop
+trucks-propositional-strips/10   # ipc5-prop
+trucks-propositional-strips/13   # ipc5-prop

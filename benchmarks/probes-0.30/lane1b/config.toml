@@ -1,0 +1,6 @@
+# Lane 1b resume only (docs/roadmap-0.30.md): the preference boards run the
+# polish to the wall on every cell, and nine of them at once throttle the Air
+# (canary at 1.48x, every wall-edge row owed as thermal). A narrower pack
+# keeps the box cool enough to bank; the rules are the defaults.
+[scheduler]
+pack_width = 6
