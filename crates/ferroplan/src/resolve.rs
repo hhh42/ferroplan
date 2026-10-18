@@ -154,6 +154,21 @@ pub fn solve(
     };
 
     loop {
+        // The wall first (0.30 Lane 6): once the budget this solve runs under
+        // has expired, every subgoal solve returns capped at zero evals, but
+        // the merge cascade itself is not free -- on openstacks i30 (100
+        // groups) each merge cost ~0.7 s after the partition rung's slice
+        // expired at 30 s, and 99 of them carried the process to its 60 s
+        // wall: the rung never handed down, the ladder never ran. An
+        // expired budget ends the cascade here, capped, so the caller gets
+        // what is left of its wall.
+        if crate::search::wall_remaining_secs().is_some_and(|r| r <= 0.0) {
+            narrate(format_args!(
+                "wall expired after {merges} merge(s), {} group(s) left: capped",
+                groups.len()
+            ));
+            return Solved::Unsolvable { capped: true };
+        }
         let monolithic = groups.len() == 1;
         // Phase A — coarse parallel: solve each group from the initial state.
         // One thread per subplanner when there are many groups (coarse

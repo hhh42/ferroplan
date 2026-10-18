@@ -874,6 +874,28 @@ the losses late in the pass (i25, i28 and strips i28, i29, i36, i38):
 the same collapse. Recorded as the rung's negative in its first shape;
 the band is re-read on the handed-wall shape (engine 8e1e6b61a0b9).
 
+**The handed-wall shape, read 20:23 (propositional complete, 450 rows):
++6, −15; banked −9 [−18, −1], first −28 [−41, −16]**
+(`lane6/lost-prop-8e1e.tsv`): openstacks i28–30 ×2 again, tpp i29/i30
+×2, rovers-strips i37, trucks-strips i10/i13. The affordability gate was
+real but not the cause. Solo on openstacks-propositional i30 at 60 s
+with `FF_WALL_DEBUG` and a timestamp on every line (`os30t.err`): the
+rung's slice expires at 30.3 s — and `resolve::solve`'s merge cascade
+keeps going. Every subgoal solve returns capped at zero evals, but a
+merge on a hundred groups costs ~0.7 s of its own (re-partition, the
+subtasks' construction), and 99 of them carry the process to its 60 s
+wall: **the rung handed down with `remaining Some(0.0)` — it never spent
+half the wall, it spent all of it, and the ladder never ran.** Not a
+rung defect, a `--mode partition` defect the rung exposed: the cascade
+had no clock of its own. Fixed in `resolve.rs` (the loop checks the
+budget first; expired → `Unsolvable { capped: true }` and the hand-down).
+Solo after the fix, openstacks i30 solves at 37 s (the rung 30 s, the
+ladder 7 s). The fixture's big-ring arm now uses ring(120, 40) and pins
+the expiry narration and a hand-down with the ladder's share intact.
+The solved-side half of the 20:23 sweep was stopped unstarted (my PIDs).
+The propositional board is re-read a third time on the fixed engine;
+the band and the kill clause are unchanged.
+
 ---
 
 ## Lane 2b — metric-time beyond rovers

@@ -117,7 +117,7 @@ fn the_partition_rung_runs_first_and_hands_down() {
     if let Ok(which) = std::env::var("PARTITION_RUNG_CHILD") {
         let (dom, prb) = match which.as_str() {
             "counters" => counters(),
-            "ring-big" => ring(40, 12),
+            "ring-big" => ring(120, 40),
             _ => ring(16, 5),
         };
         let opts = ferroplan::Options {
@@ -189,10 +189,28 @@ fn the_partition_rung_runs_first_and_hands_down() {
         "false",
         "{stdout}\n{stderr}"
     );
-    let after = stderr
+    // The slice's expiry ENDS the merge cascade (39 merges owed on this
+    // ring, ~0.7 s each on openstacks i30's hundred groups): the rung
+    // narrates the expiry and hands down with the ladder's tenth intact,
+    // not at the process wall.
+    assert!(
+        stderr.contains("wall: partition wall expired after"),
+        "the cascade must stop at the slice's expiry:\n{stderr}"
+    );
+    let (_, after) = stderr
         .split_once("wall: partition rung handed down")
-        .map(|(_, rest)| rest)
         .unwrap_or_else(|| panic!("the big ring must hand down:\n{stderr}"));
+    let left: f64 = after
+        .lines()
+        .next()
+        .and_then(|l| l.split("Some(").nth(1))
+        .and_then(|l| l.split(')').next())
+        .and_then(|v| v.parse().ok())
+        .unwrap_or_else(|| panic!("no remaining on the hand-down line:\n{after}"));
+    assert!(
+        left > WALL_SECS * 0.05,
+        "the rung overran its slice: {left:.2} s of {WALL_SECS} handed down:\n{stderr}"
+    );
     assert!(
         after.contains("wall: ladder handed"),
         "the ladder must be handed its wall:\n{after}"
