@@ -896,6 +896,29 @@ The solved-side half of the 20:23 sweep was stopped unstarted (my PIDs).
 The propositional board is re-read a third time on the fixed engine;
 the band and the kill clause are unchanged.
 
+### Lane 6 — CLOSED 2026-10-17 22:41 (engine `b7a86f1ab957`, `lane6/`)
+
+The third read, 450 of 450 banked in two passes at 23:07 (the
+solved-side boards never started — the parent stopped at 22:41, my PID):
+**first-attempt 385 → 359 = −26 [−39, −15]; equal-N −27; banked −9
+[−18, +0] (−26 first + 16 rescued); cells both engines banked: 6 gained
+(the pathways six), 15 lost** (`lane6/lost-prop-b7a8.tsv`: tpp i27–30
+×2, pipesworld-strips i28/i45/i49, openstacks-strips i28/i29,
+rovers i35 and strips i37, trucks-strips i10/i13 — all cells 0.29.0
+solves in its second half of the wall). With the
+ladder handed its own wall and the cascade's clock fixed, openstacks i30 solves at 37 s
+and the 15 lost are the half-wall's price on the cells the ladder solves
+late — a coin on each, 16 of 26 first-attempt losses rescued on re-run —
+and the first attempt is this cycle's declared rows measure. The kill
+clause ("any board loses more than it gains") fires on the board the
+rung was built for: **the rung is out as a default.** It stays in the
+engine opt-in (`FF_PARTITION_RUNG=1`) with its fixture, the handed-wall
+rule and the cascade's clock — the last two are defects fixed, kept
+regardless (`--mode partition` now returns inside its budget). Owed to
+0.31: a rung that pays for itself must cost less than half the wall
+(a short first slice, or a decomposition test cheaper than the attempt
+— the pathways six all solved under the rung in 7–34 s).
+
 ---
 
 ## Lane 2b — metric-time beyond rovers

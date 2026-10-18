@@ -1,6 +1,6 @@
 //! THE PARTITION RUNG (0.30 Lane 6, `api.rs::solve_classical`).
 //!
-//! In auto, before the ladder, one bounded partition-and-resolve attempt
+//! In auto, opted in, before the ladder, one bounded partition-and-resolve attempt
 //! under a slice of the wall that is left (`FF_PARTITION_RUNG_FRAC`, 0.5),
 //! the ladder after it with the rest. Under `--mode partition` the route
 //! solved six pathways cells the ladder never reaches on any budget
@@ -18,8 +18,10 @@
 //! handed (`search::hand_ladder_wall`), so its bounded rungs are not
 //! skipped as unaffordable at 49 % of a wall the rung already spent half
 //! of -- a big ring under a 0.9 slice hands down a tenth of the wall and
-//! the ladder still runs its rungs. `FF_NO_PARTITION_RUNG=1` is the
-//! hatch, pinned on (1).
+//! the ladder still runs its rungs. The rung is OPT-IN (`FF_PARTITION_RUNG=1`)
+//! since the board read: on the whole propositional board its half-wall
+//! cost 26 first attempts against the six pathways cells it gains. The
+//! default -- no rung -- is pinned on (1).
 
 use std::process::Command;
 
@@ -91,8 +93,12 @@ fn child(which: &str, hatched: bool) -> (String, String) {
         // handed ~1.2 s of a 12 s wall: 10 % of the whole, 100 % of its own.
         cmd.env("FF_PARTITION_RUNG_FRAC", "0.9");
     }
-    if hatched {
-        cmd.env("FF_NO_PARTITION_RUNG", "1");
+    // Opt-in since the board read (docs/roadmap-0.30.md, Lane 6): the rung
+    // runs only under `FF_PARTITION_RUNG=1`; "hatched" is the default.
+    if !hatched {
+        cmd.env("FF_PARTITION_RUNG", "1");
+    } else {
+        cmd.env_remove("FF_PARTITION_RUNG");
     }
     let out = cmd.output().unwrap();
     assert!(

@@ -1219,11 +1219,17 @@ fn solve_classic(
         // decomposes -- so the attempt is a rung with a slice, as LAMA
         // is, and the whole classical board is its measure. Only with a
         // wall armed (the slice must exist), never on a constrained task
-        // (`strip_end`: the monitor-compiled goal is not decomposable),
-        // off under `FF_NO_PARTITION_RUNG=1`.
+        // (`strip_end`: the monitor-compiled goal is not decomposable).
+        //
+        // MEASURED OUT (docs/roadmap-0.30.md, Lane 6): on the whole
+        // propositional board the rung's half-wall cost the first attempt
+        // on 26 cells the ladder solves late (first-attempt -26 [-39, -15])
+        // against the pathways six it gains -- with the ladder handed its
+        // own wall and the cascade's clock fixed. Opt-in only, under
+        // `FF_PARTITION_RUNG=1`; the default ladder is 0.29.0's.
         let ehc_first = opts.search != Search::BestFirst;
         let rung_on =
-            opts.mode == Mode::Auto && !strip_end && std::env::var("FF_NO_PARTITION_RUNG").is_err();
+            opts.mode == Mode::Auto && !strip_end && std::env::var("FF_PARTITION_RUNG").is_ok();
         let from_rung = if rung_on {
             let frac = std::env::var("FF_PARTITION_RUNG_FRAC")
                 .ok()

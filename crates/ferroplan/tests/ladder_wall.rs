@@ -194,12 +194,10 @@ fn run_child(scenario: &str) -> (String, String, f64) {
     let mut cmd = Command::new(&exe);
     cmd.args(["--exact", "ladder_rungs_pay_the_wall", "--nocapture"])
         .env("LADDER_WALL_CHILD", scenario)
-        .env("FF_WALL_DEBUG", "1")
-        // This fixture pins the LADDER's slices. The partition rung (0.30
-        // Lane 6, tests/partition_rung.rs) runs before the ladder on any
-        // wall of ten seconds or more and would solve the 40 s scenarios
-        // itself, taking the light probe's witness with it.
-        .env("FF_NO_PARTITION_RUNG", "1");
+        .env("FF_WALL_DEBUG", "1");
+    // This fixture pins the LADDER's slices; the partition rung (0.30 Lane
+    // 6, tests/partition_rung.rs) is opt-in and must stay unset here.
+    cmd.env_remove("FF_PARTITION_RUNG");
     match scenario {
         "capped" => {
             cmd.env("FF_TIME_LIMIT", "3");
