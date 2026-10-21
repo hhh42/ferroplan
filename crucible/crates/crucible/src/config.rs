@@ -269,8 +269,12 @@ impl Default for Scheduler {
             pack_width_day: 4,
             user_active_secs: 300,
             pack_narrow_width: 2,
-            pack_max_frac: 0.5,
-            pack_narrow_max_frac: 0.85,
+            // 0.30 cut: 0.5 / 0.85 sent 1,706 known solves of cut30 solo
+            // (8.7 child-hours, serial). A packed miss is re-run narrow, then
+            // solo, in the same pass -- packing wider can waste a run, never
+            // lose a row -- so the tiers lean on that.
+            pack_max_frac: 0.75,
+            pack_narrow_max_frac: 0.95,
             mem_reserve_gb: 3.0,
             mem_reserve_idle_gb: 1.5,
             rss_headroom: 1.5,

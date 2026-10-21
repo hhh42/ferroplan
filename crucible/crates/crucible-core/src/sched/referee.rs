@@ -177,6 +177,11 @@ pub struct Facts {
     /// while macOS thrashed the box in ways neither rho nor a 20-minute
     /// canary could see.
     pub prior_solved: bool,
+    /// The predecessor has a row for this instance and it is UNSOLVED -- not
+    /// merely "not known to have solved" (a cell missing from the prior raw
+    /// is neither). A hot timeout on such a cell cannot manufacture a
+    /// regression, only miss a gain (`Bank::Hot`, 0.30 cut).
+    pub prior_failed: bool,
     /// Which SOLO attempt this is for the instance under this engine
     /// (1-based; packed attempts do not count -- a miss beside neighbours
     /// is nobody's verdict, so it cannot confirm one either).
@@ -221,6 +226,17 @@ pub enum Bank {
     /// Unsolved on a `threads > 1` board with a clean box-wide window: the R1
     /// rule, kept whole for those boards.
     Window,
+    /// Unsolved on a box reading slow by the canary, where the predecessor
+    /// ALSO failed the cell, and every other signal banks it (0.30 cut). The
+    /// fanless Air settles at ~1.5x its cold canary line under the sweep's
+    /// own load and stays there: cut30 owed 1,482 timeouts as `thermal`
+    /// (23.8 child-hours, solo, re-run into the same hot chip pass after
+    /// pass), and 1,477 of them were cells 0.29.0 had failed too. A hot
+    /// timeout there cannot invent a loss; the most it can do is miss a gain
+    /// that needs the cold clock -- a one-sided, conservative bias the cut
+    /// notes carry. Cells the predecessor SOLVED, or never ran, keep the old
+    /// rule.
+    Hot,
 }
 
 /// Why a row is owed again.
@@ -267,6 +283,7 @@ impl Verdict {
             Verdict::Banked(Bank::Solved) => "solved",
             Verdict::Banked(Bank::Rho) => "rho",
             Verdict::Banked(Bank::Window) => "window",
+            Verdict::Banked(Bank::Hot) => "hot",
             Verdict::Owed(Owe::Starved) => "starved",
             Verdict::Owed(Owe::CpuUnknown) => "cpu-unknown",
             Verdict::Owed(Owe::ClockJump) => "clock-jump",
@@ -350,9 +367,24 @@ pub fn judge(rule: &Rule, f: &Facts) -> Verdict {
     if f.demoted {
         return Verdict::Owed(Owe::Demoted);
     }
-    if f.clock_factor.is_some_and(|c| c > rule.canary_max_factor) {
+    let hot = f.clock_factor.is_some_and(|c| c > rule.canary_max_factor);
+    if hot && !f.prior_failed {
         return Verdict::Owed(Owe::Thermal);
     }
+    // Hot, and the predecessor failed the cell too: the remaining signals
+    // decide as for a cold row, and a row they would bank banks as `Hot`.
+    let v = judge_unsolved_tail(rule, f);
+    if hot {
+        if let Verdict::Banked(_) = v {
+            return Verdict::Banked(Bank::Hot);
+        }
+    }
+    v
+}
+
+/// The unsolved verdict after the process- and clock-level signals: swap,
+/// then the window (short runs) or rho.
+fn judge_unsolved_tail(rule: &Rule, f: &Facts) -> Verdict {
     if f.swap_growth_mb.is_some_and(|g| g > rule.swap_growth_mb) {
         return Verdict::Owed(Owe::Swap);
     }
@@ -418,6 +450,7 @@ mod tests {
             demoted: false,
             neighbours: 0,
             prior_solved: false,
+            prior_failed: false,
             solo_attempt: 1,
             budget_ms: 60_000,
             unpriced: false,
@@ -858,6 +891,70 @@ mod tests {
             ..unsolved()
         };
         assert_eq!(judge(&r, &f), Verdict::Owed(Owe::Starved));
+    }
+
+    /// THE HOT RULE (0.30 cut). A solo timeout on a box the canary reads
+    /// slow banks as `hot` when the predecessor FAILED the cell too, and is
+    /// owed as before when the predecessor solved it or has no row. Every
+    /// other signal still decides first: a hot, starved row is starved, a
+    /// hot row that swapped is owed swap, and a hot row beside our own
+    /// planners is packed.
+    #[test]
+    fn a_hot_timeout_banks_only_where_the_predecessor_failed_too() {
+        let r = Rule::default();
+        let hot = Facts {
+            clock_factor: Some(1.5),
+            ..unsolved()
+        };
+        // No predecessor row, or one that solved: the old rule.
+        assert_eq!(judge(&r, &hot), Verdict::Owed(Owe::Thermal));
+        let solved_before = Facts {
+            prior_solved: true,
+            solo_attempt: 2,
+            ..hot.clone()
+        };
+        assert_eq!(judge(&r, &solved_before), Verdict::Owed(Owe::Thermal));
+        // The predecessor failed it too: banks, and says it was hot.
+        let failed_before = Facts {
+            prior_failed: true,
+            ..hot.clone()
+        };
+        assert_eq!(judge(&r, &failed_before), Verdict::Banked(Bank::Hot));
+        assert_eq!(judge(&r, &failed_before).as_str(), "hot");
+        // A cold row on the same cell is the ordinary rho bank.
+        let cold = Facts {
+            clock_factor: Some(1.0),
+            ..failed_before.clone()
+        };
+        assert_eq!(judge(&r, &cold), Verdict::Banked(Bank::Rho));
+        // The other signals still win.
+        let starved = Facts {
+            cpu_ms: 30_000,
+            ..failed_before.clone()
+        };
+        assert_eq!(judge(&r, &starved), Verdict::Owed(Owe::Starved));
+        let swapped = Facts {
+            swap_growth_mb: Some(4096.0),
+            ..failed_before.clone()
+        };
+        assert_eq!(judge(&r, &swapped), Verdict::Owed(Owe::Swap));
+        let demoted = Facts {
+            demoted: true,
+            ..failed_before.clone()
+        };
+        assert_eq!(judge(&r, &demoted), Verdict::Owed(Owe::Demoted));
+        let packed = Facts {
+            neighbours: 3,
+            ..failed_before.clone()
+        };
+        assert_eq!(judge(&r, &packed), Verdict::Owed(Owe::Packed));
+        // A hot SOLVE is untouched: still judged by the solve rule.
+        let hot_slow_solve = Facts {
+            solved: true,
+            effective_ms: 50_000,
+            ..failed_before
+        };
+        assert_eq!(judge(&r, &hot_slow_solve), Verdict::Owed(Owe::Thermal));
     }
 
     /// A timeout that contradicts the predecessor's solve is suspect on

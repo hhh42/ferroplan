@@ -197,6 +197,9 @@ struct RunCtx {
     db: Option<RunDb>,
     /// Instances the predecessor solved (`variant/label`).
     prior_solved: std::collections::BTreeSet<String>,
+    /// Instances the predecessor has a row for and did NOT solve: the cells
+    /// a hot timeout may bank on (`referee::Bank::Hot`, 0.30 cut).
+    prior_failed: std::collections::BTreeSet<String>,
 }
 
 struct RunDb {
@@ -322,6 +325,11 @@ impl<'a> SweepRunner<'a> {
             prior_solved: prior_rows(&self.repo, &self.boards[idx].spec.raw)
                 .into_iter()
                 .filter(|(_, (solved, _))| *solved)
+                .map(|(k, _)| k)
+                .collect(),
+            prior_failed: prior_rows(&self.repo, &self.boards[idx].spec.raw)
+                .into_iter()
+                .filter(|(_, (solved, _))| !*solved)
                 .map(|(k, _)| k)
                 .collect(),
             db: self.db.as_ref().map(|d| RunDb {
@@ -730,6 +738,9 @@ fn run_one(
                 neighbours,
                 prior_solved: ctx
                     .prior_solved
+                    .contains(&format!("{variant}/{}", inst.label)),
+                prior_failed: ctx
+                    .prior_failed
                     .contains(&format!("{variant}/{}", inst.label)),
                 // This run's own row is committed above, so the count
                 // includes it when it ran solo.
@@ -2014,6 +2025,16 @@ impl Canary {
     /// clean. The fastest-of-five is the opposite failure -- a sweep that
     /// starts on a slow morning is lenient all day. A percentile of the
     /// recent window is what the box actually does.
+    /// Take the database's clean history as the baseline, with no fresh runs:
+    /// the path for a box that is not quiet NOW but has calibrated cleanly
+    /// before (the readings `Reader::canary_baseline` returns already leave
+    /// out the foreign-stamped ones).
+    pub fn adopt(&mut self, prior: f64) -> Duration {
+        let b = Duration::from_secs_f64(prior);
+        self.baseline = Some(b);
+        b
+    }
+
     pub fn calibrate(
         &mut self,
         prior: Option<f64>,
@@ -2558,10 +2579,22 @@ fn sweep_body(
                 // the box's own clean line, saying what is loading it, and
                 // stamp the readings with what they were taken beside.
                 let plat = platform::host();
+                // With a clean history in hand, a busy box does not hold the
+                // sweep at the gate: the history IS the clean line (cut30's
+                // resume sat 2.3 h behind Spotify and a Steam helper with ten
+                // clean readings on file). Only a first calibration waits.
                 let foreign = loop {
                     let s = sample_box(&plat);
                     match monitor::calibration_gate(&s) {
-                        monitor::CalibrationGate::Take => break s.competitors_total,
+                        monitor::CalibrationGate::Take => break Some(s.competitors_total),
+                        monitor::CalibrationGate::Wait { foreign_pcpu, .. } if prior.is_some() => {
+                            crate::say!(
+                                "canary  foreign load {:.0}% now; adopting the clean history \
+                                 instead of waiting",
+                                foreign_pcpu
+                            );
+                            break None;
+                        }
                         monitor::CalibrationGate::Wait { foreign_pcpu, top } => {
                             if exec::interrupted() {
                                 anyhow::bail!("interrupted while waiting to calibrate the canary");
@@ -2581,17 +2614,15 @@ fn sweep_body(
                 };
                 let record = |secs: f64| {
                     if let Some(d) = &dbctx {
-                        d.db.writer().canary(
-                            now_epoch(),
-                            label.clone(),
-                            secs,
-                            true,
-                            0,
-                            Some(foreign),
-                        );
+                        d.db.writer()
+                            .canary(now_epoch(), label.clone(), secs, true, 0, foreign);
                     }
                 };
-                match c.calibrate(prior, &record, None) {
+                let calibrated = match (foreign, prior) {
+                    (None, Some(p)) => Some(c.adopt(p)),
+                    _ => c.calibrate(prior, &record, None),
+                };
+                match calibrated {
                     Some(b) => {
                         crate::say!(
                             "canary  {} baseline {:.3} s ({}); read every {} s, slow above {:.2}x",

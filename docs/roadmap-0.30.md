@@ -1370,6 +1370,46 @@ Everything 0.28 and 0.29 listed, plus:
 
 ---
 
+## The cut — the referee changed mid-sweep (2026-10-21 12:53)
+
+`cut30` ran on `ff 0.30.0 [16b920134c1a]` from 2026-10-18; at 12:53 on
+10-21 it was stopped by its PID (1,646 rows owed, nothing lost) and resumed
+on a changed crucible, at the operator's decision. **Measured first**, over
+the engine's rows to that point (child-hours): banked ~42 h, owed ~40 h,
+of which `thermal` 29.5 h. The canary reads 0.51 s cold and ~0.76 s once the
+fanless Air is heat-soaked by the sweep's own planners (width-1 readings are
+bimodal: 130 cold, 234 at >= 1.37x, none between), so a solo 60 s timeout
+re-run in the next pass lands on the same hot chip and is owed again --
+the 4-7 pass shape of every cut. **1,477 of the 1,482 thermal-owed
+timeouts were cells 0.29.0 had failed too** (1,175 cells, 23.6 h).
+
+Changes (crucible, this commit):
+1. **`Bank::Hot`** (`sched/referee.rs`): an unsolved solo row that the
+   canary reads slow BANKS, verdict `hot`, when the predecessor's promoted
+   row for the cell exists and is unsolved (`Facts::prior_failed`) and every
+   other signal (demoted, swap, rho/window) would bank it. A cell the
+   predecessor solved, or has no row for, keeps the old `thermal` owe; hot
+   SOLVES are untouched. **Bias, one-sided and stated:** a hot timeout cannot
+   invent a regression; it can miss a 0.30 gain that needed the cold clock
+   (a 40-60 s cold solve). The cut's gain count is conservative by that much;
+   losses are protected exactly as before.
+2. **Packing tiers** 0.5 / 0.85 -> 0.75 / 0.95 of the wall for cells the
+   predecessor solved (1,706 known solves ran solo, 8.7 h serial). A packed
+   miss is still re-run narrow, then solo, in the same pass.
+3. **Calibration gate**: with a clean canary history in the database, a
+   busy box adopts it instead of waiting (run 2 waited 2.3 h behind Spotify
+   and a Steam helper with ten clean readings on file). A first calibration
+   still waits.
+4. **Operator config** (`~/.config/crucible/config.toml`):
+   `pack_width_day = 8` (was 4) -- near full width while the keyboard is in
+   use.
+
+Rows banked before 12:53 stand under the old rule; rows after under the new
+one. Owed to 0.31: a canary pinned to a fixed binary so the box's per-width
+line carries across engines (today it is keyed by engine hash and never
+reaches its 5 readings per width), and demotion at day width 8 (demoted
+rows are owed: 4.7 h this sweep).
+
 ## The cut rule
 
 The 32-board `cut30` set, the same instrument; both declared measures read
