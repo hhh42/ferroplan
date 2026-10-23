@@ -1410,6 +1410,37 @@ line carries across engines (today it is keyed by engine hash and never
 reaches its 5 readings per width), and demotion at day width 8 (demoted
 rows are owed: 4.7 h this sweep).
 
+## The first cut read, and the regression it found (2026-10-22)
+
+`cut30` on `ff 0.30.0 [16b920134c1a]`: 8,444 of 8,444 banked, 25 rows
+re-opened by `recheck30.py` and re-measured (all banked). Against the banked
+0.29.0 `7fdf185b91e6` (`probes-0.30/cut30/compare.txt`): **first attempt
+5,476 -> 5,460 = -16 [-41, +7]; banked 5,555 -> 5,562 = +7 [-5, +19];
+equal-N -31 [-54, -9]**; cells both banked 21 gained / 14 lost. Rows flat;
+equal-N significantly negative.
+
+The loss list's one consistent signal: **woodworking i15 / i16, lost on five
+board-cells** (seq-sat and all three IPC-2011 multi-core boards). Solo,
+0.29.0 solves both in 14-17 s and 16b920134c1a fails both at 60 s;
+`FF_NO_MEM_WALL=1` restores the solve. With `FF_WALL_DEBUG` the rung-entry
+resident read **0.58 GiB at novelty-light, 3.96 GiB at LAMA**: novelty-light
+held 12.5M `Node { state: State }` -- three small heap vectors a node plus
+a bucket vector per hash -- tripped the wall, and the allocator could not
+hand ~50M freed tiny blocks back on a fragmented small zone, so LAMA (4.27
+GiB on its own, solving in 12 s with novelty-light off) inherited them and
+tripped at 15,869 evals. A higher trip line is not the fix (0.9 peaks at
+6.12 GiB, over the 6 GiB board budget); `malloc_zone_pressure_relief` at
+rung entry recovered nothing (measured, removed).
+
+**Fix: novelty-light's flat arena** (`novelty::search_light`): states in
+three flat arrays, dedup buckets as a chain in one array; search order,
+keys and tie-breaks unchanged. 88 bytes a held node against 229 on the
+fixture ring (`tests/novlight_arena.rs`, which fails on the old layout).
+Woodworking i15 / i16 solve again at 16.4 s / 12.9 s (peak 5.3 / 5.1 GiB),
+LAMA entering at 2.17 GiB. The allocator still keeps most of what a rung
+freed resident (71 % at 1.1M nodes) -- the receipt is the per-node cost,
+not a hand-back. The cut is re-swept in full on the fixed engine.
+
 ## The cut rule
 
 The 32-board `cut30` set, the same instrument; both declared measures read

@@ -436,33 +436,65 @@ pub fn search_light(
         return Some((Vec::new(), 0));
     }
     let words = init.bits.len();
-    let mut nodes = vec![Node {
-        state: init.clone(),
-        father: usize::MAX,
-        op: usize::MAX,
-    }];
+    let nf = init.fv.len();
+    debug_assert_eq!(init.fdef.len(), nf);
+    // THE FLAT ARENA (0.30 cut). A `Node { state: State }` per generated
+    // state was three small heap vectors a node plus a bucket vector per
+    // hash -- ~50M tiny allocations by 12.5M nodes on woodworking i15, which
+    // the allocator cannot hand back on a fragmented small zone: LAMA, the
+    // next rung, entered with 3.96 GiB of novelty-light's dead nodes still
+    // resident, tripped the memory wall at 15,869 evals, and a 12 s solve
+    // (4.27 GiB on its own) became a 60 s loss on five board-cells. Here
+    // every state lives in three flat arrays and the dedup buckets are a
+    // chain in one array: ~88 bytes a node against ~340 (tests/
+    // novlight_arena.rs), so the same pops leave a third of the heap behind
+    // and LAMA enters woodworking i15 at 2.17 GiB and solves in 16 s. Search
+    // order, keys and tie-breaks are unchanged.
+    let mut a_bits: Vec<u64> = init.bits.clone();
+    let mut a_fv: Vec<f64> = init.fv.clone();
+    let mut a_fdef: Vec<bool> = init.fdef.clone();
+    let mut a_father: Vec<u32> = vec![u32::MAX];
+    let mut a_op: Vec<u32> = vec![u32::MAX];
+    // Materialise node `i` into `out` (no allocation once `out` is sized).
+    let load = |out: &mut State, i: usize, b: &[u64], fv: &[f64], fd: &[bool]| {
+        out.bits.copy_from_slice(&b[i * words..(i + 1) * words]);
+        out.fv.copy_from_slice(&fv[i * nf..(i + 1) * nf]);
+        out.fdef.copy_from_slice(&fd[i * nf..(i + 1) * nf]);
+    };
     let numnov = numnov_on(task);
     let mut seen = Seen::new(words, numnov);
     let g0 = unachieved(task, &init, goal_pos);
     seen.novel_and_mark((g0, 0), &init.bits, &qvals_of(task, &init, numnov));
     let mut heap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
     heap.push(Reverse((0, 0)));
-    // Hash -> node-index dedup (0.20 Phase 4): exact equality against the
-    // arena state, no second bitset copy per entry (see search_from).
-    let mut visited: FxHashMap<u64, Vec<u32>> = FxHashMap::default();
-    visited.insert(task.state_key_hash(&init, None), vec![0]);
+    // Hash -> first node with that hash; `chain[i]` -> the next node with
+    // the same hash (u32::MAX ends it). Exact equality against the arena.
+    let mut visited: FxHashMap<u64, u32> = FxHashMap::default();
+    let mut chain: Vec<u32> = vec![u32::MAX];
+    visited.insert(task.state_key_hash(&init, None), 0);
     let mut evaluated = 0usize;
+    let mut cur = init.clone();
+    let mut probe = init.clone();
+    let mut cands = Vec::new();
 
     while let Some(Reverse((_, ni))) = heap.pop() {
-        if task.goal_met_with(&nodes[ni].state, goal_pos, goal_num) {
-            return Some((reconstruct(&nodes, ni), evaluated));
+        load(&mut cur, ni, &a_bits, &a_fv, &a_fdef);
+        if task.goal_met_with(&cur, goal_pos, goal_num) {
+            let mut ops = Vec::new();
+            let mut i = ni;
+            while a_father[i] != u32::MAX {
+                ops.push(a_op[i] as usize);
+                i = a_father[i] as usize;
+            }
+            ops.reverse();
+            return Some((ops, evaluated));
         }
+        let n_nodes = a_father.len();
         evaluated += 1;
-        if evaluated > max_eval || nodes.len() > node_cap {
+        if evaluated > max_eval || n_nodes > node_cap {
             if std::env::var("FF_RES_DEBUG").is_ok() {
                 eprintln!(
-                    "[novelty-light] capped: {evaluated} evals (max {max_eval}), {} nodes",
-                    nodes.len()
+                    "[novelty-light] capped: {evaluated} evals (max {max_eval}), {n_nodes} nodes"
                 );
             }
             return None;
@@ -470,8 +502,7 @@ pub fn search_light(
         if evaluated & 0xFF == 0 && mem_wall.hit() {
             if std::env::var("FF_WALL_DEBUG").is_ok() {
                 eprintln!(
-                    "wall: novelty-light MEMORY checkpoint at {evaluated} pops, {} nodes, handing down the ladder",
-                    nodes.len()
+                    "wall: novelty-light MEMORY checkpoint at {evaluated} pops, {n_nodes} nodes, handing down the ladder"
                 );
             }
             return None;
@@ -489,33 +520,49 @@ pub fn search_light(
                 }
             }
         }
-        let mut cands = Vec::new();
-        task.applicable_ops(&nodes[ni].state, &mut cands);
+        cands.clear();
+        task.applicable_ops(&cur, &mut cands);
         for &oi in &cands {
             let oi = oi as usize;
             if forbidden.get(oi).copied().unwrap_or(false) {
                 continue;
             }
-            let ns = task.apply(oi, &nodes[ni].state);
+            let ns = task.apply(oi, &cur);
             let k = task.state_key_hash(&ns, None);
-            let bucket = visited.entry(k).or_default();
-            if bucket
-                .iter()
-                .any(|&idx| task.state_key_eq(&nodes[idx as usize].state, &ns, None))
-            {
-                continue;
+            let idx = a_father.len() as u32;
+            let mut dup = false;
+            match visited.get(&k).copied() {
+                Some(head) => {
+                    let mut j = head;
+                    let mut last = head;
+                    while j != u32::MAX {
+                        load(&mut probe, j as usize, &a_bits, &a_fv, &a_fdef);
+                        if task.state_key_eq(&probe, &ns, None) {
+                            dup = true;
+                            break;
+                        }
+                        last = j;
+                        j = chain[j as usize];
+                    }
+                    if dup {
+                        continue;
+                    }
+                    chain[last as usize] = idx;
+                }
+                None => {
+                    visited.insert(k, idx);
+                }
             }
-            bucket.push(nodes.len() as u32);
+            chain.push(u32::MAX);
             let g = unachieved(task, &ns, goal_pos);
             let novel = seen.novel_and_mark((g, 0), &ns.bits, &qvals_of(task, &ns, numnov));
             let key = if novel { 0 } else { W_NOVEL } + g as i64 * W_GOALS;
-            let idx = nodes.len();
-            nodes.push(Node {
-                state: ns,
-                father: ni,
-                op: oi,
-            });
-            heap.push(Reverse((key, idx)));
+            a_bits.extend_from_slice(&ns.bits);
+            a_fv.extend_from_slice(&ns.fv);
+            a_fdef.extend_from_slice(&ns.fdef);
+            a_father.push(ni as u32);
+            a_op.push(oi as u32);
+            heap.push(Reverse((key, idx as usize)));
         }
     }
     None

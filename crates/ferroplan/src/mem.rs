@@ -121,6 +121,16 @@ impl MemWall {
     /// honestly and the rung is the ladder's only chance: it runs as it did
     /// before, under the runner's cap.
     pub fn arm_rung() -> Self {
+        // The eyes for what a rung inherits (0.30 cut): woodworking i15's LAMA
+        // entered at 3.96 GiB of novelty-light's dead nodes, which the
+        // allocator could not hand back (see `novelty::search_light`'s
+        // arena); stderr only, never affects the search.
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!(
+                "wall: rung entry resident {:?} GiB",
+                resident_bytes().map(|v| v as f64 / (1u64 << 30) as f64)
+            );
+        }
         if crate::search::bounded_work() {
             return Self::arm();
         }
