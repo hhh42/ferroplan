@@ -362,6 +362,33 @@ semantics — the consumed ones), relax the rest. It needs the same
 multi-valued view as Lane C, so it rides C.0's variable cover; if the
 cover is cheap this is the satisficing payoff of the same groundwork.
 
+**The mechanism, from the papers (read 2026-10-23; `katz-etal-2013-red-
+black-relaxed-plan.pdf`, `who-said-relax-all.pdf`).** Over the variable
+cover of `vars.rs`: (1) the DOMAIN TRANSITION GRAPH of each variable —
+arcs (d, d') per op with eff[v] = d' and pre[v] = d or v unconstrained,
+each arc labelled with the op's OUTSIDE condition (its other
+preconditions) and OUTSIDE effect (its other effects); (2) a variable is
+RSE-INVERTIBLE when every arc (d, d') has an inverse arc (d', d) whose
+outside condition is contained in the forward arc's outside condition ∪
+outside effect — testable per variable, polynomial; (3) the PAINTING:
+candidates are the invertible variables; paint black a subset whose
+black causal graph (arcs v → v' when some op has v in pre ∪ eff and v' in
+eff) is ACYCLIC, every other variable red — the paper's strategies pick
+black by causal-graph level or by how many relaxed-plan conflicts a
+variable carries, and keep painting red until the cycles are gone; (4)
+THE HEURISTIC, `UNRELAX`: take h^FF's relaxed plan in layer order
+(`heuristic::linearize`); walk it keeping the BLACK variables' real
+values and the red ones accumulating; before each action whose black
+precondition is not met, insert an achieving sequence — a path in the
+black variable's DTG restricted to arcs whose outside conditions are
+already true (red: accumulated; black: current) — and likewise for the
+black goal at the end; h = the length (cost) of the repaired plan.
+Theorem 2 of the AAAI paper: with RSE-invertible black variables and an
+acyclic black causal graph the repair always exists, in polynomial time.
+Mercury's receipt (IPC 2014 seq-sat runner-up) is this heuristic in LAMA's
+place; the HSDIP 2014 "DAG" variant paints more and is in
+`icaps14-hsdip-proceedings.pdf`.
+
 **Claim:** a red-black h on a small black set (the invertibility-based
 painting from the AAAI 2013 paper; DAG painting from the 2014 HSDIP
 paper) as a rung — or as LAMA's second heuristic — moves the delete-heavy
@@ -383,15 +410,21 @@ see. The mechanism is upstream of the polish. Two literature shapes to
 probe against the three boards, with SGPlan5's per-instance metric as the
 referee:
 
-- **Compile soft goals away** (Keyder & Geffner, JAIR 2009) and run the
-  cost-aware anytime search the engine already has for net-benefit (where
-  it stands at 270/270) — one search over the compiled task instead of
-  seed → polish; the question is whether the compiled task's cost
-  landscape beats the polish's candidate enumeration on complex.
+- **The compile is already in the engine** (checked 2026-10-23:
+  `pddl3.rs` is the Keyder & Geffner compile since 0.4 — `collect_p` /
+  `forgo_p` with the metric's weights folded into `total-cost`, the
+  optimizer an anytime branch-and-bound over it, `solve_subgoal_bounded`).
+  So the probe is not whether to compile; it is what SEARCH runs over the
+  compiled task after the seed: today a B&B with a bound, then the polish
+  over candidates.
 - **Restarting anytime search** (Richter, Thayer & Ruml, ICAPS 2010 —
-  RWA*) over the compiled task, the LAMA paper's anytime loop with
-  restarts, so the wall after the first plan improves it rather than
-  re-polishing.
+  RWA*; `richter-etal-2010-joy-of-forgetting.pdf`): restart from the
+  initial state at each new incumbent with a lower weight, keeping the
+  heuristic cache, instead of continuing the bounded search — the paper's
+  finding is that continuing from a stale open list is what makes anytime
+  search slow to improve. The candidate: RWA* over the compiled task in
+  the optimizer's wall share, the polish after it as now. The probe reads
+  the ten worst-ratio cells with the incumbent's metric per restart.
 
 **Band:** complex 54.1 → 65 of 100, qualitative 64.3 → 72 of 92, simple
 flat. **Kill:** Lane 1b's — points flat with the wall spent. Probe first
