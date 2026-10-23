@@ -80,6 +80,13 @@ pub struct SelectArgs {
     /// and no other binary may write there.
     #[arg(long, value_name = "PATH")]
     pub engine: Option<PathBuf>,
+    /// Set `K=V` in the engine's environment on every row (repeatable), e.g.
+    /// `--env FF_RUNG_ONLY=lama` -- the per-rung matrix (0.31 Phase 0.5).
+    /// The env is part of a board's identity, so the rows land on their own
+    /// board row in the database, never on the real board's. Subsets only,
+    /// and `--name` must say what the variant is.
+    #[arg(long = "env", value_name = "K=V")]
+    pub env: Vec<String>,
 }
 
 /// A parsed [`SelectArgs`]. `Select::default()` is the whole set, and a sweep
@@ -88,6 +95,9 @@ pub struct SelectArgs {
 pub struct Select {
     /// The binary to measure instead of the candidate; `None` is the candidate.
     pub engine: Option<PathBuf>,
+    /// Extra engine env for every row (`--env K=V`), merged over the board's
+    /// own; empty is the board as the manifest wrote it.
+    pub env: BTreeMap<String, String>,
     name: Option<String>,
     boards: Vec<String>,
     only: Option<regex::Regex>,
@@ -126,8 +136,25 @@ impl Select {
                 "--name {n:?}: letters, digits, '-', '_' and '.' only -- it becomes a directory"
             );
         }
+        let mut env = BTreeMap::new();
+        for kv in &a.env {
+            let (k, v) = kv
+                .split_once('=')
+                .ok_or_else(|| anyhow::anyhow!("--env {kv:?}: expected K=V"))?;
+            let k = k.trim();
+            anyhow::ensure!(
+                !k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'),
+                "--env {kv:?}: the key must be a plain identifier"
+            );
+            anyhow::ensure!(
+                !matches!(k, "FF_TIME_LIMIT" | "FF_MEM_BUDGET_GB"),
+                "--env {k}: the wall and the memory budget are the board's stamp, not a knob"
+            );
+            env.insert(k.to_string(), v.trim().to_string());
+        }
         let sel = Select {
             engine: a.engine.clone(),
+            env,
             name: a.name.clone(),
             boards: a.boards.clone(),
             only,
@@ -144,6 +171,10 @@ impl Select {
             "--engine measures an arbitrary binary, and only a SUBSET may: the set's own \
              stage belongs to the working tree's candidate (--board, --only, --rows or --prior)"
         );
+        anyhow::ensure!(
+            sel.env.is_empty() || sel.name.is_some(),
+            "--env changes what the rows measure; --name the subset after it (e.g. matrix31-lama)"
+        );
         Ok(sel)
     }
 
@@ -154,6 +185,7 @@ impl Select {
             || self.only.is_some()
             || self.rows.is_some()
             || self.prior.is_some()
+            || !self.env.is_empty()
     }
 
     /// The named boards that the set does not hold -- a typo must stop the
@@ -228,6 +260,9 @@ impl Select {
             Some(Prior::Solved) => parts.push("prior solved".into()),
             None => {}
         }
+        for (k, v) in &self.env {
+            parts.push(format!("env {k}={v}"));
+        }
         parts.join("; ")
     }
 }
@@ -258,6 +293,39 @@ mod tests {
         rows.iter()
             .map(|(k, s)| (k.to_string(), (*s, None)))
             .collect()
+    }
+
+    /// `--env K=V` (0.31 Phase 0.5): a subset of its own, named, with the
+    /// stamp's keys refused.
+    #[test]
+    fn env_makes_a_named_subset() {
+        let s = sel(SelectArgs {
+            env: vec!["FF_RUNG_ONLY=lama".into()],
+            name: Some("matrix31-lama".into()),
+            ..Default::default()
+        });
+        assert!(s.is_subset());
+        assert_eq!(s.env.get("FF_RUNG_ONLY").map(String::as_str), Some("lama"));
+        assert!(s.describe().contains("env FF_RUNG_ONLY=lama"));
+        // Unnamed: refused -- the stage must say what it measured.
+        assert!(Select::from_args(&SelectArgs {
+            env: vec!["FF_RUNG_ONLY=lama".into()],
+            ..Default::default()
+        })
+        .is_err());
+        // The wall is the board's stamp, never a knob.
+        assert!(Select::from_args(&SelectArgs {
+            env: vec!["FF_TIME_LIMIT=5".into()],
+            name: Some("x".into()),
+            ..Default::default()
+        })
+        .is_err());
+        assert!(Select::from_args(&SelectArgs {
+            env: vec!["novalue".into()],
+            name: Some("x".into()),
+            ..Default::default()
+        })
+        .is_err());
     }
 
     #[test]

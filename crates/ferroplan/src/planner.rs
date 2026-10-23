@@ -18,6 +18,17 @@ pub fn run_planner(
     opts: &crate::Options,
     ipc: bool,
 ) -> (String, i32) {
+    // The wall clock (`FF_TIME_LIMIT`) is armed HERE, before the parse, as
+    // `api::solve` arms it (0.31 Phase 0.4). Until now the text path
+    // grounded and ran its partition-first attempt with no wall armed --
+    // `crate::solve` arms it, and the text path never passes through
+    // `crate::solve` -- so a ring(40,12) under `FF_TIME_LIMIT=12` narrated
+    // `remaining None` and ran past 30 s (found 2026-10-17 calibrating the
+    // Lane 6 fixture). The boards and every probe go through `--json`, so
+    // no measurement was touched; the drop-in's contract was. Arming is a
+    // process-wide `OnceLock`: a second arm is a no-op, so the library path
+    // reached from here is unchanged.
+    crate::search::arm_wall_limit();
     // `--mode sat` (0.24, the wing): the SAT compilation owns its own text
     // rendering — the capped/declined honesty lives in the notes, and the
     // no-plan line never says "unsolvable" (a bounded-horizon verdict is

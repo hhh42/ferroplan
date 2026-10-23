@@ -108,6 +108,14 @@ pub struct Scheduler {
     /// wide batch; below `pack_narrow_max_frac` the narrow one; else solo.
     pub pack_max_frac: f64,
     pub pack_narrow_max_frac: f64,
+    /// While the operator is at the keyboard, a solo row the predecessor
+    /// FAILED waits (0.31 Phase 0.3): such a row is a likely wall-long
+    /// timeout, the throttle demotes running children to the background
+    /// band while someone is there, and a demoted timeout is owed (the
+    /// E-core defect, 13x slower) -- cut30 owed 4.7 h of them. Holding
+    /// costs nothing a demotion would not have cost; the predecessor's
+    /// solves, the short rows, keep the day width busy.
+    pub hold_failed_by_day: bool,
     /// Memory held back from the packed budget, and the headroom over an
     /// instance's prior peak RSS when sizing a batch.
     pub mem_reserve_gb: f64,
@@ -168,6 +176,15 @@ pub struct Referee {
     pub canary_baseline_n: u32,
     /// Above this factor a timeout measured in the window is owed.
     pub canary_max_factor: f64,
+    /// A FIXED binary to run the canary with (0.31 Phase 0.2). Unset, the
+    /// canary is the swept engine and its history is keyed by that engine's
+    /// hash -- so every engine re-learns the box's per-width line and a
+    /// window never reaches its five readings per width. Pinned, the label
+    /// carries the pinned binary's content hash instead and the line
+    /// carries across engines; the banked predecessor's `ff` is the
+    /// natural pin. A pinned path that is missing falls back to the engine,
+    /// saying so.
+    pub canary_engine: Option<std::path::PathBuf>,
     /// A SOLVE that spent this fraction of its budget or more -- or came back
     /// without its price -- is judged by the same box signals a timeout is
     /// (demoted, canary, swap, clock jump) instead of banking on sight (0.29
@@ -192,6 +209,7 @@ impl Default for Referee {
             canary_interval_secs: 1200,
             canary_baseline_n: 5,
             canary_max_factor: 1.15,
+            canary_engine: None,
             solved_wall_frac: 0.5,
             admit_below_full: true,
         }
@@ -275,6 +293,7 @@ impl Default for Scheduler {
             // lose a row -- so the tiers lean on that.
             pack_max_frac: 0.75,
             pack_narrow_max_frac: 0.95,
+            hold_failed_by_day: true,
             mem_reserve_gb: 3.0,
             mem_reserve_idle_gb: 1.5,
             rss_headroom: 1.5,

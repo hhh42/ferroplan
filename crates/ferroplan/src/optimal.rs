@@ -80,7 +80,8 @@ fn inconclusive(expanded: usize, evaluated: usize, heuristic: &'static str) -> O
 /// evaluated against init. `Err` names the first op whose cost the mode
 /// genuinely cannot certify. A CONDITIONAL effect on the cost fluent is
 /// state-dependent by construction and rejects the same way.
-fn op_costs(task: &PackedTask, cf: Option<usize>) -> Result<Vec<f64>, String> {
+#[doc(hidden)]
+pub fn op_costs(task: &PackedTask, cf: Option<usize>) -> Result<Vec<f64>, String> {
     let Some(cf) = cf else {
         return Ok(vec![1.0; task.n_ops]);
     };
@@ -1501,6 +1502,11 @@ struct AstarState<'t> {
     htask: Option<PackedTask>,
     hname: &'static str,
     costs: Vec<f64>,
+    /// The installed pattern database (0.31 Lane C.1, `crate::pdb`):
+    /// max()ed with the propositional component -- a max of admissible
+    /// bounds is admissible. Skipped under the goal-iso relaxation
+    /// (`htask`): the table is built against the full goal.
+    pdb: Option<std::sync::Arc<crate::pdb::Pdb>>,
     per_node: usize,
     reserve_on: bool,
     // Primed lazily on the first run() call, AFTER its deadline check —
@@ -1557,15 +1563,24 @@ impl<'t> AstarState<'t> {
         // rides along as "+numRPG" (0.22 Phase 4 L1) and the canonical
         // visited keys as "+orbits" (0.23 Phase 5 rider) so the record
         // names EVERY component without archaeology.
-        let hname: &'static str = match (use_lmcut, num, orbit.is_some()) {
-            (true, true, true) => "LM-cut+numRPG+orbits",
-            (true, true, false) => "LM-cut+numRPG",
-            (true, false, true) => "LM-cut+orbits",
-            (true, false, false) => "LM-cut",
-            (false, true, true) => "h^max+numRPG+orbits",
-            (false, true, false) => "h^max+numRPG",
-            (false, false, true) => "h^max+orbits",
-            (false, false, false) => "h^max",
+        let pdb = crate::pdb::current();
+        let hname: &'static str = match (use_lmcut, num, orbit.is_some(), pdb.is_some()) {
+            (true, true, true, false) => "LM-cut+numRPG+orbits",
+            (true, true, false, false) => "LM-cut+numRPG",
+            (true, false, true, false) => "LM-cut+orbits",
+            (true, false, false, false) => "LM-cut",
+            (false, true, true, false) => "h^max+numRPG+orbits",
+            (false, true, false, false) => "h^max+numRPG",
+            (false, false, true, false) => "h^max+orbits",
+            (false, false, false, false) => "h^max",
+            (true, true, true, true) => "LM-cut+numRPG+orbits+PDB",
+            (true, true, false, true) => "LM-cut+numRPG+PDB",
+            (true, false, true, true) => "LM-cut+orbits+PDB",
+            (true, false, false, true) => "LM-cut+PDB",
+            (false, true, true, true) => "h^max+numRPG+orbits+PDB",
+            (false, true, false, true) => "h^max+numRPG+PDB",
+            (false, false, true, true) => "h^max+orbits+PDB",
+            (false, false, false, true) => "h^max+PDB",
         };
         let costs = match op_costs(task, cf) {
             Ok(c) => c,
@@ -1599,6 +1614,7 @@ impl<'t> AstarState<'t> {
             htask,
             hname,
             costs,
+            pdb,
             // The teardown reserve (0.22 Phase 2): dropping the arena is
             // paid at RETURN, before the caller can report —
             // sailing-wind-opt i9 measured ~13 s of frees for ~4.5M
@@ -1666,6 +1682,15 @@ impl<'t> AstarState<'t> {
             h
         } else {
             hmax(task, s, graph, &self.costs, w)
+        };
+        if ph.is_infinite() {
+            return ph;
+        }
+        // The pattern database (0.31 Lane C.1): a second admissible bound,
+        // max()ed in; its ∞ is a safe prune like the relaxed one.
+        let ph = match (&self.pdb, self.htask.is_none()) {
+            (Some(p), true) => ph.max(p.h(&s.bits)),
+            _ => ph,
         };
         if ph.is_infinite() {
             return ph;

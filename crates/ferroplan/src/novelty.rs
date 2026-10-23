@@ -45,7 +45,7 @@ use crate::par;
 const PREF_BATCH: usize = 192;
 const NORM_BATCH: usize = 64;
 /// Key layout: novel flag dominates, then unachieved goals, then parent h.
-const W_NOVEL: i64 = 1 << 40;
+pub(crate) const W_NOVEL: i64 = 1 << 40;
 const W_GOALS: i64 = 1 << 20;
 
 type Cand = (usize, usize, State, u64, i32, bool);
@@ -71,21 +71,33 @@ type NumEnvelopes = FxHashMap<(u16, u16), Vec<(i64, i64)>>;
 /// (packed.rs's 1e-6 state-key quantizer): a state whose fluent leaves
 /// the envelope is novel, first touch of a cell is novel. OFF ⇒
 /// `num_cells` is None and `qvals` stays empty — zero cost.
-struct Seen {
+pub(crate) struct Seen {
     words: usize,
     cells: FxHashMap<(u16, u16), Vec<u64>>,
     num_cells: Option<NumEnvelopes>,
 }
 
 impl Seen {
-    fn new(words: usize, numnov: bool) -> Self {
+    pub(crate) fn new(words: usize, numnov: bool) -> Self {
         Seen {
             words,
             cells: FxHashMap::default(),
             num_cells: numnov.then(FxHashMap::default),
         }
     }
-    fn novel_and_mark(&mut self, cell: (u16, u16), bits: &[u64], qvals: &[i64]) -> bool {
+    /// FORGETTING (0.31 Lane B, Scorpion Maidu's idea): every tuple seen so
+    /// far is dropped and tracking starts again -- the caller does this
+    /// when the search makes progress by a signal orthogonal to novelty
+    /// (a new best goal count or heuristic value), so the states after
+    /// the progress are novel against the states after it, not against
+    /// everything the search ever saw.
+    pub(crate) fn forget(&mut self) {
+        self.cells.clear();
+        if let Some(nc) = &mut self.num_cells {
+            nc.clear();
+        }
+    }
+    pub(crate) fn novel_and_mark(&mut self, cell: (u16, u16), bits: &[u64], qvals: &[i64]) -> bool {
         let t = self
             .cells
             .entry(cell)
@@ -120,6 +132,107 @@ impl Seen {
             }
         }
         novel
+    }
+}
+
+/// Width-2 tables over an R list (0.31 Lane B: the driver's lever 2
+/// factored out so the LAMA rung can share it). A table per (partition
+/// cell, R version), triangle-packed over unordered R pairs, lazily
+/// allocated; `mark` reports whether any (new x true) pair was unseen in
+/// the cell and marks every such pair. R VERSIONS: the driver may recompute
+/// R when a state lowers the goal count (BFWS(f5)'s path-dependent #r),
+/// and a pair index means nothing across two R lists, so the tables are
+/// keyed by the version too. Version 0 is the root's R.
+pub(crate) struct PairTables {
+    on: bool,
+    /// `(r_len, pair_words)` per version.
+    versions: Vec<(usize, usize)>,
+    tables: FxHashMap<(u16, u16, u32), Vec<u64>>,
+}
+
+impl PairTables {
+    pub(crate) fn new(on: bool) -> Self {
+        PairTables {
+            on,
+            versions: Vec::new(),
+            tables: FxHashMap::default(),
+        }
+    }
+    /// Register an R list's length; returns its version id.
+    pub(crate) fn add_version(&mut self, r_len: usize) -> u32 {
+        let pair_words = if self.on && r_len >= 2 {
+            (r_len * (r_len - 1) / 2).div_ceil(64)
+        } else {
+            0
+        };
+        self.versions.push((r_len, pair_words));
+        (self.versions.len() - 1) as u32
+    }
+    pub(crate) fn on(&self) -> bool {
+        self.on
+    }
+    pub(crate) fn forget(&mut self) {
+        self.tables.clear();
+    }
+    /// Cost-bounded by construction: only (changed-to-true x true) pairs
+    /// are checked and marked -- the unchanged x unchanged pairs are the
+    /// parent's, already marked when the parent entered this cell.
+    pub(crate) fn mark(
+        &mut self,
+        cell: (u16, u16),
+        version: u32,
+        r_true: &[u16],
+        r_new: &[u16],
+    ) -> bool {
+        let (r_len, pair_words) = self.versions[version as usize];
+        if pair_words == 0 || r_new.is_empty() {
+            return false;
+        }
+        let t = self
+            .tables
+            .entry((cell.0, cell.1, version))
+            .or_insert_with(|| vec![0u64; pair_words]);
+        let mut novel2 = false;
+        for &a in r_new {
+            for &b in r_true {
+                if a == b {
+                    continue;
+                }
+                let (i, j) = if a < b {
+                    (a as usize, b as usize)
+                } else {
+                    (b as usize, a as usize)
+                };
+                let idx = tri(i, j, r_len);
+                if t[idx >> 6] & (1 << (idx & 63)) == 0 {
+                    t[idx >> 6] |= 1 << (idx & 63);
+                    novel2 = true;
+                }
+            }
+        }
+        novel2
+    }
+}
+
+/// The (true, changed-to-true) R indices of `state` against its parent's
+/// bits (`None` parent: every true R fact is new -- the root, or a fresh
+/// R version). Into the caller's scratch vectors.
+pub(crate) fn r_true_new(
+    r: &[u32],
+    state: &State,
+    parent: Option<&[u64]>,
+    r_true: &mut Vec<u16>,
+    r_new: &mut Vec<u16>,
+) {
+    r_true.clear();
+    r_new.clear();
+    for (i, &f) in r.iter().enumerate() {
+        if crate::bitset::test(&state.bits, f as usize) {
+            r_true.push(i as u16);
+            if parent.map_or(true, |pb| !crate::bitset::test(pb, f as usize)) {
+                r_new.push(i as u16);
+            }
+        }
     }
 }
 
@@ -407,6 +520,18 @@ pub fn search_light(
     max_eval: usize,
     forbidden: &[bool],
 ) -> Option<(Vec<usize>, usize)> {
+    search_light_sliced(task, max_eval, forbidden, None)
+}
+
+/// [`search_light`] with the rung's wall share chosen by the caller:
+/// `Some(frac)` of the remaining wall (the matrix hatch passes 1.0 -- the
+/// whole wall, 0.31 Phase 0.5), `None` the ladder's own rule below.
+pub fn search_light_sliced(
+    task: &PackedTask,
+    max_eval: usize,
+    forbidden: &[bool],
+    wall_frac: Option<f64>,
+) -> Option<(Vec<usize>, usize)> {
     // The ladder tax (0.21 Phase 5, lever 1): under an ARMED wall budget
     // the unconditional pop cap gains a wall-denominated bound —
     // `FF_NOVLIGHT_WALL_FRAC` (default 0.10) of the REMAINING wall at
@@ -417,11 +542,15 @@ pub fn search_light(
     // the slice by construction; what it cuts is the tens of seconds a
     // big task's 300k pops spend ahead of the rung that would have
     // solved (the 0.21 backfill's −34 receipt). No armed budget ⇒
-    // `None` ⇒ byte-identical.
+    // `None` ⇒ byte-identical. The table (0.31 Lane A, `ladder.rs`) sits
+    // between the explicit knob and the default.
     let slice = crate::search::wall_remaining_secs().map(|rem| {
         (
             crate::clock::Clock::now(),
-            crate::search::wall_frac_env("FF_NOVLIGHT_WALL_FRAC", 0.10) * rem,
+            match wall_frac {
+                Some(f) => f * rem,
+                None => crate::ladder::slice_secs("novlight", "FF_NOVLIGHT_WALL_FRAC", 0.10, rem),
+            },
         )
     });
     let node_cap = crate::search::node_cap_for(task);
@@ -594,6 +723,24 @@ pub struct DriverCfg {
     /// Lever 1's cap, `FF_NOV_R_CAP` (default 256): |R| bound, lowest
     /// fact_layer first (256² pair bits = the 4 KB/cell table ceiling).
     pub r_cap: usize,
+    /// 0.31 Lane B, the FRONT END (`FF_NOV_PRUNE=1`): a non-novel state
+    /// (no new atom, no new R pair in its cell) is not queued at all --
+    /// Dual BFWS's polynomial front end (Lipovetzky & Geffner 2017: the
+    /// pruned BFWS(f5) solved 151 of 280 on its own and "succeeds or fails
+    /// very fast"). Incomplete by construction, bounded by |F|^2 x |G|
+    /// states; the ladder runs it as a rung ahead of LAMA.
+    pub prune: bool,
+    /// 0.31 Lane B, R REFRESH (`FF_NOV_REFRESH=1`): the paper's #r -- a
+    /// state that lowers the goal count against its parent gets a NEW R
+    /// from its own relaxed plan, and its descendants count against that
+    /// list; one heuristic call per such state, never per pop. Off, R is
+    /// the root's for the whole search (0.22).
+    pub refresh: bool,
+    /// 0.31 Lane B, FORGETTING (`FF_NOV_FORGET=1`, Scorpion Maidu): on a
+    /// new best goal count every novelty table is cleared, so the search
+    /// after the progress explores against itself, not against everything
+    /// before it.
+    pub forget: bool,
 }
 
 impl Default for DriverCfg {
@@ -602,6 +749,9 @@ impl Default for DriverCfg {
             partition: true,
             width2: true,
             r_cap: 256,
+            prune: false,
+            refresh: false,
+            forget: false,
         }
     }
 }
@@ -612,6 +762,7 @@ impl DriverCfg {
     /// knob with the pair-table ceiling as default.
     pub fn from_env() -> Self {
         let off = |var: &str| std::env::var(var).is_ok_and(|v| v.trim() == "0");
+        let on = |var: &str| std::env::var(var).is_ok_and(|v| v.trim() == "1");
         DriverCfg {
             partition: !off("FF_NOV_PART"),
             width2: !off("FF_NOV_W2"),
@@ -621,6 +772,28 @@ impl DriverCfg {
                 .filter(|&c| c >= 1)
                 .unwrap_or(256)
                 .min(u16::MAX as usize),
+            prune: on("FF_NOV_PRUNE"),
+            refresh: on("FF_NOV_REFRESH"),
+            forget: on("FF_NOV_FORGET"),
+        }
+    }
+
+    /// The front end: `from_env` with the prune on (the ladder's `front`
+    /// rung and the matrix's).
+    pub fn front() -> Self {
+        DriverCfg {
+            prune: true,
+            ..Self::from_env()
+        }
+    }
+
+    /// The paper's driver: `from_env` with R refresh and forgetting on
+    /// (the matrix's `driverx`).
+    pub fn extended() -> Self {
+        DriverCfg {
+            refresh: true,
+            forget: true,
+            ..Self::from_env()
         }
     }
 }
@@ -690,6 +863,8 @@ struct DNode {
     op: usize,
     /// Achieved-R bitset over the R LIST index, path-monotone.
     r_acc: Vec<u64>,
+    /// Which R list `r_acc` indexes (0.31 Lane B: R refresh).
+    rv: u32,
 }
 
 fn d_reconstruct(nodes: &[DNode], mut ni: usize) -> Vec<usize> {
@@ -741,117 +916,100 @@ pub fn search_driver(
     if task.goal_met_with(&init, goal_pos, goal_num) {
         return Some((Vec::new(), 0));
     }
-    if std::env::var("FF_RES_DEBUG").is_ok() {
-        eprintln!("[novelty-driver] enter: cap {max_eval}, {} ops", task.n_ops);
+    let dbg = std::env::var("FF_RES_DEBUG").is_ok();
+    if dbg {
+        eprintln!(
+            "[novelty-driver] enter: cap {max_eval}, {} ops{}{}{}",
+            task.n_ops,
+            if cfg.prune { ", pruned" } else { "" },
+            if cfg.refresh { ", R refresh" } else { "" },
+            if cfg.forget { ", forgetting" } else { "" }
+        );
     }
 
     // R is shared infrastructure: lever 1 keys cells with it, lever 2
-    // pairs over it — either lever alone still builds it.
-    let r_facts: Vec<u32> = if cfg.partition || cfg.width2 {
-        r_partition_facts(task, &init, goal_pos, goal_num, cfg.r_cap)
-    } else {
-        Vec::new()
+    // pairs over it -- either lever alone still builds it. R VERSIONS
+    // (0.31 Lane B): version 0 is the root's; with `cfg.refresh` a state
+    // that lowers #g against its parent gets its own, from its own relaxed
+    // plan, and its descendants accumulate against that list.
+    let want_r = cfg.partition || cfg.width2;
+    let r_of = |s: &State| -> Vec<u32> {
+        if want_r {
+            r_partition_facts(task, s, goal_pos, goal_num, cfg.r_cap)
+        } else {
+            Vec::new()
+        }
     };
-    let r_len = r_facts.len();
-    let r_words = r_len.div_ceil(64);
+    let mut r_versions: Vec<Vec<u32>> = vec![r_of(&init)];
     let words = init.bits.len();
     let numnov = numnov_on(task);
     let mut seen = Seen::new(words, numnov);
-    // Per-cell R×R pair tables (lever 2), triangle-packed; lazily
-    // allocated per cell like the width-1 tables.
-    let pair_words = if cfg.width2 && r_len >= 2 {
-        (r_len * (r_len - 1) / 2).div_ceil(64)
-    } else {
-        0
-    };
-    let mut pairs: FxHashMap<(u16, u16), Vec<u64>> = FxHashMap::default();
+    let mut pairs = PairTables::new(cfg.width2);
+    pairs.add_version(r_versions[0].len());
+    let popcount = |acc: &[u64]| acc.iter().map(|w| w.count_ones() as u16).sum::<u16>();
 
-    let mut root_acc = vec![0u64; r_words];
-    r_accept_into(&mut root_acc, &r_facts, &init);
-    let root_rc = root_acc.iter().map(|w| w.count_ones() as u16).sum::<u16>();
+    let mut root_acc = vec![0u64; r_versions[0].len().div_ceil(64)];
+    r_accept_into(&mut root_acc, &r_versions[0], &init);
+    let root_rc = popcount(&root_acc);
     let g0 = unachieved(task, &init, goal_pos);
     let root_cell = (g0, if cfg.partition { root_rc } else { 0 });
     seen.novel_and_mark(root_cell, &init.bits, &qvals_of(task, &init, numnov));
     // Seed the root's pair table: with no parent every true R fact is new
-    // (the marked-new×true induction's base case).
+    // (the marked-new x true induction's base case).
     let mut r_true: Vec<u16> = Vec::new();
     let mut r_new: Vec<u16> = Vec::new();
-    let mark_pairs = |cell: (u16, u16),
-                      r_true: &[u16],
-                      r_new: &[u16],
-                      pairs: &mut FxHashMap<(u16, u16), Vec<u64>>|
-     -> bool {
-        if pair_words == 0 || r_new.is_empty() {
-            return false;
-        }
-        let t = pairs.entry(cell).or_insert_with(|| vec![0u64; pair_words]);
-        let mut novel2 = false;
-        for &a in r_new {
-            for &b in r_true {
-                if a == b {
-                    continue;
-                }
-                let (i, j) = if a < b {
-                    (a as usize, b as usize)
-                } else {
-                    (b as usize, a as usize)
-                };
-                let idx = tri(i, j, r_len);
-                if t[idx >> 6] & (1 << (idx & 63)) == 0 {
-                    t[idx >> 6] |= 1 << (idx & 63);
-                    novel2 = true;
-                }
-            }
-        }
-        novel2
-    };
-    for (i, &f) in r_facts.iter().enumerate() {
-        if crate::bitset::test(&init.bits, f as usize) {
-            r_true.push(i as u16);
-            r_new.push(i as u16);
-        }
-    }
-    mark_pairs(root_cell, &r_true, &r_new, &mut pairs);
+    r_true_new(&r_versions[0], &init, None, &mut r_true, &mut r_new);
+    pairs.mark(root_cell, 0, &r_true, &r_new);
 
     // THE LAZY FRONTIER (0.30 Lane 5). `nodes` holds only the POPPED
-    // states -- an open entry is (key, father, op) on the heap and its
-    // state is regenerated from the father's when it is popped. The eager
-    // shape stored every generated successor's `State` and `r_acc` at
+    // states -- an open entry is (key, father, op, R version) on the heap
+    // and its state is regenerated from the father's when it is popped. The
+    // eager shape stored every generated successor's `State` and `r_acc` at
     // generation, and on city-car i6 this rung held 3,880,241 of them at
     // the memory wall after 29,952 pops: ~130 stored states per evaluated
     // one, a frontier the search never looked at. Duplicate detection is
-    // by state-key hash at generation (a 64-bit key; the eager shape
-    // compared the stored states exactly), so an open entry costs the heap
-    // tuple and a hash-set entry instead of a state.
+    // by state-key hash at generation (a 128-bit key), so an open entry
+    // costs the heap tuple and a hash-set entry instead of a state.
     let mut nodes = vec![DNode {
         state: init.clone(),
         father: usize::MAX,
         op: usize::MAX,
         r_acc: root_acc,
+        rv: 0,
     }];
-    // (key, father in `nodes`, op); `op == u32::MAX` is the root, already
-    // in `nodes` at `father`.
-    let mut heap: BinaryHeap<Reverse<(i64, u32, u32)>> = BinaryHeap::new();
-    heap.push(Reverse((0, 0, u32::MAX)));
+    // (key, father in `nodes`, op, R version); `op == u32::MAX` is the
+    // root, already in `nodes` at `father`.
+    let mut heap: BinaryHeap<Reverse<(i64, u32, u32, u32)>> = BinaryHeap::new();
+    heap.push(Reverse((0, 0, u32::MAX, 0)));
     // A 128-bit key (0.30 Lane 5): the 64-bit router hash collided on
     // rovers-metric-time i28 and the lazy LAMA lost the cell to it.
     let mut seen_keys: FxHashMap<u128, ()> = FxHashMap::default();
     seen_keys.insert(task.state_key_hash128(&init, None), ());
     let mut evaluated = 0usize;
+    // Forgetting's progress signal: the best goal count so far.
+    let mut best_g = g0;
+    let mut forgets = 0usize;
 
-    while let Some(Reverse((_, father, op))) = heap.pop() {
+    while let Some(Reverse((_, father, op, rv))) = heap.pop() {
         let ni = if op == u32::MAX {
             father as usize
         } else {
             let father = father as usize;
             let ns = task.apply(op as usize, &nodes[father].state);
-            let mut acc = nodes[father].r_acc.clone();
-            r_accept_into(&mut acc, &r_facts, &ns);
+            // The accumulator: the father's carried on under its R, or a
+            // fresh one under the version this state was given.
+            let mut acc = if rv == nodes[father].rv {
+                nodes[father].r_acc.clone()
+            } else {
+                vec![0u64; r_versions[rv as usize].len().div_ceil(64)]
+            };
+            r_accept_into(&mut acc, &r_versions[rv as usize], &ns);
             nodes.push(DNode {
                 state: ns,
                 father,
                 op: op as usize,
                 r_acc: acc,
+                rv,
             });
             nodes.len() - 1
         };
@@ -862,11 +1020,12 @@ pub fn search_driver(
         // The node cap counts what is HELD: the closed states and the open
         // entries, as the eager shape's `nodes.len()` did.
         if evaluated > max_eval || nodes.len() + heap.len() > node_cap {
-            if std::env::var("FF_RES_DEBUG").is_ok() {
+            if dbg {
                 eprintln!(
-                    "[novelty-driver] capped: {evaluated} pops (max {max_eval}), {} nodes ({} closed)",
+                    "[novelty-driver] capped: {evaluated} pops (max {max_eval}), {} nodes ({} closed), {} R versions, {forgets} forgets",
                     nodes.len() + heap.len(),
-                    nodes.len()
+                    nodes.len(),
+                    r_versions.len()
                 );
             }
             return None;
@@ -899,6 +1058,8 @@ pub fn search_driver(
                 return None;
             }
         }
+        let parent_g = unachieved(task, &nodes[ni].state, goal_pos);
+        let parent_rv = nodes[ni].rv;
         let mut cands = Vec::new();
         task.applicable_ops(&nodes[ni].state, &mut cands);
         for &oi in &cands {
@@ -911,34 +1072,49 @@ pub fn search_driver(
             if seen_keys.insert(k, ()).is_some() {
                 continue;
             }
-            // Transient: the child's accepted-R count prices its key; the
-            // vector itself is rebuilt from the father's if it is popped.
-            let mut acc = nodes[ni].r_acc.clone();
-            r_accept_into(&mut acc, &r_facts, &ns);
-            let r_count = acc.iter().map(|w| w.count_ones() as u16).sum::<u16>();
             let g = unachieved(task, &ns, goal_pos);
+            // The child's R: its parent's, or -- a goal-count improvement
+            // under refresh -- its own, from its own relaxed plan. The
+            // accumulator is transient here (it prices the key) and is
+            // rebuilt from the father's if the entry is popped.
+            let refreshed = cfg.refresh && g < parent_g;
+            let child_rv = if refreshed {
+                let r = r_of(&ns);
+                let v = pairs.add_version(r.len());
+                r_versions.push(r);
+                v
+            } else {
+                parent_rv
+            };
+            let r = &r_versions[child_rv as usize];
+            let mut acc = if refreshed {
+                vec![0u64; r.len().div_ceil(64)]
+            } else {
+                nodes[ni].r_acc.clone()
+            };
+            r_accept_into(&mut acc, r, &ns);
+            let r_count = popcount(&acc);
             let cell = (g, if cfg.partition { r_count } else { 0 });
-            let novel1 = seen.novel_and_mark(cell, &ns.bits, &qvals_of(task, &ns, numnov));
-            // Lever 2's pair scan, cost-bounded by construction: only
-            // (changed-to-true × true) R pairs are checked and marked —
-            // the unchanged×unchanged pairs are the parent's, already
-            // marked when the parent entered this cell (and a fresh cell
-            // re-marks through the new atoms that made the state enter
-            // it). Never n_facts².
-            r_true.clear();
-            r_new.clear();
-            if pair_words > 0 {
-                let pb = &nodes[ni].state.bits;
-                for (i, &f) in r_facts.iter().enumerate() {
-                    if crate::bitset::test(&ns.bits, f as usize) {
-                        r_true.push(i as u16);
-                        if !crate::bitset::test(pb, f as usize) {
-                            r_new.push(i as u16);
-                        }
-                    }
+            // Progress: a new best goal count. Under forgetting every
+            // table is cleared FIRST, so the state that made the progress
+            // is novel against the search that follows it.
+            if g < best_g {
+                best_g = g;
+                if cfg.forget {
+                    seen.forget();
+                    pairs.forget();
+                    forgets += 1;
                 }
             }
-            let novel2 = mark_pairs(cell, &r_true, &r_new, &mut pairs);
+            let novel1 = seen.novel_and_mark(cell, &ns.bits, &qvals_of(task, &ns, numnov));
+            // Lever 2's pair scan, cost-bounded by construction (see
+            // `PairTables::mark`); against the parent's bits, or against
+            // nothing when the R list is this state's own.
+            if pairs.on() {
+                let parent_bits = (!refreshed).then(|| nodes[ni].state.bits.as_slice());
+                r_true_new(r, &ns, parent_bits, &mut r_true, &mut r_new);
+            }
+            let novel2 = pairs.mark(cell, child_rv, &r_true, &r_new);
             let rank: i64 = if novel1 {
                 0
             } else if novel2 {
@@ -946,14 +1122,21 @@ pub fn search_driver(
             } else {
                 2
             };
-            let key = rank * W_NOVEL + g as i64 * W_GOALS + (r_len as i64 - r_count as i64);
-            heap.push(Reverse((key, ni as u32, oi as u32)));
+            // The front end: a non-novel state is not queued. It stays in
+            // `seen_keys`, so it is never regenerated either -- the search
+            // is polynomial in |F| and |G| and fails fast where it fails.
+            if cfg.prune && rank == 2 {
+                continue;
+            }
+            let key = rank * W_NOVEL + g as i64 * W_GOALS + (r.len() as i64 - r_count as i64);
+            heap.push(Reverse((key, ni as u32, oi as u32, child_rv)));
         }
     }
-    if std::env::var("FF_RES_DEBUG").is_ok() {
+    if dbg {
         eprintln!(
-            "[novelty-driver] open list exhausted at {evaluated} pops, {} nodes",
-            nodes.len()
+            "[novelty-driver] open list exhausted at {evaluated} pops, {} nodes, {} R versions, {forgets} forgets",
+            nodes.len(),
+            r_versions.len()
         );
     }
     None

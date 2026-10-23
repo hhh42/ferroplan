@@ -53,6 +53,7 @@ pub mod hash;
 pub mod heuristic;
 pub mod introspect;
 pub mod invariants;
+pub mod ladder;
 pub mod lama;
 pub mod landmarks;
 pub mod lexer;
@@ -64,9 +65,11 @@ pub mod output;
 pub mod packed;
 pub mod par;
 pub mod parser;
+pub mod pdb;
 pub mod resource;
 pub mod search;
 pub mod types;
+pub mod vars;
 
 // modes (built on the engine)
 pub mod constraints;

@@ -73,12 +73,31 @@ pub fn search(
     forbidden: &[bool],
     slice: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
+    search_cfg(task, threads, max_eval, forbidden, slice, false)
+}
+
+/// [`search`] with the NOVELTY-FIRST key (0.31 Lane B) chosen by the
+/// caller: `novelty = true` is BFWS(f6)'s shape -- a 3-level novelty
+/// measure relative to the ⟨landmark count, parent h⟩ pair leads the key,
+/// the ⟨W_FF·h + W_LM·lm⟩ currency breaks ties, the dual heaps and the
+/// deferred evaluation stay (Lipovetzky & Geffner 2017: pushing a novelty
+/// preference in front of ⟨hL, hff⟩ took 99 → 149 of 280 on IPC-2014;
+/// Scorpion Maidu's winning configuration is LAMA's queues plus one such
+/// queue, with FORGETTING). `false` is the 0.30 rung, byte-identical.
+pub fn search_cfg(
+    task: &PackedTask,
+    threads: usize,
+    max_eval: usize,
+    forbidden: &[bool],
+    slice: Option<(crate::clock::Clock, f64)>,
+    novelty: bool,
+) -> Option<(Vec<usize>, usize)> {
     let init = task.initial();
     // Length-anytime on the whole-task rung only (subgoal probes return on
     // first goal — a cascade merge wants speed, not polish). Opt-in; see
     // SearchCfg::len_anytime for the measured default-off verdict.
     let len_anytime = std::env::var("FF_LEN_ANYTIME").is_ok();
-    search_subgoal(
+    search_subgoal_inner(
         task,
         &init,
         &task.goal_pos,
@@ -88,6 +107,7 @@ pub fn search(
         forbidden,
         len_anytime,
         slice,
+        novelty,
     )
 }
 
@@ -107,7 +127,55 @@ pub fn search_subgoal(
     len_anytime: bool,
     slice: Option<(crate::clock::Clock, f64)>,
 ) -> Option<(Vec<usize>, usize)> {
+    search_subgoal_inner(
+        task,
+        start,
+        goal_pos,
+        goal_num,
+        threads,
+        max_eval,
+        forbidden,
+        len_anytime,
+        slice,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn search_subgoal_inner(
+    task: &PackedTask,
+    start: &State,
+    goal_pos: &[u32],
+    goal_num: &[crate::types::NumPre],
+    threads: usize,
+    max_eval: usize,
+    forbidden: &[bool],
+    len_anytime: bool,
+    slice: Option<(crate::clock::Clock, f64)>,
+    novelty: bool,
+) -> Option<(Vec<usize>, usize)> {
     let lms = crate::landmarks::landmarks_for(task, start, goal_pos);
+    // NOVELTY FIRST (0.31 Lane B): the atom tables per ⟨lm, parent-h⟩ cell
+    // (width 1 over every fact), the pair tables over the driver's R list
+    // (width 2, `novelty::PairTables`), and forgetting on progress unless
+    // `FF_LAMA_NOV_FORGET=0`. Off, none of this allocates.
+    let r_facts: Vec<u32> = if novelty {
+        crate::novelty::r_partition_facts(task, start, goal_pos, goal_num, 256)
+    } else {
+        Vec::new()
+    };
+    let mut seen = crate::novelty::Seen::new(if novelty { start.bits.len() } else { 0 }, false);
+    let mut pairs = crate::novelty::PairTables::new(novelty && r_facts.len() >= 2);
+    pairs.add_version(r_facts.len());
+    let forget = novelty && std::env::var("FF_LAMA_NOV_FORGET").map_or(true, |v| v.trim() != "0");
+    let (mut r_true, mut r_new) = (Vec::<u16>::new(), Vec::<u16>::new());
+    let nov_cell = |lm: i64, ph: i32| -> (u16, u16) {
+        (
+            lm.clamp(0, u16::MAX as i64) as u16,
+            (ph.max(0) as i64).min(u16::MAX as i64) as u16,
+        )
+    };
+    let mut forgets = 0usize;
     let lm_words = lms.len().div_ceil(64);
     let node_cap = crate::search::node_cap_for(task);
     // The MEASURED memory wall for a bounded rung (0.30 Lane 5): the
@@ -120,6 +188,12 @@ pub fn search_subgoal(
     let init = start.clone();
     let mut accepted0 = vec![0u64; lm_words];
     accept_into(&mut accepted0, &lms, &init);
+    if novelty {
+        let cell = nov_cell(unaccepted(&accepted0, lms.len()), 0);
+        seen.novel_and_mark(cell, &init.bits, &[]);
+        crate::novelty::r_true_new(&r_facts, &init, None, &mut r_true, &mut r_new);
+        pairs.mark(cell, 0, &r_true, &r_new);
+    }
     let mut nodes = vec![Node {
         state: init.clone(),
         father: usize::MAX,
@@ -328,7 +402,7 @@ pub fn search_subgoal(
             // budget spent: the incumbent (if any), else hand off to the fallback
             if std::env::var("FF_RES_DEBUG").is_ok() {
                 eprintln!(
-                    "[lama] capped: {evaluated} evals (max {max_eval}), {} nodes ({} closed, cap {node_cap}; {false_drops} hash-only drops against a different closed state)",
+                    "[lama] capped: {evaluated} evals (max {max_eval}), {} nodes ({} closed, cap {node_cap}; {false_drops} hash-only drops against a different closed state; novelty {novelty}, {forgets} forgets)",
                     nodes.len() + norm_heap.len(),
                     nodes.len()
                 );
@@ -468,15 +542,48 @@ pub fn search_subgoal(
                     let h_lm = unaccepted(&accepted, lms.len());
                     // The slice's convergence signal (see the tracker
                     // docs at the loop head).
+                    let mut progress = false;
                     if h_lm < best_hlm {
                         best_hlm = h_lm;
                         improved = true;
+                        progress = true;
                     }
                     if (ph as i64) < best_ph {
                         best_ph = ph as i64;
                         improved = true;
+                        progress = true;
                     }
-                    let key = W_FF * ph as i64 + W_LM * h_lm;
+                    let mut key = W_FF * ph as i64 + W_LM * h_lm;
+                    if novelty {
+                        // Progress by a signal orthogonal to novelty: under
+                        // forgetting every table is cleared first, so the
+                        // state that made it is novel against what follows.
+                        if forget && progress {
+                            seen.forget();
+                            pairs.forget();
+                            forgets += 1;
+                        }
+                        let cell = nov_cell(h_lm, ph);
+                        let novel1 = seen.novel_and_mark(cell, &s.bits, &[]);
+                        if pairs.on() {
+                            crate::novelty::r_true_new(
+                                &r_facts,
+                                &s,
+                                Some(&nodes[pi].state.bits),
+                                &mut r_true,
+                                &mut r_new,
+                            );
+                        }
+                        let novel2 = pairs.mark(cell, 0, &r_true, &r_new);
+                        let rank: i64 = if novel1 {
+                            0
+                        } else if novel2 {
+                            1
+                        } else {
+                            2
+                        };
+                        key += rank * crate::novelty::W_NOVEL;
+                    }
                     norm_heap.push(Reverse((key, pi as u32, oi as u32)));
                     if pref {
                         pref_heap.push(Reverse((key, pi as u32, oi as u32)));

@@ -509,6 +509,39 @@ pub(crate) fn wall_deadline() -> Option<(crate::clock::Clock, f64)> {
     *WALL.get_or_init(|| None)
 }
 
+/// The whole armed wall in seconds -- the tighter of the process limit and
+/// the per-call budget -- `None` when neither is set. The ladder table
+/// (0.31 Lane A, `ladder.rs`) scales its reference-wall seconds by this.
+pub(crate) fn wall_total_secs() -> Option<f64> {
+    let env = WALL.get_or_init(|| None).map(|(_, s)| s);
+    let call = call_budget().deadline.map(|(_, s)| s);
+    match (env, call) {
+        (Some(a), Some(b)) => Some(a.min(b)),
+        (x, None) => x,
+        (None, y) => y,
+    }
+}
+
+thread_local! {
+    /// THE RUNG THAT SOLVED (0.31 Phase 0.5): `narrate_rung`'s name, kept
+    /// for the JSON notes so a matrix row can say which rung produced its
+    /// plan without `FF_WALL_DEBUG`'s stderr. Taken by `api.rs` once per
+    /// solve; never read by the search.
+    static SOLVED_BY: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+fn note_solved_by(rung: &str) {
+    SOLVED_BY.with(|s| *s.borrow_mut() = Some(rung.to_string()));
+}
+
+/// The rung that produced the last plan on this thread, cleared by the
+/// read. `None` when no rung narrated (the portfolio and partition routes
+/// write their own notes).
+pub(crate) fn take_solved_by() -> Option<String> {
+    SOLVED_BY.with(|s| s.borrow_mut().take())
+}
+
 /// THE PER-CALL BUDGET (0.28): what THIS `solve` may spend, and a flag the
 /// caller can flip to stop it.
 ///
@@ -1803,12 +1836,17 @@ pub fn plan_avoiding(
     // budget ⇒ `None` ⇒ byte-identical; `FF_NO_RUNG_WALLCAP=1` restores
     // the 0.21 unsliced rungs (the tetris i4 RED shape: LAMA's 400k-eval
     // budget eating the clock ahead of the rung that solves).
-    let rung_slice = |var: &str, default: f64| {
+    //
+    // 0.31 Lane A: the slice's seconds come from `ladder::slice_secs` --
+    // the explicit `var` fraction when set, else the learned table's share
+    // for `rung` (`FF_LADDER_TABLE`), else `default` of the remaining wall,
+    // which is byte-identical to 0.30.
+    let rung_slice = |rung: &str, var: &str, default: f64| {
         if rung_wallcap_on() {
             wall_remaining_secs().map(|rem| {
                 (
                     crate::clock::Clock::now(),
-                    wall_frac_env(var, default) * rem,
+                    crate::ladder::slice_secs(rung, var, default, rem),
                 )
             })
         } else {
@@ -1865,10 +1903,130 @@ pub fn plan_avoiding(
     // to name WHICH rung solved, so each rung's win is narrated on
     // stderr under the same flag. Never affects the search.
     let narrate_rung = |rung: &str| {
+        note_solved_by(rung);
         if std::env::var("FF_WALL_DEBUG").is_ok() {
             eprintln!("wall: solved by {rung}");
         }
     };
+    // THE MATRIX HATCH (0.31 Phase 0.5, docs/roadmap-0.31.md Lane A):
+    // `FF_RUNG_ONLY=<rung>` runs ONE rung of this ladder with the whole
+    // remaining wall and the whole eval budget, and returns ITS verdict --
+    // never the next rung's. The per-rung solve-time matrix the ladder
+    // table is learned from is built by running every cell of a sample
+    // once per rung this way; the rungs' eval caps (LAMA's 400k, the
+    // driver's 400k, novelty-light's 300k) are the LADDER's memory and
+    // sanity bounds and do not apply here -- the matrix measures what a
+    // rung converts given wall, which is the only currency the allocator
+    // spends. `bfs` runs the best-first fallback (with its refill loop) and
+    // nothing before it; `partition` and `portfolio` are routes, not
+    // rungs, and `api.rs` maps them to their modes before the ladder is
+    // entered. An unknown name is narrated and the ladder runs as usual
+    // (a matrix row that silently ran the whole ladder would be a row
+    // attributed to nothing).
+    let rung_only = std::env::var("FF_RUNG_ONLY")
+        .ok()
+        .map(|v| v.trim().to_ascii_lowercase())
+        .filter(|v| !v.is_empty());
+    let mut bfs_only = false;
+    if let Some(only) = rung_only.as_deref() {
+        let solo = |rung: &str, r: Option<(Vec<usize>, usize)>| -> PlanOutcome {
+            match r {
+                Some((ops, evaluated)) => {
+                    narrate_rung(rung);
+                    PlanOutcome {
+                        ops: Some(ops),
+                        evaluated,
+                        ehc_fell_back: rung != "EHC",
+                        capped: false,
+                    }
+                }
+                // A rung's `None` is a hand-down, never a proof: the text
+                // path's "proven unsolvable" must not fire on it.
+                None => PlanOutcome {
+                    ops: None,
+                    evaluated: 0,
+                    ehc_fell_back: rung != "EHC",
+                    capped: true,
+                },
+            }
+        };
+        match only {
+            "ehc" => {
+                return solo(
+                    "EHC",
+                    ehc(task, forbidden, cfg.max_eval, cfg.deadline, Some(1.0)),
+                )
+            }
+            "novlight" | "novelty-light" => {
+                return solo(
+                    "novelty-light",
+                    crate::novelty::search_light_sliced(task, cfg.max_eval, forbidden, Some(1.0)),
+                )
+            }
+            "lama" => {
+                return solo(
+                    "LAMA",
+                    crate::lama::search(task, threads, cfg.max_eval, forbidden, None),
+                )
+            }
+            "driver" | "novelty-driver" => {
+                return solo(
+                    "novelty-driver",
+                    crate::novelty::search_driver(
+                        task,
+                        cfg.max_eval,
+                        forbidden,
+                        None,
+                        &crate::novelty::DriverCfg::from_env(),
+                    ),
+                )
+            }
+            "novelty" => {
+                return solo(
+                    "novelty",
+                    crate::novelty::search(task, threads, cfg.max_eval, forbidden, None),
+                )
+            }
+            // 0.31 Lane B's rungs, measured beside the others.
+            "front" => {
+                return solo(
+                    "novelty-front",
+                    crate::novelty::search_driver(
+                        task,
+                        cfg.max_eval,
+                        forbidden,
+                        None,
+                        &crate::novelty::DriverCfg::front(),
+                    ),
+                )
+            }
+            "driverx" => {
+                return solo(
+                    "novelty-driverx",
+                    crate::novelty::search_driver(
+                        task,
+                        cfg.max_eval,
+                        forbidden,
+                        None,
+                        &crate::novelty::DriverCfg::extended(),
+                    ),
+                )
+            }
+            "lamanov" => {
+                return solo(
+                    "LAMA-novelty",
+                    crate::lama::search_cfg(task, threads, cfg.max_eval, forbidden, None, true),
+                )
+            }
+            "bfs" | "fallback" => bfs_only = true,
+            "partition" | "portfolio" => {}
+            other => eprintln!(
+                "FF_RUNG_ONLY={other}: not a rung (ehc, novlight, lama, lamanov, driver, driverx, \
+                 front, novelty, bfs, partition, portfolio); the ladder runs as usual"
+            ),
+        }
+    }
+    let ehc_first = ehc_first && !bfs_only;
     if ehc_first {
         if let Some((ops, evaluated)) = ehc(
             task,
@@ -1920,16 +2078,48 @@ pub fn plan_avoiding(
         // boosting keep a gradient. Bounded, so the complete weighted
         // fallback below still gets its shot; never entered under an
         // explicit --search bfs. `FF_NO_LAMA=1` restores the two-rung ladder.
+        // THE FRONT END (0.31 Lane B, `FF_NOV_FRONT=1`): Dual BFWS's pruned
+        // BFWS(f5) -- the driver with non-novel states dropped -- ahead of
+        // LAMA, polynomial and fast to fail. Off by default until the
+        // matrix prices its slice (the anti-pot: no rung slice by hand).
+        if std::env::var("FF_NOV_FRONT").is_ok_and(|v| v.trim() == "1")
+            && rungs_affordable("novelty-front")
+        {
+            const FRONT_CAP: usize = 400_000;
+            let slice = sooner_deadline(
+                rung_slice("front", "FF_FRONT_WALL_FRAC", 0.15),
+                cfg.deadline,
+            );
+            if let Some((ops, evaluated)) = crate::novelty::search_driver(
+                task,
+                FRONT_CAP.min(cfg.max_eval),
+                forbidden,
+                slice,
+                &crate::novelty::DriverCfg::front(),
+            ) {
+                narrate_rung("novelty-front");
+                return PlanOutcome {
+                    ops: Some(ops),
+                    evaluated,
+                    ehc_fell_back: true,
+                    capped: false,
+                };
+            }
+        }
         if std::env::var("FF_NO_LAMA").is_err() && rungs_affordable("LAMA") {
             const LAMA_CAP: usize = 400_000;
-            if let Some((ops, evaluated)) = crate::lama::search(
+            // NOVELTY-FIRST LAMA (0.31 Lane B, `FF_LAMA_NOV=1`): the same
+            // rung with BFWS(f6)'s key; off by default until measured.
+            let lama_nov = std::env::var("FF_LAMA_NOV").is_ok_and(|v| v.trim() == "1");
+            if let Some((ops, evaluated)) = crate::lama::search_cfg(
                 task,
                 threads,
                 LAMA_CAP.min(cfg.max_eval),
                 forbidden,
-                sooner_deadline(rung_slice("FF_LAMA_WALL_FRAC", 0.25), cfg.deadline),
+                sooner_deadline(rung_slice("lama", "FF_LAMA_WALL_FRAC", 0.25), cfg.deadline),
+                lama_nov,
             ) {
-                narrate_rung("LAMA");
+                narrate_rung(if lama_nov { "LAMA-novelty" } else { "LAMA" });
                 return PlanOutcome {
                     ops: Some(ops),
                     evaluated,
@@ -1971,7 +2161,8 @@ pub fn plan_avoiding(
             // at 0.50 it converts 2011 i1/i2/i6/i7/i11 + 2008 i18 with LAMA
             // kept, spider i1 (the arrival canary) intact and faster.
             // `FF_NOV_WALL_FRAC=0.30` restores.
-            let slice = sooner_deadline(rung_slice("FF_NOV_WALL_FRAC", 0.50), cfg.deadline);
+            let slice =
+                sooner_deadline(rung_slice("driver", "FF_NOV_WALL_FRAC", 0.50), cfg.deadline);
             let solved = if old_rung {
                 crate::novelty::search(
                     task,
@@ -2204,11 +2395,16 @@ fn ehc(
     // `FF_NO_EHC_WALLCAP=1` restores op-scaled-only. A per-call deadline
     // (0.24 Phase 5, the budget-stamped think) folds in as the
     // earliest-expiring of the two — it is not subject to the hatch.
+    // The table (0.31 Lane A, `ladder.rs`) sits between the explicit knob
+    // and the default; a caller-given `wall_frac` still wins over both.
     let slice = if std::env::var("FF_NO_EHC_WALLCAP").is_err() {
         wall_remaining_secs().map(|rem| {
             (
                 crate::clock::Clock::now(),
-                wall_frac.unwrap_or_else(|| wall_frac_env("FF_EHC_WALL_FRAC", 0.25)) * rem,
+                match wall_frac {
+                    Some(f) => f * rem,
+                    None => crate::ladder::slice_secs("ehc", "FF_EHC_WALL_FRAC", 0.25, rem),
+                },
             )
         })
     } else {
@@ -2258,7 +2454,14 @@ fn ehc(
     // still hands down. `FF_NO_EHC_EXTEND=1` restores the fixed slice.
     let extend = std::env::var("FF_NO_EHC_EXTEND").is_err();
     let ceiling = slice.as_ref().and_then(|(t0, s)| {
-        let frac = wall_frac.unwrap_or_else(|| wall_frac_env("FF_EHC_WALL_FRAC", 0.25));
+        // The slice's EFFECTIVE fraction of the wall it entered with (a
+        // table share is seconds, not a fraction) prices the ceiling.
+        let frac = wall_remaining_secs()
+            .filter(|rem| *rem > 0.0)
+            .map(|rem| s / rem)
+            .unwrap_or_else(|| {
+                wall_frac.unwrap_or_else(|| wall_frac_env("FF_EHC_WALL_FRAC", 0.25))
+            });
         let max_frac = wall_frac_env("FF_EHC_WALL_MAX_FRAC", 0.6).max(frac);
         (extend && frac > 0.0).then(|| (*t0, s * max_frac / frac))
     });

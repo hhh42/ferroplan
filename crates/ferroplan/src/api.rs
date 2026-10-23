@@ -813,6 +813,78 @@ fn solve_sat(
     }
 }
 
+/// THE VARIABLE COVER RECEIPT (0.31 Lane C.0, `FF_VARS_DEBUG=1`): what a
+/// multi-valued (SAS+) view of this task would cost, read off the mutex
+/// groups `invariants::synthesize` already finds -- the abstraction
+/// heuristics of Lane C want variables, and this is the only place the
+/// engine could already have them. One stderr line: the groups, how many
+/// facts they cover of the task's, the largest group, and the synthesis
+/// time. Never affects the search; a probe reads it over the opt boards
+/// (`benchmarks/probes-0.31/opt/vars.py`).
+fn vars_debug(domain: &crate::types::Domain, task: &crate::packed::PackedTask) {
+    ground_debug(task);
+    if std::env::var("FF_VARS_DEBUG").is_err() {
+        return;
+    }
+    let t0 = crate::clock::Clock::now();
+    let groups = crate::invariants::synthesize(domain, task);
+    let secs = t0.elapsed_secs();
+    // A greedy disjoint cover, largest group first: the variables a SAS+
+    // translation would take, with every uncovered fact its own binary
+    // variable.
+    let mut covered = vec![false; task.n_facts];
+    let mut order: Vec<&Vec<u32>> = groups.iter().collect();
+    order.sort_by_key(|g| std::cmp::Reverse(g.len()));
+    let mut vars = 0usize;
+    let mut largest = 0usize;
+    for g in order {
+        if g.iter().any(|&f| covered[f as usize]) {
+            continue;
+        }
+        for &f in g {
+            covered[f as usize] = true;
+        }
+        vars += 1;
+        largest = largest.max(g.len());
+    }
+    let in_groups = covered.iter().filter(|c| **c).count();
+    let singletons = task.n_facts - in_groups;
+    eprintln!(
+        "vars: {} groups, {} disjoint ({} facts of {} covered, largest {}), {} singletons, {} variables, {:.3}s",
+        groups.len(),
+        vars,
+        in_groups,
+        task.n_facts,
+        largest,
+        singletons,
+        vars + singletons,
+        secs
+    );
+}
+
+/// THE GROUNDER'S BYTES-PER-OP RECEIPT (0.31 Phase 0.6, `FF_GROUND_DEBUG=1`):
+/// the grounding class (folding, caldera, organic-synthesis, storage-
+/// complex -- ~50 rows) sits at 5.9 of 6 GB before any search; one line
+/// after grounding with the ops, the facts, the process's resident bytes
+/// and the bytes per op names whether the fat is in the task's own
+/// representation or in what grounding left behind. Never affects the
+/// search.
+fn ground_debug(task: &crate::packed::PackedTask) {
+    if std::env::var("FF_GROUND_DEBUG").is_err() {
+        return;
+    }
+    let rss = crate::mem::resident_bytes();
+    eprintln!(
+        "ground: {} ops, {} facts, {} conditional-effect rows, resident {} bytes, {} bytes/op",
+        task.n_ops,
+        task.n_facts,
+        task.cond.flat.len(),
+        rss.map_or("?".to_string(), |b| b.to_string()),
+        rss.map_or("?".to_string(), |b| (b / task.n_ops.max(1) as u64)
+            .to_string())
+    );
+}
+
 /// `Mode::Optimal` (0.19 Phase 2, LM-cut 0.20): A* + an admissible
 /// heuristic (LM-cut by default, h^max behind `FF_NO_LMCUT=1`) over the
 /// classical grounding, proof-or-nothing — see [`crate::optimal`].
@@ -846,7 +918,10 @@ fn solve_optimal(
         ));
     }
     let task = match do_ground(domain, problem, threads)? {
-        Grounded::Task(t) => t,
+        Grounded::Task(t) => {
+            vars_debug(domain, &t);
+            t
+        }
         Grounded::Trivial => return Ok(trivial(Mode::Optimal, threads)),
         Grounded::Unsolvable(why) => {
             return Ok(unsolved(
@@ -864,6 +939,59 @@ fn solve_optimal(
         }
     };
     let cf = crate::costs::metric_fluent(problem).and_then(|d| task.fluent_id(&d));
+    // THE PATTERN DATABASE (0.31 Lane C.1, `FF_OPT_PDB=1`, `crate::pdb`):
+    // the goal pattern over the mutex-group variables, built once here
+    // under a quarter of the remaining wall and a state cap
+    // (`FF_OPT_PDB_CAP`, 2^20), installed for every engine of the ladder
+    // below. A refusal is a note and nothing else -- the A* runs on
+    // LM-cut as before. Off by default until the proof boards price it.
+    let mut pdb_notes: Vec<String> = Vec::new();
+    let _pdb_guard = if std::env::var("FF_OPT_PDB").is_ok_and(|v| v.trim() == "1") {
+        let cap = std::env::var("FF_OPT_PDB_CAP")
+            .ok()
+            .and_then(|v| v.trim().parse::<usize>().ok())
+            .filter(|c| *c >= 2)
+            .unwrap_or(1 << 20);
+        let vars = std::sync::Arc::new(crate::vars::Variables::from_task(domain, &task));
+        let pattern = crate::pdb::Pdb::goal_pattern(&vars, &task, cap);
+        let limits = crate::pdb::Limits {
+            max_states: cap,
+            max_edges: cap.saturating_mul(32),
+            deadline: crate::search::wall_remaining_secs()
+                .map(|rem| (crate::clock::Clock::now(), 0.25 * rem)),
+        };
+        let built = crate::optimal::op_costs(&task, cf)
+            .map_err(|e| format!("costs: {e}"))
+            .and_then(|costs| {
+                crate::pdb::Pdb::build(&task, vars.clone(), pattern, &costs, &limits)
+            });
+        match built {
+            Ok(p) => {
+                pdb_notes.push(format!(
+                    "pdb: {} of {} variables in the pattern ({} multi-valued), {} abstract states, {} edges, built in {:.3}s",
+                    p.pattern.len(),
+                    vars.len(),
+                    vars.multi_valued(),
+                    p.n_states,
+                    p.n_edges,
+                    p.build_secs
+                ));
+                if std::env::var("FF_WALL_DEBUG").is_ok() {
+                    eprintln!("wall: {}", pdb_notes.last().unwrap());
+                }
+                Some(crate::pdb::install(Some(std::sync::Arc::new(p))))
+            }
+            Err(why) => {
+                pdb_notes.push(format!("pdb: not built ({why})"));
+                if std::env::var("FF_WALL_DEBUG").is_ok() {
+                    eprintln!("wall: {}", pdb_notes.last().unwrap());
+                }
+                None
+            }
+        }
+    } else {
+        None
+    };
     // The optimal ladder's OWN byte model (0.22 Phase 2 lever 2): its
     // best_g memo retains a full StateKey per stored node, which the
     // satisficing model never counted — see `opt_per_node_model_bytes`.
@@ -894,53 +1022,60 @@ fn solve_optimal(
         evaluated_states: o.evaluated,
         threads,
     };
-    if let Some(why) = o.reject {
-        return Ok(unsolved(Mode::Optimal, stats, vec![why]));
-    }
-    match (o.ops, o.proven) {
-        (Some(ops), true) => {
-            let steps = steps_of(&task, &ops, None);
-            Ok(Solution {
-                solved: true,
-                mode: Mode::Optimal,
-                plan: Some(Plan {
-                    length: steps.len(),
-                    steps,
-                    metric: cf.map(|_| o.cost),
-                    makespan: None,
-                }),
-                statistics: stats,
-                notes: vec![format!(
-                    "PROVEN OPTIMAL: cost {} certified by A* + admissible {} ({} expansions)",
-                    o.cost, o.heuristic, o.expanded
+    let mut sol = if let Some(why) = o.reject {
+        unsolved(Mode::Optimal, stats, vec![why])
+    } else {
+        match (o.ops, o.proven) {
+            (Some(ops), true) => {
+                let steps = steps_of(&task, &ops, None);
+                Solution {
+                    solved: true,
+                    mode: Mode::Optimal,
+                    plan: Some(Plan {
+                        length: steps.len(),
+                        steps,
+                        metric: cf.map(|_| o.cost),
+                        makespan: None,
+                    }),
+                    statistics: stats,
+                    notes: vec![format!(
+                        "PROVEN OPTIMAL: cost {} certified by A* + admissible {} ({} expansions)",
+                        o.cost, o.heuristic, o.expanded
+                    )],
+                }
+            }
+            (None, true) => unsolved(
+                Mode::Optimal,
+                stats,
+                vec!["PROVEN UNSOLVABLE: A* exhausted the reachable space".into()],
+            ),
+            // Name the budget that actually stopped the last pass. Until 0.28
+            // a clock trip wore the node-cap note, and the 0.27 cut's 937
+            // "node cap reached" rows were mostly the 60 s wall.
+            _ if o.clock_tripped => unsolved(
+                Mode::Optimal,
+                stats,
+                vec![format!(
+                    "inconclusive: wall reached after {} expansions — no certificate, no plan reported",
+                    o.expanded
                 )],
-            })
+            ),
+            _ => unsolved(
+                Mode::Optimal,
+                stats,
+                vec![format!(
+                    "inconclusive: node cap reached after {} expansions — no certificate, no plan reported",
+                    o.expanded
+                )],
+            ),
         }
-        (None, true) => Ok(unsolved(
-            Mode::Optimal,
-            stats,
-            vec!["PROVEN UNSOLVABLE: A* exhausted the reachable space".into()],
-        )),
-        // Name the budget that actually stopped the last pass. Until 0.28
-        // a clock trip wore the node-cap note, and the 0.27 cut's 937
-        // "node cap reached" rows were mostly the 60 s wall.
-        _ if o.clock_tripped => Ok(unsolved(
-            Mode::Optimal,
-            stats,
-            vec![format!(
-                "inconclusive: wall reached after {} expansions — no certificate, no plan reported",
-                o.expanded
-            )],
-        )),
-        _ => Ok(unsolved(
-            Mode::Optimal,
-            stats,
-            vec![format!(
-                "inconclusive: node cap reached after {} expansions — no certificate, no plan reported",
-                o.expanded
-            )],
-        )),
+    };
+    // The database's receipt rides ahead of the verdict (0.31 Lane C.1).
+    if !pdb_notes.is_empty() {
+        pdb_notes.append(&mut sol.notes);
+        sol.notes = pdb_notes;
     }
+    Ok(sol)
 }
 
 /// Decompose a temporal goal into solvable contracts, solve and stitch them, and
@@ -1158,8 +1293,19 @@ fn solve_classic(
     strip_end: bool,
 ) -> Result<Solution, SolveError> {
     let mut notes = extra_notes;
+    // The matrix hatch's grounding receipt (0.31 Phase 0.5): a rung's solo
+    // time on a cell includes the grounding the ladder pays once, so the
+    // allocator subtracts it; reported only under `FF_RUNG_ONLY`, where the
+    // note is a measurement and not noise.
+    let t_ground = crate::clock::Clock::now();
     let task = match do_ground(domain, problem, threads)? {
-        Grounded::Task(t) => t,
+        Grounded::Task(t) => {
+            if std::env::var("FF_RUNG_ONLY").is_ok() {
+                notes.push(format!("ground: {:.3}s", t_ground.elapsed_secs()));
+            }
+            vars_debug(domain, &t);
+            t
+        }
         Grounded::Trivial => return Ok(trivial(mode, threads)),
         Grounded::Unsolvable(why) => {
             notes.push(format!("unsolvable at grounding: {why}"));
@@ -1195,6 +1341,14 @@ fn solve_classic(
     } else {
         crate::orbits::detect_classical(domain, problem, &task)
     };
+    // The matrix hatch's two ROUTES (0.31 Phase 0.5, `search.rs`
+    // `FF_RUNG_ONLY`): `partition` and `portfolio` are modes, not rungs of
+    // the ladder, so they are mapped here, before the ladder is entered.
+    let mode = match std::env::var("FF_RUNG_ONLY").ok().as_deref().map(str::trim) {
+        Some(v) if v.eq_ignore_ascii_case("partition") => Mode::Partition,
+        Some(v) if v.eq_ignore_ascii_case("portfolio") => Mode::Portfolio,
+        _ => mode,
+    };
     let (ops, evaluated) = if mode == Mode::Portfolio {
         let o = crate::portfolio::solve(&task, threads, opts.search_cfg());
         if let Some(w) = o.winner {
@@ -1204,7 +1358,10 @@ fn solve_classic(
     } else if mode == Mode::Partition {
         let groups = crate::invariants::synthesize(domain, &task);
         match resolve::solve(&task, threads, opts.search_cfg(), &groups, orbit.as_ref()) {
-            Solved::Plan(ops, _) => (Some(ops), 0),
+            Solved::Plan(ops, _) => {
+                notes.push("partition: solved by partition-and-resolve".into());
+                (Some(ops), 0)
+            }
             Solved::Unsolvable { .. } => (None, 0),
         }
     } else {
@@ -1287,6 +1444,13 @@ fn solve_classic(
             let o = search::plan(&task, threads, opts.search_cfg(), ehc_first, orbit.as_ref());
             if o.ehc_fell_back && o.ops.is_some() {
                 notes.push("EHC found no improving state; used weighted best-first".into());
+            }
+            // The rung that produced the plan, as the ladder narrates it
+            // (0.31 Phase 0.5): the matrix reads it from the JSON.
+            if let Some(rung) = search::take_solved_by() {
+                if o.ops.is_some() {
+                    notes.push(format!("rung: solved by {rung}"));
+                }
             }
             (o.ops, o.evaluated)
         }

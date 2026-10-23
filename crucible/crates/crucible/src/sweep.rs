@@ -102,6 +102,9 @@ pub struct Pack {
     /// The reserve to hold back once the operator is away (0.28).
     pub mem_reserve_idle_bytes: u64,
     pub rss_headroom: f64,
+    /// Hold predecessor-failed solo rows while the operator is at the box
+    /// (`config::Scheduler::hold_failed_by_day`, 0.31 Phase 0.3).
+    pub hold_failed_by_day: bool,
 }
 
 impl Pack {
@@ -121,6 +124,7 @@ impl Pack {
             mem_reserve_bytes: (c.mem_reserve_gb.max(0.0) * (1u64 << 30) as f64) as u64,
             mem_reserve_idle_bytes: (c.mem_reserve_idle_gb.max(0.0) * (1u64 << 30) as f64) as u64,
             rss_headroom: c.rss_headroom.max(1.0),
+            hold_failed_by_day: c.hold_failed_by_day,
         }
     }
 
@@ -136,6 +140,7 @@ impl Pack {
             mem_reserve_bytes: 0,
             mem_reserve_idle_bytes: 0,
             rss_headroom: 1.0,
+            hold_failed_by_day: false,
         }
     }
 }
@@ -200,6 +205,18 @@ struct RunCtx {
     /// Instances the predecessor has a row for and did NOT solve: the cells
     /// a hot timeout may bank on (`referee::Bank::Hot`, 0.30 cut).
     prior_failed: std::collections::BTreeSet<String>,
+    /// `Pack::hold_failed_by_day`, read by the workers.
+    hold_failed_by_day: bool,
+}
+
+impl RunCtx {
+    /// Is instance `i` a cell the predecessor's promoted raw records as
+    /// unsolved? (The hold's question, 0.31 Phase 0.3.)
+    fn prior_failed_cell(&self, i: usize) -> bool {
+        let (_, variant, inst) = &self.instances[i];
+        self.prior_failed
+            .contains(&format!("{variant}/{}", inst.label))
+    }
 }
 
 struct RunDb {
@@ -332,6 +349,7 @@ impl<'a> SweepRunner<'a> {
                 .filter(|(_, (solved, _))| !*solved)
                 .map(|(k, _)| k)
                 .collect(),
+            hold_failed_by_day: self.pack.hold_failed_by_day,
             db: self.db.as_ref().map(|d| RunDb {
                 writer: d.db.writer().clone(),
                 path: d.db.path().to_path_buf(),
@@ -351,11 +369,14 @@ impl<'a> SweepRunner<'a> {
         let in_use = Mutex::new(0u64);
         let stop = AtomicBool::new(false);
         let crowd = Crowd::new(width);
+        // Said once per batch: that rows are being held, and why.
+        let held_said = AtomicBool::new(false);
         std::thread::scope(|sc| {
             let (tx, rx) = mpsc::channel::<Done>();
             for w in 0..width {
                 let tx = tx.clone();
                 let (ctx, queue, stop, in_use, crowd) = (&ctx, &queue, &stop, &in_use, &crowd);
+                let held_said = &held_said;
                 sc.spawn(move || {
                     let plat = platform::host();
                     let reader = ctx.db.as_ref().and_then(|d| Reader::open(&d.path).ok());
@@ -377,8 +398,42 @@ impl<'a> SweepRunner<'a> {
                             }
                             Gate::Take => {}
                         }
-                        let Some((i, bytes)) = queue.lock().unwrap().pop_front() else {
-                            break;
+                        // THE HOLD (0.31 Phase 0.3): while the operator is at
+                        // the keyboard the throttle may demote a running
+                        // child to the background band, and a demoted
+                        // TIMEOUT is owed (the E-core defect: 13x slower,
+                        // `referee.rs`). A row the predecessor failed is the
+                        // likely timeout, so while demotion is possible it
+                        // waits and the predecessor's solves -- the short
+                        // rows -- take the width. Nothing is lost that a
+                        // demotion would not have lost; what is saved is the
+                        // 4.7 h cut30 re-ran. Off at night, off when nobody
+                        // is here, off under `hold_failed_by_day = false`.
+                        let holding = ctx.hold_failed_by_day && ctx.shared.demote_ok();
+                        let next = {
+                            let mut q = queue.lock().unwrap();
+                            if holding {
+                                match q.iter().position(|(i, _)| !ctx.prior_failed_cell(*i)) {
+                                    Some(p) => q.remove(p),
+                                    None => None,
+                                }
+                            } else {
+                                q.pop_front()
+                            }
+                        };
+                        let Some((i, bytes)) = next else {
+                            let left = queue.lock().unwrap().len();
+                            if left == 0 {
+                                break;
+                            }
+                            if !held_said.swap(true, Ordering::Relaxed) {
+                                crate::say!(
+                                    "   hold: {left} predecessor-failed row(s) wait for the \
+                                     keyboard to go idle (a demoted timeout is owed, not banked)"
+                                );
+                            }
+                            std::thread::sleep(Duration::from_secs(5));
+                            continue;
                         };
                         // The byte budget: wait until this instance fits
                         // beside what is running. An instance larger than
@@ -1060,6 +1115,13 @@ impl<'a> SweepRunner<'a> {
                     continue;
                 }
             }
+            // `--env K=V` (0.31 Phase 0.5): the subset's env rides on the
+            // board's own, and since env is part of the board's identity the
+            // rows land on a board row of their own (`board_key_for_sweep`).
+            let mut spec = b.clone();
+            spec.env
+                .extend(select.env.iter().map(|(k, v)| (k.clone(), v.clone())));
+            let b = &spec;
             let cfg = board_cfg(manifest, b);
             boards.push(Board {
                 spec: b.clone(),
@@ -1942,6 +2004,33 @@ impl Canary {
         engine_hash: &str,
         r: &crate::config::Referee,
     ) -> Option<Canary> {
+        // THE PIN (0.31 Phase 0.2): a fixed binary keeps the box's line across
+        // engines -- the label carries ITS content hash, so a replaced pin
+        // re-baselines and nothing else does.
+        let (program, hash) = match r.canary_engine.as_deref() {
+            Some(p) if p.is_file() => match std::fs::read(p) {
+                Ok(bytes) => {
+                    let h: String = crate::repo::content_hash(&bytes).chars().take(12).collect();
+                    crate::say!("canary  pinned to {} [{h}]", p.display());
+                    (p.to_path_buf(), h)
+                }
+                Err(e) => {
+                    crate::say!(
+                        "canary  pinned binary {} unreadable ({e}); the engine runs it",
+                        p.display()
+                    );
+                    (engine.to_path_buf(), engine_hash.to_string())
+                }
+            },
+            Some(p) => {
+                crate::say!(
+                    "canary  pinned binary {} is missing; the engine runs it",
+                    p.display()
+                );
+                (engine.to_path_buf(), engine_hash.to_string())
+            }
+            None => (engine.to_path_buf(), engine_hash.to_string()),
+        };
         let corpus_dir = std::env::var_os("FERROPLAN_IPC_CORPUS")
             .map(PathBuf::from)
             .unwrap_or_else(|| repo.join("benchmarks/.ipc-corpus"));
@@ -1976,12 +2065,12 @@ impl Canary {
         Some(Canary {
             argv: crucible_core::sweep::argv(&cfg, &domain, &problem),
             envs: crucible_core::exec::env::build(30, 2.0, &Default::default()),
-            program: engine.to_path_buf(),
+            program,
             baseline: None,
             baseline_n: r.canary_baseline_n.max(1),
             interval: Duration::from_secs(r.canary_interval_secs.max(60)),
             max_factor: r.canary_max_factor,
-            label: format!("{}/{}@{engine_hash}", r.canary_variant, r.canary_instance),
+            label: format!("{}/{}@{hash}", r.canary_variant, r.canary_instance),
             at_width: Default::default(),
         })
     }
@@ -3120,6 +3209,7 @@ mod r2_tests {
             mem_reserve_bytes: 0,
             mem_reserve_idle_bytes: 0,
             rss_headroom: 1.5,
+            hold_failed_by_day: false,
         };
         assert_eq!(
             policy_width(Level::Full, true, Some(3.0), 0.0, &pack),
