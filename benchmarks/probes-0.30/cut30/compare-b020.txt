@@ -1,0 +1,69 @@
+A  ff 0.29.0 [7fdf185b91e6]
+B  ff 0.30.0 [b02061eded16]
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc5-time                      126       0       126       0       +0
+ipc5-metric-time               119       0       119       0       +0
+ipc5-constraints                28       0        28       0       +0
+ipc2026-opt                     23       0        23       0       +0
+ipc67-netben                   270       0       270       0       +0
+ipc5-prop                      386       0       386       0       +0
+ipc2023-agile                   52       0        52       0       +0
+ipc2014-tempo                  124       0       124       0       +0
+ipc2018-sat                     99       0        98       0       -1
+ipc2014-sat                    180       0       180       0       +0
+ipc2014-agile                  174       0       175       0       +1
+ipc2014-opt                     82       0        82       0       +0
+ipc2026-numeric                224       0       234       0      +10
+ipc2023-numeric                289       0       287       0       -2
+ipc-opt-2008-11                297       0       297       0       +0
+ipc67-temporal                 512       0       511       0       -1
+ipc67-results                  543       0       543       0       +0
+ipc7-mco-t2                    249       0       249       0       +0
+ipc7-mco-t4                    253       0       253       0       +0
+ipc7-mco-t8                    255       0       257       0       +2
+ipc2014-mco-t4                 184       0       185       0       +1
+ipc2023-agile-300s              67       0        67       0       +0
+ipc5-simple-pref               130       0       130       0       +0
+ipc5-qual-pref                 100       0       100       0       +0
+ipc2023-sat                     52       0        52       0       +0
+ipc2023-opt                     33       0        33       0       +0
+ipc2018-opt                     94       0        94       0       +0
+ipc2023-numeric-opt             82       0        83       0       +1
+ipc2026-opt-full                80       0        82       0       +2
+ipc2014-mco-t2                 181       0       183       0       +2
+ipc2014-mco-t8                 186       0       186       0       +0
+ipc5-complex-pref               81       0        79       0       -2
+
+net +13 over the 32 board(s) where NEITHER side owes a row
+
+8444 cells measured by BOTH engines, every attempt counted
+  A: 9872 runs, mean N=1.17, max N=8, 34% clean
+  B: 9950 runs, mean N=1.18, max N=10, 24% clean
+
+  what triggers a re-run (a re-run is fired by FAILURE, so extra attempts can only add solves):
+  engine  attempt 1 SOLVED              attempt 1 FAILED              rescued
+  A       5476 cells                    2968 cells, re-run 24.4%      82
+  B       5404 cells                    3040 cells, re-run 22.5%      165
+  decomposition of `any`: first-attempt -72  +  rescues +83  =  +11
+
+  estimator           A        B    B - A    95% CI (cell bootstrap)
+  banked         5555.0   5568.0    +13.0    [+3, +24]
+  any            5558.0   5569.0    +11.0    [+1, +22]
+  first          5476.0   5404.0    -72.0    [-98, -48]
+  equal-N        5528.0   5459.0    -69.0    [-94, -45]
+  per-run        5495.8   5473.1    -22.7    [-39, -7]
+  clean-only      546.3    544.7     -1.7    [-8, +4]
+
+  THE ESTIMATORS DISAGREE IN SIGN: the instrument's variance exceeds the effect; no delta is claimed
+
+cells BOTH engines banked: 21 gained by B, 8 lost by B
+  lost    ipc2018-sat            caldera-sequential-satisficing/4
+  lost    ipc2014-agile          parking-sequential-agile/10
+  lost    ipc2023-numeric        counters-numeric-satisficing/12
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/5
+  lost    ipc67-temporal         elevator-temporal-satisficing/12
+  lost    ipc2014-mco-t4         tetris-sequential-multi-core/15
+  lost    ipc5-complex-pref      storage-preferences-complex/16
+  lost    ipc5-complex-pref      storage-preferences-complex/18
+lost cells written to benchmarks/probes-0.30/cut30/lost-after-recheck-b020.tsv

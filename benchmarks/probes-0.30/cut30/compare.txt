@@ -1,0 +1,75 @@
+A  ff 0.29.0 [7fdf185b91e6]
+B  ff 0.30.0 [16b920134c1a]
+
+board                     A solved  A owed  B solved  B owed    B - A
+ipc5-time                      126       0       126       0       +0
+ipc5-metric-time               119       0       119       0       +0
+ipc5-constraints                28       0        28       0       +0
+ipc2026-opt                     23       0        23       0       +0
+ipc67-netben                   270       0       270       0       +0
+ipc5-prop                      386       0       386       0       +0
+ipc2023-agile                   52       0        52       0       +0
+ipc2014-tempo                  124       0       124       0       +0
+ipc2018-sat                     99       0        98       0       -1
+ipc2014-sat                    180       0       180       0       +0
+ipc2014-agile                  174       0       176       0       +2
+ipc2014-opt                     82       0        82       0       +0
+ipc2026-numeric                224       0       234       0      +10
+ipc2023-numeric                289       0       285       0       -4
+ipc-opt-2008-11                297       0       297       0       +0
+ipc67-temporal                 512       0       512       0       +0
+ipc67-results                  543       0       542       0       -1
+ipc7-mco-t2                    249       0       248       0       -1
+ipc7-mco-t4                    253       0       252       0       -1
+ipc7-mco-t8                    255       0       254       0       -1
+ipc2014-mco-t4                 184       0       184       0       +0
+ipc2023-agile-300s              67       0        66       0       -1
+ipc5-simple-pref               130       0       130       0       +0
+ipc5-qual-pref                 100       0       100       0       +0
+ipc2023-sat                     52       0        52       0       +0
+ipc2023-opt                     33       0        33       0       +0
+ipc2018-opt                     94       0        95       0       +1
+ipc2023-numeric-opt             82       0        83       0       +1
+ipc2026-opt-full                80       0        83       0       +3
+ipc2014-mco-t2                 181       0       182       0       +1
+ipc2014-mco-t8                 186       0       185       0       -1
+ipc5-complex-pref               81       0        81       0       +0
+
+net +7 over the 32 board(s) where NEITHER side owes a row
+
+8444 cells measured by BOTH engines, every attempt counted
+  A: 9872 runs, mean N=1.17, max N=8, 34% clean
+  B: 11500 runs, mean N=1.36, max N=11, 36% clean
+
+  what triggers a re-run (a re-run is fired by FAILURE, so extra attempts can only add solves):
+  engine  attempt 1 SOLVED              attempt 1 FAILED              rescued
+  A       5476 cells                    2968 cells, re-run 24.4%      82
+  B       5460 cells                    2984 cells, re-run 58.9%      103
+  decomposition of `any`: first-attempt -16  +  rescues +21  =  +5
+
+  estimator           A        B    B - A    95% CI (cell bootstrap)
+  banked         5555.0   5562.0     +7.0    [-5, +19]
+  any            5558.0   5563.0     +5.0    [-7, +17]
+  first          5476.0   5460.0    -16.0    [-41, +7]
+  equal-N        5522.0   5491.0    -31.0    [-54, -9]
+  per-run        5495.8   5495.5     -0.3    [-17, +15]
+  clean-only      950.0    949.0     -1.0    [-10, +8]
+
+  THE ESTIMATORS DISAGREE IN SIGN: the instrument's variance exceeds the effect; no delta is claimed
+
+cells BOTH engines banked: 21 gained by B, 14 lost by B
+  lost    ipc2018-sat            caldera-sequential-satisficing/3
+  lost    ipc2023-numeric        delivery-numeric-satisficing/20
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/5
+  lost    ipc2023-numeric        markettrader-numeric-satisficing/9
+  lost    ipc2023-numeric        pathwaysmetric-numeric-satisficing/4
+  lost    ipc67-results          woodworking-sequential-satisficing/15
+  lost    ipc7-mco-t2            woodworking-sequential-multi-core/15
+  lost    ipc7-mco-t4            woodworking-sequential-multi-core/16
+  lost    ipc7-mco-t8            elevator-sequential-multi-core/20
+  lost    ipc7-mco-t8            woodworking-sequential-multi-core/15
+  lost    ipc7-mco-t8            woodworking-sequential-multi-core/16
+  lost    ipc2014-mco-t4         parking-sequential-multi-core/9
+  lost    ipc2023-agile-300s     recharging-robots-agile/11
+  lost    ipc2014-mco-t8         tetris-sequential-multi-core/16
+lost cells written to benchmarks/probes-0.30/cut30/lost-after-recheck.rows
