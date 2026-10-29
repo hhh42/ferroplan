@@ -173,20 +173,24 @@ fn the_certificate_is_unchanged_with_the_database_installed() {
 #[test]
 fn action_costs_are_honoured_in_the_abstract_distances() {
     // Two routes to the goal: a 1-step op of cost 5, a 3-step chain of
-    // cost 1 each. The abstract space IS the concrete one here, so the
-    // database equals the optimum, 3.
-    let (d, t) = ground(
-        "(define (domain tworoutes) (:requirements :action-costs)
-           (:predicates (s) (a) (b) (g))
+    // cost 1 each. The places are `(at ?p)` -- one mutex group, so the
+    // goal pattern is the whole task (a nullary chain would be four
+    // binary variables, the synthesis seeds no nullary predicate) -- and
+    // the database equals the optimum, 3.
+    let dom = "(define (domain tworoutes) (:requirements :action-costs)
+           (:predicates (at ?p) (long ?a ?b) (short ?a ?b))
            (:functions (total-cost))
-           (:action jump :precondition (s) :effect (and (g) (not (s)) (increase (total-cost) 5)))
-           (:action x :precondition (s) :effect (and (a) (not (s)) (increase (total-cost) 1)))
-           (:action y :precondition (a) :effect (and (b) (not (a)) (increase (total-cost) 1)))
-           (:action z :precondition (b) :effect (and (g) (not (b)) (increase (total-cost) 1))))",
-        "(define (problem tr) (:domain tworoutes) (:init (s) (= (total-cost) 0)) (:goal (g)) (:metric minimize (total-cost)))",
-    );
-    let cf = t.fluent_id("total-cost");
-    assert!(cf.is_some());
+           (:action jump :parameters (?a ?b) :precondition (and (at ?a) (long ?a ?b))
+             :effect (and (at ?b) (not (at ?a)) (increase (total-cost) 5)))
+           (:action step :parameters (?a ?b) :precondition (and (at ?a) (short ?a ?b))
+             :effect (and (at ?b) (not (at ?a)) (increase (total-cost) 1))))";
+    let prb = "(define (problem tr) (:domain tworoutes) (:objects s a b g)
+           (:init (at s) (long s g) (short s a) (short a b) (short b g) (= (total-cost) 0))
+           (:goal (at g)) (:metric minimize (total-cost)))";
+    let (d, t) = ground(dom, prb);
+    let p = ferroplan::parser::parse_problem(prb).unwrap();
+    let cf = ferroplan::costs::metric_fluent(&p).and_then(|desc| t.fluent_id(&desc));
+    assert!(cf.is_some(), "the cost fluent resolves through the metric");
     let vars = Arc::new(Variables::from_task(&d, &t));
     let pattern = Pdb::goal_pattern(&vars, &t, 1 << 16);
     let costs = ferroplan::optimal::op_costs(&t, cf).unwrap();

@@ -116,9 +116,12 @@ fn laddertax(l: usize) -> (String, String) {
 
 #[test]
 fn novelty_first_lama_walks_the_corridor_plain_lama_grinds_the_lawn() {
-    let (dom, prb) = deceptlawn(12, 30, 0);
+    // Calibrated 2026-10-29: plain LAMA grows with k on a long corridor
+    // (k=12 m=30 solved in 11k evals, the first guess's cap was 20k;
+    // k=18 m=60 takes 279k), novelty-first stays flat (13.4k here).
+    let (dom, prb) = deceptlawn(18, 60, 0);
     let task = ground(&dom, &prb);
-    let cap = 20_000;
+    let cap = 50_000;
     let plain = novelty_lama(&task, cap, false);
     let novel = novelty_lama(&task, cap, true);
     let (ops, evaluated) = novel.expect("novelty-first LAMA must pop the corridor inside the cap");

@@ -478,17 +478,21 @@ mod tests {
         (d, t)
     }
 
-    /// A chain p0 -> p1 -> ... -> p4, each step deleting the one before:
-    /// one mutex group, one variable, exact distances.
+    /// A chain l0 -> l1 -> ... -> l4, each step deleting the one before:
+    /// one mutex group, one variable, exact distances. The chain is
+    /// `(at ?l)` over a static `next`, not five nullary predicates --
+    /// the synthesis seeds no nullary predicate (`invariants.rs`), so a
+    /// nullary chain is five binary variables and a goal pattern of one.
     #[test]
     fn a_chain_is_exact() {
         let (d, t) = task(
-            "(define (domain chain) (:predicates (p0) (p1) (p2) (p3) (p4))
-               (:action s0 :precondition (p0) :effect (and (p1) (not (p0))))
-               (:action s1 :precondition (p1) :effect (and (p2) (not (p1))))
-               (:action s2 :precondition (p2) :effect (and (p3) (not (p2))))
-               (:action s3 :precondition (p3) :effect (and (p4) (not (p3)))))",
-            "(define (problem c) (:domain chain) (:init (p0)) (:goal (p4)))",
+            "(define (domain chain) (:predicates (at ?l) (next ?a ?b))
+               (:action s :parameters (?a ?b)
+                 :precondition (and (at ?a) (next ?a ?b))
+                 :effect (and (at ?b) (not (at ?a)))))",
+            "(define (problem c) (:domain chain) (:objects l0 l1 l2 l3 l4)
+               (:init (at l0) (next l0 l1) (next l1 l2) (next l2 l3) (next l3 l4))
+               (:goal (at l4)))",
         );
         let vars = Arc::new(Variables::from_task(&d, &t));
         let pattern = Pdb::goal_pattern(&vars, &t, 1 << 16);
@@ -499,7 +503,7 @@ mod tests {
         assert_eq!(pdb.h(&s0.bits), 4.0);
         let s1 = t.apply(
             (0..t.n_ops)
-                .find(|&o| t.op_display[o].starts_with("S0"))
+                .find(|&o| t.op_display[o].starts_with("S L0"))
                 .unwrap(),
             &s0,
         );
