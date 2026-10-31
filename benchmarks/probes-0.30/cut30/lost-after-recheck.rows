@@ -1,0 +1,15 @@
+# cells ff 0.29.0 [7fdf185b91e6] solved and ff 0.30.0 [16b920134c1a] did not, both banked -- `--rows` format
+caldera-sequential-satisficing/3   # ipc2018-sat
+delivery-numeric-satisficing/20   # ipc2023-numeric
+markettrader-numeric-satisficing/5   # ipc2023-numeric
+markettrader-numeric-satisficing/9   # ipc2023-numeric
+pathwaysmetric-numeric-satisficing/4   # ipc2023-numeric
+woodworking-sequential-satisficing/15   # ipc67-results
+woodworking-sequential-multi-core/15   # ipc7-mco-t2
+woodworking-sequential-multi-core/16   # ipc7-mco-t4
+elevator-sequential-multi-core/20   # ipc7-mco-t8
+woodworking-sequential-multi-core/15   # ipc7-mco-t8
+woodworking-sequential-multi-core/16   # ipc7-mco-t8
+parking-sequential-multi-core/9   # ipc2014-mco-t4
+recharging-robots-agile/11   # ipc2023-agile-300s
+tetris-sequential-multi-core/16   # ipc2014-mco-t8

@@ -21,6 +21,114 @@ All notable changes to this project are documented here.
   member won. The matrix hatch's solo rungs are one `search::Rung` enum
   now, shared by the hatch and the workers.
 
+## [0.30.0] - 2026-10-29 — Memory, and two defects the rung exposed
+
+0.29.0 moved rows and points together and left two things on the record:
+the memory-capped tail of the classical boards (45 cells mem-capped, most
+of them the LAMA and novelty rungs' node stores) and a pathways probe
+whose six unsolved cells partition mode solved in seconds. This cycle
+declared the same two measures before any lane ran — rows by the
+first-attempt estimator against 0.29.0, points by the IPC quality score
+on the preference boards — and a third, memory, read as `max_rss` on the
+same rows. Six lanes ran; three were recorded negative by their own kill
+clauses, and one of those found two defects in partition mode on the way
+out.
+
+### Measured
+
+**66% coverage across 32 IPC boards** (5,568/8,444), **694 certified
+optima** -- 8,444 of 8,444 instances banked in ten passes, then 21 rows
+re-opened by the re-check and re-measured (all banked). Full record:
+[`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md),
+[`docs/roadmap-0.30.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.30.md).
+
+**Rows, against 0.29.0, on the estimator declared before the sweep:**
+
+| estimator | 0.29.0 | 0.30.0 | delta | 95 % CI |
+|---|---:|---:|---:|---|
+| **first attempt** (the claim) | 5,476 | 5,404 | **-72** | [-98, -48] |
+| equal-N | 5,528 | 5,459 | -69 | [-94, -45] |
+| per-run | 5,495.8 | 5,473.1 | -22.7 | [-39, -7] |
+| clean-only | 546.3 | 544.7 | -1.7 | [-8, +4] |
+| banked -- what the boards show | 5,555 | 5,568 | +13 | [+3, +24] |
+
+**The estimators disagree in sign, so no delta is claimed.** The declared
+estimator reads -72 and it is recorded as read. The sweep ran on a
+heat-soaked fanless Air: 24 % of 0.30.0's runs were clean against 34 % of
+0.29.0's, and on clean runs alone the two engines are level (-1.7
+[-8, +4]); the boards' banked figure moves +13. Cells both engines banked:
+**21 gained, 8 lost** -- caldera-sat i4, parking-agile i10, counters i12
+and markettrader i5 (2023 numeric), elevator-temporal i12, tetris
+multi-core i15, storage-complex-pref i16 / i18; ten more cells the first
+read lost solved again on the re-check. One defect the first cut read found
+is fixed before this sweep: novelty-light now keeps its states in a flat
+arena (88 bytes a node against 229), so a tripped light rung no longer
+leaves LAMA gigabytes of freed-but-resident nodes (woodworking i15 / i16,
+lost on five boards, solve again at 13-16 s).
+
+**Memory, the third measure (Lane 5, the lazy frontier).** The LAMA and
+novelty rungs' open lists held a full state per entry; they now hold a
+key, a parent and an operator, and regenerate the state on pop (128-bit
+keys: 64-bit FxHash collided on rovers' quantised fluents). On the
+180-cell memory subset: mem-cap verdicts 45 → 24, mean RSS down 20–50 %;
+rows −1 [−6, +3] (child-snack i6 gained; caldera i3/i4 lost until the
+memory wall learned not to refuse a rung entered above its line). A
+memory win, rows flat — the engine change is kept.
+
+**Points (Lane 1b, flat):** on the lane's read simple 97.3 → 97.3,
+qualitative 64.6 → 64.3, complex 54.5 → 54.1; on the cut's boards 96.4 /
+62.4 / 54.1 against SGPlan5's 115 / 92 / 100. The anytime polish
+(the pass over the held preferences repeats from the plan it improved
+while the share has wall left) buys nothing on the boards: the first
+pass already prices every candidate the search can see. The candidate
+search is the limit; it stays, pinned, for 0.31.
+
+**Numeric (Lane 2b): +10 on the 2026 numeric board, −1 on 2023 numeric
+(a 55 s coin), metric-time +0** — first +6 [−2, +14], banked +9 [+3, +15].
+The consumption charge now prefers the achiever that does not overshoot
+an equality goal; a "transfer" reading of a move-like effect cost −32 on
+sugar / hydropower / markettrader and was withdrawn by bisection.
+
+### The partition rung — out, and what it found
+
+Under `--mode partition` the pathways propositional cells i17/i19/i21 and
+their strips twins solve in 7–34 s; the classical ladder never reaches
+them on any budget. A rung that tries the partition first on half the
+wall gained those six on the propositional board and cost 26 first
+attempts on the cells the ladder solves in the second half of its wall
+(first-attempt −26 [−39, −15], banked −9 [−18, +0]) — the kill clause,
+three board reads in a row. The rung stays in the engine opt-in
+(`FF_PARTITION_RUNG=1`). The reads found two defects in partition mode,
+both fixed and kept: **the merge cascade had no clock** — after its
+budget expired, `resolve::solve` went on merging (99 merges at 0.7 s on
+openstacks i30's hundred groups, to the process wall) — and **a ladder
+entered after a bounded attempt judged its rungs against the whole wall**
+(the 0.22 affordability gate read 49 % and skipped novelty-light, LAMA and
+novelty the moment EHC's quarter was spent); it is now judged against the
+wall it is handed.
+
+### The instrument (Phase 0)
+
+- The crucible's calibration gate waits for a clean line (foreign CPU
+  under 25 %) before measuring the canary, stamps every canary reading
+  with the foreign load beside it, and excludes stamped-foreign readings
+  from the baseline — the 0.29 record's "thermal" verdicts on an idle
+  night were calibration under a daytime indexer.
+- `crucible engine` prints a content hash beside the blake3: a rebuild
+  from the same source differs by 47 bytes of Mach-O `LC_UUID` and code
+  signature, and the record now says when two engines are the same code.
+- Folding is a grounding that never finishes (6.1 GB, 68 s past a 60 s
+  wall), not a grounder defect; 0.29's probe used the wrong path. The
+  grounding class (folding, caldera, organic-synthesis, storage-complex
+  i19/i20, ~50 rows) is named for 0.31.
+
+### Owed to 0.31
+
+Classic text mode (`ff` without `--json`) runs its partition-first attempt
+before the wall is armed; the boards and every probe use `--json`. A rung
+that pays for itself must cost less than half the wall. The preference
+candidate generator. The grounding class.
+
 ## [0.29.0] - 2026-10-15 — Points, and a relaxation that counts
 
 0.28.0 closed the ROW gap to SGPlan5 on the IPC-5 preference boards and left
@@ -220,211 +328,6 @@ Propositional stands at 386/450 against SGPlan5's 218/220.
   durative-action domains since 0.24, and only `hold-during` / `hold-after`
   are rejected.
 
-## [0.28.0] - 2026-09-28 — Feasible first, better second
-
-A 2026-09-20 read of SGPlan5's own IPC-5 solution headers found its MEDIAN
-solve is **0.54 s** -- 89 % of its 860 solves finish inside 60 s, and of the
-335 rows it solves and ferroplan did not, 143 took it under a second. The gap
-on those boards was never the wall. On most of those rows a valid plan was in
-hand, or milliseconds away, and the route had no way to return it. Five engine
-lanes close that, and the harness learned to measure a question smaller than
-a release.
-
-### Measured
-
-**65% coverage across 32 IPC boards** (5,466/8,444), **689 certified optima**
--- 8,444 of 8,444 instances banked, the second sweep to reach a terminal
-state. Full record: [`STANDINGS.md`](https://github.com/hhh42/ferroplan/blob/main/STANDINGS.md),
-[`docs/roadmap-0.28.md`](https://github.com/hhh42/ferroplan/blob/main/docs/roadmap-0.28.md).
-
-**Against 0.27.0, on the estimator declared before the sweep ran** -- every
-instance's FIRST attempt against its first attempt, because that is the one
-measurement both engines were given equally (0.27's own +115 was withdrawn as
-a delta for want of exactly this):
-
-| estimator | 0.27.0 | 0.28.0 | delta | 95 % CI |
-|---|---:|---:|---:|---|
-| **first attempt** (the claim) | 4,827 | 5,358 | **+531** | [+481, +579] |
-| equal-N | 4,856 | 5,393 | +537 | [+487, +585] |
-| banked -- what the boards show | 5,122 | 5,466 | +344 | [+307, +381] |
-
-Every estimator agrees in sign, and this time the boards UNDERSTATE the
-engine: the referee re-runs failures, 0.27.0 failed first time on 3,617 cells
-and was re-run on 69 % of them (295 rescued), 0.28.0 on 3,086 and 32 % (110).
-
-**Where it moved:** tempo-sat +10.8 pts (509/630, +68 rows),
-complex-preferences +47.2 (80/108), qualitative-preferences +49.0 -- **100/100,
-level with SGPlan5, the track winner** -- time +29.2 (126/130), 2014 tempo-sat
-+22.0, metric-time +20.5, simple-preferences +8.5 (130/130), 2023 seq-sat
-+5.7, 2023 agile-300s +4.3. Down: 2026 numeric-opt −1.7 (22/60), 2026 numeric
-−0.6, 2023 numeric −0.5. On the six IPC-5 boards the lanes were aimed at,
-379 -> 569 of 788; on the variants SGPlan5 entered, 316 -> 491 of 678 against
-its 612 -- the gap 296 -> 121, most of it metric-time (66) and constraints (27).
-
-**Seven cells 0.27.0 solved that 0.28.0 does not**, every one re-run on both
-engines on a quiet box before it was called anything. Five are real:
-`tetris-sequential-satisficing/15`, `sugar-numeric-satisficing/5`,
-`coins-numeric-2026/18`, `line-exchange-snp-numeric-2026/3_5_90_100`, and
-`sailing-wind-opt-numeric-2026/10` under the optimal mode (its satisficing
-twin solved). Two are the box: v0.27.1 fails `hiking-sequential-agile/18`
-and `rover-numeric-satisficing/15` today as well. Seventeen more read as
-losses on the first pass and were not.
-
-**Read the preference gains with what they are made of.** 76 of the six
-boards' 569 solves are the EMPTY plan -- problems with no hard goal, every
-goal a preference, where doing nothing is valid, VAL-accepted, and the
-boards' standing convention (0.27.0's 379 carried 27) -- and five come back
-without a metric. Coverage is not what IPC-5 ranked these tracks on. By its
-quality score (best metric / ours, over the cells SGPlan5 solved): simple
-94.8 -> 94.1 against SGPlan5's 120.4, qualitative 45.8 -> 59.2 against 92.1,
-complex 20.1 -> 53.4 against 99.0. **The lanes closed rows and left points
-where they were.**
-
-**And a hole in the instrument, found in this read and left open.** The
-referee re-runs a row that FAILED under bad conditions and never one that
-SOLVED under them. Ten pathways-preferences-simple cells solved during a
-52-hour stretch when a stray iOS Simulator held the box 2.4-6.7x slow -- the
-empty plan, unpriced at the wall, on cells that price in 40 s alone -- and
-were banked; simple-preferences quality read 82.0 until 147 such rows were
-re-opened and re-measured (`benchmarks/recheck28.py`). A solve banked under a
-slow canary near its wall should be SUSPECT like a failure is. Owed to the
-crucible.
-
-Regression reads before the cut, equal-N: over the 519 temporal cells the
-published boards solved, **519 of 519**, summed solve time 0.91x, makespan
-better on 181 cells and worse on 6; over the 58 cells that solve at a
-resident size of 3.5 GB or more -- the only ones the new memory wall can
-touch -- 58 of 58, 49 identical, one metric worse by 2, and eight that keep
-their row and give up their metric.
-
-### Added
-
-- **The compression rung** (`tcompress`): a temporal task that needs no
-  concurrency is planned as a classical one -- each durative action as one
-  instantaneous action -- and a left-shift over the ops' read/write sets puts
-  the plan back on the clock. The plan is validated against the ORIGINAL
-  task before it is returned. It BANKS: the decision-epoch ladder then runs
-  as a bounded quality chase and the smaller makespan wins, so a task that
-  solved before returns the plan it returned before. Declines required
-  concurrency, timed initial literals and trajectory constraints, and stands
-  aside when `FF_TCONC=1` asks for the actor scheduler.
-  `FF_NO_TCOMPRESS=1` restores 0.27; `FF_TCOMPRESS_WALL_FRAC` /
-  `FF_TCOMPRESS_CHASE_FRAC` size the bet and the chase.
-- **Incumbent zero** for PDDL3 preference optimization
-  (`pddl3::metric_optimize_seeded`, `hard_goal_seed`, `close_seed`): the
-  optimizer is handed a plan for the hard goals before it starts, as a FLOOR
-  -- its own search is unchanged, and the seed is what comes back (with a
-  note) only when it found nothing cheaper. Previously a run that ended
-  before the optimizer's first plan reported `solved: false`.
-  `FF_PREF_NO_SEED=1` restores 0.27; `FF_PREF_SEED_BOUND=1` also opens the
-  branch-and-bound with the seed.
-- `temporal::solve_scored` / `ScoredPlan` / `SoftScorer`: the preference
-  score rides the solve instead of being computed after it.
-- **Condition preferences on durative actions**: `(preference name (at start
-  phi))` inside a `:durative-action`'s `:condition` now parses (every row of
-  IPC-5 `tpp-preferences-complex` used to die at the parser). The search
-  drops them, as PDDL3 allows, and the scorer counts one violated instance
-  per APPLICATION -- at start before the start happening, at end before the
-  end, over all across every state inside the interval.
-- The anchored successor generator (0.27's classical lever) is wired into the
-  temporal rung. Byte-identical by construction; measured, the scan it
-  removes was 0.01-7.7 % of a temporal evaluation, so no coverage is claimed
-  for it. `FF_NO_TSUCC=1` keeps the full scan for measurement.
-- `FF_HTRACE=1`: the classical best-first `best_h` trace (evaluations and
-  seconds at each improvement) on stderr. `FF_MEM_TRIP_FRAC`,
-  `FF_GROUND_PHASES=1`: measurement knobs for the memory wall and the
-  grounder's phases. All documented in the book's
-  [tuning chapter](https://hhh42.github.io/ferroplan/tuning.html).
-
-### Changed
-
-- **Default temporal plans can be shorter, and more concurrent, than 0.27's.**
-  The decision-epoch search laid a concurrency-free task out sequentially; the
-  compression rung left-shifts independent work. On a domain that is LOCKLESS
-  by design this overlaps everything the PDDL allows:
-  `examples/cabin/crew-solo.pddl` went from makespan 109 to 47 with one worker
-  on four jobs at once -- legal PDDL2.1, VAL-valid, and not a crew schedule. A
-  resource that can do one thing at a time has to say so in the domain (a busy
-  token), or be scheduled by the actor scheduler: with `FF_TCONC=1` the
-  left-shift stands aside and the cabin crews read 109 / 63 / 47 exactly as in
-  0.27. The game-embedding `Session` has its own temporal entry and is
-  unaffected.
-
-### Fixed
-
-- **A plan in hand is reported inside the wall.** The temporal preference
-  tiers banked a plan and then chased quality against the SAME wall, opened
-  further ladder rungs after it expired, and re-grounded the task to score
-  the result -- returning a valid plan at 21.9 s of a 20 s budget, which a
-  runner that kills at the wall records as unsolved. Optional work now stops
-  a reserve short of the wall (3 % of it, 0.5-3 s, plus a size term;
-  `FF_REPORT_RESERVE_SECS`), the scorer is built before the chase, and a
-  banked plan that cannot be scored in time is returned unscored, with a
-  note, rather than lost. The same reserve covers the PDDL3 optimizer.
-- The best-first loop read the clock once per 256-evaluation batch -- two
-  seconds at the 8 ms an evaluation costs on a compiled preference task.
-  Evaluations and expansions now read an armed deadline individually; a run
-  that finishes inside its wall is unchanged, evaluation for evaluation.
-- The preference-selection DFS, the optimizer's restart ladders and its
-  legacy fallback no longer open work after the wall has expired.
-- **Numeric heuristic, dead ends**: the relaxed-graph fixpoint test counted
-  ANY bound movement as progress, so a consumable's un-read lower bound,
-  drifting down for ever, sent every dead-end evaluation to the 2,000-layer
-  cap. The test is now direction-aware (`FF_NO_NEED_DIRS=1` restores it).
-  Heuristic values are identical; evaluations per second on
-  `rovers-metric-time`-shaped tasks rise ~78x.
-- **Memory is a wall too** (`ferroplan::mem`): the engine now MEASURES its own
-  resident size (`/proc/self/status`; `task_info` on macOS) instead of only
-  modelling it, and bounded work over a plan already in hand -- a quality
-  chase, the grounding that prices a found plan, a rung's bet -- stops at 75 %
-  of `FF_MEM_BUDGET_GB` and returns what was banked, where a runner's RSS
-  watchdog used to kill the process and the plan with it. A first search is
-  never cut by it. `FF_NO_MEM_WALL=1` restores 0.27. On a 16-bit toy task the
-  unwalled chase reaches 8.2 GB in 39 s; walled, it is back in half a second
-  at 209 MB. A trip is STICKY for the scope it happened in: what the scope
-  opens next -- another tier's grounding, another search -- is refused at its
-  first look, not after it has climbed back to the line. The grounder looks
-  inside its interning loop as well as between phases, and EVERY grounding
-  entry is armed inside bounded work, the preference scorer's included: a
-  solved plan may now come back "NOT scored" where it used to be scored at a
-  resident size over the declared budget. `FF_MEM_TRIP_FRAC` moves the line,
-  for measuring it.
-- The PDDL3 route plans its hard goals on the pair with SOFT trajectory
-  constraints stripped: they cannot invalidate a plan, and their monitors are
-  most of a qualitative-preference task.
-- The temporal validator (and scorer) fired ends before starts within one
-  epoch, which ordered a ZERO-duration step's end ahead of its own start and
-  rejected every plan containing one.
-- The text path no longer prints "problem proven unsolvable" for a PDDL3
-  run that simply ran out of budget before its first plan.
-
-### The site (deployed from `main`; not part of any published crate)
-
-- **The browser demo can be saved for offline use.** A **Save offline** button
-  in the demo's header registers a service worker that keeps the three demo
-  pages, the example corpus and the WASM planner in the browser, so the demo
-  opens and plans with no network. Opt-in: nothing is stored until asked. The
-  copy is refreshed in the background on every online visit, a new deploy
-  (keyed by commit) replaces it whole, the control reports what it holds and
-  removes it on request, and the page is installable as an app. Verified
-  end to end with a headless browser: save, offline reload, plan in the web
-  worker offline, the live pages offline, update to a new build, remove.
-
-### Harness (the crucible; not part of any published crate)
-
-- **A subset is a sweep over fewer cells.** `crucible sweep --set S [--board
-  ID].. [--only RE] [--rows FILE] [--prior unsolved|solved] [--name N]
-  [--engine PATH]`, the same flags on `backfill` (minus `--engine`) and
-  `compare` (plus `--lost FILE`). Same runner, referee, owed-row cascade,
-  canary and database as a cut sweep; it stages under
-  `benchmarks/probes/<name>/<ver>-<hash>/`, records no board pass, and shares
-  its rows with the sweep that follows. Built after a week in which seven
-  "misses" on one board turned out to be a foreign process at 210 % CPU
-  beside an ad-hoc shell loop that could not know.
-- Known, owed: `run.peak_rss` is a SAMPLED maximum. Two rows banked as solved
-  at 4.5 and 5.9 GB under a 6 GB cap truly peaked at 6.6 and 6.4. `wait4`
-  already returns `ru_maxrss`.
-
 ---
 
-Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (30 earlier releases, 0.1.0–0.27.1).
+Older releases: [`CHANGELOG-ARCHIVE.md`](CHANGELOG-ARCHIVE.md) (31 earlier releases, 0.1.0–0.28.0).

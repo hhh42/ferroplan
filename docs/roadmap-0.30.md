@@ -1450,3 +1450,43 @@ for `compare` is the banked 0.29.0 engine `7fdf185b91e6`, never a rebuild
 unless Phase 0.4 shows the rebuild reproduces it. Nothing is published until
 `main` has it and the pre-flight — with the token's age on the checklist
 (the crates.io token dates from 2026-09-29) — is green.
+
+## THE CUT — read 2026-10-29 (`probes-0.30/cut30/compare-b020.txt`)
+
+`cut30` re-swept in full on the fixed engine `ff 0.30.0 [b02061eded16]`
+(main = f4c827c): 5,602 rows banked in ten passes, SWEEP COMPLETE
+2026-10-26 04:28. `recheck30.py --engine b02061eded16 --reopen` re-opened
+21 banked rows (18 cells 0.29.0 solved, 2 unpriced, 1 slow-box near the
+wall); one `sweep --set cut30 --max-passes 3` banked all 21 in two passes.
+
+Against the banked 0.29.0 `7fdf185b91e6`:
+
+| estimator | 0.29.0 | 0.30.0 | B - A | 95 % CI |
+|---|---:|---:|---:|---|
+| **first** (declared) | 5,476 | 5,404 | **-72** | [-98, -48] |
+| equal-N | 5,528 | 5,459 | -69 | [-94, -45] |
+| per-run | 5,495.8 | 5,473.1 | -22.7 | [-39, -7] |
+| clean-only | 546.3 | 544.7 | -1.7 | [-8, +4] |
+| any | 5,558 | 5,569 | +11 | [+1, +22] |
+| banked | 5,555 | 5,568 | +13 | [+3, +24] |
+
+The estimators disagree in sign; **no delta is claimed**, and the declared
+estimator's -72 is recorded as read. The first read on 16b920134c1a (the
+engine before the arena fix) was first -16 [-41, +7] on a box with 36 %
+clean runs; this sweep ran at 24 % clean against 0.29.0's 34 %, and the
+clean-only estimator is level. The cycle's first-attempt claim is a
+**recorded negative on a hot instrument**, not a measured loss of engine
+quality and not a win: the honest sentence is "memory down, rows flat".
+
+Cells both banked: **21 gained, 8 lost after the re-check** (18 before; ten
+solved again on the re-check: caldera-sat i3, tetris-sat i11/i15/i16/i19,
+parking multi-core i9/i17/i19, elevator multi-core i20, sailing-wind-opt
+i10):
+caldera-sequential-satisficing/4, parking-sequential-agile/10,
+counters-numeric-satisficing/12, markettrader-numeric-satisficing/5,
+elevator-temporal-satisficing/12, tetris-sequential-multi-core/15,
+storage-preferences-complex/16, /18 (`lost-after-recheck-b020.tsv`).
+Points on the cut's boards: simple 96.4, qualitative 62.4, complex 54.1
+(SGPlan5 115.2 / 91.8 / 100.0). Standings: 5,568/8,444, 694 certified
+optima (0.29.0: 5,555, 691). Promoted by `promote-air30.sh` (crucible
+`standings --check` parity), snapshot 0.30.0 measured 2026-10-29.

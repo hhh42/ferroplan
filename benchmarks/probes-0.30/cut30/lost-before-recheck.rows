@@ -1,0 +1,23 @@
+# cells ff 0.29.0 [7fdf185b91e6] solved and ff 0.30.0 [16b920134c1a] did not, both banked -- `--rows` format
+pipesworld-metric-time/29   # ipc5-metric-time
+agricola-sequential-satisficing/2   # ipc2018-sat
+caldera-sequential-satisficing/3   # ipc2018-sat
+delivery-numeric-satisficing/20   # ipc2023-numeric
+markettrader-numeric-satisficing/5   # ipc2023-numeric
+markettrader-numeric-satisficing/9   # ipc2023-numeric
+pathwaysmetric-numeric-satisficing/4   # ipc2023-numeric
+openstacks-sequential-optimal-adl/15   # ipc-opt-2008-11
+openstacks-sequential-optimal-strips/16   # ipc-opt-2008-11
+woodworking-sequential-satisficing/15   # ipc67-results
+woodworking-sequential-multi-core/15   # ipc7-mco-t2
+parking-sequential-multi-core/19   # ipc7-mco-t4
+woodworking-sequential-multi-core/16   # ipc7-mco-t4
+elevator-sequential-multi-core/20   # ipc7-mco-t8
+woodworking-sequential-multi-core/15   # ipc7-mco-t8
+woodworking-sequential-multi-core/16   # ipc7-mco-t8
+openstacks-sequential-multi-core/14   # ipc2014-mco-t4
+parking-sequential-multi-core/9   # ipc2014-mco-t4
+recharging-robots-agile/11   # ipc2023-agile-300s
+petri-net-numeric-2026/9_4   # ipc2026-opt-full
+parking-sequential-multi-core/17   # ipc2014-mco-t8
+tetris-sequential-multi-core/16   # ipc2014-mco-t8

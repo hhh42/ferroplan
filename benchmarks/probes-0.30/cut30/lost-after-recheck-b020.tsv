@@ -1,0 +1,9 @@
+# cells ff 0.29.0 [7fdf185b91e6] solved and ff 0.30.0 [b02061eded16] did not, both banked -- `--rows` format
+caldera-sequential-satisficing/4   # ipc2018-sat
+parking-sequential-agile/10   # ipc2014-agile
+counters-numeric-satisficing/12   # ipc2023-numeric
+markettrader-numeric-satisficing/5   # ipc2023-numeric
+elevator-temporal-satisficing/12   # ipc67-temporal
+tetris-sequential-multi-core/15   # ipc2014-mco-t4
+storage-preferences-complex/16   # ipc5-complex-pref
+storage-preferences-complex/18   # ipc5-complex-pref

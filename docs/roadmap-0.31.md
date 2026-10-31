@@ -102,20 +102,39 @@ distribution** (seconds before the first A* expansion) on every opt cell.
    0.30.0 `ff` (or a dedicated canary binary) so the line carries across
    engines. Fixture: two engines, one canary history.
 0.3 **Demotion at day width 8** (crucible): demoted rows were owed 4.7 h on
-   cut30. Read the demotion rule against the pack tiers; a demoted row that
-   the predecessor also failed banks `hot` like a thermal one.
+   cut30. The scoping note proposed banking a demoted timeout the
+   predecessor also failed, like `hot`; read against the referee's own
+   receipt that was withdrawn — a demoted child runs on an E-core at ~13×
+   slower (`referee.rs`, the 0.27 E-core defect), so such a bank would
+   miss any gain the cell needed a tenth of its wall for, a bias an order
+   of magnitude beyond `hot`'s 1.4×. **Built instead: the hold.** While
+   the operator is at the keyboard (the only time the throttle demotes),
+   a solo row the predecessor failed — the likely wall-long timeout —
+   waits, and the predecessor's solves take the day width; the hold lifts
+   the moment the box idles. Nothing is lost that a demotion would not
+   have lost; what is saved is the re-run. `hold_failed_by_day = false`
+   restores 0.30. (`sweep.rs::run_batch`, `config::Scheduler`.)
 0.4 **Text-mode wall arming** (engine, one line + fixture): `run_planner`
    grounds and tries `resolve::solve` before `crate::solve` arms
    `FF_TIME_LIMIT`; arm it at entry. Fixture: text mode, armed wall,
    returns inside it. (Owed from 0.30, "Probes only".)
 0.5 **The per-rung matrix harness** (crucible + engine) — Lane A's
    instrument, built here because every later lane reads it too. Engine:
-   `FF_RUNG_ONLY=<ehc|lama|novlight|novelty|bfs|partition|portfolio:<m>>`
-   runs ONE rung to the full wall and reports `{rung, solved, time,
-   evaluated, peak_rss}`; the knob already half-exists (`FF_NOVELTY_ONLY`,
-   `--search bfs`, `--mode partition`) and is made uniform. Crucible: a
-   `matrix` set that runs a stratified sample through each rung-env and
-   stores rows keyed by `(cell, rung)` beside the engine hash. Sample:
+   `FF_RUNG_ONLY=<ehc|novlight|lama|driver|novelty|bfs|partition|portfolio>`
+   (and Lane B's `front`, `lamanov`, `driverx`) runs ONE rung with the
+   whole remaining wall and the whole eval budget and returns ITS verdict,
+   never the next rung's (`search.rs`; fixture `tests/rung_only.rs`); the
+   JSON notes carry `rung: solved by <name>` and, under the hatch,
+   `ground: N.NNNs` so the allocator can subtract the grounding the ladder
+   pays once. Crucible: no new set — `sweep --env FF_RUNG_ONLY=<rung>
+   --name matrix31-<rung>` on a subset (`select.rs`); the env is part of
+   a board's identity, so each rung's rows land on their own board row
+   and the real board is never touched. `benchmarks/matrix-sample.py`
+   picks the sample from the banked baseline's rows and prints the five
+   (eight, with Lane B's rungs) sweep commands; `benchmarks/ladder-table.py`
+   is the allocator, with the held-out read beside the in-sample one, and
+   writes the table `FF_LADDER_TABLE` loads (`ladder.rs`; fixture
+   `tests/ladder_table.rs`). Sample:
    every domain of the satisficing/agile/mco boards, ≤ 12 instances a
    domain spread over the instance index (~1,200 cells; the operator
    accepted either this or a 600-cell half — the half is the fallback if
@@ -280,38 +299,55 @@ timeouts. **Band:** 2018 seq-sat 99 → 115+, 2014 seq-sat / agile +10 each,
 budget-edge losses exceed gains under Lane A's table (not under a hand
 slice; that question is answered) → the rung stays opt-in, recorded.
 
-What `novelty.rs` is today, by its own header: width-1, partition
-⟨unachieved-goal count⟩ only, after the LAMA rung, opt-in because of the
-budget-edge tax. What the literature's winning configuration is:
+**Corrected on reading the code and the papers (2026-10-23).** The
+scoping note called the novelty rung "w=1, ⟨#g⟩ only"; that is the 0.17
+h-guided rung, which 0.22 REPLACED at its slot with the h-free DRIVER
+(`novelty::search_driver`). The driver already is BFWS(f5) in all but
+name: partition ⟨#g, r⟩ with R the relaxed plan's need-facts from the
+root (`r_partition_facts`, capped 256), width 2 over R-pairs, key
+⟨rank novel-1 < novel-2 < non-novel, #g, |R|−r⟩, lazy frontier, 400k-eval
+cap, default-on after LAMA at half the remaining wall. So what the winners
+have that the ladder lacks is not f5. Reading the three papers
+(`docs/papers/`, the extracted mechanism sections):
 
-- **BFWS(f5)** (Lipovetzky & Geffner, AAAI 2017): open list ordered
-  ⟨w, #g, h⟩ with novelty w computed **relative to ⟨#g, #r⟩**, where #r is
-  the number of atoms of the relaxed plan from the initial state reached
-  so far — h^FF's relaxed plan, which the engine already computes on every
-  evaluation. w ≤ 2 with the w=2 table capped (Singh et al. 2021,
-  *Approximate novelty search*, for the Bloom-style approximation that
-  keeps w=2 affordable).
-- **Dual / k-BFWS** (Francès et al., IJCAI 2017): a polynomial 1-BFWS pass
-  first (prune w > 1), then 2-BFWS, then the full search — the cheap
-  passes solve a startling fraction and cost little.
-- **Forgetting** (Scorpion Maidu, IPC 2023 abstract): the novelty tables
-  reset periodically / on restart so a long search does not go blind.
-- The FD-style variant (Katz et al., ICAPS 2017, *Adapting novelty to
-  classical planning*) for the version that lives inside a LAMA-like
-  ladder — the shape ours has.
+- **Dual BFWS** (L&G 2017, Table 2: 225/280 on IPC-2014 against LAMA's
+  171 and BFWS(f5)'s 192): a FRONT END that is f5 with every w > 1 state
+  PRUNED — polynomial, succeeds or fails fast (151 of the 225 on its own)
+  — then a BACK END that is LAMA's machinery with novelty FIRST:
+  **f6 = ⟨w_{hL,hff}, help, hL, w'_{hff}, hff⟩**, delayed evaluation,
+  helpful/non-helpful split. The paper's own ablation is the receipt:
+  pushing a novelty preference in front of ⟨hL, hff⟩ took 99 → 149.
+- **#r recomputed on progress** (L&G 2017's definition): the relaxed plan
+  behind #r is recomputed whenever a state lowers #g against its parent,
+  not once at the root. The driver computes R once.
+- **Forgetting** (Scorpion Maidu 2023, the satisficing winner; its single
+  most important configuration `hnew` was LAMA's four queues + a
+  type-based queue + ONE novelty queue w ≤ 2 whose tuple tables are
+  cleared "whenever the search makes progress", with the open list
+  bucket-shifted so old states fall behind; `hnew` alone 84/140 against
+  LAMA's 80 on the 2023 domains at 30 min).
 
-**Mechanisms, in order:** (1) #r from the relaxed plan, the ⟨#g, #r⟩
-partition, w ≤ 2 with a capped table, in `novelty.rs` on the flat arena
-(0.30's `search_light` layout — the 0.17 rung died of memory at 12.5 M
-nodes; the arena is why this is affordable now); (2) the k-BFWS prune pass
-as its own rung ahead of the full one; (3) forgetting on a node-count
-period. Each is a `FF_NOV_*` knob with the 0.30 behaviour as the hatch.
-**Fixtures:** a plateau task h^FF cannot cross that 1-BFWS crosses (the
-catalog-consume fixture's shape, which the header names); novelty-table
-bytes per node pinned; determinism at any thread count (the rung's
-existing contract). **Measured:** solo node-cost receipts on city-car,
-child-snack, maintenance, woodworking i15/i16 (the 0.30 cells); then the
-matrix sample for the new rung (one night) → Lane A's table →
+**Mechanisms, in order, each a `FF_NOV_*`/`FF_LAMA_*` knob with 0.30 as
+the hatch:** (1) **novelty-first LAMA** — `lama.rs` gains a 3-level
+novelty w_{hL,hff} (partition by the ⟨lm-count, parent-h⟩ pair; atom
+tables on the arena; pairs over the R list as the driver does) as the
+LEADING key term ahead of its ⟨W_FF·h + W_LM·lm⟩ key, both heaps; the
+f6 shape, delayed evaluation already in place. (2) **the pruned front
+end** — the driver with non-novel states pruned (rank 2 dropped), as a
+rung AHEAD of LAMA beside novelty-light, bounded by construction
+(|F|²·|G| states), slice from the matrix. (3) **R refresh + forgetting**
+in the driver: R recomputed on a #g improvement (one relaxed plan per
+improvement, not per pop — the driver stays h-free in cost); on each
+improvement the tuple tables are cleared and the heap is re-keyed one
+bucket back (Maidu's milder variant). **Fixtures:** the `deceptlawn`
+shape (`tests/ladder_wall.rs`) for (1) — LAMA grinds the lawn, novelty-
+first LAMA walks the corridor; a two-goal task where the front end fails
+fast and cheap for (2); a task whose root relaxed plan is wrong for the
+second goal for (3). Table bytes per node pinned; determinism at any
+thread count (the rungs' existing contract). **Measured:** solo
+receipts on city-car, child-snack, maintenance, woodworking i15/i16
+(the 0.30 cells), barman / parking / transport from the paper's table;
+then the matrix sample for the new rungs (one night) → Lane A's table →
 `sweep --board ipc2014-seq-sat,ipc2014-agile,ipc2018-seq-sat,ipc2023-seq-sat`.
 
 ---
@@ -381,6 +417,30 @@ distances; SCP admissibility on a two-heuristic example with a known
 sum; A*'s certificate unchanged under the new h (every proof is
 re-verified by the existing VAL path).
 
+**C.0 / C.1 BUILT 2026-10-23 (engine-0.31, unmeasured — the sweep holds
+the box).** `vars.rs`: the multi-valued cover from `invariants::synthesize`
+(greedy disjoint, largest first, singletons, a `none` value per variable);
+`FF_VARS_DEBUG=1` prints the cover's receipt after grounding on both
+routes and `probes-0.31/opt/vars.py` runs it over the opt boards' cells
+(C.0 (a)). `pdb.rs`: the projection onto a pattern — value tests for
+preconditions, set/clear for effects, numeric dropped, conditional
+effects on the pattern made nondeterministic (refused past three on one
+op), goal values as the abstract goal — enumerated in a mixed-radix
+index, reverse graph as CSR in two passes, one backward Dijkstra;
+refused (never partial) past a state cap, an edge cap or a deadline.
+`FF_OPT_PDB=1` builds the GOAL PATTERN (goal variables, smallest domains
+first, under `FF_OPT_PDB_CAP`, 2^20) in `solve_optimal` under a quarter
+of the remaining wall, installs it for every engine of the ladder, and
+the A* max()es it with LM-cut / h^max (`heuristic` names `+PDB`); the
+notes carry the build receipt — variables, abstract states, edges,
+seconds — which is C.0 (b) and (c) in one line, or `pdb: not built
+(why)`. Fixtures `tests/pdb.rs`: admissibility against exact distances
+on the agent ring, the certificate unchanged with the table installed,
+action costs honoured, a `when`-only route kept finite. Not built yet:
+iPDB hill-climbing, the collection, saturated cost partitioning — judged
+after the receipt over the seven opt boards says what the goal pattern
+alone buys and costs.
+
 **C.2 — symbolic bidirectional blind search.** Independent of any
 heuristic; the strongest single technique on a different set of domains
 from C.1 (the AIJ 2017 paper's own split). Needs a BDD package: price a
@@ -414,6 +474,33 @@ semantics — the consumed ones), relax the rest. It needs the same
 multi-valued view as Lane C, so it rides C.0's variable cover; if the
 cover is cheap this is the satisficing payoff of the same groundwork.
 
+**The mechanism, from the papers (read 2026-10-23; `katz-etal-2013-red-
+black-relaxed-plan.pdf`, `who-said-relax-all.pdf`).** Over the variable
+cover of `vars.rs`: (1) the DOMAIN TRANSITION GRAPH of each variable —
+arcs (d, d') per op with eff[v] = d' and pre[v] = d or v unconstrained,
+each arc labelled with the op's OUTSIDE condition (its other
+preconditions) and OUTSIDE effect (its other effects); (2) a variable is
+RSE-INVERTIBLE when every arc (d, d') has an inverse arc (d', d) whose
+outside condition is contained in the forward arc's outside condition ∪
+outside effect — testable per variable, polynomial; (3) the PAINTING:
+candidates are the invertible variables; paint black a subset whose
+black causal graph (arcs v → v' when some op has v in pre ∪ eff and v' in
+eff) is ACYCLIC, every other variable red — the paper's strategies pick
+black by causal-graph level or by how many relaxed-plan conflicts a
+variable carries, and keep painting red until the cycles are gone; (4)
+THE HEURISTIC, `UNRELAX`: take h^FF's relaxed plan in layer order
+(`heuristic::linearize`); walk it keeping the BLACK variables' real
+values and the red ones accumulating; before each action whose black
+precondition is not met, insert an achieving sequence — a path in the
+black variable's DTG restricted to arcs whose outside conditions are
+already true (red: accumulated; black: current) — and likewise for the
+black goal at the end; h = the length (cost) of the repaired plan.
+Theorem 2 of the AAAI paper: with RSE-invertible black variables and an
+acyclic black causal graph the repair always exists, in polynomial time.
+Mercury's receipt (IPC 2014 seq-sat runner-up) is this heuristic in LAMA's
+place; the HSDIP 2014 "DAG" variant paints more and is in
+`icaps14-hsdip-proceedings.pdf`.
+
 **Claim:** a red-black h on a small black set (the invertibility-based
 painting from the AAAI 2013 paper; DAG painting from the 2014 HSDIP
 paper) as a rung — or as LAMA's second heuristic — moves the delete-heavy
@@ -435,15 +522,21 @@ see. The mechanism is upstream of the polish. Two literature shapes to
 probe against the three boards, with SGPlan5's per-instance metric as the
 referee:
 
-- **Compile soft goals away** (Keyder & Geffner, JAIR 2009) and run the
-  cost-aware anytime search the engine already has for net-benefit (where
-  it stands at 270/270) — one search over the compiled task instead of
-  seed → polish; the question is whether the compiled task's cost
-  landscape beats the polish's candidate enumeration on complex.
+- **The compile is already in the engine** (checked 2026-10-23:
+  `pddl3.rs` is the Keyder & Geffner compile since 0.4 — `collect_p` /
+  `forgo_p` with the metric's weights folded into `total-cost`, the
+  optimizer an anytime branch-and-bound over it, `solve_subgoal_bounded`).
+  So the probe is not whether to compile; it is what SEARCH runs over the
+  compiled task after the seed: today a B&B with a bound, then the polish
+  over candidates.
 - **Restarting anytime search** (Richter, Thayer & Ruml, ICAPS 2010 —
-  RWA*) over the compiled task, the LAMA paper's anytime loop with
-  restarts, so the wall after the first plan improves it rather than
-  re-polishing.
+  RWA*; `richter-etal-2010-joy-of-forgetting.pdf`): restart from the
+  initial state at each new incumbent with a lower weight, keeping the
+  heuristic cache, instead of continuing the bounded search — the paper's
+  finding is that continuing from a stale open list is what makes anytime
+  search slow to improve. The candidate: RWA* over the compiled task in
+  the optimizer's wall share, the polish after it as now. The probe reads
+  the ten worst-ratio cells with the incumbent's metric per restart.
 
 **Band:** complex 54.1 → 65 of 100, qualitative 64.3 → 72 of 92, simple
 flat. **Kill:** Lane 1b's — points flat with the wall spent. Probe first
