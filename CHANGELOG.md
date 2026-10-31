@@ -9,10 +9,11 @@ All notable changes to this project are documented here.
 - **A parallel rung portfolio, opt-in** (`FF_PARALLEL_RUNGS=1` at
   `--threads N ≥ 2`; 0.31 Lane A′, `parallel.rs`): the ladder runs as one
   worker exactly as it would alone, and N−1 of its rungs run beside it with
-  the whole wall each — driver, LAMA, best-first, EHC, novelty-light, then
-  Lane B's two, the order of their marginal cover on the Phase 0.5 matrix
-  (the ladder 662 of 936 cells; with the driver beside it 683, plus LAMA
-  694, plus best-first 701, the oracle 706). The first plan wins and the
+  the whole wall each — novelty-first LAMA, the driver, best-first, EHC,
+  novelty-light, plain LAMA, the front end: the order of their marginal
+  cover on the Phase 0.5 matrix (the ladder 662 of 936 cells; with
+  novelty-first LAMA beside it 712, plus the driver 723, plus best-first
+  727; the six rungs' oracle 734). The first plan wins and the
   others are cancelled through the per-call budget's flag, which every
   rung polls at its batch boundary (novelty-light now too). Timing-
   dependent by construction — the one contract it breaks, "byte-identical

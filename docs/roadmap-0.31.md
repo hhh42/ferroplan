@@ -247,9 +247,10 @@ What this closes and what it opens:
   no single-thread board touched. **Kill:** < +20 rows, or any t2 board's
   loss side larger than its gain. **Code written 2026-10-31**, unbuilt
   while the Lane B sweep holds the box: `parallel.rs` (members by thread
-  count: ladder → driver → LAMA → bfs → EHC → novelty-light → lamanov →
-  front, the matrix's marginal order beside the ladder — 683 / 694 / 701
-  of 706 at two, three, four workers), the ladder factored into `ladder()`
+  count: ladder → LAMA-novelty → driver → bfs → EHC → novelty-light → LAMA
+  → front, the matrix's greedy marginal order beside the ladder once Lane
+  B's first rung was read — 712 / 723 / 727 of the six rungs' 734 at two,
+  three, four workers), the ladder factored into `ladder()`
   behind `plan_avoiding`'s gate, the hatch's rungs as `search::Rung`,
   novelty-light given the hard checkpoint the other rungs poll,
   `tests/parallel_rungs.rs`. Measure: build, fixtures, then the six mco
@@ -285,8 +286,23 @@ What this closes and what it opens:
   learned single-rung choice, in any feature set cheaper than running the
   rungs. What remains of the 44 cells is reachable only side by side.
 - **Lane B's judge is now fixed:** `lamanov`, `front`, `driverx` through
-  the matrix (launched 2026-10-31 07:40, `probes-0.31/matrix/
+  the matrix (launched 2026-10-31 08:12, `probes-0.31/matrix/
   run-matrix-b.sh`), each read on its unique solves against the five.
+  **First read, 2026-10-31 (lamanov, every cell reached, rescues still
+  landing):** coverage **635** of 936 with the whole wall against plain
+  LAMA's 547; **28 unique solves** no standing rung reaches (parking 7,
+  pathways 4, caldera-split 4, trucks 3, storage 2, no-mystery 2, one each
+  on rovers, data-network, flashfill, settlers, snake, spider); 50 cells
+  the banked ladder does not solve; head to head, 97 cells it solves that
+  plain LAMA does not against 9 the other way, and on the 538 both solve
+  the medians are 3.8 s against 3.3 s. The six rungs' oracle is 734; the
+  ladder with LAMA-novelty beside it 712. Two consequences, both for when
+  the box is free: the portfolio's first worker is LAMA-novelty (the order
+  is re-drawn in `parallel.rs`), and Lane B's own claim — `FF_LAMA_NOV=1`
+  as the ladder's default, the rung in its slice — is now a subset sweep
+  on the six boards against the banked 0.30.0 rows, not a matrix question.
+  Its kill clause stands as written (budget-edge losses against gains,
+  the nine LAMA-only cells among them). `front` and `driverx` follow.
 
 ---
 

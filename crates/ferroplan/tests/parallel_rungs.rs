@@ -66,16 +66,20 @@ fn names(t: usize) -> Vec<&'static str> {
     members(t).iter().map(|m| m.name()).collect()
 }
 
-/// The members are the matrix's marginal order beside the ladder: driver
-/// (+21 cells), LAMA (+11), bfs (+7), then the unique-solve rungs, then
-/// Lane B's two. One thread is the ladder alone; more threads than
-/// members run the members.
+/// The members are the matrix's marginal order beside the ladder (the
+/// 2026-10-31 read with Lane B's novelty-first LAMA in the pool): LAMA-
+/// novelty (+50 cells), driver (+11), bfs (+4), then the unique-solve
+/// rungs, plain LAMA last, the front end after. One thread is the ladder
+/// alone; more threads than members run the members.
 #[test]
 fn the_members_follow_the_matrix_order() {
     assert_eq!(names(1), ["ladder"]);
-    assert_eq!(names(2), ["ladder", "novelty-driver"]);
-    assert_eq!(names(3), ["ladder", "novelty-driver", "LAMA"]);
-    assert_eq!(names(4), ["ladder", "novelty-driver", "LAMA", "bfs"]);
+    assert_eq!(names(2), ["ladder", "LAMA-novelty"]);
+    assert_eq!(names(3), ["ladder", "LAMA-novelty", "novelty-driver"]);
+    assert_eq!(
+        names(4),
+        ["ladder", "LAMA-novelty", "novelty-driver", "bfs"]
+    );
     assert_eq!(names(8).len(), 8);
     assert_eq!(names(64), names(8));
 }
@@ -92,7 +96,7 @@ fn two_workers_solve_and_the_notes_say_so() {
     assert!(!plan.steps.is_empty());
     assert!(
         sol.notes.iter().any(|n| n.starts_with(
-            "parallel rungs: 2 workers (ladder, novelty-driver), timing-dependent; won by "
+            "parallel rungs: 2 workers (ladder, LAMA-novelty), timing-dependent; won by "
         )),
         "the portfolio must report itself:\n{:?}",
         sol.notes

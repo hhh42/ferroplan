@@ -63,18 +63,21 @@ impl Member {
 
 /// The members for `threads` workers: the ladder first, then the rungs in
 /// the order of their MARGINAL cover beside everything before them on the
-/// matrix (driver +21, LAMA +11, bfs +7, then EHC and novelty-light for
-/// their unique solves, then Lane B's two rungs, unmeasured as members).
-/// More threads than members run the members; one thread is the ladder.
+/// matrix, greedy (the Lane B read of 2026-10-31, six rungs on 936 cells:
+/// the ladder 662; + LAMA-novelty 712; + driver 723; + bfs 727; + EHC 730;
+/// + novelty-light 732; + LAMA 734 = the oracle — plain LAMA last because
+/// its novelty-first form solves 97 cells it does not, against 9 the other
+/// way). The front end comes after, unmeasured as a member. More threads
+/// than members run the members; one thread is the ladder.
 pub fn members(threads: usize) -> Vec<Member> {
     const ORDER: [Member; 8] = [
         Member::Ladder,
+        Member::Rung(Rung::LamaNov),
         Member::Rung(Rung::Driver),
-        Member::Rung(Rung::Lama),
         Member::BestFirst,
         Member::Rung(Rung::Ehc),
         Member::Rung(Rung::Novlight),
-        Member::Rung(Rung::LamaNov),
+        Member::Rung(Rung::Lama),
         Member::Rung(Rung::Front),
     ];
     ORDER[..threads.clamp(1, ORDER.len())].to_vec()
@@ -267,8 +270,11 @@ mod tests {
         let names =
             |t: usize| -> Vec<&'static str> { members(t).iter().map(|m| m.name()).collect() };
         assert_eq!(names(1), ["ladder"]);
-        assert_eq!(names(2), ["ladder", "novelty-driver"]);
-        assert_eq!(names(4), ["ladder", "novelty-driver", "LAMA", "bfs"]);
+        assert_eq!(names(2), ["ladder", "LAMA-novelty"]);
+        assert_eq!(
+            names(4),
+            ["ladder", "LAMA-novelty", "novelty-driver", "bfs"]
+        );
         assert_eq!(names(64).len(), 8);
         assert_eq!(names(0), ["ladder"]);
     }
