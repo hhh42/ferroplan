@@ -227,10 +227,35 @@ What this closes and what it opens:
   say. **Band:** +4 % of the mco cells (≈ +40–80 rows) on the subset sweep,
   no single-thread board touched. **Kill:** < +20 rows, or any t2 board's
   loss side larger than its gain.
-- **A probe, not a lane:** instance-level rung prediction from the matrix
-  (features of the grounded task → fastest rung, judged leave-one-domain-
-  out as the table was). Zero engine code; its ceiling is the same 44
-  cells, sequentially; recorded either way inside a day.
+- **A probe, not a lane — run 2026-10-31, negative:** instance-level
+  rung prediction (`benchmarks/rung-predictor.py`, output
+  `probes-0.31/matrix/predictor.txt`, the feature table `features.csv`).
+  Forty-eight features read off the PDDL text (requirements, type /
+  predicate / action counts and arities, precondition and effect sizes,
+  quantifiers, conditional effects, object / init / goal sizes, a log
+  grounding estimate — no grounding, no search), one random forest per
+  rung ("does this rung solve the cell"), the rung with the highest
+  probability given the whole wall:
+
+  | policy on the 936 cells | solved |
+  |---|---:|
+  | banked ladder | 662 |
+  | best constant rung (bfs) | 555 |
+  | the predictor, **leave-one-family-out** (an unseen domain) | **536** |
+  | the predictor, 10-fold over cells (known domains, unseen instances) | 670 |
+  | … plus the family name as a feature | 675 |
+  | best rung per family **by name**, leave-one-cell-out | 680 |
+  | oracle | 706 |
+
+  Gating the predictor on its own confidence and falling back to the
+  ladder otherwise reaches 656 on unseen domains at the strictest gate
+  (65 overrides) — still under the ladder. The reading: the text features
+  carry no signal that transfers to a domain the forest has not seen (536
+  is under the best *constant* rung); on known domains they are a proxy
+  for the name, worth +8, and the name itself is worth +18 — and a table
+  keyed on the benchmark's names is memorising the benchmark. Closed: a
+  learned single-rung choice, in any feature set cheaper than running the
+  rungs. What remains of the 44 cells is reachable only side by side.
 - **Lane B's judge is now fixed:** `lamanov`, `front`, `driverx` through
   the matrix (launched 2026-10-31 07:40, `probes-0.31/matrix/
   run-matrix-b.sh`), each read on its unique solves against the five.

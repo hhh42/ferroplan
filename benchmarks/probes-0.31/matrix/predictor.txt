@@ -1,0 +1,81 @@
+cells 936  variants 78  families 48  features 48
+families: [np.str_('agricola'), np.str_('barman'), np.str_('caldera'), np.str_('caldera-split'), np.str_('cave-diving'), np.str_('child-snack'), np.str_('city-car'), np.str_('cyber-security'), np.str_('data-network'), np.str_('elevator'), np.str_('flashfill'), np.str_('floor-tile'), np.str_('folding'), np.str_('genome-edit-distances'), np.str_('hiking'), np.str_('labyrinth'), np.str_('maintenance'), np.str_('no-mystery'), np.str_('nurikabe'), np.str_('openstacks'), np.str_('organic-synthesis'), np.str_('organic-synthesis-split'), np.str_('parc-printer'), np.str_('parking'), np.str_('pathways'), np.str_('peg-solitaire'), np.str_('pipesworld'), np.str_('quantum-layout'), np.str_('recharging-robots'), np.str_('ricochet-robots'), np.str_('rovers'), np.str_('rubiks-cube'), np.str_('scanalyzer-3d'), np.str_('settlers'), np.str_('slitherlink'), np.str_('snake'), np.str_('sokoban'), np.str_('spider'), np.str_('storage'), np.str_('termes'), np.str_('tetris'), np.str_('thoughtful'), np.str_('tidybot'), np.str_('tpp'), np.str_('transport'), np.str_('trucks'), np.str_('visit-all'), np.str_('woodworking')]
+
+oracle (any standing rung)                           706
+banked ladder b02061eded16                           662
+best constant rung (bfs)                             555
+per-variant best rung, leave-one-cell-out (name)     672
+per-family best rung, leave-one-cell-out (name)      680
+
+the predictor on text features, whole wall on the chosen rung:
+  leave-one-FAMILY-out (unseen domain)               536
+  10-fold over cells (known domains, unseen instances) 670
+  gated at 0.7 (else the ladder): unseen / known     637 (401 overrides) / 669 (639 overrides)
+  gated at 0.8 (else the ladder): unseen / known     644 (265 overrides) / 670 (596 overrides)
+  gated at 0.9 (else the ladder): unseen / known     643 (161 overrides) / 667 (524 overrides)
+  gated at 0.95 (else the ladder): unseen / known    656 (65 overrides) / 665 (429 overrides)
+  10-fold, text features + family name               675
+
+where the leave-one-family-out predictor's pick lands, by family (cells: ladder / predictor / oracle):
+  agricola                12    3 /   2 /   7   <- worse than the ladder
+  barman                  24   24 /  24 /  24
+  caldera                 12    2 /   1 /   2   <- worse than the ladder
+  caldera-split           12    2 /   2 /   2
+  cave-diving             24    8 /   2 /   8   <- worse than the ladder
+  child-snack             24    8 /   8 /  10
+  city-car                24    4 /   4 /   6
+  cyber-security          12   12 /   9 /  12   <- worse than the ladder
+  data-network            12    5 /   3 /   6   <- worse than the ladder
+  elevator                24   23 /  19 /  24   <- worse than the ladder
+  flashfill               12    9 /   9 /   9
+  floor-tile              24    9 /   8 /   9   <- worse than the ladder
+  folding                 12    1 /   1 /   1
+  genome-edit-distances   24   24 /  24 /  24
+  hiking                  24   21 /  22 /  23
+  labyrinth               12    5 /   2 /   7   <- worse than the ladder
+  maintenance             24   18 /  18 /  18
+  no-mystery              12    9 /  10 /  10
+  nurikabe                12    8 /   5 /   8   <- worse than the ladder
+  openstacks              72   69 /  45 /  72   <- worse than the ladder
+  organic-synthesis       12    1 /   1 /   1
+  organic-synthesis-split  12    5 /   5 /   6
+  parc-printer            24   24 /  24 /  24
+  parking                 24   13 /   0 /  17   <- worse than the ladder
+  pathways                24   20 /  16 /  20   <- worse than the ladder
+  peg-solitaire           24   24 /  24 /  24
+  pipesworld              24   20 /  18 /  23   <- worse than the ladder
+  quantum-layout          12   12 /  10 /  12   <- worse than the ladder
+  recharging-robots       12    8 /   7 /   9   <- worse than the ladder
+  ricochet-robots         12    2 /   2 /   7
+  rovers                  24   22 /  21 /  22   <- worse than the ladder
+  rubiks-cube             12    3 /   3 /   3
+  scanalyzer-3d           24   24 /  24 /  24
+  settlers                12    9 /   8 /  10   <- worse than the ladder
+  slitherlink             12    4 /   3 /   4   <- worse than the ladder
+  snake                   12    3 /   2 /   3   <- worse than the ladder
+  sokoban                 24   23 /  18 /  24   <- worse than the ladder
+  spider                  12    5 /   6 /   6
+  storage                 12   10 /   8 /  10   <- worse than the ladder
+  termes                  12    3 /   4 /   6
+  tetris                  24   24 /  12 /  24   <- worse than the ladder
+  thoughtful              24   24 /  24 /  24
+  tidybot                 12   10 /  10 /  12
+  tpp                     24   24 /  21 /  24   <- worse than the ladder
+  transport               36   21 /   7 /  25   <- worse than the ladder
+  trucks                  24   12 /  12 /  12
+  visit-all               24   24 /   5 /  24   <- worse than the ladder
+  woodworking             24   24 /  23 /  24   <- worse than the ladder
+
+feature importance (one forest per rung on all cells, mean decrease in impurity, top 12):
+  problem_bytes              0.061
+  log_init_x_actions         0.059
+  log_ground_actions         0.057
+  goal_per_init              0.055
+  n_objects                  0.053
+  n_init_atoms               0.051
+  mean_pre_atoms             0.051
+  max_type_size              0.050
+  objects_per_type           0.049
+  mean_action_params         0.047
+  log_max_action_ground      0.044
+  mean_eff_atoms             0.044
