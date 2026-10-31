@@ -1,0 +1,1049 @@
+   Compiling ferroplan v0.30.0 (/Users/harold/ferroplan-0.31/crates/ferroplan)
+   Compiling ferroplan-wasm v0.30.0 (/Users/harold/ferroplan-0.31/crates/ferroplan-wasm)
+   Compiling ferroplan-mcp v0.30.0 (/Users/harold/ferroplan-0.31/crates/ferroplan-mcp)
+   Compiling ferroplan-cli v0.30.0 (/Users/harold/ferroplan-0.31/crates/ferroplan-cli)
+   Compiling ferroplan-bevy v0.30.0 (/Users/harold/ferroplan-0.31/crates/ferroplan-bevy)
+    Finished `release` profile [optimized] target(s) in 4m 34s
+     Running unittests src/lib.rs (target/release/deps/ferroplan-9e214869de4d9d33)
+
+running 129 tests
+test constraints::grounding_cost::storage_p05_hard_overlay ... ignored, heavy: grounding-cost measurement (docs/roadmap-0.7.md Phase 1)
+test constraints::grounding_cost::trucks_p03_hard_overlay ... ignored, heavy: grounding-cost measurement (docs/roadmap-0.7.md Phase 1)
+test derived::tests::dynamic_derived_is_rejected_clearly ... ok
+test derived::tests::static_reachability_closure_added_to_init ... ok
+test heuristic::tests::audit_rejects_scale_on_relevant_fluent ... ok
+test heuristic::tests::audit_rejects_undefined_at_init_relevant_fluent ... ok
+test heuristic::tests::a_dead_end_with_a_draining_consumable_is_a_fixpoint ... ok
+test heuristic::tests::a_selected_raiser_is_charged_its_extra_firings ... ok
+test heuristic::tests::audit_rejects_monitored_tasks ... ok
+test heuristic::tests::a_needed_bound_still_drives_the_build ... ok
+test heuristic::tests::chained_band_depth_cap_bounds_the_walk ... ok
+test heuristic::tests::pump_chain_layer_counter_off_by_one_is_pinned ... ok
+test heuristic::tests::numopt_layer_bounds_are_admissible ... ok
+test heuristic::tests::chained_band_h_prices_the_whole_chain ... ok
+test heuristic::tests::sailing_band_h_init_carries_the_band_charge ... ok
+test heuristic::tests::sailing_band_layer_bound_is_admissible ... ok
+test heuristic::tests::damped_charge_prices_shared_achiever_at_gap_sum ... ok
+test introspect::tests::bogus_step_is_an_error ... ok
+test introspect::tests::causal_links_name_the_last_achiever ... ok
+test heuristic::tests::nodamp_hatch_restores_the_first_wins_jump ... ok
+test introspect::tests::preference_breakdown_names_weights ... ok
+test heuristic::tests::trader_cycle_h_stays_finite_and_blind ... ok
+test invariants::tests::robby_room_and_ball_location ... ok
+test invariants::tests::package_location_spans_at_and_in ... ok
+test heuristic::tests::trader_cycle_layer_bound_is_weak_but_sound ... ok
+test ladder::tests::a_later_line_overrides_an_earlier_one ... ok
+test invariants::tests::blocks_support_and_hand_are_groups ... ok
+test ladder::tests::malformed_lines_are_errors_with_their_number ... ok
+test ladder::tests::parses_the_text_form ... ok
+test lama::tests::drip_that_cannot_arrive_hands_down ... ok
+test heuristic::tests::split_hatches_disable_exactly_one_half_each ... ok
+test lama::tests::pace_that_fits_keeps_extending ... ok
+test mem::tests::a_trip_is_sticky_for_its_scope_and_no_longer ... ok
+test mem::tests::an_undeclared_budget_is_no_wall ... ok
+test mem::tests::the_unarmed_wall_never_trips_and_never_marks ... ok
+test heuristic::tests::the_plan_pays_for_what_it_spends ... ok
+test novelty::tests::envelope_distinguishes_fluent_only_states ... ok
+test novelty::tests::driver_solves_the_numeric_mini_without_the_numfeat_rider ... ok
+test optimal::tests::cond_effect_achievers_keep_h_admissible ... ok
+test optimal::tests::lmcut_beats_hmax_on_parallel_goals ... ok
+test optimal::tests::inherited_cuts_charge_admissibly_and_drop_the_applied_op ... ok
+test optimal::tests::lmcut_exact_on_cost_chain ... ok
+test output::tests::capped_never_claims_a_proof ... ok
+test packed::succ_tests::every_op_is_anchored_once ... ok
+test optimal::tests::orbit_and_numrpg_compose_and_stamp_the_prover ... ok
+test optimal::tests::num_fold_gates_fail_closed_and_prices_p04_exactly ... ok
+test optimal::tests::num_arm_gates_on_currency_audit_and_root ... ok
+test partition::tests::excluded_shared_variable_never_merges ... ok
+test partition::tests::interaction_partition_matches_of_with_defaults ... ok
+test packed::succ_tests::the_generator_agrees_with_the_linear_scan_everywhere_it_is_asked ... ok
+test partition::tests::shared_variable_merges_goals_by_default ... ok
+test pdb::tests::a_chain_is_exact ... ok
+test plan::tests::parsers_skip_banner_lines ... ok
+test pddl3::monitor_pairs::shared_monitor_adds_emit_no_deadline_pairs ... ok
+test plan::tests::classical_valid_and_invalid ... ok
+test plan::tests::temporal_valid_and_invalid ... ok
+test search::tests::mem_budget_parses_fractional_gib_at_the_60_percent_share ... ok
+test search::tests::mem_budget_rejects_garbage_zero_and_negatives ... ok
+test resource::tests::detects_counter_and_orders_occupancy_from_full ... ok
+test session::tests::a_think_can_be_just_waiting_for_a_running_end ... ok
+test session::tests::apply_start_lets_a_mind_think_mid_interval ... ok
+test resource::tests::trip_bound_reads_demand_over_capacity ... ok
+test session::tests::drift_that_breaks_a_running_interval_is_honest ... ok
+test session::tests::budgeted_think_is_bounded_and_deterministic ... ok
+test session::tests::follow_before_you_rethink_scripted_drift ... ok
+test session::tests::elapse_fires_interval_ends_retiring_the_mirror_idiom ... ok
+test session::tests::elapse_decays_and_fires_events_in_order ... ok
+test session::tests::fork_shares_the_world_and_inherits_current_state ... ok
+test session::tests::fork_keeps_thread_determinism ... ok
+test session::tests::fork_temporal_population_thinks_independently ... ok
+test session::tests::forks_diverge_without_touching_siblings ... ok
+test session::tests::goal_already_met_returns_empty_plan ... ok
+test session::tests::goal_met_is_a_pure_state_test ... ok
+test session::tests::observe_updates_sight_only_and_reports_surprises ... ok
+test session::tests::in_flight_thinks_stay_deterministic_across_threads ... ok
+test session::tests::replan_following_cuts_at_goal_mid_prefix ... ok
+test session::tests::replan_following_preserves_the_surviving_prefix ... ok
+test session::tests::replan_solves_and_tracks_world_state ... ok
+test session::tests::orbit_aware_thinks_stay_deterministic_across_threads ... ok
+test session::tests::orbit_aware_thinks_redetect_on_the_current_world_never_cache ... ok
+test session::tests::set_fluent_on_op_untouched_fluent_flips_numeric_precondition ... ok
+test session::tests::set_fluent_on_op_untouched_fluent_flows_into_durations ... ok
+test session::tests::set_goal_negative_literals_via_mirrors_and_set_fact_sync ... ok
+test session::tests::set_goal_numeric_relevance_grows_the_state_key ... ok
+test session::tests::set_goal_rejects_unknown_and_adl ... ok
+test session::tests::set_goal_retarget_is_deterministic_across_threads ... ok
+test session::tests::set_goal_retargets_without_regrounding ... ok
+test session::tests::set_goal_temporal_retarget ... ok
+test session::tests::standing_replans_stay_orbit_free ... ok
+test session::tests::static_and_unknown_facts_are_rejected ... ok
+test session::tests::temporal_following_carries_the_in_flight_interval ... ok
+test session::tests::temporal_following_is_deterministic_across_threads ... ok
+test session::tests::temporal_following_keeps_the_prefix_and_reroutes_the_tail ... ok
+test session::tests::temporal_sessions_fence_tils_and_running_tokens ... ok
+test session::tests::temporal_sessions_think_concurrently_and_replan ... ok
+test session::tests::temporal_suffix_replay_detects_breaks ... ok
+test session::tests::temporal_think_budget_is_bounded_and_deterministic ... ok
+test session::tests::temporal_think_never_claims_a_proof ... ok
+test session::tests::the_successor_index_covers_a_session_task_after_the_til_fence ... ok
+test session::tests::think_is_budget_stamped_and_a_cap_never_reads_unsolvable ... ok
+test session::tests::think_proven_exhaustion_names_itself ... ok
+test session::tests::think_wall_budget_is_enforced_at_the_checkpoints ... ok
+test session::tests::thinks_wait_through_enabling_events ... ok
+test session::tests::timed_event_fences_hold ... ok
+test session::tests::timed_events_after_the_plan_are_the_games_future ... ok
+test session::tests::timed_events_close_windows_plans_beat_or_fail_honestly ... ok
+test session::tests::timed_thinks_stay_deterministic_across_threads ... ok
+test temporal::tests::same_epoch_end_pair_emits_inside_the_window ... ok
+test temporal::tests::monitor_audit_refuses_the_emitted_order_flip ... ok
+test temporal::tests::same_slot_reader_start_crosses_rigid_end_run ... ok
+test temporal::tests::same_slot_reader_start_emits_before_deleting_end ... ok
+test temporal::tests::the_refill_scale_survives_the_count_ceiling ... ok
+test temporal::tests::same_slot_start_pair_emits_provider_first ... ok
+test temporal::tests::trpg_chain_refuses_past_the_static_til_close ... ok
+test temporal::tests::trpg_envelope_window_refuses_the_overrun_and_pays_the_fit ... ok
+test trace::tests::trace_captures_each_step ... ok
+test trace::tests::trace_rejects_inapplicable ... ok
+test vars::tests::a_disjoint_cover_with_singletons ... ok
+test viz::tests::classification ... ok
+test viz::tests::pddl_round_trips ... ok
+test viz::tests::positions_from_facts ... ok
+test mem::tests::the_kernel_answers_and_the_answer_moves_with_the_heap ... ok
+test temporal::tests::eps_cap_overflow_ships_the_raw_plan ... ok
+test temporal::tests::eps_separates_to_the_2000_happening_cap ... ok
+test session::tests::restrict_ops_scopes_a_mind_to_its_own_actions ... ok
+test session::tests::replan_following_falls_back_when_the_prefix_strands ... ok
+test temporal::tests::eps_cap_overflow_is_loud_and_the_cap_is_quiet ... ok
+test session::tests::restricted_thinks_stay_deterministic_across_threads ... ok
+test introspect::tests::invariant_spans_cover_the_interval ... ok
+
+test result: ok. 127 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/achiever_index.rs (target/release/deps/achiever_index-dff632536d376efb)
+
+running 2 tests
+test without_a_monitor_block_the_walk_is_the_table ... ok
+test achievers_are_the_op_scan_and_the_table_is_the_own_adds ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/action_costs.rs (target/release/deps/action_costs-62bdb69e97178be7)
+
+running 7 tests
+test elevators08_p01_beats_cost_blind_baseline ... ignored, heavy IPC cost solve; opt-in via --include-ignored (CI runs these in release)
+test transport08_p01_reports_validated_cost ... ignored, heavy IPC cost solve; opt-in via --include-ignored (CI runs these in release)
+test woodworking08_p01_reports_validated_cost ... ignored, heavy IPC cost solve; opt-in via --include-ignored (CI runs these in release)
+test zero_cost_plan_is_proven_optimal ... ok
+test maximize_metric_is_not_silently_claimed ... ok
+test satisfice_reports_cost_without_sweeping ... ok
+test cost_sweep_trades_length_for_cost ... ok
+
+test result: ok. 4 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adl.rs (target/release/deps/adl-7cd4a8a7c25451ec)
+
+running 7 tests
+test complement_fact_semantics_match_metric_ff ... ok
+test negated_numeric_equality_solved ... ok
+test disjunctive_goal_picks_reachable_disjunct ... ok
+test conditional_negative_condition_toggle ... ok
+test forall_unsatisfiable_when_item_cannot_be_tagged ... ok
+test conditional_universal_effect_briefcase ... ok
+test forall_exists_equality_precondition ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/api.rs (target/release/deps/api-5d1e6e600d12649a)
+
+running 8 tests
+test parse_error_is_typed ... ok
+test parse_error_reports_line ... ok
+test schema_feature_types_the_options_surface ... ok
+test unsolvable_goal_reports_unsolved ... ok
+test solve_returns_structured_plan ... ok
+test solution_json_round_trips ... ok
+test explicit_modes_run ... ok
+test partition_solves_multi_goal_transport ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bfws.rs (target/release/deps/bfws-ede6e66a5b3c37eb)
+
+running 3 tests
+test the_extended_driver_is_valid_and_deterministic ... ok
+test the_front_end_solves_a_novel_chain_and_is_polynomial_on_the_lawn ... ok
+test novelty_first_lama_walks_the_corridor_plain_lama_grinds_the_lawn ... FAILED
+
+failures:
+
+---- novelty_first_lama_walks_the_corridor_plain_lama_grinds_the_lawn stdout ----
+
+thread 'novelty_first_lama_walks_the_corridor_plain_lama_grinds_the_lawn' (81899) panicked at crates/ferroplan/tests/bfws.rs:126:5:
+plain LAMA solved the lawn inside 20000 evals -- the fixture no longer separates the keys (k too small?)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    novelty_first_lama_walks_the_corridor_plain_lama_grinds_the_lawn
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p ferroplan --test bfws`
+     Running tests/call_budget.rs (target/release/deps/call_budget-df2c8f237a87262c)
+
+running 5 tests
+test options_still_round_trip_and_older_json_still_loads ... ok
+test concurrent_calls_do_not_share_a_budget ... ok
+test an_unarmed_options_is_unchanged ... ok
+test a_spent_budget_does_not_leak_into_the_next_call_on_this_thread ... ok
+test a_declared_budget_bounds_one_call ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+     Running tests/complex_prefs.rs (target/release/deps/complex_prefs-db8febcf170db2e1)
+
+running 7 tests
+test condition_preferences_on_durative_actions_parse ... ok
+test scorer_prices_the_plan_not_the_reachable ... ok
+test condition_preferences_count_once_per_violating_application ... ok
+test over_all_condition_preferences_read_inside_the_interval ... ok
+test condition_preferences_never_gate_the_solve ... ok
+test all_satisfiable_prefs_reach_metric_zero ... ok
+test impossible_pref_is_priced_not_fatal ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/constraints.rs (target/release/deps/constraints-59012bcb04f626d8)
+
+running 34 tests
+test always_blocks_the_forbidden_route ... ok
+test always_no_bite_when_route_complies ... ok
+test anonymous_constraint_pref_defaults_like_named ... ok
+test at_end_is_a_goal_conjunct ... ok
+test at_most_once_blocks_a_second_episode ... ok
+test cli_text_path_enforces_too ... ok
+test decompose_gate_enforces_and_rejects_alike ... ok
+test constraint_free_input_is_untouched ... ok
+test end_action_name_is_fenced_when_constraints_present ... ok
+test end_action_never_reaches_reported_plans ... ok
+test end_hatch_restores_goal_side_acceptance ... ok
+test forall_inside_pref_is_one_instance ... ok
+test forall_pref_instances_share_one_name ... ok
+test hatch_restores_the_blanket_rejection ... ok
+test init_true_goal_with_constraints_reports_the_empty_plan ... ok
+test mixed_hard_and_soft_split_correctly ... ok
+test pref_and_body_violated_by_a_single_member ... ok
+test pref_with_and_body_counts_once ... ok
+test reserved_monitor_names_reject_by_name ... ok
+test run_ff_gate_enforces_too ... ok
+test s0_counts_for_the_trajectory ... ok
+test session_keeps_a_named_rejection ... ok
+test soft_always_pays_when_the_goal_demands_violation ... ok
+test soft_metric_unreferenced_weighs_zero ... ok
+test soft_sometime_default_weight_forces_the_detour ... ok
+test sometime_after_forces_the_response ... ok
+test sometime_before_orders_the_trajectory ... ok
+test sometime_forces_a_detour ... ok
+test sometime_no_bite_when_already_on_route ... ok
+test statically_accepted_constraints_drop_and_solve ... ok
+test statically_satisfied_soft_prefs_still_count ... ok
+test statically_violated_constraints_still_bite ... ok
+test timed_operators_reject_by_name ... ok
+test validate_plan_rejects_a_constraint_violating_plan ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/constraints_stream.rs (target/release/deps/constraints_stream-44d4a065ddfa32a2)
+
+running 2 tests
+test simplifying_as_it_expands_is_byte_identical_to_simplifying_afterwards ... ok
+test the_hatch_keeps_every_member ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/consume_transfer.rs (target/release/deps/consume_transfer-63f599cc0ec799d0)
+
+running 1 test
+test a_sum_the_goal_needs_is_not_billed_as_spending ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.47s
+
+     Running tests/costs_prefs.rs (target/release/deps/costs_prefs-1a942fa25d3097b8)
+
+running 3 tests
+test forgoes_preference_when_dearer_than_its_weight ... ok
+test satisfies_preference_when_cheaper_than_its_weight ... ok
+test trajectory_constraint_enforced_while_combined_metric_optimized ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/decompose.rs (target/release/deps/decompose-4fa9197be37deeb4)
+
+running 3 tests
+test splits_a_conjunctive_goal_into_contracts ... ok
+test single_goal_falls_back_to_one_monolithic_contract ... ok
+test stitched_plan_validates_against_the_whole_goal ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/dur_fluent.rs (target/release/deps/dur_fluent-736fafc09f2ec885)
+
+running 2 tests
+test the_duration_is_fixed_at_start_not_re_read_at_end ... ok
+test an_end_side_duration_over_a_dynamic_read_compiles_solves_and_validates ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ehc_extend.rs (target/release/deps/ehc_extend-d0518f032b725ea1)
+
+running 1 test
+test a_run_that_keeps_arriving_keeps_its_slice ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s
+
+     Running tests/endgate.rs (target/release/deps/endgate-2fb6bb6c5f1ec13c)
+
+running 4 tests
+test village_pair_contract_at_200k ... ignored, measurement driver: run by hand for the Phase 8 probe reads
+test at_start_only_selection_still_charges_one ... ok
+test pair_selected_together_prices_as_one ... ok
+test classical_flag_is_dormant_byte_identical ... ok
+
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/enrich.rs (target/release/deps/enrich-882bfbc63cc89769)
+
+running 1 test
+test the_enriched_fallback_crosses_the_plateau ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/espc.rs (target/release/deps/espc-4968fa785cd6e7d1)
+
+running 1 test
+test espc_openstacks_p01_improves_verifies_and_is_deterministic ... ignored, heavy IPC solve (~2-6 min): ESPC penalty-resolution loop on openstacks/p01. Opt-in via `cargo test -- --include-ignored`; CI runs it in release.
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fluent_fold.rs (target/release/deps/fluent_fold-302ec3b5c6265f0f)
+
+running 1 test
+test fold_and_compaction_shrink_tables_and_stay_byte_identical ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/goal_factor.rs (target/release/deps/goal_factor-0f743675f9c76ba9)
+
+running 1 test
+test or_goal_product_beyond_threshold_compiles_factored ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests/ground_wall.rs (target/release/deps/ground_wall-d258c28740b9febc)
+
+running 1 test
+test goal_dnf_respects_the_declared_budget ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+     Running tests/inc_lmcut.rs (target/release/deps/inc_lmcut-73acdab75ac93435)
+
+running 1 test
+test inc_lmcut_probe_resumes_round_two ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/ipc5_pref_metric.rs (target/release/deps/ipc5_pref_metric-8e906cfb37fa2838)
+
+running 4 tests
+test default_metric_matches_independent_verifier ... ignored, heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)
+test ipc5_pref_metric_no_regression ... ignored, heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)
+test openstacks_beats_all_forgo_floor ... ignored, heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)
+test storage_p03_covered_with_sane_metric ... ignored, heavy IPC pref-metric solve; opt-in via --include-ignored (CI runs these in release)
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ipc5_qual_metric.rs (target/release/deps/ipc5_qual_metric-50527cee2bc66cb8)
+
+running 4 tests
+test ipc5_qual_metric_no_regression ... ignored, heavy IPC qualitative-preferences solve; opt-in via --include-ignored
+test qual_reported_equals_verified_everywhere ... ignored, heavy IPC qualitative-preferences solve; opt-in via --include-ignored
+test storage_p03_survives_the_quadratic_forall ... ignored, heavy IPC qualitative-preferences solve; opt-in via --include-ignored
+test storage_p05_defaults_holds_the_no_espc_metric ... ignored, heavy IPC qualitative-preferences solve; opt-in via --include-ignored
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ladder_dedup.rs (target/release/deps/ladder_dedup-1fea7a44c885d1f6)
+
+running 1 test
+test ladder_skips_its_verbatim_re_runs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/ladder_table.rs (target/release/deps/ladder_table-a8a5abc96742ca78)
+
+running 1 test
+test the_table_sets_a_rungs_slice ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.33s
+
+     Running tests/ladder_wall.rs (target/release/deps/ladder_wall-801765533e9d414d)
+
+running 1 test
+test ladder_rungs_pay_the_wall ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 18.78s
+
+     Running tests/landmarks.rs (target/release/deps/landmarks-d30135e95f60145a)
+
+running 4 tests
+test independent_alternatives_yield_no_false_landmark ... ok
+test chain_landmarks_are_the_chain ... ok
+test lama_rung_reports_unsolvable_within_budget ... ok
+test lama_rung_solves_the_chain ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/lazy_frontier.rs (target/release/deps/lazy_frontier-0bf4a65767ee8215)
+
+running 2 tests
+test an_open_node_costs_a_tuple_not_a_state ... ok
+test a_lama_open_node_costs_a_tuple_not_a_state ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/mcv_ground.rs (target/release/deps/mcv_ground-e20e2225a14d4942)
+
+running 3 tests
+test mcv_join_order_is_byte_identical_across_the_battery ... ok
+test fixpoint_route_composes_with_mcv ... ok
+test stratified_gating_does_not_defeat_the_mcv_order ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/mem_budget.rs (target/release/deps/mem_budget-59e96f529b8740d3)
+
+running 1 test
+test mem_budget_env_arms_the_internal_cap_on_any_kernel ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/mem_wall.rs (target/release/deps/mem_wall-3fc77e9dc9e0a264)
+
+running 1 test
+test a_banked_plan_survives_the_memory_budget ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.03s
+
+     Running tests/netben.rs (target/release/deps/netben-9e64fd0648672c0a)
+
+running 6 tests
+test crew08_netben_p01_reports_value ... ignored, heavy IPC net-benefit solve; opt-in via --include-ignored (CI runs these in release)
+test elevators08_netben_p01_beats_all_forgo ... ignored, heavy IPC net-benefit solve; opt-in via --include-ignored (CI runs these in release)
+test openstacks08_netben_p01_reports_value ... ignored, heavy IPC net-benefit solve; opt-in via --include-ignored (CI runs these in release)
+test pegsol08_netben_p02_reports_value ... ignored, heavy IPC net-benefit solve; opt-in via --include-ignored (CI runs these in release)
+test net_benefit_takes_empty_plan_when_utilities_do_not_pay ... ok
+test net_benefit_collects_worthwhile_goal_and_forgoes_unreachable ... ok
+
+test result: ok. 2 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/node_cap.rs (target/release/deps/node_cap-f0ad1cf864964ee0)
+
+running 2 tests
+test node_cap_bounds_the_search_and_zero_disables ... ok
+sh: line 0: ulimit: virtual memory: cannot modify limit: Invalid argument
+test rlimit_clamps_the_node_cap ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/novdriver.rs (target/release/deps/novdriver-66564493fac9503a)
+
+running 10 tests
+test r_extraction_pin_on_sailing_band ... ok
+test driver_is_deterministic_across_runs ... ok
+test r_extraction_cap_keeps_lowest_layers ... ok
+test best_first_key_is_jitter_free_and_deterministic ... ok
+test light_rung_caps_on_combolock_the_red_record ... ok
+test width2_pair_conjunction ... ok
+test r_partition_beats_goal_count ... ok
+test light_rung_caps_on_pairlock_the_red_record ... ok
+test driver_ladder_pins ... ok
+test childsnack_shape_stays_unsolved_under_the_rung_cap ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/novelty.rs (target/release/deps/novelty-3179057d55945992)
+
+running 2 tests
+test novelty_rung_solves_the_catalog_fixture_with_a_valid_plan ... ok
+test novelty_rung_is_deterministic_across_thread_counts ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/novlight.rs (target/release/deps/novlight-bf7b3d70503c443e)
+
+running 1 test
+test light_walks_the_grid_where_weighted_best_first_caps ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s
+
+     Running tests/novlight_arena.rs (target/release/deps/novlight_arena-abd8eb08293cefe1)
+
+running 1 test
+test a_light_node_costs_a_third_of_a_boxed_state ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/numfold.rs (target/release/deps/numfold-9a3ddb39492b21bd)
+
+running 1 test
+test num_fold_drops_the_per_eval_rpg_tax ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/numh.rs (target/release/deps/numh-704a757095a0ce5d)
+
+running 4 tests
+test bare_shape_unchanged ... ok
+test linear_combo_goal_solves_with_gradient ... ok
+test fluent_rhs_goal_gets_the_charge ... ok
+test eq_goal_gets_the_charge ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/numopt_arm.rs (target/release/deps/numopt_arm-bd5a8dc8d13362c1)
+
+running 1 test
+test num_arm_collapses_the_pump_chain ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/numpre.rs (target/release/deps/numpre-d55486ffd2d96156)
+
+running 10 tests
+test capped_text_says_cap_not_proof ... ok
+test chained_band_dies_one_level ... ok
+test chained_band_mode_auto_solves_on_the_chained_gradient ... ok
+test ff_no_numpre_restores_the_plateau ... ok
+test ff_numnov_smoke_still_solves ... ok
+test fo_sailing_i8_dies_first_wins ... ok
+test fo_sailing_i8_fast_solve_must_survive ... ok
+test sailing_band_mode_auto_solves_on_the_gradient ... ok
+test trader_cycle_stays_unsolved_at_a_small_cap ... ok
+test watering_line_mode_auto_solves_on_the_damped_charge ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/numpre_temporal.rs (target/release/deps/numpre_temporal-620d5c6757832791)
+
+running 1 test
+test armed_charge_reroutes_the_workshop_and_stays_opt_in ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/opt_wall.rs (target/release/deps/opt_wall-85ad65bc967fdb7d)
+
+running 1 test
+test opt_ladder_spends_the_wall ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.88s
+
+     Running tests/optimal.rs (target/release/deps/optimal-890a9e3deb7c9f51)
+
+running 14 tests
+test cap_yields_inconclusive_not_a_plan ... ok
+test exhaustion_proves_unsolvable_past_the_relaxation ... ok
+test action_costs_optimum_beats_the_short_expensive_plan ... ok
+test numeric_precondition_holds_in_exact_expansion ... ok
+test numeric_goal_without_metric_certifies_length_optimum ... ok
+test numeric_arm_names_its_prover_in_the_note ... ok
+test conditional_effect_optimum_is_certified ... ok
+test numeric_goal_optimum_is_certified_exactly ... ok
+test conditional_cost_effect_rejects_by_name ... ok
+test proven_note_stamps_numrpg_and_orbits ... ok
+test scale_effects_disarm_the_numeric_bound_and_stay_sound ... ok
+test temporal_problems_are_rejected_by_name ... ok
+test unit_cost_optimum_is_certified ... ok
+test trader_cycle_negative_control_certificate_unbent ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/orbit_classical.rs (target/release/deps/orbit_classical-e3eba86ff9248596)
+
+running 11 tests
+test cost_asymmetry_bails_and_true_optimum_kept ... ok
+test cost_gate_bails_on_state_dependent_cost ... ok
+test bnb_key_appends_cost_after_canonicalization ... ok
+test cost_gate_admits_uniform_constants ... ok
+test canonical_skey_merges_permuted_states_only ... ok
+test goal_free_view_freezes_goal_bound_orbits_only ... ok
+test run_planner_solves_mini_snack_with_orbits_wired ... ok
+test unary_goal_solo_units_detected_and_goal_bound ... ok
+test partition_passdown_solves_with_identical_plans_across_threads ... ok
+test optimal_orbit_keys_certify_the_same_cost_at_a_third_the_evals ... ok
+test satisficing_canonical_dedup_shrinks_the_sweep ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/orbit_iso.rs (target/release/deps/orbit_iso-07509fc7057742e7)
+
+running 8 tests
+test iso_inert_on_whole_diagonal_goals ... ok
+test iso_round_trip_red_without_remap_green_with ... ok
+test iso_temporal_witness_and_snap_op_remap ... ok
+test iso_detection_forms_goal_blind_orbit_with_designations ... ok
+test iso_witness_found_exactly_when_a_relabeling_serves_the_goal ... ok
+test iso_optimal_certifies_same_cost_and_replays_to_the_original_goal ... ok
+test iso_temporal_unremapped_schedule_is_red_remapped_green ... ok
+test flag_gates_iso_and_temporal_round_trip ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/orbits.rs (target/release/deps/orbits-6c516de60e4cac26)
+
+running 5 tests
+test over_all_invariant_respects_scheduled_outage ... ok
+test numeric_over_all_guard_forces_the_topup ... ok
+test detects_goal_pair_orbit ... ok
+test canonical_key_merges_permuted_states_only ... ok
+test orbit_solve_finds_valid_plan ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/parse.rs (target/release/deps/parse-9896bf51b59cf1d8)
+
+running 6 tests
+test parses_problem_summary ... ok
+test reports_syntax_errors_without_panicking ... ok
+test counts_timed_initial_literals ... ok
+test parses_domain_summary ... ok
+test negative_init_literals_parse_and_read_signed ... ok
+test uninitialized_total_cost_defaults_to_zero ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/partition_rung.rs (target/release/deps/partition_rung-f12e9a7957d5e0b6)
+
+running 1 test
+test the_partition_rung_runs_first_and_hands_down ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.82s
+
+     Running tests/pdb.rs (target/release/deps/pdb-c5dc76809ac699ab)
+
+running 4 tests
+test a_conditional_effect_on_the_pattern_keeps_the_bound_finite ... ok
+test action_costs_are_honoured_in_the_abstract_distances ... FAILED
+test the_certificate_is_unchanged_with_the_database_installed ... ok
+test the_goal_pattern_is_admissible_on_the_ring ... ok
+
+failures:
+
+---- action_costs_are_honoured_in_the_abstract_distances stdout ----
+
+thread 'action_costs_are_honoured_in_the_abstract_distances' (84415) panicked at crates/ferroplan/tests/pdb.rs:189:5:
+assertion failed: cf.is_some()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    action_costs_are_honoured_in_the_abstract_distances
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ferroplan --test pdb`
+     Running tests/pddl3.rs (target/release/deps/pddl3-ff943fe42ce08ad6)
+
+running 7 tests
+test precondition_preference_charged_once_when_violated ... ok
+test precondition_preference_free_when_satisfied ... ok
+test static_simplification_keeps_violable_instances ... ok
+test forall_preference_all_satisfiable_is_zero ... ok
+test forall_preference_counts_violated_instances ... ok
+test static_simplification_drops_never_violable_instances_metric_exact ... ok
+test weighted_forall_preferences ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/polish_rounds.rs (target/release/deps/polish_rounds-4bbdfc8aa922cfd2)
+
+running 1 test
+test the_polish_runs_again_from_its_own_improvement ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/portfolio.rs (target/release/deps/portfolio-1c0b6bba352c687a)
+
+running 3 tests
+test portfolio_proves_unsolvable_early ... ok
+test portfolio_solves_and_reports_the_winner ... ok
+test portfolio_falls_back_for_preference_problems ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/pref_chase_wall.rs (target/release/deps/pref_chase_wall-0fbb377a30faa412)
+
+running 1 test
+test a_banked_plan_is_reported_inside_the_wall ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.53s
+
+     Running tests/pref_polish.rs (target/release/deps/pref_polish-649eb07d48e02b19)
+
+running 6 tests
+test the_polish_refuses_what_it_cannot_price ... ok
+test a_kept_preference_stays_kept_when_the_next_one_is_planned ... ok
+test the_polish_satisfies_the_heaviest_reachable_preferences_first_and_prices_by_replay ... ok
+test the_polish_grounds_twice_however_many_candidates ... ok
+test the_polish_with_the_seed_task_grounds_nothing ... ok
+test the_route_polishes_what_the_optimizer_leaves ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/pref_seed.rs (target/release/deps/pref_seed-e491d3db330b646d)
+
+running 3 tests
+test a_seed_that_does_not_replay_is_refused_not_trusted ... ok
+test the_seed_lifts_through_precondition_preference_variants ... ok
+test the_seed_lifts_through_the_trajectory_gate ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/refill.rs (target/release/deps/refill-fed7b7fdcf282a3b)
+
+running 1 test
+test refill_loop_spends_the_wall ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/robustness.rs (target/release/deps/robustness-099291ed534f1277)
+
+running 1 test
+test no_panic_on_malformed_input ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/rung_mem_wall.rs (target/release/deps/rung_mem_wall-7d0ab64b8a8d788d)
+
+running 2 tests
+test a_rung_entered_above_the_line_runs_unwalled ... ok
+test a_bounded_rung_stops_at_the_memory_wall ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.20s
+
+     Running tests/rung_only.rs (target/release/deps/rung_only-a7be4608dd876342)
+
+running 1 test
+test one_rung_the_whole_wall_its_verdict ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.02s
+
+     Running tests/sat_promo_wall.rs (target/release/deps/sat_promo_wall-aa63b17576b51393)
+
+running 1 test
+test promoted_sat_is_a_bounded_bet ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/sat_wing.rs (target/release/deps/sat_wing-7a3e7cd497b26877)
+
+running 10 tests
+test detector_fires_on_envelope_shape_only ... ok
+test temporal_face_declines_tils_honestly ... ok
+test no_plan_within_horizon_wording ... ok
+test unsat_at_horizon_one_ramps_loud ... ok
+test encoder_declines_over_cap_honestly ... ok
+test classical_round_trip_oracle_and_val ... ok
+test spent_promo_slice_declines_before_the_first_horizon ... ok
+test required_concurrency_green_via_mode_sat_with_eps_pin ... ok
+test dual_typed_twin_ops_pair_cleanly ... ok
+test required_concurrency_red_without_sat_green_via_auto ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/score_plan_size.rs (target/release/deps/score_plan_size-e1b40144f6ebaaf1)
+
+running 1 test
+test the_plan_sized_scorer_prices_exactly_as_the_full_grounding ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tcompress.rs (target/release/deps/tcompress-61bf65437f0f511f)
+
+running 6 tests
+test pathways_metric_time_p01_solves ... ignored, heavy IPC temporal solve; opt-in via --include-ignored
+test the_rung_declines_what_it_cannot_promise ... ok
+test zero_duration_steps_validate ... ok
+test a_held_token_nets_to_its_release ... ok
+test independent_work_overlaps_and_interference_does_not ... ok
+test the_rung_stands_aside_for_the_actor_scheduler ... ok
+
+test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/tdemand.rs (target/release/deps/tdemand-cd41df1c0d6f8cff)
+
+running 1 test
+test tdemand_default_on_solves_validates_and_opt_out_honored ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/temporal.rs (target/release/deps/temporal-4b3003fa30a4ac78)
+
+running 25 tests
+test escalation_ladder_rescues_predicate_build ... ignored, escalation-ladder integration (~20 s release): rung-0 failure must burn its node budget before the Full-tier rung solves. CI runs it via --ignored.
+test classic_action_domains_still_parse ... ok
+test fixed_numeric_duration_and_single_clauses ... ok
+test duration_inequality_parses_both_bounds ... ok
+test parses_durative_action ... ok
+test negative_timed_initial_literal_closes_a_window ... ok
+test single_sided_lower_bound_parses_and_solves ... ok
+test statically_unproducible_fact_goal_fails_fast ... ok
+test compiles_durative_to_snaps_and_grounds ... ok
+test state_dependent_duration_and_duration_in_effects ... ok
+test duration_inequality_solves_shortest_feasible ... ok
+test t3_decision_epoch_solves_simple_durative ... ok
+test t3_required_concurrency_match_fuse ... ok
+test t4_public_api_routes_durative_to_temporal ... ok
+test required_concurrency_turn_and_open ... ok
+test timed_initial_literal_gates_the_action ... ok
+test t3_parameter_dependent_duration ... ok
+test statically_unproducible_goal_fails_fast ... ok
+test timed_initial_literal_parses ... ok
+test validate_accepts_and_rejects_plans ... ok
+test validator_accepts_any_duration_in_range_and_rejects_outside ... ok
+test renewable_resource_limits_concurrency ... ok
+test relevance_pruning_solves_deep_chain_on_featureful_hub ... ok
+test bread_line_solves_after_economy_fix ... ok
+test validate_plan_compiles_derived_axioms ... ok
+
+test result: ok. 24 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/temporal_constraints.rs (target/release/deps/temporal_constraints-1cdb7cf0b032ef8d)
+
+running 23 tests
+test empty_and_block_is_consumed_not_rejected ... ok
+test always_within_red_when_the_response_cannot_land ... ok
+test emitted_order_monitor_flip_is_audited_never_shipped ... ok
+test empty_goal_with_at_end_constraint_is_the_whole_objective ... ok
+test at_end_forces_the_extra_action ... ok
+test always_within_no_bite_when_never_triggered ... ok
+test at_end_no_bite_when_goal_already_implies_it ... ok
+test always_blocks_the_violating_route ... ok
+test hold_operators_stay_rejected_by_name ... ok
+test always_within_forces_the_response ... ok
+test validate_rejects_a_late_response_plan ... ok
+test til_happenings_are_monitored_and_green ... ok
+test validate_rejects_a_late_within_plan ... ok
+test preference_bodied_timed_constraints_now_score ... ok
+test sometime_forces_the_probe ... ok
+test sometime_before_orders_the_plan_and_rejects_s0 ... ok
+test soft_constraints_score_on_temporal ... ok
+test within_on_a_classical_domain_stays_rejected_by_name ... ok
+test within_deadline_on_an_epsilon_chain_boundary_is_pinned ... ok
+test within_no_bite_when_phi_lands_inside_the_deadline ... ok
+test within_bites_and_forces_the_quick_achiever ... ok
+test within_red_when_phi_only_arrives_late ... ok
+test at_most_once_blocks_the_second_episode ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.01s
+
+     Running tests/text_wall.rs (target/release/deps/text_wall-8d5246ee9897174a)
+
+running 1 test
+test the_text_path_returns_inside_its_armed_wall ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.01s
+
+     Running tests/tground_wall.rs (target/release/deps/tground_wall-91e47bd73704a46d)
+
+running 1 test
+test temporal_grounding_pays_the_wall ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.18s
+
+     Running tests/tnode_refill.rs (target/release/deps/tnode_refill-6865c53a630c32d3)
+
+running 1 test
+test the_ladder_refills_its_node_cap_while_wall_remains ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/trpg.rs (target/release/deps/trpg-b2a031df55ccf284)
+
+running 2 tests
+test classical_flag_is_dormant_byte_identical ... ok
+test kiln_pack_near_linearity_holds_flag_on ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.72s
+
+     Running tests/tsearch_wall.rs (target/release/deps/tsearch_wall-429c5745cbfdd682)
+
+running 1 test
+test temporal_search_pays_the_wall ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.97s
+
+     Running tests/village.rs (target/release/deps/village-7355f39d7112c41e)
+
+running 2 tests
+test craftsman_earns_his_coins ... ok
+test workshop_forges_the_chisel_before_carving ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/zero_duration.rs (target/release/deps/zero_duration-73301958c92d5b70)
+
+running 2 tests
+test zero_duration_action_solves ... ok
+test zero_duration_chains_into_real_durations ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/release/deps/ferroplan_bevy-e0dae48751ad4d34)
+
+running 9 tests
+test blocks::tests::drag_moves_fact_between_zones ... ok
+test blocks::tests::seed_domain_reads_domain ... ok
+test blocks::tests::modeled_action_roundtrips ... ok
+test blocks::tests::seed_reads_problem ... ok
+test blocks::tests::edited_domain_roundtrips_through_parser ... ok
+test blocks::tests::add_object_and_fact_then_apply_roundtrips ... ok
+test blocks::tests::cycle_arg_only_offers_compatible_objects ... ok
+test blocks::tests::add_action_builds_valid_pddl ... ok
+test blocks::tests::or_precondition_and_when_effect_roundtrip ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/release/deps/ff-0e7a920c25802542)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/release/deps/ferroplan_mcp-cbf6df8c02893738)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/protocol.rs (target/release/deps/protocol-3771ae65c6d43974)
+
+running 7 tests
+test solve_advertises_a_typed_options_schema ... ok
+test initialize_advertises_server_and_both_tool_families ... ok
+test parse_tool_summarizes_a_domain ... ok
+test unsolvable_problem_is_a_normal_answer_not_an_error ... ok
+test solve_tool_returns_a_plan ... ok
+test validate_tool_checks_a_plan ... ok
+test bad_args_are_tool_errors_and_unknown_method_is_an_rpc_error ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running tests/session.rs (target/release/deps/session-502af3506308867f)
+
+running 9 tests
+test a_rejected_edit_reports_what_it_applied_first ... ok
+test a_replan_is_budget_stamped_on_the_wire ... ok
+test a_capped_think_never_reads_unsolvable_on_the_wire ... ok
+test an_orbit_aware_replan_narrates_itself ... ok
+test fork_shares_the_world_and_owns_its_goal ... ok
+test open_then_tell_then_rethink_replans_from_the_new_state ... ok
+test observe_reports_only_the_surprises ... ok
+test budgeted_replan_is_a_contract ... ok
+test sessions_are_listed_closed_and_missing_handles_are_tool_errors ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/lib.rs (target/release/deps/ferroplan_sat-dadf44cb7cdbb6d6)
+
+running 23 tests
+test clause::alloc::tests::roundtrip_and_mutation ... ok
+test clause::db::tests::set_tiers_and_deletes ... ok
+test cdcl::tests::level_0_unsat ... ok
+test clause::header::tests::header_roundtrips ... ok
+test decision::vsids::tests::heap_sorts ... ok
+test clause::header::tests::tier_mask ... ok
+test cnf::tests::new_vars ... ok
+test cnf::tests::simple_roundtrip ... ok
+test decision::vsids::tests::rescale_bump ... ok
+test decision::vsids::tests::heap_bump ... ok
+test decision::vsids::tests::rescale_decay ... ok
+test dimacs::tests::parse_errors ... ok
+test dimacs::tests::parse_multiline_and_empty_clause ... ok
+test dimacs::tests::parse_simple ... ok
+test dimacs::tests::roundtrip ... ok
+test lit::tests::dimacs_roundtrip ... ok
+test lit::tests::negation_and_polarity ... ok
+test load::tests::binary_clauses ... ok
+test load::tests::long_clauses ... ok
+test load::tests::unit_clauses ... ok
+test load::tests::unsat_on_empty_clause ... ok
+test schedule::luby::tests::luby_sequence ... ok
+test solver::tests::sat_then_unsat_incremental ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/satdiff.rs (target/release/deps/satdiff-3c005324d022d5dd)
+
+running 9 tests
+test satdiff_empty_formula_is_sat ... ok
+test satdiff_assumptions_failed_core ... ok
+test satdiff_var_api_matches_dimacs_names ... ok
+test satdiff_incremental_clause_adding ... ok
+test satdiff_small_battery ... ok
+test satdiff_medium_layered_chain ... ok
+test satdiff_medium_chain_unsat ... ok
+test satdiff_medium_planted_3sat ... ok
+test satdiff_conflict_budget_interrupts ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running unittests src/lib.rs (target/release/deps/ferroplan_wasm-c0545a90379c1bc9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests ferroplan
+
+running 2 tests
+test crates/ferroplan/src/lib.rs - (line 29) - compile ... ok
+test crates/ferroplan/src/session.rs - session (line 12) - compile ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+   Doc-tests ferroplan_sat
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests ferroplan_wasm
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: 2 targets failed:
+    `-p ferroplan --test bfws`
+    `-p ferroplan --test pdb`

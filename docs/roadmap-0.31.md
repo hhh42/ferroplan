@@ -175,6 +175,66 @@ heuristic rungs in the opt ladder, D's red-black rung) gets its slice from
 the matrix rather than from a coin; the matrix is re-run on the sample for
 the new rung only (one night, not two).
 
+### Lane A — the matrix read, 2026-10-31: the kill clause fired
+
+The matrix ran 2026-10-29 15:31 → 10-31 04:13 (36.7 h; ehc 2.1 h, novlight
+7.4 h, lama 9.9 h, driver 6.4 h, bfs 10.8 h) on `ff 0.30.0 [6facbec9163c]`
+(engine-0.31 at db38ce2, the fixtures run first — three red, all three
+fixture defects, none the engine's), 1,008 cells × 5 rungs, packed at
+width 9–10 with about half the rows dirty-timed; 936 cells carry every
+rung. `ladder-table.py` learned ehc 19 / novlight 1 / lama 4 / driver 7 /
+bfs 28 (`probes-0.31/matrix/table.txt`): in-sample 523, **held-out 505
+against 513 = −8**. The kill clause: the table is recorded, the fractions
+stay. But the number that matters came from the database, not the script
+(`benchmarks/matrix-read.py`):
+
+| on the 936 cells | solved |
+|---|---:|
+| one rung, the whole wall: ehc / novlight / lama / driver / bfs | 266 / 362 / 547 / 503 / 555 |
+| **the banked 0.30.0 ladder** (`b02061eded16`, the same cells) | **662** |
+| best pair side by side (lama + driver) | 662 |
+| **oracle** — any rung inside the wall | **706** |
+| cells the ladder solves that no single rung does | 0 |
+| unique solves: ehc / novlight / lama / driver / bfs | 15 / 3 / 25 / 39 / 19 |
+
+`ladder-table.py`'s "defaults 513" is a *simulation* of the hand-set
+fractions under restart semantics; it mis-models a ladder whose rungs hand
+state to each other (EHC's committed prefix, the seeded rungs, the
+best-first on what they leave), and the banked rows say 662. Read against
+662 the finding is: **the ladder sits at 94 % of its own rungs' ceiling.**
+The fastest rung varies *within* 72 of the 78 variants, which is why a
+table keyed on the domain cannot generalise (−8) and why no static
+re-slicing the simulation can express beats the composition. The 44 cells
+between the ladder and the oracle (4.7 %) are reachable only by running
+rungs **side by side**, each with the whole wall.
+
+What this closes and what it opens:
+
+- **Closed:** the slice table, and with it every "give rung X more of the
+  wall" lane — priced at zero by measurement, the three recorded slice
+  deaths notwithstanding. Phase 0.5's instrument is the win: a candidate
+  rung is now judged in 2–10 h on the sample (its *unique* solves, cells no
+  standing rung reaches), not in a 36-h sweep.
+- **Opened, in Lane A's slot:** the **parallel rung portfolio on the mco
+  boards** (ipc2014-mco-t2/t4/t8, ipc7-mco-t2/t4/t8: 1,680 rows, 367
+  unsolved, every one a wall death). Today `--threads N` only splits a
+  batch's h-evaluation (`search.rs` line 21); the matrix says lama + driver
+  side by side already equals the ladder, four rungs reach 703 of 706. The
+  mechanism: at threads ≥ 2 the ladder's rungs run as workers with the full
+  wall each, first plan wins, the others cancelled through `CallBudget`'s
+  flag; the mode is opt-in until measured because it breaks the
+  "byte-identical for any worker count" contract, which the record must
+  say. **Band:** +4 % of the mco cells (≈ +40–80 rows) on the subset sweep,
+  no single-thread board touched. **Kill:** < +20 rows, or any t2 board's
+  loss side larger than its gain.
+- **A probe, not a lane:** instance-level rung prediction from the matrix
+  (features of the grounded task → fastest rung, judged leave-one-domain-
+  out as the table was). Zero engine code; its ceiling is the same 44
+  cells, sequentially; recorded either way inside a day.
+- **Lane B's judge is now fixed:** `lamanov`, `front`, `driverx` through
+  the matrix (launched 2026-10-31 07:40, `probes-0.31/matrix/
+  run-matrix-b.sh`), each read on its unique solves against the five.
+
 ---
 
 ## Lane B — a second signal: BFWS done the winners' way
@@ -251,6 +311,24 @@ every opt cell under LM-cut today (the receipt the lane is judged
 against: a heuristic that eats the median cell's wall building itself
 is the kill). Record in `probes-0.31/opt/`; the lane opens on (a) and
 (b) together, and names C1 or C2 first from them.
+
+**C.s — symmetry pruning in the optimal A* (added 2026-10-31, the free
+rung).** `orbits.rs` already detects the task's structural symmetries
+and canonicalizes states, and the satisficing best-first already dedups
+on the canonical form; `optimal.rs` never reads it. Orbit search (Pochter,
+Zohar & Rosenschein AAAI 2011; Domshlak, Katz & Shleyfman ICAPS 2012,
+*enhanced symmetry breaking in cost-optimal planning*) is the same dedup
+under A* — sound for the certificate as long as the plan is reconstructed
+through the permutation trace, which is the one piece to build. The
+autopsy that motivates it: the 895 unsolved seq-opt rows die on the
+**wall** at 1.8 GiB median RSS, not in memory — the search is too wide
+for the heuristic, and symmetry is the only width reduction that costs
+no build time (C.0's receipt does not apply). Band: proofs +15 to +40 on
+the domains the 2012 paper names (gripper, logistics-shaped, the
+permutation-heavy 2008/2011 sets), read on `proven` only; kill: flat, or
+any certificate VAL rejects. Fixtures: a toy with a known orbit count
+expands exactly the orbit representatives; the reconstructed plan replays
+under VAL; A* with orbits off is byte-identical to today.
 
 **C.1 — abstractions + saturated cost partitioning.** Claim: a PDB
 collection with SCP, added as an opt rung before LM-cut's A* (or as a
@@ -393,6 +471,28 @@ Phase 0 (cut30 closed; canary; demotion; text wall; MATRIX harness; grounder rec
    → Lane E probe → lane
    → C.2 / C.3 as the receipts allow
    → the cut
+```
+
+**Re-ordered 2026-10-31 on the matrix read** (Lane A's record above: the
+ladder at 94 % of its rungs' ceiling, the table a negative, the unsolved
+pools autopsied — opt dies on the wall at 1.8 GiB median, numeric-opt in
+memory at 4.9 GiB median, mco on the wall with threads splitting only
+h-evaluation):
+
+```
+Phase 0 done (the matrix is the instrument; the table recorded)
+   → Lane B's rungs through the matrix (lamanov / front / driverx; unique solves)
+   → Lane A' parallel rung portfolio on the mco boards (opt-in mode; subset sweep)  ← cut possible here
+   → Lane C, the headline:
+        C.0 probe (variables; one PDB; build-time receipt)
+        C.s symmetry pruning in A* from orbits.rs (built, unused there; the free rung)
+        C.1 PDB + SCP                                                          ← cut possible here
+        C.3 NLM-cut stays last (the field's leader is 102/400 at the official budget:
+            the numeric-opt 317 die in memory, but the ceiling there is low)
+   → Lane D (red-black on C.0's cover)  ‖  Lane E probe → lane
+   → the cut
+Beside the cycle, a product track: the re-entrant Thinker (actor → resumable → real-time),
+measured in milliseconds per think, never in rows.
 ```
 
 The cut may be taken after Lane A, after Lane B, or after D/C.1, at the

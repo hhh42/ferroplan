@@ -1,0 +1,8 @@
+# ladder table learned by benchmarks/ladder-table.py on engine 6facbec9163c
+# matrix 936 cells; in-sample 523/936 (defaults 513); held-out 505 vs defaults 513 (-8)
+wall = 60
+ehc = 19
+novlight = 1
+lama = 4
+driver = 7
+# bfs = 28  (the fallback takes what is left; not a slice)
