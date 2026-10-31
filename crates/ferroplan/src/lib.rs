@@ -64,6 +64,7 @@ pub mod orbits;
 pub mod output;
 pub mod packed;
 pub mod par;
+pub mod parallel;
 pub mod parser;
 pub mod pdb;
 pub mod resource;

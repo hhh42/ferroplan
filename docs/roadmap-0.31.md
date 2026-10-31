@@ -226,7 +226,16 @@ What this closes and what it opens:
   "byte-identical for any worker count" contract, which the record must
   say. **Band:** +4 % of the mco cells (≈ +40–80 rows) on the subset sweep,
   no single-thread board touched. **Kill:** < +20 rows, or any t2 board's
-  loss side larger than its gain.
+  loss side larger than its gain. **Code written 2026-10-31**, unbuilt
+  while the Lane B sweep holds the box: `parallel.rs` (members by thread
+  count: ladder → driver → LAMA → bfs → EHC → novelty-light → lamanov →
+  front, the matrix's marginal order beside the ladder — 683 / 694 / 701
+  of 706 at two, three, four workers), the ladder factored into `ladder()`
+  behind `plan_avoiding`'s gate, the hatch's rungs as `search::Rung`,
+  novelty-light given the hard checkpoint the other rungs poll,
+  `tests/parallel_rungs.rs`. Measure: build, fixtures, then the six mco
+  boards through the crucible with `--env FF_PARALLEL_RUNGS=1`, compared
+  against the banked 0.30.0 rows.
 - **A probe, not a lane — run 2026-10-31, negative:** instance-level
   rung prediction (`benchmarks/rung-predictor.py`, output
   `probes-0.31/matrix/predictor.txt`, the feature table `features.csv`).

@@ -648,6 +648,13 @@ pub fn search_light_sliced(
                     return None;
                 }
             }
+            // The hard checkpoint the other rungs poll at this cadence
+            // (`wall_hard_expired`): the whole wall gone, or the caller's
+            // flag down -- which is how a parallel worker (0.31 Lane A′)
+            // learns another member won. Unarmed ⇒ false ⇒ byte-identical.
+            if crate::search::wall_hard_expired() {
+                return None;
+            }
         }
         cands.clear();
         task.applicable_ops(&cur, &mut cands);

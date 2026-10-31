@@ -4,6 +4,23 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Added
+
+- **A parallel rung portfolio, opt-in** (`FF_PARALLEL_RUNGS=1` at
+  `--threads N ≥ 2`; 0.31 Lane A′, `parallel.rs`): the ladder runs as one
+  worker exactly as it would alone, and N−1 of its rungs run beside it with
+  the whole wall each — driver, LAMA, best-first, EHC, novelty-light, then
+  Lane B's two, the order of their marginal cover on the Phase 0.5 matrix
+  (the ladder 662 of 936 cells; with the driver beside it 683, plus LAMA
+  694, plus best-first 701, the oracle 706). The first plan wins and the
+  others are cancelled through the per-call budget's flag, which every
+  rung polls at its batch boundary (novelty-light now too). Timing-
+  dependent by construction — the one contract it breaks, "byte-identical
+  for any worker count", is named in the module header — so it is opt-in
+  and unmeasured until the mco subset sweep; the notes say it ran and which
+  member won. The matrix hatch's solo rungs are one `search::Rung` enum
+  now, shared by the hatch and the workers.
+
 ## [0.29.0] - 2026-10-15 — Points, and a relaxation that counts
 
 0.28.0 closed the ROW gap to SGPlan5 on the IPC-5 preference boards and left

@@ -531,7 +531,7 @@ thread_local! {
         const { std::cell::RefCell::new(None) };
 }
 
-fn note_solved_by(rung: &str) {
+pub(crate) fn note_solved_by(rung: &str) {
     SOLVED_BY.with(|s| *s.borrow_mut() = Some(rung.to_string()));
 }
 
@@ -598,6 +598,13 @@ pub(crate) fn hand_ladder_wall(secs: f64) {
     LADDER_BASE.with(|b| b.set(Some(secs)));
 }
 
+/// The hand-down as it stands on this thread, cleared by the read. The
+/// parallel portfolio (0.31 Lane A′) takes it on the thread that received
+/// it and re-hands it on its ladder worker's.
+pub(crate) fn take_ladder_base() -> Option<f64> {
+    LADDER_BASE.with(|b| b.take())
+}
+
 /// This thread's current call budget (default = unarmed = byte-identical to
 /// every shape before 0.28).
 pub(crate) fn call_budget() -> CallBudget {
@@ -628,6 +635,19 @@ pub(crate) fn arm_call_budget(
         cancel,
     };
     CALL_BUDGET.with(|b| *b.borrow_mut() = budget);
+    CallBudgetGuard
+}
+
+/// Arm a WORKER thread with a budget it INHERITS (0.31 Lane A′, the
+/// parallel rung portfolio): the parent's deadline as it stands — the
+/// clock does not restart — and the portfolio's own stop flag in place of
+/// the caller's, which the parent mirrors into it while it waits. Same
+/// guard, same clearing on every exit.
+pub(crate) fn arm_call_budget_inherited(
+    deadline: Option<(crate::clock::Clock, f64)>,
+    cancel: Option<std::sync::Arc<std::sync::atomic::AtomicBool>>,
+) -> CallBudgetGuard {
+    CALL_BUDGET.with(|b| *b.borrow_mut() = CallBudget { deadline, cancel });
     CallBudgetGuard
 }
 
@@ -1741,6 +1761,107 @@ pub struct PlanOutcome {
     pub capped: bool,
 }
 
+/// A rung of the satisficing ladder run SOLO — the whole remaining wall,
+/// the whole eval budget, its own verdict: the matrix hatch's shape (0.31
+/// Phase 0.5, `FF_RUNG_ONLY`) and the parallel portfolio's workers (0.31
+/// Lane A′, `parallel.rs`). The rungs' eval caps inside the ladder (LAMA's
+/// 400k, the driver's 400k, novelty-light's 300k) are the LADDER's memory
+/// and sanity bounds and do not apply here: a solo rung measures what it
+/// converts given wall, the only currency the allocator spends. The
+/// best-first fallback and the ladder itself are not rungs in this sense —
+/// they are [`ladder`] with `ehc_first` false and true.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Rung {
+    Ehc,
+    Novlight,
+    Lama,
+    /// LAMA with BFWS(f6)'s novelty-first key (0.31 Lane B).
+    LamaNov,
+    /// The partitioned h-free driver, BFWS(f5) (0.22 Phase 5B).
+    Driver,
+    /// The driver with R refresh and forgetting (0.31 Lane B).
+    DriverX,
+    /// Dual BFWS's pruned front end (0.31 Lane B).
+    Front,
+    /// The 0.21 h-guided novelty rung (`FF_NOV_OLD`'s).
+    Novelty,
+}
+
+impl Rung {
+    /// The matrix hatch's names, case-insensitive; `None` for anything
+    /// else (`bfs`, `partition`, `portfolio` are routes, not rungs).
+    pub fn parse(s: &str) -> Option<Rung> {
+        Some(match s.trim().to_ascii_lowercase().as_str() {
+            "ehc" => Rung::Ehc,
+            "novlight" | "novelty-light" => Rung::Novlight,
+            "lama" => Rung::Lama,
+            "lamanov" => Rung::LamaNov,
+            "driver" | "novelty-driver" => Rung::Driver,
+            "driverx" => Rung::DriverX,
+            "front" => Rung::Front,
+            "novelty" => Rung::Novelty,
+            _ => return None,
+        })
+    }
+
+    /// The name the ladder narrates (`rung: solved by …`).
+    pub fn name(self) -> &'static str {
+        match self {
+            Rung::Ehc => "EHC",
+            Rung::Novlight => "novelty-light",
+            Rung::Lama => "LAMA",
+            Rung::LamaNov => "LAMA-novelty",
+            Rung::Driver => "novelty-driver",
+            Rung::DriverX => "novelty-driverx",
+            Rung::Front => "novelty-front",
+            Rung::Novelty => "novelty",
+        }
+    }
+}
+
+/// Run one rung solo (see [`Rung`]); `threads` splits its h-evaluation as
+/// in the ladder. `None` is a hand-down, never a proof.
+pub(crate) fn run_rung(
+    task: &PackedTask,
+    threads: usize,
+    cfg: SearchCfg,
+    forbidden: &[bool],
+    rung: Rung,
+) -> Option<(Vec<usize>, usize)> {
+    match rung {
+        Rung::Ehc => ehc(task, forbidden, cfg.max_eval, cfg.deadline, Some(1.0)),
+        Rung::Novlight => {
+            crate::novelty::search_light_sliced(task, cfg.max_eval, forbidden, Some(1.0))
+        }
+        Rung::Lama => crate::lama::search(task, threads, cfg.max_eval, forbidden, None),
+        Rung::LamaNov => {
+            crate::lama::search_cfg(task, threads, cfg.max_eval, forbidden, None, true)
+        }
+        Rung::Driver => crate::novelty::search_driver(
+            task,
+            cfg.max_eval,
+            forbidden,
+            None,
+            &crate::novelty::DriverCfg::from_env(),
+        ),
+        Rung::DriverX => crate::novelty::search_driver(
+            task,
+            cfg.max_eval,
+            forbidden,
+            None,
+            &crate::novelty::DriverCfg::extended(),
+        ),
+        Rung::Front => crate::novelty::search_driver(
+            task,
+            cfg.max_eval,
+            forbidden,
+            None,
+            &crate::novelty::DriverCfg::front(),
+        ),
+        Rung::Novelty => crate::novelty::search(task, threads, cfg.max_eval, forbidden, None),
+    }
+}
+
 /// Plan the whole task. With `ehc_first`, run enforced hill-climbing (fast on
 /// most problems) and fall back to weighted best-first if it gets stuck;
 /// otherwise run best-first directly. EHC plans are valid but not length-optimal
@@ -1764,6 +1885,35 @@ pub fn plan(
 /// structures untouched — and is dropped by `search_from`'s guard the
 /// moment a forbidden mask is in play.
 pub fn plan_avoiding(
+    task: &PackedTask,
+    threads: usize,
+    cfg: SearchCfg,
+    ehc_first: bool,
+    forbidden: &[bool],
+    orbit: Option<&crate::orbits::OrbitMap>,
+) -> PlanOutcome {
+    // THE PARALLEL RUNG PORTFOLIO (0.31 Lane A′, `parallel.rs`): opt-in,
+    // at two or more threads, on the plain auto ladder only -- never under
+    // a forbidden mask (the metric optimizer's tightening, a Session's
+    // restricted ops), never under `--search bfs`, never inside the matrix
+    // hatch. Every other entry is the ladder below, byte-identical.
+    if threads >= 2
+        && ehc_first
+        && forbidden.is_empty()
+        && crate::parallel::enabled()
+        && std::env::var("FF_RUNG_ONLY").is_err()
+    {
+        return crate::parallel::run(task, threads, cfg, orbit).outcome;
+    }
+    ladder(task, threads, cfg, ehc_first, forbidden, orbit)
+}
+
+/// THE LADDER: EHC → novelty-light → (the front end) → LAMA → the driver →
+/// the best-first fallback with its refill loop, each bounded rung on its
+/// slice of the remaining wall; with `ehc_first` false, the fallback alone.
+/// [`plan_avoiding`] enters it directly on one thread; the parallel
+/// portfolio runs it as its first worker.
+pub(crate) fn ladder(
     task: &PackedTask,
     threads: usize,
     cfg: SearchCfg,
@@ -1951,79 +2101,15 @@ pub fn plan_avoiding(
             }
         };
         match only {
-            "ehc" => {
-                return solo(
-                    "EHC",
-                    ehc(task, forbidden, cfg.max_eval, cfg.deadline, Some(1.0)),
-                )
-            }
-            "novlight" | "novelty-light" => {
-                return solo(
-                    "novelty-light",
-                    crate::novelty::search_light_sliced(task, cfg.max_eval, forbidden, Some(1.0)),
-                )
-            }
-            "lama" => {
-                return solo(
-                    "LAMA",
-                    crate::lama::search(task, threads, cfg.max_eval, forbidden, None),
-                )
-            }
-            "driver" | "novelty-driver" => {
-                return solo(
-                    "novelty-driver",
-                    crate::novelty::search_driver(
-                        task,
-                        cfg.max_eval,
-                        forbidden,
-                        None,
-                        &crate::novelty::DriverCfg::from_env(),
-                    ),
-                )
-            }
-            "novelty" => {
-                return solo(
-                    "novelty",
-                    crate::novelty::search(task, threads, cfg.max_eval, forbidden, None),
-                )
-            }
-            // 0.31 Lane B's rungs, measured beside the others.
-            "front" => {
-                return solo(
-                    "novelty-front",
-                    crate::novelty::search_driver(
-                        task,
-                        cfg.max_eval,
-                        forbidden,
-                        None,
-                        &crate::novelty::DriverCfg::front(),
-                    ),
-                )
-            }
-            "driverx" => {
-                return solo(
-                    "novelty-driverx",
-                    crate::novelty::search_driver(
-                        task,
-                        cfg.max_eval,
-                        forbidden,
-                        None,
-                        &crate::novelty::DriverCfg::extended(),
-                    ),
-                )
-            }
-            "lamanov" => {
-                return solo(
-                    "LAMA-novelty",
-                    crate::lama::search_cfg(task, threads, cfg.max_eval, forbidden, None, true),
-                )
-            }
             "bfs" | "fallback" => bfs_only = true,
             "partition" | "portfolio" => {}
-            other => eprintln!(
-                "FF_RUNG_ONLY={other}: not a rung (ehc, novlight, lama, lamanov, driver, driverx, \
-                 front, novelty, bfs, partition, portfolio); the ladder runs as usual"
-            ),
+            other => match Rung::parse(other) {
+                Some(r) => return solo(r.name(), run_rung(task, threads, cfg, forbidden, r)),
+                None => eprintln!(
+                    "FF_RUNG_ONLY={other}: not a rung (ehc, novlight, lama, lamanov, driver, \
+                     driverx, front, novelty, bfs, partition, portfolio); the ladder runs as usual"
+                ),
+            },
         }
     }
     let ehc_first = ehc_first && !bfs_only;

@@ -1452,6 +1452,11 @@ fn solve_classic(
                     notes.push(format!("rung: solved by {rung}"));
                 }
             }
+            // The parallel portfolio's line (0.31 Lane A′), solved or not:
+            // a sweep row must say the timing-dependent mode ran.
+            if let Some(line) = crate::parallel::take_note() {
+                notes.push(line);
+            }
             (o.ops, o.evaluated)
         }
     };
