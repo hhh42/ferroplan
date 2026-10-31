@@ -492,7 +492,7 @@ Phase 0 done (the matrix is the instrument; the table recorded)
    → Lane D (red-black on C.0's cover)  ‖  Lane E probe → lane
    → the cut
 Beside the cycle, a product track: the re-entrant Thinker (actor → resumable → real-time),
-measured in milliseconds per think, never in rows.
+measured in milliseconds per think, never in rows — docs/thinker.md.
 ```
 
 The cut may be taken after Lane A, after Lane B, or after D/C.1, at the
