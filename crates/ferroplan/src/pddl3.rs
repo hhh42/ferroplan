@@ -2713,6 +2713,10 @@ fn metric_optimize_inner(
     const PROFILES: &[(f64, f64)] = &[(1.0, 2.0), (1.0, 8.0), (2.0, 3.0), (0.0, 1.0)];
     let anytime = std::env::var("FF_PREF_GREEDY").is_err();
     let restarts = anytime && std::env::var("FF_PREF_NO_RESTARTS").is_err();
+    // RWA* (0.31 Lane E probe, see `rwa_schedule`): the default sweep's
+    // weight steps down the schedule on every improvement.
+    let rwa = rwa_schedule();
+    let mut rwa_step = 0usize;
     let mut spent = 0usize;
     let mut escalated = false;
     let mut rung = 0usize;
@@ -2733,10 +2737,13 @@ fn metric_optimize_inner(
             refine_cfg.max_eval.min(budget - spent)
         };
         let iter_cfg = if rung == 0 {
-            SearchCfg {
-                max_eval: cap,
-                anytime,
-                ..refine_cfg.with_cost_weight(cost_w)
+            match &rwa {
+                Some(sched) => rwa_cfg(refine_cfg.with_cost_weight(cost_w), sched, rwa_step, cap),
+                None => SearchCfg {
+                    max_eval: cap,
+                    anytime,
+                    ..refine_cfg.with_cost_weight(cost_w)
+                },
             }
         } else {
             let (wg, wh) = PROFILES[rung - 1];
@@ -2758,19 +2765,41 @@ fn metric_optimize_inner(
             Some(&sat),
         );
         spent += evaluated;
+        let narrate = |outcome: Option<f64>| {
+            bnb_narrate(
+                "legacy",
+                iterations,
+                &iter_cfg,
+                rung,
+                escalated,
+                rwa.as_ref().map(|_| rwa_step),
+                bound,
+                outcome,
+                evaluated,
+                capped,
+                spent,
+                budget,
+            )
+        };
         match opt {
             Some(ops) => {
                 escalated = false;
                 rung = 0; // an improvement re-arms the ladder
                 let cost = plan_cost(task, &ops, cost_fluent);
+                narrate(Some(cost));
                 best = Some((ops, cost));
                 if cost <= 0.0 {
                     proven = true; // cannot beat zero cost
                     break;
                 }
                 bound = cost; // next plan must be strictly cheaper (prune cost >= bound)
+                if let Some(sched) = &rwa {
+                    // RWA*: restart one step lower on the schedule.
+                    rwa_step = (rwa_step + 1).min(sched.len() - 1);
+                }
             }
             None => {
+                narrate(None);
                 // A capped failure is inconclusive: diversify the open-list
                 // order first (same bound, different region), then retry the
                 // same bound with all remaining budget (see the closure
@@ -2807,6 +2836,105 @@ fn pref_eval_budget() -> usize {
         .ok()
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(2_000_000)
+}
+
+/// RESTARTING WEIGHTED A* over the compiled task (0.31 Lane E's probe;
+/// Richter, Thayer & Ruml ICAPS 2010, `docs/papers/richter-etal-2010-
+/// joy-of-forgetting.pdf`): `FF_PREF_RWA=1` arms the default weight
+/// schedule, `FF_PREF_RWA=5,3,2,1.5,1` a schedule of the caller's. `None`
+/// (unset, empty, `0`) leaves both loops byte-identical.
+///
+/// What it changes, and what it keeps. Every sweep of the B&B already
+/// starts at the root (`solve_*_bounded` rebuild from `task.initial()`),
+/// so "restart" is free; what the loops do today on an IMPROVEMENT is the
+/// opposite of the paper — the in-sweep anytime drain keeps the stale
+/// open list, and the stall ladder re-arms to the DEFAULT weight (5) on
+/// every improvement, so the weight never comes down. Under the schedule a
+/// sweep returns on its first improving plan (`anytime` off), and the next
+/// sweep restarts from the root one step LOWER on the schedule: greedy
+/// first for a fast incumbent, then progressively nearer A* for the plan
+/// the greedy ordering walked past. The stall ladder (`PROFILES`, half-cap
+/// rungs under the same bound) and the final escalation stay as they are;
+/// an RWA* sweep is the `rung == 0` shape. The paper's second half — a
+/// heuristic cache across restarts — has nothing to attach to (no h cache
+/// exists in `search_from`); the probe reads whether the restart alone
+/// moves the ten worst trucks/tpp cells (roadmap-0.31.md, Lane E's
+/// groundwork read) before anyone builds one.
+///
+/// The schedule is clamped at its last entry: once there, every further
+/// improvement restarts at that weight.
+fn rwa_schedule() -> Option<Vec<f64>> {
+    const DEFAULT: [f64; 5] = [5.0, 3.0, 2.0, 1.5, 1.0];
+    let v = std::env::var("FF_PREF_RWA").ok()?;
+    let v = v.trim();
+    if v.is_empty() || v == "0" {
+        return None;
+    }
+    if v == "1" || v.eq_ignore_ascii_case("on") {
+        return Some(DEFAULT.to_vec());
+    }
+    let parsed: Vec<f64> = v
+        .split(',')
+        .filter_map(|s| s.trim().parse::<f64>().ok())
+        .filter(|w| w.is_finite() && *w > 0.0)
+        .collect();
+    Some(if parsed.is_empty() {
+        DEFAULT.to_vec()
+    } else {
+        parsed
+    })
+}
+
+/// The `rung == 0` sweep config under the RWA* schedule: `base`'s every
+/// other field (cost weight, h_cost, pref_ops, …), the schedule's weight
+/// at `step` as w_h over w_g = 1, first-improvement acceptance.
+fn rwa_cfg(base: SearchCfg, schedule: &[f64], step: usize, cap: usize) -> SearchCfg {
+    let w = schedule[step.min(schedule.len() - 1)];
+    let weights = SearchCfg::from_weights(1.0, w, Some(cap));
+    SearchCfg {
+        w_g: weights.w_g,
+        w_h: weights.w_h,
+        max_eval: cap,
+        anytime: false,
+        ..base
+    }
+}
+
+/// `FF_RES_DEBUG` narration of one B&B sweep — the probe's eyes: which
+/// ordering ran, against what bound, and what it brought back.
+#[allow(clippy::too_many_arguments)]
+fn bnb_narrate(
+    loop_name: &str,
+    iteration: usize,
+    cfg: &SearchCfg,
+    rung: usize,
+    escalated: bool,
+    rwa_step: Option<usize>,
+    bound: f64,
+    outcome: Option<f64>,
+    evaluated: usize,
+    capped: bool,
+    spent: usize,
+    budget: usize,
+) {
+    if std::env::var("FF_RES_DEBUG").is_err() {
+        return;
+    }
+    let order = match rwa_step {
+        Some(s) if rung == 0 => format!("rwa step {s}"),
+        _ if rung == 0 => "default".to_string(),
+        _ => format!("profile {rung}"),
+    };
+    eprintln!(
+        "[bnb/{loop_name}] sweep {iteration}: {order} w_h/w_g={:.2}{} bound {bound:.3} -> {} ({evaluated} evals{}, spent {spent}/{budget})",
+        cfg.w_h as f64 / cfg.w_g.max(1) as f64,
+        if escalated { " ESCALATED" } else { "" },
+        match outcome {
+            Some(c) => format!("plan cost {c:.3}"),
+            None => "none".to_string(),
+        },
+        if capped { ", capped" } else { "" },
+    );
 }
 
 /// Each preference's DNF disjunct fact-sets: the `P3COLLECT-i` ops' non-P3
@@ -3615,6 +3743,10 @@ fn metric_optimize_closure(
     let no_escalate = std::env::var("FF_PREF_NO_ESCALATE").is_ok();
     let anytime = std::env::var("FF_PREF_GREEDY").is_err();
     let restarts = anytime && std::env::var("FF_PREF_NO_RESTARTS").is_err();
+    // RWA* (0.31 Lane E probe, see `rwa_schedule`): the default sweep's
+    // weight steps down the schedule on every improvement.
+    let rwa = rwa_schedule();
+    let mut rwa_step = 0usize;
     let mut escalated = false;
     let mut rung = 0usize; // 0 = default profile; 1..=len = PROFILES
     while iterations < MAX_ITERS && spent < budget {
@@ -3637,10 +3769,13 @@ fn metric_optimize_closure(
             cfg.max_eval.min(budget - spent)
         };
         let iter_cfg = if rung == 0 {
-            SearchCfg {
-                max_eval: cap,
-                anytime,
-                ..cfg
+            match &rwa {
+                Some(sched) => rwa_cfg(cfg, sched, rwa_step, cap),
+                None => SearchCfg {
+                    max_eval: cap,
+                    anytime,
+                    ..cfg
+                },
             }
         } else {
             let (wg, wh) = PROFILES[rung - 1];
@@ -3664,6 +3799,22 @@ fn metric_optimize_closure(
             Some(sat),
         );
         spent += evaluated;
+        let narrate = |outcome: Option<f64>| {
+            bnb_narrate(
+                "closure",
+                iterations,
+                &iter_cfg,
+                rung,
+                escalated,
+                rwa.as_ref().map(|_| rwa_step),
+                bound,
+                outcome,
+                evaluated,
+                capped,
+                spent,
+                budget,
+            )
+        };
         match opt {
             Some(mut ops) => {
                 escalated = false;
@@ -3680,14 +3831,20 @@ fn metric_optimize_closure(
                 }
                 ops.extend(tail_ops);
                 let cost = plan_cost(task, &ops, cost_fluent);
+                narrate(Some(cost));
                 best = Some((ops, cost));
                 if cost <= 0.0 {
                     proven = true;
                     break;
                 }
                 bound = cost;
+                if let Some(sched) = &rwa {
+                    // RWA*: restart one step lower on the schedule.
+                    rwa_step = (rwa_step + 1).min(sched.len() - 1);
+                }
             }
             None => {
+                narrate(None);
                 if capped && !no_escalate {
                     // Diversify first: same bound, different open-list order.
                     if restarts && rung < PROFILES.len() && budget > spent {

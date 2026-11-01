@@ -437,3 +437,35 @@ fn optimal_orbit_keys_certify_the_same_cost_at_a_third_the_evals() {
     assert_eq!(again.ops, orbit.ops, "orbit ladder is deterministic");
     assert_eq!(again.evaluated, orbit.evaluated);
 }
+
+/// The orbit RECEIPT (0.31 C.s): the optimal path's notes say what
+/// symmetry the search dedup'd under, so a sweep can count orbits on the
+/// unsolved opt cells from the rows instead of a debug hatch. The snack
+/// shape forms orbits (four sandwiches, three breads); the asymmetric-
+/// cost gadget forms none, and says so.
+#[test]
+fn optimal_notes_carry_the_orbit_receipt() {
+    let opts = ferroplan::Options {
+        mode: ferroplan::Mode::Optimal,
+        ..Default::default()
+    };
+    let sol = ferroplan::solve(SNACK_DOM, SNACK_PRB, &opts).unwrap();
+    assert!(sol.solved, "{:?}", sol.notes);
+    let line = sol
+        .notes
+        .iter()
+        .find(|n| n.starts_with("orbits: "))
+        .unwrap_or_else(|| panic!("no orbit receipt in {:?}", sol.notes));
+    assert!(
+        line.contains("orbit(s), members [") && line.contains("group ~10^"),
+        "{line}"
+    );
+    assert!(!line.contains("none"), "{line}");
+
+    let sol = ferroplan::solve(FEE_DOM, FEE_PRB, &opts).unwrap();
+    assert!(
+        sol.notes.iter().any(|n| n.starts_with("orbits: none")),
+        "{:?}",
+        sol.notes
+    );
+}

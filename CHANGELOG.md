@@ -22,6 +22,20 @@ All notable changes to this project are documented here.
   so it is opt-in and unmeasured until the mco subset sweep; the notes say
   it ran and which member won. The matrix hatch's solo rungs are one
   `search::Rung` enum now, shared by the hatch and the workers.
+- **Restarting weighted A* over the compiled preference task, opt-in**
+  (`FF_PREF_RWA=1`, or a schedule `FF_PREF_RWA=5,3,2,1.5,1`; 0.31 Lane E's
+  probe, `pddl3.rs`): the branch-and-bound's default sweep returns on its
+  first improving plan and the next sweep restarts from the root one step
+  lower on the weight schedule (Richter, Thayer & Ruml 2010) — where the
+  loop today drains the stale open list after an improvement and re-arms
+  its stall ladder at the default weight. The stall ladder and the final
+  escalation are untouched; unset, `0` or empty is byte-identical. Both
+  loops now narrate each sweep under `FF_RES_DEBUG` (`[bnb/…]`: ordering,
+  weight, bound, outcome, evals, budget spent).
+- **The optimal path's notes carry an orbit receipt** (`orbits: N
+  orbit(s), members [...], group ~10^k` or `orbits: none`; 0.31 C.s): what
+  symmetry the optimal A* dedup'd under, countable from the rows — it was
+  narrated only under `FF_ORBIT_DEBUG` before.
 
 ## [0.30.0] - 2026-10-29 — Memory, and two defects the rung exposed
 

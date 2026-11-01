@@ -462,6 +462,12 @@ notes), so the receipt needs ff on the cells (box time, after the Lane B
 sweep) and a note line first. The lane opens only on that count; the
 band and kill stand as written, read on `proven` only, with "A* with
 orbits off is byte-identical" already the 0.22 contract.
+**Receipt plumbing written 2026-11-01, unbuilt:** the optimal path's
+notes carry `orbits: N orbit(s), members [...], group ~10^k` / `orbits:
+none` (`api.rs`; fixture in `tests/orbit_classical.rs`), and
+`probes-0.31/opt/orbit-count.py` runs the 1,098 banked-unsolved opt cells
+(`unsolved-rows.txt`, 0.30.0) at a 3 s wall and tallies the note per
+variant — box time, after the Lane B sweep.
 
 **C.1 — abstractions + saturated cost partitioning.** Claim: a PDB
 collection with SCP, added as an opt rung before LM-cut's A* (or as a
@@ -639,6 +645,19 @@ preferences our trucks plans violate and whether the violation is the
 seed's or the polish's — needs the plans themselves (ff runs; the notes already count satisfied
 and violated preferences, the plan says which), i.e. box time, and should run on the
 ladder Lane B leaves as the default, not on 0.30.0's.
+
+**Probe code written 2026-11-01, unbuilt while the Lane B sweep holds
+the box:** `FF_PREF_RWA=1` (or a schedule) in `pddl3.rs` — both B&B loops'
+default sweep returns on its first improving plan and restarts one step
+lower on `[5, 3, 2, 1.5, 1]`; the stall ladder and escalation untouched;
+`FF_RES_DEBUG` now narrates every sweep (`[bnb/legacy|closure]`), which
+the probe reads. No heuristic cache: none exists in `search_from`, and the
+read of the restart alone comes first. `tests/pref_rwa.rs` pins the
+optima and the hatch. **Pre-registered read:** the ten worst cells above
+(trucks-simple 6/14/15/16/17, trucks-qualitative 4/5, tpp-complex 3,
+openstacks-simple 15/18) solo at the board wall, `FF_PREF_RWA=1` against
+unset, metric per cell; a lane only if five move toward SGPlan5's metric,
+then the three boards through the crucible with `--env FF_PREF_RWA=1`.
 
 ---
 

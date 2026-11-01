@@ -1015,6 +1015,27 @@ fn solve_optimal(
     } else {
         crate::orbits::detect_classical_iso(domain, problem, &task)
     };
+    // The orbit RECEIPT (0.31 C.s): what symmetry the optimal search
+    // actually dedups under, in the notes where a sweep can count it —
+    // detection narrated only under `FF_ORBIT_DEBUG` before, so the
+    // unsolved opt cells' orbit count was unknowable from the rows.
+    pdb_notes.push(match &orbit {
+        None => "orbits: none (no usable object symmetry)".to_string(),
+        Some(om) => {
+            let sizes: Vec<usize> = om.orbits.iter().map(|o| o.facts.len()).collect();
+            let log10_group: f64 = sizes
+                .iter()
+                .map(|&k| (2..=k).map(|i| (i as f64).log10()).sum::<f64>())
+                .sum();
+            format!(
+                "orbits: {} orbit(s), members {:?}, group ~10^{:.1}{}",
+                sizes.len(),
+                sizes,
+                log10_group,
+                if om.iso.is_some() { ", goal-iso" } else { "" }
+            )
+        }
+    });
     let o = crate::optimal::solve(&task, cf, max_nodes, orbit.as_ref());
     let stats = Statistics {
         grounded_facts: task.fact_names.len(),
