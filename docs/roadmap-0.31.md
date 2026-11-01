@@ -334,7 +334,13 @@ What this closes and what it opens:
   slot and `FF_NOV_REFRESH=1 FF_NOV_FORGET=1` in the driver's — one subset
   sweep on the six matrix boards against the banked 0.30.0 rows, kill
   clause as written; (3) the front end stays a hatch (`FF_RUNG_ONLY=front`)
-  with no default-on claim.
+  with no default-on claim. **The ladder sweep launched 2026-11-01 06:51**
+  (`probes-0.31/laneb/run-laneb-ladder.sh`, engine `8efe4c05f005`, the
+  six boards' 1,970 rows, subset `laneb31-ladder`); read with
+  `benchmarks/subset-read.py --engine 8efe4c05f005 --baseline b02061eded16
+  --env FF_LAMA_NOV` over the six boards. The portfolio's mco sweep
+  (`probes-0.31/par/run-par-mco.sh`) follows it, on whichever ladder the
+  read leaves as the default.
 
 ---
 
