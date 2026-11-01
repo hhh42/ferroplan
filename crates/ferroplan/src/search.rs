@@ -1769,7 +1769,7 @@ pub struct PlanOutcome {
 /// and sanity bounds and do not apply here: a solo rung measures what it
 /// converts given wall, the only currency the allocator spends. The
 /// best-first fallback and the ladder itself are not rungs in this sense —
-/// they are [`ladder`] with `ehc_first` false and true.
+/// they are the ladder (`search::ladder`) with `ehc_first` false and true.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Rung {
     Ehc,

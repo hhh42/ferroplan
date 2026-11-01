@@ -245,17 +245,21 @@ What this closes and what it opens:
   "byte-identical for any worker count" contract, which the record must
   say. **Band:** +4 % of the mco cells (≈ +40–80 rows) on the subset sweep,
   no single-thread board touched. **Kill:** < +20 rows, or any t2 board's
-  loss side larger than its gain. **Code written 2026-10-31**, unbuilt
-  while the Lane B sweep holds the box: `parallel.rs` (members by thread
-  count: ladder → LAMA-novelty → driver → bfs → EHC → novelty-light → LAMA
-  → front, the matrix's greedy marginal order beside the ladder once Lane
-  B's first rung was read — 712 / 723 / 727 of the six rungs' 734 at two,
-  three, four workers), the ladder factored into `ladder()`
-  behind `plan_avoiding`'s gate, the hatch's rungs as `search::Rung`,
-  novelty-light given the hard checkpoint the other rungs poll,
-  `tests/parallel_rungs.rs`. Measure: build, fixtures, then the six mco
-  boards through the crucible with `--env FF_PARALLEL_RUNGS=1`, compared
-  against the banked 0.30.0 rows.
+  loss side larger than its gain. **Code written 2026-10-31, built and
+  fixtures green 2026-11-01:** `parallel.rs` (members by thread count:
+  ladder → LAMA-novelty → the refreshing driver → EHC → bfs → novelty-light
+  → front → LAMA, the matrix's greedy marginal order beside the ladder with
+  all three Lane B rungs in the pool — 712 / 747 / 750 / 753 of the eight
+  rungs' 759 at two, three, four, five workers; the plain driver is ninth
+  and seatless), the ladder factored into `ladder()` behind
+  `plan_avoiding`'s gate, the hatch's rungs as `search::Rung`, novelty-light
+  given the hard checkpoint the other rungs poll, `tests/parallel_rungs.rs`.
+  One defect found by the fixture on the first build: the workers' flag
+  was armed with the polarity of a STOP flag where the budget reads a
+  should-continue flag, so every worker was born withdrawn — the fixture's
+  "no member solved in 0.00 s" is the receipt, and the reason the fixture
+  exists. Measure next: the six mco boards through the crucible with
+  `--env FF_PARALLEL_RUNGS=1`, compared against the banked 0.30.0 rows.
 - **A probe, not a lane — run 2026-10-31, negative:** instance-level
   rung prediction (`benchmarks/rung-predictor.py`, output
   `probes-0.31/matrix/predictor.txt`, the feature table `features.csv`).
@@ -303,6 +307,34 @@ What this closes and what it opens:
   on the six boards against the banked 0.30.0 rows, not a matrix question.
   Its kill clause stands as written (budget-edge losses against gains,
   the nine LAMA-only cells among them). `front` and `driverx` follow.
+  **Final read, 2026-11-01 06:29 (every rung on every cell, rescues
+  landed; `matrix-b.log`):**
+
+  | rung, whole wall | solved | unique of 8 | beyond the ladder |
+  |---|---:|---:|---:|
+  | LAMA-novelty (`lamanov`) | 636 | 22 | 50 |
+  | driver + R refresh + forgetting (`driverx`) | 587 | 18 | 50 |
+  | front end, w > 1 pruned (`front`) | 387 | 2 | 17 |
+  | plain LAMA / plain driver | 547 / 503 | 2 / 1 | — |
+
+  The eight rungs' oracle is **759** (the five's 706); greedy beside the
+  ladder: 662 → + lamanov 712 → + driverx **747** → + EHC 750 → + bfs 753
+  → + novelty-light 755 → + front 757 → + LAMA 758 → + driver 759. The two
+  strong rungs STACK: 50 cells each beyond the ladder, 15 shared, 85 in
+  union. Head to head the Lane B forms cover their plain forms — LAMA-
+  novelty 98 cells plain LAMA does not against 9; driverx 112 against the
+  driver's 28 — at a small median cost on the cells both solve (3.84 s v
+  3.34 s; 2.05 s v 1.80 s). driverx's unique cells: transport-agile 5,
+  data-network 4, spider 3, one each on rovers, settlers, child-snack ×2,
+  transport-sat, ricochet-robots. The front end is a weak member — 328
+  cells behind the oracle, 2 unique — and sits seventh, not worth a sweep
+  of its own. **Consequences:** (1) the portfolio's first two workers are
+  LAMA-novelty and driverx (done, above); (2) Lane B's ladder claim is
+  now BOTH knobs as the ladder's defaults — `FF_LAMA_NOV=1` in LAMA's
+  slot and `FF_NOV_REFRESH=1 FF_NOV_FORGET=1` in the driver's — one subset
+  sweep on the six matrix boards against the banked 0.30.0 rows, kill
+  clause as written; (3) the front end stays a hatch (`FF_RUNG_ONLY=front`)
+  with no default-on claim.
 
 ---
 

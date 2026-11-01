@@ -67,18 +67,19 @@ fn names(t: usize) -> Vec<&'static str> {
 }
 
 /// The members are the matrix's marginal order beside the ladder (the
-/// 2026-10-31 read with Lane B's novelty-first LAMA in the pool): LAMA-
-/// novelty (+50 cells), driver (+11), bfs (+4), then the unique-solve
-/// rungs, plain LAMA last, the front end after. One thread is the ladder
-/// alone; more threads than members run the members.
+/// 2026-11-01 read with all three Lane B rungs in the pool): LAMA-novelty
+/// (+50 cells), the driver with R refresh and forgetting (+35 more), EHC
+/// (+3), bfs (+3), then novelty-light, the front end, plain LAMA last; the
+/// plain driver has no seat. One thread is the ladder alone; more threads
+/// than members run the members.
 #[test]
 fn the_members_follow_the_matrix_order() {
     assert_eq!(names(1), ["ladder"]);
     assert_eq!(names(2), ["ladder", "LAMA-novelty"]);
-    assert_eq!(names(3), ["ladder", "LAMA-novelty", "novelty-driver"]);
+    assert_eq!(names(3), ["ladder", "LAMA-novelty", "novelty-driverx"]);
     assert_eq!(
         names(4),
-        ["ladder", "LAMA-novelty", "novelty-driver", "bfs"]
+        ["ladder", "LAMA-novelty", "novelty-driverx", "EHC"]
     );
     assert_eq!(names(8).len(), 8);
     assert_eq!(names(64), names(8));

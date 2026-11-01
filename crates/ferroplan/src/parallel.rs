@@ -1,12 +1,13 @@
 //! THE PARALLEL RUNG PORTFOLIO (0.31 Lane A′, docs/roadmap-0.31.md).
 //!
 //! What the matrix said (Phase 0.5: 936 cells × 5 rungs, each rung given
-//! the whole wall): the banked ladder solves 662, the oracle over its rungs
-//! 706, and the ladder solves no cell that no single rung does. The 44
-//! between are reachable only by running rungs SIDE BY SIDE — and beside
-//! the ladder, not instead of it (the ladder with one rung beside it:
-//! driver 683, LAMA 675, bfs 670; with two: LAMA + driver 694; with three:
-//! + bfs 701). That is this module: at `--threads N ≥ 2`, under
+//! the whole wall; Lane B's three rungs after): the banked ladder solves
+//! 662, the oracle over its five rungs 706 and over all eight 759, and the
+//! ladder solves no cell that no single rung does. The cells between are
+//! reachable only by running rungs SIDE BY SIDE — and beside the ladder,
+//! not instead of it (the ladder with LAMA-novelty beside it 712; with the
+//! refreshing driver as well 747; with EHC and bfs as well 753; see
+//! [`members`]). That is this module: at `--threads N ≥ 2`, under
 //! `FF_PARALLEL_RUNGS=1`, the ladder runs as worker 0 exactly as it would
 //! alone (one h-eval thread, its own slices, its own hand-downs), and N−1
 //! of its rungs run beside it with the whole wall each; the first plan
@@ -63,22 +64,25 @@ impl Member {
 
 /// The members for `threads` workers: the ladder first, then the rungs in
 /// the order of their MARGINAL cover beside everything before them on the
-/// matrix, greedy (the Lane B read of 2026-10-31, six rungs on 936 cells:
-/// the ladder 662; + LAMA-novelty 712; + driver 723; + bfs 727; + EHC 730;
-/// + novelty-light 732; + LAMA 734 = the oracle — plain LAMA last because
-/// its novelty-first form solves 97 cells it does not, against 9 the other
-/// way). The front end comes after, unmeasured as a member. More threads
-/// than members run the members; one thread is the ladder.
+/// matrix, greedy (the Lane B read of 2026-11-01, eight rungs on 936
+/// cells: the ladder 662; + LAMA-novelty 712; + the driver with R refresh
+/// and forgetting 747; + EHC 750; + bfs 753; + novelty-light 755; + the
+/// front end 757; + plain LAMA 758; + the plain driver 759 = the oracle).
+/// The two Lane B rungs stack — 50 cells each beyond the ladder, 15 shared,
+/// 85 in union — and the plain forms of LAMA and the driver come last
+/// because their Lane B forms cover them (98 cells to 9, 112 to 28). The
+/// plain driver is the ninth and has no seat. More threads than members
+/// run the members; one thread is the ladder.
 pub fn members(threads: usize) -> Vec<Member> {
     const ORDER: [Member; 8] = [
         Member::Ladder,
         Member::Rung(Rung::LamaNov),
-        Member::Rung(Rung::Driver),
-        Member::BestFirst,
+        Member::Rung(Rung::DriverX),
         Member::Rung(Rung::Ehc),
+        Member::BestFirst,
         Member::Rung(Rung::Novlight),
-        Member::Rung(Rung::Lama),
         Member::Rung(Rung::Front),
+        Member::Rung(Rung::Lama),
     ];
     ORDER[..threads.clamp(1, ORDER.len())].to_vec()
 }
@@ -119,10 +123,12 @@ pub fn run(
     orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Report {
     let members = members(threads);
-    let stop = Arc::new(AtomicBool::new(false));
-    // The parent's budget as it stands: the deadline travels to every
-    // worker with its clock already running; the caller's own flag is
-    // mirrored into `stop` by the wait loop below.
+    // The workers' should-continue flag, the polarity of `Options::
+    // should_continue` (true = go on; `search::cancelled` reads a false as
+    // the withdrawal): dropped to false once a member wins or the caller
+    // withdraws. The parent's deadline travels to every worker with its
+    // clock already running.
+    let go = Arc::new(AtomicBool::new(true));
     let parent = search::call_budget();
     let handed = search::take_ladder_base();
     let (tx, rx) = mpsc::channel::<(usize, PlanOutcome, Option<String>)>();
@@ -142,13 +148,13 @@ pub fn run(
         let mut handles = Vec::with_capacity(members.len());
         for (i, &m) in members.iter().enumerate() {
             let tx = tx.clone();
-            let stop = Arc::clone(&stop);
+            let go = Arc::clone(&go);
             let deadline = parent.deadline;
             let h = std::thread::Builder::new()
                 .name(format!("ff-{}", m.name()))
                 .stack_size(STACK)
                 .spawn_scoped(scope, move || {
-                    let _budget = search::arm_call_budget_inherited(deadline, Some(stop));
+                    let _budget = search::arm_call_budget_inherited(deadline, Some(go));
                     if let (Member::Ladder, Some(base)) = (m, handed) {
                         search::hand_ladder_wall(base);
                     }
@@ -174,7 +180,7 @@ pub fn run(
                         rung = narrated;
                         ops = o.ops;
                         fell_back = o.ehc_fell_back;
-                        stop.store(true, Ordering::Relaxed);
+                        go.store(false, Ordering::Relaxed);
                         if debug {
                             eprintln!(
                                 "parallel: {} won at {:.2}s, cancelling {} worker(s)",
@@ -187,7 +193,7 @@ pub fn run(
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => {
                     if parent.cancelled() {
-                        stop.store(true, Ordering::Relaxed);
+                        go.store(false, Ordering::Relaxed);
                     }
                 }
                 // Every sender is gone: a worker that panicked sent nothing.
@@ -273,7 +279,7 @@ mod tests {
         assert_eq!(names(2), ["ladder", "LAMA-novelty"]);
         assert_eq!(
             names(4),
-            ["ladder", "LAMA-novelty", "novelty-driver", "bfs"]
+            ["ladder", "LAMA-novelty", "novelty-driverx", "EHC"]
         );
         assert_eq!(names(64).len(), 8);
         assert_eq!(names(0), ["ladder"]);
