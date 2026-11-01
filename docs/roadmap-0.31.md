@@ -436,23 +436,32 @@ against: a heuristic that eats the median cell's wall building itself
 is the kill). Record in `probes-0.31/opt/`; the lane opens on (a) and
 (b) together, and names C1 or C2 first from them.
 
-**C.s — symmetry pruning in the optimal A* (added 2026-10-31, the free
-rung).** `orbits.rs` already detects the task's structural symmetries
-and canonicalizes states, and the satisficing best-first already dedups
-on the canonical form; `optimal.rs` never reads it. Orbit search (Pochter,
-Zohar & Rosenschein AAAI 2011; Domshlak, Katz & Shleyfman ICAPS 2012,
-*enhanced symmetry breaking in cost-optimal planning*) is the same dedup
-under A* — sound for the certificate as long as the plan is reconstructed
-through the permutation trace, which is the one piece to build. The
-autopsy that motivates it: the 895 unsolved seq-opt rows die on the
-**wall** at 1.8 GiB median RSS, not in memory — the search is too wide
-for the heuristic, and symmetry is the only width reduction that costs
-no build time (C.0's receipt does not apply). Band: proofs +15 to +40 on
-the domains the 2012 paper names (gripper, logistics-shaped, the
-permutation-heavy 2008/2011 sets), read on `proven` only; kill: flat, or
-any certificate VAL rejects. Fixtures: a toy with a known orbit count
-expands exactly the orbit representatives; the reconstructed plan replays
-under VAL; A* with orbits off is byte-identical to today.
+**C.s — symmetry pruning in the optimal A* (added 2026-10-31; CORRECTED
+2026-11-01 on reading the code).** The 10-31 bullet said `optimal.rs`
+never reads `orbits.rs`. False: the optimal A* has dedup'd its visited /
+closed / best-g lookups on orbit-canonical keys since 0.22 Phase 6 L1
+(`api.rs` arms `detect_classical_iso` on every unconstrained opt call;
+`optimal.rs` `key_of` → `canonical_skey`; nodes stay concrete, so the
+certificate needs no permutation trace — that piece already exists by
+construction). What the engine HAS is orbit search over OBJECT
+symmetries: interchangeable members with identical init profiles, closed
+under every transposition, goal set σ-invariant (or goal-isomorphic under
+`FF_ORBIT_ISO=1`, default off, probe-negative on TMS). What Pochter,
+Zohar & Rosenschein (AAAI 2011) and Domshlak, Katz & Shleyfman (ICAPS
+2012) have beyond it: the FULL automorphism group of the problem
+description graph via bliss — predicate and structural symmetries that
+are not object relabelings (mirror grids, symmetric goal positions,
+symmetric operator schemas) — and in 2012 search in the orbit space
+proper (successors generated from the canonical representative, not just
+keys canonicalized). Neither paper is vendored; the 10-31 pointer to
+`docs/papers/` was wrong too. **What is unknown, and is the probe:** on
+the 895 unsolved seq-opt cells, how many get an orbit at all today, how
+large the group is, and how many of the rest a PDG automorphism search
+would find — detection narrates only under `FF_ORBIT_DEBUG` (not in the
+notes), so the receipt needs ff on the cells (box time, after the Lane B
+sweep) and a note line first. The lane opens only on that count; the
+band and kill stand as written, read on `proven` only, with "A* with
+orbits off is byte-identical" already the 0.22 contract.
 
 **C.1 — abstractions + saturated cost partitioning.** Claim: a PDB
 collection with SCP, added as an opt rung before LM-cut's A* (or as a
@@ -596,6 +605,40 @@ referee:
 flat. **Kill:** Lane 1b's — points flat with the wall spent. Probe first
 on the ten worst-ratio cells (trucks, tpp, pathways); a lane only on a
 probe that moves five of them.
+
+**Groundwork read, 2026-11-01 (banked 0.30.0 rows, the archive's
+SGPlan5 metrics, `standings.py`'s own `_ipc_score`; no box time):** the
+three boards sit 94 points behind SGPlan5 pairwise, and the split is
+**30 coverage / 64 quality**. Coverage is two variants: storage-complex
+(16 cells unsolved of 20) and tpp-complex (12 of 20). Quality is
+concentrated: trucks-qualitative +13.8, tpp-qualitative +10.6,
+trucks-simple +10.5, trucks-complex +5.8, pathways-simple +5.7,
+pathways-complex +5.4, rovers-qualitative +4.2 — trucks alone is 30 of
+the 64. The worst cells are all one shape: **SGPlan5 reaches metric 0
+(every preference satisfied) and ours does not** — trucks-simple 6/14/
+15/16/17, trucks-qualitative 4/5, tpp-complex 3, openstacks-simple 15/18
+— so a zero-violation plan exists and the search over the compiled task
+does not find it in the wall: Lane E's question exactly. Note what the
+optimizer already does (`pddl3.rs`, the B&B loop): a diversified RESTART
+ladder — four weight profiles tried in turn when a sweep stalls, under
+the SAME bound, reset to the default on an improvement
+(`FF_PREF_NO_RESTARTS=1` disables it). RWA* is the other way round:
+restart on each IMPROVEMENT, from the root, with a LOWER weight, the
+heuristic cache kept — the probe is that difference, not "add
+restarts". Two cautions for the referee. (1) `pref_points` is pairwise against SGPlan5, which is right:
+a best-of-field read is poisoned by MIPS-XXL's `.soln` headers, which
+carry `MetricValue 0.00` on 18 openstacks-simple and 5 pipesworld-complex
+plans whose bodies are ordinary 12–23 step plans (an unfilled header,
+not a zero-violation plan) — never switch the referee to best-of-field
+without dropping those. (2) We BEAT SGPlan5 on openstacks-simple
+(−4.4), storage-qualitative, rovers-metric-simple and pipesworld-complex,
+so the gap is not a uniform quality deficit; it is trucks/tpp/pathways,
+where deadlines and ordering preferences make the compiled `total-cost`
+landscape deceptive for a bounded B&B. The autopsy's SECOND half — which
+preferences our trucks plans violate and whether the violation is the
+seed's or the polish's — needs the plans themselves (ff runs; the notes already count satisfied
+and violated preferences, the plan says which), i.e. box time, and should run on the
+ladder Lane B leaves as the default, not on 0.30.0's.
 
 ---
 
