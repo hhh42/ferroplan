@@ -93,14 +93,17 @@ def main():
     ap.add_argument("--ff", default=os.path.join(ROOT, "target", "release", "ff"))
     ap.add_argument("--wall", type=float, default=60.0)
     ap.add_argument("--sched", default="1", help="FF_PREF_RWA value for the armed arm")
+    ap.add_argument("--env", action="append", default=[], metavar="K=V",
+                    help="applied to BOTH arms (the second read: FF_NO_PREF_POLISH=1)")
     args = ap.parse_args()
-    print(f"ff {args.ff} ({time.ctime(os.path.getmtime(args.ff))}), wall {args.wall:.0f} s, FF_PREF_RWA={args.sched}")
+    base = dict(kv.split("=", 1) for kv in args.env)
+    print(f"ff {args.ff} ({time.ctime(os.path.getmtime(args.ff))}), wall {args.wall:.0f} s, FF_PREF_RWA={args.sched}, both arms {base or '{}'}")
     print(f"{'cell':38} {'banked':>7} {'plain':>7} {'rwa':>7}  {'plain s':>8} {'rwa s':>7}  verdict")
     moved = 0
     for variant, label, banked in CELLS:
         dom, prb = resolve(variant, label)
-        a = run(args.ff, dom, prb, args.wall, {})
-        b = run(args.ff, dom, prb, args.wall, {"FF_PREF_RWA": args.sched})
+        a = run(args.ff, dom, prb, args.wall, dict(base))
+        b = run(args.ff, dom, prb, args.wall, dict(base, FF_PREF_RWA=args.sched))
         ma = a["metric"] if a["solved"] else None
         mb = b["metric"] if b["solved"] else None
         if mb is not None and (ma is None or mb < ma):

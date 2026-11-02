@@ -52,7 +52,12 @@ All notable changes to this project are documented here.
   its stall ladder at the default weight. The stall ladder and the final
   escalation are untouched; unset, `0` or empty is byte-identical. Both
   loops now narrate each sweep under `FF_RES_DEBUG` (`[bnb/…]`: ordering,
-  weight, bound, outcome, evals, budget spent).
+  weight, bound, outcome, evals, budget spent). Measured on the ten worst
+  IPC-5 preference cells (roadmap Lane E): one of ten moved, nine level,
+  with and without the pre-optimizer polish — the branch-and-bound never
+  gets the wall on those cells (grounding and the polish spend it) and
+  returns the hard-goal plan's metric when it does; a recorded negative,
+  the hatch stays opt-in.
 - **The optimal path's notes carry an orbit receipt** (`orbits: N
   orbit(s), members [...], group ~10^k` or `orbits: none`; 0.31 C.s): what
   symmetry the optimal A* dedup'd under, countable from the rows — it was

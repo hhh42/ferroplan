@@ -1,0 +1,16 @@
+ff /Users/harold/ferroplan-0.31/target/release/ff (Sun Nov  1 21:03:21 2026), wall 60 s, FF_PREF_RWA=1, both arms {'FF_NO_PREF_POLISH': '1'}
+cell                                    banked   plain     rwa   plain s   rwa s  verdict
+trucks-preferences-simple/6                  6       6       1      56.4    56.4  toward
+trucks-preferences-simple/14                 6       9       9      56.2    56.2  level
+trucks-preferences-simple/15                 5      11      11      56.2    56.2  level
+trucks-preferences-simple/16                11      12      12      55.1    55.1  level
+trucks-preferences-simple/17                11      15      15      55.9    55.9  level
+trucks-preferences-qualitative/4             2       2       2      36.8    33.8  level
+trucks-preferences-qualitative/5             2       2       2      56.4    56.4  level
+tpp-preferences-complex/3                   12      13      13      56.3    56.3  level
+    plain: PDDL3 preferences scored post-hoc: 31 satisfied, 8 violated (P2A, P0A, P3A, P0B, P-DRIVE, P-DRIVE, P-DRIVE, P-DRIVE); metric 13
+    rwa:   PDDL3 preferences scored post-hoc: 31 satisfied, 8 violated (P2A, P0A, P3A, P0B, P-DRIVE, P-DRIVE, P-DRIVE, P-DRIVE); metric 13
+openstacks-preferences-simple/15             6      88      88      36.7    36.9  level
+openstacks-preferences-simple/18            31     136     136      55.2    55.3  level
+
+moved toward SGPlan5 on 1 of 10 (lane opens at 5)

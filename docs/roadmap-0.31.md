@@ -698,6 +698,37 @@ optima and the hatch. **Pre-registered read:** the ten worst cells above
 openstacks-simple 15/18) solo at the board wall, `FF_PREF_RWA=1` against
 unset, metric per cell; a lane only if five move toward SGPlan5's metric,
 then the three boards through the crucible with `--env FF_PREF_RWA=1`.
+**Read 2026-11-01 (`probes-0.31/pref/rwa-probe.log`, engine of 21:03,
+Lane B defaults): ONE of ten moved — trucks-simple 6, metric 6 → 1 — nine
+level at identical metrics and identical seconds. The lane does not
+open.** What the narration (`FF_RES_DEBUG`) says the nine measured: on
+trucks-simple 14 the task grounds in 12.2 s of the 60 s wall, the
+pre-optimizer polish takes the next 12 s and gains three preferences
+(9 → 6), and the branch-and-bound is handed a spent wall — 269
+evaluations across three sweeps, "none" each. The optimizer never
+searched, so no weight schedule could matter; the nine cells are a WALL
+ALLOCATION question (grounding + polish against the B&B), not a search
+one. On the one that moved, the cheap first sweep (w=5, 13k evals,
+cost 6) left budget the plain loop's anytime drain spends, and the win
+(cost 1) came at sweep five from the stall ladder's own 1.5 profile —
+the restart's economy, not the descending schedule. Second read, same
+ten cells, both arms under `FF_NO_PREF_POLISH=1` (the B&B given the
+polish's share of the wall): `rwa-probe-nopolish.log`. **Second read:
+the same one of ten (trucks-simple 6 → 1 again), RWA level with plain
+on the other nine — and plain WITHOUT the polish is worse than the
+banked row on eight of them** (trucks-simple 14: 6 → 9, 15: 5 → 11,
+17: 11 → 15; openstacks-simple 15: 6 → 88, 18: 31 → 136; tpp-complex 3:
+12 → 13), i.e. the branch-and-bound over the compiled task, given the
+polish's wall too, returns the hard-goal plan's metric on every one of
+these cells; the metric they bank is the POLISH's (per-preference local
+repair of the seed plan), and the ~24 s it asks for is the lever these
+cells have. **Verdict: Lane E's RWA* probe is a recorded negative — the
+hatch stays, no sweep.** The next probe, when the preference boards are
+worth a cycle: the polish's rounds and evals (`FF_PREF_POLISH_ROUNDS`,
+`FF_PREF_POLISH_EVALS`) against the grounding's 12 s and the B&B's
+share, on the same ten cells — a wall-allocation read; and the
+grounding itself (12.2 s on trucks-simple 14 for 23,408 ops is a fifth
+of the wall).
 
 ---
 

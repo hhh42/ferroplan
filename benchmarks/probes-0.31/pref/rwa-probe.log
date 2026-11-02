@@ -1,0 +1,28 @@
+ff /Users/harold/ferroplan-0.31/target/release/ff (Sun Nov  1 21:03:21 2026), wall 60 s, FF_PREF_RWA=1
+cell                                    banked   plain     rwa   plain s   rwa s  verdict
+trucks-preferences-simple/6                  6       6       1      56.6    56.4  toward
+trucks-preferences-simple/14                 6       6       6      55.4    55.4  level
+    plain: preference polish before the optimizer: 67 steps, metric 6
+    rwa:   preference polish before the optimizer: 67 steps, metric 6
+trucks-preferences-simple/15                 5       5       5      55.3    55.3  level
+    plain: preference polish before the optimizer: 66 steps, metric 5
+    rwa:   preference polish before the optimizer: 66 steps, metric 5
+trucks-preferences-simple/16                11      12      12      54.5    54.5  level
+trucks-preferences-simple/17                11      10      10      55.1    55.1  level
+    plain: preference polish before the optimizer: 82 steps, metric 10
+    rwa:   preference polish before the optimizer: 82 steps, metric 10
+trucks-preferences-qualitative/4             2       0       0      42.1    33.7  level
+    plain: preference polish: 1 more satisfied (P1A), metric 2 -> 0
+    rwa:   preference polish: 1 more satisfied (P1A), metric 2 -> 0
+trucks-preferences-qualitative/5             2       2       2      56.4    56.4  level
+tpp-preferences-complex/3                   12      13      13      56.3    56.4  level
+    plain: PDDL3 preferences scored post-hoc: 31 satisfied, 8 violated (P2A, P0A, P3A, P0B, P-DRIVE, P-DRIVE, P-DRIVE, P-DRIVE); metric 13
+    rwa:   PDDL3 preferences scored post-hoc: 31 satisfied, 8 violated (P2A, P0A, P3A, P0B, P-DRIVE, P-DRIVE, P-DRIVE, P-DRIVE); metric 13
+openstacks-preferences-simple/15             6       6       6      45.4    45.5  level
+    plain: preference polish before the optimizer: 90 steps, metric 6
+    rwa:   preference polish before the optimizer: 90 steps, metric 6
+openstacks-preferences-simple/18            31      31      31      55.6    55.6  level
+    plain: preference polish before the optimizer: 90 steps, metric 31
+    rwa:   preference polish before the optimizer: 90 steps, metric 31
+
+moved toward SGPlan5 on 1 of 10 (lane opens at 5)
