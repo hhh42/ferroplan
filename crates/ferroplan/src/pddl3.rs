@@ -2765,13 +2765,16 @@ fn metric_optimize_inner(
             Some(&sat),
         );
         spent += evaluated;
+        // Snapshot the rung that ran: the match below re-arms the ladder
+        // before narrating an improvement.
+        let (ran_rung, ran_escalated) = (rung, escalated);
         let narrate = |outcome: Option<f64>| {
             bnb_narrate(
                 "legacy",
                 iterations,
                 &iter_cfg,
-                rung,
-                escalated,
+                ran_rung,
+                ran_escalated,
                 rwa.as_ref().map(|_| rwa_step),
                 bound,
                 outcome,
@@ -3799,13 +3802,16 @@ fn metric_optimize_closure(
             Some(sat),
         );
         spent += evaluated;
+        // Snapshot the rung that ran: the match below re-arms the ladder
+        // before narrating an improvement.
+        let (ran_rung, ran_escalated) = (rung, escalated);
         let narrate = |outcome: Option<f64>| {
             bnb_narrate(
                 "closure",
                 iterations,
                 &iter_cfg,
-                rung,
-                escalated,
+                ran_rung,
+                ran_escalated,
                 rwa.as_ref().map(|_| rwa_step),
                 bound,
                 outcome,

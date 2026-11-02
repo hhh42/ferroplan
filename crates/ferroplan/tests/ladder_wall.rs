@@ -214,16 +214,23 @@ fn run_child(scenario: &str) -> (String, String, f64) {
             // The tetris shape (0.22 Phase 5A a1): light is stood down so
             // the scenario pins the LAMA rung itself — the light rung's
             // own slice legs sit above. EHC bails on its own here (the
-            // mutex pair dead-ends its lookahead in milliseconds).
-            cmd.env("FF_TIME_LIMIT", "5").env("FF_NO_NOVLIGHT", "1");
+            // mutex pair dead-ends its lookahead in milliseconds). Plain
+            // LAMA by the hatch: the ladder's default LAMA slot is
+            // novelty-first since 0.31 Lane B and walks the corridor in
+            // milliseconds (`tests/bfws.rs` pins that); the slice is the
+            // pin here, and only the grinding form reaches it.
+            cmd.env("FF_TIME_LIMIT", "5")
+                .env("FF_NO_NOVLIGHT", "1")
+                .env("FF_LAMA_NOV", "0");
         }
         "no-rung-wallcap" => {
             // The permanent RED record (the FF_NO_EHC_WALLCAP pattern):
-            // unsliced LAMA grinds its 400k-eval budget straight through
-            // the armed wall before the ladder moves on.
+            // unsliced plain LAMA grinds its 400k-eval budget straight
+            // through the armed wall before the ladder moves on.
             cmd.env("FF_TIME_LIMIT", "5")
                 .env("FF_NO_NOVLIGHT", "1")
-                .env("FF_NO_RUNG_WALLCAP", "1");
+                .env("FF_NO_RUNG_WALLCAP", "1")
+                .env("FF_LAMA_NOV", "0");
         }
         "ground-wall" => {
             // 0.22 Phase 2 lever 1: grounding must exit HONESTLY at a

@@ -1842,7 +1842,7 @@ pub(crate) fn run_rung(
             cfg.max_eval,
             forbidden,
             None,
-            &crate::novelty::DriverCfg::from_env(),
+            &crate::novelty::DriverCfg::plain(),
         ),
         Rung::DriverX => crate::novelty::search_driver(
             task,
@@ -2194,9 +2194,12 @@ pub(crate) fn ladder(
         }
         if std::env::var("FF_NO_LAMA").is_err() && rungs_affordable("LAMA") {
             const LAMA_CAP: usize = 400_000;
-            // NOVELTY-FIRST LAMA (0.31 Lane B, `FF_LAMA_NOV=1`): the same
-            // rung with BFWS(f6)'s key; off by default until measured.
-            let lama_nov = std::env::var("FF_LAMA_NOV").is_ok_and(|v| v.trim() == "1");
+            // NOVELTY-FIRST LAMA (0.31 Lane B): the same rung with BFWS(f6)'s
+            // key, the ladder's default since the Lane B read of 2026-11-01
+            // (+54 net on the six boards' 1,970 cells with the driver's R
+            // refresh and forgetting beside it); `FF_LAMA_NOV=0` is the hatch
+            // back to plain LAMA.
+            let lama_nov = !std::env::var("FF_LAMA_NOV").is_ok_and(|v| v.trim() == "0");
             if let Some((ops, evaluated)) = crate::lama::search_cfg(
                 task,
                 threads,

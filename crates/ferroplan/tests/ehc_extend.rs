@@ -85,7 +85,12 @@ fn a_run_that_keeps_arriving_keeps_its_slice() {
         .env("FF_EHC_WALL_FRAC", "0.1")
         .env_remove("FF_TIME_LIMIT");
         if hatch {
-            cmd.env("FF_NO_EHC_EXTEND", "1");
+            // The RED record is the 0.28 ladder's: plain LAMA does not
+            // rescue blocks(50) inside the second after the fixed slice
+            // hands down. Since 0.31 Lane B the LAMA slot is novelty-first
+            // and DOES (at 0.88 s, recency-extended) -- a gain, not this
+            // pin's subject; the hatch keeps the record on the plain form.
+            cmd.env("FF_NO_EHC_EXTEND", "1").env("FF_LAMA_NOV", "0");
         }
         let out = cmd.output().unwrap();
         assert!(out.status.success());

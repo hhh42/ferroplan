@@ -341,6 +341,46 @@ What this closes and what it opens:
   --env FF_LAMA_NOV` over the six boards. The portfolio's mco sweep
   (`probes-0.31/par/run-par-mco.sh`) follows it, on whichever ladder the
   read leaves as the default.
+  **The ladder read, 2026-11-01 20:59 (1,970 banked in four passes;
+  `laneb-ladder.log`, `laneb-ladder-read.txt`): +54 net — 76 gained, 22
+  lost; the kill clause does not fire.** Per board against the banked
+  0.30.0 rows:
+
+  | board | cells | 0.30.0 | Lane B | gain | loss | net |
+  |---|---:|---:|---:|---:|---:|---:|
+  | ipc5-prop | 450 | 386 | 406 | 22 | 2 | **+20** |
+  | ipc2018-sat | 240 | 98 | 117 | 23 | 4 | **+19** |
+  | ipc2014-agile | 280 | 175 | 184 | 11 | 2 | +9 |
+  | ipc2014-sat | 280 | 180 | 187 | 10 | 3 | +7 |
+  | ipc67-results | 580 | 543 | 546 | 9 | 6 | +3 |
+  | ipc2023-sat | 140 | 52 | 48 | 1 | 5 | −4 |
+
+  Against the band: 2018 seq-sat 99 → 115+ met (117); 2014 seq-sat / agile
+  +10 each nearly (+7 / +9); 2023 seq-sat +5 MISSED (−4: ricochet-robots
+  6/9/10, slitherlink 10, recharging-robots 3 lost, one gained); total
+  +54 inside +25 to +60. Gains by variant: parking 15 (10 sat, 5 agile),
+  caldera-split 7, data-network 6, caldera 4, rovers 4, storage 4,
+  pathways 6, trucks 5, hiking / transport / settlers / no-mystery /
+  pipesworld 2 each, fourteen singletons. The 22 lost cells: eight at the
+  baseline's budget edge (openstacks-sat 14, data-network 16, settlers 14,
+  spider 1, recharging-robots 3, transport 7, transport-strips 19 at 59–60
+  s; ricochet 6 at 56 s) — coin flips the kill clause weighs and they do
+  not outweigh 76; the memory shape — child-snack 7 on both 2014 boards
+  (2.3–3.1 GiB), thoughtful 9 on both (1.7–1.9 GiB), woodworking 15/16
+  (3.9 / 5.3 GiB, the 0.30 arena cells lost again: novelty-first LAMA's
+  tables cost what the light rung's arena saved) — four cells each worth
+  a solo receipt before the cut; and five mid-wall losses with no memory
+  story (termes 5 at 3.6 s, sokoban 20 on both ipc67 boards at 18–19 s,
+  pipesworld 28/45 at 35–42 s, slitherlink 10, ricochet 9/10 at 44 s).
+  Medians on the 1,412 cells both solve 5.13 s against 4.62 s; plan
+  length sums 288,844 against 287,189 (shorter 184, longer 175) — level.
+  **Verdict: both knobs are the ladder's defaults** (`FF_LAMA_NOV=0`,
+  `FF_NOV_REFRESH=0`, `FF_NOV_FORGET=0` the hatches; `FF_RUNG_ONLY=driver`
+  the plain driver); the mco portfolio sweep runs on this ladder. Owed
+  before the cut: solo receipts on woodworking 15/16 and child-snack 7
+  (is it the LAMA-novelty tables or the refreshing driver that spends the
+  memory — `FF_LAMA_NOV=0` alone, `FF_NOV_REFRESH=0 FF_NOV_FORGET=0`
+  alone), and ipc2023-sat's five.
 
 ---
 

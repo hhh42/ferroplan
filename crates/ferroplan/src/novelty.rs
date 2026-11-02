@@ -737,19 +737,22 @@ pub struct DriverCfg {
     /// very fast"). Incomplete by construction, bounded by |F|^2 x |G|
     /// states; the ladder runs it as a rung ahead of LAMA.
     pub prune: bool,
-    /// 0.31 Lane B, R REFRESH (`FF_NOV_REFRESH=1`): the paper's #r -- a
-    /// state that lowers the goal count against its parent gets a NEW R
+    /// 0.31 Lane B, R REFRESH (the ladder's default since the Lane B read
+    /// of 2026-11-01; `FF_NOV_REFRESH=0` is the hatch): the paper's #r --
+    /// a state that lowers the goal count against its parent gets a NEW R
     /// from its own relaxed plan, and its descendants count against that
     /// list; one heuristic call per such state, never per pop. Off, R is
     /// the root's for the whole search (0.22).
     pub refresh: bool,
-    /// 0.31 Lane B, FORGETTING (`FF_NOV_FORGET=1`, Scorpion Maidu): on a
-    /// new best goal count every novelty table is cleared, so the search
-    /// after the progress explores against itself, not against everything
-    /// before it.
+    /// 0.31 Lane B, FORGETTING (Scorpion Maidu; the ladder's default since
+    /// the same read, `FF_NOV_FORGET=0` the hatch): on a new best goal
+    /// count every novelty table is cleared, so the search after the
+    /// progress explores against itself, not against everything before it.
     pub forget: bool,
 }
 
+/// The 0.22 driver as the fixtures pin it: R from the root, no forgetting.
+/// The ladder's default is [`DriverCfg::from_env`], which has both on.
 impl Default for DriverCfg {
     fn default() -> Self {
         DriverCfg {
@@ -764,9 +767,13 @@ impl Default for DriverCfg {
 }
 
 impl DriverCfg {
-    /// The hatch reads, exactly as the roadmap writes them: `FF_NOV_PART=0`
-    /// and `FF_NOV_W2=0` turn their levers OFF (unset ⇒ on); the cap is a
-    /// knob with the pair-table ceiling as default.
+    /// The ladder's driver, with the hatch reads exactly as the roadmap
+    /// writes them: `FF_NOV_PART=0`, `FF_NOV_W2=0`, `FF_NOV_REFRESH=0` and
+    /// `FF_NOV_FORGET=0` turn their levers OFF (unset ⇒ on — R refresh and
+    /// forgetting since the Lane B read, 2026-11-01: +54 net on the six
+    /// boards' 1,970 cells with `FF_LAMA_NOV=1` beside them); `FF_NOV_PRUNE=1`
+    /// turns the prune on; the cap is a knob with the pair-table ceiling
+    /// as default.
     pub fn from_env() -> Self {
         let off = |var: &str| std::env::var(var).is_ok_and(|v| v.trim() == "0");
         let on = |var: &str| std::env::var(var).is_ok_and(|v| v.trim() == "1");
@@ -780,8 +787,8 @@ impl DriverCfg {
                 .unwrap_or(256)
                 .min(u16::MAX as usize),
             prune: on("FF_NOV_PRUNE"),
-            refresh: on("FF_NOV_REFRESH"),
-            forget: on("FF_NOV_FORGET"),
+            refresh: !off("FF_NOV_REFRESH"),
+            forget: !off("FF_NOV_FORGET"),
         }
     }
 
@@ -795,11 +802,23 @@ impl DriverCfg {
     }
 
     /// The paper's driver: `from_env` with R refresh and forgetting on
-    /// (the matrix's `driverx`).
+    /// whatever the hatches say (the matrix's `driverx`, the portfolio's
+    /// second worker).
     pub fn extended() -> Self {
         DriverCfg {
             refresh: true,
             forget: true,
+            ..Self::from_env()
+        }
+    }
+
+    /// The 0.22 driver: `from_env` with R refresh and forgetting off
+    /// whatever the hatches say (the matrix's `driver`, the baseline the
+    /// Lane B read was taken against).
+    pub fn plain() -> Self {
+        DriverCfg {
+            refresh: false,
+            forget: false,
             ..Self::from_env()
         }
     }

@@ -1,0 +1,71 @@
+subset FF_LAMA_NOV on 8efe4c05f005: 1970 cells reached; baseline b02061eded16 banked: 1970 cells
+cells on both sides: 1970
+
+board              cells  base  cand  gain  loss   net
+ipc67-results        580   543   546    +9     6    +3
+ipc5-prop            450   386   406   +22     2   +20
+ipc2014-sat          280   180   187   +10     3    +7
+ipc2014-agile        280   175   184   +11     2    +9
+ipc2018-sat          240    98   117   +23     4   +19
+ipc2023-sat          140    52    48    +1     5    -4  <- loss > gain
+total               1970  1434  1488   +76    22   +54
+
+both solved 1412: median time 5.13 s v 4.62 s; plan length sum 288844 v 287189 on 1412 cells with lengths (shorter 184, longer 175)
+
+LOST (22), the baseline's time and the candidate's rows / peak RSS:
+  ipc2014-agile    child-snack-sequential-agile/7      base  11.12 s   cand rows 4 rss 3.11 GiB
+  ipc2014-agile    thoughtful-sequential-agile/9      base  31.21 s   cand rows 4 rss 1.88 GiB
+  ipc2014-sat      child-snack-sequential-satisficing/7      base   9.86 s   cand rows 3 rss 2.26 GiB
+  ipc2014-sat      openstacks-sequential-satisficing/14     base  60.00 s   cand rows 2 rss 0.34 GiB
+  ipc2014-sat      thoughtful-sequential-satisficing/9      base  30.57 s   cand rows 4 rss 1.74 GiB
+  ipc2018-sat      data-network-sequential-satisficing/16     base  59.92 s   cand rows 2 rss 1.15 GiB
+  ipc2018-sat      settlers-sequential-satisficing/14     base  59.38 s   cand rows 2 rss 0.58 GiB
+  ipc2018-sat      spider-sequential-satisficing/1      base  60.00 s   cand rows 2 rss 0.21 GiB
+  ipc2018-sat      termes-sequential-satisficing/5      base   3.59 s   cand rows 4 rss 1.29 GiB
+  ipc2023-sat      recharging-robots-satisficing/3      base  59.08 s   cand rows 2 rss 0.70 GiB
+  ipc2023-sat      ricochet-robots-satisficing/10     base  44.43 s   cand rows 4 rss 0.40 GiB
+  ipc2023-sat      ricochet-robots-satisficing/6      base  56.30 s   cand rows 3 rss 0.41 GiB
+  ipc2023-sat      ricochet-robots-satisficing/9      base  44.50 s   cand rows 4 rss 0.40 GiB
+  ipc2023-sat      slitherlink-satisficing/10     base  25.39 s   cand rows 4 rss 0.54 GiB
+  ipc5-prop        pipesworld-propositional-strips/28     base  42.00 s   cand rows 4 rss 0.63 GiB
+  ipc5-prop        pipesworld-propositional-strips/45     base  34.78 s   cand rows 4 rss 1.37 GiB
+  ipc67-results    sokoban-sequential-satisficing/20     base  18.27 s   cand rows 4 rss 0.83 GiB
+  ipc67-results    sokoban-sequential-satisficing-strips/20     base  19.27 s   cand rows 4 rss 0.82 GiB
+  ipc67-results    transport-sequential-satisficing/7      base  59.82 s   cand rows 2 rss 0.32 GiB
+  ipc67-results    transport-sequential-satisficing-strips/19     base  59.91 s   cand rows 2 rss 0.33 GiB
+  ipc67-results    woodworking-sequential-satisficing/15     base  16.32 s   cand rows 2 rss 3.89 GiB
+  ipc67-results    woodworking-sequential-satisficing/16     base  12.94 s   cand rows 2 rss 5.30 GiB
+
+GAINED (76), by variant:
+   10 parking-sequential-satisficing
+    7 caldera-split-sequential-satisficing
+    6 data-network-sequential-satisficing
+    5 parking-sequential-agile
+    4 caldera-sequential-satisficing
+    4 rovers-propositional-strips
+    4 storage-propositional
+    3 pathways-propositional
+    3 pathways-propositional-strips
+    3 trucks-propositional-strips
+    2 hiking-sequential-agile
+    2 transport-sequential-satisficing
+    2 settlers-sequential-satisficing
+    2 trucks-propositional
+    2 no-mystery-sequential-satisficing
+    1 child-snack-sequential-agile
+    1 city-car-sequential-agile
+    1 floor-tile-sequential-agile
+    1 transport-sequential-agile
+    1 child-snack-sequential-satisficing
+    1 city-car-sequential-satisficing
+    1 floor-tile-sequential-satisficing
+    1 flashfill-sequential-satisficing
+    1 organic-synthesis-split-sequential-satisficing
+    1 spider-sequential-satisficing
+    1 termes-sequential-satisficing
+    1 ricochet-robots-satisficing
+    1 pipesworld-propositional
+    1 pipesworld-propositional-strips
+    1 rovers-propositional
+    1 tidybot-sequential-satisficing
+    1 transport-sequential-satisficing-strips

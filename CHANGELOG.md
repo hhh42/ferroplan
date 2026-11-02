@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- **The ladder runs BFWS the winners' way by default** (0.31 Lane B): its
+  LAMA slot is novelty-first LAMA — BFWS(f6)'s key, novelty relative to
+  the ⟨landmark count, parent-h⟩ partition ahead of the weighted
+  ⟨h_FF, lm⟩ key — and its driver recomputes R on every goal-count
+  improvement and forgets its novelty tables there (Lipovetzky & Geffner
+  2017; Scorpion Maidu 2023). Measured as one subset sweep of the six
+  satisficing boards' 1,970 cells against the banked 0.30.0 rows,
+  `probes-0.31/laneb/laneb-ladder.log`: **+54 net** (76 gained, 22 lost;
+  ipc5-prop +20, ipc2018-sat +19, ipc2014-agile +9, ipc2014-sat +7,
+  ipc67-results +3, ipc2023-sat −4), the gains led by parking 15,
+  caldera and caldera-split 11, data-network 6, rovers / storage /
+  pathways / trucks; the median on the 1,412 cells both solve 5.1 s
+  against 4.6 s, plan lengths level. The 22 lost cells are named in the
+  roadmap: eight sit at the baseline's budget edge, the rest are the
+  memory shape (child-snack 7, thoughtful 9, woodworking 15/16 at 2–5 GiB)
+  and ricochet-robots 6/9/10. Hatches back to 0.30: `FF_LAMA_NOV=0`,
+  `FF_NOV_REFRESH=0`, `FF_NOV_FORGET=0`; the plain driver stays reachable
+  as `FF_RUNG_ONLY=driver`.
+
 ### Added
 
 - **A parallel rung portfolio, opt-in** (`FF_PARALLEL_RUNGS=1` at
