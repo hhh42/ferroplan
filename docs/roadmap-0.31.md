@@ -525,6 +525,27 @@ none` (`api.rs`; fixture in `tests/orbit_classical.rs`), and
 `probes-0.31/opt/orbit-count.py` runs the 1,098 banked-unsolved opt cells
 (`unsolved-rows.txt`, 0.30.0) at a 3 s wall and tallies the note per
 variant — box time, after the Lane B sweep.
+**The count, 2026-11-01 (55 min; `orbit-count.csv`, `orbit-count.log`):
+of 1,097 cells, 873 carry NO usable object symmetry, 107 a group under
+10³, 30 a group of 10³ or more, and 87 did not ground inside the probe
+(the big grounders — a `no-note`, not a `none`). The 137 with an orbit
+sit on seventeen variants: child-snack-opt 16 / 0 (all ≥ 10³),
+caldera-split-opt 8 / 4, agricola-opt 0 / 20, barman-opt 0 / 20,
+delivery-numeric 1 / 17, settlers-opt 0 / 12, openstacks-adl-opt 2 / 10,
+hiking-opt 0 / 10, and singletons on mprime-numeric, organic-split,
+city-car, cave-diving, woodworking, the sailing pair, rainbowttles. The
+orbit search ALREADY runs on every one of them (0.22's canonical keys
+under `detect_classical_iso`), and they are still unsolved — so the
+object-symmetry group is spent where it exists, and four cells in five
+have none. **The lane does not open.** What a PDG-automorphism detector
+(Pochter 2011 / DKS 2012, bliss over the problem description graph)
+would add on the 873 is the one unknown left — whether ground-task
+automorphisms on IPC domains exceed the object symmetries of the lifted
+task is a claim to READ, not one this record makes (the lifted
+structural-symmetry work, Sievers et al. ICAPS 2019, is where to look;
+not vendored). Not worth a detector this cycle. Reopen only with a named
+domain whose unsolved cells carry a structural symmetry the object
+detector misses.
 
 **C.1 — abstractions + saturated cost partitioning.** Claim: a PDB
 collection with SCP, added as an opt rung before LM-cut's A* (or as a

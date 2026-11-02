@@ -65,7 +65,12 @@ All notable changes to this project are documented here.
 - **The optimal path's notes carry an orbit receipt** (`orbits: N
   orbit(s), members [...], group ~10^k` or `orbits: none`; 0.31 C.s): what
   symmetry the optimal A* dedup'd under, countable from the rows — it was
-  narrated only under `FF_ORBIT_DEBUG` before.
+  narrated only under `FF_ORBIT_DEBUG` before. Counted over the 1,097
+  banked-unsolved optimal cells (roadmap C.s): 873 carry no usable object
+  symmetry, 107 a group under a thousand, 30 a group of a thousand or
+  more (child-snack 16, caldera-split 8), 87 did not ground inside the
+  3 s probe — the orbit search already runs on the cells that have one,
+  so the symmetry lane stays closed this cycle.
 
 ## [0.30.0] - 2026-10-29 — Memory, and two defects the rung exposed
 

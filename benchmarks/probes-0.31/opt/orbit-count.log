@@ -1,0 +1,43 @@
+  50/1097 {'group<1e3': 40, 'none': 10}
+  100/1097 {'group<1e3': 46, 'none': 31, 'no-note': 12, 'group>=1e3': 11}
+  150/1097 {'group<1e3': 48, 'none': 66, 'no-note': 12, 'group>=1e3': 24}
+  200/1097 {'group<1e3': 65, 'none': 98, 'no-note': 12, 'group>=1e3': 25}
+  250/1097 {'group<1e3': 65, 'none': 148, 'no-note': 12, 'group>=1e3': 25}
+  300/1097 {'group<1e3': 65, 'none': 198, 'no-note': 12, 'group>=1e3': 25}
+  350/1097 {'group<1e3': 65, 'none': 248, 'no-note': 12, 'group>=1e3': 25}
+  400/1097 {'group<1e3': 67, 'none': 277, 'no-note': 31, 'group>=1e3': 25}
+  450/1097 {'group<1e3': 77, 'none': 306, 'no-note': 42, 'group>=1e3': 25}
+  500/1097 {'group<1e3': 77, 'none': 354, 'no-note': 42, 'group>=1e3': 27}
+  550/1097 {'group<1e3': 87, 'none': 386, 'no-note': 48, 'group>=1e3': 29}
+  600/1097 {'group<1e3': 87, 'none': 419, 'no-note': 64, 'group>=1e3': 30}
+  650/1097 {'group<1e3': 87, 'none': 461, 'no-note': 72, 'group>=1e3': 30}
+  700/1097 {'group<1e3': 90, 'none': 505, 'no-note': 75, 'group>=1e3': 30}
+  750/1097 {'group<1e3': 90, 'none': 555, 'no-note': 75, 'group>=1e3': 30}
+  800/1097 {'group<1e3': 93, 'none': 602, 'no-note': 75, 'group>=1e3': 30}
+  850/1097 {'group<1e3': 105, 'none': 640, 'no-note': 75, 'group>=1e3': 30}
+  900/1097 {'group<1e3': 105, 'none': 681, 'no-note': 84, 'group>=1e3': 30}
+  950/1097 {'group<1e3': 105, 'none': 728, 'no-note': 87, 'group>=1e3': 30}
+  1000/1097 {'group<1e3': 105, 'none': 778, 'no-note': 87, 'group>=1e3': 30}
+  1050/1097 {'group<1e3': 106, 'none': 827, 'no-note': 87, 'group>=1e3': 30}
+cells 1097: {'group<1e3': 107, 'none': 873, 'no-note': 87, 'group>=1e3': 30}
+
+variants with an orbit on some unsolved cell (cells with group>=1e3 / <1e3 / none):
+    0 /  20 /   0  agricola-sequential-optimal
+    0 /  20 /   0  barman-sequential-optimal
+    1 /  17 /   0  delivery-numeric-satisficing
+   16 /   0 /   0  child-snack-sequential-optimal
+    8 /   4 /   0  caldera-split-sequential-optimal
+    2 /  10 /   0  openstacks-sequential-optimal-adl
+    0 /  12 /   0  settlers-sequential-optimal
+    0 /  10 /   0  hiking-sequential-optimal
+    0 /   3 /   7  rainbowttles-opt-numeric-2026
+    0 /   3 /  17  sailing-numeric-satisficing
+    0 /   2 /  11  cave-diving-sequential-optimal
+    0 /   2 /   0  city-car-sequential-optimal
+    0 /   2 /  16  fo-sailing-numeric-satisficing
+    2 /   0 /   3  mprime-numeric-satisficing
+    1 /   0 /   0  organic-synthesis-split-sequential-optimal
+    0 /   1 /  17  woodworking-sequential-optimal-strips
+    0 /   1 /  12  woodworking-sequential-optimal
+
+wrote /Users/harold/ferroplan-0.31/benchmarks/probes-0.31/opt/orbit-count.csv
