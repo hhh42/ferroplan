@@ -1,0 +1,52 @@
+ff /Users/harold/ferroplan-0.31/target/release/ff (Sun Nov  1 21:03:21 2026), wall 60 s, one thread
+cell                                     arm           solved   secs   GiB  len  rung
+woodworking-sequential-satisficing/15    default        False   54.1  4.66    -  
+woodworking-sequential-satisficing/15    lamanov-off     True   17.9  4.62  112  LAMA
+woodworking-sequential-satisficing/15    driver-plain   False   57.8  5.03    -  
+woodworking-sequential-satisficing/15    all-off         True   17.8  4.61  112  LAMA
+
+woodworking-sequential-satisficing/16    default        False   57.0  5.33    -  
+woodworking-sequential-satisficing/16    lamanov-off     True   15.1  4.27  100  LAMA
+woodworking-sequential-satisficing/16    driver-plain   False   56.4  5.71    -  
+woodworking-sequential-satisficing/16    all-off         True   15.0  4.27  100  LAMA
+
+child-snack-sequential-satisficing/7     default         True   12.6  2.56   62  LAMA-novelty
+child-snack-sequential-satisficing/7     lamanov-off     True    9.8  2.44   67  LAMA
+child-snack-sequential-satisficing/7     driver-plain    True   12.6  2.54   62  LAMA-novelty
+child-snack-sequential-satisficing/7     all-off         True    9.8  2.44   67  LAMA
+
+child-snack-sequential-agile/7           default         True   12.6  2.54   62  LAMA-novelty
+child-snack-sequential-agile/7           lamanov-off     True    9.8  2.44   67  LAMA
+child-snack-sequential-agile/7           driver-plain    True   12.7  2.54   62  LAMA-novelty
+child-snack-sequential-agile/7           all-off         True    9.8  2.44   67  LAMA
+
+thoughtful-sequential-satisficing/9      default        False   59.7  1.91    -  
+thoughtful-sequential-satisficing/9      lamanov-off    False   59.7  1.90    -  
+thoughtful-sequential-satisficing/9      driver-plain    True   28.5  1.91  182  novelty-driver
+thoughtful-sequential-satisficing/9      all-off         True   28.5  1.89  182  novelty-driver
+
+thoughtful-sequential-agile/9            default        False   59.7  1.92    -  
+thoughtful-sequential-agile/9            lamanov-off    False   59.7  1.90    -  
+thoughtful-sequential-agile/9            driver-plain    True   28.5  1.90  182  novelty-driver
+thoughtful-sequential-agile/9            all-off         True   28.4  1.89  182  novelty-driver
+
+termes-sequential-satisficing/5          default        False   58.6  1.31    -  
+termes-sequential-satisficing/5          lamanov-off     True    2.0  0.05  302  LAMA
+termes-sequential-satisficing/5          driver-plain   False   58.6  1.36    -  
+termes-sequential-satisficing/5          all-off         True    2.0  0.05  302  LAMA
+
+sokoban-sequential-satisficing/20        default        False   58.9  0.86    -  
+sokoban-sequential-satisficing/20        lamanov-off    False   58.9  0.87    -  
+sokoban-sequential-satisficing/20        driver-plain    True   16.6  0.23   52  novelty-driver
+sokoban-sequential-satisficing/20        all-off         True   16.7  0.24   52  novelty-driver
+
+pipesworld-propositional-strips/28       default        False   59.6  0.63    -  
+pipesworld-propositional-strips/28       lamanov-off    False   59.8  0.63    -  
+pipesworld-propositional-strips/28       driver-plain    True   28.6  0.97   80  novelty-driver
+pipesworld-propositional-strips/28       all-off         True   41.9  1.01   80  novelty-driver
+
+pipesworld-propositional-strips/45       default        False   59.8  1.38    -  
+pipesworld-propositional-strips/45       lamanov-off    False   59.7  1.38    -  
+pipesworld-propositional-strips/45       driver-plain    True   33.3  1.38  131  novelty-driver
+pipesworld-propositional-strips/45       all-off         True   33.2  1.38  131  novelty-driver
+

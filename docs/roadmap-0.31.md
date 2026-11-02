@@ -376,11 +376,28 @@ What this closes and what it opens:
   length sums 288,844 against 287,189 (shorter 184, longer 175) — level.
   **Verdict: both knobs are the ladder's defaults** (`FF_LAMA_NOV=0`,
   `FF_NOV_REFRESH=0`, `FF_NOV_FORGET=0` the hatches; `FF_RUNG_ONLY=driver`
-  the plain driver); the mco portfolio sweep runs on this ladder. Owed
-  before the cut: solo receipts on woodworking 15/16 and child-snack 7
-  (is it the LAMA-novelty tables or the refreshing driver that spends the
-  memory — `FF_LAMA_NOV=0` alone, `FF_NOV_REFRESH=0 FF_NOV_FORGET=0`
-  alone), and ipc2023-sat's five.
+  the plain driver); the mco portfolio sweep runs on this ladder.
+  **The solo receipts, same evening (`laneb/solo-receipt.py`, ten lost
+  cells × four arms at the 60 s wall, one thread; `solo-receipt.log`):
+  every loss has one owner, and none is memory.** Novelty-first LAMA
+  owns three: woodworking 15 / 16 (plain LAMA solves at 17.9 / 15.1 s;
+  the novelty form grinds to the wall at 4.7 / 5.3 GiB — the wall, not
+  the arena) and termes 5 (plain LAMA 2.0 s, 0.05 GiB; novelty-first
+  58.6 s, 1.3 GiB). The refreshing driver owns five: thoughtful 9 on
+  both 2014 boards, sokoban 20, pipesworld 28 / 45 (the plain driver
+  solves them at 16.6–33 s; with R refresh and forgetting it reaches the
+  wall at the same RSS). child-snack 7 on both boards solves under all
+  four arms (12.6 s novelty-first, 9.8 s plain, 2.5 GiB) — the sweep's
+  loss was the packed box, not the ladder. The hatches flip each cell
+  back exactly (`lamanov-off` = `all-off` on LAMA's three, `driver-plain`
+  = `all-off` on the driver's five). So the +54 is 76 cells no 0.30 rung
+  reached against 8 the 0.30 forms reach and the 0.31 forms do not — the
+  shape the matrix predicted (lamanov 98 v 9 head to head, driverx 112 v
+  28), and the portfolio's reason to seat plain LAMA (it does) and, on
+  this receipt, the plain driver too (it does not — seat it last; a
+  matrix-order question for the mco read, not a change now). Still owed:
+  ipc2023-sat's five (ricochet 6/9/10, slitherlink 10, recharging 3) —
+  the same four arms, after the mco sweep.
 
 ---
 

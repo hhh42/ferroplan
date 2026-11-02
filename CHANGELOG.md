@@ -19,9 +19,13 @@ All notable changes to this project are documented here.
   caldera and caldera-split 11, data-network 6, rovers / storage /
   pathways / trucks; the median on the 1,412 cells both solve 5.1 s
   against 4.6 s, plan lengths level. The 22 lost cells are named in the
-  roadmap: eight sit at the baseline's budget edge, the rest are the
-  memory shape (child-snack 7, thoughtful 9, woodworking 15/16 at 2–5 GiB)
-  and ricochet-robots 6/9/10. Hatches back to 0.30: `FF_LAMA_NOV=0`,
+  roadmap: eight sit at the baseline's budget edge; the solo receipts
+  give the rest one owner each — novelty-first LAMA grinds woodworking
+  15/16 and termes 5 to the wall where plain LAMA solves them in 2–18 s,
+  the refreshing driver reaches the wall on thoughtful 9, sokoban 20 and
+  pipesworld 28/45 where the plain driver solves them in 17–33 s, and
+  child-snack 7 solves under every arm solo (a packed-box loss). Hatches
+  back to 0.30: `FF_LAMA_NOV=0`,
   `FF_NOV_REFRESH=0`, `FF_NOV_FORGET=0`; the plain driver stays reachable
   as `FF_RUNG_ONLY=driver`.
 
