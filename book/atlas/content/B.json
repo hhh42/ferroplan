@@ -1,0 +1,1856 @@
+[
+ {
+  "id": "sec-heuristics",
+  "title": "Heuristics",
+  "kind": "section",
+  "summary": "Every signal the planner computes to rank states: h_FF and its helpful actions, cost and numeric variants, landmarks, novelty, and the admissible stack for optimal mode.",
+  "body": "<p>The satisficing side is built on one heuristic &mdash; FF's relaxed plan over a numeric-interval relaxation &mdash; plus three cheaper second signals (helpful actions, landmark count, novelty) that change the <em>order</em> of search rather than estimate distance. The optimal side has its own admissible stack (h<sup>max</sup>, LM-cut, incremental LM-cut) with the numeric layer bound maxed in. Everything is deterministic and thread-count independent: heuristic values are pure functions of the state, and parallelism only changes when they are computed.</p>",
+  "layout": "grid",
+  "children": [
+   {
+    "id": "mod-heuristic",
+    "title": "FF heuristic (h_FF)",
+    "kind": "module",
+    "summary": "The workhorse: delete-relaxed planning graph with numeric intervals, greedy relaxed-plan extraction, helpful actions. Every satisficing rung evaluates it.",
+    "body": "<p><code>heuristic.rs</code> is the single satisficing heuristic of ferroplan. Every satisficing search &mdash; EHC, LAMA, weighted best-first, the cost sweep, the partition subplanner, the PDDL3 loops, the temporal pruned pass &mdash; calls into it. The design constraint is throughput under parallel evaluation: no allocation on the hot path, a reusable <code>Scratch</code> per worker, CSR task layout, env reads hoisted into <code>Hatches</code>.</p><p>The phases of one evaluation are reset &rarr; <code>build_rpg</code> &rarr; goal check &rarr; <code>relaxed_extract</code>. The result is an <code>i32</code> count or <code>None</code> (relaxed dead end). There is <strong>no h<sub>add</sub></strong> in the tree: the satisficing side uses h<sub>FF</sub> only; h<sup>max</sup> lives in <code>optimal.rs</code>.</p>",
+    "files": [
+     "crates/ferroplan/src/heuristic.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "2,478"
+     ],
+     [
+      "Admissible",
+      "No"
+     ],
+     [
+      "Main entries",
+      "<code>relaxed_to</code>, <code>relaxed_helpful</code>, <code>relaxed_costed</code>"
+     ]
+    ],
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-heuristic-relaxation",
+      "title": "Delete relaxation (the idea)",
+      "kind": "concept",
+      "summary": "Ignore every delete effect; facts only accumulate. The length of a plan for that easier task estimates the real distance.",
+      "body": "<p><strong>Idea.</strong> In the delete-relaxed task an action never makes anything false, so applicability is monotone: once an op is applicable it stays applicable. Reachability becomes a fixpoint over a layered planning graph (fact layer 0 = current state, op layer k = ops whose preconditions are all in fact layers &le; k). The optimal relaxed plan length h<sup>+</sup> is a lower bound on the real plan length but is NP-hard to compute; FF instead extracts <em>some</em> relaxed plan greedily and counts its ops (h<sub>FF</sub>). That count is <strong>not admissible</strong> (the greedy extraction can over-count shared work, and numeric repetition counting can over-charge) but it is informative, cheap and the de-facto satisficing heuristic since 2001.</p><p><strong>In ferroplan.</strong> The relaxed graph runs directly over the packed task (<code>PackedTask</code> bitsets and CSR slices: <code>pre_pos</code>, <code>add</code>, <code>cond</code>, <code>achievers(f)</code>). Numeric fluents are relaxed to monotone intervals <code>[lb, ub]</code> that only widen (the Metric-FF treatment). The module doc calls the result \"the same algorithm as the (oracle-verified) metricff heuristic\". A relaxed dead end (goal never reached at fixpoint) returns <code>None</code> and is a safe prune when the numeric interval audit passes.</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:1",
+       "crates/ferroplan/src/heuristic.rs:523"
+      ],
+      "links": [
+       {
+        "to": "mod-packed",
+        "label": "reads PackedTask"
+       },
+       {
+        "to": "mod-heuristic-rpg",
+        "label": "built by"
+       }
+      ]
+     },
+     {
+      "id": "mod-heuristic-scratch",
+      "title": "Scratch: allocation-free buffers",
+      "kind": "data",
+      "summary": "Per-worker reusable buffers, reset per evaluation by a generation bump instead of clearing arrays.",
+      "body": "<p><code>Scratch</code> holds every working array of one evaluation: <code>reached</code>, <code>fact_layer</code>, <code>op_layer</code>, numeric bounds <code>lb</code>/<code>ub</code>, <code>selected</code>, <code>sel_reps</code>, <code>need_fact</code>, the extraction <code>queue</code>, <code>num_applied</code>, <code>cond_ops</code>, the <code>helpful</code> list, and the TRPG-lite <code>fact_time</code>/<code>op_time</code> columns.</p><p>A worker thread builds one <code>Scratch</code> per solve (<code>par::par_map_with</code> passes <code>|| Scratch::new(task)</code> as the per-worker init). <code>reset()</code> bumps a <code>gen</code> stamp so membership in <code>op_layer</code>/<code>selected</code>/<code>need_fact</code> is \"stamp == gen\" &mdash; O(1) reset instead of <code>2&middot;n_ops + n_facts</code> writes (this was item 1 of the perf backlog in <code>docs/perf-notes.md</code>). The module doc gives the reason for the design: per-state allocation churn and global-allocator contention across workers was the main limit on raw speed and on parallel scaling.</p><p><code>Hatches</code> caches every <code>FF_NO_NEED_DIRS</code>/<code>FF_NUMPRE_*</code>/<code>FF_NO_CONSUME</code> env read at construction; reading the environment per evaluation cost ~2% of every numeric evaluation in the coins i18 profiles.</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:153",
+       "crates/ferroplan/src/heuristic.rs:120",
+       "crates/ferroplan/src/heuristic.rs:219"
+      ],
+      "facts": [
+       [
+        "Struct",
+        "<code>Scratch</code>"
+       ],
+       [
+        "Reset",
+        "O(1) gen bump"
+       ],
+       [
+        "Env hatches",
+        "<code>Hatches::from_env</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-par",
+        "label": "one per worker via par_map_with"
+       }
+      ]
+     },
+     {
+      "id": "mod-heuristic-rpg",
+      "title": "build_rpg: the relaxed planning graph",
+      "kind": "module",
+      "summary": "Two-phase incremental layering of facts, ops and numeric intervals until the goal is relaxed-reached, a fixpoint, or LAYER_CAP.",
+      "body": "<p><code>build_rpg</code> expands layer by layer. Only <em>unapplied</em> ops are re-scanned each layer (applied ops never lose applicability under the relaxation), except ops with relevant numeric effects (<code>num_applied</code>, re-widened every layer) and ops with conditional effects (<code>cond_ops</code>, whose conditional adds fire once the condition becomes reached). Numeric bounds widen through <code>widen()</code>; only effects on <em>relevant</em> fluents (read by some precondition, goal, or transitively by them) are applied, which is exact and stops irrelevant unbounded growth.</p><p>It returns an <code>RpgExit</code>: <code>GoalAt(k)</code>, <code>Fixpoint</code> (goal unreachable &rarr; h = &infin;), or <code>Cap</code> after <code>LAYER_CAP</code> = 2000 rounds. Satisficing callers ignore the exit; the optimal mode uses <code>GoalAt(k)</code> as an admissible length bound. With <code>to_fixpoint</code> it ignores the goal and runs to fixpoint, which <code>reachability_layers</code> uses for landmark extraction.</p><p>A note in <code>docs/perf-notes.md</code> records a negative: a scattered precondition trigger index was tried and reverted, because the sequential CSR scan's cache locality wins on shallow graphs.</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:523",
+       "crates/ferroplan/src/heuristic.rs:28",
+       "crates/ferroplan/src/heuristic.rs:17",
+       "crates/ferroplan/src/heuristic.rs:846"
+      ],
+      "facts": [
+       [
+        "LAYER_CAP",
+        "2000"
+       ],
+       [
+        "Exit enum",
+        "<code>RpgExit</code>"
+       ],
+       [
+        "Fixpoint form",
+        "<code>reachability_layers</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-landmarks",
+        "label": "fixpoint layers feed"
+       },
+       {
+        "to": "mod-optimal",
+        "label": "GoalAt(k) bound"
+       }
+      ]
+     },
+     {
+      "id": "mod-heuristic-extract",
+      "title": "Relaxed-plan extraction (h_FF)",
+      "kind": "heuristic",
+      "summary": "Backchain from the goals, picking the lowest-layer achiever of each needed fact; h is the number of selected ops (times repetitions).",
+      "body": "<p><code>relaxed_extract</code> seeds a queue with the goal facts, then for each needed fact picks an achiever with <code>achiever()</code>: among the ops adding <code>f</code> (the precomputed add-by-fact index <code>task.achievers(f)</code>), the one with the <em>lowest op layer</em> strictly below <code>f</code>'s fact layer (the FF \"earliest achiever\" rule). <code>select()</code> marks the op, adds <code>reps</code> to the count, records it as helpful if it sits at op layer 0, and queues its positive preconditions. If <code>f</code> is reached only through a conditional effect, <code>queue_cond_for</code> also queues that effect's condition facts.</p><p>Numeric goals and preconditions are charged via <code>numeric_achiever</code> (see the numeric node), which can select a mover op several times (repetition counting).</p><p>Entry points: <code>relaxed_to</code> (any subgoal, time-blind), <code>relaxed</code> (task goal), <code>relaxed_helpful</code> (h plus helpful set), <code>relaxed_costed</code> (h plus selected op costs), <code>relaxed_plan_ops</code> (the selected ops themselves, used by the PDDL3 polish). Each call is reset + build + extract; the three phases are timed into <code>T_RESET</code>/<code>T_BUILD</code>/<code>T_EXTRACT</code> for <code>FF_RES_DEBUG</code>. <code>extraction_need_facts</code> reads out the stamped need-facts for the novelty driver's R set.</p><p><strong>Cost per evaluation:</strong> O(ops scanned &times; layers) for the build plus O(relaxed plan size &times; achievers) for extraction &mdash; microseconds on small STRIPS tasks, up to ~8 ms per evaluation on compiled preference tasks (search.rs cites tpp-qualitative i12: 2,464 evals in 19.8 s).</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:915",
+       "crates/ferroplan/src/heuristic.rs:1575",
+       "crates/ferroplan/src/heuristic.rs:1634",
+       "crates/ferroplan/src/heuristic.rs:1602",
+       "crates/ferroplan/src/heuristic.rs:873",
+       "crates/ferroplan/src/heuristic.rs:1206",
+       "crates/ferroplan/src/heuristic.rs:1188",
+       "crates/ferroplan/src/heuristic.rs:1374"
+      ],
+      "facts": [
+       [
+        "Admissible",
+        "No"
+       ],
+       [
+        "Achiever rule",
+        "lowest op layer"
+       ],
+       [
+        "Dead end",
+        "<code>None</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-search-bestfirst",
+        "label": "evaluated by"
+       },
+       {
+        "to": "mod-search-ehc",
+        "label": "evaluated by"
+       },
+       {
+        "to": "mod-lama",
+        "label": "evaluated by"
+       }
+      ]
+     },
+     {
+      "id": "mod-heuristic-helpful",
+      "title": "Helpful actions / preferred ops",
+      "kind": "heuristic",
+      "summary": "Relaxed-plan ops applicable in the current state; they prune EHC and boost LAMA and the enriched fallback.",
+      "body": "<p><strong>Idea.</strong> FF observed that the first step of a good real plan is usually among the relaxed plan's layer-0 ops. Restricting or favoring those \"helpful actions\" collapses the branching factor to roughly the relaxed plan's width. LAMA keeps the same signal as \"preferred operators\" but uses it only to <em>order</em> (a second, favored open list), not to prune, which keeps search complete.</p><p><strong>In ferroplan.</strong> <code>select()</code> pushes every selected op whose <code>op_layer == 0</code> onto <code>Scratch::helpful</code>; <code>relaxed_helpful</code> returns <code>(h, helpful)</code> in deterministic selection order. Consumers:</p><ul><li><strong>EHC</strong> (<code>bfs_improve</code>) expands only helpful ops &mdash; incomplete, hence the ladder below it.</li><li><strong>LAMA rung</strong> and the <strong>enriched best-first fallback</strong> (<code>SearchCfg::pref_ops</code>, default-on since 0.26 F1) put helpful-reached successors into a preferred heap, popping 192 preferred + 64 normal per round.</li><li><strong>Temporal</strong>: <code>helpful_needed_adders</code> is a lax fallback (applicable ops adding any precondition a selected op still needs) for when the strict set filters to nothing &mdash; temporal relaxed plans often lead through END ops the agenda fires.</li></ul><p>Cost: zero extra over h<sub>FF</sub> (the list is a by-product of extraction); the satisficing best-first only pays for the Vec when <code>pref_ops</code> is on.</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:1220",
+       "crates/ferroplan/src/heuristic.rs:1326",
+       "crates/ferroplan/src/heuristic.rs:1634",
+       "crates/ferroplan/src/search.rs:2324"
+      ],
+      "facts": [
+       [
+        "Pref/normal batch",
+        "192 / 64"
+       ],
+       [
+        "Prunes",
+        "EHC only"
+       ],
+       [
+        "Hatch",
+        "<code>FF_NO_ENRICH=1</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-search-ehc",
+        "label": "restricts expansion"
+       },
+       {
+        "to": "mod-search-prefops",
+        "label": "dual heap"
+       },
+       {
+        "to": "mod-lama-key",
+        "label": "dual heap"
+       },
+       {
+        "to": "mod-temporal",
+        "label": "lax fallback"
+       }
+      ]
+     },
+     {
+      "id": "mod-heuristic-numeric",
+      "title": "Numeric handling in h",
+      "kind": "heuristic",
+      "summary": "Monotone interval bounds, direction-aware fixpoint test, linear numeric subgoaling with repetition counts, and the consumption charge.",
+      "body": "<p><strong>Intervals.</strong> Each relevant fluent carries <code>[lb, ub]</code>; <code>widen()</code> applies increase/decrease/assign/scale effects monotonically. <code>eval_iv</code> evaluates an expression over intervals and <code>num_sat</code> asks whether a comparison is satisfiable anywhere in them. <code>widen</code> is <code>#[inline(always)]</code> on purpose: an extra parameter in 0.28 made LLVM keep it a call and that cost 43% per evaluation on coins-2026 i18 (7.7 &rarr; 11.0 &micro;s).</p><p><strong>Need directions.</strong> <code>NeedDirs</code>/<code>need_dirs</code> mark which bound of each fluent any goal/precondition can actually use. Before that, a consumable's unread lower bound drifting down counted as \"progress\" and sent every dead-end evaluation to the 2,000-layer cap; the direction-aware test (computed lazily at <code>NEED_PROBE_LAYER</code> = 16) is exact &mdash; h is unchanged &mdash; and about 78&times; faster at proving dead ends on rovers-metric-time shapes (book <code>tuning.md</code>).</p><p><strong>Achievers.</strong> <code>numeric_achiever</code> handles <code>fluent cmp const</code>; <code>numeric_achiever_linear</code> folds linear expressions through <code>linearize</code> into <code>&Sigma; coeff&middot;fluent + k</code> and charges a mover op <code>ceil(gap/rate)</code> repetitions (the 0.19 \"linear numeric subgoaling charge\", recorded +52/&minus;1 in STATUS.md). <code>consumption_charge</code> (0.29 Lane 2) bills selected ops' decreases of a stock fluent they read with a lower bound, net of the plan's own increases, and prices any deficit through a synthetic <code>fluent &ge; stock + deficit</code> subgoal.</p><p>Repetition counting makes h<sub>FF</sub> stronger on numeric tasks but further from admissible; the admissible numeric bound is a separate path (next node).</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:265",
+       "crates/ferroplan/src/heuristic.rs:341",
+       "crates/ferroplan/src/heuristic.rs:351",
+       "crates/ferroplan/src/heuristic.rs:438",
+       "crates/ferroplan/src/heuristic.rs:1428",
+       "crates/ferroplan/src/heuristic.rs:1659",
+       "crates/ferroplan/src/heuristic.rs:1716",
+       "crates/ferroplan/src/heuristic.rs:1909"
+      ],
+      "facts": [
+       [
+        "NEED_PROBE_LAYER",
+        "16"
+       ],
+       [
+        "Hatches",
+        "<code>FF_NO_NEED_DIRS</code>, <code>FF_NO_CONSUME</code>, <code>FF_NO_NUMH</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-packed",
+        "label": "relevant_fluent closure from grounding"
+       }
+      ]
+     },
+     {
+      "id": "mod-heuristic-admissible-layers",
+      "title": "Admissible numeric layer bound",
+      "kind": "heuristic",
+      "summary": "With a passing containment audit, the first goal-satisfiable RPG layer lower-bounds plan length on numeric tasks.",
+      "body": "<p><code>admissible_goal_layers</code> runs the same build without extraction and reads <code>RpgExit::GoalAt(k)</code>. By induction over <code>widen</code>, layer <code>k</code>'s facts and intervals contain every state reachable by a real plan of length &le; <code>k</code>, so <code>k</code> is an admissible bound on plan length; <code>Fixpoint</code> is a sound prune. No repetition-count shortcut lives here: <code>ceil(gap/rate-now)</code> is inadmissible when a plan can raise the rate first (sailing-wind's velocity assign is cited as the witness).</p><p><code>numeric_interval_audit</code> refuses by name the shapes that break containment: scale-up/down on a relevant fluent (widen is one-sided there), a relevant fluent undefined at init, and monitored/shared-condition trajectory automata. A refused audit means \"unarmed\" &mdash; the bound is simply not used.</p><p>Consumer: <code>AstarState::eval</code> in <code>optimal.rs</code> takes <code>max(LM-cut or h^max, layer bound)</code> on numeric tasks (the 0.22 Phase 4 \"num arm\", gated by <code>num_arm_root</code>).</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:766",
+       "crates/ferroplan/src/heuristic.rs:799",
+       "crates/ferroplan/src/heuristic.rs:28"
+      ],
+      "facts": [
+       [
+        "Admissible",
+        "Yes (length currency, audited)"
+       ],
+       [
+        "Consumer",
+        "optimal A*"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-optimal",
+        "label": "max()ed into A* h"
+       }
+      ]
+     },
+     {
+      "id": "mod-heuristic-trpg",
+      "title": "TRPG-lite time column",
+      "kind": "heuristic",
+      "summary": "On timed builds of temporal tasks, a second field on the same RPG loop tracks earliest achievable time per fact.",
+      "body": "<p>The temporal pruned pass can evaluate through a time-gated build (0.23 Phase 4 probe 2): <code>fact_time</code> and <code>op_time</code> ride the same fused loop in <code>build_rpg</code>, END fires anchored at start + lag, and <code>trpg_admit</code> rejects ops whose earliest time would fall outside a <code>TrpgWindow</code>. It is armed only by the <em>presence</em> of the <code>task.trpg</code> table (built by the temporal path under <code>FF_TRPG</code>), and only <code>relaxed_helpful</code> can reach it &mdash; <code>relaxed_to</code> is always time-blind &mdash; so the complete temporal passes and every classical caller run the historical bytes. Included here for completeness; it belongs to the temporal mode's story.</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:77",
+       "crates/ferroplan/src/heuristic.rs:97",
+       "crates/ferroplan/src/heuristic.rs:717"
+      ],
+      "links": [
+       {
+        "to": "mod-temporal",
+        "label": "pruned pass uses"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-packed",
+      "label": "operates on"
+     },
+     {
+      "to": "mod-search",
+      "label": "evaluated by"
+     },
+     {
+      "to": "mod-resolve",
+      "label": "subgoal h for partition"
+     }
+    ]
+   },
+   {
+    "id": "mod-costs",
+    "title": "Action costs (costs.rs)",
+    "kind": "module",
+    "summary": "IPC-6 :action-costs on the classical path: detect the metric, replay its value, and polish the first plan with a bounded cost sweep.",
+    "body": "<p>Ferroplan's numeric machinery already tracks a cost fluent through grounding and <code>apply</code>; <code>costs.rs</code> makes the classical path reason about it. Three pieces: detection/replay, the cost-augmented relaxed plan in <code>heuristic.rs</code>, and the anytime improvement sweep. The optimal mode prices costs separately (<code>optimal::op_costs</code>, per-op constants only).</p>",
+    "files": [
+     "crates/ferroplan/src/costs.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "317"
+     ]
+    ],
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-costs-metric",
+      "title": "Metric detection and replay",
+      "kind": "concept",
+      "summary": "metric_fluent recognises minimize(single fluent); plan_cost replays a plan to read its true final value.",
+      "body": "<p>IPC-2008 action costs are a numeric fluent (conventionally <code>total-cost</code>) increased by constants and minimized by the metric. <code>metric_fluent</code> detects exactly the supported shape &mdash; <code>minimize</code> of a single ground fluent &mdash; and names it for <code>PackedTask::fluent_id</code>. <code>plan_cost</code> replays the op sequence through <code>apply</code> and reads the fluent: the same number VAL will compute. Every reported cost in the classical path goes through this replay; the sweep's own bound arithmetic is never trusted for the report.</p>",
+      "files": [
+       "crates/ferroplan/src/costs.rs:45",
+       "crates/ferroplan/src/costs.rs:72"
+      ]
+     },
+     {
+      "id": "mod-costs-hcost",
+      "title": "Cost-augmented h (relaxed_costed)",
+      "kind": "heuristic",
+      "summary": "Relaxed-plan length plus the summed cost increases of the selected ops, so search prefers cheap achievers but keeps a gradient over free regions.",
+      "body": "<p><code>relaxed_costed</code> = <code>relaxed_to</code> count + <code>selected_increase_sum</code> toward the cost fluent, each op counted once (set semantics) and its increase evaluated in the current state. The \"cost + 1 per action\" shape is deliberate: a pure-cost h flatlines wherever the remaining actions are free. Not admissible (h<sub>FF</sub> underneath); an underestimate when a plan must repeat an op. <code>relaxed_plan_cost</code> returns the cost part alone, used by the PDDL3 forgo-aware seed.</p><p>Selected via <code>SearchCfg::h_cost = Some(cf)</code> (<code>with_cost_h</code>). The extraction still picks achievers by layer, not by cost &mdash; cost only enters the count.</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:1558",
+       "crates/ferroplan/src/heuristic.rs:1399",
+       "crates/ferroplan/src/heuristic.rs:1528",
+       "crates/ferroplan/src/search.rs:348"
+      ],
+      "facts": [
+       [
+        "Admissible",
+        "No"
+       ],
+       [
+        "Enabled by",
+        "<code>SearchCfg::h_cost</code>"
+       ]
+      ]
+     },
+     {
+      "id": "mod-costs-improve",
+      "title": "Anytime cost sweep (improve)",
+      "kind": "search",
+      "summary": "After the first plan, a bounded branch-and-bound best-first under its cost, ordered by g-cost and guided by cost-h, keeps the cheapest incumbent.",
+      "body": "<p>The first plan comes from the untouched ladder, so cost support can never regress coverage. <code>improve</code> then runs <code>search_from</code> with <code>cost_bound = first_cost</code>, <code>w_c = 1.0</code> (accumulated cost in the key), <code>h_cost = cf</code>, and <code>anytime = true</code> (tighten the bound in place on each accepting state and keep draining). The visited key appends the cost fluent so equal-fact/different-cost states stay distinct; under an orbit map it is appended after canonicalization.</p><p>Budget: <code>sweep_budget</code> = min(remaining eval budget, max(2 &times; solve evals, 30,000)); <code>FF_COST_SWEEP_EVALS</code> overrides, 0 disables. Un-capped exhaustion under the bound sets <code>proven</code>, and <code>api.rs</code> writes \"plan cost proven optimal\" into the notes.</p>",
+      "files": [
+       "crates/ferroplan/src/costs.rs:119",
+       "crates/ferroplan/src/costs.rs:102",
+       "crates/ferroplan/src/costs.rs:33",
+       "crates/ferroplan/src/api.rs:1307"
+      ],
+      "facts": [
+       [
+        "SWEEP_FLOOR",
+        "30,000 evals"
+       ],
+       [
+        "SWEEP_MULT",
+        "2"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-search-bestfirst",
+        "label": "runs search_from"
+       },
+       {
+        "to": "mod-orbits",
+        "label": "canonical keys + cost"
+       }
+      ]
+     },
+     {
+      "id": "mod-costs-length",
+      "title": "Length sweep (opt-in negative)",
+      "kind": "search",
+      "summary": "Iterated weights 3, 2, 1 with g_bound = incumbent length. ~1.8% shorter at ~28x the evals; default off.",
+      "body": "<p><code>improve_length</code> restarts best-first at <code>w_h</code> = 3, 2, 1, each bounded by <code>g_bound = best.len()</code> (LAMA's restart-with-bound recipe). Budget comes only from <code>FF_LEN_SWEEP_EVALS</code>, default 0. STATUS.md and the book record the verdict: about 1.8% shorter plans at about 28&times; the evaluations, zero gain at proportionate budgets. The within-search alternative (<code>FF_LEN_ANYTIME</code>, <code>SearchCfg::len_anytime</code>) is also opt-in after costing 9 instances of coverage at 60 s.</p>",
+      "files": [
+       "crates/ferroplan/src/costs.rs:259",
+       "crates/ferroplan/src/search.rs:233"
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-api",
+      "label": "called after the first plan"
+     },
+     {
+      "to": "mod-optimal",
+      "label": "op_costs for A*"
+     }
+    ]
+   },
+   {
+    "id": "mod-landmarks",
+    "title": "Landmarks (landmarks.rs)",
+    "kind": "module",
+    "summary": "95 lines: classic delete-relaxation fact landmarks, consumed as LAMA's landmark-count signal.",
+    "body": "<p>A deliberately small module: one fixpoint RPG build and a backchaining queue, O(n_facts) memory, no quadratic per-fact landmark table. Added in the 0.9 roadmap Phase 3 as LAMA's backbone. Its value is as a second signal next to h<sub>FF</sub>.</p>",
+    "files": [
+     "crates/ferroplan/src/landmarks.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "95"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-landmarks-backchain",
+      "title": "First-achiever backchaining",
+      "kind": "heuristic",
+      "summary": "A fact common to the preconditions of every first achiever of a landmark is itself a landmark.",
+      "body": "<p><strong>Idea.</strong> A fact landmark is a fact every plan must make true at some point. Goals are trivial landmarks. If <code>f</code> is a landmark not true now, every plan uses one of <code>f</code>'s <em>first achievers</em> (ops adding <code>f</code> whose op layer precedes <code>f</code>'s fact layer in the relaxed graph); so any fact in the intersection of all their preconditions must also be reached first. Repeat to a fixpoint (Hoffmann, Porteous and Sebastia).</p><p><strong>In ferroplan.</strong> <code>landmarks_for(task, start, goal_pos)</code> calls <code>reachability_layers</code> once (one fixpoint RPG build), seeds a queue with reachable goals, and for each queued fact intersects the first achievers' <code>pre_pos</code> (early exit when the intersection empties). Landmarks already true at <code>start</code> are dropped so the count means \"necessary facts not yet made true\". Output is a sorted <code>Vec&lt;u32&gt;</code> of fact ids. <code>goal_landmarks</code> is the init-state form. No orderings, no disjunctive landmarks, no action landmarks.</p>",
+      "files": [
+       "crates/ferroplan/src/landmarks.rs:35",
+       "crates/ferroplan/src/landmarks.rs:25",
+       "crates/ferroplan/src/heuristic.rs:846"
+      ],
+      "facts": [
+       [
+        "Sound",
+        "Yes"
+       ],
+       [
+        "Complete",
+        "No"
+       ],
+       [
+        "Cost",
+        "1 RPG build + O(lm &times; achiever pre)"
+       ]
+      ]
+     },
+     {
+      "id": "mod-landmarks-count",
+      "title": "Landmark-count heuristic",
+      "kind": "heuristic",
+      "summary": "Path-dependent: landmarks not yet accepted on the path to a node. Per-node accepted bitset.",
+      "body": "<p>The count is <em>path-dependent</em>, not a function of the state: a landmark is accepted once any state on the path made it true, and stays accepted. Each node carries an <code>accepted</code> bitset over the landmark list index (not fact ids); <code>accept_into</code> ORs in the landmarks the new state holds and <code>unaccepted</code> popcounts the remainder. Inadmissible as used (no cost partitioning, no re-required landmarks), but it keeps a progress gradient across exactly the plateaus where h<sub>FF</sub> goes flat: parking, floortile, barman, tidybot are named in <code>lama.rs</code>.</p><p>Two consumers with the same arithmetic: the LAMA rung (key <code>2&middot;h<sub>FF</sub> + 4&middot;lm</code>) and the enriched best-first fallback (<code>w_lm</code> = 3.0 &times; 256 by default since 0.26 F1, via <code>clm_accept_into</code>/<code>clm_unaccepted</code>). Memory: <code>ceil(n_lm/64)</code> words per node, which the fallback's node-cap model charges explicitly.</p>",
+      "files": [
+       "crates/ferroplan/src/lama.rs:48",
+       "crates/ferroplan/src/lama.rs:56",
+       "crates/ferroplan/src/search.rs:394",
+       "crates/ferroplan/src/search.rs:402",
+       "crates/ferroplan/src/search.rs:2031"
+      ],
+      "facts": [
+       [
+        "LAMA weight",
+        "W_LM = 4"
+       ],
+       [
+        "Fallback weight",
+        "3.0 (FF_CLM overrides)"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-lama",
+        "label": "key term"
+       },
+       {
+        "to": "mod-search-bestfirst",
+        "label": "w_lm term"
+       }
+      ]
+     },
+     {
+      "id": "mod-landmarks-subgoal",
+      "title": "Per-subgoal landmarks",
+      "kind": "concept",
+      "summary": "Landmarks recomputed for each (start, subgoal) pair so the partition cascade's LAMA stays sound.",
+      "body": "<p><code>landmarks_for</code> takes an arbitrary start state and goal subset. The partition-and-resolve cascade (<code>resolve::solve</code>) solves subgoals from evolving states and calls <code>lama::search_subgoal</code>, which recomputes landmarks for exactly that piece; reusing the whole-task set would count landmarks irrelevant to the subgoal. The same is true of the fallback's <code>w_lm</code> term, computed per <code>search_from</code> call for its (start, goal).</p>",
+      "files": [
+       "crates/ferroplan/src/landmarks.rs:35",
+       "crates/ferroplan/src/lama.rs:99"
+      ],
+      "links": [
+       {
+        "to": "mod-resolve",
+        "label": "subgoal LAMA"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-heuristic-rpg",
+      "label": "reachability_layers"
+     }
+    ]
+   },
+   {
+    "id": "sec-heuristics-novelty",
+    "title": "Novelty / width measure",
+    "kind": "heuristic",
+    "summary": "A state is novel if it makes true some atom (or atom pair) no earlier state in its partition cell has. Ordering, not distance.",
+    "body": "<p><strong>Idea.</strong> Width-based search (Lipovetzky and Geffner): the novelty of a state is the size of the smallest tuple of atoms it makes true for the first time. IW(1) prunes every state of novelty &gt; 1; BFWS uses novelty as the leading term of a best-first key and keeps the rest. Partitioning the \"seen\" tables by a coarse function (goals achieved, relaxed-plan progress) makes the measure local. Novelty is not a distance estimate and has no admissibility notion; it costs a bitset OR per state, far below h<sub>FF</sub>.</p><p><strong>In ferroplan</strong> (<code>novelty.rs</code>): <code>Seen::novel_and_mark</code> keeps one seen-fact bitset per cell <code>(u16, u16)</code>, lazily allocated, and returns whether <code>bits &amp; !seen != 0</code> while ORing the state in. Cells are &lang;unachieved goals&rang; (kept coarse on purpose: partitioning by parent h too made nearly every state novel and degenerated to plain greedy &mdash; the catalog-consume fixture's 895-step plan) or, in the driver, &lang;unachieved goals, achieved-R count&rang;. Width 2 in the driver is tracked over pairs of R facts only (R &le; 256 facts, so &le; 4 KB of pair bits per cell). <code>FF_NUMNOV=1</code> adds per-fluent seen-envelopes for fluent-only progress (sailing's one-predicate states).</p>",
+    "files": [
+     "crates/ferroplan/src/novelty.rs:74",
+     "crates/ferroplan/src/novelty.rs:88",
+     "crates/ferroplan/src/novelty.rs:635",
+     "crates/ferroplan/src/novelty.rs:586"
+    ],
+    "facts": [
+     [
+      "Width",
+      "1 (light), 2 over R pairs (driver)"
+     ],
+     [
+      "Cost",
+      "bitset OR + &le;|R| bit tests"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-novelty",
+      "label": "used by the rungs"
+     }
+    ]
+   },
+   {
+    "id": "sec-heuristics-admissible",
+    "title": "Admissible heuristics (optimal.rs)",
+    "kind": "heuristic",
+    "summary": "h^max, LM-cut and incremental LM-cut over a conditional-effect-aware relaxation graph, maxed with the numeric layer bound.",
+    "body": "<p>The optimal mode has its own heuristic stack, independent of <code>heuristic.rs</code> except for the numeric layer bound. <code>AstarState::eval</code> chooses: incremental LM-cut, plain LM-cut, rep-folded h<sup>max</sup>, or plain h<sup>max</sup>; then maxes in <code>fold_goal_bound</code> or <code>admissible_goal_layers</code> where armed. Pattern databases (<code>pdb.rs</code>) and a variable cover (<code>vars.rs</code>) are described in <code>docs/roadmap-0.31.md</code> Lane C as built on the <code>engine-0.31</code> branch; they are not in this tree.</p>",
+    "files": [
+     "crates/ferroplan/src/optimal.rs:1637"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "sec-heuristics-admissible-relaxgraph",
+      "title": "RelaxGraph and costs",
+      "kind": "data",
+      "summary": "Achievers built once per solve: one per op plus one per conditional effect, with sorted deduped preconditions.",
+      "body": "<p><code>RelaxGraph::new</code> builds an <code>Achiever { op, pre, add }</code> for each op and one extra per conditional effect whose <code>pre</code> is the op's preconditions plus the effect condition. This is the 0.20 admissibility repair: 0.19's h<sup>max</sup> iterated only unconditional adds, so a goal reachable only through a <code>(when ...)</code> was labelled unreachable and A* certified wrong optima (the fixture in <code>tests/optimal.rs</code> pins \"PROVEN cost 100\" against a true optimum of 11). Indexes: <code>by_pre</code>, <code>by_add</code>, <code>pre_free</code>.</p><p><code>op_costs</code> gives per-op constants: unit cost without a metric, else the sum of <code>(increase (total-cost) c)</code> effects; any state-dependent or non-increase cost rejects the problem from optimal mode with a named note. Numeric preconditions are dropped (a relaxation, so lower bounds survive).</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:158",
+       "crates/ferroplan/src/optimal.rs:167",
+       "crates/ferroplan/src/optimal.rs:178",
+       "crates/ferroplan/src/optimal.rs:83"
+      ]
+     },
+     {
+      "id": "sec-heuristics-admissible-hmax",
+      "title": "h^max",
+      "kind": "heuristic",
+      "summary": "Cost of the most expensive goal fact, where each fact costs its cheapest achiever's max-precondition cost plus op cost. Dijkstra over facts.",
+      "body": "<p><strong>Idea.</strong> In the relaxed task, a fact's cost is the minimum over achievers of (op cost + the <em>max</em> of its preconditions' costs); h<sup>max</sup> is the max over goal facts. It is admissible and consistent but weak, since it charges only the single hardest chain.</p><p><strong>In ferroplan.</strong> <code>hmax_labels</code> is a Dijkstra with per-achiever unsatisfied-precondition counters (<code>CutSpace::counts</code>): an achiever fires when its last precondition settles, at label = that precondition's label + cost. O(edges &middot; log facts) per call. With <code>use_floors</code>, rep-folded numeric floors raise an achiever's firing label (0.23 Phase 5 rung 2, <code>NumFold</code>). <code>hmax</code> wraps it. Role: the cheap \"sprint\" heuristic of the optimal ladder, and the whole of it when LM-cut is not informative at the root.</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:261",
+       "crates/ferroplan/src/optimal.rs:325",
+       "crates/ferroplan/src/optimal.rs:341",
+       "crates/ferroplan/src/optimal.rs:933"
+      ],
+      "facts": [
+       [
+        "Admissible",
+        "Yes, consistent"
+       ],
+       [
+        "Hatch",
+        "<code>FF_NO_LMCUT=1</code> = h^max only"
+       ]
+      ]
+     },
+     {
+      "id": "sec-heuristics-admissible-lmcut",
+      "title": "LM-cut",
+      "kind": "heuristic",
+      "summary": "Repeatedly find a cut of ops every relaxed plan must cross, charge its min cost, subtract it, re-run h^max; sum the charges.",
+      "body": "<p><strong>Idea</strong> (Helmert and Domshlak 2009). Compute h<sup>max</sup>; with each achiever's precondition-choice function (its max-label precondition) build a justification graph; the ops crossing from the \"before\" zone into the goal zone form a disjunctive action landmark. Charge the cut's minimum cost, subtract it from every member, repeat until h<sup>max</sup> reaches 0. The sum is a cost partitioning over landmarks, hence <strong>admissible</strong>, and usually much tighter than h<sup>max</sup>; it is <strong>not consistent</strong>, so A* re-opens.</p><p><strong>In ferroplan.</strong> <code>lmcut</code> &rarr; <code>lmcut_rounds</code> on a reusable <code>CutSpace</code> (<code>label</code>, <code>cost</code>, <code>pcf</code>, <code>goal_zone</code>, <code>before</code>, <code>in_cut</code>, ...). Each round zeroes at least one op, so the loop is bounded by <code>n_ops + 1</code>. Cost: one h<sup>max</sup> label pass per round, often tens of passes per state &mdash; the expensive end of the table.</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:405",
+       "crates/ferroplan/src/optimal.rs:478",
+       "crates/ferroplan/src/optimal.rs:341"
+      ],
+      "facts": [
+       [
+        "Admissible",
+        "Yes"
+       ],
+       [
+        "Consistent",
+        "No (A* re-opens)"
+       ]
+      ]
+     },
+     {
+      "id": "sec-heuristics-admissible-inclmcut",
+      "title": "Incremental LM-cut",
+      "kind": "heuristic",
+      "summary": "A child inherits its parent's cuts minus those containing the op just applied, then continues LM-cut on residual costs.",
+      "body": "<p>The inheritance theorem in <code>charge_cuts</code>' doc: a disjunctive action landmark L of the relaxation from <code>s</code> stays one from <code>s' = res(s, o)</code> whenever <code>o &notin; L</code>, because any relaxed plan from <code>s'</code> prefixed with <code>o</code> is a relaxed plan from <code>s</code> and must hit L inside the suffix. So a child replays the parent's cut list in discovery order, charging each the min <em>residual</em> cost, then <code>lmcut_rounds</code> continues under those residual costs. Lists are capped (<code>INC_CUT_CAP</code> = 96 cuts, <code>INC_LIST_CAP</code> = 1024 words, about 4 KB per node worst case); truncation is never unsound. The saved label passes are counted in <code>labels_computed</code>. <code>FF_NO_INC_LMCUT=1</code> restores the one-shot probe.</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:443",
+       "crates/ferroplan/src/optimal.rs:413",
+       "crates/ferroplan/src/optimal.rs:420",
+       "crates/ferroplan/src/optimal.rs:1637"
+      ],
+      "facts": [
+       [
+        "INC_CUT_CAP",
+        "96"
+       ],
+       [
+        "INC_LIST_CAP",
+        "1024 words"
+       ]
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-optimal",
+      "label": "heuristics of"
+     },
+     {
+      "to": "mod-heuristic-admissible-layers",
+      "label": "numeric max()"
+     }
+    ]
+   },
+   {
+    "id": "sec-heuristics-keyterms",
+    "title": "Extra ordering terms in the key",
+    "kind": "concept",
+    "summary": "Besides g and h, the best-first key can add landmark count, resource trips, metric cost, preference penalties and op penalties.",
+    "body": "<p><code>SearchCfg</code> documents the key units: one h unit = 1280 (5&middot;256), one g step = 256, one unsatisfied preference = weight&middot;100, one metric-cost unit = <code>w_c</code>&middot;256. Optional terms, each defaulting to absent (key bit-identical):</p><ul><li><code>w_lm</code> &times; unaccepted landmarks &mdash; on by default in the plain classical fallback (3.0).</li><li><code>w_res</code> &times; &lceil;unmet linked goals / pool capacity&rceil; &mdash; resource-trip bound from <code>resource::TripBound</code>, opt-in <code>FF_RESLM</code>.</li><li><code>w_c</code> &times; accumulated metric cost &mdash; the cost sweep and preference B&amp;B.</li><li><code>SatGuidance::penalty</code> &mdash; forgone preference weight on the concrete state, a squared occupancy penalty for renewable resources, and ESPC locked-loss deadline terms; all things the delete relaxation cannot see.</li><li>a per-op penalty table scoped by <code>with_op_penalty</code> (0.29 Lane 1), so the PDDL3 polish prefers plans breaking the fewest held preferences.</li></ul>",
+    "files": [
+     "crates/ferroplan/src/search.rs:180",
+     "crates/ferroplan/src/search.rs:899",
+     "crates/ferroplan/src/search.rs:979",
+     "crates/ferroplan/src/search.rs:1608"
+    ],
+    "links": [
+     {
+      "to": "mod-pddl3",
+      "label": "SatGuidance from"
+     },
+     {
+      "to": "mod-resource",
+      "label": "TripBound, ResourceVar"
+     },
+     {
+      "to": "mod-espc",
+      "label": "deadline triples"
+     }
+    ]
+   },
+   {
+    "id": "sec-heuristics-compare",
+    "title": "Heuristics compared",
+    "kind": "concept",
+    "summary": "One table: what each signal measures, admissibility, cost per evaluation, and where it is used.",
+    "body": "<table><tr><th>Signal</th><th>Measures</th><th>Admissible</th><th>Cost / eval</th><th>Used by</th></tr><tr><td>h<sub>FF</sub> (<code>relaxed_to</code>)</td><td>size of a greedy relaxed plan, numeric reps counted</td><td>No</td><td>1 RPG build + extraction (&micro;s to ms)</td><td>every satisficing rung, partition, PDDL3, temporal</td></tr><tr><td>helpful actions</td><td>layer-0 ops of the relaxed plan</td><td>n/a (ordering/pruning)</td><td>free with h<sub>FF</sub></td><td>EHC (prune), LAMA + fallback (boost)</td></tr><tr><td>cost-h (<code>relaxed_costed</code>)</td><td>relaxed length + selected op costs</td><td>No</td><td>h<sub>FF</sub> + one pass over selected ops</td><td>cost sweep</td></tr><tr><td>landmark count</td><td>fact landmarks not yet accepted on the path</td><td>No (as used)</td><td>one RPG at root; popcount per node</td><td>LAMA, enriched fallback</td></tr><tr><td>novelty</td><td>first-time atoms (pairs) in a cell</td><td>n/a</td><td>bitset OR</td><td>novelty-light, driver, h-guided novelty</td></tr><tr><td>goal count</td><td>unachieved goal facts</td><td>No</td><td>|G| bit tests</td><td>novelty rungs (cell + key)</td></tr><tr><td>h<sup>max</sup></td><td>hardest goal chain</td><td>Yes, consistent</td><td>1 Dijkstra label pass</td><td>optimal sprint / fallback</td></tr><tr><td>LM-cut</td><td>sum of cut landmark costs</td><td>Yes, not consistent</td><td>k label passes (k cuts)</td><td>optimal A*</td></tr><tr><td>incremental LM-cut</td><td>LM-cut with inherited cuts</td><td>Yes</td><td>fewer passes; &le;4 KB list per node</td><td>optimal probe</td></tr><tr><td>numeric layer bound</td><td>first goal-satisfiable RPG layer</td><td>Yes, under audit</td><td>1 RPG build</td><td>optimal A* on numeric tasks</td></tr><tr><td>h<sub>add</sub></td><td colspan=\"4\">not implemented anywhere in <code>crates/ferroplan/src</code></td></tr></table>",
+    "files": [
+     "crates/ferroplan/src/heuristic.rs:873",
+     "crates/ferroplan/src/optimal.rs:405",
+     "crates/ferroplan/src/novelty.rs:88"
+    ]
+   }
+  ],
+  "links": [
+   {
+    "to": "sec-search",
+    "label": "consumed by"
+   }
+  ]
+ },
+ {
+  "id": "sec-search",
+  "title": "Search strategies",
+  "kind": "section",
+  "summary": "How states are explored: enforced hill-climbing, batched weighted best-first, LAMA, novelty/BFWS, A* for optimality, SAT, symmetry, and the ladder and portfolio that sequence them.",
+  "body": "<p>The satisficing story is a ladder of increasingly complete searches, each a bounded bet on a different signal, ending in a complete best-first. All open-list searches share three conventions: deferred evaluation (queue with the parent's h), fixed-size batches evaluated in parallel with order-preserving maps (plans identical at any thread count), and budgets counted in evaluated states and checked against a declared wall. The optimal and SAT modes are separate engines with stricter honesty rules: a plan with a certificate, or a named reason why not.</p>",
+  "layout": "grid",
+  "children": [
+   {
+    "id": "sec-search-routing",
+    "title": "Which search runs when",
+    "kind": "concept",
+    "summary": "Mode selects the engine: auto/ff use the ladder, portfolio, partition, optimal and sat are explicit.",
+    "body": "<table><tr><th>Mode</th><th>Engine</th><th>Complete?</th></tr><tr><td><code>Auto</code> / <code>Ff</code> (classical)</td><td>ladder: EHC &rarr; [novelty-light] &rarr; LAMA &rarr; [driver] &rarr; best-first &rarr; refill; then cost sweep if a cost metric</td><td>Yes, via the fallback</td></tr><tr><td><code>--search bfs</code></td><td>enriched best-first only</td><td>Yes</td></tr><tr><td><code>Portfolio</code></td><td>portfolio.rs over four members</td><td>Yes (bfs members)</td></tr><tr><td><code>Partition</code></td><td>resolve.rs cascade with per-subgoal LAMA / best-first</td><td>No</td></tr><tr><td><code>Optimal</code></td><td>A* + LM-cut / h<sup>max</sup> ladder</td><td>Yes, proof-or-nothing</td></tr><tr><td><code>Sat</code></td><td>&exist;-step SAT ramp</td><td>Bounded horizon</td></tr><tr><td>PDDL3 / temporal</td><td>their own machinery (pddl3.rs, temporal.rs), built on <code>search_from</code> and h<sub>FF</sub></td><td>varies</td></tr></table><p>Brackets mark rungs that are default-on only when <code>FF_TIME_LIMIT</code> is declared. The partition rung ahead of the ladder is opt-in (<code>FF_PARTITION_RUNG=1</code>).</p>",
+    "files": [
+     "crates/ferroplan/src/api.rs:33",
+     "crates/ferroplan/src/api.rs:1199",
+     "crates/ferroplan/src/api.rs:1231"
+    ],
+    "links": [
+     {
+      "to": "mod-api",
+      "label": "dispatch"
+     },
+     {
+      "to": "mod-pddl3",
+      "label": "PDDL3"
+     },
+     {
+      "to": "mod-temporal",
+      "label": "temporal"
+     }
+    ]
+   },
+   {
+    "id": "mod-search-ladder",
+    "title": "The ladder (plan_avoiding)",
+    "kind": "process",
+    "summary": "The default classical route: EHC, then bounded rungs, then the complete best-first, each rung entered only if the wall still affords it.",
+    "body": "<p><code>search::plan</code> &rarr; <code>plan_avoiding</code> is \"the ladder\" the roadmaps refer to. Each bounded rung is a bet that costs wall time before the complete fallback gets its turn. The record names that tax three times over: the 0.17 novelty rung (+7 / &minus;51 budget-edge rows), the 0.28 seed-ladder tightening, and 0.30's partition rung (&minus;26).</p><p><strong>Affordability gate</strong> (0.18, refined 0.22 and 0.30): with <code>FF_TIME_LIMIT</code> declared, a bounded rung is entered only while more than 40% of the wall remains, re-read at each rung's entry (<code>rungs_affordable</code>); against the handed base when the partition rung handed down. With no limit set every rung runs and the ladder is byte-identical to its pre-0.18 form. Each rung also runs under its own wall slice (<code>rung_slice</code>), a deadline rather than a converted eval count because evals/s spans orders of magnitude.</p><p><strong>What 0.31 plans</strong> (<code>docs/roadmap-0.31.md</code> Lane A): replace the hand-set fractions with a slice table learned from a per-rung matrix (<code>FF_RUNG_ONLY</code>, <code>FF_LADDER_TABLE</code>, <code>ladder.rs</code>), greedy most-coverage-per-second in the Stone Soup / Cedalion style, refereed leave-one-domain-out. None of that is in this tree yet. Probe hatches today: <code>FF_NOVELTY_ONLY</code>, <code>FF_NOVLIGHT_ONLY</code>, <code>FF_NOVDRIVER_ONLY</code>; narration via <code>FF_WALL_DEBUG</code>. Fixtures: <code>tests/ladder_wall.rs</code>, <code>tests/novdriver.rs</code>, <code>tests/refill.rs</code>.</p>",
+    "files": [
+     "crates/ferroplan/src/search.rs:1715",
+     "crates/ferroplan/src/search.rs:1733",
+     "crates/ferroplan/src/search.rs:1764"
+    ],
+    "facts": [
+     [
+      "Gate",
+      "&gt;40% wall remaining"
+     ],
+     [
+      "Rungs",
+      "EHC, novlight, LAMA, driver, fallback"
+     ]
+    ],
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-search-ladder-partition",
+      "title": "0. Partition rung (opt-in)",
+      "kind": "process",
+      "summary": "FF_PARTITION_RUNG=1: partition-and-resolve under half the wall before the ladder. Measured out of the default in 0.30.",
+      "body": "<p>In <code>api.rs</code>, in auto mode with a wall of at least 10 s, never on a constrained task: <code>invariants::synthesize</code> + <code>resolve::solve</code> under <code>tighten_deadline</code> leaving <code>1 &minus; FF_PARTITION_RUNG_FRAC</code> (0.5). On hand-down it calls <code>search::hand_ladder_wall(left)</code> so the ladder's affordability gate is judged against what it was handed. The 0.30 Lane 6 board read: +6 pathways cells against &minus;26 first-attempt on cells the ladder solves late, so it ships opt-in only.</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:1231",
+       "crates/ferroplan/src/search.rs:564"
+      ],
+      "links": [
+       {
+        "to": "mod-resolve",
+        "label": "runs"
+       },
+       {
+        "to": "mod-invariants",
+        "label": "mutex groups"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-ladder-ehc",
+      "title": "1. EHC",
+      "kind": "process",
+      "summary": "Always first when ehc_first; solves most instances. Hands down on plateau, eval cap or wall slice.",
+      "body": "<p>Entered unless the caller asked for <code>--search bfs</code>. Under a declared wall it gets 0.25 of the remaining wall, extended on progress up to 0.6. A success returns <code>ehc_fell_back: false</code>; every later rung's success is reported as a fallback.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:1872"
+      ],
+      "links": [
+       {
+        "to": "mod-search-ehc",
+        "label": "is"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-ladder-novlight",
+      "title": "2. Novelty-light",
+      "kind": "process",
+      "summary": "IW(1)-style, goal-count guided, zero h evaluations. Default-on only under a declared affordable wall.",
+      "body": "<p><code>novelty::search_light</code>, capped at <code>NOVLIGHT_CAP</code> = 300,000 pops and <code>FF_NOVLIGHT_WALL_FRAC</code> (0.10) of the remaining wall. Placed before LAMA because its tax is small by construction (a pop is successor generation plus a bitset OR) and the width-y shapes EHC dies on are where it wins: visit-all-2014 receipts at 899/3135/3248 pops. <code>FF_NOVLIGHT=1</code> forces it, <code>FF_NO_NOVLIGHT=1</code> opts out.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:1905",
+       "crates/ferroplan/src/novelty.rs:405"
+      ],
+      "links": [
+       {
+        "to": "mod-novelty-light",
+        "label": "is"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-ladder-lama",
+      "title": "3. LAMA rung",
+      "kind": "process",
+      "summary": "Bounded landmark + preferred-op greedy search, 400k evals and 0.25 of the remaining wall. Default-on.",
+      "body": "<p><code>lama::search(task, threads, LAMA_CAP.min(max_eval), forbidden, slice)</code> with <code>LAMA_CAP</code> = 400,000 and a slice of <code>FF_LAMA_WALL_FRAC</code> (0.25) of the remaining wall (folded with any per-call deadline by <code>sooner_deadline</code>). It runs where EHC gave up, i.e. where the relaxed plan has plateaued. <code>FF_NO_LAMA=1</code> removes it.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:1924"
+      ],
+      "links": [
+       {
+        "to": "mod-lama",
+        "label": "is"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-ladder-driver",
+      "title": "4. Novelty driver (BFWS-like)",
+      "kind": "process",
+      "summary": "The h-free partitioned width-2 driver, 400k evals and half the remaining wall. Default-on under a declared wall.",
+      "body": "<p><code>novelty::search_driver</code> with <code>NOVELTY_CAP</code> = 400,000 and <code>FF_NOV_WALL_FRAC</code> (0.50 since 0.26 F3, where every transport conversion on 2008/2011 was the driver's). It replaced the 0.17 h-guided novelty rung at this slot in 0.22; <code>FF_NOV_OLD=1</code> swaps the old rung back. As the last bounded rung it gets the biggest slice: everything behind it is the complete fallback.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:1955",
+       "crates/ferroplan/src/novelty.rs:726"
+      ],
+      "links": [
+       {
+        "to": "mod-novelty-driver",
+        "label": "is"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-ladder-fallback",
+      "title": "5. Enriched weighted best-first",
+      "kind": "process",
+      "summary": "search_from at 1·g + 5·h with preferred-op alternation and the landmark term; the complete backstop.",
+      "body": "<p>Before entering, <code>plan_avoiding</code> sets <code>pref_ops</code> and <code>w_lm</code> = 3.0 unless <code>FF_NO_ENRICH</code>, applies <code>FF_CLM</code>/<code>FF_RESLM</code> overrides and optional <code>FF_LEN_ANYTIME</code>. A plan returns with <code>ehc_fell_back = ehc_first</code>, which <code>api.rs</code> turns into the note \"EHC found no improving state; used weighted best-first\".</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:2016",
+       "crates/ferroplan/src/search.rs:2028",
+       "crates/ferroplan/src/search.rs:2090"
+      ],
+      "links": [
+       {
+        "to": "mod-search-bestfirst",
+        "label": "is"
+       },
+       {
+        "to": "mod-search-prefops",
+        "label": "enrichment"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-ladder-refill",
+      "title": "6. Refill rounds",
+      "kind": "process",
+      "summary": "If the fallback was capped (not exhausted) with >10% of a declared wall left, re-enter greedier: w_h x4, max_eval x4, up to 6 times.",
+      "body": "<p>0.20 Phase 1 \"spend the whole wall\": the tpp-numeric witness had the fallback cap at 7.8 s and hand back 25 s of a 60 s wall. Genuine exhaustion returns at once (completeness does not depend on weight). If the round died on the node cap rather than the eval cap, the byte target doubles too, at most &times;4 total (0.22 Phase 2, sailing-wind), narrated ungated on stderr so a later RSS kill can be named self-inflicted. Disarmed by an explicit eval cap (a budgeted-think contract) or <code>FF_NO_REFILL=1</code>; without a wall it is a single round.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:2070",
+       "crates/ferroplan/src/search.rs:2071"
+      ],
+      "facts": [
+       [
+        "REFILL_MAX_ROUNDS",
+        "6"
+       ],
+       [
+        "Escalation",
+        "w_h x4, max_eval x4"
+       ]
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-api",
+      "label": "Mode::Auto / Ff"
+     },
+     {
+      "to": "mod-portfolio",
+      "label": "member 'ladder'"
+     }
+    ]
+   },
+   {
+    "id": "mod-search",
+    "title": "search.rs: best-first, EHC, the ladder",
+    "kind": "module",
+    "summary": "2,629 lines: the data-parallel weighted best-first engine, enforced hill-climbing, budgets, and plan_avoiding (the ladder).",
+    "body": "<p>The core satisficing engine. <code>search_from</code> is the reusable best-first; <code>ehc</code>/<code>bfs_improve</code> are FF's hill-climber; <code>plan</code>/<code>plan_avoiding</code> compose them with the other rungs into the ladder; <code>solve_subgoal*</code> expose the engine to partition-and-resolve. Most of the file's volume is budget machinery: wall slices, node caps, refill rounds and hatches, each with its measurement in the comments.</p>",
+    "files": [
+     "crates/ferroplan/src/search.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "2,629"
+     ],
+     [
+      "Entry",
+      "<code>plan()</code>"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-search-cfg",
+      "title": "SearchCfg and the 1·g + 5·h key",
+      "kind": "data",
+      "summary": "Integer heap key w_g·g + w_h·h with weights pre-scaled by 256; the default 1·g + 5·h is weighted A* leaning greedy.",
+      "body": "<p><code>SearchCfg::from_weights(1.0, 5.0, None)</code> is the default: <code>w_g</code> = 256, <code>w_h</code> = 1280 (<code>WEIGHT_SCALE</code> = 256), so fractional weights are possible while the historical key stays bit-identical. Inputs are sanitized: non-finite or negative weights fall back to the default, weights clamp to 1e9, both-zero restores defaults (an all-zero key would degrade to insertion order). <code>max_eval</code> defaults to <code>DEFAULT_MAX_EVAL</code> = 5,000,000 evaluated states.</p><p>The struct also carries every per-search mode switch: <code>h_cost</code>, <code>w_c</code>, <code>anytime</code>, <code>g_bound</code>, <code>len_anytime</code>, <code>w_lm</code>, <code>w_res</code>, <code>pref_ops</code>, <code>node_bytes_target</code>, <code>deadline</code>, <code>ehc_wall_frac</code>. Each field's doc records the cycle that added it and its measured verdict, a pattern used throughout the crate.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:192",
+       "crates/ferroplan/src/search.rs:314",
+       "crates/ferroplan/src/search.rs:28",
+       "crates/ferroplan/src/search.rs:31"
+      ],
+      "facts": [
+       [
+        "Default key",
+        "256·g + 1280·h"
+       ],
+       [
+        "DEFAULT_MAX_EVAL",
+        "5,000,000"
+       ]
+      ]
+     },
+     {
+      "id": "mod-search-bestfirst",
+      "title": "Weighted best-first (search_from)",
+      "kind": "search",
+      "summary": "The complete fallback: batched best-first over a binary heap with hash-based dedup, node cap, wall checkpoints and orbit-canonical keys.",
+      "body": "<p><code>search_from</code> is the generic engine. It checks the initial state for a relaxed dead end, computes landmarks if <code>w_lm &gt; 0</code>, sizes the node cap, and loops: pop a batch, goal-check, evaluate h in parallel, expand in parallel, then insert serially. The open list is <code>BinaryHeap&lt;Reverse&lt;(i64, usize)&gt;&gt;</code>; ties break on node index, i.e. insertion order.</p><p>Dedup: <code>visited</code> maps a 64-bit state-key hash to the node indices with that hash (0.20 Phase 4 retained-state compression &mdash; no second copy of the bitset), and <code>state_key_eq</code> decides collisions. The key excludes irrelevant fluents (termination) and, under branch-and-bound, appends the cost fluent. With an orbit map, the hash is <code>canonical_skey_hash</code>; the orbit is dropped whenever a forbidden mask, preference guidance or closure is in play.</p><p>It serves the ladder's fallback, the portfolio's bfs members, the cost sweep, the length sweep, the PDDL3 B&amp;B loops (<code>SatGuidance</code>, <code>ClosureCost</code>, <code>anytime</code>) and the <code>solve_subgoal*</code> family used by partition-and-resolve.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:1008",
+       "crates/ferroplan/src/search.rs:1101",
+       "crates/ferroplan/src/search.rs:2433"
+      ],
+      "facts": [
+       [
+        "Complete",
+        "Yes (up to caps)"
+       ],
+       [
+        "Batch",
+        "256 (BATCH)"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-heuristic-extract",
+        "label": "h"
+       },
+       {
+        "to": "mod-orbits-canon",
+        "label": "canonical hash"
+       },
+       {
+        "to": "mod-resolve",
+        "label": "solve_subgoal*"
+       },
+       {
+        "to": "mod-pddl3",
+        "label": "B&B loops"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-deferred",
+      "title": "Deferred (lazy) evaluation",
+      "kind": "concept",
+      "summary": "A successor is queued with its parent's h; its own h is computed only when popped. Many inserted nodes are never evaluated.",
+      "body": "<p><strong>Idea.</strong> Eager best-first evaluates every generated successor; deferred evaluation (Fast Downward's \"lazy\" search) evaluates a node only when it is expanded and orders the open list by the parent's value. With high branching factors this cuts heuristic calls by a large factor at the cost of a less accurate ordering.</p><p><strong>In ferroplan</strong> all three heap searches use it: in <code>search_from</code> successors carry the parent's h as their key (comment at the heap declaration); LAMA and the novelty rungs do the same. Since 0.30 Lane 5 the LAMA rung and the novelty driver go further with a <em>lazy frontier</em>: an open entry is only <code>(key, father, op)</code> and the state is regenerated from the father on pop, because on city-car i6 the LAMA rung held 3.2&ndash;3.4 GB in generated successors it never evaluated. STATUS.md notes that LAMA's own lazy evaluation \"was deliberately skipped &mdash; batch-parallel eval is ferroplan's answer\"; the deferred keying here is that batch scheme, not FD's one-at-a-time lazy loop.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:1101",
+       "crates/ferroplan/src/lama.rs:133"
+      ],
+      "links": [
+       {
+        "to": "mod-lama-frontier",
+        "label": "lazy frontier"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-batch",
+      "title": "Parallel batch evaluation",
+      "kind": "concept",
+      "summary": "Pop a fixed batch, evaluate h with an order-preserving parallel map, insert serially: identical plans at any thread count.",
+      "body": "<p>Each round pops up to <code>BATCH</code> = 256 nodes (or 192 + 64 from the two heaps under <code>pref_ops</code>). h for the whole batch runs through <code>par::par_map_with(&amp;popped, threads, || Scratch::new(task), ...)</code>; successor generation for live nodes runs through <code>par::par_map</code>. Both preserve input order and all control flow &mdash; goal checks, dedup, heap pushes, caps &mdash; happens on the calling thread. So the module doc's contract holds: \"the plan found is identical regardless of the worker count &mdash; only the wall-clock of heuristic evaluation changes\". Tests check t1 &equiv; t8.</p><p>Wall checks: one clock read per batch normally; under an armed deadline each evaluation reads the clock first (the 0.28 Lane I in-batch checkpoint, because at 8 ms per eval a 256-batch is two seconds), and a tripped batch returns capped without using its h values.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:22",
+       "crates/ferroplan/src/search.rs:1309",
+       "crates/ferroplan/src/par.rs:39",
+       "crates/ferroplan/src/par.rs:69"
+      ],
+      "facts": [
+       [
+        "BATCH",
+        "256"
+       ],
+       [
+        "Determinism",
+        "order-preserving par_map"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-par",
+        "label": "par_map / par_map_with"
+       },
+       {
+        "to": "mod-clock",
+        "label": "deadline reads"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-prefops",
+      "title": "Preferred-op alternation in the fallback",
+      "kind": "search",
+      "summary": "0.26 F1: the plain classical fallback evaluates with relaxed_helpful and pops 192 from a preferred heap and 64 from the normal heap each round.",
+      "body": "<p>With <code>cfg.pref_ops</code>, a successor reached through a parent's helpful op sits in both heaps; an <code>expanded</code> flag makes it expand once. Every key is computed exactly as before and the normal heap still holds everything, so open-list exhaustion still means exhaustion &mdash; only pop order changes. Together with <code>w_lm</code> = 3.0 this is \"the LAMA recipe transplanted\" onto the rung that writes \"EHC found no improving state; used weighted best-first\" (128 of ipc5-prop's 369 solved rows when added). Scoped to <code>plan_avoiding</code>'s plain classical fallback only; <code>FF_NO_ENRICH=1</code> restores the single heap.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:259",
+       "crates/ferroplan/src/search.rs:1115",
+       "crates/ferroplan/src/search.rs:2028"
+      ],
+      "links": [
+       {
+        "to": "mod-heuristic-helpful",
+        "label": "helpful set"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-ehc",
+      "title": "Enforced hill-climbing",
+      "kind": "search",
+      "summary": "From the current state, breadth-first over helpful actions only until a strictly better h appears; jump there and repeat. Fast, incomplete.",
+      "body": "<p><strong>Idea</strong> (FF, Hoffmann 2001). Greedy local search: commit to the first state with strictly lower h found by a breadth-first lookahead, so plateaus are crossed by exhaustive local search. Restricting the lookahead to helpful actions makes it fast and incomplete; FF falls back to complete best-first when it fails.</p><p><strong>In ferroplan.</strong> <code>ehc</code> loops <code>bfs_improve</code>, a BFS from the current state expanding only each node's helpful ops, deduped by <code>StateKey</code>, capped at <code>BFS_CAP</code> = 5,000 expansions per lookahead. Total budget <code>(200 &middot; n_ops).max(30,000).min(max_eval)</code> evaluations &mdash; the op-count scaling took gripper-250 from 2.16M evals / 33 s to 32k / 0.86 s (<code>docs/perf-notes.md</code>). Under an armed wall, a deadline slice of <code>FF_EHC_WALL_FRAC</code> (0.25) of the remaining wall is checked per evaluation; since 0.29 Lane W the slice restarts on each improvement, under a ceiling of <code>FF_EHC_WALL_MAX_FRAC</code> (0.6). Single-threaded and deterministic. Plans are valid but not length-optimal.</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:2183",
+       "crates/ferroplan/src/search.rs:2324",
+       "crates/ferroplan/src/search.rs:2339"
+      ],
+      "facts": [
+       [
+        "Lookahead cap",
+        "5,000"
+       ],
+       [
+        "Eval cap",
+        "max(200·n_ops, 30k)"
+       ],
+       [
+        "Wall slice",
+        "0.25, extend to 0.6"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-heuristic-helpful",
+        "label": "expands only"
+       }
+      ]
+     },
+     {
+      "id": "mod-search-budget",
+      "title": "Caps, deadlines and the memory wall",
+      "kind": "concept",
+      "summary": "Node caps from a byte model, per-call deadlines, a teardown reserve, and a measured RSS wall shape every search's exit.",
+      "body": "<p><code>node_cap_for</code> converts a retained-bytes target (8 GiB on 64-bit, 2 GiB on 32-bit, overridden by <code>FF_MEM_BUDGET_GB</code> or the rlimit) into a node count with <code>per_node_model_bytes</code>; <code>FF_SEARCH_NODE_CAP</code> sets it directly. <code>crate::mem::MemWall</code> reads the process's real resident size once per batch and trips like a cap. Wall time: <code>FF_TIME_LIMIT</code> arms a process clock (<code>arm_wall_limit</code>), <code>SearchCfg::deadline</code> and the thread-local <code>CallBudget</code> carry per-call deadlines and cancel flags, <code>reserve_for_report</code> holds back seconds so a found plan is reported before a runner kills at the wall. A capped return is <code>PlanResult::Unsolvable { capped: true }</code> and is never reported as \"proven unsolvable\".</p>",
+      "files": [
+       "crates/ferroplan/src/search.rs:54",
+       "crates/ferroplan/src/search.rs:59",
+       "crates/ferroplan/src/search.rs:475",
+       "crates/ferroplan/src/search.rs:527",
+       "crates/ferroplan/src/search.rs:683"
+      ],
+      "links": [
+       {
+        "to": "mod-mem",
+        "label": "MemWall"
+       },
+       {
+        "to": "mod-clock",
+        "label": "Clock"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-api",
+      "label": "called by solve"
+     },
+     {
+      "to": "mod-heuristic",
+      "label": "evaluates"
+     }
+    ]
+   },
+   {
+    "id": "mod-lama",
+    "title": "LAMA rung (lama.rs)",
+    "kind": "module",
+    "summary": "Greedy best-first over h_FF and landmark count with preferred-operator boosting: the rung for long goal-interaction plateaus.",
+    "body": "<p>Why a separate rung (module doc): EHC and plain weighted best-first die where the relaxed plan plateaus on long goal-interaction chains (parking, floortile, barman, tidybot). Landmarks not yet achieved keep a gradient across those plateaus and helpful-action boosting keeps branching near the relaxed plan's. It runs bounded, after EHC and before the complete fallback, so on its own it can only add coverage; the wall it spends is the cost. Barman11 went to 20/20 with it (STATUS.md). <code>FF_TLAMA</code> is a temporal variant, measured negative.</p>",
+    "files": [
+     "crates/ferroplan/src/lama.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "587"
+     ],
+     [
+      "Cap in ladder",
+      "400k evals"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-lama-key",
+      "title": "Key and dual open lists",
+      "kind": "search",
+      "summary": "Greedy key 2·h_FF + 4·landmarks (no g); preferred heap and normal heap, 192 + 64 pops per round.",
+      "body": "<p>The priority key is <code>W_FF &middot; h + W_LM &middot; lm</code> with <code>W_FF</code> = 2 and <code>W_LM</code> = 4, using the parent's h (deferred) and the child's unaccepted landmark count. There is no g term: it is pure greedy, as LAMA's first iteration is. Successors reached via one of the parent's helpful ops go on both <code>pref_heap</code> and <code>norm_heap</code>; each round pops <code>PREF_BATCH</code> = 192 preferred and <code>NORM_BATCH</code> = 64 normal entries. Evaluation of the popped batch uses <code>relaxed_helpful</code> in an order-preserving parallel map; insertion is serial. Plans are identical at any thread count.</p><p>Difference from LAMA proper: no landmark orderings or reasonable orderings, no action costs in the key, no restarting weighted A* iterations; length anytime only behind <code>FF_LEN_ANYTIME</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/lama.rs:29",
+       "crates/ferroplan/src/lama.rs:32",
+       "crates/ferroplan/src/lama.rs:257",
+       "crates/ferroplan/src/lama.rs:479"
+      ],
+      "facts": [
+       [
+        "W_FF / W_LM",
+        "2 / 4"
+       ],
+       [
+        "Pop mix",
+        "192 pref + 64 normal"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-landmarks-count",
+        "label": "lm term"
+       },
+       {
+        "to": "mod-heuristic-helpful",
+        "label": "preferred ops"
+       }
+      ]
+     },
+     {
+      "id": "mod-lama-frontier",
+      "title": "Lazy frontier",
+      "kind": "data",
+      "summary": "Open entries are (key, father, op); states are regenerated from the father on pop and closed by 128-bit key hash.",
+      "body": "<p>Since 0.30 Lane 5, <code>nodes</code> holds only popped (closed) states. <code>keys: FxHashMap&lt;u128, u32&gt;</code> maps a state-key hash to its closed index, or <code>OPEN</code> (<code>u32::MAX</code>) while it is only on a heap. A hash seen at generation is a duplicate; a hash already closed at pop time is the other heap's copy. The rung instruments <code>false_drops</code> (hash duplicates whose closed twin is a different state) on the half that can be checked. <code>MemWall::arm_rung</code> adds a measured RSS trip per batch because the modelled node cap under-charges this rung's per-node <code>accepted</code> bitsets.</p>",
+      "files": [
+       "crates/ferroplan/src/lama.rs:133",
+       "crates/ferroplan/src/lama.rs:145",
+       "crates/ferroplan/src/lama.rs:162"
+      ],
+      "links": [
+       {
+        "to": "mod-mem",
+        "label": "MemWall::arm_rung"
+       }
+      ]
+     },
+     {
+      "id": "mod-lama-extend",
+      "title": "Window extension (arrival test)",
+      "kind": "concept",
+      "summary": "An opt-in rule to extend the rung's wall slice only while its demonstrated pace can reach key 0 inside the remaining wall.",
+      "body": "<p><code>extend_window(key_now, key_drop, affordable_windows)</code> extends only if <code>key_now &le; EXT_OPTIMISM &middot; key_drop &middot; affordable_windows</code> with <code>EXT_OPTIMISM</code> = 4. A stalled or regressing window never extends. The constant was priced on two measured shapes: spider p01 (key 584, drop 58, affordable 4) needs &ge; 2.52, and nurikabe i12 (key 496, drop 20, affordable 4) tolerates &lt; 6.2. Later windows cross, which is why the code says the rule is opt-in rather than default. Unit tests pin both shapes.</p>",
+      "files": [
+       "crates/ferroplan/src/lama.rs:511",
+       "crates/ferroplan/src/lama.rs:523",
+       "crates/ferroplan/src/lama.rs:545"
+      ]
+     },
+     {
+      "id": "mod-lama-subgoal",
+      "title": "search_subgoal",
+      "kind": "concept",
+      "summary": "The same rung over an arbitrary start state and subgoal, with landmarks recomputed for that pair; used by the partition cascade.",
+      "body": "<p><code>lama::search</code> is a thin wrapper over <code>search_subgoal(task, &amp;init, goal_pos, goal_num, ...)</code>. <code>resolve::solve</code> calls the subgoal form per partition piece. The portfolio and partition cascade pass <code>slice = None</code> (their budget discipline is their own); the ladder passes its <code>FF_LAMA_WALL_FRAC</code> slice.</p>",
+      "files": [
+       "crates/ferroplan/src/lama.rs:69",
+       "crates/ferroplan/src/lama.rs:99"
+      ],
+      "links": [
+       {
+        "to": "mod-resolve",
+        "label": "per-subgoal LAMA"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-landmarks",
+      "label": "landmarks_for"
+     },
+     {
+      "to": "mod-heuristic",
+      "label": "relaxed_helpful"
+     }
+    ]
+   },
+   {
+    "id": "mod-novelty",
+    "title": "Novelty rungs (novelty.rs)",
+    "kind": "module",
+    "summary": "Width-based search in three forms: novelty-light (IW(1), h-free), the partitioned width-2 driver, and the older h-guided rung.",
+    "body": "<p>Where the relaxed plan's gradient is wrong or exhausted, novelty-first exploration visits structurally new states without asking h. The modern IPC corpora (2018/2023) are full of those domains and every winner there has a novelty component (<code>docs/landscape-2026.md</code>, cited in the module doc). All three searches share the rung contracts: bounded by eval cap + node cap + measured memory wall, wall-sliced under a declared budget, deterministic.</p>",
+    "files": [
+     "crates/ferroplan/src/novelty.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "1,028"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-novelty-light",
+      "title": "search_light: IW(1) + goal count",
+      "kind": "search",
+      "summary": "Key ⟨novel, unachieved goals, insertion⟩, single serial heap, zero h calls, flat arena.",
+      "body": "<p>Added in 0.20 Phase 3 after the scoping probe found the h-guided rung solved visit-all-2014 i1 but spent 35 s of wall entirely inside per-pop <code>relaxed_helpful</code>. A pop here costs successor generation and a bitset OR. No dead-end pruning (nothing computes &infin;); the pop cap and node cap are the exits. Since the 0.30 cut, states live in three flat arrays (<code>a_bits</code>, <code>a_fv</code>, <code>a_fdef</code>) with father/op arrays and chained dedup buckets: ~88 bytes a node against ~340, which let LAMA enter woodworking i15 at 2.17 GiB instead of tripping the memory wall (<code>tests/novlight_arena.rs</code>). Serial, deterministic.</p>",
+      "files": [
+       "crates/ferroplan/src/novelty.rs:405"
+      ],
+      "facts": [
+       [
+        "h calls",
+        "0"
+       ],
+       [
+        "Node bytes",
+        "~88"
+       ]
+      ]
+     },
+     {
+      "id": "mod-novelty-driver",
+      "title": "search_driver: partitioned width-2",
+      "kind": "search",
+      "summary": "One root relaxed plan builds R; key ⟨rank novel-1 < novel-2 < non-novel, #g, |R|−r⟩; h-free per pop.",
+      "body": "<p>0.22 Phase 5B lever 3, after the parking receipt (86 s of cumulative worker time building h per pop at 100k evals). <code>r_partition_facts</code> takes the goal facts plus the root extraction's need-facts (<code>extraction_need_facts</code>), capped at <code>r_cap</code> = 256 lowest-fact-layer first. Cells are &lang;unachieved goals, achieved-R count&rang;; width 2 is tracked over R-pairs via a triangular index (<code>tri</code>). One heuristic call in total. Wall: the slice and <code>wall_hard_expired</code> checked every 4,096 pops. <code>DriverCfg::from_env</code>: <code>FF_NOV_PART=0</code>, <code>FF_NOV_W2=0</code>, <code>FF_NOV_R_CAP</code>.</p><p><code>docs/roadmap-0.31.md</code> reads this as BFWS(f5) \"in all but name\" and lists what the IPC winners have beyond it: Dual BFWS's pruned front end, novelty-first LAMA (f6), R recomputed on progress, and forgetting (Scorpion Maidu). Those are Lane B plans, not code here.</p>",
+      "files": [
+       "crates/ferroplan/src/novelty.rs:726",
+       "crates/ferroplan/src/novelty.rs:635",
+       "crates/ferroplan/src/novelty.rs:586",
+       "crates/ferroplan/src/novelty.rs:682"
+      ],
+      "facts": [
+       [
+        "R cap",
+        "256"
+       ],
+       [
+        "h calls",
+        "1 (root)"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-heuristic-extract",
+        "label": "extraction_need_facts"
+       }
+      ]
+     },
+     {
+      "id": "mod-novelty-hguided",
+      "title": "search: h-guided novelty (0.17)",
+      "kind": "search",
+      "summary": "Novelty first, then goal count, then parent h, with dual heaps and parallel relaxed_helpful. Kept behind FF_NOV_OLD.",
+      "body": "<p>The original rung: key weights <code>W_NOVEL</code> = 2<sup>40</sup> and <code>W_GOALS</code> = 2<sup>20</sup> keep novelty dominant, then goal count, then parent h; preferred/normal heaps with 192/64 pops; parallel h. The 0.17 referee measured +7 / &minus;51 against the default ladder because of its wall tax ahead of the fallback, and made it opt-in; the 0.18 budget gate turned the arithmetic to +4 / &minus;0, and the 0.22 driver then replaced it in the ladder. <code>FF_NOVELTY_ONLY=1</code> probes it alone.</p>",
+      "files": [
+       "crates/ferroplan/src/novelty.rs:165",
+       "crates/ferroplan/src/novelty.rs:48"
+      ]
+     },
+     {
+      "id": "mod-novelty-numeric",
+      "title": "Numeric novelty (FF_NUMNOV)",
+      "kind": "concept",
+      "summary": "Opt-in per-cell seen-envelopes over quantized relevant fluent values, for tasks whose progress is fluent-only.",
+      "body": "<p>Bit tables are blind on fluent-only progress (sailing has one predicate, so every successor is bit-identical). Under <code>FF_NUMNOV=1</code> on a task with relevant fluents, each cell also keeps a <code>(min, max)</code> envelope per relevant fluent over the 1e-6-quantized values from <code>packed.rs</code>'s state-key quantizer; leaving the envelope counts as novel. Off, <code>num_cells</code> is <code>None</code> and it costs nothing.</p>",
+      "files": [
+       "crates/ferroplan/src/novelty.rs:60",
+       "crates/ferroplan/src/novelty.rs:128",
+       "crates/ferroplan/src/novelty.rs:134"
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "sec-heuristics-novelty",
+      "label": "measure"
+     },
+     {
+      "to": "mod-search-ladder",
+      "label": "rungs 2 and 4"
+     }
+    ]
+   },
+   {
+    "id": "mod-optimal",
+    "title": "Optimal search (optimal.rs)",
+    "kind": "module",
+    "summary": "Sequential-optimal planning: resumable A* with LM-cut / h^max, a wall-aware sprint-and-probe ladder, numeric arms, orbit dedup.",
+    "body": "<p>Added in 0.19, LM-cut and the conditional-effect admissibility repair in 0.20, resumable engine 0.22, incremental LM-cut 0.23. It shares the packed task with every other mode and builds its own relaxation graph. The heuristics themselves are described under Heuristics &rarr; Admissible. <code>docs/roadmap-0.31.md</code> Lane C notes that 42% of unsolved rows are on optimal tracks, where the engine has \"one admissible heuristic\"; PDBs and cost partitioning are that lane's plan.</p>",
+    "files": [
+     "crates/ferroplan/src/optimal.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "2,245"
+     ],
+     [
+      "Mode",
+      "<code>Mode::Optimal</code>"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-optimal-scope",
+      "title": "Scope: proof or nothing",
+      "kind": "concept",
+      "summary": "Mode::Optimal returns a plan only with an optimality certificate; caps and wall return INCONCLUSIVE.",
+      "body": "<p>Explicit only (<code>--mode optimal</code>); auto never routes here. Costs are per-op constants; state-dependent costs reject with a named note. Numeric preconditions and goals are exact in expansion and the goal test and ignored or soundly bounded in h. A node cap or wall trip returns <code>OptOutcome</code> with <code>proven = false</code> &mdash; never a best-effort incumbent. The 0.30.0 standings report 694 certified optima across the boards (README).</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:1",
+       "crates/ferroplan/src/optimal.rs:37",
+       "crates/ferroplan/src/optimal.rs:63",
+       "crates/ferroplan/src/api.rs:822"
+      ]
+     },
+     {
+      "id": "mod-optimal-astar",
+      "title": "Resumable A* engine",
+      "kind": "search",
+      "summary": "AstarState keeps open list, arena and best_g across runs so a later run continues instead of re-treading; re-opens because LM-cut is inconsistent.",
+      "body": "<p><code>AstarState</code> (0.22 Phase 3) is one A* whose state survives the return of <code>run(max_nodes, deadline)</code>. Soundness of resume rides <code>pending</code>: a trip happens after a pop, so the tripped node is parked and its successor loop re-driven first on the next run. With an admissible h and re-opening via <code>best_g</code>, the first goal pop is optimal across resumes. f-ties break on lower h, then insertion order; search is serial. Visited keys go through <code>OrbitMap::canonical_skey</code> when an orbit is present; under <code>FF_ORBIT_ISO</code> goal tests use the relaxed witness and the plan is remapped.</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:1479",
+       "crates/ferroplan/src/optimal.rs:1446",
+       "crates/ferroplan/src/optimal.rs:1749",
+       "crates/ferroplan/src/optimal.rs:1797"
+      ],
+      "links": [
+       {
+        "to": "mod-orbits",
+        "label": "canonical keys / iso"
+       }
+      ]
+     },
+     {
+      "id": "mod-optimal-ladder",
+      "title": "The optimal ladder (solve)",
+      "kind": "process",
+      "summary": "Root gate compares h^max and LM-cut; h^max sprints, an incremental LM-cut probe follows, h^max resumes, then a second probe round.",
+      "body": "<p><code>solve</code> under a declared wall:</p><ol><li><strong>Root gate</strong>: compute h<sup>max</sup> and LM-cut at the initial state. If LM-cut is not more informative by a ratio &ge; <code>FF_OPT_GATE_MARGIN</code> (1.4), h<sup>max</sup> A* holds the whole wall (<code>astar_wall_refill</code>).</li><li><strong>h<sup>max</sup> sprint</strong> with <code>max_nodes/4</code> and <code>FF_OPT_SPRINT_FRAC</code> (0.4) of the wall, or 0.1 when the ratio is &ge; 2.</li><li><strong>Incremental LM-cut probe</strong>: <code>max_nodes/2</code>, <code>FF_OPT_LMCUT_PROBE_FRAC</code> (0.33) of the remaining wall.</li><li><strong>h<sup>max</sup> resumes</strong> its open list; on a node-cap exit with &gt;10% wall left the cap doubles in place.</li><li><strong>Round 2</strong>: the probe engine resumes with a doubled budget if wall remains.</li></ol><p>Without a wall: a quarter-budget h<sup>max</sup> pass, then full LM-cut. Hatches: <code>FF_NO_LMCUT</code>, <code>FF_NO_HMAX_SPRINT</code>, <code>FF_OPT_NO_ROOTGATE</code>, <code>FF_OPT_NO_RESUME</code>, <code>FF_NO_INC_LMCUT</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:1129",
+       "crates/ferroplan/src/optimal.rs:1393"
+      ],
+      "facts": [
+       [
+        "Gate margin",
+        "1.4"
+       ],
+       [
+        "Sprint frac",
+        "0.4 / 0.1"
+       ],
+       [
+        "Probe frac",
+        "0.33"
+       ]
+      ],
+      "links": [
+       {
+        "to": "sec-heuristics-admissible-hmax",
+        "label": "sprint h"
+       },
+       {
+        "to": "sec-heuristics-admissible-inclmcut",
+        "label": "probe h"
+       }
+      ]
+     },
+     {
+      "id": "mod-optimal-numeric",
+      "title": "Numeric arms",
+      "kind": "concept",
+      "summary": "Rep-folded h^max floors and the audited RPG layer bound raise h on numeric tasks without losing admissibility.",
+      "body": "<p>Two arms, both maxed into h. <code>num_arm_root</code> gates the RPG layer bound (<code>admissible_goal_layers</code>, armed only when <code>numeric_interval_audit</code> passes). <code>num_fold_prep</code> builds a <code>NumFold</code>: per-achiever <code>FoldMargin</code>s that give an admissible floor on the steps before an achiever's numeric conditions can hold, filled per state by <code>fold_fill_floors</code> and read by <code>hmax_labels(use_floors = true)</code>; <code>fold_goal_bound</code> adds a goal-side bound. The fold arms only in unit-step currency and fails closed (fixture <code>num_fold_gates_fail_closed_and_prices_p04_exactly</code>).</p>",
+      "files": [
+       "crates/ferroplan/src/optimal.rs:711",
+       "crates/ferroplan/src/optimal.rs:739",
+       "crates/ferroplan/src/optimal.rs:811",
+       "crates/ferroplan/src/optimal.rs:933",
+       "crates/ferroplan/src/optimal.rs:993",
+       "crates/ferroplan/src/optimal.rs:1021"
+      ],
+      "links": [
+       {
+        "to": "mod-heuristic-admissible-layers",
+        "label": "layer bound"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "sec-heuristics-admissible",
+      "label": "heuristics"
+     },
+     {
+      "to": "mod-api",
+      "label": "solve_optimal"
+     }
+    ]
+   },
+   {
+    "id": "mod-orbits",
+    "title": "Symmetry orbits (orbits.rs)",
+    "kind": "module",
+    "summary": "Goal-respecting object-symmetry: states that differ only by permuting interchangeable objects collapse to one visited key.",
+    "body": "<p>Motivated by temporal-machine-shop being 0/20 (0.13 diagnosis): interchangeable pieces, distinguished only by which goal pair they serve, make every assignment of identical pieces a distinct visited state. The reduction canonicalizes visited keys under member relabeling; plans stay concrete. Soundness is conservative at every step; the module doc lists each bail condition. Ferroplan does orbit canonicalization of keys, not orbit search or symmetry-breaking constraints.</p>",
+    "files": [
+     "crates/ferroplan/src/orbits.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "1,631"
+     ],
+     [
+      "Since",
+      "0.14 ext (temporal), 0.22 (classical)"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-orbits-detect",
+      "title": "Detection: families and closure",
+      "kind": "concept",
+      "summary": "Find interchangeable member units, group every grounded display touching them into families, and verify closure under transpositions.",
+      "body": "<p>Candidates must have identical init profiles (statics and fluents), appear in no action schema literally, and pass a per-family closure check: within each equality-pattern class of member coordinates, cells are uniformly present or absent, so the grounded task really is closed under every member transposition. Every fact/op/fluent touching an orbit object joins a <code>Family</code> (shared head and literal/slot pattern) stored as a dense table over member coordinates (<code>FamSet</code>, <code>CELL_CAP</code> = 2<sup>22</sup>), so a permutation acts on the whole task by table lookup &mdash; including cross-member facts like TMS's <code>(assemble p q)</code>. Goals must be per-member and shared by the orbit; TILs, derived rules, PDDL3 constraints, numeric goals on touched fluents bail. A non-total-time metric bails unless op costs are uniform within each class (<code>cost_uniform</code>, the 0.22 L2 gate). Any violation drops detection entirely.</p>",
+      "files": [
+       "crates/ferroplan/src/orbits.rs:116",
+       "crates/ferroplan/src/orbits.rs:154",
+       "crates/ferroplan/src/orbits.rs:196",
+       "crates/ferroplan/src/orbits.rs:245",
+       "crates/ferroplan/src/orbits.rs:484"
+      ],
+      "facts": [
+       [
+        "CELL_CAP",
+        "2^22"
+       ]
+      ]
+     },
+     {
+      "id": "mod-orbits-canon",
+      "title": "Canonical keys",
+      "kind": "concept",
+      "summary": "Pick σ by sorting per-member signatures, rewrite the visited key through the family tables; nodes stay concrete.",
+      "body": "<p><code>canonical_key</code> (temporal: bits, relevant fluents and pending-end agenda ops permute together), <code>canonical_skey</code> and <code>canonical_skey_hash</code> (classical). The canonical form is a pure function of the state, so determinism and t1 &equiv; t8 hold. Any &sigma; is sound: <code>canon(s1) = canon(s2)</code> implies s2 is an automorphism image of s1; ties may miss merges but never mis-merge. Only visited keys are canonicalized; plan extraction and VAL see concrete states. The B&amp;B cost fluent is appended after canonicalization.</p>",
+      "files": [
+       "crates/ferroplan/src/orbits.rs:1161",
+       "crates/ferroplan/src/orbits.rs:1190",
+       "crates/ferroplan/src/orbits.rs:1209",
+       "crates/ferroplan/src/orbits.rs:1489"
+      ]
+     },
+     {
+      "id": "mod-orbits-consumers",
+      "title": "Consumers and gates",
+      "kind": "concept",
+      "summary": "Temporal visited key (0.14), classical best-first dedup, partition passdown, cost sweep and optimal A* (0.22).",
+      "body": "<p><code>detect</code> serves the temporal path. <code>detect_classical</code> (strict) feeds <code>search_from</code>'s dedup, <code>resolve::solve</code> and <code>costs::improve</code> via <code>api.rs</code>; constrained tasks get no orbit. <code>detect_classical_iso</code> feeds optimal A*, the one classical consumer wired for the relaxed goal test. <code>search_from</code> drops the orbit whenever a forbidden mask, preference guidance or closure is in play, because a mask &sigma; does not fix would break the automorphism. Hatches: <code>FF_NO_ORBIT</code> (all), <code>FF_NO_ORBIT_CLASSICAL</code> (classical only), <code>FF_ORBIT_DEBUG</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/orbits.rs:466",
+       "crates/ferroplan/src/orbits.rs:1130",
+       "crates/ferroplan/src/orbits.rs:1142",
+       "crates/ferroplan/src/api.rs:1196",
+       "crates/ferroplan/src/api.rs:888"
+      ],
+      "links": [
+       {
+        "to": "mod-temporal",
+        "label": "temporal visited key"
+       },
+       {
+        "to": "mod-search-bestfirst",
+        "label": "dedup"
+       },
+       {
+        "to": "mod-optimal-astar",
+        "label": "closed set"
+       },
+       {
+        "to": "mod-costs-improve",
+        "label": "sweep"
+       }
+      ]
+     },
+     {
+      "id": "mod-orbits-iso",
+      "title": "Goal-isomorphism arm (opt-in)",
+      "kind": "concept",
+      "summary": "FF_ORBIT_ISO=1: orbits formed goal-blind; goals are tested up to a witness permutation and the plan is remapped.",
+      "body": "<p>0.23 Phase 4 probe 1, default off. Units form on type and init profile only, so the goal never splits an orbit. Designated goal atoms (<code>IsoGoal::desig</code>) must be served by distinct members; the consumer must goal-test through <code>iso_goal_witness</code> (a backtracking search for a consistent &sigma;, <code>iso_bt</code>) and remap emitted ops with <code>iso_remap_op</code>. Only optimal A* receives such maps. Flag off, every entry point is byte-identical to the strict detection.</p>",
+      "files": [
+       "crates/ferroplan/src/orbits.rs:417",
+       "crates/ferroplan/src/orbits.rs:472",
+       "crates/ferroplan/src/orbits.rs:1255",
+       "crates/ferroplan/src/orbits.rs:1405"
+      ]
+     },
+     {
+      "id": "mod-orbits-gen",
+      "title": "Generation-side stabilizers (opt-in)",
+      "kind": "concept",
+      "summary": "FF_ORBIT_GEN: skip generating an op whose state-fixing member swap maps it to an already generated sibling.",
+      "body": "<p><code>stabilizer_classes</code> computes the member classes the current state (and agenda) leaves fixed; <code>gen_key</code> maps an op to a class representative so siblings are generated once. Measured on TMS: 2.4&times; real evals at equal budget and duplicates 81% &rarr; 53%, but zero new solves, and the per-expansion stabilizer scan cost match-cellar 9 instances, so the 0.15 referee made it opt-in (book <code>tuning.md</code>).</p>",
+      "files": [
+       "crates/ferroplan/src/orbits.rs:1521",
+       "crates/ferroplan/src/orbits.rs:1553",
+       "crates/ferroplan/src/orbits.rs:1573"
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-search",
+      "label": "dedup"
+     },
+     {
+      "to": "mod-optimal",
+      "label": "dedup"
+     },
+     {
+      "to": "mod-temporal",
+      "label": "dedup"
+     }
+    ]
+   },
+   {
+    "id": "mod-sat",
+    "title": "SAT planning (sat.rs)",
+    "kind": "module",
+    "summary": "The planner-side SAT wing: bounded-layer ∃-step encoding of the grounded task over the in-tree CDCL solver, with a horizon ramp and a temporal CEGAR face.",
+    "body": "<p>0.24 Phases 2 and 3. This file is the encoder, ramp, decoder and STN teacher; the solver is the separate <code>ferroplan-sat</code> crate (<code>Solver</code>, <code>Lit</code>, <code>ExtendFormula</code>). Every plan is replay-verified; every non-plan outcome carries an honest note (declined, no plan within horizon H, or bounded-horizon UNSAT).</p>",
+    "files": [
+     "crates/ferroplan/src/sat.rs:1",
+     "crates/ferroplan/src/sat.rs:145"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "1,669"
+     ],
+     [
+      "Mode",
+      "<code>Mode::Sat</code>"
+     ]
+    ],
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-sat-encoding",
+      "title": "∃-step encoding",
+      "kind": "concept",
+      "summary": "Each layer is a set of ops serializable in ascending op id; Rintanen-style disabling chains, effect and explanatory frame clauses.",
+      "body": "<p><code>EncTask::build</code> lays out fact variables per layer, op variables per layer and chain variables. Clauses: op &rArr; preconditions at layer entry; a per-fact linear accumulator over that fact's deleters in chain order, forbidding a member after an earlier member deleted its precondition; effect clauses pinning the exit state to the union of effects (an add/delete conflict on one fact is unsatisfiable); explanatory frames, so an empty layer copies its state and no noop ops are needed. Mutex groups from <code>invariants.rs</code> seed extra clauses. <code>drop_twin_ops</code> removes content-identical ops; <code>encodability</code> declines numeric, conditional effects, TILs and constraints with a named reason.</p><p>This is deliberately the incomplete-per-layer fragment of &exist;-step (preconditions anchored at layer entry): it only prunes packings, never plans, since any plan fits one op per layer.</p>",
+      "files": [
+       "crates/ferroplan/src/sat.rs:1",
+       "crates/ferroplan/src/sat.rs:184",
+       "crates/ferroplan/src/sat.rs:227",
+       "crates/ferroplan/src/sat.rs:254",
+       "crates/ferroplan/src/sat.rs:500"
+      ],
+      "links": [
+       {
+        "to": "mod-invariants",
+        "label": "mutex groups"
+       },
+       {
+        "to": "crate-ferroplan-sat",
+        "label": "CDCL solver"
+       }
+      ]
+     },
+     {
+      "id": "mod-sat-ramp",
+      "title": "Horizon ramp and self-pricing",
+      "kind": "process",
+      "summary": "Horizons 1, 2, 4 ... ≤ 128; each priced before encoding; ramp on UNSAT or budget trip; wall and conflict-rate bails.",
+      "body": "<p><code>ramp</code> doubles <code>h</code> up to <code>SatCfg::max_horizon</code> (128). Before encoding, <code>price(h)</code> gives exact clause and literal counts; over <code>price_cap</code> (default 50M vars + literals, tightened by the remaining wall) it declines with a note rather than hang. <code>solve_horizon</code> spends <code>conflicts_per_horizon</code> (200,000) in 4,096-conflict slices so the wall check stays live, and bails if the conflict rate cannot finish the budget inside the slice. It ramps on budget exhaustion as well as UNSAT (avoiding the classic SATPLAN wait for UNSAT proofs at pre-goal horizons). Honesty rule: a trip is \"no plan within horizon H\", never \"unsolvable\". Knobs: <code>FF_SAT_HORIZON</code>, <code>FF_SAT_CONFLICTS</code>, <code>FF_SAT_CAP</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/sat.rs:824",
+       "crates/ferroplan/src/sat.rs:738",
+       "crates/ferroplan/src/sat.rs:699",
+       "crates/ferroplan/src/sat.rs:95"
+      ],
+      "facts": [
+       [
+        "max_horizon",
+        "128"
+       ],
+       [
+        "conflicts/horizon",
+        "200,000"
+       ],
+       [
+        "cap",
+        "50M"
+       ]
+      ]
+     },
+     {
+      "id": "mod-sat-decode",
+      "title": "Decode and replay",
+      "kind": "concept",
+      "summary": "Layers in order, ops in chain order, each replayed through PackedTask::apply with an applicability check; a miss is refused.",
+      "body": "<p><code>decode</code> reads op variables per layer; <code>replay</code> executes the serialization from the initial state, checking applicability at every step and the goal at the end. Every emitted plan carries its own serialization proof; a replay failure is treated as an encoder bug (<code>debug_assert</code>, refused in release), never shipped.</p>",
+      "files": [
+       "crates/ferroplan/src/sat.rs:632",
+       "crates/ferroplan/src/sat.rs:653",
+       "crates/ferroplan/src/sat.rs:937"
+      ]
+     },
+     {
+      "id": "mod-sat-temporal",
+      "title": "Temporal face: STN-taught CEGAR",
+      "kind": "concept",
+      "summary": "Snap start/end events as layered actions, pairing clauses via RUNNING tokens, Bellman-Ford STN; negative cycles become refutation clauses.",
+      "body": "<p>Durations never enter the CNF. Snap tokens pair starts with ends; clauses forbid self-overlap, require all tokens false at the end, and enforce over-all invariants from the <code>InvMap</code>. The decoded event order goes to <code>stn_schedule</code> (longest-path Bellman-Ford). A positive cycle yields a pairing-guarded refutation clause (<code>core_clause</code>), re-solved inside the same horizon, at most <code>MAX_REFUTATIONS_PER_HORIZON</code> = 100. Reduced cores generalize across layer shifts and later horizons (0.25). Feasible schedules go through <code>temporal::emit_scheduled</code> and are validated against the original problem. Temporal auto arms it as a rung per <code>temporal::solve</code>'s policy (<code>FF_NO_SAT</code> restores).</p>",
+      "files": [
+       "crates/ferroplan/src/sat.rs:1010",
+       "crates/ferroplan/src/sat.rs:1046",
+       "crates/ferroplan/src/sat.rs:1090",
+       "crates/ferroplan/src/sat.rs:1311",
+       "crates/ferroplan/src/temporal.rs:958"
+      ],
+      "links": [
+       {
+        "to": "mod-temporal",
+        "label": "rung on the temporal ladder"
+       }
+      ]
+     },
+     {
+      "id": "mod-sat-routing",
+      "title": "When SAT runs",
+      "kind": "concept",
+      "summary": "Classical: --mode sat, or auto under the FF_SAT_CLASSICAL smoke opt-in. Temporal: a rung on the temporal ladder.",
+      "body": "<p><code>api::solve_sat</code> grounds, synthesizes mutex groups and calls <code>solve_classical</code> (or <code>solve_temporal</code>). In classical auto, SAT is reached only under <code>FF_SAT_CLASSICAL</code>, falling back to the classic path when SAT declines. It is not on the classical ladder. Useful where the plan is short and parallel but heuristic search plateaus (puzzle shapes).</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:713",
+       "crates/ferroplan/src/api.rs:638"
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "solve_sat"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "crate-ferroplan-sat",
+      "label": "solves CNF with"
+     }
+    ]
+   },
+   {
+    "id": "mod-selection",
+    "title": "Preference selection (selection.rs)",
+    "kind": "module",
+    "summary": "Exact preference-subset selection for PDDL3 metrics: a small DFS branch-and-bound picks which preferences to target, then the planner plans to that target.",
+    "body": "<p><strong>Why.</strong> On zero-action-cost preference domains the score is decided by <em>which</em> jointly satisfiable preference subset the end state lands in; h-guided search cannot coordinate that (tpp p05: SGPlan5's score is the closed-form optimum of the selection; <code>docs/forensics-tpp.md</code>).</p><p><strong>Model.</strong> One variable per invariant mutex group touched by a preference disjunct (domain = member facts in some disjunct plus &perp;), one boolean per ungrouped disjunct fact. A preference is satisfied iff some DNF disjunct (its <code>P3COLLECT</code> op's non-P3 precondition facts) is fully chosen. <code>select</code> minimizes violated weight by DFS branch-and-bound: variables by descending touched weight, values by descending immediately satisfied weight, prune on violated-so-far &ge; best, deterministic <code>NODE_CAP</code> = 200,000 keeping the best found.</p><p><strong>Bound.</strong> The returned <code>bound</code> is admissible-optimistic (it ignores joint resource caps), so final metric = bound proves optimality. Caller: <code>pddl3.rs</code> (the closure optimizer), which plans the chosen facts as a hard target. <code>FF_PREF_NO_SELECT=1</code> disables. It ties SGPlan5 on tpp p06 (book).</p>",
+    "files": [
+     "crates/ferroplan/src/selection.rs:1",
+     "crates/ferroplan/src/selection.rs:36",
+     "crates/ferroplan/src/selection.rs:67",
+     "crates/ferroplan/src/selection.rs:74",
+     "crates/ferroplan/src/pddl3.rs:2908"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "388"
+     ],
+     [
+      "NODE_CAP",
+      "200,000"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-pddl3",
+      "label": "called by"
+     },
+     {
+      "to": "mod-invariants",
+      "label": "mutex groups"
+     }
+    ]
+   },
+   {
+    "id": "mod-portfolio",
+    "title": "Portfolio (portfolio.rs)",
+    "kind": "module",
+    "summary": "Mode::Portfolio: four complementary classical configs under one deterministic evaluation pool; ladder first, then doubling slices.",
+    "body": "<p>A sequential portfolio (ferroplan-roadmap Phase 6). Not to be confused with the ladder: the ladder is the default route and spends <em>wall</em> through slices; the portfolio is opt-in and spends <em>evaluations</em>, so its schedule is reproducible on any machine. <code>docs/roadmap-0.31.md</code> cites it as the existing \"evaluation-budget portfolio\" that its per-rung matrix will measure alongside the ladder rungs (<code>FF_RUNG_ONLY=portfolio</code>, planned).</p>",
+    "files": [
+     "crates/ferroplan/src/portfolio.rs:1",
+     "crates/ferroplan/src/portfolio.rs:43"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "166"
+     ],
+     [
+      "Budget",
+      "eval pool (cfg.max_eval)"
+     ]
+    ],
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-portfolio-phase-a",
+      "title": "Phase A: ladder on the full pool",
+      "kind": "process",
+      "summary": "Member 'ladder' (plan with EHC) runs to its natural end on the whole eval budget first.",
+      "body": "<p>The settled Phase 6 verdict: the pure doubling schedule preempted the ladder and net-lost 11 corpus instances (sokoban &minus;7, visit-all &minus;4), gaining +2. Running the ladder first on the full pool makes portfolio coverage &ge; default by construction. If it returns a plan, the note reads <code>portfolio: solved by member `ladder`</code>. <code>FF_PORTFOLIO_SLICED=1</code> skips this phase.</p>",
+      "files": [
+       "crates/ferroplan/src/portfolio.rs:59"
+      ],
+      "links": [
+       {
+        "to": "mod-search-ladder",
+        "label": "member 0"
+       }
+      ]
+     },
+     {
+      "id": "mod-portfolio-rounds",
+      "title": "Doubling rounds over what is left",
+      "kind": "process",
+      "summary": "Slices start at 50,000 evals and double each round; members run in fixed order ladder, lama, bfs-w3, bfs-w1.",
+      "body": "<p>Each round, every alive member gets <code>min(SLICE0 &lt;&lt; round, pool)</code> evaluations. The pool is charged by each member's actual count (at least 1), so the schedule is in evaluated states, never wall clock &mdash; machine and thread independent. Members: <code>ladder</code> (EHC &rarr; LAMA &rarr; best-first), <code>lama</code> alone (plateau domains), <code>bfs-w3</code> (weighted best-first at w_h = 3, no EHC detour), <code>bfs-w1</code> (near-uniform).</p>",
+      "files": [
+       "crates/ferroplan/src/portfolio.rs:34",
+       "crates/ferroplan/src/portfolio.rs:73",
+       "crates/ferroplan/src/portfolio.rs:118"
+      ],
+      "facts": [
+       [
+        "SLICE0",
+        "50,000 evals"
+       ],
+       [
+        "Members",
+        "4, fixed order"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-lama",
+        "label": "member 1"
+       },
+       {
+        "to": "mod-search-bestfirst",
+        "label": "members 2 and 3"
+       }
+      ]
+     },
+     {
+      "id": "mod-portfolio-prune",
+      "title": "Member retirement",
+      "kind": "process",
+      "summary": "A member that used less than its slice without a plan hit an internal wall (node cap, dead end) and is retired.",
+      "body": "<p>If <code>used &lt; budget</code> the member stopped for a reason a bigger slice cannot fix, so <code>alive[m] = false</code>. The LAMA member does not report evals on failure and is charged its whole slice. The loop ends when the pool is empty or no member is alive.</p>",
+      "files": [
+       "crates/ferroplan/src/portfolio.rs:104"
+      ]
+     },
+     {
+      "id": "mod-portfolio-settle",
+      "title": "Settle: plan or proof",
+      "kind": "process",
+      "summary": "First plan wins; an un-capped exhaustion by a complete bfs member proves the task unsolvable and ends the schedule.",
+      "body": "<p>Coverage first: the first plan any member finds is returned with the winner's name; cost and length polishing then run downstream on it as for any single config. A bfs member returning <code>Unsolvable { capped: false }</code> exhausted the space under no bound, so the whole task is settled unsolvable. The ladder member never claims a proof through the wrapper. Measured (STATUS.md, 580 IPC-2008/2011 instances at 60 s): extrapolated ~428 against the default's 427 after Phase A; it stays opt-in as <code>--mode portfolio</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/portfolio.rs:90",
+       "crates/ferroplan/src/portfolio.rs:118",
+       "crates/ferroplan/src/api.rs:1199"
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-api",
+      "label": "Mode::Portfolio"
+     },
+     {
+      "to": "mod-search-ladder",
+      "label": "member 'ladder'"
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "to": "sec-heuristics",
+    "label": "uses"
+   }
+  ]
+ }
+]

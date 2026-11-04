@@ -1,0 +1,1361 @@
+[
+ {
+  "id": "sec-frontends",
+  "title": "Front doors",
+  "kind": "section",
+  "summary": "Every way into the planner: the Rust library, the ff CLI, an MCP server for agents, Python and WASM bindings, a Bevy GUI, and a Claude skill. All are thin; all end in the same few library calls.",
+  "body": "<p>ferroplan has one engine and seven ways in. The library crate exposes <code>solve</code>, <code>parse</code>, <code>decompose</code>, <code>validate_plan</code>, <code>trace</code>, the classic-text <code>run_ff</code>/<code>run_planner</code>, and the stateful <code>Session</code>. Every other crate in this section is a translation layer: it turns its own input convention (argv, JSON-RPC, Python args, JS values, Bevy keypresses) into an <code>Options</code> plus two PDDL strings, calls the library, and serializes the <code>Solution</code> it gets back, usually as the same JSON.</p><p>Two design choices recur. First, <strong>JSON as the lingua franca</strong>: CLI <code>--json</code>, MCP, Python and WASM all emit the serde form of <code>Solution</code>, so tooling written against one works against all. Second, <strong>keep the search off the UI thread</strong>: MCP uses <code>spawn_blocking</code>, the web demo a Web Worker, the GUI Bevy's async task pool.</p>",
+  "files": [
+   "crates/ferroplan/src/lib.rs:96"
+  ],
+  "facts": [
+   [
+    "Crates",
+    "cli, mcp, py, wasm, bevy"
+   ],
+   [
+    "Shared payload",
+    "Solution JSON"
+   ]
+  ],
+  "layout": "grid",
+  "children": [
+   {
+    "id": "fe-library",
+    "title": "Rust library API",
+    "kind": "frontend",
+    "summary": "The crate's public surface: solve, parse, decompose, validate_plan, trace, run_ff/run_planner and Session. Every other front door is a thin wrapper over these.",
+    "body": "<p>Every front door in this section ends at a handful of functions re-exported from <code>crates/ferroplan/src/lib.rs</code>. The library <em>is</em> the product; the CLI, MCP server, Python wheel, WASM module and Bevy GUI only translate their own input conventions into an <code>Options</code> struct and a pair of PDDL source strings, then serialize what comes back.</p><ul><li><code>solve(domain, problem, &amp;Options) -&gt; Result&lt;Solution, SolveError&gt;</code> (api.rs:597): parse, ground, route by <code>Mode</code> (Auto picks temporal for durative domains, PDDL3 for preferences, else classical FF) and return a typed, serde-serializable <code>Solution { solved, mode, plan, statistics, notes }</code>.</li><li><code>parse(src) -&gt; ParseReport</code> (api.rs:341): syntax-check a domain or problem without grounding. Used by the MCP <code>parse</code> tool.</li><li><code>decompose(...)</code> (api.rs:952): split a too-big temporal goal into ordered contracts and stitch them.</li><li><code>plan::validate_plan</code> (plan.rs:125): replay a plan under ferroplan's own semantics.</li><li><code>run_ff</code> / <code>run_planner</code> (planner.rs:700, :15): the classic-text renderers that return <code>(String, exit_code)</code>, kept so <code>ff</code> stays a Metric-FF drop-in.</li><li><code>trace(domain, problem, &amp;steps)</code> (trace.rs:26): replay a plan into per-step <code>StateSnapshot</code>s; the GUI animator's input.</li><li><code>Session</code>, <code>Think</code>, <code>ThinkBudget</code>, <code>ThinkVerdict</code> (lib.rs:101): the ground-once embedding API (next section).</li></ul><p>The <code>schema</code> cargo feature gives <code>Options</code>/<code>Mode</code>/<code>Search</code> a <code>JsonSchema</code> derive; the MCP server turns it on so tool inputs advertise real knobs.</p>",
+    "files": [
+     "crates/ferroplan/src/lib.rs:96",
+     "crates/ferroplan/src/api.rs:597",
+     "crates/ferroplan/src/api.rs:341",
+     "crates/ferroplan/src/api.rs:952",
+     "crates/ferroplan/src/planner.rs:700",
+     "crates/ferroplan/src/trace.rs:26"
+    ],
+    "facts": [
+     [
+      "Entry point",
+      "<code>ferroplan::solve</code>"
+     ],
+     [
+      "Book chapter",
+      "book/src/library.md"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-api",
+      "label": "owned by"
+     },
+     {
+      "to": "mod-planner",
+      "label": "run_ff / run_planner"
+     },
+     {
+      "to": "mod-session",
+      "label": "Session"
+     },
+     {
+      "to": "mod-plan",
+      "label": "validate_plan"
+     },
+     {
+      "to": "mod-trace",
+      "label": "trace"
+     },
+     {
+      "to": "mod-introspect",
+      "label": "explain"
+     }
+    ]
+   },
+   {
+    "id": "fe-callpaths",
+    "title": "Call paths into the core",
+    "kind": "concept",
+    "summary": "One table: which function each front door calls, with which Options, on which thread.",
+    "body": "<table><tr><th>Front door</th><th>Call</th><th>Options it sets</th><th>Threading</th></tr><tr><td><code>ff</code> (default text)</td><td><code>run_planner</code>, or <code>run_ff</code> for <code>--mode ff</code></td><td>every CLI flag via <code>Cli::to_options</code></td><td>par pool, <code>--threads</code></td></tr><tr><td><code>ff --json</code> / <code>--json-request</code></td><td><code>solve</code></td><td>flags, or the JSON <code>options</code> object</td><td>same</td></tr><tr><td><code>ff --validate</code> / <code>--decompose</code></td><td><code>plan::validate_plan</code> / <code>decompose</code></td><td>flags</td><td>same</td></tr><tr><td>MCP <code>solve</code>, <code>decompose</code></td><td><code>solve</code>, <code>decompose</code></td><td>caller's <code>options</code> (schema-derived)</td><td><code>spawn_blocking</code></td></tr><tr><td>MCP <code>session_*</code></td><td><code>Session::new</code>, <code>set_*</code>, <code>fork</code>, <code>think</code></td><td><code>ThinkBudget</code> per replan</td><td>open + replan on <code>spawn_blocking</code></td></tr><tr><td>Python <code>ferroplan.plan</code></td><td><code>solve</code></td><td><code>mode</code>, <code>threads</code></td><td>caller's thread, GIL held</td></tr><tr><td>WASM <code>plan</code></td><td><code>solve</code> (after <code>features::set_overrides</code>)</td><td><code>mode</code>, <code>search</code>, <code>threads: 1</code></td><td>Web Worker, or main thread fallback</td></tr><tr><td>WASM <code>WasmSession</code></td><td><code>Session</code> methods; <code>think</code> calls <code>replan_budgeted</code></td><td><code>threads: 1</code></td><td>main thread</td></tr><tr><td>Bevy GUI</td><td><code>parser::parse_*</code>, <code>viz::VizGraph::build</code>, <code>solve</code>, <code>trace</code></td><td><code>Options::default()</code></td><td>Bevy <code>AsyncComputeTaskPool</code></td></tr></table><p>The pattern is the same everywhere: strings in, a serde <code>Solution</code> out. Nothing outside <code>crates/ferroplan</code> touches grounding or search internals. The GUI is the one exception that reaches deeper, into the parser's <code>types::Domain</code> AST, because its block editor edits that AST directly.</p>",
+    "links": [
+     {
+      "to": "fe-library",
+      "label": "all roads end in"
+     },
+     {
+      "to": "mod-session",
+      "label": "stateful path"
+     }
+    ]
+   },
+   {
+    "id": "crate-ferroplan-cli",
+    "title": "ff CLI (ferroplan-cli)",
+    "kind": "crate",
+    "summary": "The `ff` binary: a Metric-FF drop-in (`ff -o domain -f problem`) plus JSON, validate and decompose modes. 302 lines, all translation.",
+    "body": "<p>A 302-line crate whose job is to make ferroplan a drop-in for Metric-FF's command line while exposing the library's extras. It parses flags with clap, builds an <code>Options</code>, and calls exactly one of five library entry points depending on flags. It owns no planning logic.</p><p>Call path: <code>main</code> &rarr; <code>Cli::to_options</code> &rarr; <code>run_planner</code> | <code>run_ff</code> | <code>solve</code> | <code>decompose</code> | <code>plan::validate_plan</code> &rarr; print. Build with <code>cargo build --release -p ferroplan-cli</code>; binary is <code>target/release/ff</code>.</p>",
+    "files": [
+     "crates/ferroplan-cli/src/main.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "302"
+     ],
+     [
+      "Binary",
+      "<code>ff</code>"
+     ],
+     [
+      "Deps",
+      "clap, serde_json, anyhow"
+     ]
+    ],
+    "layout": "flow",
+    "children": [
+     {
+      "id": "crate-ferroplan-cli-flags",
+      "title": "Flags to Options",
+      "kind": "module",
+      "summary": "clap derive struct Cli; to_options() maps flags 1:1 onto ferroplan::Options. The per-call wall/cancel fields are deliberately left None.",
+      "body": "<p><code>struct Cli</code> (main.rs:81) is a clap derive. The Metric-FF-compatible core is <code>-o/--domain</code> and <code>-f/--problem</code>; everything else is a ferroplan extension: <code>--json</code>, <code>--json-request FILE|-</code>, <code>--mode</code> (auto, ff, partition, pddl3, temporal, portfolio, optimal, sat), <code>--search</code> (auto, ehc, best-first, ehc-then-best-first), <code>--no-helpful</code>, <code>--weight-g</code> (default 1.0), <code>--weight-h</code> (default 5.0), <code>--max-evaluated</code>, <code>--satisfice</code>, <code>--threads</code> (0 = auto), <code>--ipc</code>, <code>--validate PLAN</code>, <code>--decompose</code>.</p><p><code>Cli::to_options</code> (main.rs:146) builds an <code>Options</code> literal: <code>helpful_actions = !no_helpful</code>, <code>optimize = !satisfice</code>. Two fields stay <code>None</code> on purpose: <code>wall_ms</code> and <code>should_continue</code>. The comment explains why: <code>ff</code> is one process running one call, which is the shape the process-wide <code>FF_TIME_LIMIT</code> env var already fits. The per-call budget exists for long-lived hosts that solve on many threads and need to bound or withdraw one of them.</p><p><code>ModeArg</code> and <code>SearchArg</code> are local <code>ValueEnum</code>s with <code>From</code> impls into the library's <code>Mode</code> and <code>Search</code>, so the CLI's spelling (kebab-case) is decoupled from the library enum.</p>",
+      "files": [
+       "crates/ferroplan-cli/src/main.rs:81",
+       "crates/ferroplan-cli/src/main.rs:146"
+      ],
+      "facts": [
+       [
+        "Default weights",
+        "g=1.0, h=5.0"
+       ],
+       [
+        "Modes",
+        "8 incl. optimal, sat"
+       ]
+      ]
+     },
+     {
+      "id": "crate-ferroplan-cli-dispatch",
+      "title": "main(): dispatch order",
+      "kind": "process",
+      "summary": "main() checks, in order: --json-request, then -o/-f with --validate, --decompose, --json, else classic text via run_planner / run_ff.",
+      "body": "<p><code>main</code> (main.rs:238) is a short priority chain:</p><ol><li><strong>JSON job.</strong> <code>--json-request</code> reads a <code>JobRequest { domain, problem, options }</code> (PDDL as strings, options any subset thanks to serde defaults) from a file or stdin, calls <code>ferroplan::solve</code>, prints pretty JSON, exits 0 if solved else 1.</li><li><strong>Files.</strong> Otherwise both <code>-o</code> and <code>-f</code> are required.</li><li><strong>Validate.</strong> <code>--validate</code> calls <code>plan::validate_plan</code> and prints <code>Plan valid</code> / <code>Plan invalid: reason</code> (exit 0/1). No solving.</li><li><strong>Decompose.</strong> <code>--decompose</code> calls <code>ferroplan::decompose</code> and prints either JSON or <code>render_decomposition</code>'s human view: each contract's goal, offset, timed steps and makespan, then the stitched plan.</li><li><strong>JSON solve.</strong> <code>--json</code> calls <code>solve</code>.</li><li><strong>Classic text.</strong> <code>--mode ff</code> goes to <code>run_ff</code> (plain FF best-first, the engine mode); every other mode goes to <code>run_planner</code>, the SGPlan-style partition-and-resolve meta-planner that also handles routing to PDDL3, temporal and SAT text output.</li></ol><p>The text paths do not go through <code>solve</code>: they return <code>(String, i32)</code> already formatted, which is how the exit-code and message contract of Metric-FF is preserved byte for byte for the differential test harness.</p>",
+      "files": [
+       "crates/ferroplan-cli/src/main.rs:238",
+       "crates/ferroplan-cli/src/main.rs:297"
+      ],
+      "links": [
+       {
+        "to": "mod-planner",
+        "label": "classic text"
+       },
+       {
+        "to": "mod-api",
+        "label": "--json"
+       },
+       {
+        "to": "mod-plan",
+        "label": "--validate"
+       },
+       {
+        "to": "mod-tresolve",
+        "label": "--decompose"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-cli-output",
+      "title": "Output: FF text, IPC, JSON",
+      "kind": "data",
+      "summary": "Three output shapes: Metric-FF classic text (default), IPC time-stamped (--ipc), and the structured Solution JSON.",
+      "body": "<p><strong>Classic FF text</strong> mimics Metric-FF: progress lines like <code>ff: parsing domain file</code>, then <code>step N: ACTION ARGS</code> lines. Action names come out upper-cased (<code>PICK R1 B1</code>) because the grounder interns upper-case displays; the authoring skill warns about this. Exit code follows Metric-FF's contract, so scripts written for <code>ff</code> keep working.</p><p><strong>IPC</strong> (<code>--ipc</code>, text mode only) renders the time-stamped form <code>t: (action args) [dur]</code> that IPC validators and VAL read.</p><p><strong>JSON</strong> (<code>--json</code> or <code>--json-request</code>) prints the library's <code>Solution</code> directly: <code>plan.steps[]</code> with <code>index</code>, <code>action</code>, <code>args</code>, optional <code>time</code>/<code>duration</code>, plus <code>metric</code>, <code>makespan</code>, <code>statistics</code> and free-form <code>notes</code> (e.g. why EHC fell back). This is the same JSON the MCP <code>solve</code> tool, the Python <code>plan()</code> and the WASM <code>plan()</code> return, so one parser handles every front door.</p>",
+      "files": [
+       "crates/ferroplan-cli/src/main.rs:289"
+      ],
+      "links": [
+       {
+        "to": "mod-output",
+        "label": "renders"
+       },
+       {
+        "to": "mod-report",
+        "label": "statistics"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "fe-library",
+      "label": "calls"
+     }
+    ]
+   },
+   {
+    "id": "crate-ferroplan-mcp",
+    "title": "MCP server (ferroplan-mcp)",
+    "kind": "crate",
+    "summary": "A Model Context Protocol server over stdio exposing four one-shot planning tools and a ten-tool stateful Session surface to an LLM agent.",
+    "body": "<p>The MCP server makes the project's thesis operational: the agent writes and supervises PDDL, the planner runs deterministically. It has two shapes. <strong>One-shot</strong>: <code>solve</code>, <code>parse</code>, <code>validate</code>, <code>decompose</code>, each taking the PDDL it needs. <strong>Stateful</strong>: <code>session_*</code>, which grounds a world once and then takes incremental updates and rethinks, the shape a running simulation actually has. <code>session_fork</code> gives each actor its own mind over one shared grounded world.</p><p>Call path: agent JSON-RPC &rarr; rmcp router &rarr; <code>Ferroplan::&lt;tool&gt;</code> &rarr; <code>ferroplan::solve</code> / <code>Session</code> method (on <code>spawn_blocking</code> when it grounds or searches) &rarr; pretty JSON text block.</p>",
+    "files": [
+     "crates/ferroplan-mcp/src/server.rs:1",
+     "crates/ferroplan-mcp/src/main.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "655 (server.rs)"
+     ],
+     [
+      "Runtime",
+      "tokio"
+     ],
+     [
+      "Feature",
+      "ferroplan/schema"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "crate-ferroplan-mcp-transport",
+      "title": "rmcp over stdio",
+      "kind": "module",
+      "summary": "Built on rmcp, the official MCP Rust SDK. Tool schemas are derived from parameter types; stdout is the protocol, so diagnostics go to stderr.",
+      "body": "<p><code>main.rs</code> is 33 lines: <code>server::Ferroplan::new().serve(stdio()).await</code> on a tokio runtime. All protocol details (framing, capability negotiation, tool listing, error conventions) come from <code>rmcp</code> via the <code>#[tool_router]</code>, <code>#[tool]</code> and <code>#[tool_handler]</code> macros rather than a hand-rolled loop.</p><p>Tool input schemas are derived with <code>schemars::JsonSchema</code> on structs like <code>SolveArgs { domain, problem, options: Option&lt;Options&gt; }</code>. That is why the crate depends on ferroplan with <code>features = [\"schema\"]</code>: the agent sees <code>Options</code>' actual fields, not an opaque object.</p><p>Errors are split deliberately. A request that routed fine but could not be done (bad PDDL, unknown session) returns <code>CallToolResult::error</code>, visible to the agent so it can fix its input. Only internal failures (a panicked blocking task) become protocol <code>ErrorData</code>. Results are pretty JSON in a text block, kept identical to the pre-rmcp server so older prompts still parse.</p><p>The <code>#[tool_handler]</code> <code>instructions</code> string tells the agent the two usage shapes: one-shot <code>solve</code>, or <code>session_open</code> then a tell/replan loop.</p>",
+      "files": [
+       "crates/ferroplan-mcp/src/main.rs:27",
+       "crates/ferroplan-mcp/src/server.rs:645",
+       "crates/ferroplan-mcp/Cargo.toml:27"
+      ],
+      "facts": [
+       [
+        "SDK",
+        "rmcp"
+       ],
+       [
+        "Transport",
+        "stdio"
+       ]
+      ]
+     },
+     {
+      "id": "crate-ferroplan-mcp-stateless",
+      "title": "Stateless tools (solve, parse, ...)",
+      "kind": "tool",
+      "summary": "Four one-shot tools, each taking the PDDL it needs. solve and decompose run on spawn_blocking; parse and validate are synchronous.",
+      "body": "<ul><li><code>solve</code> (server.rs:228): <code>SolveArgs</code> &rarr; <code>ferroplan::solve</code> inside <code>tokio::task::spawn_blocking</code>. A <code>solved: false</code> result is a normal answer, not an error.</li><li><code>parse</code> (:252): <code>ferroplan::parse(pddl)</code>, auto-detecting domain vs problem; returns ok/error with a line number plus name, requirements and counts, so an agent can syntax-check while authoring without paying for grounding.</li><li><code>validate</code> (:263): <code>plan::validate_plan</code>; returns <code>Plan valid</code> or <code>Plan invalid: why</code>.</li><li><code>decompose</code> (:280): <code>ferroplan::decompose</code> on a blocking thread; returns contracts and the stitched plan.</li></ul><p>These embody the README's bet: the LLM authors and supervises PDDL, the planner runs deterministically. Keeping <code>parse</code> separate from <code>solve</code> lets the agent iterate on syntax cheaply before asking for a search.</p>",
+      "files": [
+       "crates/ferroplan-mcp/src/server.rs:228",
+       "crates/ferroplan-mcp/src/server.rs:252",
+       "crates/ferroplan-mcp/src/server.rs:263",
+       "crates/ferroplan-mcp/src/server.rs:280"
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "solve / parse"
+       },
+       {
+        "to": "mod-plan",
+        "label": "validate"
+       },
+       {
+        "to": "mod-tresolve",
+        "label": "decompose"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-mcp-session",
+      "title": "Session tools (session_*)",
+      "kind": "tool",
+      "summary": "Ten tools over ferroplan::Session: open, close, list, fork, set, observe, elapse, apply_start, replan, state. The world grounds once per session_open.",
+      "body": "<p>The server keeps <code>sessions: Arc&lt;Mutex&lt;HashMap&lt;String, Session&gt;&gt;&gt;</code> and hands out ids <code>s1</code>, <code>s2</code>, ... from an <code>AtomicU64</code>. A compile-time assertion checks <code>Session: Send + Sync</code> next to the map that depends on it.</p><ul><li><code>session_open</code>: <code>Session::new</code> on <code>spawn_blocking</code> (grounding is the expensive part); returns <code>goal_met</code>, <code>world_bytes</code>, <code>mind_bytes</code>.</li><li><code>session_set</code>: facts, then fluents, then timed facts, then goal, in that order, stopping at the first rejection and reporting how many of each applied. Fences (static facts, <code>RUNNING-*</code> tokens) are refused by name.</li><li><code>session_observe</code>: <code>Session::observe</code>, returning the surprises.</li><li><code>session_elapse</code> / <code>session_apply_start</code>: the temporal clock.</li><li><code>session_fork</code>: <code>Session::fork</code>, the many-minds primitive; reports the fork's <code>mind_bytes</code>.</li><li><code>session_replan</code>: <code>Session::think</code> with a <code>ThinkBudget</code> built from <code>max_evaluated</code>, <code>wall_ms</code>, <code>memory_mb</code>.</li><li><code>session_state</code>, <code>session_list</code>, <code>session_close</code>: read-back and housekeeping. Handles do not survive a server restart and the error says so.</li></ul>",
+      "files": [
+       "crates/ferroplan-mcp/src/server.rs:46",
+       "crates/ferroplan-mcp/src/server.rs:305",
+       "crates/ferroplan-mcp/src/server.rs:425",
+       "crates/ferroplan-mcp/src/server.rs:605"
+      ],
+      "facts": [
+       [
+        "Tools",
+        "10 session + 4 stateless"
+       ],
+       [
+        "Tests",
+        "crates/ferroplan-mcp/tests/session.rs"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-session",
+        "label": "wraps"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-mcp-concurrency",
+      "title": "Locking: fork, drop lock, think",
+      "kind": "concept",
+      "summary": "Cheap mutations run under the map lock; session_replan forks the mind under the lock, releases it, and searches on a blocking thread so one deep search never freezes other sessions.",
+      "body": "<p><code>with_session</code> (server.rs:207) takes the <code>std::sync::Mutex</code>, looks up the id, runs a closure, and releases. A poisoned mutex is recovered with <code>into_inner()</code> on the grounds that the map is still readable state. This path is used only for cheap calls: set, observe, elapse, apply_start, state.</p><p><code>session_replan</code> (:550) is the long pole and does something specific: inside one <code>spawn_blocking</code> it locks, calls <code>s.fork()</code>, and drops the guard. A second <code>spawn_blocking</code> then runs <code>mind.think(&amp;budget)</code> with no lock held. Because <code>fork</code> shares the grounded payload behind <code>Arc</code> and copies only the small per-mind state (see Session: fork), this snapshot is cheap, and a long search cannot stall the tokio runtime or every other session on the server. The lock is never held across an <code>.await</code>.</p><p>A consequence worth knowing: replan works on a snapshot, so it does not mutate the stored session. That fits the API, since <code>think</code> takes <code>&amp;self</code> anyway.</p>",
+      "files": [
+       "crates/ferroplan-mcp/src/server.rs:207",
+       "crates/ferroplan-mcp/src/server.rs:550"
+      ],
+      "links": [
+       {
+        "to": "mod-session-fork",
+        "label": "relies on cheap fork"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-mcp-stamp",
+      "title": "Budget-stamped replan on the wire",
+      "kind": "data",
+      "summary": "session_replan returns the usual Solution JSON plus four additive fields: capped, spent_ms, spent_evals, verdict.",
+      "body": "<p>Since 0.24 the replan payload is the <code>Solution</code> serialized exactly as before, with <code>capped</code>, <code>spent_ms</code>, <code>spent_evals</code> and <code>verdict</code> (<code>solved</code> | <code>capped</code> | <code>exhausted</code>, kebab-case from <code>ThinkVerdict</code>) written alongside. The stamp is additive so standing agent prompts keep parsing.</p><p>The contract for an agent: <code>capped</code> never means unsolvable. Only a classical complete search that ran out of states reads <code>exhausted</code>; temporal thinks never claim a proof. The tests <code>a_capped_think_never_reads_unsolvable_on_the_wire</code> and <code>an_orbit_aware_replan_narrates_itself</code> pin this at the protocol level.</p><p>The code comment names a seam: when the SAT mode lands for sessions, <code>mode</code> in this same payload would read <code>\"sat\"</code>, with no new tool and no new field.</p>",
+      "files": [
+       "crates/ferroplan-mcp/src/server.rs:597",
+       "crates/ferroplan-mcp/tests/session.rs:243"
+      ],
+      "links": [
+       {
+        "to": "mod-session-think-verdict",
+        "label": "serializes"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "fe-library",
+      "label": "calls"
+     },
+     {
+      "to": "mod-session",
+      "label": "stateful surface"
+     }
+    ]
+   },
+   {
+    "id": "crate-ferroplan-py",
+    "title": "Python bindings (ferroplan-py)",
+    "kind": "crate",
+    "summary": "pyo3 bindings built with maturin: one plan() call that returns Solution JSON. One-shot only; no Session in Python.",
+    "body": "<p>The smallest front door. Call path: Python <code>ferroplan.plan(d, p, mode, threads)</code> &rarr; pyo3 trampoline &rarr; <code>ferroplan_core::solve</code> on the calling thread &rarr; <code>serde_json::to_string</code> &rarr; Python <code>str</code>. The GIL is held for the whole solve (the binding does not release it), so concurrent Python threads serialize on it; ferroplan's own data-parallel pool still uses multiple cores inside the call.</p>",
+    "files": [
+     "crates/ferroplan-py/src/lib.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "64 + manifests"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "crate-ferroplan-py-api",
+      "title": "ferroplan.plan() and version()",
+      "kind": "module",
+      "summary": "Two pyfunctions. plan(domain, problem, mode=None, threads=None) returns the Solution as a JSON string, or {\"error\": ...}.",
+      "body": "<p><code>plan</code> (lib.rs:23) builds <code>Options { mode, ..Default }</code>, optionally sets <code>threads</code>, calls <code>ferroplan_core::solve</code>, and returns <code>serde_json::to_string(&amp;sol)</code>. Errors are returned as a JSON string <code>{\"error\": \"...\"}</code> rather than raised as Python exceptions, so the Python side always does <code>json.loads</code> and checks a key.</p><p><code>parse_mode</code> accepts <code>ff</code>, <code>pddl3</code>, <code>partition</code>, <code>temporal</code>; anything else (including <code>None</code>) is <code>Auto</code>. There is no Session binding in Python today: the surface is one-shot only.</p><pre>import ferroplan, json\nsol = json.loads(ferroplan.plan(domain_pddl, problem_pddl))\nprint(sol[\"solved\"], sol[\"plan\"][\"length\"])</pre><p>Returning JSON strings instead of building Python objects keeps the binding at 64 lines and makes the payload byte-identical to the CLI's <code>--json</code>, MCP and WASM outputs.</p>",
+      "files": [
+       "crates/ferroplan-py/src/lib.rs:23",
+       "crates/ferroplan-py/src/lib.rs:59"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "64"
+       ],
+       [
+        "Functions",
+        "plan, version"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "solve"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-py-build",
+      "title": "maturin build, abi3 wheel",
+      "kind": "process",
+      "summary": "Standalone workspace built by maturin, not cargo; abi3-py38 gives one wheel for Python 3.8+. The core crate is aliased ferroplan_core to free the name ferroplan for the module.",
+      "body": "<p><code>crates/ferroplan-py/Cargo.toml</code> declares its own empty <code>[workspace]</code> and the root workspace lists it under <code>exclude</code>. The reason is in the comment: pyo3's <code>extension-module</code> feature does not link libpython, so a plain <code>cargo build</code> of the workspace would fail to link. maturin (<code>maturin develop</code> / <code>maturin build --release</code>, configured in <code>pyproject.toml</code>) is the build tool.</p><p>The cdylib is named <code>ferroplan</code> so Python imports <code>ferroplan</code>; to avoid a crate-name clash the planner is depended on as <code>ferroplan_core = { package = \"ferroplan\", path = \"../ferroplan\" }</code>. pyo3 0.29 with <code>abi3-py38</code> targets Python's stable ABI, so one wheel serves 3.8 onward (3.14 with <code>PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1</code>).</p><p>Release coupling: CLAUDE.md's pre-flight lists \"ferroplan-py version + re-lock\" and the maturin wheel build, because this crate's version (0.30.0) is pinned by hand and its lockfile is separate from the workspace's.</p>",
+      "files": [
+       "crates/ferroplan-py/Cargo.toml:1",
+       "crates/ferroplan-py/pyproject.toml:1",
+       "Cargo.toml:18"
+      ],
+      "facts": [
+       [
+        "Version",
+        "0.30.0"
+       ],
+       [
+        "pyo3",
+        "0.29, abi3-py38"
+       ]
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "fe-library",
+      "label": "calls"
+     }
+    ]
+   },
+   {
+    "id": "crate-ferroplan-wasm",
+    "title": "WASM bindings (ferroplan-wasm)",
+    "kind": "crate",
+    "summary": "wasm-bindgen bindings that run the planner in the browser: one-shot plan()/explain() and a WasmSession class, plus the web/ demo that uses them.",
+    "body": "<p>Call paths: Solver page &rarr; <code>worker.js</code> &rarr; <code>plan()</code> &rarr; <code>features::set_overrides</code> + <code>ferroplan::solve</code> (threads=1) &rarr; JSON string. Live pages &rarr; <code>new WasmSession</code> &rarr; <code>Session::new</code>, then per tick <code>fork</code> / <code>think</code> (&rarr; <code>replan_budgeted</code>) / <code>valid</code> (&rarr; <code>plan_still_valid</code>) / <code>apply_start</code> / <code>elapse</code>.</p><p>The crate type is <code>[\"cdylib\", \"rlib\"]</code>; the rlib lets <code>smoke.js</code> and Rust tests exercise the same code.</p>",
+    "files": [
+     "crates/ferroplan-wasm/src/lib.rs:1",
+     "crates/ferroplan-wasm/Cargo.toml:10"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "323 (lib.rs)"
+     ],
+     [
+      "wasm-bindgen",
+      "=0.2.126"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "crate-ferroplan-wasm-bindings",
+      "title": "plan(), explain(), version()",
+      "kind": "module",
+      "summary": "wasm_bindgen exports: plan() solves with threads=1 and per-call feature flags; explain() returns plan introspection JSON.",
+      "body": "<p><code>plan(domain, problem, mode, flags, search)</code> (lib.rs:27) always sets <code>threads: 1</code>. WASM has no threads here, and the library's data-parallel map falls back to a sequential pass that produces an identical result, so determinism carries over to the browser.</p><p><code>flags</code> is a comma list of the planner's env-gated switches (<code>tdemand</code>, <code>tdecomp</code>, <code>tconc</code>). In native builds those are env vars; on wasm reading env vars panics, so <code>apply_flags</code> (:52) calls <code>ferroplan::features::set_overrides(tdemand, tdecomp, tconc)</code>, an in-process override, and resets the whole managed set every call so one pick cannot leak into the next solve.</p><p><code>explain(domain, problem, plan_json)</code> (:78) deserializes a <code>Plan</code> and calls <code>introspect::explain</code>: causal links for classical plans, invariant spans for temporal ones, preference breakdown for PDDL3. The demo shows it as an Explain panel under the plan.</p><p>Build (<code>build.sh</code>): <code>cargo build -p ferroplan-wasm --release --target wasm32-unknown-unknown</code>, then <code>wasm-bindgen --target web --out-dir web/pkg</code>. The <code>wasm-bindgen</code> crate is pinned <code>=0.2.126</code> to match the installed CLI exactly.</p>",
+      "files": [
+       "crates/ferroplan-wasm/src/lib.rs:27",
+       "crates/ferroplan-wasm/src/lib.rs:52",
+       "crates/ferroplan-wasm/src/lib.rs:78",
+       "crates/ferroplan-wasm/build.sh:1",
+       "crates/ferroplan/src/features.rs:30"
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "solve"
+       },
+       {
+        "to": "mod-introspect",
+        "label": "explain"
+       },
+       {
+        "to": "mod-features",
+        "label": "set_overrides"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-wasm-session",
+      "title": "WasmSession: minds in the browser",
+      "kind": "module",
+      "summary": "A wasm_bindgen struct wrapping ferroplan::Session plus the mind's current plan and cursor, so the JS tick loop mirrors the native bazaar_live / village_live examples.",
+      "body": "<p><code>WasmSession { inner: Session, plan: Option&lt;Plan&gt;, cursor }</code> (lib.rs:123). The constructor grounds with <code>threads: 1</code> and installs a panic hook that forwards to <code>console.error</code>. Methods map onto Session nearly 1:1: <code>fork</code>, <code>set_goal</code>, <code>set_fact</code>, <code>set_fluent</code>, <code>set_timed_fact</code>, <code>observe</code> (JSON in, surprises out), <code>apply_start</code>, <code>elapse</code>, <code>goal_met</code>, <code>fact</code>, <code>fluent</code>, <code>world_bytes</code>, <code>mind_bytes</code>.</p><p>Additions that live only here:</p><ul><li><code>think(evals, mem_mb)</code> calls <code>replan_budgeted</code> (not the stamped <code>think</code>), stores the plan, resets the cursor and returns the Solution JSON.</li><li><code>valid()</code> is <code>plan_still_valid(plan, cursor)</code>, the free suffix replay; <code>step_json</code>, <code>suffix_json</code>, <code>advance</code>, <code>drop_plan</code> walk the stored plan.</li><li><code>restrict_prefix_claims(prefix, claimed)</code>: the bazaar's actor scoping (<code>\"TRADE ALICE \"</code>) plus the claims policy, masking any op whose fifth token, the item received, is claimed by a rival.</li><li><code>restrict_contains(filter)</code>: the village's scoping (<code>\" BOB\"</code>).</li><li><code>plan_valid_json(plan, from)</code>: validity of an arbitrary plan against this session, used by the village's probe pattern (fork the world, set the worker's contract, ask).</li></ul>",
+      "files": [
+       "crates/ferroplan-wasm/src/lib.rs:123",
+       "crates/ferroplan-wasm/src/lib.rs:171",
+       "crates/ferroplan-wasm/src/lib.rs:188",
+       "crates/ferroplan-wasm/src/lib.rs:299"
+      ],
+      "links": [
+       {
+        "to": "mod-session",
+        "label": "wraps"
+       },
+       {
+        "to": "crate-ferroplan-wasm-live",
+        "label": "driven by"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-wasm-web",
+      "title": "web/ demo site",
+      "kind": "frontend",
+      "summary": "The static, server-less demo: Solver page, two live Session pages, a generated example corpus, a Web Worker and an opt-in offline service worker.",
+      "body": "<p>Everything runs client-side; nothing leaves the visitor's machine. The site is published under <code>/demo/</code> on the project's Pages site and works from a plain <code>python3 -m http.server</code> checkout too (where <code>BUILD</code> reads <code>dev</code>).</p>",
+      "files": [
+       "crates/ferroplan-wasm/web/index.html:1"
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-wasm-index",
+        "title": "Solver page + worker.js",
+        "kind": "frontend",
+        "summary": "index.html imports the wasm module, sends solves to a module Web Worker so the page never freezes, and falls back to a synchronous in-page solve when workers are unavailable.",
+        "body": "<p><code>web/index.html</code> imports <code>init, { plan, explain, version }</code> from <code>./pkg/ferroplan_wasm.js</code> and the example corpus from <code>examples.js</code>. A solve goes through <code>solveWorker</code> (index.html:398): it lazily creates <code>new Worker('./worker.js', { type: 'module' })</code> and posts <code>{ id, domain, problem, mode, flags, search }</code>.</p><p><code>worker.js</code> (18 lines) awaits <code>init()</code> once, calls <code>plan(...)</code> and posts <code>{ id, res }</code> back. Running off the main thread matters for two reasons: a heavy solve does not freeze the UI, and it can be cancelled by terminating and recreating the worker (wasm cannot be interrupted mid-call otherwise).</p><p>If the worker cannot be created (file:// origin, strict CSP) <code>makeWorker</code> marks it broken and the page calls <code>plan()</code> synchronously in the page; a \"run on\" toggle exposes this choice. After a solve the page offers Explain (calls <code>explain</code>) and Animate: it writes <code>{domain, problem, solution, mode, search, at}</code> to <code>localStorage['ferroplan.handoff']</code> and navigates to <code>../gui/index.html#animate</code>, where the Bevy GUI picks it up.</p>",
+        "files": [
+         "crates/ferroplan-wasm/web/index.html:305",
+         "crates/ferroplan-wasm/web/index.html:398",
+         "crates/ferroplan-wasm/web/index.html:527",
+         "crates/ferroplan-wasm/web/worker.js:1"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-bevy-webhandoff",
+          "label": "localStorage handoff"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-wasm-examples",
+        "title": "examples.js: the demo corpus",
+        "kind": "data",
+        "summary": "An auto-generated ES module exporting DOMAINS: each entry a key, label, note, the domain PDDL and graded problems, for the two-level picker.",
+        "body": "<p><code>examples.js</code> is generated (its first line says so) and exports <code>DOMAINS</code>, an array of objects with <code>key</code>, <code>label</code>, <code>note</code>, <code>domain</code> and a set of graded problems. It is 21 physical lines but large, because each line embeds full PDDL.</p><p>The corpus walks the feature ladder: gripper (STRIPS), fuel and travel (numeric), courier (ADL forall + when), reachable regions (derived axioms), loot (PDDL3 preferences), logistics, job shop, overlapping work (temporal), villagers, rpg-world (durative crafting and the decomposer, with notes about which in-browser flags each grade needs), log cabin and its crew/skilled-crew/forge-order variants (makespan vs crew size), elevators with action costs and net benefit (IPC-2008), barman (the LAMA rung) and bazaar-chain (the game track).</p><p>Several notes are teaching text: logistics states its border (\"only solves the single-package / single-vehicle shape\"), barman warns of roughly half a minute in the browser. <code>bazaar-live.html</code> also imports <code>DOMAINS</code> to fetch the bazaar fixture rather than duplicating it.</p>",
+        "files": [
+         "crates/ferroplan-wasm/web/examples.js:1"
+        ],
+        "facts": [
+         [
+          "Domains",
+          "18"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-wasm-sw",
+        "title": "sw.js: opt-in offline copy",
+        "kind": "module",
+        "summary": "A service worker registered only when the visitor clicks Save offline; precaches the three pages, corpus and wasm bundle, then serves stale-while-revalidate.",
+        "body": "<p>Inert until asked: the page registers <code>./sw.js</code> only from the Save offline button (index.html:637). On <code>install</code> it precaches the <code>SHELL</code> list: <code>index.html</code>, <code>examples.js</code>, <code>worker.js</code>, <code>village-live.html</code>, <code>village-data.js</code>, <code>bazaar-live.html</code>, manifest, icon, <code>pkg/ferroplan_wasm.js</code> and <code>pkg/ferroplan_wasm_bg.wasm</code>.</p><p><strong>Versioning.</strong> The cache name is <code>ferroplan-demo-</code> + <code>BUILD</code>, where <code>__BUILD_ID__</code> is replaced by the Pages workflow with the deploying commit. A new deploy installs alongside the old cache and <code>activate</code> deletes every other <code>ferroplan-demo-*</code> cache, so the offline site is always one whole build, never a mix.</p><p><strong>Fetch.</strong> Same-origin GETs only: answer from cache (with <code>ignoreSearch</code>) and refresh in the background (stale-while-revalidate); on a miss go to network; offline and uncached, a navigation falls back to <code>index.html</code>, anything else gets an honest 503. Cross-origin requests (Google Fonts) pass through untouched because opaque responses cannot be inspected.</p><p>A <code>message</code> handler answers <code>{type:'status'}</code> over a MessagePort with build id, file count and total cached bytes, which the button displays.</p>",
+        "files": [
+         "crates/ferroplan-wasm/web/sw.js:20",
+         "crates/ferroplan-wasm/web/sw.js:25",
+         "crates/ferroplan-wasm/web/sw.js:54",
+         "crates/ferroplan-wasm/web/index.html:637"
+        ],
+        "facts": [
+         [
+          "Strategy",
+          "stale-while-revalidate"
+         ],
+         [
+          "Lines",
+          "101"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-wasm-live",
+        "title": "village-live / bazaar-live pages",
+        "kind": "example",
+        "summary": "Two pages that run real Session tick loops client-side via WasmSession: a temporal village of workers and a multi-mind barter bazaar.",
+        "body": "<p><code>village-live.html</code> creates one <code>WasmSession(VILLAGE_DOMAIN, VILLAGE_PROBLEM)</code> as the authoritative world. Per worker per tick, <code>workerTurn</code>: fork a probe, <code>set_goal</code> the worker's contract and test <code>goal_met</code>; if not done, check <code>plan_valid_json</code> on the worker's plan from its cursor; if broken, <code>think</code> on a fresh fork scoped with <code>restrict_contains(w.filter)</code>; then <code>dispatch</code> due steps with <code>world.apply_start</code>. The world then <code>elapse</code>s, firing interval ends. It is the same loop as <code>examples/village_live.rs</code>.</p><p><code>bazaar-live.html</code> replays the many-minds barter run: each mind is a fork scoped with <code>restrict_prefix_claims</code>, follows its plan while <code>valid()</code> holds, counts a conflict when a rival's trade broke it, and re-thinks with a bounded <code>think(THINK_EVALS, THINK_MB)</code>.</p><p>Both run on the main thread (no worker) because each think is budgeted small. They show that the Session API is the same in the browser as natively: one grounding, many cheap forks, free validity replays.</p>",
+        "files": [
+         "crates/ferroplan-wasm/web/village-live.html:147",
+         "crates/ferroplan-wasm/web/village-live.html:178",
+         "crates/ferroplan-wasm/web/bazaar-live.html:157"
+        ],
+        "links": [
+         {
+          "to": "mod-session-tick",
+          "label": "same loop"
+         },
+         {
+          "to": "crate-ferroplan-wasm-session",
+          "label": "uses"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "fe-library",
+      "label": "calls"
+     },
+     {
+      "to": "mod-session",
+      "label": "WasmSession"
+     }
+    ]
+   },
+   {
+    "id": "crate-ferroplan-bevy",
+    "title": "GUI (ferroplan-bevy)",
+    "kind": "crate",
+    "summary": "A Bevy app that draws a problem as a typed graph, solves it off-thread, animates the plan (or a Gantt for temporal plans), and edits problems and domains as blocks. Native or in-browser.",
+    "body": "<p>The GUI keeps logic out of the view: graph construction and PDDL regeneration live in <code>ferroplan::viz</code>, state replay in <code>ferroplan::trace</code>, and the GUI is ECS systems over those results. Call paths: load &rarr; <code>parser::parse_domain/parse_problem</code> &rarr; <code>VizGraph::build</code>; S &rarr; <code>AsyncComputeTaskPool</code> &rarr; <code>ferroplan::solve(Options::default())</code> &rarr; <code>ferroplan::trace</code> &rarr; tween; editor Apply &rarr; <code>viz::to_pddl</code> &rarr; <code>Scene::load_src</code>; browser startup &rarr; <code>webhandoff::try_load</code>.</p>",
+    "files": [
+     "crates/ferroplan-bevy/src/main.rs:1",
+     "book/src/gui.md"
+    ],
+    "facts": [
+     [
+      "Files",
+      "12 Rust files"
+     ],
+     [
+      "Book",
+      "book/src/gui.md"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "crate-ferroplan-bevy-app",
+      "title": "main.rs: app, resources, build",
+      "kind": "module",
+      "summary": "Registers resources and systems with Bevy; runs natively (window) or in the browser (canvas #ferroplan-canvas) from one codebase with a slimmed Bevy feature set.",
+      "body": "<p><code>main</code> (main.rs:19) adds <code>DefaultPlugins</code> with a 1280x820 window; on wasm32 it targets <code>&lt;canvas id=\"ferroplan-canvas\"&gt;</code>, fits it to the parent and keeps key/scroll events on the canvas. Resources: <code>Scene</code>, <code>Selected</code>, <code>DragState</code>, <code>anim::Plan</code>, <code>SolveJob</code>, <code>blocks::Editor</code>, <code>blocks::Drag</code>, <code>Transport</code>, <code>GanttState</code>. Startup systems set up camera, UI, transport, Gantt and <code>startup_load</code>; two <code>Update</code> tuples hold the per-frame systems.</p><p>Bevy 0.19 is pulled with <code>default-features = false</code> and only 2D rendering, sprites, text, UI, gizmos, assets, default font, webgl2, x11 and multi-threading, explicitly to shrink the wasm GUI (no audio, glTF, 3D, scenes, animation). <code>build-wasm.sh</code> builds with <code>RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"'</code> because two getrandom versions are in the tree. Colors come from <code>palette.rs</code>, shared with the web redesign tokens; icons in <code>icons.rs</code> are procedural meshes so there is no art to license.</p>",
+      "files": [
+       "crates/ferroplan-bevy/src/main.rs:19",
+       "crates/ferroplan-bevy/Cargo.toml:19",
+       "crates/ferroplan-bevy/build-wasm.sh:1"
+      ],
+      "facts": [
+       [
+        "Bevy",
+        "0.19, slimmed"
+       ],
+       [
+        "Total lines",
+        "~3,500 Rust"
+       ]
+      ]
+     },
+     {
+      "id": "crate-ferroplan-bevy-scene",
+      "title": "scene.rs: problem as a graph",
+      "kind": "module",
+      "summary": "Loads PDDL (drag-drop, CLI args, editor, handoff), builds viz::VizGraph, spawns nodes and mobiles as entities, draws edges as gizmos, and pans/zooms the camera.",
+      "body": "<p><code>Scene</code> (scene.rs:24) is a Bevy resource holding the parsed <code>Domain</code>/<code>Problem</code>, their sources, the derived <code>VizGraph</code>, a <code>dirty</code> flag and a status string. <code>load_src</code> content-sniffs whether a string is a problem or domain (which of <code>(PROBLEM</code>/<code>(DOMAIN</code> appears first), parses with <code>ferroplan::parser</code>, and once both halves exist calls <code>VizGraph::build(d, p)</code>.</p><p>The graph logic lives in the core crate's <code>viz</code> module, which is view-agnostic: static objects become nodes, static binary predicates (e.g. <code>road</code>) become edges, objects that move become mobiles placed on the node they are <code>at</code>.</p><p>Systems: <code>handle_drops</code> reads dropped <code>.pddl</code> files; <code>respawn_graph</code> despawns and respawns everything when <code>dirty</code>, laying nodes on a circle (radius grows with node count) and fanning mobiles on their node, each with a per-type mesh icon from <code>icons.rs</code>; <code>draw_edges</code> draws gizmo lines and highlights edges active in the current plan step; <code>camera_nav</code> handles right-drag pan and scroll zoom.</p>",
+      "files": [
+       "crates/ferroplan-bevy/src/scene.rs:24",
+       "crates/ferroplan-bevy/src/scene.rs:113",
+       "crates/ferroplan-bevy/src/scene.rs:201",
+       "crates/ferroplan/src/viz.rs:84"
+      ],
+      "links": [
+       {
+        "to": "mod-viz",
+        "label": "VizGraph::build"
+       },
+       {
+        "to": "mod-parser",
+        "label": "parse_domain / parse_problem"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-bevy-interact",
+      "title": "interact.rs + ui.rs: select and inspect",
+      "kind": "module",
+      "summary": "Left-click selects a node or mobile, left-drag moves a node, a cyan gizmo ring marks the selection; ui.rs's side panel lists the selection's facts and the goal.",
+      "body": "<p><code>interact</code> (interact.rs:22) converts the cursor to world coordinates with <code>viewport_to_world_2d</code>, hit-tests nodes (radius <code>NODE_SIZE*0.6</code>) then mobiles, and writes the hit object name into the <code>Selected</code> resource. Holding the button drags the hit node by rewriting its <code>Transform</code>. The system yields entirely while the block editor is open or the transport bar is being scrubbed, so the pointer has one owner at a time.</p><p><code>draw_selection</code> draws a ring with <code>palette::CY</code> (the design's \"selected\" cyan) around the selected entity.</p><p><code>ui::update_info</code> rebuilds the side panel text each frame: scene status (or a drag-drop hint), the current plan status and step, and for the selected object every current fact that mentions it plus the goal. This is the inspector in the book's screenshots.</p>",
+      "files": [
+       "crates/ferroplan-bevy/src/interact.rs:22",
+       "crates/ferroplan-bevy/src/interact.rs:81",
+       "crates/ferroplan-bevy/src/ui.rs:55"
+      ]
+     },
+     {
+      "id": "crate-ferroplan-bevy-anim",
+      "title": "anim.rs: solve off-thread, tween",
+      "kind": "module",
+      "summary": "S spawns ferroplan::solve on Bevy's AsyncComputeTaskPool; the result is replayed with ferroplan::trace into snapshots, and mobiles are eased between snapshot positions.",
+      "body": "<p><code>controls</code> (anim.rs:70): on <strong>S</strong>, if no job is running and both sources exist, it spawns <code>solve_blocking(domain, problem)</code> on <code>AsyncComputeTaskPool</code>. <code>solve_blocking</code> calls <code>ferroplan::solve(&amp;d, &amp;p, &amp;Options::default())</code>, the same entry as the CLI's <code>--json</code>. <code>poll_solve</code> polls the task each frame with <code>future::poll_once</code> and hands the result to <code>load_result</code>.</p><p><code>result_from_solution</code> (:166) turns a <code>Solution</code> into a <code>SolveResult</code>. For non-temporal plans it calls <code>ferroplan::trace(domain, problem, &amp;(action,args) pairs)</code> to get a <code>StateSnapshot</code> per step. Temporal plans get no snapshots (overlapping actions cannot be tweened as a sequence) and are shown in the Gantt view instead.</p><p>The timeline cursor <code>Plan.t</code> is a step index for classical plans and plan time for temporal ones. <code>advance</code> moves it: classical at 1.5 steps per second scaled by each step's duration; temporal so the whole makespan plays in about 7 seconds. <code>animate</code> looks up each mobile's node in snapshots k and k+1 via <code>VizGraph::positions_at</code> and lerps with ease-in-out-cubic. Space plays/pauses, arrows step between marks (every start and, temporally, end), R resets.</p>",
+      "files": [
+       "crates/ferroplan-bevy/src/anim.rs:70",
+       "crates/ferroplan-bevy/src/anim.rs:148",
+       "crates/ferroplan-bevy/src/anim.rs:166",
+       "crates/ferroplan-bevy/src/anim.rs:262"
+      ],
+      "facts": [
+       [
+        "Play rate",
+        "1.5 steps/s"
+       ],
+       [
+        "Temporal sweep",
+        "~7 s per makespan"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "solve"
+       },
+       {
+        "to": "mod-trace",
+        "label": "trace snapshots"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-bevy-gantt",
+      "title": "gantt.rs + transport.rs: timeline views",
+      "kind": "module",
+      "summary": "Temporal plans render as a Gantt chart with greedy lane packing and a cyan now-line; a bottom transport bar gives play/pause, a scrubbable track with one notch per step, and a readout.",
+      "body": "<p><code>gantt.rs</code> exists because a temporal plan's overlapping durative actions cannot be shown by moving mobiles one step at a time. <code>pack_lanes</code> (gantt.rs:133) sorts steps by start time and puts each in the first lane whose last action has ended (a greedy interval-partitioning pass, which is optimal in lane count for intervals sorted by start). <code>rebuild_gantt</code> respawns bars when the plan changes; <code>gantt_now</code> moves the now-line with <code>Plan.t</code>. Shown automatically for temporal plans, toggled with <strong>T</strong>.</p><p><code>transport.rs</code> is the mouse-only mirror of the keyboard controls: a play button, a track that maps the pointer's <code>RelativeCursorPosition</code> to a timeline <code>t</code> on press or drag, notches at <code>Plan::start_frac</code> per step, a molten progress fill and a step/time readout. While the pointer is over it, <code>Transport.hovering</code> makes <code>interact</code> stand down.</p>",
+      "files": [
+       "crates/ferroplan-bevy/src/gantt.rs:133",
+       "crates/ferroplan-bevy/src/gantt.rs:162",
+       "crates/ferroplan-bevy/src/transport.rs:279"
+      ]
+     },
+     {
+      "id": "crate-ferroplan-bevy-blocks",
+      "title": "blocks.rs: Blockly-style editor",
+      "kind": "module",
+      "summary": "The largest file (1,771 lines): a click-and-drag block editor for problems (objects, init, goal) and domains (types, predicates, actions), regenerating PDDL with viz::to_pddl / domain_to_pddl.",
+      "body": "<p>The editor is seeded from the loaded <code>Scene</code>: <code>seed</code> and <code>seed_domain</code> flatten the parsed AST (<code>types::Action</code>, <code>Formula</code>, <code>Effect</code>) into editable rows. Actions whose preconditions or effects do not flatten to literal lists plus <code>when</code> blocks keep their raw text. <code>bevy_ui</code> has no dropdown widget, so each field is a button that cycles through valid choices on click: type, predicate, or a type-compatible object (<code>compatible_objects</code> honors the type hierarchy via <code>is_subtype</code>).</p><p><code>apply_changes</code> (blocks.rs:1057) regenerates the domain with <code>viz::domain_to_pddl</code> and the problem with <code>viz::to_pddl</code> and feeds both through <code>Scene::load_src</code>, so the graph re-renders from the same parser the planner uses. <code>export_changes</code> writes them to <code>/tmp/&lt;name&gt;.pddl</code>.</p><p>Keys: <strong>E</strong> toggles the editor, <strong>Tab</strong> switches problem/domain. While a text field has focus, <code>anim::controls</code> ignores keys so typing an S does not start a solve. Tests at the bottom of the file round-trip regenerated domains through <code>ferroplan::parser::parse_domain</code>.</p>",
+      "files": [
+       "crates/ferroplan-bevy/src/blocks.rs:70",
+       "crates/ferroplan-bevy/src/blocks.rs:386",
+       "crates/ferroplan-bevy/src/blocks.rs:1057",
+       "crates/ferroplan/src/viz.rs:370"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "1,771"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-viz",
+        "label": "to_pddl / domain_to_pddl"
+       },
+       {
+        "to": "mod-types",
+        "label": "edits the AST"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-bevy-webhandoff",
+      "title": "webhandoff.rs: Animate this plan",
+      "kind": "module",
+      "summary": "wasm32-only: at startup read localStorage['ferroplan.handoff'] written by the Solver page, load its domain/problem and its already-solved Solution, and autoplay.",
+      "body": "<p><code>try_load</code> (webhandoff.rs:19) reads the key via <code>web_sys</code>, parses JSON, requires <code>domain</code> and <code>problem</code> strings, and loads both into the <code>Scene</code>. If a <code>solution</code> field deserializes as <code>ferroplan::Solution</code>, it goes through the same <code>anim::result_from_solution</code> + <code>load_result(..., autoplay=true)</code> path as a native solve.</p><p>The design choice is to animate the plan the Solver page already found instead of re-solving: if search options ever differ between the two pages, re-solving could show a different plan from the one the user clicked on. A handoff without a solution still counts as loaded (the user can press S). If there is no handoff, <code>main::startup_load</code> falls back to the embedded <code>demo/domain.pddl</code> + <code>demo/problem.pddl</code>.</p><p>Natively, <code>startup_load</code> instead reads file paths from <code>std::env::args</code>.</p>",
+      "files": [
+       "crates/ferroplan-bevy/src/webhandoff.rs:19",
+       "crates/ferroplan-bevy/src/main.rs:97"
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-wasm-index",
+        "label": "written by"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "fe-library",
+      "label": "calls"
+     },
+     {
+      "to": "mod-viz",
+      "label": "graph logic"
+     },
+     {
+      "to": "mod-trace",
+      "label": "replay"
+     }
+    ]
+   },
+   {
+    "id": "fe-skill",
+    "title": ".claude skill: ferroplan",
+    "kind": "tool",
+    "summary": "A Claude Code skill (.claude/skills/ferroplan) that teaches an agent to author, run and debug PDDL for this planner, with six verified minimal examples.",
+    "body": "<p>The skill is a front door for agents rather than programs. Its frontmatter triggers it when writing or fixing PDDL for ferroplan, choosing features, invoking <code>ff</code> or the library, interpreting plans, or decomposing a big goal. It contains <code>SKILL.md</code> (109 lines), <code>reference.md</code> (92 lines) and six example directories. Its call path into the core is the CLI: the agent runs <code>ff -o ... -f ...</code> (or <code>--json</code>, <code>--validate</code>, <code>--decompose</code>) and reads the output. The MCP server offers the same operations as tools for agents that are not in a shell.</p>",
+    "files": [
+     ".claude/skills/ferroplan/SKILL.md:1"
+    ],
+    "facts": [
+     [
+      "Examples",
+      "6 feature dirs"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "fe-skill-loop",
+      "title": "The authoring loop + feature table",
+      "kind": "process",
+      "summary": "Pick the smallest feature set, write, run ff, read the output, localize failures, never hand over PDDL that has not been run.",
+      "body": "<p>The skill's core rule: author a domain, run it, and confirm a real plan comes out. Its rationale is stated plainly: models are fluent in Python but shaky in PDDL, and the cure is a run loop plus verified examples.</p><p>The feature table maps situations to requirements and to a minimal verified example under <code>.claude/skills/ferroplan/examples/</code>: <code>strips-typing</code>, <code>numeric</code>, <code>adl</code>, <code>axioms</code> (use <code>:adl</code>, not <code>:derived-predicates</code>), <code>preferences</code> (needs a <code>(:metric minimize (is-violated p))</code> or the preference is ignored), <code>temporal</code> (<code>--mode temporal</code>). <code>reference.md</code> lists the remaining flags.</p><p>It also documents <code>--validate</code> as a self-check under ferroplan's own semantics, distinct from external VAL (which imposes strict PDDL2.1 concurrent-numeric mutex).</p>",
+      "files": [
+       ".claude/skills/ferroplan/SKILL.md:40",
+       ".claude/skills/ferroplan/reference.md"
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-cli",
+        "label": "drives"
+       }
+      ]
+     },
+     {
+      "id": "fe-skill-gotchas",
+      "title": "Engine gotchas + decomposition rule",
+      "kind": "concept",
+      "summary": "Verified quirks (upper-cased output, static-only axioms, explicit requirement tokens) and the measured border past which a goal must be split into contracts.",
+      "body": "<ul><li>Output is upper-cased; match plan steps case-insensitively.</li><li><code>(when ...)</code> without <code>:conditional-effects</code> is a parse error, not silently dropped; likewise <code>:universal-preconditions</code> for <code>forall</code> and <code>:negative-preconditions</code> for <code>not</code>.</li><li>Axioms are static-only: the derived closure is computed once into init and the rules cleared; a <code>:derived</code> body reading an action-changed predicate errors.</li><li>Temporal: simultaneous starts are epsilon-separated (a start at 3.001 keeps an over-all condition strictly inside).</li><li>Empty types ground to zero instances rather than failing.</li></ul><p><strong>Decomposition.</strong> The measured rule quoted from <code>examples/BORDERS.md</code>: the delete-relaxed heuristic keeps a gradient on linear or accumulative work and goes flat the instant two or more contributions must converge on one goal quantity. Hand a contract whole if it is one accumulating chain (up to about 2000 ops) or every goal quantity gets at most one converging contribution; otherwise split, or let <code>ff --decompose</code> do it.</p>",
+      "files": [
+       ".claude/skills/ferroplan/SKILL.md:65",
+       ".claude/skills/ferroplan/SKILL.md:87"
+      ],
+      "links": [
+       {
+        "to": "mod-derived",
+        "label": "static-only axioms"
+       },
+       {
+        "to": "mod-heuristic",
+        "label": "why convergence goes flat"
+       },
+       {
+        "to": "mod-tresolve",
+        "label": "--decompose"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "crate-ferroplan-mcp",
+      "label": "tool-based alternative"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": "sec-session",
+  "title": "Session: ground once, think forever",
+  "kind": "section",
+  "summary": "The embedding API for callers that re-solve the same world every tick: ground once, mutate the live state, and pay only search per think, with cheap forks for many minds.",
+  "body": "<p>This section covers <code>crates/ferroplan/src/session.rs</code>. The core trick is to make the grounded task's own initial state be the live world: edits are bit writes, thinks are searches from there, forks share the grounded tables by <code>Arc</code>. Everything is deterministic and thread-count independent: the same state, budget and goal give byte-identical plans at any <code>threads</code>.</p><p>Used by: the MCP <code>session_*</code> tools, the WASM <code>WasmSession</code> and its live pages, and the examples <code>game_think</code>, <code>many_minds</code>, <code>bazaar_live</code>, <code>village_live</code>.</p>",
+  "files": [
+   "crates/ferroplan/src/session.rs:1",
+   "book/src/session.md"
+  ],
+  "facts": [
+   [
+    "Book chapter",
+    "book/src/session.md"
+   ]
+  ],
+  "layout": "grid",
+  "children": [
+   {
+    "id": "mod-session",
+    "title": "session.rs: Session",
+    "kind": "module",
+    "summary": "The ground-once embedding API: a grounded world plus one mind's private state. Edits rewrite the task's init; thinks are pure search from there. 3,623 lines, about 1,600 of them tests.",
+    "body": "<p><code>ferroplan::solve</code> re-parses and re-grounds on every call, and for small problems grounding dominates the wall clock. A game or agent runtime re-solving the same world every tick would pay that fixed cost for identical work. <code>Session</code> pays it once.</p><p><strong>Representation.</strong> A <code>Session</code> owns a <code>PackedTask</code> whose operator tables are <code>Arc</code>-shared and whose initial state and goal are the mind's current belief and desire. So a world edit is a bit write into <code>init_bits</code>, a think is a search from <code>task.initial()</code>, and a fork is a refcount bump plus a copy of a few small vectors. Around the task sit immutable shared maps (fact/fluent/op names to ids, dynamic-fact table, mirror pairs, TIL setters) and per-mind fields (op mask, schedule, in-flight intervals, lifted goal).</p><p><strong>Scope.</strong> Classical, numeric and ADL domains; temporal since 0.12; in-flight intervals and scheduled events since 0.14; budget-stamped orbit-aware thinks since 0.24. Rejected at construction: PDDL3 constraints and preferences (the metric optimizer compiles per solve) and absolute-clock TILs.</p><p><strong>Honesty fences</strong> run through the whole API: statics and <code>RUNNING-*</code> tokens cannot be written, ADL goals cannot be retargeted, a capped think is never reported as unsolvable.</p>",
+    "files": [
+     "crates/ferroplan/src/session.rs:1",
+     "crates/ferroplan/src/session.rs:146",
+     "book/src/session.md"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "3,623"
+     ],
+     [
+      "Tests",
+      "50 (from :2046)"
+     ],
+     [
+      "Public types",
+      "Session, Think, ThinkBudget, ThinkVerdict"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-session-new",
+      "title": "Session::new: ground once",
+      "kind": "stage",
+      "summary": "Parse, compile derived axioms, reject unsupported inputs, snap-compile if temporal, ground, then build the name maps, dynamic-fact table, mirror pairs and TIL setters that every later call relies on.",
+      "body": "<p><code>Session::new</code> (session.rs:340) is where the expensive work happens, once:</p><ol><li>Parse domain and problem; <code>derived::compile</code> folds static axioms.</li><li>Reject PDDL3 trajectory constraints, preference problems and (for temporal domains) absolute-clock TILs, each with a message pointing to <code>ferroplan::solve</code>. Session time is always relative to now.</li><li>Temporal domains: <code>temporal::compile</code> (snap actions) then <code>ground_fixpoint</code>. Classical: <code>ground_task</code>, which always returns a task even if the base goal is trivially true or false, because the world will move.</li><li>Build <code>fact_ids</code> and <code>fluent_ids</code> (upper-case display to id), the <code>dynamic</code> table (any op or conditional effect adds or deletes it), <code>op_ids</code>, the <code>RUNNING-*</code> predicate list, and the bidirectional <code>mirror</code> map between <code>(P ...)</code> and <code>(NOT (P ...))</code> facts.</li><li>Temporal: append TIL setters. Classical: keep the lifted <code>(Domain, Problem)</code> in an <code>Arc</code> for per-think orbit detection.</li></ol><p>Note on the struct: the current world state is not a separate field. It is the grounded task's own initial state (<code>task.init_bits</code>, <code>fv0</code>, <code>fdef0</code>) and goal (<code>goal_pos</code>, <code>goal_num</code>). Mutating the world means rewriting the task's init, and a think is just a search from <code>task.initial()</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/session.rs:340",
+       "crates/ferroplan/src/session.rs:146"
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "mod-session-fixpoint",
+        "title": "Fixpoint grounding (temporal entry)",
+        "kind": "concept",
+        "summary": "Temporal sessions ground with ground_fixpoint: reached-restricted enumeration that costs what is reachable, not the typed product. elevator-11 p04: 31.6 s / 5.7 GB to 6.9 s / 48.8 MB, about 117x less transient memory.",
+        "body": "<p><strong>The idea.</strong> A naive grounder enumerates every type-correct binding of every action's parameters and discards those whose preconditions can never hold. That typed product can be enormous when most bindings are unreachable. Reached-restricted fixpoint grounding instead starts from the atoms true in init, and each round joins every action's positive dynamic top-level preconditions against the set of atoms reached so far, adding the effects of the new bindings to the reached set, until nothing changes. Bindings are deduped across rounds. Doomed candidates are never enumerated at all.</p><p><strong>Numbers</strong> (docs/roadmap-0.12.md, Phase 3): elevator-11 p04, same binary A/B, 31.6 s / 5.7 GB to 6.9 s / 48.8 MB transient, identical task dimensions. The bazaar fixture shows the other side: 197k of 211k typed candidates are real ops, so fixpoint cannot help there, and the answer is simply to ground once at world load (5.5 s / 644 MB) and make every think pure search.</p><p><strong>Why only the Session uses it.</strong> The surviving op set is identical, but fact ids are interned in a different first-reference order, so search tie-breaks shift. That cost sokoban-t real coverage (4/10 stratified vs 1/10 fixpoint), and a canonical-order pass could not recover it. So the corpus solve paths stay on stratified grounding, and the temporal Session, where the memory win matters and no scoreboard is disturbed, grounds via <code>ground_fixpoint</code>. Classical sessions use the plain <code>ground_task</code>. <code>FF_NO_FIXPOINT_GROUND=1</code> falls back.</p>",
+        "files": [
+         "crates/ferroplan/src/session.rs:380",
+         "crates/ferroplan/src/ground.rs:1569",
+         "docs/roadmap-0.12.md:91"
+        ],
+        "facts": [
+         [
+          "p04 transient",
+          "5.7 GB to 48.8 MB"
+         ],
+         [
+          "p04 wall",
+          "31.6 s to 6.9 s"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-ground",
+          "label": "ground_fixpoint"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-tilsetters",
+        "title": "TIL setter ops behind a fence",
+        "kind": "concept",
+        "summary": "For temporal sessions, every dynamic fact gets two appended ops (TILSET-f, TILCLR-f) gated on a never-true TIL-NEVER fact, so scheduled events can be fired by the search's agenda without polluting the heuristic.",
+        "body": "<p><code>append_til_setters</code> (session.rs:228) runs once at construction for temporal sessions. It mints a fresh fact <code>TIL-NEVER</code> that is never true, then for every dynamic fact <code>f</code> appends two ops: <code>TILSET-f</code> (adds <code>f</code>, deletes its <code>(NOT f)</code> mirror) and <code>TILCLR-f</code> (the reverse). Each has <code>TIL-NEVER</code> as its only precondition.</p><p>The fence does the work. The relaxed planning graph and the search's own successor generation can never apply these ops, and they are deliberately not registered in <code>add_by_fact</code>, so they are never considered achievers. Only a pre-seeded agenda fires them, because <code>Kind::Til</code> events fire unconditionally: exogenous events do not ask permission. The result is a map <code>(fact, value) -&gt; op id</code> that <code>set_timed_fact</code> uses to schedule events.</p><p>The function also rebuilds every derived index the growth invalidates: the CSR columns, <code>shared_add</code>, <code>monitored</code>, and the 0.27 successor index <code>succ_by_fact</code>. The comment is candid that a stale index was harmless only by luck, and \"an invariant that is only true by luck is not an invariant.\"</p>",
+        "files": [
+         "crates/ferroplan/src/session.rs:228",
+         "crates/ferroplan/src/session.rs:329"
+        ],
+        "links": [
+         {
+          "to": "mod-packed",
+          "label": "grows PackedTask"
+         },
+         {
+          "to": "mod-temporal",
+          "label": "agenda fires them"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-parser",
+        "label": "parse"
+       },
+       {
+        "to": "mod-derived",
+        "label": "compile"
+       },
+       {
+        "to": "mod-temporal",
+        "label": "snap compile"
+       },
+       {
+        "to": "mod-ground",
+        "label": "ground once"
+       }
+      ]
+     },
+     {
+      "id": "mod-session-state",
+      "title": "World edits, observation, set_goal",
+      "kind": "module",
+      "summary": "Edits write straight into the task's init bits and fluent arrays, behind fences: only dynamic facts, never RUNNING-* tokens, mirrors kept in sync. set_goal retargets without regrounding.",
+      "body": "<p><code>set_fact(name, v)</code> (session.rs:825) resolves the name through <code>dynamic_fact_id</code>, flips one bit in <code>task.init_bits</code>, and flips the mirror bit to <code>!v</code> if one exists. <code>dynamic_fact_id</code> enforces the fences: the fact must be grounded, must be dynamic, and must not be a compiler <code>RUNNING-*</code> token (<code>atom_head</code> looks through <code>(NOT ...)</code> so a mirror cannot dodge the fence).</p><p><strong>Why statics are refused.</strong> Grounding enumerates operator parameters restricted by static predicates from init. Flipping a static after grounding could require operators that were never generated, so the session would return wrong plans silently. An error is the honest answer.</p><p><code>set_fluent</code> (:1016) writes <code>fv0[id]</code> and marks it defined; all fluent values are read at runtime, so any grounded fluent may be set. <code>observe(sight)</code> (:844) validates the whole batch first, then updates only the sighted facts and returns those whose value differed from belief: the surprises. Facts outside the sight list keep their believed values, which is how fog is modeled.</p><p><code>set_goal(goal)</code> (:1051) parses a ground conjunction (atoms, negated atoms with grounded mirrors, numeric comparisons) into <code>goal_pos</code>/<code>goal_num</code> over the existing fact space. ADL connectives error, since those compile at grounding time. Fluents a new numeric goal reads are added to the visited-key relevance closure, which only ever grows, so replay soundness and thread determinism hold across retargets. <code>goal_met</code>, <code>fact</code> and <code>fluent</code> are pure reads.</p>",
+      "files": [
+       "crates/ferroplan/src/session.rs:825",
+       "crates/ferroplan/src/session.rs:844",
+       "crates/ferroplan/src/session.rs:869",
+       "crates/ferroplan/src/session.rs:1016",
+       "crates/ferroplan/src/session.rs:1051",
+       "crates/ferroplan/src/session.rs:1311"
+      ],
+      "links": [
+       {
+        "to": "mod-packed",
+        "label": "writes init_bits / fv0"
+       }
+      ]
+     },
+     {
+      "id": "mod-session-fork",
+      "title": "fork + restrict_ops: many minds",
+      "kind": "module",
+      "summary": "fork() clones a mind over the same grounded world: PackedTask's columns are Arc-backed CSR, so a fork copies only state vectors. restrict_ops masks a mind to its own actions.",
+      "body": "<p><code>fork</code> (session.rs:596) builds a new <code>Session</code> with <code>task.clone()</code> and <code>Arc::clone</code> of every immutable map. This is cheap because <code>PackedTask</code>'s operator tables are <code>Csr&lt;T&gt; { flat: Arc&lt;[T]&gt;, off: Arc&lt;[u32]&gt; }</code> and its name lists are <code>Arc&lt;[String]&gt;</code>: cloning bumps reference counts. What is actually copied is the per-mind state: <code>init_bits</code>, <code>fv0</code>, <code>fdef0</code>, <code>goal_pos</code>, <code>goal_num</code>, fluent relevance, plus the op mask, schedule and in-flight list.</p><p>The fork starts from the parent's current state and goal and then diverges with no shared tie-breaks. Measured on the vendored bazaar: 12 NPCs fork in about 0 ms with +0 MB RSS; benchmarks/bazaar-thinks.md records about 0.05 KB of private state per forked mind. <code>world_bytes</code> and <code>mind_bytes</code> (:1267, :1294) report the shared/private split as flat-byte floors.</p><p><code>restrict_ops(keep)</code> (:576) builds a <code>forbidden</code> mask from op display names. It is the many-minds correctness primitive: a mind plans only its own actions, and a rival's moves reach it as <code>set_fact</code> drift, never as plan steps. The mask is an input to search, so determinism is unaffected, and a goal unreachable within the allowed ops is an honest <code>solved: false</code>. Loop-side policies such as claims compose on top by re-restricting before a think.</p>",
+      "files": [
+       "crates/ferroplan/src/session.rs:596",
+       "crates/ferroplan/src/session.rs:576",
+       "crates/ferroplan/src/packed.rs:30",
+       "crates/ferroplan/src/session.rs:1267"
+      ],
+      "facts": [
+       [
+        "12-NPC fork",
+        "~0 ms, +0 MB RSS"
+       ],
+       [
+        "Per-mind state",
+        "~0.05 KB (bazaar)"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-packed",
+        "label": "Arc-backed Csr"
+       }
+      ]
+     },
+     {
+      "id": "mod-session-think",
+      "title": "Thinking: replan, replan_budgeted, think",
+      "kind": "module",
+      "summary": "Three entry points over two search arms. Each solves from the current world state toward the current goal, paying only search.",
+      "body": "<p><code>replan()</code> (session.rs:1341) is unbounded beyond the session's <code>max_evaluated</code>. <code>replan_budgeted(evals, mem)</code> (:1334) is the real-time surface: an eval budget plus memory target, returning an honest <code>solved: false</code> when exhausted. <code>think(&amp;ThinkBudget)</code> (:1797) is the 0.24 stamped contract. All three dispatch to a temporal arm when the session holds a <code>TemporalCompiled</code>, else to the classical ladder. All take <code>&amp;self</code>: thinking never mutates the session, which is what lets the MCP server think on a fork without holding a lock.</p>",
+      "files": [
+       "crates/ferroplan/src/session.rs:1334",
+       "crates/ferroplan/src/session.rs:1341",
+       "crates/ferroplan/src/session.rs:1797"
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "mod-session-think-classical",
+        "title": "Classical think: the search ladder",
+        "kind": "search",
+        "summary": "replan_inner / think call search::plan_avoiding on the session's own task: EHC, then novelty-light, LAMA, novelty, then complete weighted best-first, with the mind's forbidden mask.",
+        "body": "<p>For a classical session <code>replan_inner</code> (session.rs:1721) first short-circuits: if <code>goal_met</code> on the current state, return the empty plan. Otherwise it builds <code>SearchCfg::from_weights(weight_g, weight_h, budget)</code>, sets <code>node_bytes_target</code> from <code>memory_mb</code>, and calls <code>search::plan_avoiding(&amp;self.task, threads, cfg, ehc_first, &amp;self.forbidden, orbit)</code>.</p><p><code>plan_avoiding</code> (search.rs:1733) is the same ladder <code>solve</code> uses for classical problems: enforced hill-climbing with helpful actions first (unless the session was opened with <code>Search::BestFirst</code>), then bounded rungs (novelty-light, the LAMA landmark rung, the novelty rung) when affordable, then weighted best-first as the complete fallback. The only differences from a one-shot solve are that the task is already grounded and its init is the live world, and that the forbidden mask is enforced inside successor generation.</p><p><code>max_evaluated</code> is the deterministic budget: identical budgets give identical plans at any thread count. <code>memory_mb</code> becomes a byte target that the search converts to a node cap via its per-node byte model (<code>node_cap_for_bytes</code>).</p>",
+        "files": [
+         "crates/ferroplan/src/session.rs:1721",
+         "crates/ferroplan/src/search.rs:1733",
+         "crates/ferroplan/src/search.rs:135"
+        ],
+        "links": [
+         {
+          "to": "mod-search",
+          "label": "plan_avoiding"
+         },
+         {
+          "to": "mod-lama",
+          "label": "LAMA rung"
+         },
+         {
+          "to": "mod-novelty",
+          "label": "novelty rungs"
+         },
+         {
+          "to": "mod-heuristic",
+          "label": "h_FF"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-think-temporal",
+        "title": "Temporal think: seeded epoch ladder",
+        "kind": "search",
+        "summary": "replan_temporal rebuilds the duration table against current fluents, merges scheduled events and running-interval ends into a root agenda, and runs the bounded decision-epoch ladder from the current state.",
+        "body": "<p><code>replan_temporal</code> (session.rs:628): only an at-rest world (no running intervals) takes the trivial goal-met exit, because a pending end could still unmeet the goal. Then <code>temporal::build_kind</code> reclassifies every op as Start/End/Classical against the current fluent values, so a <code>set_fluent</code> on a fluent no op modifies still flows into parameter-dependent durations.</p><p>The root agenda is built from <code>self.timed</code> (mapped through the TIL setter ops) plus <code>self.running</code> (real end ops), sorted by time then op id. <code>temporal::solve_from_seeded_deadline</code> then runs the decision-epoch ladder from <code>task.initial()</code>, with the mind's forbidden mask, the demand tier read once at construction, the eval budget spanning the whole ladder, and a node byte cap (default <code>NODE_CAP_TARGET_BYTES</code>, 8 GiB on 64-bit). Pending events also seed the heuristic, so plans can wait through an outage whose repair is scheduled. A returned plan is valid through every running interval: the goal only counts once no end is pending.</p><p>No escalation, no decomposer: \"a think is a bounded call, not a campaign.\"</p>",
+        "files": [
+         "crates/ferroplan/src/session.rs:628",
+         "crates/ferroplan/src/temporal.rs:1574",
+         "crates/ferroplan/src/temporal.rs:2025",
+         "crates/ferroplan/src/search.rs:54"
+        ],
+        "links": [
+         {
+          "to": "mod-temporal",
+          "label": "solve_from_seeded_deadline"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-think-verdict",
+        "title": "Think, ThinkBudget, ThinkVerdict",
+        "kind": "data",
+        "summary": "think(&ThinkBudget) returns a Think: the Solution plus capped, spent_ms, spent_evals and a typed verdict (Solved, Capped, Exhausted). A cap never reads as unsolvable.",
+        "body": "<p><code>ThinkBudget</code> (session.rs:102) has three optional axes: <code>max_evaluated</code> (the deterministic unit), <code>wall_ms</code> (a per-think wall, machine-dependent, so pair it with evals when replay matters), <code>memory_mb</code>. Missing means session default, no wall, or the default byte model.</p><p><code>ThinkVerdict</code> (:115) encodes the capped-vs-proven distinction in the type: <code>Solved</code>; <code>Capped</code> (no plan and some cap may have truncated the search, so the goal was not proven unreachable); <code>Exhausted</code> (no plan and the classical complete search genuinely ran out: unreachable within this mind's ops). Temporal thinks never return <code>Exhausted</code>, because the bounded decision-epoch ladder is incomplete on required-concurrency shapes and proves nothing by failing.</p><p><code>Session::think</code> (:1797) sets <code>cfg.deadline</code> from <code>wall_ms</code> (the clock is checked at batch cadence), arms orbit canonicalization, and maps <code>o.capped</code> to the verdict, writing an explanatory note either way. The temporal arm (<code>think_temporal</code>, :1912) checks the wall only at pass boundaries and says so in a note. <code>replan()</code> and <code>replan_budgeted()</code> remain the older unstamped, orbit-free surface, unchanged byte for byte.</p>",
+        "files": [
+         "crates/ferroplan/src/session.rs:102",
+         "crates/ferroplan/src/session.rs:115",
+         "crates/ferroplan/src/session.rs:131",
+         "crates/ferroplan/src/session.rs:1797",
+         "crates/ferroplan/src/session.rs:1912"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-mcp-stamp",
+          "label": "serialized by"
+         },
+         {
+          "to": "mod-clock",
+          "label": "deadline"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-orbits",
+        "title": "orbit_now: symmetry per think",
+        "kind": "concept",
+        "summary": "Classical, unrestricted thinks re-detect object symmetries on the current world and goal every call, never cached across edits; the canonical keys ride the best-first fallback.",
+        "body": "<p><strong>The idea.</strong> If two objects are interchangeable (same type, same static relations, symmetric in init and goal), states that differ only by swapping them are equivalent, and search can store one canonical representative. That prunes duplicate work on symmetric problems.</p><p><strong>Why per think.</strong> A symmetry certified against the problem's init stops being valid the moment <code>set_fact</code> moves the world or <code>set_goal</code> changes what the mind wants. So <code>orbit_now</code> (session.rs:1970) rebuilds a lifted problem from the live state: static init atoms verbatim, dynamic facts and fluents re-read from the current tables, the goal from <code>goal_formula</code>. Then it calls <code>orbits::detect_classical</code> again. Detection is paid per think; nothing is cached.</p><p>Returns <code>None</code> for temporal sessions (their appended TIL-setter ops are outside any symmetry certification) and for restricted minds (to skip the detection cost, since a forbidden mask is caller-shaped). Only <code>think</code> uses it; <code>replan</code> and <code>replan_following</code> stay orbit-free.</p>",
+        "files": [
+         "crates/ferroplan/src/session.rs:1970",
+         "crates/ferroplan/src/orbits.rs:1130"
+        ],
+        "links": [
+         {
+          "to": "mod-orbits",
+          "label": "detect_classical"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "mod-session-follow",
+      "title": "Follow before you rethink",
+      "kind": "module",
+      "summary": "plan_still_valid replays a plan's remaining suffix against the current state at zero search cost; replan_following keeps the surviving prefix and searches only a new tail.",
+      "body": "<p><code>plan_still_valid(plan, from_step)</code> (session.rs:737) answers whether the rest of a plan still executes from the current world and ends in the goal. Classical suffixes replay op by op (applicability plus effects, honoring the forbidden mask). Temporal suffixes replay their timed happenings in epoch order using the internal validator, including scheduled events and running ends. No search, no budget. An agent whose world drifted irrelevantly keeps following its plan for free.</p><p><code>replan_following(prior, from_step, evals, mem)</code> (:1366) addresses dithering: an unconstrained rethink after a small break can return a structurally different plan, which looks like an NPC changing its mind for no reason. It replays the still-applicable prefix of the old suffix (cutting early if the goal is met along it), then seeds a task clone with the prefix's end state and searches only for a tail with <code>plan_avoiding</code>. If no tail exists it falls back to an unbiased <code>replan_inner</code> with the same budget and adds both eval counts. Measured: a deep break re-plans in 3 evals with churn 1, where an unbiased rethink spent 2,899 evals and churned 16 steps.</p><p>The temporal arm (<code>replan_following_temporal</code>, :1493) replays happenings to a simulated in-flight state, carries intervals whose ends lie past the break into the tail think as its root agenda, and shifts tail times by the break moment.</p>",
+      "files": [
+       "crates/ferroplan/src/session.rs:737",
+       "crates/ferroplan/src/session.rs:1366",
+       "crates/ferroplan/src/session.rs:1493"
+      ],
+      "facts": [
+       [
+        "Deep break",
+        "3 evals / churn 1 vs 2,899 / 16"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-verify",
+        "label": "temporal replay"
+       },
+       {
+        "to": "mod-search",
+        "label": "tail search"
+       }
+      ]
+     },
+     {
+      "id": "mod-session-clock",
+      "title": "Scheduled world + in-flight intervals",
+      "kind": "module",
+      "summary": "set_timed_fact schedules clock-relative fact flips; apply_start begins a durative action now; elapse(dt) fires due events and interval ends in time order and reports broken ends.",
+      "body": "<p>Temporal sessions keep two schedules, both relative to now: <code>timed: Vec&lt;(dt, fact, value)&gt;</code> and <code>running: Vec&lt;(remaining, end_op)&gt;</code>.</p><p><code>set_timed_fact(dt, name, v)</code> (session.rs:919) passes the same writability fences as <code>set_fact</code> and adds an event (\"the market closes in five\"). Every later think and validity replay sees it as a scheduled happening.</p><p><code>apply_start(name)</code> (:495) applies a durative start's effects now, including the compiler's <code>RUNNING-*</code> token, and adds its end to <code>running</code> with a duration resolved against current fluents. It errors on classical sessions, unknown actions, and inapplicable starts. From then on a mind can rethink mid-interval: the end rides into thinks as a real happening and plans stay valid through it.</p><p><code>elapse(dt)</code> (:952) splits both lists into due and remaining, decays the remaining times by <code>dt</code>, sorts the due items by time, and fires them: events write the fact bit and its mirror; ends apply the end op if its preconditions hold. Ends whose preconditions drift broke are returned by name with their effects dropped; the game decides what a ruined firing means. This retired the earlier idiom of mirroring end effects by hand with <code>set_fact</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/session.rs:495",
+       "crates/ferroplan/src/session.rs:919",
+       "crates/ferroplan/src/session.rs:952"
+      ],
+      "links": [
+       {
+        "to": "mod-session-tilsetters",
+        "label": "events fire via"
+       }
+      ]
+     },
+     {
+      "id": "mod-session-tick",
+      "title": "One game tick",
+      "kind": "process",
+      "summary": "The loop every embedding runs: world moves, check goal, replay plan, rethink only if broken, act, advance time.",
+      "body": "<p>The native examples <code>bazaar_live.rs</code> and <code>village_live.rs</code> and their browser twins drive this loop. Most ticks stop at step 3 with a successful replay and spend no search at all.</p>",
+      "files": [
+       "crates/ferroplan/examples/bazaar_live.rs:1",
+       "crates/ferroplan/examples/village_live.rs:1"
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-session-tick-observe",
+        "title": "1. The world moves",
+        "kind": "process",
+        "summary": "The game writes authoritative changes into the world session (set_fact / set_fluent) and each mind learns what it can see (observe, returning surprises).",
+        "body": "<p>At the top of a tick the game applies what happened since last tick: its own effects, rivals' completed actions. In the bazaar each executed trade is written to the authoritative <code>world</code> and to the minds with <code>set_fact</code> (bazaar_live.rs:184). In fogged runs a mind instead calls <code>observe(&amp;sight)</code> for the facts it can currently see (its own stall, its partner's on arrival) and gets back only the surprises (bazaar_live.rs:213). Unseen facts keep their believed values.</p><p>Cost: a few bit writes per fact. No grounding, no search.</p>",
+        "files": [
+         "crates/ferroplan/examples/bazaar_live.rs:184",
+         "crates/ferroplan/examples/bazaar_live.rs:213"
+        ],
+        "links": [
+         {
+          "to": "mod-session-state",
+          "label": "uses"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-tick-done",
+        "title": "2. Am I done? goal_met",
+        "kind": "process",
+        "summary": "A pure state test against the mind's current goal. If met, retire the goal or retarget with set_goal (zero regrounding).",
+        "body": "<p><code>goal_met()</code> evaluates the goal on <code>task.initial()</code>: no search, no budget. The doc comment stresses it is a different question from a zero-budget think, which asks whether a plan could still be found; near-done minds must not confuse the two.</p><p>If met, the game can retarget: the village re-hires a worker on its next contract via <code>set_goal</code> (village-live.html <code>workerTurn</code>), keeping the same grounded world.</p>",
+        "files": [
+         "crates/ferroplan/src/session.rs:1311",
+         "crates/ferroplan-wasm/web/village-live.html:201"
+        ],
+        "links": [
+         {
+          "to": "mod-session-state",
+          "label": "set_goal"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-tick-valid",
+        "title": "3. Still on plan? plan_still_valid",
+        "kind": "process",
+        "summary": "Replay the remaining suffix from the mind's cursor. True means keep following, for free; false means drift broke it.",
+        "body": "<p>The mind holds its last plan and a cursor. <code>plan_still_valid(plan, cursor)</code> replays the suffix exactly. In the serial bazaar loop a mind's suffix validated when it last acted, so any break found now was caused by rival actions in between, and is counted once as a conflict (bazaar_live.rs:249). The village does the same check on a probe fork with the worker's contract set.</p><p>This step is why most ticks cost almost nothing: thinking is surprise-driven, not scheduled.</p>",
+        "files": [
+         "crates/ferroplan/examples/bazaar_live.rs:249"
+        ],
+        "links": [
+         {
+          "to": "mod-session-follow",
+          "label": "uses"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-tick-think",
+        "title": "4. Rethink (only if broken)",
+        "kind": "process",
+        "summary": "Re-scope the mind (restrict_ops, e.g. with claims), then a bounded think: replan_budgeted, replan_following, or the stamped think.",
+        "body": "<p>Before thinking, the loop may refresh the mind's op mask: the claims policy masks trades that would take an item a rival's active plan still claims (bazaar_live.rs:307). Then a bounded think: <code>replan_following(p, cursor, THINK_EVALS, Some(THINK_MB))</code> under the follow policy, else <code>replan_budgeted(THINK_EVALS, Some(THINK_MB))</code> (bazaar_live.rs:318), with <code>THINK_EVALS = 20_000</code> and <code>THINK_MB = 128</code>. MCP callers use <code>session_replan</code>, which is <code>think</code>.</p><p>This is the only step that searches, and it reuses the grounding from construction: the search runs on the session's own <code>PackedTask</code> whose init is the live state. A capped or failed think is a normal outcome: the mind waits and retries next tick.</p>",
+        "files": [
+         "crates/ferroplan/examples/bazaar_live.rs:307",
+         "crates/ferroplan/examples/bazaar_live.rs:318",
+         "crates/ferroplan/examples/bazaar_live.rs:39"
+        ],
+        "facts": [
+         [
+          "Bazaar budget",
+          "20,000 evals / 128 MB"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-session-think",
+          "label": "uses"
+         },
+         {
+          "to": "mod-session-fork",
+          "label": "restrict_ops"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-tick-act",
+        "title": "5. Act: apply the next step",
+        "kind": "process",
+        "summary": "Classical worlds apply the step's effects with set_fact on the world; temporal worlds dispatch due steps with apply_start.",
+        "body": "<p>Classical: the game applies the next step's effects to the authoritative world (and the acting mind), advancing the cursor (bazaar_live.rs:439). Temporal: the village loop walks plan steps whose start time has come and calls <code>world.apply_start(\"(ACTION ARGS)\")</code>; a start that is not yet applicable stays queued for the next tick (village_live.rs:172, village-live.html <code>dispatch</code>).</p>",
+        "files": [
+         "crates/ferroplan/examples/bazaar_live.rs:439",
+         "crates/ferroplan/examples/village_live.rs:172"
+        ],
+        "links": [
+         {
+          "to": "mod-session-clock",
+          "label": "apply_start"
+         }
+        ]
+       },
+       {
+        "id": "mod-session-tick-elapse",
+        "title": "6. Advance time: elapse",
+        "kind": "process",
+        "summary": "Temporal worlds call elapse(dt): due scheduled events and interval ends fire in time order; broken ends are reported.",
+        "body": "<p>The village advances one time unit per tick with <code>world.elapse(1.0)</code> (village_live.rs:99). Interval ends whose time has come apply their at-end effects; events planted with <code>set_timed_fact</code> flip their facts. Anything that changed here becomes the drift the next tick's step 3 checks for.</p><p>Determinism: with budgeted thinks and a fixed mind order the whole simulation replays byte-identical at any thread count, which the session tests assert (<code>*_stay_deterministic_across_threads</code>).</p>",
+        "files": [
+         "crates/ferroplan/examples/village_live.rs:99",
+         "crates/ferroplan/src/session.rs:952"
+        ],
+        "links": [
+         {
+          "to": "mod-session-clock",
+          "label": "elapse"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-wasm-live",
+        "label": "browser version"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-packed",
+      "label": "owns a PackedTask"
+     },
+     {
+      "to": "mod-ground",
+      "label": "grounds once"
+     },
+     {
+      "to": "mod-search",
+      "label": "classical think"
+     },
+     {
+      "to": "mod-temporal",
+      "label": "temporal think"
+     },
+     {
+      "to": "crate-ferroplan-mcp-session",
+      "label": "exposed by"
+     },
+     {
+      "to": "crate-ferroplan-wasm-session",
+      "label": "exposed by"
+     }
+    ]
+   },
+   {
+    "id": "sec-session-vs-solve",
+    "title": "Session vs solve: what is reused",
+    "kind": "concept",
+    "summary": "Paid once at Session::new: parse, axiom compile, snap compile, grounding, index building. Paid per think: one search (plus duration rebuild for temporal, orbit detection for stamped classical thinks).",
+    "body": "<table><tr><th>Work</th><th><code>solve</code></th><th><code>Session</code></th></tr><tr><td>Parse + <code>derived::compile</code></td><td>every call</td><td>once</td></tr><tr><td>Temporal snap compile</td><td>every call</td><td>once</td></tr><tr><td>Grounding</td><td>every call (stratified/plain)</td><td>once (fixpoint for temporal, <code>ground_task</code> classical)</td></tr><tr><td>Name/achiever/successor indexes</td><td>every call</td><td>once, shared by forks</td></tr><tr><td>Duration table (<code>build_kind</code>)</td><td>every call</td><td>every temporal think (so fluent edits flow in)</td></tr><tr><td>Orbit detection</td><td>per solve</td><td>per <code>think</code>, re-run on the live world</td></tr><tr><td>Search</td><td>mode-routed, may escalate</td><td>classical ladder or bounded epoch ladder; no escalation</td></tr></table><p>A session's think also differs in what it will not do: no PDDL3 optimizer, no decomposer, no portfolio. It is a bounded call with a deterministic budget, which is what a per-tick caller needs.</p>",
+    "files": [
+     "crates/ferroplan/src/session.rs:1",
+     "crates/ferroplan/src/api.rs:597"
+    ],
+    "links": [
+     {
+      "to": "fe-library",
+      "label": "solve"
+     },
+     {
+      "to": "mod-session",
+      "label": "details"
+     }
+    ]
+   }
+  ]
+ }
+]

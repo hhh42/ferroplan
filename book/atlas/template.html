@@ -403,7 +403,10 @@ const DATA = /*__ATLAS_DATA__*/null;
         const ar = els.get(ks[i].id).getBoundingClientRect(), br = els.get(ks[i + 1].id).getBoundingClientRect();
         const A = { x: ar.left - base.left, y: ar.top - base.top, w: ar.width, h: Math.min(ar.height, 120) };
         const B = { x: br.left - base.left, y: br.top - base.top, w: br.width, h: Math.min(br.height, 120) };
-        u += `<path d="${path(A, B).d}" fill="none" stroke="var(--ink-2)" stroke-width="1.6" marker-end="url(#ah)" opacity=".75"/>`;
+        const wrapped = B.y > A.y + A.h - 2 && B.x + B.w / 2 < A.x + A.w / 2;
+        const d = wrapped ? (() => { const x1 = A.x + A.w / 2, y1 = A.y + ar.height, x2 = B.x + B.w / 2, y2 = B.y, ym = (y1 + y2) / 2;
+            return `M${x1},${y1} V${ym - 6} Q${x1},${ym} ${x1 - 6},${ym} H${x2 + 6} Q${x2},${ym} ${x2},${ym + 6} V${y2}`; })() : path(A, B).d;
+        u += `<path d="${d}" fill="none" stroke="var(--ink-2)" stroke-width="1.6" marker-end="url(#ah)" opacity=".75"/>`;
       }
     });
     const flowSvg = u;
@@ -415,6 +418,7 @@ const DATA = /*__ATLAS_DATA__*/null;
     pick.forEach(l => {
       const a = visibleOf(l.from), b = visibleOf(l.to);
       if (!a || !b || a === b || within(a, b) || within(b, a)) return;
+      if (!showAll && f && a !== f && b !== f) return;
       const k = a + "\u0000" + b; if (!pairs.has(k)) pairs.set(k, { a, b, labels: new Set() });
       if (l.label) pairs.get(k).labels.add(l.label);
     });
@@ -423,7 +427,7 @@ const DATA = /*__ATLAS_DATA__*/null;
       const A = rectOf(a, base), B = rectOf(b, base); if (!A || !B) return;
       const p = path(A, B, true);
       o += `<path d="${p.d}" fill="none" stroke="var(--wire)" stroke-width="${showAll && !f ? 1.1 : 1.8}" stroke-dasharray="5 4" marker-end="url(#aw)" opacity="${showAll && !f ? .45 : .9}"/>`;
-      if (few && labels.size && !(showAll && !f)) o += `<text class="edge-label" x="${p.mid.x}" y="${p.mid.y}" text-anchor="middle">${esc([...labels].slice(0, 2).join(", "))}</text>`;
+      if (few && labels.size && hover) o += `<text class="edge-label" x="${p.mid.x}" y="${p.mid.y}" text-anchor="middle">${esc([...labels].slice(0, 2).join(", "))}</text>`;
       if (!showAll || f) { els.get(a).classList.add("hl"); els.get(b).classList.add("hl"); }
     });
     $("#over").innerHTML = o;

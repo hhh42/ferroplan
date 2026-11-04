@@ -1,0 +1,1755 @@
+[
+ {
+  "id": "sec-modes",
+  "title": "Planning modes",
+  "kind": "section",
+  "summary": "Everything beyond plain STRIPS search: preferences and constraints, temporal planning, numeric resources, partition-and-resolve, and plan verification.",
+  "body": "<p>Each mode follows the same pattern: <strong>compile</strong> the richer PDDL feature into structure the core pipeline already handles (classical actions, conditional effects, numeric fluents), run the shared grounder, h_FF and best-first search, and add a mode-specific outer loop (anytime B&amp;B, decision-epoch agenda, penalty schedule, merge cascade). Every mode's plans are then re-checked by an oracle that reads the ORIGINAL semantics, not the compiled form.</p><p>Size: the modes in this section total about 16,300 lines, of which temporal.rs (6,204) and pddl3.rs (4,142) are the two largest files in the crate after the core search.</p>",
+  "facts": [
+   [
+    "Modules",
+    "13"
+   ],
+   [
+    "Lines",
+    "~16,300"
+   ]
+  ],
+  "layout": "grid",
+  "children": [
+   {
+    "id": "sec-modes-pddl3",
+    "title": "PDDL3 preferences & constraints",
+    "kind": "concept",
+    "summary": "Soft goals, metrics and trajectory constraints: compile them into ordinary classical structure, then optimize with anytime B&B and penalty loops.",
+    "body": "<p>Three modules cooperate. <code>constraints.rs</code> turns trajectory constraints into monitor automata (hard ones gate validity, soft ones become preferences). <code>pddl3.rs</code> compiles all preferences into collect/forgo actions and runs the metric optimizer. <code>espc.rs</code> is the SGPlan-style penalty loop the optimizer hands off to when preferences compete for a shared resource.</p><p>The common design rule: compile to something the existing grounder, h_FF and best-first search already handle, and keep an independent verifier (<code>verify.rs</code>) that evaluates the ORIGINAL semantics, so compiled bookkeeping can never misreport a metric.</p>",
+    "files": [
+     "book/src/pddl3.md",
+     "book/src/metric-quality.md"
+    ],
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-constraints",
+      "title": "constraints.rs: trajectory constraints",
+      "kind": "module",
+      "summary": "Enforces PDDL3 (:constraints ...) by compiling each modal operator into a monitor automaton over the state trajectory.",
+      "body": "<p><strong>PDDL feature.</strong> PDDL3 trajectory constraints: <code>always</code>, <code>sometime</code>, <code>at-most-once</code>, <code>sometime-after</code>, <code>sometime-before</code>, <code>at end</code>, and on durative domains <code>within</code> and <code>always-within</code>. Hard constraints define validity; soft ones (<code>(preference name ...)</code>) are priced in the metric.</p><p><strong>History.</strong> 0.4.1-0.6 parsed and rejected every block. 0.7 enforced the six untimed operators on the classical path, 0.8 added the TRAJ-END latch and shared monitor grounding, 0.23 enforced hard untimed constraints on the temporal path, 0.24 added the timed operators.</p><p><strong>Independence.</strong> The verifier never uses this compilation: <code>verify.rs</code> and <code>temporal::validate</code> fold the ORIGINAL constraint semantics (the <code>Fold</code> struct) over their replay, so the oracle stays independent of the monitors. Results on the IPC-5 qualitative-preferences track: benchmarks/ipc5-qualitative-scoreboard.md.</p>",
+      "files": [
+       "crates/ferroplan/src/constraints.rs:1",
+       "crates/ferroplan/src/constraints.rs:618"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "1,651"
+       ],
+       [
+        "Entry",
+        "<code>gate()</code>"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-constraints-expand",
+        "title": "Expansion & static simplification",
+        "kind": "stage",
+        "summary": "expand() grounds forall quantifiers and separates hard constraints from soft preference instances; simplify_static() removes instances decidable from static facts.",
+        "body": "<p>A <code>(:constraints ...)</code> tree is lowered to the <code>Traj</code> enum: <code>Always</code>, <code>Sometime</code>, <code>AtMostOnce</code>, <code>SometimeAfter</code>, <code>SometimeBefore</code>, <code>AtEnd</code>, <code>Within(t, phi)</code>, <code>AlwaysWithin(t, phi, psi)</code>. <code>expand()</code> returns an <code>Expanded</code> with <code>hard: Vec&lt;Traj&gt;</code> and <code>soft: Vec&lt;(name, Vec&lt;Traj&gt;)&gt;</code>.</p><p>The instance boundary follows PDDL3 (Gerevini &amp; Long) exactly: a <code>forall</code> OUTSIDE a preference multiplies instances (all sharing the name, so <code>is-violated</code> counts violated instances); <code>and</code>/<code>forall</code> INSIDE stay one instance, violated at most once. Anonymous preferences get <code>TRAJPREF{n}</code> names in source order.</p><p><code>simplify_static()</code> / <code>static_simplifier()</code> fold members whose bodies are decided by static relations, so quadratic <code>forall</code> constraints over static relations stay tractable (<code>FF_PREF_NO_STATIC=1</code> restores blind expansion). Since 0.29 <code>expand_simplified()</code> simplifies as it expands, so peak memory is the kept members, not the materialized field. Negative time bounds are rejected as unsatisfiable-as-written, and <code>hold-during</code>/<code>hold-after</code> are rejected by name.</p>",
+        "files": [
+         "crates/ferroplan/src/constraints.rs:129",
+         "crates/ferroplan/src/constraints.rs:145",
+         "crates/ferroplan/src/constraints.rs:164",
+         "crates/ferroplan/src/constraints.rs:177",
+         "crates/ferroplan/src/constraints.rs:778"
+        ],
+        "facts": [
+         [
+          "Operators",
+          "6 untimed + 2 timed"
+         ],
+         [
+          "Rejected",
+          "<code>hold-during</code>, <code>hold-after</code>"
+         ]
+        ]
+       },
+       {
+        "id": "mod-constraints-monitors",
+        "title": "Monitor automata",
+        "kind": "concept",
+        "summary": "Each constraint instance becomes fresh 0-ary monitor facts updated by conditional effects appended to every real action.",
+        "body": "<p><strong>Idea.</strong> A trajectory constraint is a property of the whole state sequence, not of one state. Compile it into a tiny automaton whose state is a handful of fresh facts (e.g. SEEN, VIOL, ACC), and step the automaton on every action with <code>Effect::When</code> conditional effects. The existing grounder and heuristic already handle conditional effects, so nothing downstream changes.</p><p><strong>The observation offset (load-bearing).</strong> <code>PackedTask::apply</code> evaluates <code>When</code> conditions against the SOURCE state, so a monitor riding action a_k observes S_{k-1}. S_0 is covered by compile-time evaluation against init, S_0..S_{n-1} by the per-action monitors, and S_n by the END construction. For <code>sometime-before</code> the one-step lag implements \"strictly earlier\" exactly. All transitions on one monitor fact are mutually exclusive, so the add-wins conflict rule never co-fires a set and a clear.</p><p><strong>Cost control.</strong> Since 0.8 the monitor transition block is ground ONCE and shared by all ground actions (<code>FF_NO_COND_SHARE=1</code> restores per-op copies). Storage-scale instances that exhausted 15 GB grounding now ground in under a second at ~100-200 MB. VIOL facts are permanent, which lets the search birth-prune hard-violated states.</p>",
+        "files": [
+         "crates/ferroplan/src/constraints.rs:1098",
+         "crates/ferroplan/src/constraints.rs:1079"
+        ],
+        "facts": [
+         [
+          "Mechanism",
+          "<code>Effect::When</code> on every action"
+         ],
+         [
+          "Shared block",
+          "since 0.8"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-ground",
+          "label": "conditional effects grounded by"
+         },
+         {
+          "to": "mod-packed",
+          "label": "apply() reads source state"
+         }
+        ]
+       },
+       {
+        "id": "mod-constraints-end",
+        "title": "TRAJ-END acceptance latch",
+        "kind": "concept",
+        "summary": "Hard acceptance rides one forced-terminal synthetic action instead of the goal, keeping the goal literal-only and grounding linear in monitors.",
+        "body": "<p><strong>Problem.</strong> In 0.7 each hard monitor's acceptance test was conjoined into the goal. Several operators contribute disjunctions, and the grounder compiles a disjunctive goal into one <code>REACH-GOAL</code> operator per DNF disjunct, exponential in monitor count: the storage hard fixture produced 3^10 = 59,049 ops.</p><p><strong>Construction (0.8).</strong> Every real action requires the init-true phase fact <code>TRAJ-PLANNING</code>. One 0-ary synthetic action <code>TRAJ-END</code> (<code>END_ACTION</code>) deletes it, adds <code>TRAJ-ENDED</code>, and carries one <code>When</code> latch per hard monitor that adds <code>TRAJ{i}-ACC</code> if that monitor accepts. Because <code>When</code> reads the source state, firing TRAJ-END last observes exactly S_n. The goal is then all positive literals: original goal, TRAJ-ENDED and the ACC facts. Cost is 2-3 latches per monitor on ONE op. <code>FF_NO_TRAJ_END=1</code> restores the goal-side form.</p><p><strong>Soft constraints</strong> do not use the latch: they stay as goal-side <code>(preference name &lt;acceptance&gt;)</code> and are priced by the PDDL3 metric machinery in one shared <code>is-violated</code> namespace. Callers strip TRAJ-END from reported plans with <code>strip_end()</code>, only when the gate actually compiled the task.</p>",
+        "files": [
+         "crates/ferroplan/src/constraints.rs:111",
+         "crates/ferroplan/src/constraints.rs:995"
+        ],
+        "facts": [
+         [
+          "Before",
+          "59,049 ops (3^10)"
+         ],
+         [
+          "After",
+          "linear in monitors"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-pddl3",
+          "label": "soft acceptance priced by"
+         }
+        ]
+       },
+       {
+        "id": "mod-constraints-timed",
+        "title": "Timed operators on the clock",
+        "kind": "concept",
+        "summary": "within and always-within lower to the same monitor shapes using TRAJ-CLOCK, a fluent the temporal search stamps with the decision-epoch time.",
+        "body": "<p><strong>Ingredient.</strong> <code>CLOCK_FLUENT</code> (<code>TRAJ-CLOCK</code>) is written by the decision-epoch search into every state it creates (block (b)'s time advance). A state's clock is the time it began, and monitors read their source state, so <code>(&lt;= (TRAJ-CLOCK) t)</code> inside a transition condition tests \"the observed state is inside the deadline\".</p><ul><li><code>within t phi</code> = <code>sometime</code> with the SEEN transition gated by the deadline, plus a VIOL transition when the window closes unseen.</li><li><code>always-within t phi psi</code> = <code>sometime-after</code> with a per-monitor <code>TRAJ{i}-DUE</code> fluent assigned <code>clock + t</code> at each trigger (a conditional numeric effect) and a VIOL transition when the clock passes DUE while the obligation is open.</li></ul><p>Both VIOL facts are permanent because the clock never decreases. Only <code>compile_timed()</code> (the temporal path) accepts them; on a classical domain they are rejected by name (no clock). Since the ε-separation pass may shift emitted times, the temporal monitor audit re-stamps the clock from EMITTED times, the times VAL reads, before a plan is shipped. Since 0.24 Phase 4.</p>",
+        "files": [
+         "crates/ferroplan/src/constraints.rs:121",
+         "crates/ferroplan/src/constraints.rs:1091"
+        ],
+        "facts": [
+         [
+          "Since",
+          "0.24"
+         ],
+         [
+          "Clock fluent",
+          "<code>TRAJ-CLOCK</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-temporal-emit",
+          "label": "monitor_audit re-stamps clock"
+         },
+         {
+          "to": "mod-temporal-search",
+          "label": "clock stamped by"
+         }
+        ]
+       },
+       {
+        "id": "mod-constraints-gate",
+        "title": "gate(): the entry fence",
+        "kind": "stage",
+        "summary": "One shared entry point decides: no constraints (no-op), compile now (classical), pass through for post-snap compile (temporal), or reject by name.",
+        "body": "<p><code>gate()</code> is shared by <code>solve</code>, <code>decompose</code>, <code>run_planner</code> and <code>run_ff</code> so no entry path can silently diverge. Results:</p><ul><li><code>Ok(None)</code>: no constraints, byte-identical no-op path.</li><li><code>Ok(Some(pair))</code> on a classical domain: untimed operators compiled, hard and soft.</li><li><code>Ok(Some(pair))</code> on a durative domain: vetted by <code>vet_temporal()</code> and passed through UNCHANGED. The monitor compile must ride the snap-compiled classical task, which does not exist yet at this point; <code>temporal::solve_inner</code> calls <code>compile_timed</code> after <code>temporal::compile</code>.</li><li><code>Err(msg)</code>: a named rejection (<code>hold-during</code>/<code>hold-after</code>, timed operators on a classical domain, or the <code>FF_CONSTRAINTS_REJECT=1</code> hatch that restores the 0.4.1 blanket rejection).</li></ul><p>The contract is \"never silently ignore\": anything unenforceable is rejected naming the operator. Soft constraints on temporal domains are handled upstream by the temporal preference tiers (0.25), which harden or drop them before this compile; a soft member arriving at <code>compile_inner</code> on the timed path is an internal error. <code>hard_only_gated()</code> strips soft constraints for the incumbent-zero hard-goal plan. Note: book/src/pddl3.md still says timed operators are rejected on durative domains; the code comments describe 0.24 acceptance.</p>",
+        "files": [
+         "crates/ferroplan/src/constraints.rs:1015",
+         "crates/ferroplan/src/constraints.rs:1043",
+         "crates/ferroplan/src/constraints.rs:283",
+         "crates/ferroplan/src/constraints.rs:883"
+        ],
+        "facts": [
+         [
+          "Since",
+          "0.7 (classical), 0.23 (temporal)"
+         ],
+         [
+          "Hatch",
+          "<code>FF_CONSTRAINTS_REJECT</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-api",
+          "label": "called by solve/decompose"
+         },
+         {
+          "to": "mod-temporal-router",
+          "label": "temporal path"
+         },
+         {
+          "to": "mod-pddl3-seed",
+          "label": "hard_only_gated"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-pddl3",
+        "label": "soft constraints become preferences"
+       },
+       {
+        "to": "mod-temporal",
+        "label": "compiled post-snap"
+       },
+       {
+        "to": "mod-verify",
+        "label": "Fold used by"
+       }
+      ]
+     },
+     {
+      "id": "mod-pddl3",
+      "title": "pddl3.rs: preferences & metric",
+      "kind": "module",
+      "summary": "PDDL3 soft goals: compile preferences into collect/forgo actions, then optimize the :metric with anytime branch-and-bound seeded by cheap classical plans.",
+      "body": "<p><strong>PDDL feature.</strong> PDDL3.0 <code>(preference name phi)</code> in goals and preconditions, <code>(is-violated name)</code> in a linear <code>:metric</code>, plus <code>total-cost</code> and monotone numeric terms. Serves the IPC-5 simple- and qualitative-preferences tracks and IPC-6 net-benefit.</p><p><strong>Pipeline.</strong> Compile (Keyder-Geffner) -&gt; incumbent zero from the hard goal -&gt; optional polish -&gt; ground the compiled task -&gt; guidance -&gt; optimizer dispatch (ESPC / exact-closure / legacy) seeded by selection or composed seeds. Everything is anytime: a valid plan is held from the first moment and only replaced by a strictly cheaper one.</p><p><strong>Scope and limits.</strong> Metrics must be linear in <code>is-violated</code>, <code>total-cost</code> and monotone fluent terms. Non-monotone, under-forall or divided terms set <code>Compiled::unsupported</code> and the caller falls back to a satisficing plan with a note. Standing vs SGPlan5 (IPC-5 winner): 48/48 coverage, domain-level lead on openstacks and storage (book/src/metric-quality.md). rovers optimizes its full metric (935.3 on p01).</p>",
+      "files": [
+       "crates/ferroplan/src/pddl3.rs:1",
+       "crates/ferroplan/src/pddl3.rs:1679",
+       "crates/ferroplan/src/pddl3.rs:2361"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "4,142"
+       ],
+       [
+        "Paper",
+        "Keyder &amp; Geffner, JAIR 2009"
+       ],
+       [
+        "Entry",
+        "<code>compile()</code>, <code>metric_optimize_seeded()</code>"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-pddl3-compile",
+        "title": "Keyder-Geffner soft-goal compile",
+        "kind": "stage",
+        "summary": "compile() turns every goal preference into a collected fact plus a free collect and a priced forgo action, so minimizing total-cost minimizes weighted violation.",
+        "body": "<p><strong>Idea.</strong> Keyder and Geffner (JAIR 2009) showed soft goals can be compiled away: for each preference <code>p</code> with body <code>phi</code>, add a fact <code>collected_p</code> to the HARD goal, a <code>collect_p</code> action (precondition <code>phi</code>, cost 0) and a <code>forgo_p</code> action (no precondition, cost = metric weight <code>w_p</code>). Any plan must close every preference one way or the other, and its <code>total-cost</code> is the metric.</p><p><strong>In ferroplan.</strong> <code>compile()</code> first runs <code>split_goal()</code> to separate hard conjuncts from preference instances (forall-expanded over typed objects by <code>combos()</code>). Precondition preferences become satisfied/violated action variants (<code>extract_precond_prefs()</code>), charged once per application. Weights come from <code>pref_weights()</code>: the <code>(is-violated p)</code> coefficient, 0 if the metric ignores p, 1 if there is no metric.</p><p>The synthetic layer is phase-gated: every real action requires <code>P3PLANNING</code>; one <code>P3END</code> action flips to <code>P3ENDED</code> and freezes the state; only then may <code>P3COLLECT-i</code> / <code>P3FORGO-i</code> fire. <strong>Static simplification</strong> drops statically-true preference instances before grounding (IPC-5 storage's quadratic forall collapses ~97%; <code>FF_PREF_NO_STATIC=1</code> restores). Monotone numeric metric terms such as rovers' <code>sum-traverse-cost</code> are folded into total-cost by mirroring their <code>increase</code> effects (<code>fluent_foldable()</code>, <code>collect_cost_mirror()</code>). <code>cost_monotone()</code> decides whether branch-and-bound pruning is sound; maximize metrics are normalized to minimize and mapped back by <code>Compiled::display_metric()</code>.</p>",
+        "files": [
+         "crates/ferroplan/src/pddl3.rs:1679",
+         "crates/ferroplan/src/pddl3.rs:237",
+         "crates/ferroplan/src/pddl3.rs:1537",
+         "crates/ferroplan/src/pddl3.rs:1578",
+         "crates/ferroplan/src/pddl3.rs:1633",
+         "crates/ferroplan/src/pddl3.rs:1441"
+        ],
+        "facts": [
+         [
+          "Synthetic ops",
+          "<code>P3END</code>, <code>P3COLLECT-i</code>, <code>P3FORGO-i</code>"
+         ],
+         [
+          "Output",
+          "<code>Compiled</code> (domain, problem, forgos, konst)"
+         ],
+         [
+          "Hatch",
+          "<code>FF_PREF_NO_STATIC</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-ground",
+          "label": "compiled pair is grounded by"
+         },
+         {
+          "to": "mod-pddl3-closure",
+          "label": "forgos priced by"
+         }
+        ]
+       },
+       {
+        "id": "mod-pddl3-seed",
+        "title": "Incumbent zero (hard-goal seed)",
+        "kind": "stage",
+        "summary": "Before optimizing, the classical ladder plans the hard goals alone and that plan is lifted into the compiled task as a floor, so a valid plan is always returned.",
+        "body": "<p><strong>Problem it fixes.</strong> The compiled preference task is far harder to search than the hard goal: rovers-qualitative i9 spent 70k evaluations and the whole wall without reaching the hard goal once, while the classical ladder reached it in 133 evaluations and 30 ms. Until 0.28 such runs reported <code>solved: false</code> with a valid plan milliseconds away (46 of 49 missed qual-pref rows and all 11 missed simple-pref rows at 60 s, per the 2026-09-20 probe).</p><p><strong>Mechanism.</strong> <code>hard_goal_plan()</code> runs the classical ladder on the ORIGINAL pair with soft trajectory constraints stripped (<code>constraints::hard_only_gated</code>); grounding reads every preference as true, so no collect/forgo bookkeeping or monitor block rides the ops. <code>lift_seed()</code> replays the plan by display name in the compiled task (precondition-preference variants share their action's name and are mutually exclusive, so the lift is well defined). <code>close_seed()</code> appends the exact phase tail to get a complete compiled plan and its cost.</p><p>By default the seed is a <em>floor</em>, not a bound: the B&amp;B runs unchanged and the seed is returned only if nothing cheaper was found. <code>FF_PREF_SEED_BOUND=1</code> makes it the opening incumbent; <code>FF_PREF_NO_SEED=1</code> restores 0.27. With no hard goal the floor is the empty plan. If the compiled task cannot even ground, the hard-goal plan comes back with <code>metric: null</code> and a <code>NOT priced</code> note.</p>",
+        "files": [
+         "crates/ferroplan/src/pddl3.rs:2221",
+         "crates/ferroplan/src/pddl3.rs:2318",
+         "crates/ferroplan/src/pddl3.rs:2167",
+         "crates/ferroplan/src/pddl3.rs:2082"
+        ],
+        "facts": [
+         [
+          "Since",
+          "0.28"
+         ],
+         [
+          "Restore",
+          "<code>FF_PREF_NO_SEED=1</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-search",
+          "label": "classical ladder"
+         },
+         {
+          "to": "mod-constraints",
+          "label": "hard_only_gated"
+         }
+        ]
+       },
+       {
+        "id": "mod-pddl3-polish",
+        "title": "Polish (local preference repair)",
+        "kind": "stage",
+        "summary": "A cheap pass on the seed's own plain task that tries to add held preferences one at a time as hard goals, before the expensive compiled task is grounded.",
+        "body": "<p><strong>Idea.</strong> Rather than search the full compiled problem, take the incumbent plan and ask: can the classical ladder reach the hard goal PLUS this one extra preference, keeping the preferences already satisfied? Each success is a local improvement, priced by replay.</p><p><strong>Where it runs.</strong> <code>polish_first()</code> (0.29) runs on incumbent zero BEFORE the compiled task is grounded, on the seed task, under <code>polish_frac()</code> of the wall (default 0.4, <code>FF_PREF_POLISH_FRAC</code>). Running it after the optimizer had cost storage its plans and trucks i13 its optimum; holding the seed task through the compiled task's 5-6 GB grounding cost storage i18 its row. <code>polish_rounds()</code> (0.30) repeats the pass while it gains, at most <code>FF_PREF_POLISH_ROUNDS</code> (4) times.</p><p><strong>Limits.</strong> Applies only when the metric is a pure weighted sum of <code>is-violated</code> terms plus a constant (<code>pure_violation_metric()</code>), because candidates are priced by the replay verifier, which does not see fluent terms. Each attempt is capped at <code>POLISH_EVALS</code> = 20,000 evaluations; one unit of preference weight is worth <code>POLISH_PENALTY_STEPS</code> = 50 actions in the candidate key. <code>polish_if_affordable()</code> refuses to start when less than twice the grounding time is left (pathways-simple/16: 8.5 s of a 15 s window went to baseline pricing). Pricing reuses one <code>VerifyCtx</code>.</p>",
+        "files": [
+         "crates/ferroplan/src/pddl3.rs:382",
+         "crates/ferroplan/src/pddl3.rs:483",
+         "crates/ferroplan/src/pddl3.rs:800",
+         "crates/ferroplan/src/pddl3.rs:317",
+         "crates/ferroplan/src/pddl3.rs:564",
+         "crates/ferroplan/src/pddl3.rs:576"
+        ],
+        "facts": [
+         [
+          "Attempt cap",
+          "20,000 evals"
+         ],
+         [
+          "Wall share",
+          "0.4"
+         ],
+         [
+          "Rounds",
+          "&lt;= 4"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-verify",
+          "label": "candidates priced by VerifyCtx"
+         },
+         {
+          "to": "mod-search",
+          "label": "runs the classical ladder"
+         }
+        ]
+       },
+       {
+        "id": "mod-pddl3-guidance",
+        "title": "Satisfaction & deadline guidance",
+        "kind": "concept",
+        "summary": "Heap penalties computed on the concrete state that give the metric search a gradient the delete relaxation hides.",
+        "body": "<p><strong>Why.</strong> Under delete relaxation the free forgo action makes every preference look reachable, so h_FF is blind to satisfaction. On openstacks-soft the search sat on the all-forgo floor (metric 70 on p01). Penalties read from the <em>concrete</em> state give it a reason to deliver.</p><p><strong><code>build_sat_guidance()</code></strong> builds a <code>search::SatGuidance</code>: for each preference its full phi in DNF (<code>PrefPhi</code>, one disjunct per <code>P3COLLECT-i</code> op, so <code>imply</code>/<code>exists</code> guide correctly) and a heap penalty scaled from its forgo weight. It excludes unachievable or trivially-true phis and, unless <code>FF_PREF_BARRIER=1</code>, preferences already true at init (tpp's weight-16 <code>p4A</code> must dip during any real delivery; penalizing the dip walls off improving paths). Measured: openstacks p01 70 to 63 with this term alone.</p><p><strong><code>build_deadline_guidance()</code></strong> extracts ESPC trigger pairs <code>(M, D, value)</code>: a once-only conditional achievement <code>M</code> (openstacks' <code>(made p)</code>) whose op conditionally adds deliverable <code>D</code>. If M fires while D is absent the preference is lost forever. <code>resource::detect_resources</code> also fills <code>sat.res</code> with renewable counters (occupancy weight default 0, <code>FF_RES_WEIGHT</code>).</p>",
+        "files": [
+         "crates/ferroplan/src/pddl3.rs:3948",
+         "crates/ferroplan/src/pddl3.rs:4018",
+         "crates/ferroplan/src/search.rs:899",
+         "crates/ferroplan/src/search.rs:411"
+        ],
+        "facts": [
+         [
+          "Struct",
+          "<code>search::SatGuidance</code>"
+         ],
+         [
+          "openstacks p01",
+          "70 -&gt; 63"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-search",
+          "label": "orders the open list in"
+         },
+         {
+          "to": "mod-espc",
+          "label": "deadline pairs feed"
+         },
+         {
+          "to": "mod-resource",
+          "label": "renewable counters from"
+         },
+         {
+          "to": "mod-heuristic",
+          "label": "compensates blindness of"
+         }
+        ]
+       },
+       {
+        "id": "mod-pddl3-dispatch",
+        "title": "Optimizer dispatch",
+        "kind": "stage",
+        "summary": "metric_optimize_inner() picks one of three optimizers: the ESPC penalty loop, the exact-closure B&B (default), or the legacy compiled-goal B&B for folded numeric metrics.",
+        "body": "<p><code>metric_optimize_inner()</code> is the router behind <code>metric_optimize()</code> / <code>metric_optimize_seeded()</code>, called from <code>api::solve_pddl3</code> and <code>planner.rs</code>. Order of decisions:</p><ol><li>Build satisfaction guidance and detect renewable resources (pure analysis).</li><li>Build ESPC deadline guidance. If <code>features::espc()</code> is on (default-on since 0.5, <code>FF_NO_ESPC</code> opts out) and deadline pairs exist, hand off to <code>espc::espc_optimize</code> with a partition from <code>build_espc_partition()</code>.</li><li>Otherwise run the <strong>exact-closure</strong> optimizer (<code>metric_optimize_closure()</code>) for pure-preference metrics.</li><li><strong>Legacy compiled-goal path</strong>: an EHC seed on the full compiled goal then tightening via <code>search::solve_subgoal_bounded</code>. Folded numeric metrics (rovers) route here, because real-action cost gives a gradient and the closure search measured worse there. <code>w_c</code> is 0 on purpose: the rovers p01-p08 sweep showed every non-zero cost weight collapses quality (p01 935.3 to 1162.1).</li></ol><p>The deterministic budget is <code>pref_eval_budget()</code> (<code>FF_PREF_EVAL_BUDGET</code>, default 2M evaluations), never wall-clock, so results are thread-count independent. The result type <code>MetricResult</code> records whether optimality was proven.</p>",
+        "files": [
+         "crates/ferroplan/src/pddl3.rs:2361",
+         "crates/ferroplan/src/pddl3.rs:2032",
+         "crates/ferroplan/src/pddl3.rs:2805",
+         "crates/ferroplan/src/pddl3.rs:1985",
+         "crates/ferroplan/src/api.rs:1385"
+        ],
+        "facts": [
+         [
+          "Default budget",
+          "2M evals"
+         ],
+         [
+          "ESPC",
+          "default-on since 0.5"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-espc",
+          "label": "routes to"
+         },
+         {
+          "to": "mod-pddl3-closure",
+          "label": "default route"
+         },
+         {
+          "to": "mod-search",
+          "label": "solve_subgoal_bounded"
+         }
+        ]
+       },
+       {
+        "id": "mod-pddl3-seeds",
+        "title": "Selection & composed seeds",
+        "kind": "concept",
+        "summary": "Two ways to start the B&B from a better incumbent: solve the preference-subset selection exactly, or compose per-component stage plans.",
+        "body": "<p><strong>Selection seed</strong> (<code>selection_seed()</code>, 0.6, docs/forensics-tpp.md). The h-guided search cannot discover coordination such as holding goods5 at level L2 purely so goods6 can match it. So ferroplan solves the preference-subset selection exactly with <code>selection::select</code>, using <code>pref_dnf()</code> disjunct fact-sets, then plans to the chosen facts as one hard-goal target. Joint reachability is not guaranteed, so a failed target bans the chosen fact with the costliest relaxed completion and re-selects, up to <code>MAX_REPAIRS</code> = 8. It also returns an admissible selection BOUND: <code>final == bound</code> proves optimality.</p><p><strong>Composed seed</strong> (<code>compose_pref_seed()</code>). Candidate preferences are grouped into components via invariant-synthesis mutex variables (two interact iff their facts share a variable). Each component becomes one P3-masked, satisfaction-guided stage solved on the evolving state; mandatory facts of finished components are protected by forbidding ops that delete them. An infeasible stage drops its priciest optional preference and retries. The phase tail closes the bookkeeping and the composed plan becomes the starting incumbent if it beats the init-tail one. Stage evaluations come out of the same deterministic budget. <code>FF_PREF_MONO=1</code> disables it.</p>",
+        "files": [
+         "crates/ferroplan/src/pddl3.rs:2861",
+         "crates/ferroplan/src/pddl3.rs:3060",
+         "crates/ferroplan/src/pddl3.rs:2815",
+         "crates/ferroplan/src/selection.rs:74"
+        ],
+        "facts": [
+         [
+          "MAX_REPAIRS",
+          "8"
+         ],
+         [
+          "Hatch",
+          "<code>FF_PREF_MONO</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-selection",
+          "label": "exact subset selection"
+         },
+         {
+          "to": "mod-invariants",
+          "label": "mutex variables"
+         },
+         {
+          "to": "mod-partition",
+          "label": "same component idea as"
+         }
+        ]
+       },
+       {
+        "id": "mod-pddl3-closure",
+        "title": "Exact-closure anytime B&B",
+        "kind": "search",
+        "summary": "The default optimizer: search real states under a metric-bounded acceptance test, then close the preference bookkeeping with a provably optimal phase tail.",
+        "body": "<p><strong>Key observation.</strong> Every valid compiled plan is a real prefix, then <code>P3END</code>, then some collect/forgo permutation. After <code>P3END</code> the state is frozen and each preference is independent, so the optimal closure is simply: collect if phi holds, else forgo. That makes the tail exact, not heuristic.</p><p><strong>Algorithm.</strong> <code>metric_optimize_closure()</code> runs an anytime branch-and-bound. Each iteration searches real states (no P3 facts) and accepts a state only if <code>cost-so-far + closure(state) &lt; bound</code>, where <code>closure</code> comes from the table built by <code>build_closure_cost()</code> (<code>search::ClosureCost</code>, one DNF disjunct per <code>P3COLLECT-i</code>, weighted by forgo cost). The tail is appended by <code>apply_tail()</code> using op ids from <code>build_phase_tail()</code>. The first incumbent is the tail applied to the initial state, so even the largest instances report a metric instantly.</p><p><strong>Scaling tricks</strong> (book/src/pddl3.md): budget escalation (a tightening probe that hits its cap without improvement retries the same bound with the remaining budget, <code>FF_PREF_NO_ESCALATE</code>), in-place bound tightening on every acceptance, and a diversified restart ladder that rotates open-list weights when a capped sweep stalls. This broke the storage/tpp plateau; storage now beats SGPlan5 on p01-p07. Un-capped exhaustion proves optimality; otherwise the plan is flagged <em>not proven optimal</em>.</p>",
+        "files": [
+         "crates/ferroplan/src/pddl3.rs:3420",
+         "crates/ferroplan/src/pddl3.rs:3758",
+         "crates/ferroplan/src/pddl3.rs:3773",
+         "crates/ferroplan/src/pddl3.rs:3810",
+         "crates/ferroplan/src/search.rs:436"
+        ],
+        "facts": [
+         [
+          "Since",
+          "0.4.0 (default)"
+         ],
+         [
+          "Proof",
+          "uncapped exhaustion"
+         ],
+         [
+          "Hatch",
+          "<code>FF_PREF_COMPILED</code> (legacy)"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-search",
+          "label": "bounded searches"
+         },
+         {
+          "to": "mod-heuristic",
+          "label": "h_FF ordering"
+         },
+         {
+          "to": "mod-verify",
+          "label": "reported metric cross-checked by"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "called from solve_pddl3"
+       },
+       {
+        "to": "mod-planner",
+        "label": "text path"
+       },
+       {
+        "to": "mod-ground",
+        "label": "compiled task grounded by"
+       },
+       {
+        "to": "mod-search",
+        "label": "B&amp;B uses"
+       },
+       {
+        "to": "mod-costs",
+        "label": "total-cost semantics"
+       }
+      ]
+     },
+     {
+      "id": "mod-espc",
+      "title": "espc.rs: ESPC penalty loop",
+      "kind": "module",
+      "summary": "SGPlan's extended-saddle-point penalty resolution, used to coordinate preferences that share a global resource.",
+      "body": "<p><strong>Purpose.</strong> On resource-coupled preference domains the subproblems are trivial; the difficulty is joint coordination of a shared resource across preferences (docs/espc-preferences-spec.md). Neither monolithic B&amp;B (10x the budget left openstacks p01 at 70) nor per-preference force-collect closed that gap.</p><p><strong>Approach.</strong> Price the coupling as a global constraint with adaptive per-trigger penalties, re-solve, and iterate; optionally decompose the real goal into components so each iteration is cheap. Called from <code>pddl3::metric_optimize_inner</code> when deadline pairs exist. Default-on since 0.5; <code>FF_NO_ESPC</code> opts out.</p><p>Result: openstacks moved ahead of SGPlan5 on p04-p08. Inert on domains without the conditional-achievement structure (no pairs, no loop).</p>",
+      "files": [
+       "crates/ferroplan/src/espc.rs:1",
+       "crates/ferroplan/src/espc.rs:349"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "566"
+       ],
+       [
+        "Spec",
+        "docs/espc-preferences-spec.md"
+       ],
+       [
+        "Entry",
+        "<code>espc_optimize()</code>"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-espc-signal",
+        "title": "Violation signal",
+        "kind": "concept",
+        "summary": "The penalty is measured on the concrete final state: a once-only trigger M present while its deliverable D is absent is a permanently lost preference.",
+        "body": "<p>In openstacks, <code>make-product</code> is a once-only conditional achievement. If it fires while the orders needing that product are still <code>waiting</code>, their delivery preference is lost for good. The delete-relaxed RPG cannot see this (it can re-add the deliverable at will), so the loop reads the CONCRETE state.</p><p><code>measure_violation()</code> replays a plan and, for each deadline pair <code>(M, D, _)</code> produced by <code>pddl3::build_deadline_guidance</code>, counts it when M is present and D absent. The map is keyed by trigger so penalties can be raised per product. During search the same pairs act through <code>SatGuidance::deadline</code> as a heap penalty, with weights that the outer loop overwrites each iteration.</p><p>Penalty multipliers λ are SEPARATE from preference weights: weights compute the reported metric; λ only reorders the search and never changes legality or the metric. That separation is what makes the loop safe: a bad λ can only change which plans are found first.</p>",
+        "files": [
+         "crates/ferroplan/src/espc.rs:264",
+         "crates/ferroplan/src/pddl3.rs:4018"
+        ],
+        "facts": [
+         [
+          "Pair shape",
+          "<code>(M, D, value)</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-pddl3-guidance",
+          "label": "pairs built by"
+         }
+        ]
+       },
+       {
+        "id": "mod-espc-loop",
+        "title": "λ penalty schedule",
+        "kind": "process",
+        "summary": "A finite outer loop that re-solves under fixed penalties, raises λ only on triggers still violated, and keeps the best plan seen.",
+        "body": "<p><strong>Idea (Wah &amp; Chen; Hsu, Wah, Huang &amp; Chen, IPC-2006).</strong> SGPlan coordinates global constraints with a penalty-update loop that converges to an <em>extended saddle point</em>, a constrained local minimum: solve under fixed penalties, increase the penalty on every still-violated constraint, repeat. Rates are adapted by a consecutive-violation counter.</p><p><strong>ferroplan's loop</strong> (<code>espc_optimize()</code>). Iteration 0 is penalty-free (a floor). Each iteration calls <code>solve_under_penalties()</code> (an anytime B&amp;B via <code>search::solve_subgoal_bounded</code>) or the partitioned composition, measures per-trigger violations, and raises <code>λ[M]</code> on violated triggers. Knobs: <code>FF_ESPC_LAMBDA0</code> (0), <code>FF_ESPC_RATE</code> (20), <code>FF_ESPC_K</code> (2, consecutive-violation rate bump), <code>FF_ESPC_STALL</code> (4), <code>FF_ESPC_OUTER</code> (16 monolithic, 64 partitioned), <code>FF_ESPC_EVAL_BUDGET</code> (6,000,000).</p><p><strong>Monotone ascent, anytime.</strong> λ never decreases, but the returned plan is the best across all iterations, so overshooting can never regress the result. Increment 1 (monolithic, <code>FF_ESPC_MONO=1</code>) took openstacks p01 63 to 42 and p08 608 to 227, still behind SGPlan5.</p>",
+        "files": [
+         "crates/ferroplan/src/espc.rs:349",
+         "crates/ferroplan/src/espc.rs:291",
+         "crates/ferroplan/src/espc.rs:379"
+        ],
+        "facts": [
+         [
+          "Outer cap",
+          "16 / 64"
+         ],
+         [
+          "Eval budget",
+          "6M"
+         ],
+         [
+          "Rate",
+          "20, bump after K=2"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-search",
+          "label": "solve_subgoal_bounded"
+         }
+        ]
+       },
+       {
+        "id": "mod-espc-partitioned",
+        "title": "Partitioned composition (increment 2)",
+        "kind": "process",
+        "summary": "Each iteration solves one subproblem per order-interaction component, with the shared stacks-avail resource priced globally instead of solved inside a stage.",
+        "body": "<p><code>pddl3::build_espc_partition()</code> builds an <code>EspcPartition</code>: interaction components over the REAL goal (the P3 bookkeeping is closed by the phase tail), with detected renewable resource variables (openstacks' <code>stacks-avail</code> chain) excluded from edge formation via <code>partition::interaction_partition_of</code>. <code>assoc</code> ties each goal fact to the preference deliverables sharing its mutex variable, so each stage first tries its goal plus its own deliverables, then falls back to the bare goal.</p><p><code>solve_partitioned()</code> / <code>compose_once()</code> solve stages on the evolving state with <code>search::solve_subgoal_guided</code>. On a conflict (stage i failed or broke finished sibling j) groups are merged with <code>merge_at</code> or <code>merge_with_neighbor</code>, the same dynamic grain-size control as <code>resolve::solve</code>; merges persist across iterations. <code>apply_tail()</code> closes the composed plan.</p><p><strong>Measured</strong> (docs/espc-preferences-spec.md): openstacks p01-p08 = 19/23/17/16/21/22/66/87 vs SGPlan5's 13/16/12/26/36/33/67/123, ahead on p04-p08. p01-p03 remain behind: the per-order grain is too coarse there.</p>",
+        "files": [
+         "crates/ferroplan/src/espc.rs:44",
+         "crates/ferroplan/src/espc.rs:103",
+         "crates/ferroplan/src/espc.rs:230",
+         "crates/ferroplan/src/pddl3.rs:3844"
+        ],
+        "facts": [
+         [
+          "openstacks p08",
+          "87 vs SGPlan5 123"
+         ],
+         [
+          "Hatch",
+          "<code>FF_ESPC_MONO=1</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-partition",
+          "label": "interaction_partition_of"
+         },
+         {
+          "to": "mod-resolve",
+          "label": "same merge discipline"
+         },
+         {
+          "to": "mod-resource",
+          "label": "excluded shared variables"
+         },
+         {
+          "to": "mod-pddl3-closure",
+          "label": "phase tail"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-pddl3",
+        "label": "called by"
+       },
+       {
+        "to": "mod-partition",
+        "label": "components"
+       },
+       {
+        "to": "mod-search",
+        "label": "subplanner"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "sec-modes-verify",
+      "label": "checked by"
+     }
+    ]
+   },
+   {
+    "id": "sec-modes-temporal",
+    "title": "Temporal planning",
+    "kind": "concept",
+    "summary": "Durative actions: snap-action compile and decision-epoch search, plus a compression rung, an actor scheduler and a contract decomposer around it.",
+    "body": "<p><code>temporal.rs</code> is the core engine. Around it: <code>tcompress.rs</code> tries the cheap sequential route first, <code>tsched.rs</code> optionally repacks plans onto actors, <code>tresolve.rs</code> decomposes goals into contracts (the ladder's last rung and the <code>api::decompose</code> surface). Every plan from any of them is judged by <code>temporal::validate</code> before it is returned.</p>",
+    "files": [
+     "book/src/temporal.md"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-temporal",
+      "title": "temporal.rs: durative actions",
+      "kind": "module",
+      "summary": "PDDL2.1 temporal planning: compile durative actions to snap actions and search a decision-epoch space with a pending-end agenda.",
+      "body": "<p><strong>PDDL feature.</strong> <code>:durative-action</code> with at start / over all / at end conditions and effects, constant, parameter- and state-dependent durations, duration inequalities, <code>?duration</code> in effects, timed initial literals, required concurrency, and (since 0.23/0.24) hard trajectory constraints including <code>within</code>/<code>always-within</code>. Not supported: continuous <code>#t</code> effects.</p><p><strong>Shape.</strong> Compile (snap actions + <code>SnapInfo</code>) -&gt; router/ladder -&gt; decision-epoch search with symmetry reduction and invariant guards -&gt; emission (ε-separation, duration reconciliation, monitor audit) -&gt; validation. Plans are satisficing, not makespan-optimal; output is the IPC format <code>t: (action args) [d]</code> with makespan.</p><p>Auto-detected by <code>is_temporal()</code> (any durative action). The main open work item is search guidance on wall domains (machine-shop, storage, model-train).</p>",
+      "files": [
+       "crates/ferroplan/src/temporal.rs:1",
+       "crates/ferroplan/src/temporal.rs:66",
+       "crates/ferroplan/src/temporal.rs:458",
+       "crates/ferroplan/src/temporal.rs:466"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "6,204"
+       ],
+       [
+        "Entry",
+        "<code>solve()</code>, <code>solve_scored()</code>, <code>validate()</code>"
+       ],
+       [
+        "Plan type",
+        "<code>TimedPlan</code> / <code>TimedStep</code>"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-temporal-snap",
+        "title": "Snap-action compile",
+        "kind": "stage",
+        "summary": "compile() splits each durative action into START and END instantaneous actions plus a RUNNING token, keeping duration and over-all invariant in a side table.",
+        "body": "<p><strong>Idea.</strong> A durative action has conditions/effects at start, over all, and at end. Splitting it into two instantaneous <em>snap actions</em> lets the classical grounder and relaxed-plan heuristic be reused unchanged; what classical STRIPS cannot express (the duration and the invariant) goes into <code>SnapInfo</code>.</p><p><strong>Construction.</strong> <code>A-START</code>: precondition = at-start conditions plus the invariant; effects = at-start effects plus <code>(RUNNING-A ?params)</code>. <code>A-END</code>: at-end conditions, the invariant and the token; at-end effects; deletes the token. <code>TemporalCompiled</code> holds the classical domain/problem and one <code>SnapInfo</code> per action (start/end names, token, duration constraint, invariant, params).</p><p><strong>Durations.</strong> Constant or parameter-dependent; zero is legal (pathways gates everything behind <code>(= ?duration 0)</code>). Inequalities <code>(&gt;= ?duration L)</code> / <code>(&lt;= ?duration U)</code> are kept as min/max (<code>eval_duration_bounds()</code>); the search commits to the shortest feasible. <code>?duration</code> inside effects is substituted by <code>expr_subst_duration()</code>; when the end side reads a fluent some action assigns (rovers' <code>recharge</code>), a hidden <code>DUR-&lt;action&gt;</code> fluent is assigned at start and stands in at the end (0.29).</p><p><strong>Timed initial literals</strong> become one synthetic 0-arg action each, classified <code>Kind::Til</code>, never started by the search, fired from a pre-seeded agenda at its time. This also makes TIL-only goals relaxed-reachable.</p>",
+        "files": [
+         "crates/ferroplan/src/temporal.rs:237",
+         "crates/ferroplan/src/temporal.rs:36",
+         "crates/ferroplan/src/temporal.rs:53",
+         "crates/ferroplan/src/temporal.rs:590",
+         "crates/ferroplan/src/temporal.rs:607",
+         "crates/ferroplan/src/temporal.rs:120"
+        ],
+        "facts": [
+         [
+          "Token",
+          "<code>RUNNING-A</code>"
+         ],
+         [
+          "Side table",
+          "<code>SnapInfo</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-ground",
+          "label": "snap task grounded by"
+         },
+         {
+          "to": "mod-heuristic",
+          "label": "snap ops reuse h_FF"
+         },
+         {
+          "to": "mod-constraints",
+          "label": "compile_timed runs over this output"
+         }
+        ]
+       },
+       {
+        "id": "mod-temporal-router",
+        "title": "Solve router & ladder",
+        "kind": "stage",
+        "summary": "solve() is a stack of rungs: preference tiers, the compression rung, a promoted SAT rung, the decision-epoch ladder with node-cap refills, then the decomposer.",
+        "body": "<p>From the outside in:</p><ol><li><code>solve_tiers()</code> (0.25): if the pair has preferences, BANK coverage first (soft constraints dropped), then CHASE quality with every preference hardened (<code>chase_prefs()</code>). plans(hardened) is a subset of plans(banked), so the chase cannot lose the row. One tightened deadline covers all optional work and the scorer (<code>score_soft()</code>) is built first (0.28 Lane S).</li><li><code>solve_prefless()</code>: the compression rung <code>tcompress::solve(Bet::First)</code> unless it declines; if it banks a plan, the decision-epoch search runs as a bounded makespan chase (<code>FF_TCOMPRESS_CHASE_FRAC</code> 0.25).</li><li><code>solve_decision_epoch()</code>: if <code>sat::requires_concurrency</code> holds, a promoted SAT rung gets <code>FF_SAT_PROMO_WALL_FRAC</code> (0.5) of the remaining wall; promotion falls through and must never lose a solve.</li><li><code>solve_ladder()</code>: <code>solve_monolithic()</code> at the ambient demand tier, then the Full tier, then <code>tresolve::solve_after_ladder</code>.</li><li><code>refill_ladder()</code>: rerun with the node cap doubled each round (x2..x64) while a cap tripped and wall remains, under the memory wall.</li></ol><p><code>solve_monolithic()</code> optionally runs the <code>tsched</code> actor scheduler (<code>FF_TCONC</code>). <code>solve_inner()</code> grounds, builds <code>Kind</code>/<code>InvMap</code> via <code>build_kind()</code>, applies the monitor compile, and calls <code>solve_from*</code>.</p>",
+        "files": [
+         "crates/ferroplan/src/temporal.rs:677",
+         "crates/ferroplan/src/temporal.rs:701",
+         "crates/ferroplan/src/temporal.rs:855",
+         "crates/ferroplan/src/temporal.rs:931",
+         "crates/ferroplan/src/temporal.rs:979",
+         "crates/ferroplan/src/temporal.rs:1031",
+         "crates/ferroplan/src/temporal.rs:1068",
+         "crates/ferroplan/src/temporal.rs:3218"
+        ],
+        "facts": [
+         [
+          "Refill",
+          "x2..x64 node cap"
+         ],
+         [
+          "SAT slice",
+          "0.5 of wall"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-tcompress",
+          "label": "compression rung"
+         },
+         {
+          "to": "crate-ferroplan-sat",
+          "label": "SAT rung"
+         },
+         {
+          "to": "mod-tresolve",
+          "label": "last rung"
+         },
+         {
+          "to": "mod-tsched",
+          "label": "optional scheduling phase"
+         },
+         {
+          "to": "mod-sat",
+          "label": "requires_concurrency"
+         }
+        ]
+       },
+       {
+        "id": "mod-temporal-search",
+        "title": "Decision-epoch search",
+        "kind": "search",
+        "summary": "Best-first search over (state, time, pending-end agenda) nodes with two successor kinds: start/apply an action now, or advance time to the next pending end or TIL.",
+        "body": "<p><strong>Idea.</strong> In a decision-epoch planner time only advances to points where something ends. A node is a state, a current time, and an <em>agenda</em> of pending end events. You either start something now or jump to the earliest pending event.</p><p><strong>Node.</strong> <code>TNode</code> holds <code>state</code>, <code>time</code>, <code>agenda: Vec&lt;(end_time, end_op)&gt;</code> sorted ascending, parent, depth <code>g</code>, helpful ops, demand-met vector and accepted landmarks.</p><p><strong>Successors</strong> in <code>temporal_search()</code>: <em>block (a)</em> starts a durative action (pushing its END at <code>time + duration</code>) or applies a classical op, restricted to FF helpful actions in the pruned pass; <em>block (b)</em> fires the agenda head (an END or a TIL; TILs fire unconditionally). If the head would break a running invariant, other same-epoch events are tried.</p><p><strong>Passes.</strong> <code>solve_from()</code> runs a fast helpful-pruned pass, then complete passes (tight-masked, sound-masked, unmasked). Phase-1 key = <code>W_G*g + W_H*h + W_L*unmet numeric landmarks</code> + demand deficit, with W_G=1, W_H=3, W_L=3; complete passes use pure h. A temporal LAMA term counts accepted fact landmarks. <code>relevant_op_mask()</code> drops ops that cannot contribute to the goal. Caps are deterministic: <code>temporal_node_cap()</code> sizes the arena from static task dimensions (historical 400k count cap), plus a per-pop wall checkpoint (0.24).</p>",
+        "files": [
+         "crates/ferroplan/src/temporal.rs:509",
+         "crates/ferroplan/src/temporal.rs:3273",
+         "crates/ferroplan/src/temporal.rs:3671",
+         "crates/ferroplan/src/temporal.rs:3995",
+         "crates/ferroplan/src/temporal.rs:1941",
+         "crates/ferroplan/src/temporal.rs:2768",
+         "crates/ferroplan/src/temporal.rs:3156",
+         "crates/ferroplan/src/temporal.rs:1828"
+        ],
+        "facts": [
+         [
+          "Heap key",
+          "1*g + 3*h + 3*landmarks"
+         ],
+         [
+          "Node cap",
+          "byte model, &lt;= 400k at scale 1"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-heuristic",
+          "label": "h_FF on snap task"
+         },
+         {
+          "to": "mod-landmarks",
+          "label": "temporal LAMA term"
+         },
+         {
+          "to": "mod-search",
+          "label": "shares wall/caps machinery"
+         }
+        ]
+       },
+       {
+        "id": "mod-temporal-symmetry",
+        "title": "Visited key & symmetry reduction",
+        "kind": "concept",
+        "summary": "Three reductions keep the visited set from storing retimed or permuted copies: relative agenda keys, a canonical agenda order, and object-symmetry orbits.",
+        "body": "<p>The visited key is <code>tkey()</code>: the state key plus the agenda rounded to milliseconds.</p><ul><li><strong>Relative keys.</strong> On a TIL-free task the transition system is shift-invariant (durations read fluents, never the clock), so the agenda is keyed by <code>end - node.time</code>. Absolute keys made every retimed permutation a new state: turn-and-open stored 175k+ nodes on a ~1k-fact instance. With TILs the clock is semantic and absolute keys are used. <code>FF_TEMPORAL_ABS_KEY=1</code> restores.</li><li><strong>Canonical agenda</strong> (0.13). N same-epoch starts of interchangeable intervals (machine-shop kilns) reached one pending multiset through N! arrival orders. Sorting the agenda by (time, op id) makes one node represent the class; simultaneous ends fire in op-id order. <code>FF_NO_TSYMM=1</code> restores. Monitor-compiled tasks force arrival order, because ε-emission could not reproduce the canonical end order and the audit would go red.</li><li><strong>Orbits</strong> (0.14). When objects are interchangeable, <code>orbits::OrbitMap::canonical_key</code> canonicalizes the key under member permutation; <code>reconstruct()</code> remaps steps through the goal-isomorphism witness so the plan serves the original goal. <code>FF_NO_ORBIT=1</code> restores.</li></ul>",
+        "files": [
+         "crates/ferroplan/src/temporal.rs:555",
+         "crates/ferroplan/src/temporal.rs:3407",
+         "crates/ferroplan/src/orbits.rs:1161",
+         "crates/ferroplan/src/temporal.rs:4131"
+        ],
+        "facts": [
+         [
+          "turn-and-open",
+          "175k+ nodes before relative keys"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-orbits",
+          "label": "canonical_key"
+         }
+        ]
+       },
+       {
+        "id": "mod-temporal-invariants",
+        "title": "Invariants, doomed nodes & TIL seeding",
+        "kind": "concept",
+        "summary": "over-all invariants are checked on every intermediate happening, not just at the endpoints; nodes whose agenda head can never fire are pruned at birth.",
+        "body": "<p><strong>Soundness fix (0.14).</strong> Checking the invariant only in the START and END preconditions is unsound: a delete-and-re-add between the endpoints (the kiln-gap fixture: a bake spanning the gap between two kiln firings) passed both and failed VAL. <code>build_kind()</code> grounds each interval's invariant into an <code>InvMap</code>; <code>inv_ok()</code> refuses any happening whose effects would falsify a running interval's invariant. Numeric conjuncts (0.15, fuel-gap fixture) are re-evaluated on the post-happening state and only an actual true-to-false flip blocks.</p><p><strong>Pay-per-threat.</strong> <code>build_inv_touch()</code> precomputes per op whether its effects can touch any watched fact or fluent; bystander ops skip the pending scan.</p><p><strong>Doomed nodes.</strong> <code>doomed()</code> prunes a node at birth when its agenda head must fire for time to advance but would break a pending interval that outlives the head, with no possible rescue. This makes invariant semantics affordable on machine-shop.</p><p><strong>TIL seeding.</strong> <code>til_seeded_state()</code> evaluates the heuristic on the state plus the adds of still-pending TILs, so an outage the agenda will repair is not read as a relaxed dead end. <code>trpg_info()</code> builds envelope/static time windows for the temporal relaxation.</p>",
+        "files": [
+         "crates/ferroplan/src/temporal.rs:1574",
+         "crates/ferroplan/src/temporal.rs:2919",
+         "crates/ferroplan/src/temporal.rs:2879",
+         "crates/ferroplan/src/temporal.rs:3006",
+         "crates/ferroplan/src/temporal.rs:3041",
+         "crates/ferroplan/src/temporal.rs:1473"
+        ],
+        "facts": [
+         [
+          "Fixtures",
+          "kiln-gap, fuel-gap"
+         ],
+         [
+          "Since",
+          "0.14 / 0.15"
+         ]
+        ]
+       },
+       {
+        "id": "mod-temporal-emit",
+        "title": "Emission, audit & validation",
+        "kind": "stage",
+        "summary": "A found happening sequence is turned into a VAL-valid schedule: ε-separation by longest paths, duration reconciliation, monitor re-audit, and an independent validator.",
+        "body": "<p><strong>ε-separation.</strong> PDDL2.1 requires mutex happenings to be separated by ε (<code>EPS</code> = 0.001). <code>epsilon_separate()</code> builds a precedence graph over happenings and solves the earliest-time schedule by longest paths (Bellman-Ford); on inconsistency or very large plans the original is kept. <code>epoch_rank()</code> orders ends before starts within an epoch, except that the end of a zero-duration step fires after its own start (0.28, pathways).</p><p><strong>Duration reconciliation.</strong> <code>reconcile_durations()</code> replays the emitted plan and clamps each state-dependent duration into the [min, max] its expression yields at the emitted state, iterating up to 4 rounds; failure returns the original plan.</p><p><strong>Monitor audit.</strong> <code>monitor_audit()</code> replays the emitted schedule against the compiled monitors (re-stamping <code>TRAJ-CLOCK</code> from emitted times); red means keep searching (<code>solve_from_seeded_orbit_audited()</code>).</p><p><strong><code>validate()</code></strong> is an independent replay over the original pair: duration checks, invariants, goal, and the ORIGINAL constraints folded over the plan's own timestamps. <code>treplay()</code> is the same loop without goal/duration checks, used by the decomposer to detect conflicts. Measured: of the IPC-2008/2011 tempo-sat corpus (630 instances, 30 s), 399 solved and every plan VAL-valid (book/src/temporal.md).</p>",
+        "files": [
+         "crates/ferroplan/src/temporal.rs:5179",
+         "crates/ferroplan/src/temporal.rs:5145",
+         "crates/ferroplan/src/temporal.rs:5156",
+         "crates/ferroplan/src/temporal.rs:1263",
+         "crates/ferroplan/src/temporal.rs:4227",
+         "crates/ferroplan/src/temporal.rs:4369",
+         "crates/ferroplan/src/temporal.rs:5061",
+         "crates/ferroplan/src/temporal.rs:1416"
+        ],
+        "facts": [
+         [
+          "ε",
+          "0.001"
+         ],
+         [
+          "tempo-sat",
+          "399/630, all VAL-valid"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-plan",
+          "label": "validate_plan uses validate()"
+         },
+         {
+          "to": "mod-constraints-timed",
+          "label": "clock re-stamped"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "solve_temporal"
+       },
+       {
+        "to": "mod-planner",
+        "label": "text path"
+       },
+       {
+        "to": "mod-ground",
+        "label": "grounds snap task"
+       },
+       {
+        "to": "mod-heuristic",
+        "label": "h_FF"
+       },
+       {
+        "to": "mod-search",
+        "label": "wall & caps"
+       },
+       {
+        "to": "mod-session",
+        "label": "temporal thinks"
+       }
+      ]
+     },
+     {
+      "id": "mod-tcompress",
+      "title": "tcompress.rs: compression rung",
+      "kind": "module",
+      "summary": "Plan a temporal task as a classical one and give the plan its times back; the first rung of the temporal router since 0.28.",
+      "body": "<p><strong>Why.</strong> The decision-epoch search explores start/end interleavings, the right space for tasks that NEED concurrency and an enormous one for tasks that do not. IPC-5's temporal tracks mostly do not: SGPlan5 plans them sequentially and schedules afterwards, solving pathways-metric-time in a median 0.22 s where ferroplan's ladder hit the 60 s wall on all 30. The 2026-09-20 probe of this transform converted 121 recorded-unsolved rows, all VAL-valid (pipesworld-metric-time 10 to 42 of 50, against SGPlan5's 30).</p><p><strong>Banking.</strong> If the rung returns a plan, the decision-epoch search still runs as a bounded quality chase and the smaller makespan wins, so previously solved tasks return the same plan. Residue: rovers- and tpp-metric-time, where the compressed task is as hard classically (docs/roadmap-0.28.md).</p>",
+      "files": [
+       "crates/ferroplan/src/tcompress.rs:1",
+       "crates/ferroplan/src/tcompress.rs:560",
+       "crates/ferroplan/src/tcompress.rs:540"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "641"
+       ],
+       [
+        "Since",
+        "0.28 Lane T"
+       ],
+       [
+        "Probe",
+        "+121 rows"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-tcompress-compile",
+        "title": "Compress & decline",
+        "kind": "stage",
+        "summary": "Each durative action becomes one instantaneous action (condition = start AND over-all AND end, effect = start then end); tasks that need concurrency are declined.",
+        "body": "<p><code>compress()</code> builds one classical <code>Action</code> per durative action using its chosen duration (<code>duration.chosen()</code>) substituted into <code>?duration</code> references. Effects are flattened into start and end lists and applied start-then-end; <code>minus_self_established()</code> drops end conditions the action's own start effects establish. <code>compile()</code> maps the whole domain/problem pair.</p><p><code>declines()</code> refuses tasks it cannot represent: required concurrency (<code>sat::requires_concurrency</code>), timed initial literals, trajectory constraints (a compressed action has no inside for <code>always</code> to look at; <code>within</code> needs a clock), and unconstrained durations. It also stands aside under <code>FF_TCONC=1</code>; <code>FF_NO_TCOMPRESS=1</code> removes the rung.</p><p>The classical ladder (<code>ground</code> + <code>search</code>) then plans the compressed task, under a bounded bet: <code>WALL_FRAC</code> = 0.25 of the wall, or <code>UNWALLED_EVALS</code> = 2,000 evaluations per classical rung without a wall (the first cut spent 32 s failing on a task the temporal ladder solved in 40 ms).</p>",
+        "files": [
+         "crates/ferroplan/src/tcompress.rs:127",
+         "crates/ferroplan/src/tcompress.rs:47",
+         "crates/ferroplan/src/tcompress.rs:211",
+         "crates/ferroplan/src/tcompress.rs:43",
+         "crates/ferroplan/src/tcompress.rs:556"
+        ],
+        "facts": [
+         [
+          "Bet",
+          "0.25 of wall / 2,000 evals"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-search",
+          "label": "classical ladder"
+         },
+         {
+          "to": "mod-sat",
+          "label": "requires_concurrency"
+         }
+        ]
+       },
+       {
+        "id": "mod-tcompress-layout",
+        "title": "Left-shift layout",
+        "kind": "stage",
+        "summary": "lay_out() places the classical plan back on the clock: each step starts ε after the last earlier step it interferes with, so independent work overlaps.",
+        "body": "<p><code>lay_out()</code> tracks, per fact and per fluent, when it was last written and last read. A step's start time is ε after the latest end of any earlier step that wrote something it reads or writes, or read something it writes. Steps with disjoint read/write sets (<code>touch()</code>) overlap freely. Interference is judged on whole ops (start and end together), coarser than snap-level truth, so it only errs toward serializing. Durations are evaluated in the state each step starts from.</p><p><code>specialise()</code> handles plans whose actions need per-instance specialization before validation. The result is always checked by <code>temporal::validate</code> against the ORIGINAL durative task: the rung can be wrong about a task, never about a plan.</p><p><strong>Consequence.</strong> The left-shift overlaps whatever the PDDL allows. A lockless domain such as the cabin crew (\"one job per worker\" is a scheduler convention, not a precondition) now gets every independent job at once: crew-solo makespan 109 to 47. That is valid PDDL2.1; model a busy token if a resource is exclusive.</p>",
+        "files": [
+         "crates/ferroplan/src/tcompress.rs:316",
+         "crates/ferroplan/src/tcompress.rs:271",
+         "crates/ferroplan/src/tcompress.rs:465"
+        ],
+        "facts": [
+         [
+          "crew-solo",
+          "makespan 109 -&gt; 47"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-temporal-emit",
+          "label": "validated by validate()"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-temporal-router",
+        "label": "first rung of"
+       },
+       {
+        "to": "mod-search",
+        "label": "classical ladder"
+       }
+      ]
+     },
+     {
+      "id": "mod-tresolve",
+      "title": "tresolve.rs: temporal decomposer",
+      "kind": "module",
+      "summary": "SGPlan-style partition-and-resolve for temporal goals: solve contracts sequentially from the composed state, merge on conflict, fall back to monolithic.",
+      "body": "<p><strong>Algorithm.</strong> <code>decompose_inner()</code> partitions the world goal into contracts (<code>partition_temporal()</code> over mutex groups, with predicate preconditions regressed by <code>regress_predicate_preconds()</code>), orders them (<code>order_contracts()</code>, using shared resources from <code>group_resources()</code>), and solves each as a TEMPORAL subproblem from the running composed state via <code>temporal::solve_from</code>. Timed subplans are composed strictly SEQUENTIALLY: each contract is offset past the previous makespan plus an ε seam (<code>EPS</code> = 0.001). <code>temporal::treplay</code> detects conflicts; on conflict groups merge, down to a monolithic <code>temporal::solve</code>, so the decomposer is solvable exactly when the monolithic solver is.</p><p><strong>Why sequential is safe.</strong> Each subplan is already ε-separated internally and the replay orders same-epoch happenings on an ε-grid time key, ends before starts. Sequential composition preserves completeness for single-agent domains with no over-all invariants spanning contracts; anything needing cross-contract concurrency falls through to monolithic.</p><p><strong>Entry points.</strong> <code>solve()</code> (gated by <code>FF_TDECOMP</code>), <code>solve_after_ladder()</code> (last rung of the temporal ladder; a <code>monolithic_fallback</code> flag breaks the recursion), and <code>decompose()</code> which returns <code>Decomp</code>/<code>ContractRec</code> for the API. Constrained tasks are not partitioned (TRAJ-ENDED is not an independent contract). <code>statically_unsolvable</code> fails unproducible goals before the O(n^2) merge cascade.</p>",
+      "files": [
+       "crates/ferroplan/src/tresolve.rs:1",
+       "crates/ferroplan/src/tresolve.rs:101",
+       "crates/ferroplan/src/tresolve.rs:110",
+       "crates/ferroplan/src/tresolve.rs:125",
+       "crates/ferroplan/src/tresolve.rs:134",
+       "crates/ferroplan/src/tresolve.rs:379",
+       "crates/ferroplan/src/tresolve.rs:477"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "515"
+       ],
+       [
+        "Gate",
+        "<code>FF_TDECOMP</code>"
+       ],
+       [
+        "Seam",
+        "ε = 0.001"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-temporal",
+        "label": "solve_from / treplay"
+       },
+       {
+        "to": "mod-partition",
+        "label": "Subgoal"
+       },
+       {
+        "to": "mod-resolve",
+        "label": "classical twin"
+       },
+       {
+        "to": "mod-invariants",
+        "label": "mutex groups"
+       }
+      ]
+     },
+     {
+      "id": "mod-tsched",
+      "title": "tsched.rs: actor scheduler",
+      "kind": "module",
+      "summary": "A post-search scheduling phase that repacks a sequential temporal plan onto the domain's actor objects so independent work overlaps.",
+      "body": "<p><strong>Idea.</strong> The temporal search is guided by action count, not makespan, so it lays actions out sequentially and more workers never shortened the schedule. <code>reschedule()</code> separates <em>what</em> (search) from <em>who and when</em> (scheduling): it greedily assigns each action to an eligible actor, starting as early as its consumed resources and build-order prerequisites allow, with one job per actor at a time.</p><p><strong>Convention.</strong> The actor is the first parameter of each durative action; actors are the problem objects of that type (<code>actor_type()</code>). Actor-referencing preconditions are required <em>skills</em> (<code>(smith ?w)</code>): <code>eligible()</code> checks them in the init state. Actor effects must be interchangeable, since reassignment would change them. A running resource-event timeline (<code>collect_num()</code>) and fact-availability times (<code>collect_atoms()</code>, <code>collect_added()</code>) drive start times.</p><p><strong>Safety.</strong> The result always goes through <code>temporal::validate</code>; if it does not validate or is not shorter, the original plan is returned. Gated by <code>features::tconc</code> (<code>FF_TCONC=1</code>); with &lt;2 actors it returns <code>None</code>. <code>single_actor_problem()</code> reduces the problem to one actor for the search, then rescheduling spreads the work.</p>",
+      "files": [
+       "crates/ferroplan/src/tsched.rs:1",
+       "crates/ferroplan/src/tsched.rs:34",
+       "crates/ferroplan/src/tsched.rs:228",
+       "crates/ferroplan/src/tsched.rs:252",
+       "crates/ferroplan/src/tsched.rs:270"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "478"
+       ],
+       [
+        "Gate",
+        "<code>FF_TCONC</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-temporal-router",
+        "label": "called from solve_monolithic"
+       },
+       {
+        "to": "mod-temporal-emit",
+        "label": "validated by"
+       }
+      ]
+     },
+     {
+      "id": "modes-decompose-contracts",
+      "title": "api::decompose contracts",
+      "kind": "concept",
+      "summary": "The public decomposition API: split a temporal goal into ordered contracts, solve and stitch them, and return each contract's sub-plan and offset for inspection.",
+      "body": "<p><code>api::decompose(domain_src, problem_src, opts)</code> parses, compiles derived axioms, runs <code>constraints::gate</code>, then always calls <code>tresolve::decompose</code> (independent of <code>FF_TDECOMP</code>). The result is a serde-serializable <code>Decomposition</code>: <code>solved</code>, <code>contracts</code>, the stitched validated <code>plan</code>, a <code>monolithic</code> flag, and notes.</p><p>Each <code>Contract</code> carries its <code>index</code>, a rendered <code>goal</code> string (e.g. <code>(order o1), (order o2)</code> or <code>coin &gt;= 15</code>), its <code>steps</code> timed relative to its own start, its <code>makespan</code>, and its <code>offset</code> in the stitched timeline. A goal that cannot be split, or whose split does not validate, returns exactly one contract (the whole goal) with <code>monolithic: true</code>. Non-temporal domains get a note.</p><p>This is the surface the MCP <code>decompose</code> tool and the ferroplan skill's \"decompose a large goal into solvable contracts\" workflow use: an LLM agent can inspect which sub-goals were solvable and in what order.</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:952",
+       "crates/ferroplan/src/api.rs:261",
+       "crates/ferroplan/src/api.rs:279"
+      ],
+      "facts": [
+       [
+        "Types",
+        "<code>Decomposition</code>, <code>Contract</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-api",
+        "label": "lives in"
+       },
+       {
+        "to": "mod-tresolve",
+        "label": "runs"
+       },
+       {
+        "to": "crate-ferroplan-mcp",
+        "label": "exposed as decompose tool"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "sec-modes-numeric",
+    "title": "Numeric / resources",
+    "kind": "concept",
+    "summary": "Numeric fluents across the planner, and the extra guidance needed where the numeric relaxation loses information about resources.",
+    "body": "<p>Numeric support is not a separate mode: numeric fluents flow through grounding, the packed task, h_FF's interval relaxation, temporal durations and the PDDL3 cost fluent. What lives here is the resource layer on top: detecting renewable counters, and the temporal search's numeric landmarks and demand terms.</p>",
+    "layout": "grid",
+    "children": [
+     {
+      "id": "modes-numeric-ir",
+      "title": "Numeric IR",
+      "kind": "data",
+      "summary": "Grounded numeric expressions, comparisons and effects over fluent ids: NExpr, NumPre, NumEff.",
+      "body": "<p>After grounding, every numeric fluent instance is a dense <code>u32</code> id and states carry <code>fv: Vec&lt;f64&gt;</code> plus a defined-mask. <code>NExpr</code> is a small tree (<code>Num</code>, <code>Fluent</code>, <code>Add</code>, <code>Sub</code>, <code>Mul</code>, <code>Div</code>, <code>Neg</code>) whose <code>eval()</code> returns <code>None</code> on an undefined fluent. <code>NumPre</code> is a comparison <code>lhs op rhs</code> (<code>CompOp</code>: Lt, Le, Eq with 1e-6 tolerance, Ge, Gt) evaluated by <code>eval_numpre()</code>; <code>NumEff</code> is an <code>AssignOp</code> (assign, increase, decrease, scale-up, scale-down) on a target fluent.</p><p>These types are shared by every mode: the packed task's preconditions and effects, the heuristic's interval relaxation, temporal durations (<code>ground_duration_nexpr</code>), numeric goals in <code>partition::Subgoal</code>, and the PDDL3 cost fluent. <code>total-cost</code> is just a fluent; <code>pddl3::cost_monotone</code> checks it can only grow.</p>",
+      "files": [
+       "crates/ferroplan/src/types.rs:256",
+       "crates/ferroplan/src/types.rs:298",
+       "crates/ferroplan/src/types.rs:305",
+       "crates/ferroplan/src/types.rs:37",
+       "crates/ferroplan/src/types.rs:104"
+      ],
+      "links": [
+       {
+        "to": "mod-types",
+        "label": "defined in"
+       },
+       {
+        "to": "mod-packed",
+        "label": "used by"
+       }
+      ]
+     },
+     {
+      "id": "modes-numeric-relax",
+      "title": "Numeric relaxation in h_FF",
+      "kind": "heuristic",
+      "summary": "The relaxed planning graph carries monotone numeric interval bounds (Metric-FF style), so numeric goals and preconditions get a distance estimate.",
+      "body": "<p><strong>Idea (Hoffmann's Metric-FF).</strong> Delete relaxation has a numeric analogue: let each fluent's reachable values only widen, as an interval [lo, hi], layer by layer. A numeric precondition is relaxed-reached once some point in the interval satisfies it. Repetition counting estimates how many applications of an increaser are needed.</p><p>ferroplan's heuristic (an oracle-verified port of the metricff heuristic) builds a delete-relaxed graph \"with monotone numeric interval bounds, two-phase layering, lowest-layer achiever selection, and numeric repetition counting\". Only ops with relevant numeric effects are re-widened per layer. See mod-heuristic for details.</p><p><strong>Known blind spots</strong> that the modes compensate for: renewable count chains (every level looks simultaneously reachable: <code>resource.rs</code>), consumed inputs reused for free (temporal <code>compute_demand()</code>), and converging thresholds where h goes flat (temporal <code>extract_landmarks()</code>).</p>",
+      "files": [
+       "crates/ferroplan/src/heuristic.rs:1",
+       "crates/ferroplan/src/heuristic.rs:873"
+      ],
+      "links": [
+       {
+        "to": "mod-heuristic",
+        "label": "implemented in"
+       }
+      ]
+     },
+     {
+      "id": "modes-numeric-temporal",
+      "title": "Numeric guidance in temporal search",
+      "kind": "heuristic",
+      "summary": "Numeric landmarks, regressed resource demand, and a static unsolvability check give the temporal search gradients the relaxation drops.",
+      "body": "<ul><li><strong>Numeric threshold landmarks</strong> (<code>extract_landmarks()</code>): the transitive closure of the <code>&gt;=</code> preconditions of ops that increase each goal fluent. On a converging recipe DAG, h goes flat; counting unmet landmarks (<code>landmark_deficit()</code>) gives each input its own term in the phase-1 key (weight W_L = 3).</li><li><strong>Demand regression</strong> (<code>compute_demand()</code>): a <code>(fluent &gt;= want)</code> goal needs <code>ceil(want / yield)</code> applications of its best producer, recursively, capturing multi-round quantities (<code>steel &gt;= 2</code> implies ingots/coal/ore &gt;= 2, logs &gt;= 4) that h_FF never demands. Controlled by <code>features::DemandMode</code>: Off, Numeric (default), Full (<code>FF_TDEMAND</code>).</li><li><strong>Static unsolvability</strong> (<code>statically_unsolvable()</code>): a <code>&gt;=</code> threshold unmet at start whose fluent no op can raise fails in microseconds (rpg-world <code>bread-line</code> used to burn ~45 s).</li></ul>",
+      "files": [
+       "crates/ferroplan/src/temporal.rs:2426",
+       "crates/ferroplan/src/temporal.rs:2554",
+       "crates/ferroplan/src/temporal.rs:2335",
+       "crates/ferroplan/src/features.rs:76"
+      ],
+      "links": [
+       {
+        "to": "mod-temporal-search",
+        "label": "terms in heap key"
+       },
+       {
+        "to": "mod-features",
+        "label": "DemandMode"
+       }
+      ]
+     },
+     {
+      "id": "modes-numeric-modeling",
+      "title": "Modeling resources over time",
+      "kind": "example",
+      "summary": "Renewable pools are decremented at start and restored at end; consumables are produced and consumed without release.",
+      "body": "<p>Durative actions over numeric fluents give resource allocation over time without extra machinery (book/src/temporal.md). A renewable pool is taken at start and returned at end, guarded by an at-start check:</p><pre>(:durative-action chop-tree\n  :duration (= ?duration 3)\n  :condition (at start (&gt;= (workers) 1))\n  :effect (and (at start (decrease (workers) 1))\n               (at end   (increase (workers) 1))\n               (at end   (increase (wood) 1))))</pre><p>Because the decrement persists until the matching END fires, the decision-epoch search holds the resource across the interval: a pool of 1 serializes, larger pools overlap. In <code>examples/rpg/</code> the same problem plans serially with <code>(= (workers) 1)</code> (makespan ~19) and in parallel with 3 (~13). Consumables (<code>wood -&gt; planks</code>) are the same pattern without the release. The demand-regression guidance above targets exactly these crafting chains.</p>",
+      "files": [
+       "book/src/temporal.md"
+      ],
+      "links": [
+       {
+        "to": "mod-temporal-search",
+        "label": "holds the pool across intervals"
+       }
+      ]
+     },
+     {
+      "id": "mod-resource",
+      "title": "resource.rs: renewable counters",
+      "kind": "module",
+      "summary": "Detects renewable fixed-capacity resources encoded as one-hot level chains, the structure delete relaxation cannot see.",
+      "body": "<p>Small (292 lines) but load-bearing for openstacks and similar scheduling domains. It does no search itself; it provides the structural fact \"this mutex group is a counter of capacity C, and this level means k units in use\" to three consumers: PDDL3 satisfaction guidance, the ESPC partitioner, and the partition-mode trip bound.</p>",
+      "files": [
+       "crates/ferroplan/src/resource.rs:1"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "292"
+       ],
+       [
+        "Entry",
+        "<code>detect_resources()</code>, <code>trip_bound()</code>"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "mod-resource-detect",
+        "title": "Count-chain detection",
+        "kind": "concept",
+        "summary": "detect_resources() finds mutex groups that behave as a one-hot counter 0..C with consume/restore operators, and computes each level's occupancy.",
+        "body": "<p><strong>Pattern.</strong> Many domains encode a renewable resource of fixed capacity (openstacks' <code>stacks-avail</code>, a crew pool, a machine count) as a one-hot chain of level facts: consume deletes level n and adds n-1, restore deletes n and adds n+1. The delete-relaxed RPG drops the delete, so every level is reachable at once: infinite capacity, no gradient.</p><p><strong>Detection</strong> is domain-independent: it keys off the consume/restore shape, not predicate names. A mutex group (from <code>invariants::synthesize</code>) qualifies only if its level-transition operators form a single simple path covering every member and the initial state is at one end (full capacity). Each <code>ResourceVar</code> lists its members with occupancy = distance from the full end. Anything else is ignored, so non-resource domains are unaffected.</p><p><strong>Consumers.</strong> <code>pddl3::metric_optimize_inner</code> loads it into <code>SatGuidance::res</code> (weight default 0: a soft occupancy penalty was measured inert on openstacks), and <code>pddl3::build_espc_partition</code> excludes these variables from partition edges so ESPC prices them globally.</p>",
+        "files": [
+         "crates/ferroplan/src/resource.rs:29",
+         "crates/ferroplan/src/resource.rs:53"
+        ],
+        "links": [
+         {
+          "to": "mod-invariants",
+          "label": "mutex groups from"
+         },
+         {
+          "to": "mod-espc-partitioned",
+          "label": "excluded variables"
+         }
+        ]
+       },
+       {
+        "id": "mod-resource-tripbound",
+        "title": "Trip bound",
+        "kind": "heuristic",
+        "summary": "TripBound gives a best-first ordering term ceil(unmet linked goals / pool): meeting n goals through a pool of size P takes at least n/P cycles.",
+        "body": "<p><code>trip_bound()</code> sums the maximum occupancy of the detected counters into a <code>pool</code> and collects goal facts whose achievers touch any counter level. <code>TripBound::trips()</code> returns <code>ceil(unmet / pool)</code> on the concrete state bits.</p><p>It is folded into the search as an ORDERING term only (<code>FF_RESLM=&lt;w&gt;</code>), never as a pruning bound, because it reads the concrete state, which the delete relaxation cannot. <code>resolve::solve</code> builds it, since that is where the mutex groups live, and publishes it through <code>search::RESLM</code>. When no counter or linked goal exists the term is a no-op by construction. Added in 0.14.</p>",
+        "files": [
+         "crates/ferroplan/src/resource.rs:155",
+         "crates/ferroplan/src/resource.rs:177",
+         "crates/ferroplan/src/resolve.rs:95"
+        ],
+        "facts": [
+         [
+          "Hatch",
+          "<code>FF_RESLM</code>"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-resolve",
+          "label": "built in"
+         },
+         {
+          "to": "mod-search",
+          "label": "ordering term"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-pddl3-guidance",
+        "label": "feeds"
+       },
+       {
+        "to": "mod-invariants",
+        "label": "reads groups from"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "sec-modes-partition",
+    "title": "Partition-and-resolve (SGPlan)",
+    "kind": "concept",
+    "summary": "Split the goal into loosely coupled subgoals, solve them separately, compose, and coarsen on conflict.",
+    "body": "<p>SGPlan (IPC-2004/2006 winner) showed that many planning problems decompose by goal. ferroplan carries the idea in three places: classical partition mode (<code>partition.rs</code> + <code>resolve.rs</code>), the temporal contract decomposer (<code>tresolve.rs</code>), and the preference penalty loop (<code>espc.rs</code>). All share <code>partition::Subgoal</code> and the merge discipline that guarantees completeness equal to the monolithic solver.</p>",
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-partition",
+      "title": "partition.rs: goal partitioning",
+      "kind": "module",
+      "summary": "Splits a goal into Subgoal groups, finest-first or by goal interaction over mutex variables, for the resolve loops to solve and merge.",
+      "body": "<p>Shared by three consumers: the classical partition-and-resolve loop (<code>resolve.rs</code>), the temporal decomposer (<code>tresolve.rs</code>, which uses <code>Subgoal</code>), and the ESPC partitioned composition (<code>espc.rs</code>).</p>",
+      "files": [
+       "crates/ferroplan/src/partition.rs:1"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "275"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "mod-partition-finest",
+        "title": "Finest partition & merges",
+        "kind": "concept",
+        "summary": "partition() puts each goal fact and numeric goal in its own Subgoal; merge_with_neighbor and merge_at coarsen on demand.",
+        "body": "<p>A <code>Subgoal</code> is positive fact ids plus <code>NumPre</code> comparisons. <code>partition()</code> uses the finest granularity, one subgoal per goal item, and lets the resolver coarsen dynamically. That is SGPlan's dynamic grain-size control (docs/sgplan6-spec.md section 2, 5).</p><p><code>merge_with_neighbor(groups, i)</code> merges group i into an adjacent one and is a no-op with a single group (keeping the always-terminate invariant; an earlier debug_assert left a usize underflow path in release). <code>merge_at(groups, i, j)</code> merges a specific known-conflicting pair. Each merge reduces the group count by one, so the cascade terminates at the monolithic problem.</p>",
+        "files": [
+         "crates/ferroplan/src/partition.rs:17",
+         "crates/ferroplan/src/partition.rs:29",
+         "crates/ferroplan/src/partition.rs:57",
+         "crates/ferroplan/src/partition.rs:67"
+        ]
+       },
+       {
+        "id": "mod-partition-interaction",
+        "title": "Goal-interaction partition",
+        "kind": "concept",
+        "summary": "Seed the partition from a goal-interaction graph over mutex variables: goals are linked when some operator adds into one's variable while deleting the other's.",
+        "body": "<p><code>interaction_partition()</code> builds a graph over goal facts using mutex groups (Helmert-style invariants from <code>invariants::synthesize</code>, the SAS+ variables). Two goals are linked when an operator achieves one's variable while disturbing the other's. Union-find (<code>uf_find</code>/<code>uf_union</code>) gives connected components, which become initial groups; numeric goals stay singletons. With no groups it falls back to the finest partition. Grain does not affect soundness since the resolver still coarsens on conflict.</p><p><code>interaction_partition_of()</code> generalizes this for ESPC: an explicit goal subset and a set of <strong>excluded shared variables</strong> that never form edges, so a shared resource is priced globally instead of merging everything into one component. With no exclusions it is unit-tested identical to the old body.</p><p>Measured (book/src/metric-quality.md): multi-predicate invariant synthesis recovers 100%/9 groups on blocks, 93%/9 on logistics, 71%/7 on gripper, and interaction partitioning shortens blocks plans ~25%. METIS min-cut seeding is noted as future work.</p>",
+        "files": [
+         "crates/ferroplan/src/partition.rs:106",
+         "crates/ferroplan/src/partition.rs:136",
+         "crates/ferroplan/src/partition.rs:78"
+        ],
+        "facts": [
+         [
+          "blocks plans",
+          "~25% shorter"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-invariants",
+          "label": "mutex groups"
+         },
+         {
+          "to": "mod-espc-partitioned",
+          "label": "excluded-variable variant"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-resolve",
+        "label": "consumed by"
+       },
+       {
+        "to": "mod-tresolve",
+        "label": "consumed by"
+       },
+       {
+        "to": "mod-espc",
+        "label": "consumed by"
+       }
+      ]
+     },
+     {
+      "id": "mod-resolve",
+      "title": "resolve.rs: SGPlan resolve loop",
+      "kind": "module",
+      "summary": "The partition-and-resolve control loop: parallel subplans, validated sequential composition, and merging on conflict down to a monolithic fallback.",
+      "body": "<p><strong>Idea (SGPlan, Wah &amp; Chen).</strong> Partition the goal into subgoals, solve each separately (cheap, parallel), compose, and resolve conflicts. SGPlan resolves with penalties; ferroplan's classical loop resolves by coarsening (merging), with sibling protection as an infinite penalty. The penalty version lives in <code>espc.rs</code>.</p><p><strong>Entry.</strong> <code>resolve::solve(task, threads, cfg, mutex_groups, orbit)</code>, called from <code>api.rs</code> for <code>Mode::Partition</code> (groups from <code>invariants::synthesize</code>) and from <code>planner.rs</code>. Narrates under <code>FF_WALL_DEBUG</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/resolve.rs:1",
+       "crates/ferroplan/src/resolve.rs:95",
+       "crates/ferroplan/src/api.rs:1206"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "357"
+       ],
+       [
+        "Mode",
+        "<code>Mode::Partition</code> (sgp)"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-resolve-phase-a",
+        "title": "Phase A: parallel subplans",
+        "kind": "stage",
+        "summary": "Solve every group's subgoal independently from the initial state, one subplanner per group, concurrently.",
+        "body": "<p>Each group gets a bounded subgoal probe: per-subgoal solves use a capped <code>SearchCfg</code> so a subgoal unsolvable in isolation merges early instead of burning the full budget (barman11 p01: 9 groups, 7 merges, never finished before; solves after). When a plain best-first subgoal solve fails, <code>lama_rung()</code> tries a bounded landmark/preferred-operator search (<code>lama::search_subgoal</code>, cap 400,000 evaluations; <code>FF_NO_LAMA</code> removes it) before conceding a merge.</p><p>With many groups, one thread per subplanner (coarse parallelism). When only one group remains, it IS the whole problem, so it gets the full library ladder via <code>search::plan</code> (EHC, bounded LAMA, complete weighted best-first) with all threads and the full orbit map. Subgoal solves get only the goal-free orbit view, since a subgoal freezes goal-bound orbits.</p>",
+        "files": [
+         "crates/ferroplan/src/resolve.rs:48",
+         "crates/ferroplan/src/resolve.rs:95"
+        ],
+        "facts": [
+         [
+          "LAMA cap",
+          "400,000 evals"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-lama",
+          "label": "lama_rung"
+         },
+         {
+          "to": "mod-search",
+          "label": "subplanner"
+         },
+         {
+          "to": "mod-orbits",
+          "label": "goal-free view"
+         },
+         {
+          "to": "mod-par",
+          "label": "parallel subplanners"
+         }
+        ]
+       },
+       {
+        "id": "mod-resolve-phase-b",
+        "title": "Phase B: validated composition",
+        "kind": "stage",
+        "summary": "Replay each group's subplan on the evolving real state; re-solve if it no longer applies; reject steps that break an achieved sibling.",
+        "body": "<p>Groups are processed in order on the running state. A group already satisfied (perhaps by a sibling's subplan) is skipped. <code>replay_ok()</code> checks whether the Phase A plan still applies and reaches its subgoal from the current state; if not, the group is re-solved from the current state.</p><p><strong>Sibling protection.</strong> Ops that would delete a goal fact of an already-achieved sibling are forbidden: the hard-constraint, infinite-penalty form of ESPC. If the subgoal is solvable under that protection it provably cannot break a sibling. Only if infeasible does the loop relax protection and let the conflict check trigger a merge, recording which sibling was broken so <code>merge_at</code> can join exactly that pair.</p>",
+        "files": [
+         "crates/ferroplan/src/resolve.rs:84"
+        ],
+        "links": [
+         {
+          "to": "mod-search",
+          "label": "forbidden-op masks"
+         }
+        ]
+       },
+       {
+        "id": "mod-resolve-merge",
+        "title": "Resolution by merging",
+        "kind": "process",
+        "summary": "On any stuck subgoal or conflict, merge the offending group with its conflicting sibling or a neighbor and retry; one group means monolithic fallback.",
+        "body": "<p>The outer loop repeats Phase A and B until composition succeeds. Each failure merges two groups, so the number of iterations is bounded by the initial group count. When everything collapses to one group the subproblem is the whole problem and the full ladder runs; therefore <code>sgp</code> (partition mode) is solvable exactly when the monolithic planner is. <code>Stats</code> records initial/final groups, merges, and whether it fell back.</p><p>Since 0.30 an expired wall ends the cascade early, capped: on openstacks i30 (100 groups) each merge cost ~0.7 s after the partition slice expired, and 99 merges carried the process to its 60 s wall. <code>Solved::Unsolvable { capped }</code> distinguishes cap exhaustion from a genuine proof so the text path never prints \"proven unsolvable\" for a cap.</p>",
+        "files": [
+         "crates/ferroplan/src/resolve.rs:23",
+         "crates/ferroplan/src/resolve.rs:30"
+        ],
+        "facts": [
+         [
+          "Completeness",
+          "= monolithic ladder"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-partition-finest",
+          "label": "merge_at / merge_with_neighbor"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-partition",
+        "label": "groups from"
+       },
+       {
+        "to": "mod-search",
+        "label": "subplanner"
+       },
+       {
+        "to": "mod-api",
+        "label": "Mode::Partition"
+       },
+       {
+        "to": "mod-invariants",
+        "label": "mutex groups"
+       },
+       {
+        "to": "mod-resource-tripbound",
+        "label": "builds"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-tresolve",
+      "label": "temporal twin"
+     },
+     {
+      "to": "mod-espc",
+      "label": "penalty variant"
+     }
+    ]
+   },
+   {
+    "id": "sec-modes-verify",
+    "title": "Plans & verification",
+    "kind": "concept",
+    "summary": "Checking plans independently of how they were produced, and turning tasks into something you can look at.",
+    "body": "<p>The project's verification rule is that every compiled mode has an oracle that reads the ORIGINAL semantics: <code>verify.rs</code> for classical/PDDL3, <code>temporal::validate</code> for durative plans, and <code>plan.rs</code> to parse and route plan text to the right one. External VAL is used for benchmark validation; these give the same checks in-process. <code>viz.rs</code> is the read-only visualization model for front ends.</p>",
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-plan",
+      "title": "plan.rs: built-in plan validator",
+      "kind": "module",
+      "summary": "validate_plan() parses ff's plan text and checks it under ferroplan's own semantics, routing classical plans to verify and temporal plans to temporal::validate.",
+      "body": "<p><strong>Why it exists.</strong> VAL enforces strict PDDL2.1 (e.g. no two durative actions touching one numeric fluent at once, ε-separation at shared timestamps). This module replays a plan the same way the planner applies actions, so \"valid here\" means \"valid under the semantics that produced it\". The temporal engine now also targets VAL validity via ε-separation.</p><p><strong>Parsers.</strong> <code>parse_classical()</code> reads <code>step N: NAME ARGS</code> and bare <code>N:</code> continuation lines, with or without parentheses, uppercased, ignoring banners and <code>REACH-GOAL</code>. <code>parse_timed()</code> reads IPC <code>t: (name args) [d]</code> into a <code>TimedPlan</code>.</p><p><strong><code>validate_plan(domain, problem, plan)</code></strong> auto-detects temporal domains. Temporal: compile derived axioms first (validating the raw problem would wrongly reject valid plans), then <code>temporal::validate</code>. Classical: <code>verify::verify</code>, and the result is <code>Valid</code> only if the hard goal holds AND trajectory constraints hold; failures name the violated constraints. Returns <code>Validity::Valid</code> or <code>Invalid(reason)</code>. Exposed as the MCP <code>validate</code> tool and the CLI validator.</p>",
+      "files": [
+       "crates/ferroplan/src/plan.rs:1",
+       "crates/ferroplan/src/plan.rs:20",
+       "crates/ferroplan/src/plan.rs:29",
+       "crates/ferroplan/src/plan.rs:71",
+       "crates/ferroplan/src/plan.rs:125"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "229"
+       ],
+       [
+        "Entry",
+        "<code>validate_plan()</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-verify",
+        "label": "classical replay"
+       },
+       {
+        "to": "mod-temporal-emit",
+        "label": "temporal::validate"
+       },
+       {
+        "to": "mod-derived",
+        "label": "compiles axioms first"
+       },
+       {
+        "to": "crate-ferroplan-mcp",
+        "label": "validate tool"
+       },
+       {
+        "to": "crate-ferroplan-cli",
+        "label": "CLI validate path"
+       }
+      ]
+     },
+     {
+      "id": "mod-verify",
+      "title": "verify.rs: PDDL3 oracle",
+      "kind": "module",
+      "summary": "An independent plan and metric verifier: replays a plan on the original problem and recomputes hard-goal, preference, constraint and metric verdicts.",
+      "body": "<p><strong>Role.</strong> Conformance oracle. It is self-contained (no external VAL/cmake) and authoritative for PDDL3 metrics: it re-derives what a plan actually achieves from scratch over the verified execution engine and the ORIGINAL problem, independent of the Keyder-Geffner and monitor compilations.</p>",
+      "files": [
+       "crates/ferroplan/src/verify.rs:1"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "411"
+       ],
+       [
+        "Entry",
+        "<code>verify()</code>, <code>VerifyCtx</code>"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "mod-verify-replay",
+        "title": "Replay & metric recomputation",
+        "kind": "concept",
+        "summary": "VerifyCtx grounds the original pair once and replays plans: hard goals, per-preference verdicts, and the metric recomputed from scratch.",
+        "body": "<p><code>verify()</code> / <code>verify_pair()</code> are <code>VerifyCtx::prepare</code> then one <code>replay</code>. Preparing grounds the ORIGINAL problem with soft goals ignored, expands constraints, computes preference weights (<code>pddl3::pref_weights</code>) and forall-expanded goal preferences (<code>pddl3::preferences</code>). Replay applies each step by display name over the packed task, checks hard goals in the final state, evaluates every preference formula there (<code>eval_formula()</code>), and recomputes the metric.</p><p>The output <code>Verified</code> holds <code>metric</code>, <code>hard_goal_met</code>, satisfied/violated counts, <code>constraints_met</code>, <code>constraint_failures</code>, per-constraint-preference verdicts, and <code>goal_pref_sat</code> per goal preference (used by the polish to keep satisfied preferences as hard conjuncts).</p><p>Since 0.29 the context is reusable: a polish that prices a baseline plus twenty candidates grounds once instead of 21 times (pathways grounding is 8 s).</p>",
+        "files": [
+         "crates/ferroplan/src/verify.rs:18",
+         "crates/ferroplan/src/verify.rs:152",
+         "crates/ferroplan/src/verify.rs:166",
+         "crates/ferroplan/src/verify.rs:180",
+         "crates/ferroplan/src/verify.rs:88"
+        ],
+        "links": [
+         {
+          "to": "mod-pddl3-polish",
+          "label": "prices candidates for"
+         },
+         {
+          "to": "mod-ground",
+          "label": "grounds original pair"
+         }
+        ]
+       },
+       {
+        "id": "mod-verify-fold",
+        "title": "Constraint fold over the trajectory",
+        "kind": "concept",
+        "summary": "Trajectory constraints are checked by folding their ORIGINAL semantics over the replayed state sequence, never via the compiled monitors.",
+        "body": "<p>The <code>constraints::Fold</code> struct walks the replay's state sequence S_0..S_n and evaluates each expanded <code>Traj</code> directly (always: every state; sometime: some state; sometime-before: an earlier state; and so on). On the temporal side, <code>temporal::validate</code> uses the same fold with happening times so <code>within</code>/<code>always-within</code> are judged on the plan's own timestamps.</p><p>Because the oracle shares no code path with the monitor compilation, a bug in the monitors shows up as a disagreement between the reported and verified metric. The conformance tests and CI (<code>ipc5_pref_metric</code>, <code>espc</code>) rely on this to confirm that a planner's REPORTED metric equals the plan's true metric without external VAL.</p>",
+        "files": [
+         "crates/ferroplan/src/constraints.rs:618"
+        ],
+        "links": [
+         {
+          "to": "mod-constraints",
+          "label": "Fold defined in"
+         },
+         {
+          "to": "mod-temporal-emit",
+          "label": "same fold in validate()"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-pddl3",
+        "label": "cross-checks metric of"
+       },
+       {
+        "to": "mod-plan",
+        "label": "used by validate_plan"
+       }
+      ]
+     },
+     {
+      "id": "mod-viz",
+      "title": "viz.rs: visualization model",
+      "kind": "module",
+      "summary": "Derives an abstract graph (location nodes, edges, mobiles) from a parsed domain and problem, plus PDDL generation helpers for GUIs.",
+      "body": "<p><strong>Purpose.</strong> Pure, view-agnostic logic with no GUI types, so any front end (Bevy, egui, web) can consume it. The Bevy crate uses <code>VizGraph</code> in its scene and <code>to_pddl</code>/<code>domain_to_pddl</code>/<code>goal_facts</code> in its block editor.</p><p><strong>Classification</strong> (<code>PredKind</code>). Predicates are classified by structure first, names second: an <em>edge</em> is binary over two objects of the same location type (<code>(road ?a ?b)</code>); a <em>position</em> is binary placing a mobile onto a location (<code>(at ?truck ?loc)</code>); everything else is a <em>property</em> for an inspector. Name lists <code>EDGE_NAMES</code> and <code>POSITION_NAMES</code> break ties. Location-typed objects become <code>VizNode</code>s; other objects become <code>VizMobile</code>s resolved transitively onto the node they sit on.</p><p><strong>API.</strong> <code>VizGraph::build(domain, problem)</code>; <code>positions_at(facts)</code> for per-snapshot positions while stepping a plan trace; <code>dynamic_predicates()</code> (heads appearing in effects); <code>goal_facts()</code>; <code>to_pddl()</code> and <code>domain_to_pddl()</code> to write edited problems back out.</p>",
+      "files": [
+       "crates/ferroplan/src/viz.rs:1",
+       "crates/ferroplan/src/viz.rs:42",
+       "crates/ferroplan/src/viz.rs:73",
+       "crates/ferroplan/src/viz.rs:84",
+       "crates/ferroplan/src/viz.rs:242",
+       "crates/ferroplan/src/viz.rs:324",
+       "crates/ferroplan/src/viz.rs:370",
+       "crates/ferroplan/src/viz.rs:413"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "532"
+       ],
+       [
+        "Consumer",
+        "ferroplan-bevy"
+       ]
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-bevy",
+        "label": "rendered by"
+       },
+       {
+        "to": "mod-trace",
+        "label": "snapshots positioned by positions_at"
+       },
+       {
+        "to": "mod-parser",
+        "label": "reads parsed AST"
+       }
+      ]
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "to": "mod-search",
+    "label": "all modes drive"
+   },
+   {
+    "to": "mod-heuristic",
+    "label": "all modes evaluate with"
+   },
+   {
+    "to": "mod-ground",
+    "label": "all modes ground with"
+   }
+  ]
+ }
+]

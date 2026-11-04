@@ -1,0 +1,1110 @@
+[
+ {
+  "id": "sec-sat",
+  "title": "ferroplan-sat: the SAT solver",
+  "kind": "section",
+  "summary": "The in-tree CDCL SAT solver behind the SAT compilation wing: how it searches, how it stores clauses, and how the planner drives it.",
+  "body": "<p>This section covers <code>crates/ferroplan-sat</code>. Start with the CDCL main loop for the algorithm in five steps, then open the modules for the data structures that make each step fast. The planner-side encoding lives in <code>mod-sat</code>; this section only describes how that encoding calls the solver.</p>",
+  "layout": "grid",
+  "children": [
+   {
+    "id": "crate-ferroplan-sat",
+    "title": "ferroplan-sat crate",
+    "kind": "crate",
+    "summary": "A ~5k-line, zero-dependency CDCL SAT solver absorbed from varisat 0.2.2: watched literals, 1UIP learning, VSIDS, Luby restarts, tiered clause DB, assumptions, conflict budget.",
+    "body": "<p>A SAT solver decides whether a propositional formula in conjunctive normal form has a satisfying assignment, and produces one if so. ferroplan-sat is a textbook-modern CDCL solver: two-watched-literal propagation with blocking literals, first-UIP conflict analysis with recursive minimization, VSIDS branching with phase saving, Luby restarts, a glue-tiered learned-clause database with activity-based reduction and copying GC, and an incremental assumptions interface. It is MiniSat/Glucose-class in design, without preprocessing (no variable elimination, no inprocessing beyond level-0 simplification).</p><p>Layering: <code>Solver</code> (public) wraps <code>Context</code> (all state); <code>schedule_step</code> drives <code>conflict_step</code>; propagation, analysis, decision and clause storage are separate modules that take <code>&amp;mut Context</code> and destructure the fields they need.</p><p>It exists to serve the planner's SAT compilation wing, but has no planning-specific dependencies.</p>",
+    "files": [
+     "crates/ferroplan-sat/src/lib.rs:1",
+     "crates/ferroplan-sat/Cargo.toml:1",
+     "crates/ferroplan-sat/README.md:1"
+    ],
+    "facts": [
+     [
+      "src lines",
+      "5,057 across 40 files"
+     ],
+     [
+      "Dependencies",
+      "0 (dev included)"
+     ],
+     [
+      "Since",
+      "0.24"
+     ],
+     [
+      "Upstream",
+      "varisat 0.2.2"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "crate-ferroplan-sat-cdcl",
+      "title": "CDCL main loop",
+      "kind": "process",
+      "summary": "decide, propagate, analyze, learn/backjump, restart: the five-beat loop driven by schedule_step and conflict_step.",
+      "body": "<p><strong>CDCL</strong> (conflict-driven clause learning) is the algorithm behind every modern SAT solver. A formula in CNF is a conjunction of clauses, each clause a disjunction of literals. The solver builds a partial assignment by <em>guessing</em> a variable (a decision), then <em>deducing</em> everything that guess forces (unit propagation). When the deductions contradict a clause, it analyses <em>why</em>, learns a new clause that rules out that whole family of mistakes, jumps back to the earliest decision where the new clause forces something, and continues. Periodically it restarts from scratch while keeping what it learned.</p><p>In ferroplan-sat the outer driver is <code>schedule_step</code> (one call per conflict: maybe restart, maybe reduce the clause database, maybe garbage-collect, then <code>conflict_step</code>). <code>conflict_step</code> runs <code>find_conflict</code>, a loop of propagate, settle units, enqueue the next assumption, decide; when it reports a conflict, <code>conflict_step</code> analyses it, bumps involved clauses, backtracks, stores the learned clause and enqueues its asserting literal.</p>",
+      "files": [
+       "crates/ferroplan-sat/src/cdcl.rs:30",
+       "crates/ferroplan-sat/src/cdcl.rs:105",
+       "crates/ferroplan-sat/src/schedule.rs:41"
+      ],
+      "facts": [
+       [
+        "Driver",
+        "<code>schedule_step</code> (one conflict per call)"
+       ],
+       [
+        "Core",
+        "<code>conflict_step</code>, <code>find_conflict</code>"
+       ],
+       [
+        "cdcl.rs lines",
+        "160"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-cdcl-decide",
+        "title": "1. Decide",
+        "kind": "stage",
+        "summary": "Pick the unassigned variable with the highest VSIDS activity, give it its saved phase, and open a new decision level.",
+        "body": "<p>When propagation has nothing more to deduce and all assumptions are placed, <code>make_decision</code> pops variables off the VSIDS max-heap (<code>vsids.find(...)</code> uses the heap's <code>Iterator</code> impl) until it finds one that is still unassigned. Popped-but-assigned variables are simply dropped from the heap; <code>backtrack</code> puts them back when they become unassigned again.</p><p>The polarity is the variable's <strong>saved phase</strong>: <code>assignment.last_var_value(var)</code>, the value it held the last time it was unassigned by backtracking. A never-assigned variable defaults to <code>false</code>, which for planning CNFs means \"no op at this layer\" - the 0.25 record calls this sparse-plan polarity free.</p><p>The decision then calls <code>trail.new_decision_level()</code> and enqueues the literal with <code>Reason::Unit</code> (decisions have no reason clause). If no unassigned variable remains, <code>make_decision</code> returns <code>false</code> and <code>find_conflict</code> reports a full satisfying assignment, which <code>reconstruct_global_model</code> turns into the model.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/decision.rs:21",
+         "crates/ferroplan-sat/src/cdcl.rs:105"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-vsids",
+          "label": "asks"
+         },
+         {
+          "to": "crate-ferroplan-sat-model",
+          "label": "no var left: SAT"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-cdcl-propagate",
+        "title": "2. Propagate (BCP)",
+        "kind": "stage",
+        "summary": "Drain the trail queue: for each newly true literal, fire binary implications, then scan long-clause watch lists for clauses that became unit or false.",
+        "body": "<p>Boolean constraint propagation: if all but one literal of a clause are false, the last one must be true. <code>prop::propagate</code> pops literals from the trail's queue and, for each, calls <code>propagate_binary</code> (direct implication lists, cheapest) and then <code>propagate_long</code> (two-watched-literal scan). Every forced literal is enqueued with its <code>Reason</code> and goes onto the same queue, so propagation runs to fixpoint.</p><p>The first clause found with all literals false is returned as a <code>Conflict</code> (<code>Binary([a,b])</code> or <code>Long(cref)</code>). Before acting on it, <code>find_conflict</code> calls <code>prove_units</code>: if the solver is at level 0, everything on the trail is a permanent fact and is moved off the trail. If new units appeared and there was no conflict, <code>unit_simplify</code> cleans the clause database.</p><p>Propagation dominates solver run time, which is why <code>prop/long.rs</code> keeps upstream's raw-pointer watch-list scan verbatim.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/prop.rs:27",
+         "crates/ferroplan-sat/src/cdcl.rs:105"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-prop",
+          "label": "implemented in"
+         },
+         {
+          "to": "crate-ferroplan-sat-unit-simplify",
+          "label": "level-0 units go to"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-cdcl-analyze",
+        "title": "3. Analyze conflict (1UIP)",
+        "kind": "stage",
+        "summary": "Resolve the conflicting clause backwards along the trail until exactly one literal of the current level remains: the first unique implication point.",
+        "body": "<p>The conflict says: these literals cannot all be false together. Some of them were forced at the current decision level. <code>analyze_conflict</code> walks the trail backwards and repeatedly replaces a current-level literal with the reason clause that forced it (a resolution step), stopping as soon as only one current-level literal remains. That literal is the <em>first UIP</em>; its negation becomes position 0 of the learned clause, which will assert it after backjumping.</p><p>Along the way every variable touched is VSIDS-bumped, and every long clause used is recorded in <code>involved</code> for clause-activity bumping. The clause is then shortened by recursive minimization. Finally the literal with the highest remaining decision level is swapped into position 1 (needed for the watch invariant) and its level is returned as the backjump target. A conflict at level 0 produces the empty clause: the formula is UNSAT.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/analyze_conflict.rs:57",
+         "crates/ferroplan-sat/src/cdcl.rs:30"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-analyze",
+          "label": "implemented in"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-cdcl-learn",
+        "title": "4. Learn and backjump",
+        "kind": "stage",
+        "summary": "Bump involved clauses, backtrack to the asserting level, store the learned clause by size, and enqueue its first literal.",
+        "body": "<p>Back in <code>conflict_step</code>: each clause in <code>analyze.involved()</code> goes through <code>bump_clause</code> (activity bump, glue recomputation, possible tier promotion), clause activities decay, and <code>backtrack(ctx, backtrack_to)</code> undoes every level above the target. This is non-chronological backtracking: the solver may skip many decision levels at once, because the learned clause proves none of them mattered.</p><p>Storage depends on the learned clause length:</p><ul><li>0 literals: <code>SatState::Unsat</code>.</li><li>1 literal: a new unit, enqueued with <code>Reason::Unit</code> (at level 0).</li><li>2 literals: added to <code>BinaryClauses</code>, reason <code>Reason::Binary</code>.</li><li>3+: <code>assess_learned_clause</code> computes glue and tier, <code>db::add_clause</code> stores and watches it, reason <code>Reason::Long(cref)</code>.</li></ul><p>Then <code>enqueue_assignment</code> puts <code>clause[0]</code> on the trail. The next propagate round continues from there.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/cdcl.rs:30",
+         "crates/ferroplan-sat/src/clause/assess.rs:13"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-clause",
+          "label": "stores into"
+         },
+         {
+          "to": "crate-ferroplan-sat-glue",
+          "label": "rates with"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-cdcl-restart",
+        "title": "5. Restart and housekeeping",
+        "kind": "stage",
+        "summary": "Between conflicts, schedule_step restarts on a Luby schedule, halves or demotes learned clauses, collects garbage, and enforces the conflict budget.",
+        "body": "<p>A <strong>restart</strong> undoes all decisions (but keeps assumptions, learned clauses, activities and saved phases). It lets the solver escape a bad early decision that conflict analysis cannot reach. <code>schedule_step</code> restarts when the conflict count hits <code>next_restart</code>, then advances <code>next_restart</code> by <code>128 * luby.advance()</code> conflicts.</p><p>On the same per-conflict tick it runs <code>reduce_locals</code> every 15,000 conflicts and <code>reduce_mids</code> every 10,000 (both at conflict 0 too, harmlessly), and <code>collect_garbage</code> whenever deleted clauses exceed half of the clause arena.</p><p>Before any of that it checks <code>conflict_limit</code>: if this <code>solve</code> call has spent its budget, it stops with the state left honestly <code>Unknown</code>, which <code>Solver::solve</code> reports as <code>Err(SolverError::Interrupted)</code>. The loop then returns to step 1.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/schedule.rs:41"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-schedule",
+          "label": "implemented in"
+         },
+         {
+          "to": "crate-ferroplan-sat-reduce",
+          "label": "calls"
+         },
+         {
+          "to": "crate-ferroplan-sat-gc",
+          "label": "calls"
+         },
+         {
+          "to": "crate-ferroplan-sat-cdcl-decide",
+          "label": "loops back to"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-api",
+      "title": "Public API",
+      "kind": "module",
+      "summary": "What a caller sees: Solver, its incremental methods, the conflict budget, assumptions, model, and the seeding hook.",
+      "body": "<p>The crate exports four modules (<code>cnf</code>, <code>dimacs</code>, <code>lit</code>, <code>solver</code>); everything else is private. This group covers the caller-facing behaviours; the internals below implement them.</p>",
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-solver",
+        "title": "Solver: the public facade",
+        "kind": "module",
+        "summary": "Solver wraps a boxed Context and exposes add_clause/new_var, solve, model, assume, failed_core, set_conflict_limit and seed_activity.",
+        "body": "<p><code>Solver</code> is the whole public surface (re-exported from <code>lib.rs</code> with <code>Lit</code>, <code>Var</code>, <code>CnfFormula</code>, <code>ExtendFormula</code>). It holds a <code>Box&lt;Context&gt;</code>.</p><ul><li><code>add_clause</code> / <code>add_formula</code> go through <code>load_clause</code>; <code>new_var</code> allocates a user variable (via the <code>ExtendFormula</code> trait, shared with <code>CnfFormula</code>).</li><li><code>solve()</code> resets <code>conflicts_this_solve</code>, loops <code>while schedule_step(ctx) {}</code>, and maps <code>SatState</code>: <code>Sat</code> to <code>Ok(true)</code>, <code>Unsat</code>/<code>UnsatUnderAssumptions</code> to <code>Ok(false)</code>, <code>Unknown</code> to <code>Err(Interrupted)</code>.</li><li><code>model()</code> returns user-variable literals when SAT.</li><li><code>assume(&amp;[Lit])</code> and <code>failed_core()</code>: incremental assumptions.</li><li><code>set_conflict_limit(Option&lt;u64&gt;)</code>: the ferroplan addition.</li><li><code>seed_activity(&amp;[(usize, f32)])</code>: the planning-branching hook.</li></ul><p>The solver is incremental: adding a clause after SAT flips the state back to <code>Unknown</code> and does a <code>full_restart</code>; adding to an UNSAT solver is a no-op. <code>SolverError</code> is <code>#[non_exhaustive]</code> with one variant, <code>Interrupted</code>, which is recoverable.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/solver.rs:54",
+         "crates/ferroplan-sat/src/solver.rs:103",
+         "crates/ferroplan-sat/src/lib.rs:48",
+         "crates/ferroplan-sat/src/state.rs:13"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "198"
+         ],
+         [
+          "States",
+          "Unknown, Sat, Unsat, UnsatUnderAssumptions"
+         ]
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-load",
+          "label": "add_clause via"
+         },
+         {
+          "to": "crate-ferroplan-sat-schedule",
+          "label": "solve loops"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-budget",
+        "title": "Conflict budget (Interrupted)",
+        "kind": "concept",
+        "summary": "The one feature ferroplan added during absorption: a per-solve conflict cap that stops with an honest third verdict and can be resumed.",
+        "body": "<p>A SAT solver on a hard instance can run indefinitely. The planner's horizon ramp needs to say \"no answer within this many conflicts\" without claiming UNSAT. <code>Schedule</code> carries <code>conflict_limit: Option&lt;u64&gt;</code> and <code>conflicts_this_solve</code>; <code>schedule_step</code> returns <code>false</code> once the count reaches the limit, leaving <code>sat_state == Unknown</code>.</p><p>The interrupt is recoverable: nothing is torn down, so raising or clearing the limit and calling <code>solve</code> again continues with all learned clauses intact. <code>satdiff_conflict_budget_interrupts</code> pins this: a limit of 5 interrupts a pigeonhole instance, then <code>None</code> lets it finish UNSAT.</p><p>The planner uses it in slices: <code>solve_horizon</code> sets <code>set_conflict_limit(Some(slice))</code> with <code>SLICE = 4_096</code>, accumulates spent conflicts against the per-horizon budget, and between slices can bail early if the measured conflict rate says the budget cannot finish in the remaining wall-clock slice. A budget trip is reported as \"no plan within horizon H\", never as unsolvable.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/schedule.rs:29",
+         "crates/ferroplan-sat/src/solver.rs:98",
+         "crates/ferroplan/src/sat.rs:747",
+         "crates/ferroplan/src/sat.rs:791"
+        ],
+        "facts": [
+         [
+          "Planner slice",
+          "4,096 conflicts"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-sat",
+          "label": "used by the horizon ramp in"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-assumptions",
+        "title": "Assumptions and failed cores",
+        "kind": "module",
+        "summary": "Temporary unit literals placed as the first decision levels; if they clash, a backward trail walk reports which assumptions are to blame.",
+        "body": "<p>Assumptions let a caller ask \"is the formula SAT if these literals are also true?\" without adding permanent clauses, so learned clauses stay valid across calls. <code>set_assumptions</code> does a <code>full_restart</code>, maps user to solver literals, and flags each variable <code>assumed</code> (so <code>unit_simplify</code> will not recycle it).</p><p>During search, <code>enqueue_assumption</code> treats assumption <em>i</em> as decision level <em>i+1</em>: if it is unassigned it opens a level and enqueues it; if it is already true (implied by earlier ones) it is <code>swap_remove</code>d; if it is already false, <code>analyze_assumption_conflict</code> walks the trail backwards from it, following reasons, and collects every level-&gt;0 <code>Reason::Unit</code> literal it reaches (these are exactly earlier assumptions). That set is the <strong>failed core</strong>, not guaranteed minimal. <code>restart</code> only backtracks to <code>assumption_levels</code>, so assumptions survive restarts.</p><p>Kept after the strip audit (~200 lines, no dependencies) because the temporal CEGAR loop might want cores. The current planner wing re-encodes each horizon into a fresh solver and does not call <code>assume</code>.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/assumptions.rs:59",
+         "crates/ferroplan-sat/src/assumptions.rs:90",
+         "crates/ferroplan-sat/src/assumptions.rs:125",
+         "crates/ferroplan-sat/src/prop/assignment.rs:204"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "177"
+         ],
+         [
+          "Planner use",
+          "none today"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-model",
+        "title": "Model extraction",
+        "kind": "module",
+        "summary": "On SAT, copy solver-variable values back to global variables, filling recycled units from VarData, then translate to user literals.",
+        "body": "<p>When <code>find_conflict</code> finds no variable left to decide, <code>reconstruct_global_model</code> builds <code>Model::assignment</code> indexed by <em>global</em> variable: for each live global var, if it still has a solver var its value is read from the current assignment; otherwise the variable was simplified away and its value comes from <code>VarData::unit</code>, defaulting to <code>false</code> for isolated variables that never mattered. Then it sets <code>SatState::Sat</code>.</p><p><code>Solver::model()</code> maps each user variable through <code>global_from_user</code> and emits <code>user_var.lit(value)</code>. Because the user-to-global mapping is the identity in ferroplan's stripped version, the model's literal indices equal the planner's own variable numbering. The planner's decoder reads \"unassigned\" as false.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/model.rs:30",
+         "crates/ferroplan-sat/src/solver.rs:123"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-variables",
+          "label": "maps through"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-seed",
+        "title": "seed_activity: the branching hook",
+        "kind": "concept",
+        "summary": "Lets the encoder pre-raise VSIDS activity of chosen variables. The reason the solver was absorbed; measured, and left opt-in.",
+        "body": "<p><code>Solver::seed_activity</code> takes <code>(user variable index, activity)</code> pairs, translates each to a global variable (exactly as <code>model</code> does) and calls <code>Vsids::seed</code>, which only ever <em>raises</em> an activity and sifts the variable up the heap. Early decisions then follow the caller's structural prior; as real conflict bumps grow (the bump value grows geometrically) the seed washes out.</p><p>0.25 Wing II step 5 measured it. Forward layer-ordered op seeding (<code>FF_SAT_BRANCH=fwd</code>: op variables at earlier layers get higher activity) gave a real 1.8x on deep UNSAT proofs (storage-t h1-32: 6.8 s to 3.7 s) but was disqualifying on the SAT side: TMS-2011 i2 at h16 went from one STN refutation and 0.6 s to 247 refutations and a capped budget, because early-packed models are the schedule-infeasible ones. <code>back</code> was 2x worse, <code>uniform</code> worse on both. So the hook ships opt-in, default off (stock heap order); CEGAR-aware seeding is the named 0.26 residue.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/solver.rs:76",
+         "crates/ferroplan-sat/src/decision/vsids.rs:89",
+         "crates/ferroplan/src/sat.rs:610",
+         "docs/roadmap-0.25.md:444"
+        ],
+        "facts": [
+         [
+          "Env knob",
+          "<code>FF_SAT_BRANCH=fwd|back|uniform</code>"
+         ],
+         [
+          "Default",
+          "off"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-sat",
+          "label": "called from encode in"
+         },
+         {
+          "to": "crate-ferroplan-sat-vsids",
+          "label": "writes"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-data",
+      "title": "Literals, formulas, variables",
+      "kind": "data",
+      "summary": "The vocabulary types and the central Context.",
+      "body": "<p>Everything else in the crate operates on these: compact literals, the flat CNF container, the three-level variable mapping, and the single <code>Context</code> struct that owns all state.</p>",
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-lit",
+        "title": "Literals and variables",
+        "kind": "data",
+        "summary": "Var is a u32 index; Lit packs index and sign as code = 2*index + negated, so negation is XOR 1 and literals index arrays directly.",
+        "body": "<p>A <strong>variable</strong> is a boolean unknown; a <strong>literal</strong> is a variable or its negation. <code>Var</code> wraps a 0-based <code>u32</code> (<code>LitIdx</code>). <code>Lit</code> stores a single <code>code</code>: <code>(index &lt;&lt; 1) | negated</code>. So <code>!lit</code> is <code>code ^ 1</code>, <code>lit.var()</code> is <code>code &gt;&gt; 1</code>, and per-literal tables (watch lists, binary implication lists, <code>TmpFlags</code>) are plain <code>Vec</code>s of length <code>2 * var_count</code> indexed by <code>lit.code()</code>.</p><p><code>Var::max_var()</code> is <code>u32::MAX &gt;&gt; 4</code>, leaving spare bits for tags and sentinels. User I/O uses the DIMACS convention: 1-based, sign gives polarity (<code>Lit::from_dimacs(-3)</code> is NOT x3); <code>Debug</code>/<code>Display</code> print that form. <code>Lit ^ bool</code> conditionally negates. Both types are <code>#[repr(transparent)]</code>, which lets the clause arena reinterpret a <code>[u32]</code> slice as <code>[Lit]</code>.</p><p>The planner constructs literals with <code>Lit::from_index(v, true/false)</code> over its own variable numbering.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/lit.rs:23",
+         "crates/ferroplan-sat/src/lit.rs:131",
+         "crates/ferroplan-sat/src/lit.rs:174"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "303"
+         ],
+         [
+          "Encoding",
+          "code = 2*var + neg"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-cnf",
+        "title": "CnfFormula",
+        "kind": "data",
+        "summary": "A flat formula container: one literal buffer plus a Vec of ranges, implementing ExtendFormula like the solver does.",
+        "body": "<p><code>CnfFormula</code> is equivalent to <code>Vec&lt;Vec&lt;Lit&gt;&gt;</code> but stores all literals in one <code>Vec&lt;Lit&gt;</code> with a <code>Vec&lt;Range&lt;usize&gt;&gt;</code> of clause boundaries, avoiding one allocation per clause. <code>var_count</code> tracks the highest variable seen (plus any explicit <code>set_var_count</code>, used to honour a DIMACS header).</p><p>The <code>ExtendFormula</code> trait (<code>add_clause</code>, <code>new_var</code>, default <code>new_lit</code>) is implemented both by <code>CnfFormula</code> and by <code>Solver</code>, so code that builds clauses can target either a stored formula or a live solver. <code>Solver::add_formula</code> streams a <code>CnfFormula</code> into the solver. It is what <code>parse_dimacs</code> produces and what the satdiff battery checks models against.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/cnf.rs:17",
+         "crates/ferroplan-sat/src/cnf.rs:100"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "176"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-variables",
+        "title": "Variables",
+        "kind": "module",
+        "summary": "Variable namespaces and metadata (variables.rs, variables/).",
+        "body": "<p>The variable layer translates caller literals into internal ones on every clause and assumption load (<code>solver_from_user_lits</code>) and back again for models and failed cores (<code>existing_user_from_solver</code>).</p>",
+        "files": [
+         "crates/ferroplan-sat/src/variables.rs:246"
+        ],
+        "layout": "grid",
+        "children": [
+         {
+          "id": "crate-ferroplan-sat-variables-map",
+          "title": "User / global / solver mapping",
+          "kind": "concept",
+          "summary": "Three variable namespaces: user (caller's numbering), global (identity here), solver (dense internal slots that get recycled).",
+          "body": "<p>The solver keeps two bidirectional maps (<code>VarBiMap</code>, each a forward and backward <code>VarMap</code> with a watermark). <strong>User</strong> variables are what the caller names. <strong>Global</strong> variables are stable identities with metadata; in ferroplan's stripped version the user-to-global map is always the identity because nothing hides user variables. <strong>Solver</strong> variables are the dense indices all internal arrays use.</p><p>Solver variables are allocated lazily: <code>solver_from_global</code> picks a slot from <code>solver_freelist</code> or the next index, grows every per-variable structure via <code>context::set_var_count</code>, and runs <code>initialize_solver_var</code> (restore a known unit value, reset VSIDS activity, put it in the heap if unassigned). When <code>unit_simplify</code> finds a variable fixed or isolated, <code>remove_solver_var</code> takes it off the heap and returns its slot to the freelist; the global variable and its remembered <code>unit</code> value stay. This is why the mapping layer survived the strip: it is a real memory and speed feature, not proof residue.</p>",
+          "files": [
+           "crates/ferroplan-sat/src/variables.rs:32",
+           "crates/ferroplan-sat/src/variables.rs:202",
+           "crates/ferroplan-sat/src/variables.rs:283",
+           "crates/ferroplan-sat/src/variables/var_map.rs:63"
+          ],
+          "facts": [
+           [
+            "variables.rs",
+            "294 lines"
+           ],
+           [
+            "var_map.rs",
+            "130 lines"
+           ]
+          ]
+         },
+         {
+          "id": "crate-ferroplan-sat-variables-data",
+          "title": "VarData flags",
+          "kind": "data",
+          "summary": "Per-global-variable metadata: remembered unit value, isolated, assumed, deleted.",
+          "body": "<p><code>VarData</code> lives per <em>global</em> variable, so it survives the solver slot being recycled.</p><ul><li><code>unit: Option&lt;bool&gt;</code> - the value fixed by a unit clause, remembered after the variable leaves the solver; used by model reconstruction and by <code>initialize_solver_var</code> if the variable is re-mapped.</li><li><code>isolated</code> - true while no clause links this variable to another (only unit clauses or none). <code>load_clause</code> clears it for every literal of a clause of length 2+.</li><li><code>assumed</code> - part of the current assumptions; protects it from removal.</li><li><code>deleted</code> - default <code>true</code> for unallocated slots; <code>user_default()</code> sets it false.</li></ul><p><code>unit_simplify</code> uses these to decide removal: any assigned variable becomes <code>unit = Some(v)</code>, <code>isolated = true</code>, and is removed unless assumed.</p>",
+          "files": [
+           "crates/ferroplan-sat/src/variables/data.rs:15"
+          ],
+          "facts": [
+           [
+            "Lines",
+            "50"
+           ]
+          ]
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-context",
+        "title": "Context, config, scratch",
+        "kind": "data",
+        "summary": "One plain struct holding every solver part; SolverConfig defaults; TmpData/TmpFlags scratch buffers.",
+        "body": "<p><code>Context</code> has one field per subsystem: <code>analyze_conflict</code>, <code>assignment</code>, <code>assumptions</code>, <code>binary_clauses</code>, <code>clause_activity</code>, <code>clause_alloc</code>, <code>clause_db</code>, <code>impl_graph</code>, <code>model</code>, <code>schedule</code>, <code>solver_config</code>, <code>solver_state</code>, <code>tmp_data</code>, <code>tmp_flags</code>, <code>trail</code>, <code>variables</code>, <code>vsids</code>, <code>watchlists</code>. Upstream used the <code>partial_ref</code> macro crate to hand each function a typed view of just the fields it needed. The absorption replaced that with <code>&amp;mut Context</code> plus explicit field destructuring (<code>let Context { assignment, trail, .. } = ctx;</code>), and where a part must be held across a whole-context call it is <code>mem::take</code>n out and put back (for example the watch lists and clause arena during <code>propagate_long</code>). <code>set_var_count</code> fans a new variable count out to every per-variable array.</p><p><code>SolverConfig</code> is a plain struct: <code>vsids_decay</code> 0.95, <code>clause_activity_decay</code> 0.999, <code>reduce_locals_interval</code> 15,000, <code>reduce_mids_interval</code> 10,000, <code>luby_restart_interval_scale</code> 128. Only the intervals and Luby scale are read from the context; both decays are read from <code>SolverConfig::default()</code> when <code>Vsids</code>/<code>ClauseActivity</code> are constructed. There is no public setter.</p><p><code>TmpData</code> holds two reusable literal buffers for <code>load_clause</code>; <code>TmpFlags</code> is a per-literal bool array kept all-false between uses (glue computation, failed-core walk).</p>",
+        "files": [
+         "crates/ferroplan-sat/src/context.rs:37",
+         "crates/ferroplan-sat/src/context.rs:59",
+         "crates/ferroplan-sat/src/config.rs:12",
+         "crates/ferroplan-sat/src/tmp.rs:15"
+        ],
+        "facts": [
+         [
+          "Fields",
+          "18"
+         ],
+         [
+          "Defaults",
+          "decay 0.95 / 0.999, reduce 15k / 10k, Luby x128"
+         ]
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-prop",
+      "title": "Propagation (prop/)",
+      "kind": "module",
+      "summary": "Unit propagation: assignment and trail, implication graph, binary implication lists, two-watched-literal long-clause scan.",
+      "body": "<p><code>prop.rs</code> is 35 lines: enable watch lists, then for each literal popped from the trail queue run binary then long propagation, returning the first conflict. The submodules hold the state that propagation reads and writes.</p>",
+      "files": [
+       "crates/ferroplan-sat/src/prop.rs:27"
+      ],
+      "facts": [
+       [
+        "prop/ lines",
+        "713 incl. prop.rs"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-assignment",
+        "title": "Assignment and trail",
+        "kind": "data",
+        "summary": "Per-variable Option<bool> plus saved phase; the trail is the ordered stack of assigned literals with decision-level boundaries and a propagation queue head.",
+        "body": "<p><code>Assignment</code> holds <code>Vec&lt;Option&lt;bool&gt;&gt;</code> and <code>last_value</code> (phase saving). <code>lit_is_true/false/unk</code> compare the option as a raw byte via <code>fast_option_eq</code>, a codegen workaround on the hottest path.</p><p><code>Trail</code> is a <code>Vec&lt;Lit&gt;</code> in assignment order, a <code>queue_head_pos</code> (everything after it is assigned but not yet propagated, so the trail doubles as the BCP queue), and <code>decisions</code>, the trail index where each level begins. <code>current_level()</code> is <code>decisions.len()</code>.</p><p><code>enqueue_assignment</code> is the single funnel for every assignment (decision, propagation, unit, assumption): set the value, push to trail, record reason, level and trail depth in the implication graph. <code>backtrack(level)</code> truncates the trail to that level's start, unassigns each popped variable, saves its value in <code>last_value</code>, and calls <code>vsids.make_available</code>. Watch lists need no update on backtrack. <code>restart</code> backtracks to the assumption levels; <code>full_restart</code> to 0.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/prop/assignment.rs:19",
+         "crates/ferroplan-sat/src/prop/assignment.rs:89",
+         "crates/ferroplan-sat/src/prop/assignment.rs:148",
+         "crates/ferroplan-sat/src/prop/assignment.rs:168"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "207"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-impl-graph",
+        "title": "Implication graph and reasons",
+        "kind": "data",
+        "summary": "For each assigned variable: why (Unit, Binary, or Long clause), at what level, at what trail depth. Conflict analysis walks it backwards.",
+        "body": "<p>The implication graph is a DAG: sources are decisions, assumptions and unit clauses; every propagated literal has edges from the literals that forced it. It is stored implicitly, one <code>ImplNode { reason, level, depth }</code> per variable.</p><p><code>Reason</code> is <code>Unit</code> (no antecedent), <code>Binary([lit])</code> (the other literal of a binary clause, already negated so it is the false literal), or <code>Long(ClauseRef)</code>. For long clauses the propagated literal is always kept at position 0, so <code>reason.lits(alloc)</code> is just <code>clause.lits()[1..]</code> with no copy. <code>Conflict</code> is <code>Binary([a,b])</code> or <code>Long(cref)</code>.</p><p>A <code>depth</code> of <code>LitIdx::MAX</code> marks a <em>removed unit</em>: a level-0 fact that <code>prove_units</code> moved off the trail. Garbage collection rewrites <code>Long</code> reasons when clauses move (<code>update_reason</code>).</p>",
+        "files": [
+         "crates/ferroplan-sat/src/prop/graph.rs:17",
+         "crates/ferroplan-sat/src/prop/graph.rs:42",
+         "crates/ferroplan-sat/src/prop/graph.rs:59"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "122"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-binary",
+        "title": "Binary clauses",
+        "kind": "data",
+        "summary": "Two-literal clauses are not stored as clauses at all: each (a or b) becomes two implication-list entries, !a implies b and !b implies a.",
+        "body": "<p>Binary clauses are very common in planning encodings (precondition clauses <code>op =&gt; pre</code>, mutexes, frame pieces) and propagate in the simplest possible way. <code>BinaryClauses::add_binary_clause([a, b])</code> pushes <code>b</code> onto the list for <code>!a</code> and <code>a</code> onto the list for <code>!b</code>; <code>implied(lit)</code> returns that slice.</p><p><code>propagate_binary</code> walks the list for the literal just made true: an implied literal that is already false is a conflict <code>Conflict::Binary([implied, !lit])</code>; an unassigned one is enqueued with <code>Reason::Binary([!lit])</code>. No watch lists, no clause arena access. It runs before the long-clause scan for each trail literal.</p><p><code>simplify_binary</code> (called by <code>unit_simplify</code>) drops every list for an assigned literal and every entry mentioning an assigned literal, then recounts. Long clauses shortened to two literals by simplification migrate here too.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/binary.rs:14",
+         "crates/ferroplan-sat/src/binary.rs:46",
+         "crates/ferroplan-sat/src/prop/binary.rs:16"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "68 + 42"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-watch",
+        "title": "Two watched literals",
+        "kind": "concept",
+        "summary": "Each long clause is watched by two of its literals; it only needs inspecting when one of those becomes false. Blocking literals skip even that.",
+        "body": "<p>The naive way to detect that a clause became unit is to recount its false literals on every assignment. The <strong>two-watched-literal</strong> scheme instead keeps, for every clause of length 3+, two watches in positions 0 and 1. Invariant: if the clause is not unit, both watched literals are non-false. A clause can only become unit or conflicting when a watched literal goes false, so only those clauses are touched. Unassigning never breaks the invariant, so backtracking costs nothing here.</p><p>Each <code>Watch { cref, blocking }</code> lives in the list of the literal whose <em>truth</em> triggers it (<code>watch_clause</code> adds to <code>!lits[i]</code>). <code>blocking</code> is some other literal of the clause; if it is already true the clause is satisfied and the scan moves on without touching clause memory (MiniSat 2.1 blocking literals, Sorensson and Een).</p><p>Watch lists can be <em>disabled</em> (<code>disable()</code>) when clauses are deleted or moved; <code>enable_watchlists</code>, called at the top of every <code>propagate</code>, then rebuilds all of them from the clause database. Upstream left a TODO in <code>delete_clause</code> about avoiding this full rebuild.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/prop/watch.rs:1",
+         "crates/ferroplan-sat/src/prop/watch.rs:49",
+         "crates/ferroplan-sat/src/prop/watch.rs:115"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "137"
+         ],
+         [
+          "Reference",
+          "Handbook of Satisfiability 4.5.1"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-long",
+        "title": "Long-clause watch scan",
+        "kind": "module",
+        "summary": "The hot loop: for each watch of a false literal, keep it, move it to a new non-false literal, propagate the other watch, or report conflict.",
+        "body": "<p><code>propagate_long(lit)</code> takes the watch lists and clause arena out of the context and runs <code>scan_watchlist</code>, an unsafe raw-pointer compaction loop kept verbatim from upstream (it still performs bound checks through <code>check_bounds</code>). For each watch in the list for <code>lit</code>:</p><ol><li>Blocking literal true: keep the watch, next.</li><li>Ensure the now-false literal is at position 1 (swap with 0 if needed). Make a new watch with the other watched literal as blocker.</li><li>If that other watched literal is true: keep, next.</li><li>Search positions 2.. for a non-false literal. If found, swap it into position 1 and add the watch to <em>its</em> list (this watch leaves the current list).</li><li>None found: keep the watch. If position 0 is false, copy the remaining watches, truncate, return <code>Conflict::Long(cref)</code>. Otherwise enqueue position 0 with <code>Reason::Long(cref)</code>.</li></ol><p>The read/write pointer pair compacts the list in place as watches move away, then truncates once at the end.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/prop/long.rs:23",
+         "crates/ferroplan-sat/src/prop/long.rs:36"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "170"
+         ]
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-clause",
+      "title": "Clause storage (clause/)",
+      "kind": "module",
+      "summary": "Binary clauses as implication lists, long clauses in a bump arena with packed headers, tiered by glue, reduced by activity, compacted by GC.",
+      "body": "<p>Clauses are stored by size: units never become clauses (they are trail assignments, then <code>VarData::unit</code>), binaries are implication lists (see Propagation), and clauses of 3+ literals go through <code>clause/</code>. The submodules below cover the arena, header, database tiers, quality measures and the two cleanup mechanisms.</p>",
+      "files": [
+       "crates/ferroplan-sat/src/clause.rs:1"
+      ],
+      "facts": [
+       [
+        "clause/ lines",
+        "886 incl. clause.rs"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-alloc",
+        "title": "Clause arena (ClauseAlloc)",
+        "kind": "data",
+        "summary": "All long clauses live in one Vec<u32> bump arena; a ClauseRef is a 32-bit offset; deleted clauses are reclaimed only by copying GC.",
+        "body": "<p><code>ClauseAlloc</code> is a single <code>Vec&lt;LitIdx&gt;</code>. <code>add_clause</code> appends the 3-word header and then the literals (reinterpreted as <code>u32</code>, legal because <code>Lit</code> is <code>repr(transparent)</code>) and returns <code>ClauseRef { offset: u32 }</code>. Offsets stay valid when the <code>Vec</code> grows. Clauses of fewer than 3 literals are refused by assertion: units go on the trail, binaries to <code>BinaryClauses</code>, which lets the propagation loop read positions 0-2 after one bound check.</p><p><code>Clause</code> is a <code>#[repr(transparent)]</code> wrapper around <code>[LitIdx]</code> (header plus literals) with unsafe casts for <code>header()</code> and <code>lits()</code>; upstream notes a proper DST struct is almost impossible to use in stable Rust. Individual clauses are never freed; space returns only through <code>collect_garbage</code>.</p><p>Benefits: cache locality during the watch scan, 4-byte clause references in every watch and reason, and no per-clause allocation.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/clause/alloc.rs:29",
+         "crates/ferroplan-sat/src/clause/alloc.rs:49",
+         "crates/ferroplan-sat/src/clause.rs:36"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "243 + 72"
+         ],
+         [
+          "ClauseRef",
+          "u32 offset"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-header",
+        "title": "Clause header bit layout",
+        "kind": "data",
+        "summary": "Three u32 words before each clause: activity (f32 bits), a packed word of tier/deleted/mark/glue/active, and length.",
+        "body": "<p><code>ClauseHeader</code> is <code>[LitIdx; 3]</code>:</p><table><tr><th>Word</th><th>Bits</th><th>Field</th></tr><tr><td>0</td><td>all</td><td><code>activity</code> (f32 via <code>to_bits</code>)</td></tr><tr><td>1</td><td>0-1</td><td><code>tier</code> (Irred, Core, Mid, Local)</td></tr><tr><td>1</td><td>2</td><td><code>deleted</code></td></tr><tr><td>1</td><td>3</td><td><code>mark</code> (temporary; must be reset)</td></tr><tr><td>1</td><td>4-9</td><td><code>glue</code> (6 bits, saturates at 63)</td></tr><tr><td>1</td><td>10</td><td><code>active</code> (used in a conflict since last mid reduction)</td></tr><tr><td>2</td><td>all</td><td><code>len</code></td></tr></table><p><code>mark</code> is reused by two routines: <code>dedup_and_mark_by_tier</code> uses it to drop duplicate tier-list entries, and GC uses it to flag clauses that are currently a propagation reason. A round-trip test pins the layout.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/clause/header.rs:15",
+         "crates/ferroplan-sat/src/clause/header.rs:42"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "172"
+         ],
+         [
+          "HEADER_LEN",
+          "3"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-db",
+        "title": "Clause database and tiers",
+        "kind": "module",
+        "summary": "ClauseDb indexes long clauses by tier (Irred, Core, Mid, Local) with lazy deletion and exact per-tier counts.",
+        "body": "<p>Learned clauses are useful but unbounded; keeping all of them slows propagation. Following Chanseok Oh (\"Between SAT and UNSAT\", 2015, section 4), long clauses are partitioned into four <code>Tier</code>s:</p><ul><li><strong>Irred</strong>: original problem clauses, never deleted by reduction.</li><li><strong>Core</strong>: learned with glue &lt;= 2, kept forever.</li><li><strong>Mid</strong>: glue 3-6, kept while recently active.</li><li><strong>Local</strong>: glue &gt;= 7 or demoted, half deleted periodically.</li></ul><p><code>ClauseDb</code> holds <code>clauses</code> (all refs), <code>by_tier</code> lists, <code>count_by_tier</code> (always exact) and <code>garbage_size</code>. Removal is lazy: <code>by_tier</code> may contain deleted, moved, or duplicate refs, and readers check the header. <code>add_clause</code> stores, watches positions 0 and 1, and indexes. <code>set_clause_tier</code> moves a clause by pushing it to the new list. <code>delete_clause</code> sets the header bit, adjusts counts and garbage, and disables watch lists. <code>try_delete_clause</code> refuses to delete a clause that is currently the reason for its literal 0. <code>filter_clauses</code> is the bulk-filter used by unit simplification.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/clause/db.rs:23",
+         "crates/ferroplan-sat/src/clause/db.rs:53",
+         "crates/ferroplan-sat/src/clause/db.rs:73",
+         "crates/ferroplan-sat/src/clause/db.rs:137"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "261"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-glue",
+        "title": "Glue (LBD) and assessment",
+        "kind": "concept",
+        "summary": "Glue = number of distinct decision levels in a clause. Low glue predicts a useful learned clause; it picks the tier and can only improve.",
+        "body": "<p><strong>Literal block distance</strong> (LBD, from the Glucose solver) counts how many different decision levels a clause's literals were assigned at. A clause with glue 2 links just two decision \"blocks\" and tends to propagate again and again; high-glue clauses are usually one-offs. <code>compute_glue</code> marks each literal's level in <code>TmpFlags</code>, counts first marks, then clears them.</p><p><code>assess_learned_clause</code> computes glue while the clause is still in conflict and subtracts 1 (after backjump the asserting literal moves to a new level), then <code>select_tier</code>: glue &lt;= 2 Core, &lt;= 6 Mid, else Local.</p><p><code>bump_clause</code>, called for each long clause used in conflict analysis, bumps clause activity, sets <code>active</code>, recomputes glue under the current assignment, and if it is lower than the stored glue, stores it and promotes the clause's tier. Glue therefore records the best value ever observed.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/glue.rs:17",
+         "crates/ferroplan-sat/src/clause/assess.rs:13",
+         "crates/ferroplan-sat/src/clause/assess.rs:32",
+         "crates/ferroplan-sat/src/clause/assess.rs:43"
+        ],
+        "facts": [
+         [
+          "Tier cut-offs",
+          "&lt;=2 Core, &lt;=6 Mid, else Local"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-clause-activity",
+        "title": "Clause activity",
+        "kind": "concept",
+        "summary": "A VSIDS-style score per clause, bumped when it participates in a conflict and decayed by 0.999 per conflict; ranks Local clauses for deletion.",
+        "body": "<p>Each long clause's header stores an f32 activity. <code>bump_clause_activity</code> adds the current <code>bump</code>; <code>decay_clause_activities</code> (once per conflict in <code>conflict_step</code>) multiplies <code>bump</code> by <code>1/0.999</code> instead of shrinking every clause. The effect is identical up to a common scale factor, and only relative order matters. When <code>bump</code> or any activity exceeds <code>f32::MAX / 16</code>, <code>rescale_clause_activities</code> multiplies every live clause's activity and the bump by the inverse (and prunes deleted refs from <code>clauses</code> on the way).</p><p>Activity is only consulted by <code>reduce_locals</code>: it sorts Local clauses by activity (ties by ref) and deletes the least active half.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/clause/activity.rs:16",
+         "crates/ferroplan-sat/src/clause/activity.rs:38",
+         "crates/ferroplan-sat/src/clause/activity.rs:75"
+        ],
+        "facts": [
+         [
+          "Decay",
+          "0.999"
+         ],
+         [
+          "Lines",
+          "81"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-reduce",
+        "title": "Clause DB reduction",
+        "kind": "module",
+        "summary": "Every 15k conflicts delete the less active half of Local clauses; every 10k conflicts demote Mid clauses that were not active to Local.",
+        "body": "<p>Two periodic passes, both triggered from <code>schedule_step</code> by conflict count modulo the config interval:</p><ul><li><code>reduce_locals</code> (every 15,000): dedup the Local list (using the header mark), sort by activity ascending, and try to delete the first half. <code>try_delete_clause</code> skips any clause currently acting as a reason, so a few low-activity clauses can survive.</li><li><code>reduce_mids</code> (every 10,000): for each Mid clause, if its <code>active</code> bit is set, clear it and keep; otherwise move it to Local, where it competes for survival in the next local reduction.</li></ul><p>Core and Irred clauses are never touched. The result is a three-speed memory: a permanent core of low-glue clauses, a middle band kept while useful, and a churning local pool. Deletion only flags headers; memory is reclaimed by GC.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/clause/reduce.rs:19",
+         "crates/ferroplan-sat/src/clause/reduce.rs:38",
+         "crates/ferroplan-sat/src/clause/reduce.rs:72"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "92"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-gc",
+        "title": "Garbage collection",
+        "kind": "module",
+        "summary": "When deleted clauses exceed half the arena, copy live clauses into a fresh arena (2x headroom) and patch every reason reference.",
+        "body": "<p><code>collect_garbage</code> runs each schedule step but only acts when <code>garbage_size * 2 &gt; buffer_size</code>, amortising copy cost. <code>collect_garbage_now</code>:</p><ol><li>Disables watch lists (they hold old refs; they are rebuilt at the next propagate).</li><li><code>mark_asserting_clauses</code>: sets the mark bit on every clause that is the <code>Reason::Long</code> of a trail literal.</li><li>Allocates a new arena with capacity twice the live size, copies each non-deleted clause, rebuilds <code>clauses</code> and <code>by_tier</code> (which also removes all stale tier entries), and for marked clauses rewrites the implication graph's reason to the new ref.</li></ol><p>This is the reason <code>ClauseRef</code> can be a plain offset: the only long-lived holders are the database lists, the watch lists (rebuilt) and reasons (patched).</p>",
+        "files": [
+         "crates/ferroplan-sat/src/clause/gc.rs:13",
+         "crates/ferroplan-sat/src/clause/gc.rs:24",
+         "crates/ferroplan-sat/src/clause/gc.rs:80"
+        ],
+        "facts": [
+         [
+          "Trigger",
+          "garbage &gt; 50% of arena"
+         ],
+         [
+          "Lines",
+          "93"
+         ]
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-sat-binary",
+        "label": "2-literal clauses live in"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-decision",
+      "title": "Decision heuristic (decision/)",
+      "kind": "heuristic",
+      "summary": "Which variable to branch on (VSIDS) and which value to try (phase saving).",
+      "body": "<p><code>decision.rs</code> is the thin <code>make_decision</code> wrapper; <code>decision/vsids.rs</code> is the heuristic. Upstream's one-line wrappers (<code>make_available</code>, <code>initialize_var</code>, <code>remove_var</code>) were inlined at their call sites during absorption.</p>",
+      "files": [
+       "crates/ferroplan-sat/src/decision.rs:21"
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-vsids",
+        "title": "VSIDS heap",
+        "kind": "heuristic",
+        "summary": "Variable State Independent Decaying Sum: bump variables seen in conflicts, decay all geometrically, branch on the max via an indexed binary heap.",
+        "body": "<p>VSIDS (from Chaff, as refined in MiniSat) focuses search on variables involved in recent conflicts. Every variable met during conflict analysis (in the conflict clause or resolved on) gets <code>bump</code> added to its activity. After each conflict all activities decay by <code>vsids_decay</code> = 0.95. Decisions pick the highest-activity unassigned variable. This is VSIDS, not VMTF; the crate has no VMTF queue.</p><p>Implementation: rather than multiplying every activity by 0.95, <code>decay()</code> multiplies the bump by <code>1/0.95</code>, so newer bumps simply weigh more. When anything passes <code>f32::MAX / 16</code>, <code>rescale</code> scales all activities and the bump down together. Activities are plain <code>f32</code> (upstream's <code>ordered-float</code> was dropped; activities are never NaN).</p><p>The heap is a hand-written binary max-heap <code>heap: Vec&lt;Var&gt;</code> with a <code>position: Vec&lt;Option&lt;usize&gt;&gt;</code> index so <code>bump</code> and <code>seed</code> can <code>sift_up</code> in place. <code>make_available</code> inserts (called on backtrack), <code>make_unavailable</code> removes (called when a variable leaves the solver), and the <code>Iterator</code> impl pops the max. Assigned variables are lazily discarded at decision time rather than removed on assignment.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/decision/vsids.rs:31",
+         "crates/ferroplan-sat/src/decision/vsids.rs:100",
+         "crates/ferroplan-sat/src/decision/vsids.rs:115",
+         "crates/ferroplan-sat/src/decision/vsids.rs:222"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "371"
+         ],
+         [
+          "Decay",
+          "0.95"
+         ]
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-seed",
+          "label": "seeded by"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-phase",
+        "title": "Phase saving",
+        "kind": "concept",
+        "summary": "A decided variable takes the value it had when last unassigned; never-assigned variables start false.",
+        "body": "<p>After a backjump or restart, much of the abandoned assignment was fine. <strong>Phase saving</strong> makes the solver re-enter the same region by re-choosing each variable's previous value. <code>backtrack</code> records <code>last_value[var] = (value == Some(true))</code> for every literal it pops, and <code>make_decision</code> uses <code>decision_var.lit(assignment.last_var_value(var))</code>.</p><p>The initial phase is <code>false</code> (the <code>last_value</code> vector is resized with <code>false</code>). In the planner's encoding most variables are \"op o at layer t\", so the default tries plans with no actions first and lets propagation from goals and frame axioms pull actions in. The 0.25 record notes this sparse-plan polarity came for free.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/prop/assignment.rs:52",
+         "crates/ferroplan-sat/src/prop/assignment.rs:191",
+         "crates/ferroplan-sat/src/decision.rs:21"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-analyze",
+      "title": "Conflict analysis",
+      "kind": "module",
+      "summary": "analyze_conflict.rs: first-UIP learning, recursive minimization, and the backjump level.",
+      "body": "<p>Holds the reusable buffers in <code>AnalyzeConflict</code> (<code>clause</code>, <code>current_level_count</code>, <code>var_flags</code>, <code>to_clean</code>, <code>involved</code>, <code>stack</code>). <code>conflict_step</code> <code>mem::take</code>s the struct out after analysis so the learned clause can be read while the rest of the context is mutated.</p>",
+      "files": [
+       "crates/ferroplan-sat/src/analyze_conflict.rs:22"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "295"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-analyze-1uip",
+        "title": "1UIP resolution walk",
+        "kind": "concept",
+        "summary": "Walk the trail newest-first, resolving away current-level literals until one remains; earlier-level literals go straight into the learned clause.",
+        "body": "<p><code>add_literal</code> is applied to every literal of the conflict and of each reason used. It skips level-0 literals (permanently false, so irrelevant) and duplicates (<code>var_flags</code>), bumps VSIDS, and then either counts the literal in <code>current_level_count</code> (current level) or pushes it into the output clause (earlier level).</p><p>The main loop scans <code>trail().iter().rev()</code>. For each flagged literal it decrements the count; if the count hits zero this literal is the first UIP, so <code>!lit</code> is pushed and swapped into position 0. Otherwise its reason's literals are added. Walking in reverse trail order guarantees each literal is resolved after everything it implied, which is what makes the cut unique.</p><p>Afterwards: minimize, clear flags via <code>to_clean</code>, find the highest-level remaining literal and swap it into position 1 so the clause's watches are correct after the backjump (position 1 must be the last literal to become unassigned), return its level, and call <code>vsids.decay()</code>.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/analyze_conflict.rs:57",
+         "crates/ferroplan-sat/src/analyze_conflict.rs:152"
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-analyze-minimize",
+        "title": "Recursive clause minimization",
+        "kind": "concept",
+        "summary": "Drop learned literals already implied by the others, found by DFS in the implication graph with a 64-bit Bloom filter of levels to prune.",
+        "body": "<p>A learned literal is <em>redundant</em> if its negation is implied by the other literals of the clause: following reasons backwards from it, every path ends in literals already in the clause (or level 0). Removing such literals makes learned clauses shorter and stronger. This is MiniSat-style recursive minimization.</p><p><code>minimize_clause</code> keeps position 0 and tests each other literal with <code>lit_is_redundant</code>, a DFS over reasons using <code>analyze.stack</code>. Two optimisations:</p><ul><li><strong>Level abstraction</strong>: <code>LevelAbstraction</code> is a 64-bit Bloom filter of the clause's decision levels (<code>1 &lt;&lt; (level % 64)</code>). Reaching a literal whose level is definitely not in the clause, or a decision not in the clause, means the DFS would eventually hit an outside decision, so it aborts early.</li><li><strong>Memoised success</strong>: <code>var_flags</code> doubles as the visited set. On failure the flags set during this DFS are rolled back; on success they stay, so later DFS runs treat those literals as known-implied and do not expand them.</li></ul>",
+        "files": [
+         "crates/ferroplan-sat/src/analyze_conflict.rs:176",
+         "crates/ferroplan-sat/src/analyze_conflict.rs:222",
+         "crates/ferroplan-sat/src/analyze_conflict.rs:246"
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-sat-impl-graph",
+        "label": "walks"
+       },
+       {
+        "to": "crate-ferroplan-sat-vsids",
+        "label": "bumps"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-schedule",
+      "title": "Schedule",
+      "kind": "module",
+      "summary": "schedule_step: budget check, Luby restart, periodic reductions, GC, one conflict_step, count++.",
+      "body": "<p><code>Schedule</code> tracks <code>conflicts</code> (lifetime), <code>next_restart</code>, <code>restarts</code>, the <code>LubySequence</code>, and the ferroplan-added <code>conflict_limit</code> / <code>conflicts_this_solve</code>. <code>schedule_step</code> returns <code>false</code> when the state is decided or the budget is spent; otherwise performs any due restart, reduction and garbage collection, then exactly one <code>conflict_step</code>. Upstream's <code>log</code> telemetry was removed with the dependency.</p>",
+      "files": [
+       "crates/ferroplan-sat/src/schedule.rs:29",
+       "crates/ferroplan-sat/src/schedule.rs:41"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "73"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-luby",
+        "title": "Luby restart sequence",
+        "kind": "concept",
+        "summary": "Restart intervals follow 1,1,2,1,1,2,4,1,... times 128 conflicts: mostly short runs with occasional long ones.",
+        "body": "<p>The Luby sequence (OEIS A182105) is the provably near-optimal universal schedule for restarting a randomised algorithm whose run-time distribution is unknown (Luby, Sinclair, Zuckerman 1993). It is \"reluctant doubling\": 1, 1, 2, 1, 1, 2, 4, 1, 1, 2, 1, 1, 2, 4, 8, ... <code>LubySequence::advance</code> computes it in O(1) state with two <code>u64</code>s using Knuth's 2012 method (<code>u &amp; -u == v</code> test).</p><p><code>schedule_step</code> multiplies each term by <code>luby_restart_interval_scale</code> = 128, so restarts happen after 128, 128, 256, 128, 128, 256, 512, ... conflicts. A unit test pins the first 64 terms. There is no glucose-style dynamic restart policy.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/schedule/luby.rs:12",
+         "crates/ferroplan-sat/src/schedule/luby.rs:25"
+        ],
+        "facts": [
+         [
+          "Scale",
+          "128 conflicts"
+         ],
+         [
+          "Lines",
+          "58"
+         ]
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-sat-budget",
+        "label": "enforces"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-io",
+      "title": "Input and simplification",
+      "kind": "module",
+      "summary": "How clauses get in (DIMACS, load_clause) and how permanent facts shrink the database.",
+      "body": "<p>The entry side of the solver: parsing, normalising and storing new clauses, plus the level-0 simplifier that keeps the stored formula small as facts are proven.</p>",
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-dimacs",
+        "title": "DIMACS reader / writer",
+        "kind": "module",
+        "summary": "A ferroplan-original, dependency-free DIMACS CNF parser and writer replacing the unabsorbed varisat-dimacs crate.",
+        "body": "<p>DIMACS CNF is the standard SAT interchange text format: <code>c</code> comment lines, a <code>p cnf VARS CLAUSES</code> header, and clauses as whitespace-separated signed integers terminated by <code>0</code>. <code>parse_dimacs(BufRead)</code> accepts clauses that span or share lines, an optional header (duplicate or malformed headers are errors), and checks after reading that the variable count does not exceed the header and the clause count matches. Errors carry a 1-based line number (<code>DimacsError::Parse { line, msg }</code>) or wrap I/O.</p><p><code>parse_dimacs_str</code> is the string convenience; <code>write_dimacs</code> emits <code>p cnf</code> plus one line per clause. Unit tests cover multi-line clauses, the empty clause, five error shapes and a round trip.</p><p>The planner does not go through DIMACS; it calls <code>add_clause</code> directly. DIMACS serves the satdiff battery and debugging dumps.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/dimacs.rs:1",
+         "crates/ferroplan-sat/src/dimacs.rs:46",
+         "crates/ferroplan-sat/src/dimacs.rs:144"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "196"
+         ],
+         [
+          "Origin",
+          "ferroplan-original"
+         ]
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-load",
+        "title": "Clause loading",
+        "kind": "module",
+        "summary": "load_clause: map to solver vars, sort, dedup, drop tautologies, drop satisfied, then dispatch to unit / binary / long storage.",
+        "body": "<p>Every clause from the caller enters through <code>load_clause</code>. It returns immediately if the solver is already UNSAT, flips SAT back to Unknown, and does a <code>full_restart</code> (new clauses invalidate the current trail). Then:</p><ol><li>Map user literals to solver literals (allocating variables as needed); sort and dedup.</li><li>Tautology check: after sorting, <code>x</code> and <code>!x</code> are adjacent (codes differ only in the low bit); a tautology is ignored.</li><li>Clear <code>isolated</code> on every variable of a clause of length 2+.</li><li>Against level-0 assignments: a true literal drops the clause; false literals are set aside and their units resurrected; unassigned literals are moved to the front so they will be the watched ones.</li><li>Dispatch: empty is UNSAT; one literal is enqueued as a unit (or UNSAT if it was only false literals); two go to <code>BinaryClauses</code>; three or more go to <code>db::add_clause</code> with <code>Tier::Irred</code>.</li></ol>",
+        "files": [
+         "crates/ferroplan-sat/src/load.rs:29"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "223"
+         ]
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-unit-simplify",
+          "label": "resurrect_unit"
+         },
+         {
+          "to": "crate-ferroplan-sat-db",
+          "label": "Irred clauses into"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-unit-simplify",
+        "title": "Unit simplification",
+        "kind": "module",
+        "summary": "Level-0 facts are moved off the trail, satisfied clauses deleted, false literals stripped, and fixed variables recycled.",
+        "body": "<p>A literal assigned at decision level 0 is true in every model, permanently. <code>prove_units</code> (called after every propagate in <code>find_conflict</code>) detects level 0, marks each trail literal a <em>removed unit</em> in the implication graph (depth sentinel), and clears the trail. If any were new, <code>unit_simplify</code> runs:</p><ol><li><code>simplify_binary</code> drops binary entries involving assigned literals.</li><li><code>filter_clauses</code> over long clauses: delete any with a true literal; strip false literals; a clause reduced to two literals becomes a binary clause; longer ones are rewritten in place with a smaller length. Empty or unit results are <code>unreachable!</code> after full propagation.</li><li>For every solver variable: if assigned, record <code>VarData::unit</code> and mark isolated; if isolated and not assumed, <code>remove_solver_var</code> frees its slot.</li></ol><p><code>resurrect_unit</code> is the inverse: when a newly loaded clause contains a removed unit's false literal, the unit is put back on the trail with <code>Reason::Unit</code> so the new clause will be propagated and later simplified.</p>",
+        "files": [
+         "crates/ferroplan-sat/src/unit_simplify.rs:20",
+         "crates/ferroplan-sat/src/unit_simplify.rs:40",
+         "crates/ferroplan-sat/src/unit_simplify.rs:58"
+        ],
+        "facts": [
+         [
+          "Lines",
+          "119"
+         ]
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-variables-map",
+          "label": "recycles slots via"
+         },
+         {
+          "to": "crate-ferroplan-sat-db",
+          "label": "filters"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-planner-use",
+      "title": "Where the planner uses it",
+      "kind": "concept",
+      "summary": "The SAT compilation wing in crates/ferroplan/src/sat.rs encodes bounded horizons into a fresh Solver and decodes models into plans.",
+      "body": "<p>The only caller is ferroplan's SAT wing, <code>crates/ferroplan/src/sat.rs</code> (owned and described under <code>mod-sat</code>). Briefly, from this crate's side:</p><ul><li><code>EncTask::encode(h)</code> builds a fresh <code>Solver</code> per horizon <em>h</em> and emits clauses with <code>Lit::from_index(v, bool)</code> over its own variable layout (fact@layer, op@layer, disabling-chain accumulators): initial-state units, goal units, mutex binaries, precondition and effect clauses, frame axioms, and for temporal tasks token, pairing and interval-interference clauses. Many are binaries, which hit the cheap implication-list path. It then optionally calls <code>seed_activity</code> under <code>FF_SAT_BRANCH</code>.</li><li><code>solve_horizon</code> solves in conflict-limited slices (<code>SLICE = 4_096</code>), with a conflict-rate bail against the wall clock. <code>Ok(true)</code>: the model is decoded; for the temporal face an STN check can return refutation clauses, which are added with <code>add_clause</code> and the same solver re-solves (CEGAR, relying on incrementality). <code>Ok(false)</code>: UNSAT at this horizon. <code>Err</code>: budget slice spent.</li><li><code>ramp</code> tries horizons 1, 2, 4, ... and moves on after UNSAT or budget exhaustion; a budget trip is never reported as unsolvable.</li></ul><p>Not used by the planner today: <code>assume</code>/<code>failed_core</code> and DIMACS. <code>lib.rs</code> notes the solver's API and internals are shaped by this one caller.</p>",
+      "files": [
+       "crates/ferroplan/src/sat.rs:80",
+       "crates/ferroplan/src/sat.rs:500",
+       "crates/ferroplan/src/sat.rs:738",
+       "crates/ferroplan/src/sat.rs:824",
+       "crates/ferroplan/src/sat.rs:937",
+       "crates/ferroplan/src/sat.rs:1311",
+       "crates/ferroplan/Cargo.toml:18"
+      ],
+      "facts": [
+       [
+        "Caller",
+        "<code>mod-sat</code> (1,669 lines)"
+       ],
+       [
+        "API used",
+        "new, add_clause, seed_activity, set_conflict_limit, solve, model"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-sat",
+        "label": "encoder/decoder lives in"
+       },
+       {
+        "to": "mod-tsched",
+        "label": "STN teacher for CEGAR"
+       },
+       {
+        "to": "mod-temporal",
+        "label": "snap-compiled events"
+       },
+       {
+        "to": "mod-invariants",
+        "label": "mutex seed clauses"
+       },
+       {
+        "to": "mod-packed",
+        "label": "decode replays via"
+       },
+       {
+        "to": "mod-api",
+        "label": "exposed through"
+       }
+      ]
+     },
+     {
+      "id": "crate-ferroplan-sat-provenance",
+      "title": "Provenance and gate",
+      "kind": "concept",
+      "summary": "Where the code came from and the test battery every change must pass.",
+      "body": "<p>Two facts frame the whole crate: it is a port of varisat that ferroplan now owns, and no change lands unless the satdiff differential battery still reproduces every verdict and validates every model.</p>",
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-ferroplan-sat-origins",
+        "title": "Origins: absorbed from varisat",
+        "kind": "process",
+        "summary": "Ported from varisat 0.2.2 by Jannis Harder in the 0.24 cycle, stripped to zero dependencies, and owned as ferroplan code since.",
+        "body": "<p>ferroplan-sat is not a dependency on a SAT library. In the 0.24 cycle the solver core of <strong>varisat 0.2.2</strong> (Jannis Harder, <code>github.com/jix/varisat</code>, master @ <code>33e876937c5d</code>, crates <code>varisat</code> and <code>varisat-formula</code>) was copied into the tree and carried forward as ferroplan's own code. The license is MIT OR Apache-2.0, identical to ferroplan's, so it carries through unchanged. Every absorbed file opens with a header naming its upstream path and what was changed.</p><p>Why absorb instead of depend: the 0.24 costing read found no pure-Rust solver better than MiniSat-class, vendoring only saved calendar time, and owning the code unlocks planning-specific branching (Madagascar's bespoke CDCL beat generic solvers on planning CNFs). The owner's instruction was \"I want it to become our code, and us carry it forward.\"</p><p>What was stripped: proof logging (DRAT/LRAT), the self-checker, sampling-mode/witness variables, the <code>partial_ref</code> context-borrow macros, and the dependencies <code>partial_ref</code>, <code>vec_mut_scan</code>, <code>ordered-float</code>, <code>rustc-hash</code>, <code>log</code>, <code>serde</code>. Not absorbed: <code>varisat-dimacs</code> (replaced by a small original <code>dimacs.rs</code>), <code>varisat-checker</code>, <code>varisat-lrat</code>, <code>varisat-cli</code> and the internal proof/macro crates. Result: 5,012 lines kept from upstream's 7,414, zero external dependencies (dev-deps included). Added: one thing only, a per-solve conflict budget. The upstream checkout is kept at <code>.solver-refs/varisat</code> (gitignored) for differential comparison.</p>",
+        "files": [
+         "ATTRIBUTION.md:8",
+         "crates/ferroplan-sat/Cargo.toml:1",
+         "docs/roadmap-0.24.md:144",
+         "crates/ferroplan-sat/README.md:1"
+        ],
+        "facts": [
+         [
+          "Upstream",
+          "varisat 0.2.2 (Jannis Harder)"
+         ],
+         [
+          "License",
+          "MIT OR Apache-2.0"
+         ],
+         [
+          "Kept",
+          "5,012 of 7,414 lines"
+         ],
+         [
+          "External deps",
+          "0"
+         ]
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-satdiff",
+          "label": "each strip gated by"
+         }
+        ]
+       },
+       {
+        "id": "crate-ferroplan-sat-satdiff",
+        "title": "satdiff differential battery",
+        "kind": "tool",
+        "summary": "The test gate built before the absorption: fixture CNFs with known verdicts, every SAT model checked by direct clause evaluation.",
+        "body": "<p>The crate's only referee is <code>tests/satdiff.rs</code>. It was written <em>before</em> the absorption (ferroplan's fixtures-first rule) and went red against a deliberately lying always-UNSAT stub before it ever went green against the real core. It then re-greened after every strip commit.</p><ul><li><strong>Small fixtures</strong>: <code>tests/satdiff/*.cnf</code> (22 files: pigeonhole <code>php-*</code>, graph colouring <code>color-*</code>, XOR pair, chains, and planning-shaped layered chains such as <code>plan-chain-t3.cnf</code> and <code>plan-chain-slack.cnf</code>). Each carries a <code>c expect: SAT|UNSAT</code> header and optionally <code>c unique-model:</code>. The loader asserts at least 15 exist.</li><li><strong>Model check</strong>: <code>verify_model</code> evaluates every clause against the returned model; the solver never grades itself.</li><li><strong>Mediums</strong>: three deterministic ~100k-clause instances generated in code (chain UNSAT, planted 3-SAT, layered chain). The 0.24 record notes they decide in 8-38 ms.</li><li><strong>API behaviour</strong>: assumptions plus failed core on a conditional pigeonhole, incremental clause adding (verdict may only flip SAT to UNSAT, exactly once), conflict-budget interrupt then resume, and DIMACS naming of <code>Var</code>.</li></ul>",
+        "files": [
+         "crates/ferroplan-sat/tests/satdiff.rs:1",
+         "crates/ferroplan-sat/tests/satdiff.rs:84",
+         "crates/ferroplan-sat/tests/satdiff.rs:123"
+        ],
+        "facts": [
+         [
+          "Fixtures",
+          "22 .cnf + 3 generated mediums"
+         ],
+         [
+          "Lines",
+          "436"
+         ]
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat-dimacs",
+          "label": "parses fixtures with"
+         },
+         {
+          "to": "crate-crucible",
+          "label": "repo-wide test tooling"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-sat",
+      "label": "used by"
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "to": "mod-sat",
+    "label": "planner-side encoding"
+   }
+  ]
+ }
+]
