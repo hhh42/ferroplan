@@ -411,7 +411,7 @@ const DATA = /*__ATLAS_DATA__*/null;
     });
     const flowSvg = u;
     // cross-links (focus / hover / all)
-    const f = hover || focus; let pairs = new Map();
+    const f = hover || (focus && !open.has(focus) ? focus : null); let pairs = new Map();
     els.forEach(b => b.classList.remove("hl", "focus"));
     if (focus && els.get(focus)) els.get(focus).classList.add("focus");
     const pick = showAll ? allLinks : f ? allLinks.filter(l => within(l.from, f) || within(l.to, f)) : [];

@@ -1,0 +1,1619 @@
+[
+ {
+  "id": "sec-pipeline",
+  "title": "The solve pipeline",
+  "kind": "section",
+  "summary": "PDDL text to a plan in seven stages: entry and routing, lex/parse, lifted compilations, grounding, post-ground analysis, dispatch to a search mode, and output.",
+  "body": "<p>ferroplan is a deterministic, data-oriented FF-family planner. Every mode shares one front half: parse to a string-keyed AST, compile away features that would complicate the engine (axioms, trajectory constraints, and per mode durative actions or soft goals), ground once into a CSR-packed <code>PackedTask</code>, and hand that to a search. The architecture chapter of the book summarizes it as parse, ground, search, modes; this section expands each step to its real sub-stages in the code.</p><p>Two cross-cutting rules shape every stage. Determinism: parallel phases preserve input order (<code>par_map</code>), interning is sequential, hashing is unseeded, so results are thread-count independent. Honesty: a stage that stops on a budget says so and never claims unsolvability.</p>",
+  "files": [
+   "book/src/architecture.md",
+   "crates/ferroplan/src/lib.rs:47"
+  ],
+  "facts": [
+   [
+    "Library entry",
+    "<code>ferroplan::solve</code>"
+   ],
+   [
+    "Text entry",
+    "<code>run_planner</code>, <code>run_ff</code>"
+   ],
+   [
+    "Core crate",
+    "~44k lines in src/"
+   ]
+  ],
+  "layout": "flow",
+  "children": [
+   {
+    "id": "stage-entry",
+    "title": "Entry and routing",
+    "kind": "stage",
+    "summary": "Two front doors share one pipeline: api::solve for structured results, planner::run_planner / run_ff for the classic text transcript.",
+    "body": "<p>Every caller enters through one of three functions re-exported from <code>lib.rs</code>: <code>solve</code> (structured), <code>run_planner</code> and <code>run_ff</code> (text). <code>Session::new</code> is a fourth entry for the game track and grounds through its own entry. All of them perform the same first steps (parse, <code>derived::compile</code>, <code>constraints::gate</code>) and diverge at the routing decision.</p>",
+    "files": [
+     "crates/ferroplan/src/lib.rs:96"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-api",
+      "title": "api.rs: solve() and the router",
+      "kind": "module",
+      "summary": "The library front door: one Options struct in, one serde-serializable Solution out. solve() parses, compiles away axioms and constraints, picks a mode, and calls the per-mode driver.",
+      "body": "<p><code>solve(domain_src, problem_src, &amp;Options)</code> is the single public entry every frontend (CLI <code>--json</code>, MCP, Python, WASM, Session) ends up in. Its body is a fixed sequence: arm the process wall (<code>search::arm_wall_limit</code>) and the per-call budget (<code>arm_call_budget(opts.wall_ms, opts.should_continue)</code>) <em>before</em> parsing, so grounding time is charged to the caller's budget; parse domain and problem; <code>derived::compile</code>; take the hard-goals-only <code>seed_pair</code> for PDDL3; run <code>constraints::gate</code>; resolve the thread count; route the mode; dispatch.</p><p>The per-mode drivers are private functions in the same file: <code>solve_classic</code>, <code>solve_pddl3</code>, <code>solve_temporal</code>, <code>solve_optimal</code>, <code>solve_sat</code>. Each grounds through <code>do_ground</code>, which converts the grounder's <code>Outcome</code> into the internal <code>Grounded</code> enum: <code>Task</code>, <code>Trivial</code> (goal already true, empty plan), <code>Unsolvable(why)</code> (a grounding-time proof, with the mechanism named), or <code>Budget(why)</code> (a wall or memory stop, never reported as unsolvable).</p><p>The file is 1,694 lines; most of it is these drivers plus <code>parse()</code> (syntax check and summary without grounding) and <code>decompose()</code> (temporal goal splitting into contracts).</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:597",
+       "crates/ferroplan/src/api.rs:467",
+       "crates/ferroplan/src/api.rs:1149"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "1,694"
+       ],
+       [
+        "Entry",
+        "<code>solve()</code>"
+       ],
+       [
+        "Other public fns",
+        "<code>parse()</code>, <code>decompose()</code>"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "mod-api-options",
+        "title": "Options: the one config surface",
+        "kind": "data",
+        "summary": "Every knob on one serde struct with defaults; the CLI flags and JSON jobs both map onto it.",
+        "body": "<p><code>Options</code> fields: <code>mode</code> (default <code>Auto</code>), <code>search</code> (<code>Auto</code> = EHC then best-first), <code>helpful_actions</code> (true), <code>weight_g</code>/<code>weight_h</code> (1.0/5.0, so best-first ranks by <code>1&middot;g + 5&middot;h</code>), <code>threads</code> (0 = auto, <code>min(cores, 6)</code>), <code>max_evaluated</code>, <code>optimize</code> (PDDL3 metric optimization on), <code>wall_ms</code>, and <code>should_continue</code>.</p><p>The last two arrived in 0.28 and are the interesting ones. <code>wall_ms</code> bounds the whole call including grounding, which a state cap cannot: the doc comment notes that a call with <code>max_evaluated: Some(50_000)</code> could still run for minutes inside binding enumeration, before any state exists. <code>should_continue</code> is an <code>Arc&lt;AtomicBool&gt;</code> a host flips to abandon work; it is polled at the grounding checkpoint (every 256 bindings) and at search checkpoints. It is <code>#[serde(skip)]</code> because an in-process handle has no JSON form.</p><p><code>Options::search_cfg()</code> converts to the internal <code>search::SearchCfg</code>, folding the call's deadline in so ladder rungs slice the right remaining budget.</p>",
+        "files": [
+         "crates/ferroplan/src/api.rs:102",
+         "crates/ferroplan/src/api.rs:189"
+        ],
+        "facts": [
+         [
+          "Default weights",
+          "g=1, h=5"
+         ],
+         [
+          "Default threads",
+          "min(cores, 6)"
+         ]
+        ]
+       },
+       {
+        "id": "mod-api-router",
+        "title": "Mode auto-detection",
+        "kind": "concept",
+        "summary": "Mode::Auto routes by syntax: durative actions go temporal, preferences go PDDL3, everything else goes classic FF.",
+        "body": "<p>The router in <code>solve()</code> is a short <code>match</code>: <code>temporal::is_temporal(&amp;domain)</code> picks <code>Mode::Temporal</code>; else <code>pddl3::has_preferences(&amp;problem)</code> picks <code>Mode::Pddl3</code>; else, only under the <code>FF_SAT_CLASSICAL</code> smoke opt-in, <code>Mode::Sat</code>; else <code>Mode::Ff</code>. <code>Mode::Portfolio</code> requested on a temporal or preference problem is redirected the same way, since the portfolio's members are classical searches.</p><p><code>Mode::Optimal</code> and <code>Mode::Partition</code> are explicit-only; auto never routes to them. The <code>Mode</code> enum's doc comments record this policy, including the rule that a mode which cannot solve must not be nameable on the wire (a SAT puzzle variant was deliberately withheld until its encoder landed).</p><p>Note that the CLI's classic text path (<code>ff -o -f</code> without <code>--json</code>) does not use this router; it goes through <code>planner::run_planner</code>, which has its own routing (see that node).</p>",
+        "files": [
+         "crates/ferroplan/src/api.rs:33",
+         "crates/ferroplan/src/api.rs:643"
+        ],
+        "links": [
+         {
+          "to": "sec-modes",
+          "label": "routes to"
+         },
+         {
+          "to": "mod-temporal",
+          "label": "is_temporal"
+         },
+         {
+          "to": "mod-pddl3",
+          "label": "has_preferences"
+         }
+        ]
+       },
+       {
+        "id": "mod-api-solution",
+        "title": "Solution, Plan, Step, honesty notes",
+        "kind": "data",
+        "summary": "The typed result: solved flag, mode, optional plan, statistics, and free-text notes that name every budget stop or fallback.",
+        "body": "<p><code>Solution { solved, mode, plan: Option&lt;Plan&gt;, statistics, notes }</code>. <code>Plan</code> holds <code>steps</code>, <code>length</code>, optional <code>metric</code> and <code>makespan</code>; a <code>Step</code> is <code>{index, action, args, time, duration}</code> with the last two set only on temporal plans. <code>Statistics</code> carries <code>grounded_facts</code>, <code>grounded_actions</code> (both post-reachability), <code>evaluated_states</code>, <code>threads</code>.</p><p>The notes channel is a project-wide discipline (the \"0.21 honesty rider\"): a budget stop says which budget and where (\"grounding stopped at the declared budget: ...\", \"search stopped at the declared budget: ...\"), and the word \"unsolvable\" is reserved for grounding-time proofs and exhausted open lists. A capped search must never read as a proof.</p><p><code>steps_of()</code> converts op indices to <code>Step</code>s by splitting <code>task.op_display</code>, dropping synthetic ops (<code>REACH-GOAL</code>, PDDL3 bookkeeping); <code>strip_end_steps</code> drops the trajectory-constraint <code>TRAJ-END</code> step.</p>",
+        "files": [
+         "crates/ferroplan/src/api.rs:247",
+         "crates/ferroplan/src/api.rs:488"
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-planner",
+        "label": "text-mode sibling"
+       },
+       {
+        "to": "mod-ground",
+        "label": "do_ground"
+       },
+       {
+        "to": "crate-ferroplan-cli",
+        "label": "--json path"
+       },
+       {
+        "to": "mod-session",
+        "label": "shares grounding"
+       }
+      ]
+     },
+     {
+      "id": "mod-planner",
+      "title": "planner.rs: the text-mode drivers",
+      "kind": "module",
+      "summary": "run_planner and run_ff produce Metric-FF-compatible text output and exit codes for the ff binary. Same parse/compile/ground steps as solve(), different routing and rendering.",
+      "body": "<p>The CLI's non-JSON path calls <code>run_ff</code> for <code>--mode ff</code> and <code>run_planner</code> for everything else (<code>crates/ferroplan-cli/src/main.rs</code> lines 297-298). Both return <code>(String, i32)</code>: the full Metric-FF-style transcript and the exit code, so the binary is a drop-in for the differential harness that compares against the C planner.</p><p><code>run_planner</code> routing, in order: <code>--mode sat</code> to <code>run_sat_text</code>; temporal domains to <code>temporal::solve</code> (or <code>tresolve::solve</code> under <code>FF_TDECOMP</code>), printed in IPC format with makespan; PDDL3 with preferences (or a metric that is not a single cost fluent) to <code>plan_pddl3</code>; otherwise ground, synthesize invariants, and run <code>resolve::solve</code>, the SGPlan-style partition-and-resolve. That last point matters: the default text CLI on a classical problem runs partition-and-resolve, which falls back to a monolithic FF search when the goal does not split (see the worked example, which prints \"1 initial groups, 1 final groups, 0 merges (monolithic fallback)\").</p><p><code>run_ff</code> is the plain engine mode: ground, <code>search::plan</code> (EHC then best-first), optional cost sweep, render with <code>output::render</code>. It skips <code>derived::compile</code> unless a constraints block is present.</p><p>The file header calls it \"ported from sgp\": the planner orchestration was originally a separate SGPlan-style meta-planner that reused the FF engine (<code>ffdp</code>) as its subplanner.</p>",
+      "files": [
+       "crates/ferroplan/src/planner.rs:15",
+       "crates/ferroplan/src/planner.rs:700"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "827"
+       ],
+       [
+        "Entries",
+        "<code>run_planner</code>, <code>run_ff</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-resolve",
+        "label": "default classical text path"
+       },
+       {
+        "to": "mod-output",
+        "label": "run_ff renders"
+       },
+       {
+        "to": "mod-report",
+        "label": "run_planner renders"
+       },
+       {
+        "to": "mod-temporal",
+        "label": "temporal text path"
+       },
+       {
+        "to": "mod-pddl3",
+        "label": "plan_pddl3"
+       }
+      ]
+     },
+     {
+      "id": "mod-features",
+      "title": "features.rs: tri-state feature flags",
+      "kind": "module",
+      "summary": "Process-global overrides for env-gated features (temporal demand, decomposer, escalation, ESPC). Exists because env writes panic on wasm32.",
+      "body": "<p>Despite the task's framing, mode auto-detection lives in <code>api::solve</code>; <code>features.rs</code> is the switchboard for experimental features that were graduated behind env vars. Each feature is an <code>AtomicU8</code> with three states, <code>UNSET</code>/<code>ON</code>/<code>OFF</code>. <code>UNSET</code> defers to the default plus env; <code>ON</code>/<code>OFF</code> are definitive. Two states would not do: once <code>tdemand</code> defaulted on, a WASM caller needed a way to force it off, and \"override OR env\" cannot express that.</p><p>The reason for in-process overrides at all: <code>std::env::set_var</code> panics on <code>wasm32-unknown-unknown</code>, while env reads are safe there. So the browser build and embedded game hosts call <code>set_overrides</code>, <code>set_escalate_override</code>, <code>set_espc_override</code>, and <code>clear_overrides</code>.</p><p>Features covered: <code>demand_mode()</code> (Off / Numeric, the v0.2 default / Full via <code>FF_TDEMAND</code>), <code>tdecomp()</code> (temporal partition decomposer, opt-in), <code>escalate()</code> (on-failure ladder in <code>temporal::solve</code>, default on, <code>FF_NO_ESCALATE</code>), <code>tconc()</code> (concurrent rescheduling, opt-in), <code>espc()</code> (ESPC penalty loop on the PDDL3 path, default on since 0.5). The doc comments record why each default was chosen, e.g. the predicate-threshold half of demand guidance stays off because it serialized renewable-resource domains.</p>",
+      "files": [
+       "crates/ferroplan/src/features.rs:1",
+       "crates/ferroplan/src/features.rs:92",
+       "crates/ferroplan/src/features.rs:128"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "150"
+       ],
+       [
+        "Storage",
+        "<code>AtomicU8</code> per feature"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-temporal",
+        "label": "gates ladder"
+       },
+       {
+        "to": "mod-espc",
+        "label": "gates"
+       },
+       {
+        "to": "crate-ferroplan-wasm",
+        "label": "sets overrides"
+       }
+      ]
+     },
+     {
+      "id": "pipe-entry-budget",
+      "title": "Budgets armed at entry",
+      "kind": "concept",
+      "summary": "Before parsing, solve() arms two clocks: the process-wide FF_TIME_LIMIT wall and the per-call wall_ms / should_continue budget held in a thread-local.",
+      "body": "<p>Two budget layers exist because they answer different hosts. <code>FF_TIME_LIMIT</code> (<code>search::arm_wall_limit</code>) is armed once per process and measured from the first solve: right for a one-shot CLI run against an IPC timeout, wrong for a long-lived host, where it either bounds nothing or eventually refuses everything. The 0.28 per-call budget (<code>search::arm_call_budget</code>) is held in a thread-local and released by a guard on every exit path, including panic, so it cannot leak into the next call on that thread and concurrent solves on other threads keep their own.</p><p>Both are read at the same checkpoints: grounding's <code>WallTick</code> every 256 bindings, the goal-DNF stride, the phase checkpoints inside grounding Phase C, best-first batch boundaries, the EHC per-evaluation slice, and the temporal pop. A trip always yields <code>solved: false</code> with a note that names the budget, never an unsolvable claim. A third wall, memory (<code>mem::MemWall</code>), is read at the same checkpoints but only arms inside bounded work.</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:597",
+       "crates/ferroplan/src/search.rs:475",
+       "crates/ferroplan/src/search.rs:589"
+      ],
+      "links": [
+       {
+        "to": "mod-clock",
+        "label": "reads"
+       },
+       {
+        "to": "mod-mem",
+        "label": "memory wall"
+       },
+       {
+        "to": "mod-ground-wall",
+        "label": "checked inside grounding"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "stage-parse",
+    "title": "Lex and parse",
+    "kind": "stage",
+    "summary": "PDDL text to a lifted, string-keyed AST. Hand-written, dependency-free, and faithful to Metric-FF's lexer so output matches the C planner byte-for-byte.",
+    "body": "<p>Parsing is cheap and rarely the bottleneck; its design goals are compatibility (uppercased names, the same accepted requirement set as Metric-FF) and robustness (line-numbered <code>ParseError</code>, depth cap). The AST is deliberately simple: strings, vectors, boxed enums. All the data-oriented work happens in grounding.</p>",
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-lexer",
+      "title": "lexer.rs: hand-written tokenizer",
+      "kind": "module",
+      "summary": "A byte-level scanner producing Tok values plus a parallel vector of source lines. Reproduces Metric-FF's flex lexer quirks, including uppercasing every name.",
+      "body": "<p><code>lex(input) -&gt; Result&lt;(Vec&lt;Tok&gt;, Vec&lt;u32&gt;), ParseError&gt;</code>. Tokens are <code>LParen</code>, <code>RParen</code>, <code>Dash</code>, <code>Var</code>, <code>Name</code>, <code>Num(f64)</code>, <code>Op</code> (<code>= &lt; &lt;= &gt; &gt;= + * /</code>). The second vector gives each token's 1-based line so parse errors can say <code>line N: ...</code>.</p><p>It deliberately mirrors <code>lex-ops_pddl.l</code>/<code>lex-fct_pddl.l</code> from Metric-FF, because the project was built as a drop-in with a differential test harness against the C planner. The faithful quirks: every NAME and VARIABLE is uppercased (which is why every plan line reads <code>PICK-UP D</code>); <code>;</code> line comments and <code>\"</code>-delimited block comments are skipped; commas and stray characters are whitespace; a name may contain internal <code>-</code> or <code>_</code> (so <code>pick-up</code> is one token), while a standalone <code>-</code> is <code>Dash</code>, serving as both the type separator and arithmetic minus.</p><p>On the 4-op blocksworld domain the lexer produces 256 tokens.</p>",
+      "files": [
+       "crates/ferroplan/src/lexer.rs:12",
+       "crates/ferroplan/src/lexer.rs:23"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "156"
+       ],
+       [
+        "Blocks domain",
+        "256 tokens"
+       ]
+      ]
+     },
+     {
+      "id": "mod-parser",
+      "title": "parser.rs: recursive descent",
+      "kind": "module",
+      "summary": "A recursive-descent parser over the token vector, mirroring Metric-FF's yacc grammars, with a requirement whitelist and a nesting-depth cap so hostile input errors instead of overflowing the stack.",
+      "body": "<p>The parser state is a small struct <code>P { t, lines, i, depth }</code> with helpers <code>peek</code>, <code>next</code>, <code>expect_lparen</code>, <code>expect_kw</code>, <code>skip_balanced</code>. Public entries: <code>parse_domain</code> and <code>parse_problem</code>, plus a crate-internal <code>parse_goal</code> used for retargetable goals.</p><p>The grammar functions map one-to-one onto PDDL constructs: <code>parse_typed_list</code> (turns <code>a b - T c</code> into <code>[(A,T),(B,T),(C,OBJECT)]</code>), <code>parse_formula</code>, <code>parse_effect</code>, <code>parse_expr</code>, <code>parse_action</code>, <code>parse_durative_action</code> with <code>parse_duration</code> and timed conditions/effects, <code>parse_constraint</code> for PDDL3 modal operators, and <code>parse_init_elt</code> for atoms, fluent assignments, and timed initial literals.</p><p>Two guards: <code>SUPPORTED</code> is the requirement whitelist (STRIPS through ADL, numeric fluents, action costs, PDDL3 preferences/constraints, PDDL2.1 durative actions, duration inequalities, TILs). <code>MAX_NEST_DEPTH = 150</code> turns pathologically deep input into a parse error; the comment explains it is sized for the 2 MiB worker-thread stack, covering both this recursion and the downstream formula-recursive passes in grounding.</p>",
+      "files": [
+       "crates/ferroplan/src/parser.rs:8",
+       "crates/ferroplan/src/parser.rs:40",
+       "crates/ferroplan/src/parser.rs:798",
+       "crates/ferroplan/src/parser.rs:1011"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "1,109"
+       ],
+       [
+        "Depth cap",
+        "150"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-lexer",
+        "label": "consumes tokens"
+       },
+       {
+        "to": "mod-types",
+        "label": "builds"
+       }
+      ]
+     },
+     {
+      "id": "mod-types",
+      "title": "types.rs: the AST and numeric IR",
+      "kind": "module",
+      "summary": "String-keyed lifted AST (Domain, Problem, Action, Formula, Effect) produced by the parser, plus the small numeric IR over grounded fluent ids that the packed task and heuristic evaluate.",
+      "body": "<p>The file holds two layers. The parser's output is a plain lifted AST with <code>Sym = String</code> everywhere. The grounded representation lives in <code>packed.rs</code>; the only grounded types here are the numeric ones shared between grounding and the heuristic.</p>",
+      "files": [
+       "crates/ferroplan/src/types.rs:1"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "321"
+       ],
+       [
+        "Symbol type",
+        "<code>Sym = String</code>"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "mod-types-ast",
+        "title": "Lifted AST: Domain, Action, Formula",
+        "kind": "data",
+        "summary": "Enums for formulas and effects, structs for actions and durative actions, and Domain/Problem containers.",
+        "body": "<p><code>Formula</code> covers <code>And</code>, <code>Or</code>, <code>Not</code>, <code>Atom</code>, numeric <code>Comp</code>, ADL <code>Forall</code>/<code>Exists</code>, object <code>Eq</code>, PDDL3 <code>Pref</code>, <code>True</code>, <code>False</code>. <code>Effect</code> covers <code>Add</code>, <code>Del</code>, <code>Num(AssignOp, ...)</code>, <code>And</code>, conditional <code>When</code>, universal <code>Forall</code>. <code>Action</code> is <code>{name, params, precond, effect, monitored}</code>; <code>DurativeAction</code> adds a <code>Duration {min, max}</code> and lists of <code>(TimeSpec, Formula)</code> conditions and <code>(TimeSpec, Effect)</code> effects.</p><p><code>Domain</code> also carries <code>derived</code> rules (compiled away before grounding), <code>constraints</code>, and <code>monitors</code>: a shared block of fully ground trajectory-monitor transitions emitted by <code>constraints::compile</code>. Its doc comment explains why it is shared rather than per-op: the per-op product of monitors times ground actions is what drove storage qualpref p07/p08 to 15 GB. <code>Problem</code> has <code>objects</code>, <code>init_atoms</code>, <code>init_fluents</code>, <code>til</code>, <code>goal</code>, <code>constraints</code>, <code>metric</code>.</p><p>For the blocksworld example the parsed <code>PICK-UP</code> is <code>params=[(X, BLOCK)]</code>, <code>pre=And([Atom(CLEAR,[Var X]), Atom(ONTABLE,[Var X]), Atom(HANDEMPTY,[])])</code>.</p>",
+        "files": [
+         "crates/ferroplan/src/types.rs:57",
+         "crates/ferroplan/src/types.rs:113",
+         "crates/ferroplan/src/types.rs:189",
+         "crates/ferroplan/src/types.rs:238"
+        ]
+       },
+       {
+        "id": "mod-types-nexpr",
+        "title": "Numeric IR: NExpr, NumPre, NumEff",
+        "kind": "data",
+        "summary": "After grounding, numeric expressions refer to fluents by u32 id and evaluate against dense f64 vectors with a parallel defined-mask.",
+        "body": "<p><code>NExpr</code> mirrors <code>Expr</code> but with <code>Fluent(u32)</code> leaves. <code>eval(fv, def)</code> returns <code>Option&lt;f64&gt;</code>: <code>None</code> if any fluent read is undefined, which is PDDL's semantics for reading an unset function. <code>NumPre {op, lhs, rhs}</code> is a numeric precondition; <code>eval_numpre</code> compares with a 1e-6 tolerance for equality. <code>NumEff {op, target, value}</code> is a numeric effect with an <code>AssignOp</code> (assign, increase, decrease, scale-up, scale-down).</p><p>This tree form is evaluated directly in <code>op_applicable</code> and inside the heuristic's interval relaxation. The <code>fv</code>/<code>fdef</code> pair is the numeric half of every <code>State</code>.</p>",
+        "files": [
+         "crates/ferroplan/src/types.rs:256",
+         "crates/ferroplan/src/types.rs:311"
+        ],
+        "links": [
+         {
+          "to": "mod-packed-state",
+          "label": "evaluated against"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "stage-precompile",
+    "title": "Lifted compilations",
+    "kind": "stage",
+    "summary": "Transforms on the lifted AST that keep the grounder simple: derived axioms become init facts, trajectory constraints become monitor effects.",
+    "body": "<p>The pattern across ferroplan is compile-away: features that would otherwise complicate state, grounding, or the heuristic are rewritten into plain STRIPS/ADL/numeric constructs on the AST, so the hot engine stays one representation. The order in <code>solve()</code> is fixed: parse, then <code>derived::compile</code>, then <code>constraints::gate</code>.</p>",
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-derived",
+      "title": "derived.rs: axioms compiled away",
+      "kind": "module",
+      "summary": "Static :derived rules are evaluated once to a datalog fixpoint and their facts appended to init; the rest of the pipeline never sees axioms. Dynamic rules are rejected with a named error.",
+      "body": "<p>A <code>:derived</code> rule defines a predicate by a formula instead of by action effects, e.g. <code>reachable</code> as the transitive closure of <code>link</code>. Rather than thread derived facts through grounding, state, and heuristic, <code>compile(domain, problem)</code> treats them as preprocessing.</p><p>Steps: <code>modified_predicates</code> collects every predicate an action adds or deletes. A fixpoint marks a derived predicate dynamic if its body references a dynamic base predicate or another dynamic derived one. If any are dynamic, the call returns an error naming the head (\"only static derived predicates ... are supported so far\"). Otherwise it enumerates bindings for each rule over typed objects, evaluates the body against the growing fact set, and repeats until no new fact is added. Recursion is fine, which is exactly what reachability needs. New facts go into <code>init_atoms</code> and the domain's <code>derived</code> list is cleared.</p><p>The <code>examples/reachability</code> domain shows it end to end: a map <code>camp -&gt; spring -&gt; ridge -&gt; cave</code> and a goal <code>(at cave)</code> solve as a single <code>TRAVEL CAMP CAVE</code> step (13 facts, 6 actions, 2 evaluated states in a real run), because <code>(reachable camp cave)</code> was derived into init.</p><p>Note: the <code>types.rs</code> doc comment on <code>Domain::derived</code> says dynamic non-recursive rules are inlined into preconditions; the code in <code>derived.rs</code> rejects them. The code is authoritative.</p>",
+      "files": [
+       "crates/ferroplan/src/derived.rs:25",
+       "crates/ferroplan/src/derived.rs:105"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "340"
+       ],
+       [
+        "Strategy",
+        "static closure into init"
+       ]
+      ]
+     },
+     {
+      "id": "pipe-gate",
+      "title": "Constraint gate and compilations",
+      "kind": "concept",
+      "summary": "After axioms, constraints::gate compiles untimed PDDL3 trajectory constraints into monitor automata (or rejects by name). Temporal and PDDL3 drivers apply their own compilations before they ground.",
+      "body": "<p><code>constraints::gate</code> returns <code>Ok(None)</code> for a constraint-free pair (the byte-identical path), <code>Ok(Some((d, p)))</code> when it compiled monitors, or <code>Err(reason)</code> which <code>solve()</code> turns into <code>SolveError::Unsupported</code>. When it compiles, the <code>constrained</code> flag tells reporting to strip the synthetic <code>TRAJ-END</code> step and disables orbit detection.</p><p>Further lifted-to-lifted compilations happen inside the drivers, before their own grounding call: the temporal path compiles durative actions to snap actions (<code>temporal::compile</code>), and the PDDL3 path compiles soft goals with the Keyder-Geffner construction (<code>pddl3::compile</code>). Because each is a Domain-to-Domain transform, one grounder serves every mode.</p>",
+      "files": [
+       "crates/ferroplan/src/constraints.rs:1015",
+       "crates/ferroplan/src/api.rs:627"
+      ],
+      "links": [
+       {
+        "to": "mod-constraints",
+        "label": "gate"
+       },
+       {
+        "to": "mod-temporal",
+        "label": "snap compile"
+       },
+       {
+        "to": "mod-pddl3",
+        "label": "soft-goal compile"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "stage-ground",
+    "title": "Grounding",
+    "kind": "stage",
+    "summary": "Turn the lifted AST into a flat, id-based, CSR-packed task. This is where most of the engineering effort and many of the recorded failures live.",
+    "body": "<p>Grounding is the stage where problem size explodes or doesn't. The classical heuristic and search assume a fully ground task, so every lever here (domain restriction, join ordering, static folding, stratification, compaction) is about enumerating less, never about changing the result: the documented constraint on each is \"identical ground ops\", or for the order-shifting ones, kept off the scored paths.</p>",
+    "layout": "flow",
+    "children": [
+     {
+      "id": "mod-ground",
+      "title": "ground.rs: lifted to PackedTask",
+      "kind": "module",
+      "summary": "The 3,420-line grounder: parallel binding enumeration and DNF expansion (Phase B), then a sequential merge that interns, compiles negative preconditions, prunes by relaxed reachability, compacts, and packs into CSR (Phase C).",
+      "body": "<p>Grounding instantiates every action schema with every type-consistent object binding, keeping only bindings that could matter. Its output is the data-oriented <code>PackedTask</code> the whole engine runs on. The file header names the split: Phase B is embarrassingly parallel across actions and produces strings; Phase C is a fast sequential merge.</p><p>Five public entries all call one function, <code>ground_v</code>, with different flags (<code>validate, stratified, fixpoint, fold_fluents, walled</code>):</p><ul><li><code>ground</code>: classical solve entry, walled, folds fluents.</li><li><code>ground_stratified_walled</code>: temporal solve entry.</li><li><code>ground_stratified</code>: unwalled, for re-grounding to verify a found plan.</li><li><code>ground_fixpoint</code>: the session entry, reached-restricted.</li><li><code>ground_task</code>: always returns a task (skips goal verdicts); used by trace, introspect, probes.</li></ul><p>The outcome enum is honest by construction: <code>Task</code>, <code>GoalTrue</code>, <code>GoalFalse(why)</code>, <code>GoalUndefinedFluent</code>, <code>EmptyType</code>, <code>WallExhausted(why)</code>. Many sub-stages carry an <code>FF_NO_*</code> hatch so each lever can be A/B'd against the pre-change behavior.</p>",
+      "files": [
+       "crates/ferroplan/src/ground.rs:1",
+       "crates/ferroplan/src/ground.rs:1555",
+       "crates/ferroplan/src/ground.rs:1663"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "3,420"
+       ],
+       [
+        "Phase B",
+        "parallel per action"
+       ],
+       [
+        "Phase C",
+        "sequential merge"
+       ],
+       [
+        "Entries",
+        "5, all via <code>ground_v</code>"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "mod-ground-types",
+        "title": "Type system: objects_by_type",
+        "kind": "stage",
+        "summary": "Build the type-to-objects map honoring the hierarchy, so every typed parameter has a concrete object domain.",
+        "body": "<p><code>objects_by_type(domain, problem)</code> merges domain constants with problem objects, defaults any untyped parent to <code>OBJECT</code>, and for every type collects objects whose type is a (transitive) subtype. The subtype walk is hop-bounded: the parser rejects cyclic <code>:types</code>, but <code>Domain</code> fields are public, so a programmatically built cycle must degrade to \"not a subtype\" rather than hang.</p><p>Empty types are tolerated: a parameter whose type has no objects grounds to zero instances. This lets a problem use a subset of a broad domain's types, important when one big domain is decomposed into many sub-tasks. The <code>EmptyType</code> outcome is kept for callers but no longer raised here.</p><p>The same function is reused by the PDDL3 compiler to expand <code>forall</code> preferences.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:1610",
+         "crates/ferroplan/src/ground.rs:1695"
+        ]
+       },
+       {
+        "id": "mod-ground-restrict",
+        "title": "Static parameter-domain restriction",
+        "kind": "stage",
+        "summary": "Before enumerating, shrink each parameter's domain using static unary preconditions against init. Gripper's pick goes from 154^3 to 150*2*2 candidates.",
+        "body": "<p>A predicate is <em>static</em> if no action adds or deletes it. A precondition <code>(P ?x)</code> with static <code>P</code> means <code>?x</code> can only be an object with <code>(P o)</code> in init. <code>restricted_domains</code> applies this for every unary static literal before the cartesian product is formed.</p><p>This is one of the documented performance wins. Untyped domains used to enumerate the full product and string-match 99.98% of it away: gripper's <code>pick(?obj ?room ?gripper)</code> generated 154&sup3; &asymp; 3.6M bindings per action. After the change (book/src/performance.md, docs/perf-notes.md):</p><table><tr><th>instance</th><th>before</th><th>after</th></tr><tr><td>gripper p02</td><td>658 &micro;s</td><td>247 &micro;s (2.65x)</td></tr><tr><td>150-ball untyped, 1-step</td><td>1.56 s</td><td>~0</td></tr><tr><td>gripper-250 (partition)</td><td>11.9 s</td><td>3.96 s (3x)</td></tr></table><p>The produced ground ops are identical: the post-filter still checks every static literal. The restricted product (<code>typed_product</code>) is also the currency the routing thresholds below are priced in.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:755",
+         "crates/ferroplan/src/ground.rs:784"
+        ],
+        "facts": [
+         [
+          "Gripper pick",
+          "3.6M to 600 bindings"
+         ]
+        ]
+       },
+       {
+        "id": "mod-ground-enum",
+        "title": "Phase B: parallel binding enumeration",
+        "kind": "stage",
+        "summary": "Per action, in parallel, walk parameter bindings depth-first, pruning with static (and gating) literals as soon as they are fully bound. Large actions use a most-constrained-variable order and hash-join indexes.",
+        "body": "<p>Phase B is the expensive part and runs across actions with <code>par::par_map</code>; each worker produces string-form <code>RawOp</code>s without touching shared state, so no locking is needed. <code>ground_action</code> computes static literals, restricted domains, then calls <code>for_each_binding</code>, which recursively binds parameters and checks each enumerable literal at the level where its last variable becomes bound.</p><p>Three refinements, each from a recorded failure:</p><ul><li><strong>MCV join order</strong> (0.22 Phase 7, <code>mcv_order</code>): when the restricted product exceeds a threshold, reorder parameters greedily so the next one binds a join literal with already-chosen parameters. On 2048's shift actions this turns 21M-node subtrees into hundreds. Emission is sorted back so the op order is unchanged.</li><li><strong>Hash-join level index</strong> (0.24 Phase 6, <code>LevelIndex</code>): for an MCV level, map the bound values of the level's literal to the admissible domain indices, instead of walking the whole domain.</li><li><strong>Stratified and fixpoint variants</strong>: <code>ground_stratified</code> grounds actions gated on producer-only predicates in a second pass, joined against atoms stratum 1 actually produced (the snap-compiled <code>BOARD-END</code> case: 470k raw candidates, ~40 s, ~8 GB). <code>ground_fixpoint</code> joins every positive dynamic literal against the reached atom set, round by round; elevator-11 p04 went 31.6 s / 5.7 GB to 6.9 s / 48.8 MB (~117x transient, docs/roadmap-0.12.md). Fixpoint shifts fact-id first-reference order, which moved search tie-breaks and cost sokoban-t coverage, so the corpus solve paths stay on the plain or stratified entries and the session uses fixpoint. The plain entry routes into fixpoint only above <code>FF_FIXPOINT_THRESHOLD</code> (1e13), set above the largest solved product found by <code>ground-audit.py</code> (1.62e12).</li></ul>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:1031",
+         "crates/ferroplan/src/ground.rs:1303",
+         "crates/ferroplan/src/ground.rs:798",
+         "crates/ferroplan/src/ground.rs:915",
+         "crates/ferroplan/src/ground.rs:1885"
+        ],
+        "facts": [
+         [
+          "Parallelism",
+          "per action, <code>par_map</code>"
+         ],
+         [
+          "Fixpoint route",
+          "product &gt; 1e13"
+         ]
+        ],
+        "links": [
+         {
+          "to": "mod-par",
+          "label": "par_map"
+         }
+        ]
+       },
+       {
+        "id": "mod-ground-dnf",
+        "title": "DNF and ADL expansion",
+        "kind": "stage",
+        "summary": "Each bound precondition is converted to disjunctive normal form; forall/exists expand over objects; when-effects split into conditional effects. Static literals are folded during expansion.",
+        "body": "<p>FF-family planners need each ground operator's precondition to be a conjunction of literals. <code>to_dnf</code> turns a bound formula into a list of <code>Conjunct</code>s (positive atoms, negative atoms, numeric comparisons); each conjunct becomes a separate ground op. <code>quant_expand</code> expands <code>forall</code> as a conjunction and <code>exists</code> as a disjunction over the typed objects; <code>and_merge</code> takes the cross product of conjunct lists.</p><p><code>ground_effect</code> walks the effect tree carrying the accumulated <code>when</code> context: <code>forall</code> expands over objects, a <code>when</code> condition is DNF-expanded and each disjunct becomes its own conditional effect, and leaves under a non-empty context become conditional rather than unconditional effects.</p><p><code>DnfStatics</code> resolves fully bound static literals to True/False against init during expansion, and collapses any disjunction with a True disjunct. This kills the 2^k blowup of <code>forall (imply (static ...) (dynamic ...))</code>: openstacks-ADL's make-product/ship-order previously ground instance 5 to 45k redundant ops and instance 7 to 15 GB RSS. Folding a literal to True requires full inertia (never added and never deleted); dropping a conjunct as False only requires never added. <code>FF_NO_DNF_STATIC=1</code> restores the raw expansion.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:320",
+         "crates/ferroplan/src/ground.rs:257",
+         "crates/ferroplan/src/ground.rs:309",
+         "crates/ferroplan/src/ground.rs:461"
+        ]
+       },
+       {
+        "id": "mod-ground-intern",
+        "title": "Phase C: interning and numeric resolve",
+        "kind": "stage",
+        "summary": "A sequential merge assigns u32 ids to every ground atom and fluent, turns string RawOps into id-based ops, and grounds the shared monitor block once.",
+        "body": "<p>After Phase B the <code>RawOp</code>s are concatenated in action order and handed to a sequential <code>Interner</code>, which maps <code>(predicate, args)</code> to fact ids and fluent keys to fluent ids, and resolves <code>Expr</code> trees into <code>NExpr</code> over fluent ids (<code>resolve_expr</code>). Sequential interning in deterministic order is what keeps fact ids, and with them every later tie-break, reproducible regardless of thread count. Conditional effects go through <code>intern_cond</code>.</p><p>The trajectory-monitor block is ground and interned once here and stored as <code>shared_cond</code>, rather than duplicated into every monitored op. <code>n_easy</code>/<code>n_hard</code> (ops from single- vs multi-conjunct DNF) are counted for the Metric-FF timing footer.</p><p>PROFILING.md records that on object-heavy instances (openstacks p01, pddl3 mode) grounding dominated: about 15% string formatting and 6% <code>HashMap::insert</code> from interning and building display strings, with the heuristic under 2%.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:1414",
+         "crates/ferroplan/src/ground.rs:2113",
+         "crates/ferroplan/src/ground.rs:2183"
+        ]
+       },
+       {
+        "id": "mod-ground-fluents",
+        "title": "Defined-fluent fixpoint",
+        "kind": "stage",
+        "summary": "Propagate which fluents can ever be defined, then drop ops whose numeric reads can never be defined. total-cost defaults to 0.",
+        "body": "<p>PDDL reads of an unset function are undefined, and an op that reads one can never apply. Starting from fluents set in init, a fixpoint marks the target of any <code>assign</code> effect whose value reads are all defined (conditional assigns included, gated on the value expression but not the condition). Ops with any never-definable read are removed (<code>mids.retain</code>).</p><p>One convention is special-cased: <code>(total-cost)</code> starts at 0 implicitly when init omits it. IPC-2018's agricola, flashfill, and settlers omit it, and before 0.19 the undefined fluent killed every cost-bearing action: 60 instances returned \"unsolvable\" with zero facts. Fast Downward defaults it the same way. Only that exact zero-arity fluent gets the default.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:2238"
+        ]
+       },
+       {
+        "id": "mod-ground-negpre",
+        "title": "Negative preconds to complement facts",
+        "kind": "stage",
+        "summary": "Every atom used negatively gets a synthetic (NOT p) fact, maintained by toggling: adding p deletes (NOT p), deleting p adds it. Preconditions then stay purely positive.",
+        "body": "<p>Delete-relaxation heuristics and bitset applicability both want positive-only preconditions. For each atom that appears negated in an op precondition, a goal disjunct, or a factored goal item, the grounder mints a fact named <code>(NOT (p args))</code> and records it in <code>neg_fact</code>. Each op's <code>pre_pos</code> gets the complement id in place of the negative literal; each add of <code>p</code> appends a delete of <code>(NOT p)</code> and each delete appends an add. Conditional effects get the same toggles. The initial state marks <code>(NOT p)</code> true for every complement whose atom is absent from init.</p><p>The comment notes this is a faithful copy of Metric-FF's compilation, including its quirk: an action that both adds and deletes <code>p</code> can produce an inconsistent state with both <code>p</code> and <code>(NOT p)</code>, verified against the C oracle and kept for byte-identical behavior.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:2310",
+         "crates/ferroplan/src/ground.rs:2452"
+        ]
+       },
+       {
+        "id": "mod-ground-goal",
+        "title": "Goal compilation and simplification",
+        "kind": "stage",
+        "summary": "The goal is DNF-expanded under a wall; a multi-disjunct goal becomes a GOAL-REACHED fact with one REACH-GOAL op per disjunct; large conjunctions of disjunctions are factored into a chain; inertia simplifies the rest.",
+        "body": "<p>The goal goes through <code>to_dnf</code> with the <code>DnfWall</code> armed, because goals can explode: block-grouping i3's 21 disjunctive coordinate equalities multiply to 4^21 conjuncts. The wall checks the clock every 65,536 produced conjuncts and also predicts doom from a literal-count estimate (about 120 ns per cloned literal, and a 100-byte floor per literal against the memory budget), refusing a product level before building it.</p><p>If the DNF has more than one disjunct, it is compiled Metric-FF style: an artificial fact <code>GOAL-REACHED</code> and a synthetic op per disjunct. If a conjunction's per-item DNF sizes multiply past <code>FF_GOAL_FACTOR_THRESHOLD</code> (65,536), the 0.22 factored compilation is used instead: a <code>PLAN-MODE</code> fact required by every real op, and a chain of <code>REACH-GOAL</code> ops, one per item disjunct, advancing <code>GOAL-ITEM-j</code>. The comment gives the soundness argument: the first chain op deletes <code>PLAN-MODE</code>, freezing the real state, so all items are checked against the same final state.</p><p>Goal analysis then resolves numeric goals (an undefined read returns <code>GoalUndefinedFluent</code>) and applies inertia: a goal fact true in init and never deleted is dropped; if nothing remains the outcome is <code>GoalTrue</code> and the empty plan solves it.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:2336",
+         "crates/ferroplan/src/ground.rs:2541",
+         "crates/ferroplan/src/ground.rs:2584",
+         "crates/ferroplan/src/ground.rs:2715",
+         "crates/ferroplan/src/ground.rs:61"
+        ]
+       },
+       {
+        "id": "mod-ground-reach",
+        "title": "Relaxed reachability pruning",
+        "kind": "stage",
+        "summary": "A delete-free forward fixpoint from init marks every op whose positive preconditions can ever all hold; the rest are discarded.",
+        "body": "<p>Ignoring deletes, a fact once reachable stays reachable, so the set of reachable facts can be computed by a simple fixpoint: repeatedly scan ops, and when all of an op's <code>pre_pos</code> are reached, mark it live and its adds reached. Conditional adds are treated as reachable when their op is (an over-approximation, so reachability never under-counts), and the shared monitor block's adds become reachable with the first live monitored op.</p><p>The scan is a plain loop over <code>Vec&lt;bool&gt;</code> arrays until nothing changes. Live ops become <code>reach_ops</code>; <code>n_reach_actions</code> and <code>n_reach_facts</code> are what <code>Statistics</code> and the timing footer report. Numeric preconditions are not considered here, which is why the defined-fluent pass above exists separately.</p><p>In the blocksworld example nothing is pruned (40 of 40 ops survive), including nonsense ops like <code>STACK D D</code>: relaxed, <code>(HOLDING D)</code> and <code>(CLEAR D)</code> are both reachable, and the domain has no inequality precondition to rule them out.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:2669"
+        ]
+       },
+       {
+        "id": "mod-ground-compact",
+        "title": "Fact and fluent compaction",
+        "kind": "stage",
+        "summary": "Renumber facts and fluents monotonically to keep only what survived, so every state bitset and visited key is sized by the live task, not the raw candidate space.",
+        "body": "<p>Interning happened over every raw candidate op, so after reachability pruning the fact id space can be far larger than the live task. On temporal snap-compiled elevator-08-t p22, 2.35M <code>RUNNING-*</code> atoms were minted from unreachable END candidates while about 2.4k facts were live: 287 KB per state and 8 GB RSS in 40 s. Fact compaction keeps facts that are reached, referenced by a surviving op, or in the goal, and renumbers them <em>monotonically</em>, so every relative order and therefore every search decision is unchanged; only ids and byte sizes shrink (<code>FF_NO_FACT_COMPACT=1</code> restores).</p><p>The 0.21 fluent pass does the same for numeric state. Static fluents (price, cost, distance tables) were being cloned into every search node: tpp i12 carried 20.6 KB per node, 99% of it fluent vectors, 62% static; data-network i12 had 386 of 387 fluents static. Irrelevant defined statics are folded to constants in <code>NExpr</code>, and unused fluents are dropped and renumbered. Dropped statics stay reachable by name through <code>PackedTask::static_fluents</code> for temporal duration evaluation.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:2820",
+         "crates/ferroplan/src/ground.rs:2916"
+        ]
+       },
+       {
+        "id": "mod-ground-csr",
+        "title": "CSR packing",
+        "kind": "stage",
+        "summary": "The final ops are written column-wise into CSR arrays (pre_pos, add, del, pre_num, num_eff, cond), plus achiever indexes and the anchored successor index, producing the immutable PackedTask.",
+        "body": "<p>Each per-op list becomes a row in a <code>CsrBuilder</code>; <code>finish()</code> converts to an <code>Arc</code>-backed <code>Csr</code>. Reverse indexes are built at the same time: <code>add_by_fact</code> (which ops achieve a fact, for relaxed-plan extraction), <code>neff_by_fluent</code>, <code>relevant_fluent</code> (fluents read by a precondition or goal, closed transitively through effects that write them), and <code>rel_fluents</code>. <code>packed::build_succ</code> builds the successor generator from <code>pre_pos</code>.</p><p>The result is <code>Outcome::Task(PackedTask)</code>: every array the search touches is contiguous, indexed by <code>u32</code>, and shared read-only across threads. <code>initial_state</code> builds the starting <code>State</code> from <code>init_bits</code>, <code>fv0</code>, <code>fdef0</code>.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:2895",
+         "crates/ferroplan/src/ground.rs:3366",
+         "crates/ferroplan/src/ground.rs:3418"
+        ],
+        "links": [
+         {
+          "to": "mod-packed",
+          "label": "produces"
+         }
+        ]
+       },
+       {
+        "id": "mod-ground-wall",
+        "title": "Budgets inside grounding",
+        "kind": "concept",
+        "summary": "Grounding can outrun any time or memory budget before a single state exists, so it carries its own checkpoints: per-binding ticks, the goal-DNF wall, and phase checkpoints. A trip discards everything and returns WallExhausted.",
+        "body": "<p><code>GroundWall</code> is built once on the calling thread and shared by reference with Phase B workers. Each worker counts bindings through a <code>WallTick</code> and reads the clock, the cancel flag, and the memory wall every <code>STRIDE = 256</code> bindings (down from 8,192 in 0.26: on elevator-2008-strips i29, 8,192 bindings ran over 20 s past a 60 s wall). The first worker to see expiry flips <code>tripped</code> and every enumeration unwinds.</p><p>The rule is \"honest failure or a whole task, nothing in between\": a tripped Phase B output is discarded wholesale, because the abort point depends on scheduling and a task shaped by it would be nondeterministic. Below the enumeration, <code>expired_now</code> is checked between Phase C passes, because a wide compiled task (storage-qualitative i20, 142k ops) can enumerate in seconds and then spend most of a minute interning and packing.</p><p>The receipts that motivated it are in the <code>Outcome::WallExhausted</code> doc comment: 2048 spent 67-74 s of a 60 s budget in enumeration with no clock check; sokoban-t 2008 i21 ground for over 10 minutes against a 30 s wall. The validator and session entries do not arm the env wall, because a plan already found must remain groundable for verification.</p>",
+        "files": [
+         "crates/ferroplan/src/ground.rs:598",
+         "crates/ferroplan/src/ground.rs:696",
+         "crates/ferroplan/src/ground.rs:19"
+        ],
+        "links": [
+         {
+          "to": "pipe-entry-budget",
+          "label": "armed by"
+         },
+         {
+          "to": "mod-mem",
+          "label": "MemWall"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "mod-packed",
+        "label": "builds"
+       },
+       {
+        "to": "mod-par",
+        "label": "Phase B workers"
+       },
+       {
+        "to": "mod-hash",
+        "label": "FxHashMap in joins"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "stage-analysis",
+    "title": "Post-ground analysis",
+    "kind": "stage",
+    "summary": "Structure extracted from the ground task without changing it: mutex groups (for partitioning) and object orbits (for symmetry-reduced dedup).",
+    "body": "<p>These passes are consumers of the <code>PackedTask</code> and the lifted domain together: they read lifted action schemas to reason soundly, then instantiate over the ground fact names. Neither changes the task. Derived axioms are the other \"analysis\" the pipeline does, but they run earlier, on the lifted AST (see Lifted compilations).</p>",
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-invariants",
+      "title": "invariants.rs: mutex-group synthesis",
+      "kind": "module",
+      "summary": "Helmert-style monotonicity invariants: find sets of ground facts of which at most one is ever true. These are SAS+ variables without leaving the bitset state, and they feed partition-and-resolve.",
+      "body": "<p>A mutex group is a set of facts at most one of which holds in any reachable state, e.g. a block is on the table, held, or on exactly one other block. Groups are what a SAS+ (multi-valued variable) representation would use as variables; ferroplan keeps its propositional bitsets and uses the groups only as structure, chiefly for SGPlan/ESPC subgoal partitioning.</p><p><code>synthesize(domain, task)</code> seeds a candidate for each predicate and each argument position chosen as the \"counted\" variable, then verifies it per lifted action. An add of a member is balanced only by a delete of a member with the same parameter binding that is also a positive precondition (so the removed unit was provably the true one). Two adds under one binding make the candidate \"too heavy\" and false. An unbalanced add is refined by extending the candidate with a deleted-and-required fact that could supply the balance, up to <code>MAX_MEMBERS = 5</code> and <code>REFINE_BUDGET = 600</code>. Survivors are instantiated over ground facts and checked to be at-most-one in init. Anything uncertain is rejected, so emitted groups are sound.</p><p>The multi-predicate refinement is what made it useful: docs/invariants-measurement.md recorded that the earlier single-predicate version found 0 groups on blocks and logistics. On the blocksworld example today it finds 9, e.g. <code>{(HANDEMPTY), (HOLDING D), (HOLDING B), (HOLDING A), (HOLDING C)}</code>.</p>",
+      "files": [
+       "crates/ferroplan/src/invariants.rs:38",
+       "crates/ferroplan/src/invariants.rs:301",
+       "crates/ferroplan/src/invariants.rs:332"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "516"
+       ],
+       [
+        "Blocks p01",
+        "9 groups"
+       ],
+       [
+        "Callers",
+        "planner, api, resolve paths, sat, tresolve, resource"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-resolve",
+        "label": "partitions by groups"
+       },
+       {
+        "to": "mod-partition",
+        "label": "feeds"
+       },
+       {
+        "to": "mod-sat",
+        "label": "uses groups"
+       }
+      ]
+     },
+     {
+      "id": "pipe-orbits",
+      "title": "Symmetry detection",
+      "kind": "concept",
+      "summary": "solve_classic asks orbits::detect_classical for an object-symmetry map; the best-first search uses it for canonical visited keys.",
+      "body": "<p>After grounding and before search, the classical driver calls <code>orbits::detect_classical(domain, problem, &amp;task)</code> unless the task was monitor-compiled (a trajectory constraint can distinguish symmetric objects over time). The resulting <code>OrbitMap</code> lets the best-first fallback, the partition passdown, and the cost sweep deduplicate states that differ only by a permutation of interchangeable objects. The module is owned by the search section.</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:1188",
+       "crates/ferroplan/src/orbits.rs:1130"
+      ],
+      "links": [
+       {
+        "to": "mod-orbits",
+        "label": "implemented in"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-derived",
+      "label": "earlier, lifted"
+     }
+    ]
+   },
+   {
+    "id": "stage-dispatch",
+    "title": "Dispatch to search and modes",
+    "kind": "stage",
+    "summary": "The packed task is handed to a mode driver. For classical problems that means EHC with helpful actions, falling back to weighted best-first; other modes compile further and run their own searches.",
+    "body": "<p>The pipeline document ends at the handoff; the search algorithms and mode machinery are covered in their own sections. What is shared across all of them is the <code>PackedTask</code>, the <code>State</code> type, the heuristic <code>Scratch</code>, and the budget checkpoints.</p>",
+    "layout": "grid",
+    "children": [
+     {
+      "id": "pipe-dispatch",
+      "title": "Dispatch: solve_classic",
+      "kind": "concept",
+      "summary": "The classical driver: orbits, then portfolio, partition, or the default ladder (search::plan: EHC first, best-first fallback), then the anytime cost or length sweep.",
+      "body": "<p><code>solve_classic</code> grounds via <code>do_ground</code>, returns early on trivial/unsolvable/budget outcomes, and then branches on mode:</p><ul><li><code>Mode::Portfolio</code>: <code>portfolio::solve</code>, a sequential portfolio under one shared eval budget; the winning member is named in notes.</li><li><code>Mode::Partition</code>: <code>invariants::synthesize</code> then <code>resolve::solve</code>.</li><li>Otherwise: <code>search::plan(&amp;task, threads, cfg, ehc_first, orbit)</code>. EHC runs first unless <code>--search best-first</code>; when it falls back, a note says \"EHC found no improving state; used weighted best-first\". An opt-in partition rung (<code>FF_PARTITION_RUNG=1</code>) can run before it; the comment records it was measured out of the default (first-attempt -26 on the propositional board versus six pathways cells gained).</li></ul><p>After a plan is found: if the problem has a single cost-fluent metric, <code>costs::improve</code> runs an anytime cost sweep and may note \"plan cost proven optimal\"; if it has no metric, <code>costs::improve_length</code> can run iterated-weight re-searches, but its budget <code>FF_LEN_SWEEP_EVALS</code> defaults to 0 (the comment says the proportionate default was measured toothless), so by default the first plan is returned.</p><p>The other drivers (<code>solve_pddl3</code>, <code>solve_temporal</code>, <code>solve_optimal</code>, <code>solve_sat</code>) follow the same ground-then-search shape over their own compiled tasks.</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:1149",
+       "crates/ferroplan/src/search.rs:1715",
+       "crates/ferroplan/src/search.rs:2183",
+       "crates/ferroplan/src/costs.rs:259"
+      ],
+      "links": [
+       {
+        "to": "sec-search",
+        "label": "EHC / best-first / ladder"
+       },
+       {
+        "to": "sec-modes",
+        "label": "other drivers"
+       },
+       {
+        "to": "mod-portfolio",
+        "label": "Mode::Portfolio"
+       },
+       {
+        "to": "mod-resolve",
+        "label": "Mode::Partition"
+       },
+       {
+        "to": "mod-costs",
+        "label": "anytime sweep"
+       },
+       {
+        "to": "mod-heuristic",
+        "label": "h_FF"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "sec-search",
+      "label": "classical search"
+     },
+     {
+      "to": "sec-modes",
+      "label": "PDDL3, temporal, SAT, optimal"
+     },
+     {
+      "to": "mod-portfolio",
+      "label": "portfolio"
+     }
+    ]
+   },
+   {
+    "id": "stage-output",
+    "title": "Plan output",
+    "kind": "stage",
+    "summary": "The plan is rendered either as structured Solution JSON (library path) or as Metric-FF / IPC text (CLI text path).",
+    "body": "<p>Two output contracts, both stable: the typed <code>Solution</code> and the text transcript the differential harness compares against Metric-FF. Synthetic steps (<code>REACH-GOAL</code>, PDDL3 bookkeeping, <code>TRAJ-END</code>) are stripped on both. After output, a plan can be independently replayed by <code>plan::validate_plan</code> or <code>verify</code>, animated by <code>trace</code>, or explained by <code>introspect</code>.</p>",
+    "layout": "grid",
+    "children": [
+     {
+      "id": "pipe-output-json",
+      "title": "Structured output",
+      "kind": "concept",
+      "summary": "On the library path, op indices become Step records via steps_of; the Solution serializes to JSON for the CLI --json, MCP, Python, and WASM frontends.",
+      "body": "<p><code>api::steps_of</code> splits each op's display string (<code>STACK D C</code>) into action and args, skipping synthetic ops; <code>timed_steps</code> does the same for temporal plans with time and duration. The <code>Solution</code> derives <code>Serialize</code>, so the CLI's <code>--json</code> output is literally <code>serde_json</code> of the struct, and the same bytes travel over MCP and into Python and the browser.</p>",
+      "files": [
+       "crates/ferroplan/src/api.rs:488",
+       "crates/ferroplan/src/api.rs:535"
+      ],
+      "links": [
+       {
+        "to": "mod-api-solution",
+        "label": "type"
+       },
+       {
+        "to": "crate-ferroplan-mcp",
+        "label": "serves"
+       },
+       {
+        "to": "crate-ferroplan-py",
+        "label": "returns"
+       }
+      ]
+     },
+     {
+      "id": "mod-output",
+      "title": "output.rs: Metric-FF text for run_ff",
+      "kind": "module",
+      "summary": "Renders a search result in Metric-FF's exact format: the plan block, the timing footer, and the solved/unsolvable messages and exit codes.",
+      "body": "<p><code>render(task, &amp;PlanResult, threads)</code> writes <code>preamble</code> (\"ff: search configuration is parallel best-first on 1*g(s) + 5*h(s) [N threads]\"), then either the plan block (<code>step    0: PICK-UP D</code>, skipping the synthetic <code>REACH-GOAL</code>) or an unsolvable message, then a timing footer that mimics Metric-FF's lines (instantiating N easy, M hard action templates; reachability analysis yielding F facts and A actions; searching, evaluating S states). The timing fields print 0.00; the format is kept because the differential harness and an external regex consume it.</p><p>The honesty rule appears here too, pinned by the test <code>capped_never_claims_a_proof</code>: a capped search prints \"search cap reached! no plan found within budget (search space NOT exhausted).\" and only a genuinely exhausted open list prints \"best first search space empty! problem proven unsolvable.\" Exit code stays 0 either way, the Metric-FF clean-run convention.</p>",
+      "files": [
+       "crates/ferroplan/src/output.rs:54",
+       "crates/ferroplan/src/output.rs:45"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "130"
+       ]
+      ]
+     },
+     {
+      "id": "mod-report",
+      "title": "report.rs: text for run_planner",
+      "kind": "module",
+      "summary": "Classic-FF plan lines or the IPC time-stamped format, plus the partition-and-resolve timing footer and the PDDL3 metric footer.",
+      "body": "<p>Used by <code>run_planner</code>. <code>ff_plan</code> produces the same <code>step N: ...</code> framing as <code>output.rs</code>; <code>ipc_plan</code> (selected by <code>--ipc</code>) writes SGPlan6's IPC format, timestamped lines with an optional metric; <code>timing(&amp;Stats, threads)</code> prints the partition-and-resolve footer (\"1 initial groups, 1 final groups, 0 merges (monolithic fallback)\"); <code>metric_footer</code> reports PDDL3 metric results; <code>preamble</code> announces \"SGPlan partition-and-resolve over the ffdp subplanner\".</p><p>The split between <code>output.rs</code> and <code>report.rs</code> is historical: the two text paths came from two programs (the FF engine and the SGPlan-style meta-planner), each with its own output contract, and both contracts are kept byte-stable.</p>",
+      "files": [
+       "crates/ferroplan/src/report.rs:9",
+       "crates/ferroplan/src/report.rs:20",
+       "crates/ferroplan/src/report.rs:40"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "86"
+       ]
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-plan",
+      "label": "validate_plan"
+     },
+     {
+      "to": "mod-trace",
+      "label": "replay"
+     },
+     {
+      "to": "mod-introspect",
+      "label": "explain"
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "to": "sec-data",
+    "label": "data structures"
+   },
+   {
+    "to": "sec-example",
+    "label": "worked example"
+   }
+  ]
+ },
+ {
+  "id": "sec-data",
+  "title": "Data structures and performance",
+  "kind": "section",
+  "summary": "The engine's representation (bitset states, CSR operators, compact keys), the small utility modules behind it (hash, par, mem, clock), the plan-replay tools, and how performance claims are measured.",
+  "body": "<p>ferroplan is described in its own docs as data-oriented by design. This section covers the representation the grounder produces and the search consumes, the infrastructure modules that keep it fast and deterministic, and the measurement discipline: each performance change is tied to a recorded before/after and a correctness guarantee, and failed attempts are recorded as negatives.</p>",
+  "files": [
+   "book/src/architecture.md",
+   "book/src/performance.md"
+  ],
+  "layout": "grid",
+  "children": [
+   {
+    "id": "data-why",
+    "title": "Why data-oriented",
+    "kind": "concept",
+    "summary": "States are bitsets plus dense f64 vectors; operators are columns in CSR arrays. Hot loops stream contiguous memory and parallelize over immutable shared task data.",
+    "body": "<p>A planner's inner loop is: for a state, find applicable ops, apply each, hash the successor, check the visited set, evaluate the heuristic (which itself scans ops and facts layer by layer). Every one of those is a scan over op preconditions or effects, so layout is the cost. Storing ops as a <code>Vec</code> of structs, each with its own heap vectors for pre/add/del, means a pointer chase and likely cache miss per op. Storing them as CSR (one flat <code>Arc&lt;[u32]&gt;</code> of all preconditions, one offsets array) turns the scan into a sequential read the prefetcher handles.</p><p>The fact layer of a state is a <code>Vec&lt;u64&gt;</code> bitset: applicability is a handful of bit tests, apply is word-level set/clear, hashing and equality are over a few words (one word for the 29-fact blocksworld). Numeric state is two dense vectors, <code>fv: Vec&lt;f64&gt;</code> and <code>fdef: Vec&lt;bool&gt;</code>.</p><p>Because the packed task is immutable during search and every field is <code>Send + Sync</code>, worker threads take <code>&amp;PackedTask</code> with no locks. The <code>Arc</code> backing (since 0.13) also makes cloning a task cheap, which <code>Session::fork</code> relies on to run many agents over one grounding.</p><p>docs/perf-notes.md records a negative that confirms the design: an applicable-action index and a scattered precondition-trigger index for <code>build_rpg</code> were tried and reverted, because scattered loads lost to the sequential CSR scan's cache locality on shallow graphs.</p>",
+    "files": [
+     "book/src/architecture.md",
+     "crates/ferroplan/src/packed.rs:1",
+     "docs/perf-notes.md"
+    ]
+   },
+   {
+    "id": "mod-packed",
+    "title": "packed.rs: PackedTask, Csr, State",
+    "kind": "module",
+    "summary": "The grounded task in structure-of-arrays form, the search State, and the visited-set keys. Everything the search and heuristic read lives here.",
+    "body": "<p>709 lines defining the engine's core types. The task is built once by the grounder and then only read.</p>",
+    "files": [
+     "crates/ferroplan/src/packed.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "709"
+     ],
+     [
+      "Thread safety",
+      "read-only, shared by reference"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "mod-packed-csr",
+      "title": "Csr<T>: compressed sparse rows",
+      "kind": "data",
+      "summary": "Row i of a Csr owns flat[off[i]..off[i+1]]. Both arrays are Arc-backed so a task clone shares them.",
+      "body": "<p><code>Csr&lt;T&gt; { flat: Arc&lt;[T]&gt;, off: Arc&lt;[u32]&gt; }</code> with one accessor, <code>slice(i)</code>. <code>CsrBuilder</code> appends one row at a time (<code>push_row</code>) and <code>finish</code> freezes it. Clone is implemented by hand as two <code>Arc</code> bumps so it does not require <code>T: Clone</code>.</p><p>The task uses a Csr per op column: <code>pre_pos</code>, <code>add</code>, <code>del</code>, <code>pre_num</code>, <code>num_eff</code>, <code>cond</code>; and per fact or fluent for the reverse indexes: <code>add_by_fact</code>, <code>neff_by_fluent</code>, <code>succ_by_fact</code>. For the 40-op blocksworld, <code>pre_pos.flat</code>, <code>add.flat</code>, and <code>del.flat</code> each hold 96 ids.</p>",
+      "files": [
+       "crates/ferroplan/src/packed.rs:30",
+       "crates/ferroplan/src/packed.rs:52"
+      ]
+     },
+     {
+      "id": "mod-packed-task",
+      "title": "PackedTask fields",
+      "kind": "data",
+      "summary": "Sizes, op display names, CSR columns, achiever and successor indexes, the shared monitor block, fluent relevance, initial state, goal, and names for reporting.",
+      "body": "<p>Key fields: <code>n_facts</code>, <code>words</code> (u64s per state), <code>n_ops</code>; <code>op_display</code> (the plan-line string per op); the CSR columns; <code>shared_cond</code> and <code>monitored</code> for the trajectory-monitor block; <code>add_by_fact</code> plus <code>shared_add</code>/<code>monitored_ops</code>, merged by the <code>Achievers</code> iterator (0.29 moved monitor adds out of the per-fact buckets, which had been ops x monitors wide, hundreds of millions of <code>u32</code> on storage-complex); <code>relevant_fluent</code>, <code>rel_fluents</code>; <code>init_bits</code>, <code>fv0</code>, <code>fdef0</code>; <code>goal_pos</code>, <code>goal_num</code>; <code>fact_names</code>, <code>fluent_names</code>, <code>static_fluents</code>; and footer counters.</p><p>Some fields exist only for opt-in experiments and are <code>None</code> elsewhere, so the classical heuristic \"provably never enters\" them: <code>pair_end</code> (temporal end-gate discount, <code>FF_H_ENDGATE</code>) and <code>trpg</code> (time-stamped relaxation tables, <code>FF_TRPG</code>). <code>charge_pre_num</code> arms the numeric-precondition charge in relaxed-plan extraction.</p>",
+      "files": [
+       "crates/ferroplan/src/packed.rs:145"
+      ]
+     },
+     {
+      "id": "mod-packed-succ",
+      "title": "Anchored successor generator",
+      "kind": "data",
+      "summary": "Each op is anchored at its rarest positive precondition; applicable_ops walks the state's true facts and collects only anchored ops, instead of testing all n_ops.",
+      "body": "<p><code>build_succ</code> counts how many ops use each fact as a positive precondition and anchors each op at its least-used one (ties to smallest id); ops with no positive precondition go to <code>succ_always</code>. <code>applicable_ops</code> iterates set bits of the state with <code>trailing_zeros</code>, extends a candidate list from <code>succ_by_fact.slice(f)</code>, sorts it back into op-index order, and filters with <code>op_applicable</code>. Since each op is anchored once there are no duplicates, and the sort makes the result identical to the linear scan, so search is byte-identical (pinned by the test <code>the_generator_agrees_with_the_linear_scan_everywhere_it_is_asked</code>).</p><p>Measured in 0.27 (docs/roadmap-0.27.md): expansion per evaluation on labyrinth 234 to 34 &micro;s (7x), parking 258 to 21 &micro;s (12x), markettrader 10 to 5.6 &micro;s. The motivating number was driver-log at 1k evals/s on 61k ops. It is narrower than the reverted \"applicable-action index\" in perf-notes: it is used once per expansion, not scattered through the relaxed-graph build.</p>",
+      "files": [
+       "crates/ferroplan/src/packed.rs:84",
+       "crates/ferroplan/src/packed.rs:265"
+      ],
+      "facts": [
+       [
+        "Labyrinth expand",
+        "234 to 34 &micro;s"
+       ],
+       [
+        "Parking expand",
+        "258 to 21 &micro;s"
+       ]
+      ]
+     },
+     {
+      "id": "mod-packed-apply",
+      "title": "apply(): successor construction",
+      "kind": "data",
+      "summary": "Clone the state, then apply deletes then adds (add wins). Conditional and numeric effects are evaluated against the source state; a fast path skips all temporaries for plain STRIPS ops.",
+      "body": "<p>Semantics: all effects, unconditional and firing conditional ones, are evaluated against the source state and applied simultaneously; deletes go before adds so an add wins on conflict; numeric deltas are summed from source values. <code>cond_effs(oi)</code> chains the op's own conditional row with the shared monitor block for monitored ops, in the order the 0.7 per-op version used.</p><p>The 0.27 fast path: when an op has no conditional and no numeric effects, apply is a loop of <code>bitset::clear</code> over <code>del</code> and <code>bitset::set</code> over <code>add</code>, without building the four temporary vectors of the general path. The motivating measurement was that the open-list insert, which includes successor construction, was a third of a best-first wall (markettrader i1: h 19 s, expand 12 s, insert 15 s of 47 s).</p><p>Still on the backlog (perf-notes item 3): apply clones a full <code>State</code> per applicable op before the cost bound and visited check discard most of them; applying into a reusable buffer and materializing only survivors would save the clones.</p>",
+      "files": [
+       "crates/ferroplan/src/packed.rs:343"
+      ]
+     },
+     {
+      "id": "mod-packed-state",
+      "title": "State and visited keys",
+      "kind": "data",
+      "summary": "State is bits + fv + fdef. The visited key keeps only relevant fluents, quantized to 1e-6; the hash-to-index dedup avoids storing a second copy of every state.",
+      "body": "<p><code>State { bits: Vec&lt;u64&gt;, fv: Vec&lt;f64&gt;, fdef: Vec&lt;bool&gt; }</code>. <code>state_key</code> builds a <code>StateKey { bits, vals }</code> where <code>vals</code> are only the <em>relevant</em> fluents, quantized to <code>(v * 1e6).round() as i64</code>. A fluent is irrelevant if no precondition or goal reads it, transitively through effects writing relevant fluents (pure accumulators like walked time). Leaving them out is exact and also essential: an unbounded accumulator would otherwise make infinitely many distinct states and search would never terminate on unsolvable problems. Pure-STRIPS keys carry no vals at all.</p><p><code>state_key_hash</code> streams exactly the key's content through FxHasher and <code>state_key_eq</code> compares exactly, so visited structures can store a <code>u64</code> and a node index instead of a cloned key. Measured in 0.20 Phase 4 at a forced 300k-node cap: city-car 133.9 to 113.2 MB (-15%), block-grouping-numeric 169.9 to 124.2 MB (-27%), with expansion order byte-identical.</p><p><code>state_key_hash128</code> exists because FxHash has no avalanche: on rovers-metric-time i28 the 64-bit hash collided 3 times among about 865k keys, and the lazy LAMA frontier, which stores keys and not states, trusted it and dropped distinct successors. Two independently seeded passes finished with murmur3's fmix64 make a collision a 2^-128 event for 8 extra bytes per entry.</p>",
+      "files": [
+       "crates/ferroplan/src/packed.rs:616",
+       "crates/ferroplan/src/packed.rs:482",
+       "crates/ferroplan/src/packed.rs:529",
+       "crates/ferroplan/src/packed.rs:553"
+      ],
+      "facts": [
+       [
+        "Fluent quantum",
+        "1e-6"
+       ],
+       [
+        "city-car RSS",
+        "-15%"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-hash",
+        "label": "FxHasher"
+       }
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "mod-ground-csr",
+      "label": "built by"
+     },
+     {
+      "to": "mod-heuristic",
+      "label": "scanned by"
+     },
+     {
+      "to": "mod-search",
+      "label": "expanded by"
+     },
+     {
+      "to": "mod-session",
+      "label": "forked cheaply"
+     }
+    ]
+   },
+   {
+    "id": "mod-bitset",
+    "title": "bitset.rs: u64-word fact sets",
+    "kind": "module",
+    "summary": "Five inline functions over &[u64]: words_for, test, set, clear, count. The fact layer of every state.",
+    "body": "<p>The whole module is 28 lines: <code>words_for(n) = n.div_ceil(64)</code>; <code>test</code>, <code>set</code>, <code>clear</code> by <code>i &gt;&gt; 6</code> and <code>1 &lt;&lt; (i &amp; 63)</code>; <code>count</code> by <code>count_ones</code>. There is no bitset struct; callers keep a <code>Vec&lt;u64&gt;</code> and pass slices, so states are just vectors that hash and compare word-wise.</p><p>Word orientation is the point: applicability is a short sequence of bit tests, apply is word writes, equality and hashing are over <code>words</code> u64s, and <code>applicable_ops</code> walks true facts with <code>trailing_zeros</code>. For the blocksworld example the entire fact state is one word, <code>0xdb7</code>.</p><p>Fact compaction in grounding matters precisely because <code>words</code> sets the size of every state and key; the elevator-08-t case went from a raw atom space of 2.35M facts (287 KB per state) to about 2.4k live.</p>",
+    "files": [
+     "crates/ferroplan/src/bitset.rs:1"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "28"
+     ],
+     [
+      "Blocks p01",
+      "1 word, 29 facts"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-ground-compact",
+      "label": "sizes words"
+     }
+    ]
+   },
+   {
+    "id": "mod-hash",
+    "title": "hash.rs: in-tree FxHash",
+    "kind": "module",
+    "summary": "The rustc-hash algorithm without the dependency: rotate, xor, multiply. Fast and unseeded, so results are reproducible and thread-count independent.",
+    "body": "<p><code>FxHasher::add(i)</code> is <code>hash = (hash.rotate_left(5) ^ i).wrapping_mul(0x517cc1b727220a95)</code>. <code>write</code> consumes bytes in 8-byte little-endian chunks; the integer writers call <code>add</code> directly. Type aliases <code>FxHashMap</code> and <code>FxHashSet</code> replace std's SipHash maps in the visited sets and the grounding joins.</p><p>Two reasons, both in the module doc. Speed: SipHash's DoS resistance is irrelevant for a planner's own keys, and the visited-set hash runs per successor. Determinism: no random seed, so bucket layout is the same on every run; it never affects search order anyway, which is driven by the heap, not set iteration.</p><p>The trade-off surfaced in 0.30: Fx has no avalanche, so its 64-bit output is fine as a router (equality decides) but not as an identity. <code>PackedTask::state_key_hash128</code> wraps two seeded Fx passes in murmur3's fmix64 for the one frontier that stores keys without states.</p>",
+    "files": [
+     "crates/ferroplan/src/hash.rs:13",
+     "crates/ferroplan/src/hash.rs:65"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "67"
+     ],
+     [
+      "Constant",
+      "<code>0x517cc1b727220a95</code>"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-packed-state",
+      "label": "visited hashing"
+     }
+    ]
+   },
+   {
+    "id": "mod-par",
+    "title": "par.rs: size-gated parallelism",
+    "kind": "module",
+    "summary": "Order-preserving par_map and par_map_with over std::thread::scope. Rounds under 32 items run serially; the auto thread count is capped at 6 because scaling plateaus around 4 cores.",
+    "body": "<p>No rayon: <code>par_map(items, threads, f)</code> splits items into <code>threads</code> contiguous chunks, spawns one scoped thread per chunk, and concatenates results in chunk order, so output is identical to a sequential map. <code>par_map_with</code> adds a per-worker <code>init</code> so each thread builds private scratch once (the search uses it to give each worker its own heuristic <code>Scratch</code>).</p><p>Two cost controls in the doc comment. <code>MIN_PAR = 32</code>: smaller rounds run serially, since a tiny frontier (common on small problems and at the tail of large ones) would spend more on spawning than on work. <code>MAX_DEFAULT_THREADS = 6</code>: measured scaling plateaus around 4 cores (Amdahl: successor generation, dedup, and heap operations are serial), so spawning per core per round past that is overhead. <code>FFDP_THREADS</code> overrides uncapped.</p><p>Callers: grounding Phase B (per action, three call sites in <code>ground.rs</code>), best-first batch heuristic evaluation (<code>search.rs</code>, two), LAMA and novelty (two each), resolve and temporal (one each). Because output order never depends on scheduling, the planner's results are the same at any thread count.</p>",
+    "files": [
+     "crates/ferroplan/src/par.rs:16",
+     "crates/ferroplan/src/par.rs:22",
+     "crates/ferroplan/src/par.rs:37",
+     "crates/ferroplan/src/par.rs:68"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "102"
+     ],
+     [
+      "MIN_PAR",
+      "32"
+     ],
+     [
+      "Auto threads",
+      "min(cores, 6)"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-ground-enum",
+      "label": "Phase B"
+     },
+     {
+      "to": "mod-search",
+      "label": "batch eval"
+     }
+    ]
+   },
+   {
+    "id": "mod-mem",
+    "title": "mem.rs: memory as a wall",
+    "kind": "module",
+    "summary": "Reads resident memory from the kernel and trips at 75% of a declared FF_MEM_BUDGET_GB, but only inside bounded work, so it never cuts a first search that might have solved.",
+    "body": "<p>Before 0.28 the engine had a memory model (bytes per node times nodes against a share of RLIMIT) but no measurement, and the model was wrong for the classes that mattered: storage-preferences-complex grew to 528 GB of address space under a declared 6 GB, and <code>mem-cap</code> rows died to the runner's RSS watchdog, not the engine. When 0.28 lanes started finding a plan early and then doing optional work (quality chases, pricing groundings), the watchdog killed processes with a plan already in hand: fifteen rows lost on the first crucible board read.</p><p><code>MemWall::arm()</code> is armed only if a budget is declared and the thread is inside bounded work (<code>search::bounded_work()</code>): a chase over a banked plan, a rung's bet, a grounding that only prices a found plan. A first search is never cut, because one run in ten peaks above 4.4 GB of 6 and the wall would take solves it was close to. <code>arm_rung()</code> extends arming to the classical ladder's bounded rungs (LAMA, novelty), where the complete best-first remains beneath (city-car i6: the LAMA rung hit 5.9 GB at 20 s while best-first would have stayed under 1 GB). <code>hit()</code> reads current resident bytes from <code>/proc/self/status</code> on Linux or <code>task_info</code> on macOS, declared by hand because the crate takes no <code>libc</code> dependency; elsewhere, including wasm, it never trips.</p><p><code>TRIP_FRAC = 0.75</code>: at 0.85, a pipesworld grounding tripped at 5.1 GB and still peaked at 5.97 of 6, because a wide task allocates a lot between checkpoints. A <code>latch</code> makes a scope that tripped once trip immediately on its next arm.</p>",
+    "files": [
+     "crates/ferroplan/src/mem.rs:1",
+     "crates/ferroplan/src/mem.rs:42",
+     "crates/ferroplan/src/mem.rs:72",
+     "crates/ferroplan/src/mem.rs:85"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "343"
+     ],
+     [
+      "Trip fraction",
+      "0.75"
+     ],
+     [
+      "Env",
+      "<code>FF_MEM_BUDGET_GB</code>"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-ground-wall",
+      "label": "checked in grounding"
+     },
+     {
+      "to": "pipe-entry-budget",
+      "label": "third wall"
+     }
+    ]
+   },
+   {
+    "id": "mod-clock",
+    "title": "clock.rs: a wasm-safe Instant",
+    "kind": "module",
+    "summary": "A Clock wrapper whose elapsed readings are zero on wasm32, because std::time::Instant::now() panics there.",
+    "body": "<p><code>Clock::now()</code>, <code>elapsed_ms</code>, <code>elapsed_us</code>, <code>elapsed_secs</code>, with the <code>Instant</code> field compiled out on <code>wasm32</code>. The module doc records how it was found: the in-browser demo died at <code>search_from</code>'s phase-attribution timer on any solve that reached the best-first fallback.</p><p>The design premise is that every engine timing read is for measurement or reporting, never behavior, so freezing time at zero is safe. Budgets are the exception that proves the rule: on wasm a wall never expires, which is the correct default for a browser think, and hosts there bound work with eval budgets instead.</p><p>The <code>GroundWall</code> deadline is a <code>(Clock, f64)</code> pair; the call budget and FF_TIME_LIMIT wall in <code>search.rs</code> read through it too.</p>",
+    "files": [
+     "crates/ferroplan/src/clock.rs:11"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "60"
+     ]
+    ],
+    "links": [
+     {
+      "to": "crate-ferroplan-wasm",
+      "label": "why it exists"
+     },
+     {
+      "to": "pipe-entry-budget",
+      "label": "budget reads"
+     }
+    ]
+   },
+   {
+    "id": "mod-introspect",
+    "title": "introspect.rs: explaining a plan",
+    "kind": "module",
+    "summary": "For a solved plan: causal links (which earlier step supplied each precondition), invariant spans for durative steps, and a per-preference PDDL3 breakdown.",
+    "body": "<p><code>explain(domain_src, problem_src, &amp;Plan) -&gt; Explanation</code> replays the plan over the same grounding pipeline as the solver (<code>derived::compile</code> + <code>ground_task</code>), so plan steps match <code>op_display</code> byte-for-byte; an unmatchable or inapplicable step is an error, never a silent skip.</p><ul><li><strong>Causal links</strong> (<code>CausalLink {provider, consumer, fact}</code>): for each step's positive preconditions, the last earlier step that made the fact true, or the initial state. Numeric preconditions are out of scope.</li><li><strong>Invariant spans</strong> (<code>InvariantSpan</code>): for each durative step, the <code>over all</code> conditions rendered from the original schema with arguments substituted, over <code>[start, end]</code>, i.e. what VAL checks.</li><li><strong>Preference breakdown</strong> (<code>PrefReport {name, satisfied, weight}</code>): goal preferences evaluated in the final state, trajectory preferences by the independent <code>verify</code> oracle.</li></ul><p>Added in 0.18 Phase 3 to make the planner legible; it is a read-only consumer of the pipeline and does not affect solving.</p>",
+    "files": [
+     "crates/ferroplan/src/introspect.rs:1",
+     "crates/ferroplan/src/introspect.rs:79"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "499"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-verify",
+      "label": "preference folds"
+     },
+     {
+      "to": "mod-ground",
+      "label": "ground_task"
+     }
+    ]
+   },
+   {
+    "id": "mod-trace",
+    "title": "trace.rs: state snapshots for UIs",
+    "kind": "module",
+    "summary": "Replay a sequential plan and return the world state before the first step and after each step, as display strings, for animation.",
+    "body": "<p><code>trace(domain_src, problem_src, plan) -&gt; Vec&lt;StateSnapshot&gt;</code> parses, compiles axioms, grounds with <code>ground_task</code> on one thread, then applies each <code>(action, args)</code> step and snapshots. A <code>StateSnapshot</code> is <code>{facts: Vec&lt;String&gt;, fluents: Vec&lt;(String, f64)&gt;}</code>, e.g. <code>(AT TRUCK1 LOC2)</code> and <code>(FUEL TRUCK1) = 30</code>, so the result has <code>plan.len() + 1</code> entries.</p><p>It mirrors <code>verify</code>'s replay loop and errors on an action that is not a grounded op or is inapplicable. Temporal plans (overlapping durative actions) are not replayed this way. Consumers are the WASM build and the Bevy visualizer's animation code.</p>",
+    "files": [
+     "crates/ferroplan/src/trace.rs:26"
+    ],
+    "facts": [
+     [
+      "Lines",
+      "120"
+     ]
+    ],
+    "links": [
+     {
+      "to": "crate-ferroplan-bevy",
+      "label": "animates"
+     },
+     {
+      "to": "crate-ferroplan-wasm",
+      "label": "exposes"
+     }
+    ]
+   },
+   {
+    "id": "data-measure",
+    "title": "How performance is measured",
+    "kind": "process",
+    "summary": "Two harnesses with a division of labor: criterion for noise-robust wall time, benchmarks/perf.py for deterministic evaluated-state counts. Wall clock alone is never the verdict.",
+    "body": "<p><strong>perf.py</strong> (PROFILING.md) records per-problem coverage, <code>evaluated</code> states, plan length or metric, and <code>ms</code>. Only <code>ms</code> is nondeterministic, and <code>compare</code> ignores it; it exits nonzero on a regression in coverage, evaluated states, or plan quality versus <code>benchmarks/metrics/baseline.json</code>. The baseline is refreshed and committed with the change that moved it, so its git history is the performance log.</p><p>The useful distinction: a constant-factor win leaves evaluated counts bit-identical (proof that the work shrank, not the strategy), while a search-strategy win changes them and must be re-baselined.</p><p><strong>criterion</strong> (<code>cargo bench -p ferroplan --bench planning</code>, groups <code>solve/</code> and <code>solve_large/</code>) is the only noise-robust timer on a loaded machine. Raw wall clock is noise-dominated below about 15%; the same binary ranged 11.5-14 s under background load.</p><p><strong>Profilers</strong>: a <code>profiling</code> cargo profile (release with debug symbols), samply on macOS, flamegraph on Linux, and <code>benchmarks/profile.py</code> for headless text hotspots. Caveat recorded the hard way: <code>atos</code> mis-attributes inlined code on optimized builds; a profile showing 22% <code>core::fmt::Display</code> in search was an artifact, since there is no formatting in <code>search.rs</code> or <code>heuristic.rs</code>.</p><p>PROFILING.md's priority rule: evaluated states dominate runtime, so heuristic guidance and dead-end detection come before per-evaluation cost.</p>",
+    "files": [
+     "PROFILING.md",
+     "docs/perf-notes.md",
+     "book/src/performance.md"
+    ],
+    "links": [
+     {
+      "to": "crate-crucible",
+      "label": "board runner"
+     },
+     {
+      "to":"sec-tooling-benchmarks",
+      "label": "corpus"
+     }
+    ]
+   },
+   {
+    "id": "data-wins",
+    "title": "Measured effects ledger",
+    "kind": "concept",
+    "summary": "The documented, measured performance changes in the data and grounding layers, with their before/after numbers and correctness guarantees.",
+    "body": "<table><tr><th>change</th><th>instance</th><th>before</th><th>after</th></tr><tr><td>static param-domain restriction (ground)</td><td>gripper p02</td><td>658 &micro;s</td><td>247 &micro;s</td></tr><tr><td></td><td>gripper-250 partition</td><td>11.9 s</td><td>3.96 s</td></tr><tr><td>EHC cap scaled to <code>(200&middot;n_ops).max(30k)</code> (search)</td><td>gripper-250 --mode ff</td><td>2.16M evals / 33 s</td><td>32k evals / 0.86 s</td></tr><tr><td>fixpoint grounding (session entry)</td><td>elevator-11 p04</td><td>31.6 s / 5.7 GB</td><td>6.9 s / 48.8 MB</td></tr><tr><td>hash-to-index dedup (packed)</td><td>block-grouping-numeric, 300k nodes</td><td>169.9 MB</td><td>124.2 MB</td></tr><tr><td>anchored successor generator</td><td>parking, expand/eval</td><td>258 &micro;s</td><td>21 &micro;s</td></tr><tr><td>fact compaction</td><td>elevator-08-t p22, per state</td><td>287 KB (2.35M facts)</td><td>~2.4k facts live</td></tr></table><p>Each ships with a guarantee stated alongside it: identical ground ops, byte-identical search order, or (for EHC) plan-valid with h unchanged. The EHC cap is in <code>search.rs</code> at the <code>total_cap</code> line. Sources: book/src/performance.md, docs/perf-notes.md, docs/roadmap-0.12.md, -0.20.md, -0.27.md, and comments in <code>ground.rs</code>.</p><p>Backlog item 1 in perf-notes, the generation-counter <code>Scratch::reset</code>, has since landed: <code>heuristic::Scratch</code> carries a <code>gen</code> stamp and <code>op_stamp</code> so reset is an O(1) bump instead of refilling arrays every evaluation.</p>",
+    "files": [
+     "book/src/performance.md",
+     "docs/perf-notes.md",
+     "crates/ferroplan/src/search.rs:2245",
+     "crates/ferroplan/src/heuristic.rs:153"
+    ],
+    "links": [
+     {
+      "to": "mod-ground-restrict",
+      "label": "row 1"
+     },
+     {
+      "to": "mod-packed-succ",
+      "label": "row 5"
+     },
+     {
+      "to": "mod-search",
+      "label": "EHC cap"
+     }
+    ]
+   },
+   {
+    "id": "data-negatives",
+    "title": "Recorded negatives",
+    "kind": "concept",
+    "summary": "Optimizations that were built, measured, and removed. The project records these so they are not retried.",
+    "body": "<ul><li><strong>Scattered indexes in the relaxed-graph build</strong> (docs/perf-notes.md): an applicable-action index and a precondition-trigger index for <code>build_rpg</code> were tried and reverted; the sequential CSR scan's locality won on shallow graphs. The note says \"Do NOT add\" them.</li><li><strong>Counter-based relaxed-graph build</strong> (docs/roadmap-0.27.md): reached facts decrement a counter on the ops that need them, avoiding the per-layer scan. Measured slower: labyrinth 1.78 to 2.02 ms per build, parking 0.92 to 0.96 ms, because nearly every op fires anyway. Recorded negative, removed. The remaining cost is described as the relaxation floor, about 1.7-2 ms per evaluation at 60-80k ops; moving it means firing fewer ops or evaluating fewer states.</li><li><strong>Fixpoint grounding as the corpus default</strong> (docs/roadmap-0.12.md): its memory win was real, but shifting fact-id first-reference order moved search tie-breaks; the 0.12.0 scoreboard came back 377/630 versus 0.11's 387. It stayed on the session entry only.</li><li><strong>A proportional length-sweep budget</strong> (<code>costs.rs</code>): measured toothless, so <code>FF_LEN_SWEEP_EVALS</code> defaults to 0.</li></ul>",
+    "files": [
+     "docs/perf-notes.md",
+     "docs/roadmap-0.27.md",
+     "docs/roadmap-0.12.md",
+     "crates/ferroplan/src/costs.rs:266"
+    ],
+    "links": [
+     {
+      "to": "mod-heuristic",
+      "label": "build_rpg"
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "to": "sec-pipeline",
+    "label": "produced by"
+   },
+   {
+    "to": "sec-search",
+    "label": "consumed by"
+   }
+  ]
+ },
+ {
+  "id": "sec-example",
+  "title": "Life of one solve",
+  "kind": "example",
+  "summary": "A real run of ferroplan on the 4-block IPC blocksworld, followed through each pipeline stage with the actual numbers: 256 tokens, 40 ground ops over 29 facts, h = 6 at the start, 14 states evaluated, a 10-step plan.",
+  "body": "<p>Every number in this walk-through came from running the release <code>ff</code> binary built from this checkout (version 0.30.0) and a small probe calling the library's public functions. The problem is tiny on purpose: small enough to list every fact, large enough to show a heuristic plateau and the gap between the fast default and an optimal plan.</p>",
+  "files": [
+   "benchmarks/ipc/strips/blocks/p01.pddl",
+   "crates/ferroplan-cli/src/main.rs:83"
+  ],
+  "facts": [
+   [
+    "Problem",
+    "BLOCKS-4-0"
+   ],
+   [
+    "Binary",
+    "ff 0.30.0, release"
+   ]
+  ],
+  "layout": "flow",
+  "children": [
+   {
+    "id": "ex-input",
+    "title": "The input: 4-block blocksworld",
+    "kind": "example",
+    "summary": "IPC blocksworld, 4 blocks all on the table, goal is the tower D-C-B-A. Four action schemas, nine init atoms, three goal atoms.",
+    "body": "<p>The example is <code>benchmarks/ipc/strips/blocks</code> p01, the smallest classical problem in the repo. The domains under <code>examples/</code> are larger game-style ones (the <code>logistics</code> example is temporal, with durative actions and numeric stock), which would route to the temporal mode instead of the classical pipeline this walk follows. A one-step derived-axiom example from <code>examples/reachability</code> is in the Lifted compilations stage.</p><p>Two of the four domain schemas (<code>:requirements :strips :typing</code>):</p><pre>(:action pick-up\n   :parameters (?x - block)\n   :precondition (and (clear ?x) (ontable ?x) (handempty))\n   :effect (and (not (ontable ?x)) (not (clear ?x))\n                (not (handempty)) (holding ?x)))\n(:action stack\n   :parameters (?x - block ?y - block)\n   :precondition (and (holding ?x) (clear ?y))\n   :effect (and (not (holding ?x)) (not (clear ?y))\n                (clear ?x) (handempty) (on ?x ?y)))\n;; plus put-down and unstack</pre><p>The whole problem:</p><pre>(define (problem BLOCKS-4-0)\n(:domain BLOCKS)\n(:objects D B A C - block)\n(:INIT (CLEAR C) (CLEAR A) (CLEAR B) (CLEAR D) (ONTABLE C) (ONTABLE A)\n (ONTABLE B) (ONTABLE D) (HANDEMPTY))\n(:goal (AND (ON D C) (ON C B) (ON B A))))</pre><p>Command used for every number in this walk-through (release build, 4 threads auto-detected):</p><pre>cargo build --release -p ferroplan-cli      # 1m26s on this box\nB=benchmarks/ipc/strips/blocks\n./target/release/ff -o $B/domain.pddl -f $B/p01.pddl --json</pre><p>Internal values (h at the initial state, mutex groups, CSR sizes) came from a small out-of-tree probe linking the <code>ferroplan</code> crate and calling the public <code>lexer</code>, <code>parser</code>, <code>ground</code>, <code>heuristic</code>, and <code>invariants</code> functions.</p>",
+    "files": [
+     "benchmarks/ipc/strips/blocks/domain.pddl",
+     "benchmarks/ipc/strips/blocks/p01.pddl"
+    ],
+    "facts": [
+     [
+      "Objects",
+      "4 blocks"
+     ],
+     [
+      "Schemas",
+      "4"
+     ],
+     [
+      "Init atoms",
+      "9"
+     ],
+     [
+      "Goal atoms",
+      "3"
+     ]
+    ]
+   },
+   {
+    "id": "ex-parse",
+    "title": "Lex and parse",
+    "kind": "example",
+    "summary": "256 tokens, all names uppercased. The AST is string-keyed: PICK-UP has one BLOCK parameter and an And of three atoms.",
+    "body": "<p>The lexer turns the domain file into 256 tokens. The first twelve:</p><pre>LParen, Name(&quot;DEFINE&quot;), LParen, Name(&quot;DOMAIN&quot;), Name(&quot;BLOCKS&quot;), RParen,\nLParen, Name(&quot;:REQUIREMENTS&quot;), Name(&quot;:STRIPS&quot;), Name(&quot;:TYPING&quot;), RParen, LParen</pre><p>Uppercasing comes from Metric-FF compatibility and is why every later string reads in capitals. The parser produces <code>Action</code> values like:</p><pre>PICK-UP params=[(&quot;X&quot;, &quot;BLOCK&quot;)]\n pre=And([Atom(&quot;CLEAR&quot;,[Var(&quot;X&quot;)]), Atom(&quot;ONTABLE&quot;,[Var(&quot;X&quot;)]), Atom(&quot;HANDEMPTY&quot;,[])])\n eff=And([Del(&quot;ONTABLE&quot;,[Var(&quot;X&quot;)]), Del(&quot;CLEAR&quot;,[Var(&quot;X&quot;)]),\n          Del(&quot;HANDEMPTY&quot;,[]), Add(&quot;HOLDING&quot;,[Var(&quot;X&quot;)])])\nSTACK params=[(&quot;X&quot;,&quot;BLOCK&quot;), (&quot;Y&quot;,&quot;BLOCK&quot;)]\n pre=And([Atom(&quot;HOLDING&quot;,[Var(&quot;X&quot;)]), Atom(&quot;CLEAR&quot;,[Var(&quot;Y&quot;)])])</pre><p>and the goal as <code>And([Atom(\"ON\",[Const(\"D\"),Const(\"C\")]), Atom(\"ON\",[Const(\"C\"),Const(\"B\")]), Atom(\"ON\",[Const(\"B\"),Const(\"A\")])])</code>. No <code>:derived</code> rules and no constraints, so <code>derived::compile</code> returns clones and <code>constraints::gate</code> returns <code>Ok(None)</code>. No durative actions and no preferences, so <code>Mode::Auto</code> resolves to <code>Mode::Ff</code> and <code>solve_classic</code> runs.</p>",
+    "files": [
+     "crates/ferroplan/src/lexer.rs:23",
+     "crates/ferroplan/src/parser.rs:798"
+    ],
+    "facts": [
+     [
+      "Tokens",
+      "256"
+     ],
+     [
+      "Mode chosen",
+      "<code>ff</code>"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-lexer",
+      "label": "stage"
+     },
+     {
+      "to": "mod-parser",
+      "label": "stage"
+     },
+     {
+      "to": "mod-api-router",
+      "label": "auto routing"
+     }
+    ]
+   },
+   {
+    "id": "ex-ground",
+    "title": "Grounding: 40 ops, 29 facts",
+    "kind": "example",
+    "summary": "4 one-parameter and 4x4 two-parameter bindings give 4+4+16+16 = 40 ground ops over 29 facts. Reachability prunes nothing, including STACK D D.",
+    "body": "<p>Binding enumeration: <code>PICK-UP</code> and <code>PUT-DOWN</code> have one <code>BLOCK</code> parameter (4 bindings each); <code>STACK</code> and <code>UNSTACK</code> have two (16 each). All preconditions are dynamic, so static restriction does nothing and every binding is a single-conjunct op: 40 ops, all \"easy\" (<code>n_easy = 40, n_hard = 0</code>). No negative preconditions, so no <code>(NOT ...)</code> facts are minted.</p><p>Interning assigns fact ids in first-reference order, which is why the list starts with <code>PICK-UP D</code>'s atoms:</p><pre>0 (CLEAR D)  1 (ONTABLE D)  2 (HANDEMPTY)  3 (HOLDING D)\n4 (CLEAR B)  5 (ONTABLE B)  6 (HOLDING B) ...\n13 (ON D D)  14 (ON D B)  15 (ON D A)  16 (ON D C) ... 28 (ON C C)</pre><p>Relaxed reachability starts from the 9 init facts: all four <code>PICK-UP</code>s fire, adding every <code>HOLDING</code>; then every <code>PUT-DOWN</code> and <code>STACK</code>, adding every <code>ON</code>; then every <code>UNSTACK</code>. All 40 ops and 29 facts survive. That includes <code>STACK D D</code> and the fact <code>(ON D D)</code>: relaxed, holding D and D being clear are both reachable, and nothing in this STRIPS domain says <code>?x != ?y</code>. These ops are never applicable in a real state (holding D deletes clear D) and simply cost the heuristic a little.</p><p>Grounding took 493 &micro;s single-threaded in the probe. The JSON statistics report exactly these numbers: <code>\"grounded_facts\": 29, \"grounded_actions\": 40</code>.</p>",
+    "files": [
+     "crates/ferroplan/src/ground.rs:1031",
+     "crates/ferroplan/src/ground.rs:2669"
+    ],
+    "facts": [
+     [
+      "Ground ops",
+      "40"
+     ],
+     [
+      "Facts",
+      "29"
+     ],
+     [
+      "Pruned by reachability",
+      "0"
+     ],
+     [
+      "Ground time",
+      "~0.5 ms"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-ground-enum",
+      "label": "stage"
+     },
+     {
+      "to": "mod-ground-reach",
+      "label": "stage"
+     }
+    ]
+   },
+   {
+    "id": "ex-packed",
+    "title": "The packed task",
+    "kind": "example",
+    "summary": "One u64 per state. The initial state is 0xdb7. Each CSR column holds 96 entries. The successor index anchors each op at its rarest precondition.",
+    "body": "<p>With 29 facts, <code>words = 1</code>: every state, key, and hash in this problem is a single <code>u64</code>. The initial state's bits are <code>0xdb7</code> = binary <code>1101 1011 0111</code>, i.e. facts 0, 1, 2, 4, 5, 7, 8, 10, 11: the four <code>CLEAR</code>s, four <code>ONTABLE</code>s, and <code>HANDEMPTY</code>.</p><p>Op 0 in CSR form:</p><pre>op 0 PICK-UP D  pre=[0, 1, 2]  add=[3]  del=[1, 0, 2]\nop 1 PICK-UP B  pre=[4, 5, 2]  add=[6]  del=[5, 4, 2]</pre><p><code>pre_pos.flat</code>, <code>add.flat</code>, and <code>del.flat</code> are each 96 <code>u32</code>s with a 41-entry offsets array. <code>goal_pos</code> is the three ids for <code>(ON D C)</code>, <code>(ON C B)</code>, <code>(ON B A)</code>; no fluents, so <code>fv0</code> is empty and every visited key is just the bits. <code>succ_always</code> is empty since every op has a positive precondition.</p><p><code>applicable_ops</code> at the initial state returns <code>[PICK-UP D, PICK-UP B, PICK-UP A, PICK-UP C]</code>.</p><p>Post-ground analysis: <code>invariants::synthesize</code> finds 9 mutex groups, one per block for \"what is on top of X\" (<code>CLEAR X</code>, <code>HOLDING X</code>, or some <code>ON ? X</code>), one per block for \"what X sits on\" (<code>ONTABLE X</code>, <code>HOLDING X</code>, or <code>ON X ?</code>), and the hand <code>{HANDEMPTY, HOLDING D, HOLDING B, HOLDING A, HOLDING C}</code>. These are exactly the SAS+ variables of blocksworld. The classical <code>--json</code> path does not use them; the text CLI's partition-and-resolve does.</p>",
+    "files": [
+     "crates/ferroplan/src/packed.rs:145",
+     "crates/ferroplan/src/packed.rs:265",
+     "crates/ferroplan/src/invariants.rs:38"
+    ],
+    "facts": [
+     [
+      "words",
+      "1"
+     ],
+     [
+      "init_bits",
+      "<code>0xdb7</code>"
+     ],
+     [
+      "Mutex groups",
+      "9"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-packed",
+      "label": "types"
+     },
+     {
+      "to": "mod-bitset",
+      "label": "bit layout"
+     },
+     {
+      "to": "mod-invariants",
+      "label": "groups"
+     }
+    ]
+   },
+   {
+    "id": "ex-heuristic",
+    "title": "Heuristic at the initial state: h = 6",
+    "kind": "example",
+    "summary": "The FF relaxed plan from the initial state has 6 actions: pick up D, B, C and stack them. Helpful actions are PICK-UP D, C, B; PICK-UP A is not helpful.",
+    "body": "<p>The FF heuristic ignores delete effects, builds a relaxed planning graph forward from the state until the goal facts appear, then extracts a relaxed plan backward and counts its actions. Ignoring deletes means picking up one block does not stop you from picking up another, since <code>HANDEMPTY</code> is never removed.</p><p><code>heuristic::relaxed_helpful</code> at the initial state returns <code>h = 6</code> with relaxed plan:</p><pre>PICK-UP D, PICK-UP B, PICK-UP C, STACK D C, STACK B A, STACK C B</pre><p>Here that equals the true optimal cost (6), which is not typical. The helpful actions, relaxed-plan ops applicable in the current state, are <code>PICK-UP D</code>, <code>PICK-UP C</code>, <code>PICK-UP B</code>. <code>PICK-UP A</code> is correctly excluded: A is the bottom of the goal tower. The heuristic values of the four successors confirm it:</p><table><tr><th>successor</th><th>h</th></tr><tr><td>PICK-UP D</td><td>6</td></tr><tr><td>PICK-UP B</td><td>6</td></tr><tr><td>PICK-UP C</td><td>6</td></tr><tr><td>PICK-UP A</td><td>7</td></tr></table><p>No successor improves on h = 6, so the very first step is a plateau.</p>",
+    "files": [
+     "crates/ferroplan/src/heuristic.rs:1220",
+     "crates/ferroplan/src/heuristic.rs:1188"
+    ],
+    "facts": [
+     [
+      "h_FF(init)",
+      "6"
+     ],
+     [
+      "Optimal cost",
+      "6"
+     ],
+     [
+      "Helpful actions",
+      "3 of 4"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-heuristic",
+      "label": "h_FF"
+     }
+    ]
+   },
+   {
+    "id": "ex-search",
+    "title": "Search: EHC, 10 steps in 14 evals",
+    "kind": "example",
+    "summary": "Enforced hill-climbing commits to helpful actions greedily, takes a detour through a wrong tower, and returns a valid 10-step plan after 14 evaluated states. Best-first finds the optimal 6 in 101.",
+    "body": "<p>Enforced hill-climbing (EHC) runs a breadth-first search from the current state until it finds any state with strictly lower h, commits to the path, and repeats. With helpful actions on, only relaxed-plan ops applicable in the state are expanded. Following the committed path with h after each step:</p><table><tr><th>step</th><th>h after</th></tr><tr><td>PICK-UP D</td><td>6</td></tr><tr><td>STACK D C</td><td>5</td></tr><tr><td>PICK-UP B</td><td>5</td></tr><tr><td>STACK B A</td><td>3</td></tr><tr><td>UNSTACK D C</td><td>4</td></tr><tr><td>PUT-DOWN D</td><td>4</td></tr><tr><td>PICK-UP C</td><td>4</td></tr><tr><td>STACK C B</td><td>2</td></tr><tr><td>PICK-UP D</td><td>1</td></tr><tr><td>STACK D C</td><td>0</td></tr></table><p>The relaxation cannot see that <code>(ON D C)</code> must be achieved last, after C is on B, so stacking D on C early looks like progress (h 6 to 5). From h = 3 after <code>STACK B A</code>, the next improvement requires a four-step lookahead that first goes uphill (unstack D, put it down, pick up C) before <code>STACK C B</code> reaches h = 2. EHC stops at h = 0 after 14 evaluated states. It did not fall back, so no note is emitted.</p><p>Comparison runs on the same task (real numbers):</p><table><tr><th>configuration</th><th>plan length</th><th>evaluated</th></tr><tr><td>default (<code>--json</code>, EHC + helpful)</td><td>10</td><td>14</td></tr><tr><td><code>--search best-first</code> (1&middot;g + 5&middot;h)</td><td>6</td><td>101</td></tr><tr><td><code>FF_LEN_SWEEP_EVALS=3000</code></td><td>6</td><td>317</td></tr><tr><td><code>--mode optimal</code></td><td>6</td><td>52</td></tr></table><p>The length sweep's note reads \"iterated-weight sweep shortened plan 10 -&gt; 6 steps\". The optimal mode notes \"PROVEN OPTIMAL: cost 6 certified by A* + admissible h^max (24 expansions)\". This is the trade-off the default makes: EHC is the main speed lever on most problems and its plans are valid but not length-optimal.</p>",
+    "files": [
+     "crates/ferroplan/src/search.rs:1715",
+     "crates/ferroplan/src/search.rs:2183",
+     "crates/ferroplan/src/costs.rs:259"
+    ],
+    "facts": [
+     [
+      "EHC evaluated",
+      "14"
+     ],
+     [
+      "EHC plan",
+      "10 steps"
+     ],
+     [
+      "Best-first",
+      "6 steps / 101 evals"
+     ],
+     [
+      "Optimal",
+      "6, proven"
+     ]
+    ],
+    "links": [
+     {
+      "to": "sec-search",
+      "label": "algorithms"
+     },
+     {
+      "to": "mod-search",
+      "label": "EHC"
+     },
+     {
+      "to": "mod-optimal",
+      "label": "--mode optimal"
+     },
+     {
+      "to": "mod-costs",
+      "label": "length sweep"
+     }
+    ]
+   },
+   {
+    "id": "ex-output",
+    "title": "Output: text and JSON",
+    "kind": "example",
+    "summary": "The same 10-step plan in two forms: the Metric-FF transcript from the text CLI (which went through partition-and-resolve) and the serde Solution from --json.",
+    "body": "<p>Without <code>--json</code>, the CLI calls <code>run_planner</code>, which on a classical problem runs partition-and-resolve. Blocksworld's goal does not split usefully, so it reports one group and a monolithic fallback, arriving at the same plan:</p><pre>ff: search configuration is SGPlan partition-and-resolve over the ffdp subplanner [4 threads]\n\nff: found legal plan as follows\n\nstep    0: PICK-UP D\n        1: STACK D C\n        2: PICK-UP B\n        3: STACK B A\n        4: UNSTACK D C\n        5: PUT-DOWN D\n        6: PICK-UP C\n        7: STACK C B\n        8: PICK-UP D\n        9: STACK D C\n\ntime spent:    0.00 seconds partition-and-resolve (4 threads)\n               1 initial groups, 1 final groups, 0 merges (monolithic fallback)</pre><p>With <code>--mode ff</code> the text path is <code>run_ff</code> instead, whose footer mimics Metric-FF: \"instantiating 40 easy, 0 hard action templates\", \"reachability analysis, yielding 29 facts and 40 actions\", \"searching (4 threads), evaluating 14 states\".</p><p>With <code>--json</code>, <code>solve()</code> returns the <code>Solution</code> (abridged):</p><pre>{ &quot;solved&quot;: true, &quot;mode&quot;: &quot;ff&quot;,\n  &quot;plan&quot;: { &quot;steps&quot;: [ {&quot;index&quot;: 0, &quot;action&quot;: &quot;PICK-UP&quot;, &quot;args&quot;: [&quot;D&quot;]},\n                       {&quot;index&quot;: 1, &quot;action&quot;: &quot;STACK&quot;, &quot;args&quot;: [&quot;D&quot;, &quot;C&quot;]}, ... ],\n            &quot;length&quot;: 10 },\n  &quot;statistics&quot;: { &quot;grounded_facts&quot;: 29, &quot;grounded_actions&quot;: 40,\n                  &quot;evaluated_states&quot;: 14, &quot;threads&quot;: 4 } }</pre><p>Whole-process wall time for the JSON run was about 2 ms. At this size thread count is irrelevant: every frontier is below <code>MIN_PAR = 32</code>, so all evaluation ran serially even with 4 threads configured.</p>",
+    "files": [
+     "crates/ferroplan/src/report.rs:40",
+     "crates/ferroplan/src/output.rs:54",
+     "crates/ferroplan/src/api.rs:488"
+    ],
+    "facts": [
+     [
+      "Wall time",
+      "~2 ms"
+     ],
+     [
+      "Exit code",
+      "0"
+     ]
+    ],
+    "links": [
+     {
+      "to": "mod-report",
+      "label": "text path"
+     },
+     {
+      "to": "mod-output",
+      "label": "--mode ff text"
+     },
+     {
+      "to": "mod-api-solution",
+      "label": "JSON"
+     },
+     {
+      "to": "mod-par",
+      "label": "MIN_PAR"
+     }
+    ]
+   }
+  ],
+  "links": [
+   {
+    "to": "sec-pipeline",
+    "label": "stages"
+   },
+   {
+    "to": "sec-data",
+    "label": "representation"
+   }
+  ]
+ }
+]
