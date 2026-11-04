@@ -37,7 +37,8 @@ so EHC's near-greedy arm finishes them. Both leave small/typed instances unchang
 
 Each is correctness-preserving; the "preserves" column says how to verify.
 
-1. **Generation-counter `Scratch::reset`** (h-identity) — replace the per-eval
+1. ~~**Generation-counter `Scratch::reset`**~~ **Shipped** (`Scratch::gen` in
+   `heuristic.rs`). (h-identity) — replace the per-eval
    `op_layer`/`selected`/`need_fact` `.fill()`s (`2·n_ops + n_facts` writes) with a
    `gen` bump + per-access stamp check. ~4% on heuristic-bound instances; ~10
    fragile gate sites (notably `select`'s `op_layer == 0`). Verify: gripper-250

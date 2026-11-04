@@ -1,7 +1,7 @@
 # GUI (`ferroplan-bevy`)
 
 `ferroplan-bevy` is a [Bevy](https://bevyengine.org/) app that turns a PDDL
-domain + problem into something you can *see*: a force-directed graph of the
+domain + problem into something you can *see*: a graph of the
 problem, an animated plan, and a Blockly-style block editor for both the problem
 and the domain.
 
@@ -12,7 +12,7 @@ cargo run -p ferroplan-bevy domain.pddl problem.pddl
 
 ## Visualize a domain + problem as a graph
 
-Static objects become **nodes**, laid out force-directionally, with per-type
+Static objects become **nodes**, laid out evenly on a circle, with per-type
 icons (a circle for `location`, a square for the mobile `package`/`truck` types);
 static binary predicates (e.g. `road`) become **edges**. The current state is
 drawn *on* the graph — a package sits on the node it's `at`. Right-drag pans,

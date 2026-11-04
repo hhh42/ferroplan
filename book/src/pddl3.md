@@ -98,10 +98,16 @@ Since 0.23, hard untimed constraints are enforced on **durative-action
 (temporal) domains** too: the same monitor compile rides the snap-compiled
 task, the emitted (ε-separated) schedule is re-audited against the monitors
 before a constrained plan is returned, and the temporal validator folds the
-original constraint semantics over its replay. The timed operators
-(`within`, `always-within`, `hold-during`, `hold-after`) and soft
-`(preference ...)` constraints on durative domains are **rejected by
-name** — never silently dropped. `FF_CONSTRAINTS_REJECT=1` restores the
+original constraint semantics over its replay. Since 0.24 the timed
+operators `within` and `always-within` are enforced there as well. They lower to
+the same monitor shapes, reading a search-maintained clock fluent
+stamped with each decision epoch. Since 0.25, soft `(preference ...)`
+constraints on durative domains pass too: the temporal router's
+preference tiers transform them before the monitor compile, and they are
+scored after the fact over the original block. What is still **rejected by
+name** (never silently dropped) is `hold-during` / `hold-after` everywhere,
+and `within` / `always-within` on a classical domain, which has no clock to
+read. `FF_CONSTRAINTS_REJECT=1` restores the
 pre-0.7 blanket rejection. Measured results on the IPC-5
 qualitative-preferences track:
 [`benchmarks/ipc5-qualitative-scoreboard.md`](https://github.com/hhh42/ferroplan/blob/main/benchmarks/ipc5-qualitative-scoreboard.md).

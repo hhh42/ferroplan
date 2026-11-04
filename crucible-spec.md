@@ -500,11 +500,13 @@ effective_wall = wall_ms − suspended_ms
 | error (crash, signal, malformed) | retry once, then bank as today | — |
 | invalid (VAL rejected) | bank, loud, as today | — |
 
-`ρ_min` defaults to **0.90**. It is the one number in this revision that
-must not be tuned to make a sweep finish: 0.90 is where the clean record's
-own distribution sits (median 1.00, p5 0.88 on 10–50 s runs), and the
-roadmap's Phase 0 re-derives it from the corrected instrument before it is
-trusted.
+`ρ_min` defaults to **0.95**. It is the one number in this revision that
+must not be tuned to make a sweep finish. This revision first proposed
+0.90 (the old record's median 1.00, p5 0.88 on 10–50 s runs). The 0.27
+Phase 0 sitting then re-derived it from the corrected instrument: median
+0.995, p5 0.975 on ≥ 10 s runs. The pre-registered rule (p5 rounded down
+to 0.05, floored at 0.85) gave 0.95, which is the shipped default
+(`crucible-core/src/sched/referee.rs`).
 
 What ρ cannot see, and what covers it:
 
@@ -765,7 +767,7 @@ mem_reserve_gb      = 4
 rss_headroom        = 1.5
 
 [referee]
-cpu_ratio_min       = 0.90   # ρ_min — re-derived in Phase 0, not tuned
+cpu_ratio_min       = 0.95   # ρ_min — derived in 0.27 Phase 0, not tuned
 swap_growth_mb      = 512
 canary_board        = "ipc5-prop"
 canary_variant      = "trucks-propositional"

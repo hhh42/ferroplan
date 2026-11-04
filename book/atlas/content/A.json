@@ -377,7 +377,7 @@
       "title": "derived.rs: axioms compiled away",
       "kind": "module",
       "summary": "Static :derived rules are evaluated once to a datalog fixpoint and their facts appended to init; the rest of the pipeline never sees axioms. Dynamic rules are rejected with a named error.",
-      "body": "<p>A <code>:derived</code> rule defines a predicate by a formula instead of by action effects, e.g. <code>reachable</code> as the transitive closure of <code>link</code>. Rather than thread derived facts through grounding, state, and heuristic, <code>compile(domain, problem)</code> treats them as preprocessing.</p><p>Steps: <code>modified_predicates</code> collects every predicate an action adds or deletes. A fixpoint marks a derived predicate dynamic if its body references a dynamic base predicate or another dynamic derived one. If any are dynamic, the call returns an error naming the head (\"only static derived predicates ... are supported so far\"). Otherwise it enumerates bindings for each rule over typed objects, evaluates the body against the growing fact set, and repeats until no new fact is added. Recursion is fine, which is exactly what reachability needs. New facts go into <code>init_atoms</code> and the domain's <code>derived</code> list is cleared.</p><p>The <code>examples/reachability</code> domain shows it end to end: a map <code>camp -&gt; spring -&gt; ridge -&gt; cave</code> and a goal <code>(at cave)</code> solve as a single <code>TRAVEL CAMP CAVE</code> step (13 facts, 6 actions, 2 evaluated states in a real run), because <code>(reachable camp cave)</code> was derived into init.</p><p>Note: the <code>types.rs</code> doc comment on <code>Domain::derived</code> says dynamic non-recursive rules are inlined into preconditions; the code in <code>derived.rs</code> rejects them. The code is authoritative.</p>",
+      "body": "<p>A <code>:derived</code> rule defines a predicate by a formula instead of by action effects, e.g. <code>reachable</code> as the transitive closure of <code>link</code>. Rather than thread derived facts through grounding, state, and heuristic, <code>compile(domain, problem)</code> treats them as preprocessing.</p><p>Steps: <code>modified_predicates</code> collects every predicate an action adds or deletes. A fixpoint marks a derived predicate dynamic if its body references a dynamic base predicate or another dynamic derived one. If any are dynamic, the call returns an error naming the head (\"only static derived predicates ... are supported so far\"). Otherwise it enumerates bindings for each rule over typed objects, evaluates the body against the growing fact set, and repeats until no new fact is added. Recursion is fine, which is exactly what reachability needs. New facts go into <code>init_atoms</code> and the domain's <code>derived</code> list is cleared.</p><p>The <code>examples/reachability</code> domain shows it end to end: a map <code>camp -&gt; spring -&gt; ridge -&gt; cave</code> and a goal <code>(at cave)</code> solve as a single <code>TRAVEL CAMP CAVE</code> step (13 facts, 6 actions, 2 evaluated states in a real run), because <code>(reachable camp cave)</code> was derived into init.</p><p></p>",
       "files": [
        "crates/ferroplan/src/derived.rs:25",
        "crates/ferroplan/src/derived.rs:105"
@@ -1257,7 +1257,7 @@
       "label": "board runner"
      },
      {
-      "to":"sec-tooling-benchmarks",
+      "to": "sec-tooling-benchmarks",
       "label": "corpus"
      }
     ]
