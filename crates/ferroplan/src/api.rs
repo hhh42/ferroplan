@@ -634,6 +634,7 @@ pub fn solve(domain_src: &str, problem_src: &str, opts: &Options) -> Result<Solu
     } else {
         opts.threads
     };
+    let _asked = crate::parallel::asked(opts.threads);
 
     // FF_SAT_CLASSICAL (0.24 Phase 2): the classical/puzzle face of the
     // SAT wing on the auto router, as the smoke test it is — band
@@ -939,47 +940,99 @@ fn solve_optimal(
         }
     };
     let cf = crate::costs::metric_fluent(problem).and_then(|d| task.fluent_id(&d));
-    // THE PATTERN DATABASE (0.31 Lane C.1, `FF_OPT_PDB=1`, `crate::pdb`):
-    // the goal pattern over the mutex-group variables, built once here
-    // under a quarter of the remaining wall and a state cap
-    // (`FF_OPT_PDB_CAP`, 2^20), installed for every engine of the ladder
-    // below. A refusal is a note and nothing else -- the A* runs on
-    // LM-cut as before. Off by default until the proof boards price it.
+    // THE PATTERN DATABASES (0.31 Lane C.1, `crate::pdb`). `FF_OPT_PDB=1`:
+    // the goal pattern over the mutex-group variables, under a state cap
+    // (`FF_OPT_PDB_CAP`, 2^20). `FF_OPT_PDB=ipdb`: the iPDB collection
+    // under saturated cost partitioning, diversified orders max()ed
+    // (`FF_OPT_PDB_CAP` the per-pattern cap there, 2^16;
+    // `FF_OPT_PDB_TOTAL` the collection's, 2^22). Either is built once
+    // here under a quarter of the remaining wall and installed for every
+    // engine of the ladder below. A refusal is a note and nothing else --
+    // the A* runs on LM-cut as before. Off by default until the proof
+    // boards price it.
     let mut pdb_notes: Vec<String> = Vec::new();
-    let _pdb_guard = if std::env::var("FF_OPT_PDB").is_ok_and(|v| v.trim() == "1") {
-        let cap = std::env::var("FF_OPT_PDB_CAP")
-            .ok()
-            .and_then(|v| v.trim().parse::<usize>().ok())
-            .filter(|c| *c >= 2)
-            .unwrap_or(1 << 20);
+    let pdb_mode = std::env::var("FF_OPT_PDB")
+        .ok()
+        .map(|v| v.trim().to_ascii_lowercase())
+        .filter(|v| v == "1" || v == "ipdb");
+    let _pdb_guard = if let Some(mode) = pdb_mode {
+        let env_usize = |k: &str| {
+            std::env::var(k)
+                .ok()
+                .and_then(|v| v.trim().parse::<usize>().ok())
+                .filter(|c| *c >= 2)
+        };
+        let cap =
+            env_usize("FF_OPT_PDB_CAP").unwrap_or(if mode == "ipdb" { 1 << 16 } else { 1 << 20 });
         let vars = std::sync::Arc::new(crate::vars::Variables::from_task(domain, &task));
-        let pattern = crate::pdb::Pdb::goal_pattern(&vars, &task, cap);
         let limits = crate::pdb::Limits {
             max_states: cap,
             max_edges: cap.saturating_mul(32),
             deadline: crate::search::wall_remaining_secs()
                 .map(|rem| (crate::clock::Clock::now(), 0.25 * rem)),
         };
-        let built = crate::optimal::op_costs(&task, cf)
-            .map_err(|e| format!("costs: {e}"))
-            .and_then(|costs| {
-                crate::pdb::Pdb::build(&task, vars.clone(), pattern, &costs, &limits)
-            });
+        let costs = crate::optimal::op_costs(&task, cf).map_err(|e| format!("costs: {e}"));
+        let built: Result<(crate::pdb::Collection, String), String> = if mode == "ipdb" {
+            let cfg = crate::pdb::IpdbConfig {
+                pattern_cap: cap,
+                collection_cap: env_usize("FF_OPT_PDB_TOTAL").unwrap_or(1 << 22),
+                ..Default::default()
+            };
+            costs.and_then(|costs| {
+                crate::pdb::ipdb(&task, vars.clone(), &costs, &cfg, &limits).map(|(c, rc)| {
+                    let sizes: Vec<String> = rc
+                        .patterns
+                        .iter()
+                        .map(|p| p.len().to_string())
+                        .collect();
+                    let line = format!(
+                        "pdb: iPDB {} pattern(s) of {} variables ({} multi-valued), sizes [{}], {} step(s), {} candidate(s) built, {} refused, {} of {} SCP order(s) kept, {} abstract states, h(init) {}, built in {:.3}s, stopped: {}",
+                        rc.patterns.len(),
+                        vars.len(),
+                        vars.multi_valued(),
+                        sizes.join(","),
+                        rc.steps,
+                        rc.candidates_built,
+                        rc.candidates_refused,
+                        rc.orders_kept,
+                        rc.orders_tried,
+                        c.n_states(),
+                        rc.h_init,
+                        rc.secs,
+                        rc.stop
+                    );
+                    (c, line)
+                })
+            })
+        } else {
+            let pattern = crate::pdb::Pdb::goal_pattern(&vars, &task, cap);
+            costs
+                .and_then(|costs| {
+                    crate::pdb::Pdb::build(&task, vars.clone(), pattern, &costs, &limits)
+                })
+                .map(|p| {
+                    let line = format!(
+                        "pdb: {} of {} variables in the pattern ({} multi-valued), {} abstract states, {} edges, built in {:.3}s",
+                        p.pattern.len(),
+                        vars.len(),
+                        vars.multi_valued(),
+                        p.n_states,
+                        p.n_edges,
+                        p.build_secs
+                    );
+                    (
+                        crate::pdb::Collection::single(std::sync::Arc::new(p)),
+                        line,
+                    )
+                })
+        };
         match built {
-            Ok(p) => {
-                pdb_notes.push(format!(
-                    "pdb: {} of {} variables in the pattern ({} multi-valued), {} abstract states, {} edges, built in {:.3}s",
-                    p.pattern.len(),
-                    vars.len(),
-                    vars.multi_valued(),
-                    p.n_states,
-                    p.n_edges,
-                    p.build_secs
-                ));
+            Ok((c, line)) => {
+                pdb_notes.push(line);
                 if std::env::var("FF_WALL_DEBUG").is_ok() {
                     eprintln!("wall: {}", pdb_notes.last().unwrap());
                 }
-                Some(crate::pdb::install(Some(std::sync::Arc::new(p))))
+                Some(crate::pdb::install_collection(Some(std::sync::Arc::new(c))))
             }
             Err(why) => {
                 pdb_notes.push(format!("pdb: not built ({why})"));
@@ -1130,6 +1183,7 @@ pub fn decompose(
     } else {
         opts.threads
     };
+    let _asked = crate::parallel::asked(opts.threads);
 
     let mut notes = Vec::new();
     if !crate::temporal::is_temporal(&domain) {
@@ -1352,6 +1406,22 @@ fn solve_classic(
         }
     };
 
+    // THE RED-BLACK INSTANCE (0.31 Lane D, `redblack.rs`): built here,
+    // where the domain is in hand for the mutex-group cover, only under
+    // `FF_RB=1` (LAMA's h) or `FF_RUNG_ONLY=rb` (the rung), and installed
+    // on this thread for the ladder below; the guard clears it when the
+    // solve returns. Unset, nothing is built and no note is written.
+    let _rb_guard = if crate::redblack::requested() {
+        let rb = crate::redblack::RedBlack::from_task(domain, &task);
+        let line = rb.note(&task);
+        if std::env::var("FF_WALL_DEBUG").is_ok() {
+            eprintln!("wall: {line}");
+        }
+        notes.push(line);
+        Some(crate::redblack::install(Some(std::sync::Arc::new(rb))))
+    } else {
+        None
+    };
     // The classical orbit consumer (0.22 Phase 6): canonical visited
     // keys for the best-first dedup, the partition passdown, and the
     // B&B cost sweep. Constrained (monitor-compiled) tasks stay

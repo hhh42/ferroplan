@@ -1785,6 +1785,9 @@ pub enum Rung {
     Front,
     /// The 0.21 h-guided novelty rung (`FF_NOV_OLD`'s).
     Novelty,
+    /// Greedy best-first on the red-black h alone (0.31 Lane D,
+    /// `redblack.rs`); matrix-hatch only, never in the ladder.
+    Rb,
 }
 
 impl Rung {
@@ -1800,6 +1803,7 @@ impl Rung {
             "driverx" => Rung::DriverX,
             "front" => Rung::Front,
             "novelty" => Rung::Novelty,
+            "rb" | "redblack" | "red-black" => Rung::Rb,
             _ => return None,
         })
     }
@@ -1815,6 +1819,7 @@ impl Rung {
             Rung::DriverX => "novelty-driverx",
             Rung::Front => "novelty-front",
             Rung::Novelty => "novelty",
+            Rung::Rb => "red-black",
         }
     }
 }
@@ -1859,6 +1864,7 @@ pub(crate) fn run_rung(
             &crate::novelty::DriverCfg::front(),
         ),
         Rung::Novelty => crate::novelty::search(task, threads, cfg.max_eval, forbidden, None),
+        Rung::Rb => crate::redblack::run_rung(task, cfg.max_eval, forbidden, cfg.deadline),
     }
 }
 
@@ -1873,6 +1879,21 @@ pub fn plan(
     ehc_first: bool,
     orbit: Option<&crate::orbits::OrbitMap>,
 ) -> PlanOutcome {
+    // THE PARALLEL RUNG PORTFOLIO (0.31 Lane A′, `parallel.rs`): the default
+    // at two or more threads (`FF_PARALLEL_RUNGS=0` the hatch), on the plain
+    // auto ladder of a whole-task solve only -- never under `--search bfs`,
+    // never inside the matrix hatch, and never on `plan_avoiding`'s own
+    // callers: a forbidden mask (the metric optimizer's tightening) and
+    // every `Session` think, whose `max_evaluated` contract is identical
+    // plans at any thread count. Every other entry is the ladder,
+    // byte-identical.
+    if threads >= 2
+        && ehc_first
+        && crate::parallel::enabled()
+        && std::env::var("FF_RUNG_ONLY").is_err()
+    {
+        return crate::parallel::run(task, threads, cfg, orbit).outcome;
+    }
     plan_avoiding(task, threads, cfg, ehc_first, &[], orbit)
 }
 
@@ -1892,19 +1913,6 @@ pub fn plan_avoiding(
     forbidden: &[bool],
     orbit: Option<&crate::orbits::OrbitMap>,
 ) -> PlanOutcome {
-    // THE PARALLEL RUNG PORTFOLIO (0.31 Lane A′, `parallel.rs`): opt-in,
-    // at two or more threads, on the plain auto ladder only -- never under
-    // a forbidden mask (the metric optimizer's tightening, a Session's
-    // restricted ops), never under `--search bfs`, never inside the matrix
-    // hatch. Every other entry is the ladder below, byte-identical.
-    if threads >= 2
-        && ehc_first
-        && forbidden.is_empty()
-        && crate::parallel::enabled()
-        && std::env::var("FF_RUNG_ONLY").is_err()
-    {
-        return crate::parallel::run(task, threads, cfg, orbit).outcome;
-    }
     ladder(task, threads, cfg, ehc_first, forbidden, orbit)
 }
 
@@ -2107,7 +2115,7 @@ pub(crate) fn ladder(
                 Some(r) => return solo(r.name(), run_rung(task, threads, cfg, forbidden, r)),
                 None => eprintln!(
                     "FF_RUNG_ONLY={other}: not a rung (ehc, novlight, lama, lamanov, driver, \
-                     driverx, front, novelty, bfs, partition, portfolio); the ladder runs as usual"
+                     driverx, front, novelty, rb, bfs, partition, portfolio); the ladder runs as usual"
                 ),
             },
         }

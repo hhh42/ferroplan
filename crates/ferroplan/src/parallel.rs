@@ -7,8 +7,8 @@
 //! reachable only by running rungs SIDE BY SIDE — and beside the ladder,
 //! not instead of it (the ladder with LAMA-novelty beside it 712; with the
 //! refreshing driver as well 747; with EHC and bfs as well 753; see
-//! [`members`]). That is this module: at `--threads N ≥ 2`, under
-//! `FF_PARALLEL_RUNGS=1`, the ladder runs as worker 0 exactly as it would
+//! [`members`]). That is this module: at `--threads N ≥ 2` (by default
+//! since the mco read; `FF_PARALLEL_RUNGS=0` the hatch), the ladder runs as worker 0 exactly as it would
 //! alone (one h-eval thread, its own slices, its own hand-downs), and N−1
 //! of its rungs run beside it with the whole wall each; the first plan
 //! wins and the others are cancelled through the per-call budget's flag,
@@ -17,9 +17,12 @@
 //! THE CONTRACT IT BREAKS, by name: "byte-identical for any worker count"
 //! (`search.rs`, the module header). Which member wins is a race on wall
 //! time, so the plan can differ from run to run and from the one-thread
-//! ladder's. Opt-in until the mco subset sweep prices it (band +4 % of the
-//! mco cells, kill < +20 rows or any t2 board losing more than it gains);
-//! the notes on every solve say it ran and which member won.
+//! ladder's. Priced by the mco subset sweep (2026-11-04, roadmap Lane A′):
+//! +79 net over the six mco boards (100 gained, 21 lost), the kill clause
+//! (< +20, or a t2 board losing more than it gains) silent -- so it is the
+//! default at two threads and up, and `FF_PARALLEL_RUNGS=0` restores the
+//! batch-split ladder and its byte-identical contract. The notes on every
+//! solve say it ran and which member won.
 //!
 //! MEMORY: the workers share one process and one declared budget
 //! (`FF_MEM_BUDGET_GB`). A side rung's measured wall (`MemWall::arm_rung`)
@@ -35,9 +38,45 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
-/// Opt-in: `FF_PARALLEL_RUNGS=1`.
+/// On when the caller ASKED for two or more threads (`--threads N`,
+/// `Options::threads`; see [`asked`]) unless `FF_PARALLEL_RUNGS=0`;
+/// `FF_PARALLEL_RUNGS=1` arms it under auto threads too (the 0.31 opt-in,
+/// kept). The caller still gates on the resolved `threads ≥ 2`.
 pub fn enabled() -> bool {
-    std::env::var("FF_PARALLEL_RUNGS").is_ok_and(|v| v.trim() == "1")
+    match std::env::var("FF_PARALLEL_RUNGS")
+        .ok()
+        .as_deref()
+        .map(str::trim)
+    {
+        Some("0") => false,
+        Some("1") => true,
+        _ => ASKED.with(|a| a.get()),
+    }
+}
+
+thread_local! {
+    /// Did THIS solve's caller ask for its thread count, two or more? Auto
+    /// threads (`0`, the library's and the CLI's default) resolve to the
+    /// core count, and a default call keeps the batch-split ladder's
+    /// contract -- identical plans at any worker count -- so the portfolio
+    /// is what an explicit `--threads N` buys, which is what the mco boards
+    /// measured.
+    static ASKED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Restores the previous [`ASKED`] when dropped.
+pub(crate) struct AskedGuard(bool);
+
+impl Drop for AskedGuard {
+    fn drop(&mut self) {
+        ASKED.with(|a| a.set(self.0));
+    }
+}
+
+/// Record, for the solve about to run on this thread, whether the caller
+/// asked for `requested` threads (0 = auto).
+pub(crate) fn asked(requested: usize) -> AskedGuard {
+    AskedGuard(ASKED.with(|a| a.replace(requested >= 2)))
 }
 
 /// One worker of the portfolio.
@@ -123,13 +162,43 @@ pub fn run(
     orbit: Option<&crate::orbits::OrbitMap>,
 ) -> Report {
     let members = members(threads);
+    let parent = search::call_budget();
+    // The entry checkpoint the ladder alone has: a caller whose wall is
+    // already spent, or who already withdrew, gets a capped verdict before
+    // any worker is spawned. Without it a side rung could finish a small
+    // task before its first poll and hand a plan to a caller that gave the
+    // call nothing. Both walls: the per-call budget and the search's own
+    // `cfg.deadline` (the one a Session think arms -- its `wall_ms: 0` pin
+    // found the gap the day the portfolio became the default).
+    let spent = [parent.deadline, cfg.deadline]
+        .iter()
+        .flatten()
+        .any(|(t, s)| t.elapsed_secs() >= *s);
+    if spent || parent.cancelled() {
+        NOTE.with(|n| {
+            *n.borrow_mut() = Some(format!(
+                "parallel rungs: {} workers, none spawned -- the caller's budget was spent on entry",
+                members.len()
+            ))
+        });
+        return Report {
+            outcome: PlanOutcome {
+                ops: None,
+                evaluated: 0,
+                ehc_fell_back: true,
+                capped: true,
+            },
+            winner: None,
+            rung: None,
+            workers: 0,
+        };
+    }
     // The workers' should-continue flag, the polarity of `Options::
     // should_continue` (true = go on; `search::cancelled` reads a false as
     // the withdrawal): dropped to false once a member wins or the caller
     // withdraws. The parent's deadline travels to every worker with its
     // clock already running.
     let go = Arc::new(AtomicBool::new(true));
-    let parent = search::call_budget();
     let handed = search::take_ladder_base();
     let (tx, rx) = mpsc::channel::<(usize, PlanOutcome, Option<String>)>();
     let mut winner: Option<Member> = None;

@@ -42,6 +42,7 @@ pub fn run_planner(
         opts.threads
     }
     .max(1);
+    let _asked = crate::parallel::asked(opts.threads);
     let cfg =
         crate::search::SearchCfg::from_weights(opts.weight_g, opts.weight_h, opts.max_evaluated);
     let mut out = String::new();
@@ -715,6 +716,7 @@ pub fn run_ff(domain_src: &str, problem_src: &str, opts: &crate::Options) -> (St
         opts.threads
     }
     .max(1);
+    let _asked = crate::parallel::asked(opts.threads);
     let cfg =
         crate::search::SearchCfg::from_weights(opts.weight_g, opts.weight_h, opts.max_evaluated);
     let mut out = String::new();

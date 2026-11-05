@@ -67,6 +67,7 @@ pub mod par;
 pub mod parallel;
 pub mod parser;
 pub mod pdb;
+pub mod redblack;
 pub mod resource;
 pub mod search;
 pub mod types;

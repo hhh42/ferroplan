@@ -1,0 +1,48 @@
+subset FF_PARALLEL_RUNGS on 2f971642f7e0: 1680 cells reached; baseline b02061eded16 banked: 1680 cells
+cells on both sides: 1680
+
+board              cells  base  cand  gain  loss   net
+ipc2014-mco-t2       280   183   195   +14     2   +12
+ipc2014-mco-t4       280   185   210   +27     2   +25
+ipc2014-mco-t8       280   186   204   +23     5   +18
+ipc7-mco-t2          280   249   254   +10     5    +5
+ipc7-mco-t4          280   253   265   +15     3   +12
+ipc7-mco-t8          280   257   264   +11     4    +7
+total               1680  1313  1392  +100    21   +79
+
+both solved 1292: median time 2.60 s v 3.89 s; plan length sum 437439 v 404080 on 1292 cells with lengths (shorter 188, longer 447)
+
+LOST (21), the baseline's time and the candidate's rows / peak RSS:
+  ipc2014-mco-t2   child-snack-sequential-multi-core/7      base   9.55 s   cand rows 8 rss 3.96 GiB
+  ipc2014-mco-t2   openstacks-sequential-multi-core/14     base  60.00 s   cand rows 3 rss 0.42 GiB
+  ipc2014-mco-t4   child-snack-sequential-multi-core/6      base  57.23 s   cand rows 2 rss 4.42 GiB
+  ipc2014-mco-t4   child-snack-sequential-multi-core/7      base   9.35 s   cand rows 2 rss 4.85 GiB
+  ipc2014-mco-t8   child-snack-sequential-multi-core/6      base  56.30 s   cand rows 5 rss 4.82 GiB
+  ipc2014-mco-t8   openstacks-sequential-multi-core/12     base  54.12 s   cand rows 6 rss 1.92 GiB
+  ipc2014-mco-t8   openstacks-sequential-multi-core/13     base  55.97 s   cand rows 6 rss 1.90 GiB
+  ipc2014-mco-t8   openstacks-sequential-multi-core/14     base  59.99 s   cand rows 6 rss 3.45 GiB
+  ipc2014-mco-t8   parking-sequential-multi-core/17     base  57.96 s   cand rows 2 rss 2.33 GiB
+  ipc7-mco-t2      no-mystery-sequential-multi-core/15     base  55.05 s   cand rows 3 rss 2.59 GiB
+  ipc7-mco-t2      openstacks-sequential-multi-core/20     base  60.00 s   cand rows 2 rss 0.42 GiB
+  ipc7-mco-t2      transport-sequential-multi-core/7      base  59.81 s   cand rows 2 rss 0.39 GiB
+  ipc7-mco-t2      woodworking-sequential-multi-core/15     base  13.49 s   cand rows 2 rss 4.94 GiB
+  ipc7-mco-t2      woodworking-sequential-multi-core/16     base  10.62 s   cand rows 3 rss 5.49 GiB
+  ipc7-mco-t4      no-mystery-sequential-multi-core/16     base  57.18 s   cand rows 3 rss 2.62 GiB
+  ipc7-mco-t4      woodworking-sequential-multi-core/15     base  12.44 s   cand rows 2 rss 6.16 GiB
+  ipc7-mco-t4      woodworking-sequential-multi-core/16     base   9.30 s   cand rows 4 rss 5.15 GiB
+  ipc7-mco-t8      no-mystery-sequential-multi-core/16     base  55.03 s   cand rows 3 rss 5.26 GiB
+  ipc7-mco-t8      openstacks-sequential-multi-core/19     base  55.93 s   cand rows 3 rss 2.16 GiB
+  ipc7-mco-t8      openstacks-sequential-multi-core/20     base  59.96 s   cand rows 3 rss 2.30 GiB
+  ipc7-mco-t8      sokoban-sequential-multi-core/20     base   6.67 s   cand rows 3 rss 4.00 GiB
+
+GAINED (100), by variant:
+   55 transport-sequential-multi-core
+   22 parking-sequential-multi-core
+    6 no-mystery-sequential-multi-core
+    3 child-snack-sequential-multi-core
+    3 city-car-sequential-multi-core
+    3 floor-tile-sequential-multi-core
+    3 elevator-sequential-multi-core
+    3 sokoban-sequential-multi-core
+    1 tetris-sequential-multi-core
+    1 tidybot-sequential-multi-core

@@ -1506,7 +1506,7 @@ struct AstarState<'t> {
     /// max()ed with the propositional component -- a max of admissible
     /// bounds is admissible. Skipped under the goal-iso relaxation
     /// (`htask`): the table is built against the full goal.
-    pdb: Option<std::sync::Arc<crate::pdb::Pdb>>,
+    pdb: Option<std::sync::Arc<crate::pdb::Collection>>,
     per_node: usize,
     reserve_on: bool,
     // Primed lazily on the first run() call, AFTER its deadline check —

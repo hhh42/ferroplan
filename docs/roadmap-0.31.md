@@ -150,6 +150,26 @@ distribution** (seconds before the first A* expansion) on every opt cell.
    bytes per op — on folding i1–i5, caldera i3–i6, organic-synthesis
    i5–i8, storage-complex i19/i20. A lane only if the receipt names a fat
    field (the 0.28 residue suspected the `packing the ops` achiever index).
+   **Read 2026-11-04 (`probes-0.31/ground/ground-profile.log`, ff
+   `2f971642f7e0`, `FF_GROUND_DEBUG=1`, 60 s wall, one thread): the
+   receipt names a fat field, and a defect.** Of fifteen cells, six
+   finish grounding: caldera 3–6 at **0.58–1.01 MB resident per op**
+   (8,497–12,146 ops, 396–464 facts, 10,432–22,320 conditional-effect
+   rows, 6.7–8.6 GB resident) and folding 1 at 58 KB/op (35,801 ops on
+   1,405 facts) — against 6.4 KB/op on organic-synthesis 7, the one
+   cheap cell. An op over ~450 facts is a few hundred bytes of
+   pre/add/del rows; a megabyte per op is something the grounder builds
+   and keeps per op, and caldera's per-op conditional-effect rows are the
+   suspect (two to three per op, each its own `CondEff` with its own
+   vectors). "Resident" is process RSS after grounding, so allocator
+   slack is in it — the next receipt is a heap profile of caldera 3, not
+   a code change. **The defect:** the grounder does not poll the armed
+   wall — folding 5, organic-synthesis 6 and storage-complex 19 / 20 ran
+   220 s, 1,362 s, 400 s and 444 s under `FF_TIME_LIMIT=60` (the probe's
+   `alarm` killed `time`, not `ff`). The crucible's referee kills such a
+   row at its wall, so no banked row changes; a library caller's wall is
+   not honoured during grounding. Both go to 0.32 with this receipt; the
+   grounding class stays a probe this cycle.
 
 ---
 
@@ -260,6 +280,50 @@ What this closes and what it opens:
   "no member solved in 0.00 s" is the receipt, and the reason the fixture
   exists. Measure next: the six mco boards through the crucible with
   `--env FF_PARALLEL_RUNGS=1`, compared against the banked 0.30.0 rows.
+  **The mco read, 2026-11-04 17:51 (`par31-mco`, engine `2f971642f7e0`,
+  the Lane B ladder; 1,680 banked in fourteen passes over two sittings —
+  the first stopped at 125 owed on 11-02, resumed 11-04 after the repo
+  moved to `/Volumes/Data/Projects`; `par/par-mco-read.txt`): +79 net —
+  100 gained, 21 lost; the band (+40–80) met at its top, the kill clause
+  silent (t2 boards +12 / +5).**
+
+  | board | cells | 0.30.0 | portfolio | gain | loss | net |
+  |---|---:|---:|---:|---:|---:|---:|
+  | ipc2014-mco-t2 | 280 | 183 | 195 | 14 | 2 | +12 |
+  | ipc2014-mco-t4 | 280 | 185 | 210 | 27 | 2 | **+25** |
+  | ipc2014-mco-t8 | 280 | 186 | 204 | 23 | 5 | +18 |
+  | ipc7-mco-t2 | 280 | 249 | 254 | 10 | 5 | +5 |
+  | ipc7-mco-t4 | 280 | 253 | 265 | 15 | 3 | +12 |
+  | ipc7-mco-t8 | 280 | 257 | 264 | 11 | 4 | +7 |
+
+  Gains: transport 55, parking 22, no-mystery 6, three each on
+  child-snack, city-car, floor-tile, elevator, sokoban. Losses: the
+  memory shape — woodworking 15/16 on both ipc7 t2/t4 (4.9–6.2 GiB:
+  workers grinding side by side sum what one did alone), child-snack 6/7
+  (4.0–4.9 GiB), sokoban 20 t8 (4.0 GiB) — and the budget edge
+  (openstacks 12/13/14/19/20, no-mystery 15/16, transport 7, parking 17 at
+  54–60 s on the baseline). **Two prices the record names:** plans are
+  longer (length sums 437,439 against 404,080 on the 1,292 both solve,
+  447 longer / 188 shorter — the first plan wins, and the first is often
+  a driver's), and the median on those cells is 3.89 s against 2.60 s
+  (the workers share the cores and the memory bandwidth the ladder had
+  alone). **Attribution:** the arm is the Lane B ladder plus the
+  portfolio against 0.30.0 — the two are not separated on these boards;
+  the cut31 sweep reads the shipped default on them. **Verdict: on by
+  default at `--threads ≥ 2`** (`FF_PARALLEL_RUNGS=0` the hatch,
+  restoring the batch-split ladder and its byte-identical-for-any-worker-
+  count contract); one thread untouched. **Scoped on the suite's first
+  run the same evening:** "asked for" means asked — an explicit
+  `--threads N` / `Options::threads ≥ 2`; AUTO threads (`0`, the library's
+  and the CLI's default, resolved to the core count) keep the ladder, so
+  a default call stays deterministic (`tests/endgate.rs`'s byte-identity
+  pin caught the eval count moving 106 → 109 under the first flip); and
+  the gate sits in `search::plan`, so a `Session` think — whose
+  `max_evaluated` is documented as identical plans at any thread count —
+  never runs it (a `wall_ms: 0` think came back SOLVED under the first
+  flip: a side rung finished the task before its first poll; the
+  portfolio now also refuses a spent wall on entry). `FF_PARALLEL_RUNGS=1`
+  still arms it under auto threads. Pinned in `tests/parallel_default.rs`.
 - **A probe, not a lane — run 2026-10-31, negative:** instance-level
   rung prediction (`benchmarks/rung-predictor.py`, output
   `probes-0.31/matrix/predictor.txt`, the feature table `features.csv`).
@@ -395,9 +459,17 @@ What this closes and what it opens:
   shape the matrix predicted (lamanov 98 v 9 head to head, driverx 112 v
   28), and the portfolio's reason to seat plain LAMA (it does) and, on
   this receipt, the plain driver too (it does not — seat it last; a
-  matrix-order question for the mco read, not a change now). Still owed:
-  ipc2023-sat's five (ricochet 6/9/10, slitherlink 10, recharging 3) —
-  the same four arms, after the mco sweep.
+  matrix-order question for the mco read, not a change now).
+  **ipc2023-sat's five, 2026-11-04 (`laneb/solo-receipt-2023.log`, same
+  four arms): the same shape, one owner each.** Novelty-first LAMA owns
+  ricochet-robots 6 / 9 / 10 (plain LAMA 56 / 32 / 32 s, 0.2 GiB; the
+  novelty form reaches the wall at 0.4 GiB); the refreshing driver owns
+  slitherlink 10 (plain driver 20 s) and recharging-robots 3 (plain
+  driver at 60.1 s — a budget-edge coin). The hatches flip all five back.
+  So the 22 lost cells of the ladder read are, by owner: novelty-first
+  LAMA 6, the refreshing driver 7, the budget edge 8, the packed box 1;
+  none is memory. Not a change to the defaults: 76 against 22 is the
+  read, and the portfolio seats plain LAMA beside them at two threads.
 
 ---
 
@@ -587,6 +659,28 @@ action costs honoured, a `when`-only route kept finite. Not built yet:
 iPDB hill-climbing, the collection, saturated cost partitioning — judged
 after the receipt over the seven opt boards says what the goal pattern
 alone buys and costs.
+**The collection BUILT 2026-11-04 (`FF_OPT_PDB=ipdb`, fixtures green):**
+iPDB hill-climbing from one singleton a goal variable (candidates P ∪ {v}
+over causal-graph predecessors, scored alone under the full costs on 200
+random-walk samples, the best extension per pattern cached until that
+pattern changes, a step only on ≥ 2 improved samples; caps 2^16 a
+pattern, 2^22 the collection, a quarter of the wall), then saturated cost
+partitioning over the climbed patterns in up to four orders (the climb's,
+its reverse, two shuffles), an order kept only when it raises the
+running max on a sample, the kept orders max()ed with LM-cut. On the
+way, the projection's two latent faults fixed: it read `cond` where the
+shared monitor block also applies (`cond_effs`), and its edges carried
+f32 costs (now the op, costed in f64 — SCP's leftovers are fractions).
+Fixtures (`tests/pdb.rs`): the collection admissible on every reachable
+ring state; SCP over two independent walkers exactly 3 + 2 with every
+saturated cost under its cost; the certificate unchanged installed.
+Solo on 2008 seq-opt, 60 s: elevator 12 proven 0.36 s against 1.49 s
+(68k evals against 321k), sokoban 15 29 s against 48 s, transport 8
+unproven both; builds 0.03–0.26 s. The patterns stay small (sizes 1–3)
+because the cover is thin there (15 of 105 variables multi-valued on
+transport 8) — the cover, not the climb, is the next lever if the
+board read asks. **Measured next:** `opt/run-opt-ipdb.sh` on the four
+classical proof boards against the banked 0.30.0 rows.
 
 **C.2 — symbolic bidirectional blind search.** Independent of any
 heuristic; the strongest single technique on a different set of domains
@@ -658,6 +752,23 @@ one thread). Fixtures: the five charge-lost cells (`tests/
 consume_transfer.rs` is already the shape, `#[ignore]`d); a red-black plan
 on a two-variable task that the relaxed plan gets wrong by construction.
 Opens after C.0; closes before the cut if C.1 is still building.
+**BUILT 2026-11-04 (`redblack.rs`, fixtures green; `FF_RB=1` swaps
+LAMA's h^FF for it, `FF_RUNG_ONLY=rb` a greedy rung over it alone).**
+The black set: multi-valued variables no conditional effect touches,
+RSE-invertible on the arcs reachable from the initial value, painted by
+prevail count (the truck every load reads) then domain size, a candidate
+dropped if it closes a cycle in the black causal graph, capped at
+`FF_RB_MAX_BLACK` (8); repair in reverse topological order so a later
+path never undoes an earlier one; a path not found falls back to h^FF
+and is counted. Weaker than the paper on purpose for the first read: a
+path's outside conditions are read against the red facts at the start of
+the repair, and numeric fluents are never black — so the charge's five
+cells are not this build's to win, and the matrix reads what the
+propositional painting buys. Fixtures (`tests/redblack.rs`): the
+shuttle's drive back counted (h_rb 4 = the optimum, h^FF 3); every black
+variable invertible, the black graph acyclic; the rung solves and names
+itself. **Measured next:** `matrix/run-matrix-rb.sh`, unique solves
+against the eight rungs and evals/s against h^FF.
 
 ---
 

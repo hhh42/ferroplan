@@ -155,6 +155,14 @@ fn search_subgoal_inner(
     novelty: bool,
 ) -> Option<(Vec<usize>, usize)> {
     let lms = crate::landmarks::landmarks_for(task, start, goal_pos);
+    // THE RED-BLACK h (0.31 Lane D, `FF_RB=1`, `redblack.rs`): when the
+    // solve installed an instance with a non-empty black set, this rung's
+    // FF term is the repaired relaxed plan's length instead of h^FF's; the
+    // helpful set (the preferred heap) stays h^FF's, as in Mercury. Read
+    // here, on the calling thread -- the instance is thread-local and the
+    // evaluation below runs on workers. Uninstalled, `None`, and the
+    // rung is byte-identical.
+    let rb = crate::redblack::current().filter(|r| !r.black.is_empty());
     // NOVELTY FIRST (0.31 Lane B): the atom tables per ⟨lm, parent-h⟩ cell
     // (width 1 over every fact), the pair tables over the driver's R list
     // (width 2, `novelty::PairTables`), and forgetting on progress unless
@@ -388,7 +396,10 @@ fn search_subgoal_inner(
             || Scratch::new(task),
             |sc, &ni| {
                 let s = &nodes[ni].state;
-                relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num)
+                match rb.as_deref() {
+                    Some(rb) => rb.h(task, sc, s, goal_pos, goal_num),
+                    None => relaxed_helpful(task, sc, &s.bits, &s.fv, &s.fdef, goal_pos, goal_num),
+                }
             },
         );
         evaluated += popped.len();

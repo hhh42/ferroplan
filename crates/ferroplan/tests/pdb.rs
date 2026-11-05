@@ -10,12 +10,19 @@
 //! on a two-counter task with action costs. (3) CONDITIONAL EFFECTS on
 //! the pattern are nondeterministic, not dropped: a task whose only route
 //! to the goal is a `when` effect still gets a finite, admissible bound.
+//!
+//! And the collection (`FF_OPT_PDB=ipdb`): (4) the iPDB collection under
+//! saturated cost partitioning is admissible on the ring, every state;
+//! (5) SCP over two INDEPENDENT patterns sums to the exact distance --
+//! the cost partitioning loses nothing where no op touches both -- and
+//! the saturated costs never exceed the costs; (6) the certificate is
+//! unchanged with the collection installed.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
 use ferroplan::packed::{PackedTask, State};
-use ferroplan::pdb::{self, Limits, Pdb};
+use ferroplan::pdb::{self, IpdbConfig, Limits, Pdb};
 use ferroplan::vars::Variables;
 
 fn ground(dom: &str, prb: &str) -> (ferroplan::types::Domain, PackedTask) {
@@ -215,4 +222,98 @@ fn a_conditional_effect_on_the_pattern_keeps_the_bound_finite() {
     let pdb = Pdb::build(&t, vars, pattern, &vec![1.0; t.n_ops], &Limits::default()).unwrap();
     let h = pdb.h(&t.initial().bits);
     assert!(h.is_finite() && h <= 2.0, "h {h}");
+}
+
+#[test]
+fn the_ipdb_collection_is_admissible_on_the_ring() {
+    let (dom, prb) = ring(6, 3);
+    let (d, t) = ground(&dom, &prb);
+    let vars = Arc::new(Variables::from_task(&d, &t));
+    let costs = vec![1.0; t.n_ops];
+    let (coll, rc) =
+        pdb::ipdb(&t, vars, &costs, &IpdbConfig::default(), &Limits::default()).unwrap();
+    assert!(!rc.patterns.is_empty());
+    assert!(rc.orders_kept >= 1);
+    let all = exact_distances(&t);
+    let mut informative = 0;
+    for (s, exact) in &all {
+        let h = coll.h(&s.bits);
+        assert!(h <= *exact + 1e-9, "h {h} over the exact {exact}");
+        if *exact == 0.0 {
+            assert_eq!(h, 0.0);
+        }
+        if h > 0.0 {
+            informative += 1;
+        }
+    }
+    assert!(informative > 0, "the collection never said anything");
+}
+
+#[test]
+fn scp_over_independent_patterns_is_exact() {
+    // Two walkers on two separate lines, no op touching both: two
+    // variables, each its own pattern. Under SCP the first database takes
+    // only its own walker's ops; the second gets its walker's at full
+    // cost; the sum is the true distance, 3 + 2.
+    let (d, t) = ground(
+        "(define (domain twolines) (:predicates (at ?w ?l) (next ?w ?a ?b))
+           (:action s :parameters (?w ?a ?b)
+             :precondition (and (at ?w ?a) (next ?w ?a ?b))
+             :effect (and (at ?w ?b) (not (at ?w ?a)))))",
+        "(define (problem tl) (:domain twolines) (:objects w1 w2 a0 a1 a2 a3 b0 b1 b2)
+           (:init (at w1 a0) (next w1 a0 a1) (next w1 a1 a2) (next w1 a2 a3)
+                  (at w2 b0) (next w2 b0 b1) (next w2 b1 b2))
+           (:goal (and (at w1 a3) (at w2 b2))))",
+    );
+    let vars = Arc::new(Variables::from_task(&d, &t));
+    let gv: Vec<u32> = {
+        let mut g: Vec<u32> = t
+            .goal_pos
+            .iter()
+            .map(|&f| vars.fact_var[f as usize])
+            .collect();
+        g.sort_unstable();
+        g.dedup();
+        g
+    };
+    assert_eq!(gv.len(), 2, "one variable per walker: {:?}", vars.vars);
+    let costs = vec![1.0; t.n_ops];
+    let patterns = vec![vec![gv[0]], vec![gv[1]]];
+    let (built, refused) = pdb::scp_order(&t, &vars, &patterns, &costs, &Limits::default());
+    assert!(refused.is_empty(), "{refused:?}");
+    assert_eq!(built.len(), 2);
+    for p in &built {
+        for (o, (&sat, &c)) in p.saturated.iter().zip(&costs).enumerate() {
+            assert!(sat <= c + 1e-9, "op {o}: saturated {sat} over its cost {c}");
+        }
+    }
+    let s0 = t.initial();
+    let sum: f64 = built.iter().map(|p| p.h(&s0.bits)).sum();
+    assert_eq!(sum, 5.0);
+    let coll = pdb::Collection {
+        orders: vec![built],
+    };
+    assert_eq!(coll.h(&s0.bits), 5.0);
+}
+
+#[test]
+fn the_certificate_is_unchanged_with_the_collection_installed() {
+    let (dom, prb) = ring(6, 3);
+    let (d, t) = ground(&dom, &prb);
+    let plain = ferroplan::optimal::solve(&t, None, 1 << 20, None);
+    assert!(plain.proven);
+    let vars = Arc::new(Variables::from_task(&d, &t));
+    let (coll, _) = pdb::ipdb(
+        &t,
+        vars,
+        &vec![1.0; t.n_ops],
+        &IpdbConfig::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    let _g = pdb::install_collection(Some(Arc::new(coll)));
+    let with = ferroplan::optimal::solve(&t, None, 1 << 20, None);
+    assert!(with.proven);
+    assert_eq!(with.cost, plain.cost);
+    assert!(with.heuristic.ends_with("+PDB"), "{}", with.heuristic);
 }

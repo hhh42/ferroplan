@@ -14,8 +14,8 @@ Re-opened here (banked = 0, verdict = 'recheck'), so the next
 Nothing is decided here; the sweep decides, and a row that reads the same
 again under a clean canary is what it is and says so.
 
-    python3 benchmarks/recheck31.py --repo /Users/harold/ferroplan            # report only
-    python3 benchmarks/recheck31.py --repo /Users/harold/ferroplan --reopen   # write the re-open
+    python3 benchmarks/recheck31.py --repo /Volumes/Data/Projects/ferroplan            # report only
+    python3 benchmarks/recheck31.py --repo /Volumes/Data/Projects/ferroplan --reopen   # write the re-open
 """
 import json, os, re, sqlite3, sys, collections
 

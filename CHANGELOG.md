@@ -6,6 +6,33 @@ All notable changes to this project are documented here.
 
 ### Changed
 
+- **`--threads N ≥ 2` runs the ladder's rungs side by side** (0.31
+  Lane A′, `parallel.rs`): the ladder as one worker exactly as it runs
+  alone, and N−1 of its rungs beside it with the whole wall each —
+  novelty-first LAMA, the driver with R refresh and forgetting, EHC,
+  best-first, novelty-light, the front end, plain LAMA, in the order of
+  their marginal cover on the Phase 0.5 matrix (the ladder 662 of 936
+  cells; with novelty-first LAMA beside it 712, plus the refreshing
+  driver 747, plus EHC 750; the eight rungs' oracle 759). The first plan
+  wins and the rest are cancelled through the per-call budget's flag.
+  Measured on the six mco boards' 1,680 cells against the banked 0.30.0
+  rows (`probes-0.31/par/par-mco-read.txt`): **+79 net** (100 gained, 21
+  lost; ipc2014-mco t2 / t4 / t8 +12 / +25 / +18, ipc7-mco +5 / +12 / +7),
+  led by transport 55 and parking 22; the arm is the Lane B ladder plus
+  the portfolio, so the two are not separated there. Its prices: plans
+  are longer (length sums +8 % on the cells both solve — the first plan
+  wins, often a driver's) and the median solve slower (3.9 s against
+  2.6 s), and the losses are workers grinding side by side past the
+  memory one did alone (woodworking 15/16, child-snack 6/7, 4–6 GiB) or
+  the budget edge. Timing-dependent by construction, so it is scoped to
+  what was measured: only an EXPLICIT thread count of two or more
+  (`--threads N`, `Options::threads`) arms it — auto threads (`0`, the
+  library's and the CLI's default) keep the batch-split ladder and its
+  identical-plans-at-any-worker-count contract, as does every `Session`
+  think. A spent wall is refused on entry. `FF_PARALLEL_RUNGS=0` is the
+  hatch; `FF_PARALLEL_RUNGS=1` arms it under auto threads. The notes say
+  it ran and which member won.
+
 - **The ladder runs BFWS the winners' way by default** (0.31 Lane B): its
   LAMA slot is novelty-first LAMA — BFWS(f6)'s key, novelty relative to
   the ⟨landmark count, parent-h⟩ partition ahead of the weighted
@@ -31,22 +58,32 @@ All notable changes to this project are documented here.
 
 ### Added
 
-- **A parallel rung portfolio, opt-in** (`FF_PARALLEL_RUNGS=1` at
-  `--threads N ≥ 2`; 0.31 Lane A′, `parallel.rs`): the ladder runs as one
-  worker exactly as it would alone, and N−1 of its rungs run beside it with
-  the whole wall each — novelty-first LAMA, the driver with R refresh and
-  forgetting, EHC, best-first, novelty-light, the front end, plain LAMA:
-  the order of their marginal cover on the Phase 0.5 matrix with Lane B's
-  rungs in the pool (the ladder 662 of 936 cells; with novelty-first LAMA
-  beside it 712, plus the refreshing driver 747, plus EHC 750, plus
-  best-first 753; the eight rungs' oracle 759). The first plan wins and
-  the others are cancelled through the per-call budget's should-continue
-  flag, which every rung polls at its batch boundary (novelty-light now
-  too). Timing-dependent by construction — the one contract it breaks,
-  "byte-identical for any worker count", is named in the module header —
-  so it is opt-in and unmeasured until the mco subset sweep; the notes say
-  it ran and which member won. The matrix hatch's solo rungs are one
-  `search::Rung` enum now, shared by the hatch and the workers.
+- **Pattern databases under saturated cost partitioning, opt-in**
+  (`FF_OPT_PDB=ipdb`; 0.31 Lane C.1, `pdb.rs`): iPDB hill-climbing (Haslum
+  et al. 2007) from one singleton pattern per goal variable over the
+  mutex-group variable cover, each step growing the pattern whose
+  extension raises h on the most sampled states; the patterns combined
+  by saturated cost partitioning (Seipp & Helmert 2018) in several orders,
+  kept only when an order raises the max on a sample (Seipp, Keller &
+  Helmert 2020), max()ed with LM-cut in the optimal A*. `FF_OPT_PDB=1`
+  keeps the single goal pattern. The build is bounded by a per-pattern
+  cap (`FF_OPT_PDB_CAP`, 2^16), a collection cap (`FF_OPT_PDB_TOTAL`,
+  2^22) and a quarter of the remaining wall, and the notes carry its
+  receipt. Two fixes to the projection on the way: it now sees the shared
+  monitor block's conditional effects (`cond_effs`, not `cond`), and its
+  edges carry the op, costed exactly in f64. Solo: elevator-opt 12 proven
+  in 0.36 s against 1.49 s, sokoban-opt 15 in 29 s against 48 s, builds
+  under 0.3 s; the proof boards' sweep decides the default.
+- **A red-black heuristic, opt-in** (`FF_RB=1` in LAMA's evaluation,
+  `FF_RUNG_ONLY=rb` as a greedy rung; 0.31 Lane D, `redblack.rs`): h^FF's
+  relaxed plan repaired in layer order with real semantics for a
+  "black" set of invertible variables whose causal graph is acyclic —
+  every unmet black precondition and goal gets the shortest path in its
+  domain transition graph (Katz, Hoffmann & Domshlak 2013; Domshlak,
+  Hoffmann & Katz 2015; Mercury, IPC 2014). Painting by prevail count,
+  capped at `FF_RB_MAX_BLACK` (8); numeric fluents are never black, so
+  the consumption charge stays where it is. Judged on the matrix sample
+  by unique solves and evals/s.
 - **Restarting weighted A* over the compiled preference task, opt-in**
   (`FF_PREF_RWA=1`, or a schedule `FF_PREF_RWA=5,3,2,1.5,1`; 0.31 Lane E's
   probe, `pddl3.rs`): the branch-and-bound's default sweep returns on its

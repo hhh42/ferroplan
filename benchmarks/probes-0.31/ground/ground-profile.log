@@ -1,0 +1,16 @@
+ff /Volumes/Data/Projects/ferroplan-0.31/target/release/ff (Sun Nov  1 21:03:21 2026), wall 60 s, one thread
+folding-satisficing/1     60.0s peak  2.17 GiB  ground: 35801 ops, 1405 facts, 0 conditional-effect rows, resident 2098216960 bytes, 58607 bytes/op
+folding-satisficing/2     61.9s peak  3.75 GiB  (no ground line: the grounder did not finish)
+folding-satisficing/3     65.2s peak  8.27 GiB  (no ground line: the grounder did not finish)
+folding-satisficing/4     77.7s peak  8.78 GiB  (no ground line: the grounder did not finish)
+folding-satisficing/5    219.9s peak   nan GiB  (no ground line: the grounder did not finish)
+caldera-sequential-satisficing/3     42.4s peak  8.40 GiB  ground: 8497 ops, 438 facts, 10432 conditional-effect rows, resident 8623882240 bytes, 1014932 bytes/op
+caldera-sequential-satisficing/4     39.9s peak  8.49 GiB  ground: 11377 ops, 464 facts, 10432 conditional-effect rows, resident 6689882112 bytes, 588018 bytes/op
+caldera-sequential-satisficing/5     52.4s peak  6.57 GiB  ground: 12146 ops, 406 facts, 22320 conditional-effect rows, resident 7051378688 bytes, 580551 bytes/op
+caldera-sequential-satisficing/6     51.5s peak  7.83 GiB  ground: 12146 ops, 396 facts, 21660 conditional-effect rows, resident 8399912960 bytes, 691578 bytes/op
+organic-synthesis-sequential-satisficing/5     68.6s peak  7.63 GiB  (no ground line: the grounder did not finish)
+organic-synthesis-sequential-satisficing/6   1362.5s peak   nan GiB  (no ground line: the grounder did not finish)
+organic-synthesis-sequential-satisficing/7      0.2s peak  0.10 GiB  ground: 16848 ops, 174 facts, 0 conditional-effect rows, resident 108003328 bytes, 6410 bytes/op
+organic-synthesis-sequential-satisficing/8     60.3s peak  3.56 GiB  (no ground line: the grounder did not finish)
+storage-preferences-complex/19   399.6s peak   nan GiB  (no ground line: the grounder did not finish)
+storage-preferences-complex/20   443.8s peak   nan GiB  (no ground line: the grounder did not finish)

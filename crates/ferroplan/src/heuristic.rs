@@ -1380,6 +1380,32 @@ pub fn extraction_need_facts(sc: &Scratch) -> Vec<(u32, u32)> {
         .collect()
 }
 
+/// The relaxed plan in LAYER ORDER (0.31 Lane D, `redblack.rs`): every op
+/// the last extraction SELECTED, sorted by its RPG op layer, ties by op
+/// id — a sequence that is executable under the delete relaxation from
+/// the evaluated state (an op's preconditions all sit at lower fact
+/// layers, so their selected achievers sit at lower op layers). The
+/// red-black repair walks exactly this. Valid immediately after a
+/// `relaxed_to`/`relaxed_helpful` call on the SAME state (the
+/// `extraction_need_facts` contract); a selected op is always stamped
+/// this generation (`achiever` and the numeric achievers require it), so
+/// its layer is live. Read-only.
+pub fn selected_in_layer_order(task: &PackedTask, sc: &Scratch) -> Vec<u32> {
+    let mut ops: Vec<(u32, u32)> = (0..task.n_ops)
+        .filter(|&oi| sc.selected[oi] == sc.gen)
+        .map(|oi| {
+            let layer = if sc.op_stamp[oi] == sc.gen {
+                sc.op_layer[oi]
+            } else {
+                INF
+            };
+            (layer, oi as u32)
+        })
+        .collect();
+    ops.sort_unstable();
+    ops.into_iter().map(|(_, oi)| oi).collect()
+}
+
 // ARCHAEOLOGY (0.23 Phase 1): `extraction_selected_pre_num` — the
 // FF_NOV_NUMFEAT rider's read-out (0.22 Phase 5B lever 4) — lived here
 // and left with the rider: the flag was opt-in, no sweep ever armed it,

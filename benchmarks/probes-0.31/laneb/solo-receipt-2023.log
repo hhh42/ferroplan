@@ -1,0 +1,27 @@
+ff /Volumes/Data/Projects/ferroplan-0.31/target/release/ff (Sun Nov  1 21:03:21 2026), wall 60 s, one thread
+cell                                     arm           solved   secs   GiB  len  rung
+ricochet-robots-satisficing/6            default        False   59.4  0.38    -  
+ricochet-robots-satisficing/6            lamanov-off     True   56.3  0.25  181  LAMA
+ricochet-robots-satisficing/6            driver-plain   False   59.4  0.39    -  
+ricochet-robots-satisficing/6            all-off         True   55.9  0.25  181  LAMA
+
+ricochet-robots-satisficing/9            default        False   59.4  0.37    -  
+ricochet-robots-satisficing/9            lamanov-off     True   32.1  0.18  150  LAMA
+ricochet-robots-satisficing/9            driver-plain   False   59.4  0.34    -  
+ricochet-robots-satisficing/9            all-off         True   34.3  0.18  150  LAMA
+
+ricochet-robots-satisficing/10           default        False   59.4  0.37    -  
+ricochet-robots-satisficing/10           lamanov-off     True   32.4  0.18  150  LAMA
+ricochet-robots-satisficing/10           driver-plain   False   59.4  0.37    -  
+ricochet-robots-satisficing/10           all-off         True   33.9  0.18  150  LAMA
+
+slitherlink-satisficing/10               default        False   59.8  0.54    -  
+slitherlink-satisficing/10               lamanov-off    False   59.9  0.54    -  
+slitherlink-satisficing/10               driver-plain    True   20.1  0.10   56  novelty-driver
+slitherlink-satisficing/10               all-off         True   19.8  0.12   56  novelty-driver
+
+recharging-robots-satisficing/3          default        False   60.0  0.66    -  
+recharging-robots-satisficing/3          lamanov-off    False   60.0  0.66    -  
+recharging-robots-satisficing/3          driver-plain    True   60.1  0.66   23  novelty-driver
+recharging-robots-satisficing/3          all-off         True   60.1  0.66   23  novelty-driver
+
