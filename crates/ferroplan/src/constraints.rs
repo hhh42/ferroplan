@@ -12,7 +12,7 @@
 //! `(preference name <acceptance>)`, priced by the PDDL3 metric machinery
 //! like any native goal preference. Anything this build cannot enforce
 //! (`hold-during` / `hold-after`; timed operators on a clockless CLASSICAL
-//! domain; a soft constraint on a temporal domain) keeps a rejection that
+//! domain) keeps a rejection that
 //! NAMES the operator — the "never silently ignore" contract is narrowed,
 //! never deleted.
 //!
@@ -1007,9 +1007,8 @@ pub(crate) fn strip_end(task: &crate::packed::PackedTask, ops: &mut Vec<usize>) 
 /// (0.23 Phase 2 — see [`crate::temporal`]'s solve path). `Err(msg)` = a
 /// NAMED rejection — `hold-during` / `hold-after` (both paths; grepped
 /// absent from the whole 2006 corpus), `within` / `always-within` on a
-/// CLASSICAL domain (no clock to read — zero 2006 rows live there), a soft
-/// `(preference ...)` constraint on a durative domain (the 0.25
-/// complex-preferences entry), or the `FF_CONSTRAINTS_REJECT=1` hatch,
+/// CLASSICAL domain (no clock to read — zero 2006 rows live there), or the
+/// `FF_CONSTRAINTS_REJECT=1` hatch,
 /// which restores the 0.4.1 blanket rejection byte-for-byte (it restores
 /// *rejection*, never ignoring).
 pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Problem)>, String> {
@@ -1022,8 +1021,9 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
     }
     if crate::temporal::is_temporal(domain) {
         // 0.23 Phase 2: the untimed operators are enforced on the temporal
-        // path too. The gate VETS (reserved names, no timed operators, no
-        // soft constraints) and passes the pair through unchanged — the
+        // path too (timed operators since 0.24, soft constraints since
+        // 0.25). The gate VETS (reserved names, expansion) and passes the
+        // pair through unchanged — the
         // compile has to ride the snap-compiled classical task, which does
         // not exist yet at this altitude.
         vet_temporal(domain, problem)?;
@@ -1036,10 +1036,9 @@ pub fn gate(domain: &Domain, problem: &Problem) -> Result<Option<(Domain, Proble
 /// monitor compile (0.23 Phase 2; timed operators since 0.24 Phase 4):
 /// reserved-name fences (including the durative action list, which
 /// [`reject_reserved_names`] cannot see), expansion (which rejects
-/// `hold-during` / `hold-after` BY NAME and accepts the rest), and the soft
-/// fence — `(preference ...)`-wrapped constraints, timed bodies included,
-/// need the PDDL3 metric machinery on the temporal path (the
-/// complex-preferences unlock, 0.25's entry) and are still rejected.
+/// `hold-during` / `hold-after` BY NAME and accepts the rest). Soft
+/// (`preference`-wrapped) constraints pass since 0.25 Phase 2; see the
+/// comment at the end of the body.
 fn vet_temporal(domain: &Domain, problem: &Problem) -> Result<(), String> {
     reject_reserved_names(domain, problem)?;
     if domain.durative_actions.iter().any(|a| a.name == END_ACTION) {

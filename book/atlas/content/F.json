@@ -1,0 +1,1646 @@
+[
+ {
+  "id": "sec-tooling",
+  "title": "Proving it: measurement & release",
+  "kind": "section",
+  "summary": "How ferroplan's numbers are produced and defended: the crucible sweep harness, benchmark tooling and standings, the per-cycle roadmap discipline, the release process, CI and the docs site, and the papers library.",
+  "body": "<p>Everything ferroplan claims about itself (66 % coverage across 32 IPC boards, 5,568/8,444, 694 certified optima at 0.30.0) comes out of one pipeline. A release cycle is planned in <code>docs/roadmap-0.N.md</code> with pre-registered measures. Lanes are measured as crucible subsets on the fanless M5 Air. The cut is a full 32-board crucible sweep, judged row by row by the referee. Results are promoted and rendered by <code>standings.py</code> with crucible checking parity, then shipped by <code>publish.sh</code> after the RELEASING.md pre-flight. CI checks code only; the numbers come from the Air.</p>\n<p>Throughout, an instrument that is noisy (a shared, heat-soaking laptop) is made trustworthy by procedure: judge each run by its own process, keep every row, compare only same-box snapshots, declare the estimator first, and record negatives alongside wins.</p>",
+  "files": [
+   "crucible-spec.md:1",
+   "RELEASING.md:1",
+   "STANDINGS.md:1",
+   "CLAUDE.md"
+  ],
+  "facts": [
+   [
+    "Headline (0.30.0)",
+    "5,568/8,444 (66 %)"
+   ],
+   [
+    "Certified optima",
+    "694"
+   ],
+   [
+    "Boards",
+    "32"
+   ],
+   [
+    "Box",
+    "m5-air"
+   ]
+  ],
+  "layout": "grid",
+  "children": [
+   {
+    "id": "crate-crucible",
+    "title": "crucible: the sweep harness",
+    "kind": "crate",
+    "summary": "A resident Rust program that runs the 32-board IPC sweep unattended on a shared laptop, judges every row, and never loses completed work to contention.",
+    "body": "<p>Crucible is how ferroplan's numbers get made. It replaced shell sweep drivers, the Python runner loop, the contention watcher and (in part) the standings generator with one supervised process (<code>crucible-spec.md</code>, revised as R2 and R3). Subcommands (<code>main.rs</code> <code>enum Cmd</code>): <code>doctor</code>, <code>list</code>, <code>boards</code>, <code>engine</code>, <code>sweep</code>, <code>resident</code>, <code>backfill</code>, <code>standings</code>, <code>diff</code>, <code>compare</code>, <code>status</code> (with <code>--json</code> so agents do not write their own SQL and get the latest-attempt rule wrong), <code>tui</code>.</p>\n<p>Two words carry the vocabulary. A row <strong>banks</strong> when the referee accepts it as the cell's result; otherwise the cell is <strong>owed</strong> another attempt. A board banks when none of its cells is owed.</p>",
+    "files": [
+     "crucible-spec.md:1",
+     "crucible/crates/crucible/src/main.rs:43",
+     "crucible/Cargo.toml:1"
+    ],
+    "facts": [
+     [
+      "Rust lines",
+      "~44.6k"
+     ],
+     [
+      "Crates",
+      "crucible, crucible-core, crucible-publish"
+     ],
+     [
+      "Storage",
+      "SQLite (rusqlite, WAL)"
+     ],
+     [
+      "TUI",
+      "ratatui + crossterm"
+     ]
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "crate-crucible-purpose",
+      "title": "Why a harness, and its one rule",
+      "kind": "concept",
+      "summary": "Crucible replaced a pile of shell drivers plus a babysitting model with one resident Rust program that owns the IPC sweep end to end.",
+      "body": "<p>Up to the 0.25 cut every release sweep was a shell script (<code>benchmarks/cut18-sweeps.sh</code> ... <code>cut25-sweeps.sh</code>, 194 lines for 0.25) that waited for a quiet box, started a contention watcher, handed a whole <em>board</em> to the Python runner <code>ipc67.py</code>, read a verdict back out of JSON with three <code>python3 -c</code> calls, and either touched a <code>.done</code> marker or threw the board back for the next pass. A ten-minute contention spike in the middle of a two-hour board cost the whole board.</p>\n<p><code>crucible-spec.md</code> section 1 states the organising rule, repeated verbatim in <code>sweep.rs</code>: <strong>contention may cost a timing number; it must never cost hours of computation.</strong> The unit of work moved from the board to the <em>instance</em>. Every measured row is committed and kept. A row measured on a busy box is marked dirty and may be <em>owed</em> again. A board is <em>banked</em> only when every instance on it has a row the referee accepts. \"Work is owed, not lost.\"</p>\n<p>The non-goals are explicit: no LLM in the runtime path, not distributed, one machine (the fanless M5 Air, <code>m5-air</code>), and not a replacement for the planner's test suite. It became the 0.26 co-headline (\"the instrument gets rebuilt\", <code>docs/roadmap-0.26.md</code> Phase 5) and has measured every cut since.</p>",
+      "files": [
+       "crucible-spec.md:11",
+       "crucible/crates/crucible/src/sweep.rs:1",
+       "docs/roadmap-0.26.md:140",
+       "benchmarks/cut25-sweeps.sh:1"
+      ],
+      "facts": [
+       [
+        "Spec",
+        "<code>crucible-spec.md</code>, 892 lines"
+       ],
+       [
+        "Code",
+        "~44.6k lines of Rust, 3 crates"
+       ],
+       [
+        "First cut measured",
+        "0.26"
+       ]
+      ]
+     },
+     {
+      "id": "crate-crucible-lifecycle",
+      "title": "A sweep, end to end",
+      "kind": "process",
+      "summary": "Manifest to promoted boards: enumerate cells, schedule, execute, judge, commit, bank, promote.",
+      "body": "<p><code>crucible sweep --set cut30</code> hosts the dashboard and runs passes until no cell is owed. Each pass walks the owed cells in class order; each finished run is judged and committed independently. The spec's original lifecycle was poll tags, build, materialize, schedule, execute, validate, publish; in practice the candidate is the working tree's <code>target/release/ff</code>, and tags are swept by <code>backfill</code>/<code>resident</code>.</p>",
+      "files": [
+       "crucible-spec.md:78",
+       "crucible/crates/crucible/src/main.rs:66"
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "crate-crucible-lc-manifest",
+        "title": "Manifest: what is measured",
+        "kind": "data",
+        "summary": "benchmarks/manifest.toml, versioned with the planner, declares the corpus, defaults, tracks, 32 boards and the named sets each cut sweeps.",
+        "body": "<p>The manifest is generated by <code>crucible/tools/gen-manifest.py</code> from the Python registries it consolidates (the <code>SWEEPS</code> table in <code>standings.py</code>, <code>ipc67.py</code>'s track patterns) and re-verified with <code>--check</code>, so the Rust and Python sides read one definition.</p>\n<ul>\n<li><code>[defaults]</code>: 60 s timeout, <code>threads = 1</code>, <code>mode = \"auto\"</code>, <code>mem_gb = 6.0</code> (2 x 6 GB against 16 GiB leaves headroom), <code>jobs = 2</code> retained as a row stamp.</li>\n<li><code>[track.*]</code>: corpus <em>selectors</em> (IPC year + regex), not instance lists, because the corpus is gitignored and a list of 6,584 instances would drift from disk unnoticed.</li>\n<li><code>[[board]]</code> x 32: each board's track, budget, mode, threads, capability group and front-page name.</li>\n<li><code>[[set]]</code> x 10: named sweeps, e.g. <code>cut30</code> with <code>stage = \"benchmarks/air30\"</code>, <code>requires_version = \"0.30\"</code> and the 32 board ids.</li>\n</ul>\n<p>The version gate (<code>sweep --set cut30</code> refuses a binary that does not report 0.30) is what \"measure the candidate, not whatever is built\" means in practice.</p>",
+        "files": [
+         "benchmarks/manifest.toml:1",
+         "benchmarks/manifest.toml:779",
+         "crucible/tools/gen-manifest.py"
+        ],
+        "facts": [
+         [
+          "Boards",
+          "32"
+         ],
+         [
+          "Sets",
+          "10"
+         ],
+         [
+          "Default budget",
+          "60 s"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-lc-schedule",
+        "title": "Schedule: one queue, three classes",
+        "kind": "process",
+        "summary": "R2 replaced board-at-a-time execution with one queue of runs across all boards, classed from this box's history as PACK, SOLO or EXCLUSIVE.",
+        "body": "<p>The R1 spec tiered runs A-D by previous runtime. R2 (<code>crucible-spec.md</code> R2.2) replaced that with three classes read from the most recent row for the same (instance, budget, mode, threads) <strong>on this box</strong>, any engine:</p>\n<ul>\n<li><strong>PACK</strong>: the predecessor solved it quickly (originally under 0.5 of the budget, widened to 0.75/0.95 of the wall at the 0.30 cut). Up to <code>pack_width</code> concurrent; the operator config raised day width to 8.</li>\n<li><strong>SOLO</strong>: near-wall solves, prior failures, never-run cells and anything the referee re-queued. One at a time, nothing else of ours running.</li>\n<li><strong>EXCLUSIVE</strong>: <code>threads &gt; 1</code> (the multi-core boards). Solo with the box-wide window gate, the competition's wall-clock rule.</li>\n</ul>\n<p>PACK runs first so regressions and coverage land early. \"Packing can lose time; it can never lose a row\": a packed miss is re-run narrower, then solo, in the same pass (the <code>Owe::Packed</code> verdict). The 0.27 Phase 0.c calibration measured packing as a recorded negative at every width at first (four planners on four P-cores ran a median 1.73x slower than solo), which is why packed timeouts never bank.</p>",
+        "files": [
+         "crucible-spec.md:539",
+         "crucible/crates/crucible/src/sweep.rs:299",
+         "crucible/crates/crucible-core/src/sched/mod.rs"
+        ],
+        "facts": [
+         [
+          "Classes",
+          "PACK / SOLO / EXCLUSIVE"
+         ],
+         [
+          "Packed slowdown measured",
+          "1.73x median"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-lc-exec",
+        "title": "Execute: supervised children",
+        "kind": "process",
+        "summary": "Each planner runs in its own process group under the throttle, with exact CPU time taken from wait4 at reap.",
+        "body": "<p><code>crucible-core/src/exec/</code> spawns <code>ff --json</code> per instance with the board's env (budget, <code>FF_TIME_LIMIT</code>, <code>FF_MEM_BUDGET_GB</code>), each child in its own process group so a wedged planner can be killed as a group (<code>SIGTERM</code>, 5 s, <code>SIGKILL</code>). Live pids and pgids are written to the <code>live_child</code> table; on startup <code>exec/orphan.rs</code> reaps a previous instance's children, which matters because a crashed parent leaves <code>SIGSTOP</code>ped children stopped forever.</p>\n<p>The R2.0 audit found the R1 instrument wrong in ways that had silently corrupted every row: <code>Platform::cpu_ms</code> was <strong>41.67x low</strong> on Apple Silicon (Mach absolute-time units read as nanoseconds; timebase 125/3), short runs recorded whatever the last 0.25 s poll caught, and the throttle's control channel was dropped on creation so no child was ever actually stopped. The fix: <code>cpu_ms</code> now comes from <code>wait4(2)</code> rusage at reap and every row carries <code>cpu_instrument = 'wait4'</code>. The referee trusts only that stamp; older rows are labelled and treated as CPU-unknown rather than rescaled.</p>",
+        "files": [
+         "crucible/crates/crucible-core/src/exec/mod.rs",
+         "crucible/crates/crucible-core/src/exec/orphan.rs",
+         "crucible-spec.md:434",
+         "crucible/crates/crucible-core/src/sched/referee.rs:39"
+        ],
+        "facts": [
+         [
+          "CPU source",
+          "<code>wait4</code> rusage"
+         ],
+         [
+          "R1 units bug",
+          "41.67x low"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-lc-judge",
+        "title": "Judge: bank or owe",
+        "kind": "process",
+        "summary": "The referee reads facts about this run's process and the box's clock and returns Banked(reason) or Owed(reason).",
+        "body": "<p>The moment a run finishes, <code>referee::judge(rule, facts)</code> decides whether the row banks its cell or the cell is owed another attempt (attempt + 1, usually re-queued SOLO). Solves bank unless they were clock-sensitive; unsolved rows bank only when the process demonstrably had its core and the box was not slow. See the referee node for the full table.</p>\n<p>The verdict is written to <code>run.verdict</code> with spellings such as <code>solved</code>, <code>rho</code>, <code>window</code>, <code>hot</code> (banked) and <code>starved</code>, <code>thermal</code>, <code>packed</code>, <code>suspect</code>, <code>demoted</code> (owed). <code>Verdict::box_fault()</code> separates \"owed because of the box\" (wait for a quieter box) from anything else (look at the runner).</p>",
+        "files": [
+         "crucible/crates/crucible-core/src/sched/referee.rs:320",
+         "crucible/crates/crucible-core/src/sched/referee.rs:270"
+        ],
+        "links": [
+         {
+          "to": "crate-crucible-referee",
+          "label": "rule table"
+         }
+        ]
+       },
+       {
+        "id": "crate-crucible-lc-commit",
+        "title": "Commit: the kill -9 receipt",
+        "kind": "process",
+        "summary": "Every measured row is committed to SQLite in its own transaction before anything else happens, so a killed sweep resumes owing exactly what it never measured.",
+        "body": "<p>From the <code>sweep.rs</code> module header: every instance is committed in its own transaction the moment its run finishes, before the box is asked whether the run was clean and before artifacts are rewritten. That commit is \"the <code>kill -9</code> receipt\". A restarted sweep opens the same database, reads back every row and verdict, and owes exactly the instances that never got one. The integration test <code>crates/crucible/tests/kill9_resume.rs</code> holds it to that.</p>\n<p>The board's <code>.jsonl</code> under the stage directory is regenerated from those rows, which is what makes it an <em>export</em> rather than a second record that could disagree. <code>--no-db</code> restores the pre-database path bit for bit as an escape hatch.</p>\n<p>At the 0.30 cut this was used for real: the sweep was stopped by PID mid-run with 1,646 rows owed, the crucible binary was changed, and it resumed with nothing lost (<code>docs/roadmap-0.30.md</code>, \"The cut\").</p>",
+        "files": [
+         "crucible/crates/crucible/src/sweep.rs:18",
+         "crucible/crates/crucible/tests/kill9_resume.rs",
+         "docs/roadmap-0.30.md:1373"
+        ],
+        "links": [
+         {
+          "to": "crate-crucible-db",
+          "label": "writes to"
+         }
+        ]
+       },
+       {
+        "id": "crate-crucible-lc-bank",
+        "title": "Bank the board, then promote",
+        "kind": "process",
+        "summary": "A board gets its .done marker and board_pass row only when no cell is owed; promote-airNN.sh refuses any set that is not SWEEP COMPLETE.",
+        "body": "<p>When the last owed cell on a board banks, the artifact writer emits the board's <code>.md</code> and <code>.jsonl</code> into the set's stage (<code>benchmarks/air30/</code>) and records a <code>board_pass</code> row (the <code>.done</code> marker with provenance, unique per board and engine). The sweep log prints <code>SWEEP COMPLETE</code> when every board is done; 0.30's re-sweep took ten passes to bank 5,602 rows.</p>\n<p>Promotion is a separate, gated script per cycle (<code>benchmarks/promote-air30.sh</code>): it refuses unless all 32 <code>.done</code> markers exist and the log says SWEEP COMPLETE (<code>--accept-owed</code> exists for the 0.26 situation), checks each raw's <code>budget</code> stamp against the <code>SWEEPS</code> registry, copies raws into <code>benchmarks/</code>, runs <code>standings.py</code>, then runs <code>crucible standings --check</code> and refuses to cut on a mismatch. The script also refuses when no crucible binary is found, because at the 0.28 cut a missing binary had reported MISMATCH and read like the numbers disagreeing.</p>",
+        "files": [
+         "benchmarks/promote-air30.sh:1",
+         "benchmarks/promote-air30.sh:84",
+         "crucible/crates/crucible-publish/src/promote.rs"
+        ],
+        "links": [
+         {
+          "to": "sec-tooling-benchmarks-standings",
+          "label": "feeds"
+         },
+         {
+          "to": "crate-crucible-publish",
+          "label": "parity check"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-crucible-referee",
+      "title": "The referee",
+      "kind": "concept",
+      "summary": "Decides, per measured row, whether it banks its cell or the cell is owed again. Judges the run's own process (R2), not the box's process table (R1).",
+      "body": "<p>The referee is the most revised part of the harness. Every change is recorded with the sweep that forced it: R2 (2026-09-02) after the 0.26 cut, the solve clock-sensitivity rule at 0.29, <code>Bank::Hot</code> mid-way through the 0.30 cut. The governing principle is that <strong>a solve is a solve</strong> (coverage is coverage; a plan found under contention could only have been found faster), while a failure must prove the planner had a fair wall.</p>",
+      "files": [
+       "crucible/crates/crucible-core/src/sched/referee.rs:1",
+       "crucible-spec.md:482"
+      ],
+      "facts": [
+       [
+        "Lines",
+        "1,086"
+       ],
+       [
+        "Bank reasons",
+        "4"
+       ],
+       [
+        "Owe reasons",
+        "10"
+       ]
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-crucible-referee-rho",
+        "title": "rho: did the process have its core?",
+        "kind": "concept",
+        "summary": "rho = cpu_ms / (wall_ms - suspended_ms). An unsolved row banks only if rho is at least rho_min (0.95), so a timeout counts only when the planner really used its wall.",
+        "body": "<p>R1 judged a row by the <em>box</em>: any watcher sample in the run's window with foreign load over 25 % re-owed it. On the 0.26 cut sweep (four days, 17,280 samples, the box at 23 % of samples over 60 % foreign CPU from Docker, WindowServer, a browser and Timberborn) that re-owed ~1,800 timeouts, and <strong>1,618 of 1,814 (89 %) had used at least 90 % of their own wall as CPU</strong>. The planner had its core; the referee was looking at the wrong thing.</p>\n<p>R2 judges the run: <code>rho = cpu_ms / effective_wall</code>. The default <code>rho_min</code> is <strong>0.95</strong> in <code>Rule::default()</code>, derived rather than tuned: the 0.27 Phase 0 sitting read the corrected instrument's distribution (median 0.995, p5 0.975 on runs of 10 s or more) and the pre-registered rule \"p5 rounded down to 0.05, floored at 0.85\" gave 0.95. Below a floor (8 s at the defaults, derived from 400 ms of overhead / 0.05) rho is not a statistic and the box-wide window decides instead. <code>threads &gt; 1</code> boards keep the R1 window rule whole because rho is meaningless for a planner that may not saturate its threads.</p>",
+        "files": [
+         "crucible/crates/crucible-core/src/sched/referee.rs:1",
+         "crucible/crates/crucible-core/src/sched/referee.rs:127",
+         "crucible-spec.md:482"
+        ],
+        "facts": [
+         [
+          "rho_min",
+          "0.95"
+         ],
+         [
+          "Swap growth line",
+          "512 MB"
+         ],
+         [
+          "Canary max factor",
+          "1.15"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-referee-canary",
+        "title": "The canary: a clock beside the sweep",
+        "kind": "concept",
+        "summary": "A fixed ~2 s solve run solo every 20 minutes; its wall over its baseline is the box's clock factor, used to catch thermal and bandwidth slowdowns rho cannot see.",
+        "body": "<p>On Apple Silicon <code>pmset -g therm</code> reports nothing and <code>powermetrics</code> needs root, so there is no thermal instrument. A process can have 100 % of a down-clocked or bandwidth-starved core and rho will not notice. The canary (<code>crucible-spec.md</code> R2.3) is the substitute: a fixed instance (default <code>trucks-propositional</code> i8 on <code>ipc5-prop</code>, 1,820 ms on all three engines then in the database) run solo every <code>canary_interval_secs</code> (1200) and after throttle transitions. Its baseline is the median of the first five clean solo runs, stored per box. <code>clock_factor = wall / baseline</code>; above <code>canary_max_factor</code> (1.15) the window is <em>thermal</em>: solves bank, timeouts are owed.</p>\n<p>The fanless Air reads ~0.51 s cold and ~0.76 s once heat-soaked by the sweep's own planners, so a solo timeout re-run in the next pass lands on the same hot chip. That is why every pre-0.30 cut took four to seven passes, and it motivated <code>Bank::Hot</code>. 0.31 Phase 0.2 pins the canary to a fixed binary so its per-width line carries across engines.</p>",
+        "files": [
+         "crucible-spec.md:632",
+         "crucible/crates/crucible-core/src/db/schema.rs:477",
+         "docs/roadmap-0.30.md:1373"
+        ],
+        "facts": [
+         [
+          "Interval",
+          "1200 s"
+         ],
+         [
+          "Baseline",
+          "median of 5 clean solo runs"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-referee-hot",
+        "title": "Bank::Hot and its one-sided bias",
+        "kind": "concept",
+        "summary": "Since the 0.30 cut, an unsolved solo row on a hot box banks if the predecessor also failed that cell. It cannot invent a regression; it can miss a gain.",
+        "body": "<p>Measured at 12:53 on 2026-10-21 over the cut30 rows so far: ~42 child-hours banked and ~40 h owed, of which 29.5 h were <code>thermal</code>. <strong>1,477 of the 1,482 thermal-owed timeouts were cells 0.29.0 had failed too.</strong> Re-running them solo into the same hot chip was buying nothing.</p>\n<p><code>Bank::Hot</code> (<code>sched/referee.rs</code>) banks such a row, verdict <code>hot</code>, only when the predecessor's promoted row exists and is unsolved (<code>Facts::prior_failed</code>) and every other signal (demotion, swap, rho or window) would bank it. A cell the predecessor solved, or never ran, keeps the <code>thermal</code> owe, so losses stay protected exactly as before.</p>\n<p>The bias is stated in the roadmap and carried beside every number read under it: a hot timeout cannot create a regression, but can miss a gain that needed the cold clock (a 40-60 s cold solve). The cut's gain count is conservative by that much. The 0.31 roadmap requires naming it beside every number.</p>",
+        "files": [
+         "crucible/crates/crucible-core/src/sched/referee.rs:222",
+         "docs/roadmap-0.30.md:1387"
+        ]
+       },
+       {
+        "id": "crate-crucible-referee-verdicts",
+        "title": "The verdict table",
+        "kind": "concept",
+        "summary": "Four ways to bank (solved, rho, window, hot) and ten ways to be owed, each a named enum variant with a test.",
+        "body": "<p>From <code>referee.rs</code>, in the order <code>judge()</code> checks:</p>\n<ul>\n<li><strong>Solved</strong> banks always, unless clock-sensitive: since 0.29 Phase 0.1 a solve that spent at least <code>solved_wall_frac</code> (0.5) of its budget, or came back \"NOT priced\" / \"NOT scored\", is judged like a failure. cut28 had banked ten pathways-preferences-simple empty plans at rho 0.3-0.75 under a canary of 2.4-6.3x; the quality score read 82.0 for 94.1.</li>\n<li><strong>Owed</strong> reasons: <code>Starved</code> (rho below the line), <code>CpuUnknown</code> (no wait4 stamp), <code>ClockJump</code> (sleep), <code>Swap</code>, <code>Thermal</code>, <code>Contended</code> and <code>Uncovered</code> (threads &gt; 1), <code>Suspect</code> (predecessor solved it, first attempt failed: needs a second solo run), <code>Demoted</code> (ran on an efficiency core, measured ~13x slower), <code>Packed</code>.</li>\n<li><strong>Error</strong> retries once; <strong>invalid</strong> (VAL rejected) banks loudly.</li>\n</ul>\n<p>Each branch has a named unit test, e.g. <code>a_timeout_with_its_core_banks_under_a_dirty_window</code>, <code>a_hot_timeout_banks_only_where_the_predecessor_failed_too</code>, and <code>the_cut28_reopened_solves_are_owed_exactly_where_the_box_decided</code> against <code>tests/fixtures/cut28-reopened-solves.json</code>.</p>",
+        "files": [
+         "crucible/crates/crucible-core/src/sched/referee.rs:244",
+         "crucible/crates/crucible-core/src/sched/referee.rs:320",
+         "crucible/crates/crucible-core/src/sched/referee.rs:751"
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "crate-crucible-recheck",
+        "label": "re-opened by"
+       }
+      ]
+     },
+     {
+      "id": "crate-crucible-contention",
+      "title": "Throttle and game detection",
+      "kind": "concept",
+      "summary": "FULL / POLITE / SUSPENDED with hysteresis: foreign load demotes children to efficiency cores, a game stops them, and a suspended run cannot time out.",
+      "body": "<p>The box is also a personal workstation and gaming machine. <code>monitor/throttle.rs</code> defines three levels (<code>crucible-spec.md</code> section 6):</p>\n<ul>\n<li><strong>Full</strong>: no foreign pressure, the full P-core budget.</li>\n<li><strong>Polite</strong>: sustained foreign CPU over the threshold (default above 25 % of the machine for over 20 s). Children move to <code>QOS_CLASS_BACKGROUND</code>, which on macOS confines them to efficiency cores. Runs keep running. (macOS has no thread-affinity API; QoS class is the only lever.)</li>\n<li><strong>Suspended</strong>: a game is consuming CPU, or foreign load above 60 % sustained, or memory pressure critical. <code>SIGSTOP</code> all children; <code>SIGCONT</code> after a 60 s clear dwell.</li>\n</ul>\n<p>De-escalation is deliberately slower than escalation. <code>monitor/games.rs</code> treats a process as a game if it descends from Steam or matches <code>known_games</code>, seeded with <code>Timberborn</code> (it ran at 181 % of a core against the 0.26 sweep), and triggers only on actual CPU use. Timeouts use effective wall (<code>wall - suspended</code>), so a stopped run never times out. The incident that motivated the project was a mail client's one-time sync discarding hours of a sweep; under this design it only demotes it.</p>",
+      "files": [
+       "crucible/crates/crucible-core/src/monitor/throttle.rs:23",
+       "crucible/crates/crucible-core/src/monitor/games.rs:16",
+       "crucible-spec.md:124"
+      ],
+      "facts": [
+       [
+        "Levels",
+        "Full / Polite / Suspended"
+       ],
+       [
+        "Seed game",
+        "Timberborn"
+       ]
+      ]
+     },
+     {
+      "id": "crate-crucible-db",
+      "title": "The database (rusqlite)",
+      "kind": "data",
+      "summary": "SQLite via rusqlite 0.32 (bundled), WAL mode, one writer thread. The live record and work queue; the promoted JSONL in the repo is the published record.",
+      "body": "<p>Spec section 8 chose <code>rusqlite</code> with the <code>bundled</code> feature over Turso/Limbo (still labelled beta by its maintainers; \"weeks of benchmark history qualify as mission-critical\"). <code>db/mod.rs</code> opens with <code>PRAGMA journal_mode=WAL</code> so readers never block the writer, which is what lets a separate <code>crucible tui</code> attach to a running sweep, and <code>synchronous=NORMAL</code>. All writes go through one writer (<code>db/writer.rs</code>: <code>run</code>, <code>sample</code>, <code>canary</code>, <code>event</code>, <code>throttle_open</code>, <code>child_spawned</code>...).</p>\n<p>The module header lists four places the spec's schema sketch was wrong. The first: the spec keyed the engine on the git <code>tag</code>, but the normal candidate is an untagged working-tree build and every dev build reports the same version. The <code>engine</code> table is keyed on the binary's <strong>BLAKE3</strong> (the 12-hex prefixes like <code>b02061eded16</code> that appear throughout the roadmaps), and since 0.30 also on a content hash of the binary. The second: the spec had no <code>board</code> concept, which the resume gate needs.</p>\n<p>Tables in <code>schema.rs</code>: <code>engine</code>, <code>board</code>, <code>variant</code>, <code>instance</code>, <code>run</code>, <code>live_child</code>, <code>board_pass</code>, <code>sample</code>, <code>sample_process</code>, <code>throttle_window</code>, <code>event</code>, <code>canary</code>. The database lives at <code>~/.crucible/db/crucible.db</code>, which is also what <code>recheck30.py</code> opens directly.</p>",
+      "files": [
+       "crucible/crates/crucible-core/src/db/mod.rs:1",
+       "crucible/crates/crucible-core/src/db/mod.rs:200",
+       "crucible/crates/crucible-core/src/db/schema.rs:61",
+       "crucible/crates/crucible-core/src/db/schema.rs:172",
+       "crucible/crates/crucible-core/Cargo.toml:18"
+      ],
+      "facts": [
+       [
+        "Driver",
+        "rusqlite 0.32 bundled"
+       ],
+       [
+        "Journal",
+        "WAL, synchronous=NORMAL"
+       ],
+       [
+        "Engine key",
+        "binary BLAKE3"
+       ],
+       [
+        "Tables",
+        "12"
+       ]
+      ]
+     },
+     {
+      "id": "crate-crucible-tui",
+      "title": "The dashboard (ratatui)",
+      "kind": "frontend",
+      "summary": "ratatui 0.29 + crossterm at 4 fps: a grid of every board's instances as glyph strips, with board, instance and timeline drill-downs and a live slots footer.",
+      "body": "<p><code>crucible sweep</code> hosts the TUI; <code>crucible tui</code> attaches to the database read-only, so closing it does nothing to the run, and <code>--demo</code> runs it against a synthetic sweep. Render budget: fixed 4 fps tick, redraw on change, under 1 % of one core, because the dashboard must not compete with what it measures.</p>\n<p>Views (<code>tui/app.rs</code> <code>enum View</code>): <strong>Grid</strong> (home: one row per board, banked/owed counts, one cell per instance; <code>&#9608;</code> solved clean, <code>&#9619;</code> solved packed or dirty, <code>&#9618;</code> unsolved banked, <code>&#9617;</code> owed, <code>&#9654;</code> running, <code>&#10006;</code> error, with red/green underlines for regressions and gains vs the predecessor); <strong>Board</strong> (instances with this time, previous tag's time, best-ever, rho, neighbours, attempt, plus a solve-time histogram with the near-wall band shaded); <strong>Instance</strong> (every attempt, the box timeline across its window, the last 40 lines of stderr); <strong>Timeline</strong> (competitors by name, throttle level, canary, swap). The slots footer shows running instances with elapsed vs budget, CPU %, RSS and rho so far.</p>\n<p>There is deliberately no manual re-run key. The recorded position: if the automatic retry is wrong, the fix is the referee.</p>",
+      "files": [
+       "crucible/crates/crucible/src/tui/app.rs:289",
+       "crucible/crates/crucible/src/tui/draw.rs",
+       "crucible/crates/crucible/Cargo.toml:30",
+       "crucible-spec.md:655"
+      ],
+      "facts": [
+       [
+        "Library",
+        "ratatui 0.29 + crossterm 0.28"
+       ],
+       [
+        "Frame rate",
+        "4 fps"
+       ],
+       [
+        "Views",
+        "Grid, Board, Instance, Timeline"
+       ]
+      ]
+     },
+     {
+      "id": "crate-crucible-estimators",
+      "title": "Estimators: what counts as a delta",
+      "kind": "concept",
+      "summary": "crucible compare scores two engines over the same cells six ways (banked, any, first, equal-N, per-run, clean-only) with bootstrap CIs, because the attempt count is not controlled.",
+      "body": "<p>The question a cut asks is \"is engine B better than engine A on these 8,444 cells\". The harness's own retry policy makes that question subtle: an owed cell gets more attempts, so the banked result is a max over N with N uncontrolled. <code>crucible compare --set S --a A --b B</code> answers with the full spread, reading both engines' attempts from the database by BLAKE3 prefix, tag or version. <code>--lost FILE</code> writes the cells A solved and B did not in the <code>--rows</code> format a follow-up sweep takes.</p>",
+      "files": [
+       "crucible/crates/crucible/src/estimator.rs:1",
+       "crucible/crates/crucible/src/main.rs:174"
+      ],
+      "layout": "grid",
+      "children": [
+       {
+        "id": "crate-crucible-est-first",
+        "title": "First attempt: the declared claim",
+        "kind": "concept",
+        "summary": "Solved on the first attempt for both engines (N = 1 each). The estimator each cycle pre-registers as its comparative claim.",
+        "body": "<p>The referee re-runs owed cells, so different engines end with different attempt counts per cell. If both are scored by their best attempt, run-to-run variance becomes coverage. <code>first</code> fixes N = 1 for both: was the cell solved on the first attempt. The 0.29 cut rule made it the published comparative claim, with <code>equal-N</code> (max over the first min(N_A, N_B) attempts) beside it.</p>\n<p>0.30 cut: first attempt 5,476 (0.29.0) vs 5,404 (0.30.0), <strong>-72 [-98, -48]</strong>. Recorded as read, but not claimed as a loss, because the other estimators disagreed in sign.</p>",
+        "files": [
+         "crucible/crates/crucible/src/estimator.rs:1",
+         "docs/roadmap-0.30.md:1466"
+        ],
+        "facts": [
+         [
+          "0.30 cut delta",
+          "-72 [-98, -48]"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-est-clean",
+        "title": "Clean-only",
+        "kind": "concept",
+        "summary": "Per-run solve rate restricted to runs the harness marked clean, over cells where both engines have a clean run. The heat-soak control.",
+        "body": "<p><code>clean-only</code> computes solved runs over runs per cell, counting only runs whose <code>timing_quality</code> is <code>clean</code>, and only on cells where both engines have one. It is small (about 546 cells at 0.30) but it is the estimator least exposed to a hot box.</p>\n<p>At the 0.30 cut, 24 % of 0.30.0's runs were clean against 34 % of 0.29.0's (a heat-soaked fanless Air). Clean-only read <strong>546.3 vs 544.7, -1.7 [-8, +4]</strong>: the engines are level when the box is fair. That is why 0.30's honest sentence became \"memory down, rows flat\" and not \"-72 rows\".</p>",
+        "files": [
+         "crucible/crates/crucible/src/estimator.rs:20",
+         "CHANGELOG.md:30"
+        ],
+        "facts": [
+         [
+          "0.30 cut delta",
+          "-1.7 [-8, +4]"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-est-banked",
+        "title": "Banked: the standing number",
+        "kind": "concept",
+        "summary": "The attempt the crucible banked, which is what the boards and STANDINGS.md publish. Never used as a release-over-release delta.",
+        "body": "<p><code>banked</code> scores each cell by the row the referee accepted, the same number the published boards carry (5,568/8,444 at 0.30.0). It is the right number to say where the engine stands and the wrong number for a comparison, because it is effectively a max over an uncontrolled number of attempts. The <code>estimator.rs</code> header gives the evidence: 0.27's banked +115 decomposed into first-attempt -18 plus a rescue difference of +133, and 0.28's +344 into first-attempt +531 and rescues -185. \"Neither banked number was the engine.\"</p>\n<p>0.30 cut: banked 5,555 vs 5,568, +13 [+3, +24]. Other estimators: <code>any</code> (solved on any attempt) +11, <code>per-run</code> (expected coverage of one run) -22.7, <code>equal-N</code> -69.</p>",
+        "files": [
+         "crucible/crates/crucible/src/estimator.rs:1",
+         "docs/roadmap-0.30.md:1471"
+        ],
+        "facts": [
+         [
+          "0.30 cut delta",
+          "+13 [+3, +24]"
+         ]
+        ]
+       },
+       {
+        "id": "crate-crucible-est-bootstrap",
+        "title": "The spread and the CI",
+        "kind": "concept",
+        "summary": "Each delta carries a seeded cell-bootstrap 95 % CI. When estimators disagree in sign, no delta is claimed.",
+        "body": "<p><code>Report::build</code> computes all six estimators over every attempt of every cell both engines measured, and for each a 95 % interval by resampling cells (<code>bootstrap()</code>, a seeded xorshift64* generator with seed <code>20_260_919</code>, the Python's index arithmetic ported verbatim, so the same pairs give the same interval twice).</p>\n<p>The header states the rule: \"No estimator here is the 'true' one. The point is the SPREAD: when the delta changes sign across them, the instrument's variance exceeds the effect and no number has been measured yet.\" The roadmaps adopt it as the cut rule: \"no delta claimed where the estimators disagree in sign\". It began as a hand-run Python script, <code>attempts-estimator.py</code>, used for two cuts before being ported into <code>crucible compare</code>.</p>",
+        "files": [
+         "crucible/crates/crucible/src/estimator.rs:161",
+         "crucible/crates/crucible/src/estimator.rs:237"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "crate-crucible-recheck",
+      "title": "Re-checked rows",
+      "kind": "process",
+      "summary": "After a cut sweep, recheck30.py re-opens banked rows the box rather than the engine may have decided, and the sweep re-runs them under the referee.",
+      "body": "<p>A banked row can still be wrong in the engine's favour or against it. <code>benchmarks/recheck30.py</code> (successor of <code>recheck27/28/29.py</code>) opens the crucible database and sets <code>banked = 0, verdict = 'recheck'</code> on:</p>\n<ol>\n<li>every banked row whose engine result carries \"NOT priced\" / \"NOT scored\" (a plan without its number is a wall verdict, and the wall may have been slow);</li>\n<li>every banked solve measured with the canary above 1.5x that spent at least half its budget;</li>\n<li>every cell the predecessor's promoted boards solved that this engine banked unsolved (the cells of <code>compare --lost</code>).</li>\n</ol>\n<p>\"Nothing is decided here; the sweep decides.\" The next <code>crucible sweep --set cut30</code> pass re-runs each on a quiet box. At the 0.30 cut: 21 rows re-opened (18 cells 0.29.0 solved, 2 unpriced, 1 slow-box near the wall); one <code>--max-passes 3</code> sweep banked all 21 in two passes. Ten cells the first read had lost solved again on the re-check, leaving 8 lost after the re-check, named in the CHANGELOG.</p>",
+      "files": [
+       "benchmarks/recheck30.py:1",
+       "docs/roadmap-0.30.md:1454"
+      ],
+      "facts": [
+       [
+        "0.30 re-opened",
+        "21 rows"
+       ],
+       [
+        "Lost after re-check",
+        "8 cells"
+       ]
+      ]
+     },
+     {
+      "id": "crate-crucible-certified",
+      "title": "Certified optima",
+      "kind": "concept",
+      "summary": "On the seven optimal tracks a solved row is an optimality proof, not just a plan. 694 such rows at 0.30.0.",
+      "body": "<p>On the seq-opt and numeric-opt boards the planner runs in optimal mode (A* with an admissible heuristic) and only reports a solve with a certificate that the cost is optimal. Coverage there <em>is</em> proof rate, a far harder bar than finding some plan. <code>standings.py</code> defines <code>PROOF_TRACKS</code> (seq-opt, 2014/2018/2023 seq-opt, 2023 numeric-opt, 2026 numeric-opt and its FULL board) and sums their solved counts into the headline's \"certified optima\" sentence; the Rust renderer (<code>render/summary.rs</code>, <code>render/readme.rs</code>) prints the same sentence. These boards are marked with a balance-scale glyph in STANDINGS.md.</p>\n<p>At 0.30.0: seq-opt 297 + 2014 seq-opt 82 + 2026 numeric-opt 23 + 2018 seq-opt 94 + 2023 seq-opt 33 + 2023 numeric-opt 83 + 2026 numeric-opt FULL 82 = <strong>694</strong> (0.29.0: 691). Soundness is checked separately: <code>benchmarks/opt-differential.py</code> re-runs every certified instance and compares certified costs, with a <code>--board-budget</code> mode where a certificate that cannot re-certify under board conditions is a regression. 0.31 adds \"proofs\" as a third declared measure for Lane C.</p>",
+      "files": [
+       "benchmarks/standings.py:535",
+       "STANDINGS.md:5",
+       "crucible/crates/crucible-publish/src/render/summary.rs:113",
+       "benchmarks/opt-differential.py:1"
+      ],
+      "facts": [
+       [
+        "Certified at 0.30.0",
+        "694"
+       ],
+       [
+        "Proof tracks",
+        "7"
+       ]
+      ],
+      "links": [
+       {
+        "to": "mod-optimal",
+        "label": "produced by"
+       },
+       {
+        "to": "sec-tooling-benchmarks-differentials",
+        "label": "audited by"
+       }
+      ]
+     },
+     {
+      "id": "crate-crucible-subsets",
+      "title": "Subsets and probes (R3)",
+      "kind": "mode",
+      "summary": "A subset is a sweep over fewer cells, with the same runner, referee and database, staged under benchmarks/probes/. How lanes are measured mid-cycle.",
+      "body": "<p>R3 (2026-09-20) exists because the 0.28 lanes were measured with a shell loop around the board runner, beside a game at 210 % CPU and another project's build at load 23, and produced 1,000 rows \"of which nobody could say which meant anything\". Now: <code>crucible sweep --set S [--board ID]... [--only REGEX] [--rows FILE] [--prior unsolved|solved] [--name NAME] [--engine PATH]</code>. The selection is applied once, where cells are enumerated (<code>select.rs</code>).</p>\n<p>What a subset must not say: it never writes into the set's stage or a <code>board_pass</code> row, because everything said about a board depends on all its cells. It stages under <code>benchmarks/probes/&lt;name&gt;/&lt;ver&gt;-&lt;hash&gt;/</code>. What it deliberately shares: the rows, keyed exactly as a full sweep keys them, so the following full sweep owes those cells fewer. \"A probe is never wasted work.\"</p>\n<p><code>--engine PATH</code> measures an arbitrary binary (a lane's worktree build) against the repo's instrument. 0.31 Phase 0.5 extends this with <code>sweep --env FF_RUNG_ONLY=&lt;rung&gt; --name matrix31-&lt;rung&gt;</code> for the per-rung matrix.</p>",
+      "files": [
+       "crucible-spec.md:783",
+       "crucible/crates/crucible/src/select.rs:1",
+       "crucible/crates/crucible/tests/subset.rs"
+      ]
+     },
+     {
+      "id": "crate-crucible-resident",
+      "title": "Resident mode and backfill",
+      "kind": "mode",
+      "summary": "crucible resident sweeps the candidate while a set owes rows and keeps the newest tags backfilled; backfill re-measures an old tag on today's box with today's instrument.",
+      "body": "<p><code>crucible resident --set cut30</code> is the loop the spec's purpose section asked for: each poll it sweeps the working tree's candidate if its version matches the set's gate and the stage still owes rows, then backfills each of the newest <code>keep_tags</code> tags whose stage is incomplete, newest first. Both resume from the database and return immediately when nothing is owed, so an idle cycle costs a version probe and a directory listing.</p>\n<p><code>crucible backfill --tag v0.18.0 --set S</code> builds the tag in a detached worktree under crucible's own prefix (<code>~/.crucible/worktrees/</code>), skips the version gate, stages under <code>benchmarks/air-&lt;ver&gt;/</code>, and skips (feature-absent) any board the old engine cannot run. The principle: \"The instrument never varies with the engine, or the delta means nothing.\" This is the supported way to build a comparable history on new hardware, which is why <code>standings-history.json</code> separates <code>measured_at</code> from <code>released</code>.</p>",
+      "files": [
+       "crucible/crates/crucible/src/resident.rs:1",
+       "crucible/crates/crucible/src/backfill.rs",
+       "crucible/crates/crucible/src/main.rs:108"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-benchmarks-standings",
+        "label": "backfills history for"
+       }
+      ]
+     },
+     {
+      "id": "crate-crucible-publish",
+      "title": "crucible-publish: the pure port",
+      "kind": "module",
+      "summary": "The publication layer ported from standings.py: row classes, coverage, quality scoring, field placement, history, rendering. The Python is kept as an independent oracle.",
+      "body": "<p><code>crucible-publish</code> turns per-board rows into the published numbers and is deliberately pure: no database, terminal, platform calls or clock, so its golden battery runs on any box in seconds against committed fixtures. Modules include <code>class</code> (the failure taxonomy), <code>compare</code> (2,614 lines, the largest), <code>promote</code>, <code>manifest</code>, <code>history</code>, <code>field</code> (vs-field placement), <code>quality</code> (IPC quality scoring against archive plans), <code>bounds</code>, <code>archive</code> (reads the vendored <code>IPC5-results.tgz</code>), and <code>render/</code> (detail, summary, readme).</p>\n<p>The Python it ports is not retired. <code>docs/roadmap-0.26.md</code> records why: it is the only independent implementation of this taxonomy, and every incident in its comment corpus is one implementation drifting from another unobserved. So the gates run both: <code>benchmarks/crucible-differential.py</code> proves the pure layer agrees with Python row by row over every historical raw (no \"inconclusive\" verdict; non-zero exit on any mismatch), and every promote ends with <code>crucible standings --check</code> against what <code>standings.py</code> just wrote. Tests include <code>golden_standings.rs</code>, <code>classify_taxonomy.rs</code> and <code>memcap_label_hygiene.rs</code>. The serde_json <code>arbitrary_precision</code> feature is on because the fast float path was one ULP off on a real metric (<code>9189.980000000001</code>), which silently rewrote a measured value on round-trip.</p>",
+      "files": [
+       "crucible/crates/crucible-publish/src/lib.rs:1",
+       "crucible/crates/crucible-publish/src/compare.rs",
+       "benchmarks/crucible-differential.py:1",
+       "crucible/Cargo.toml:22"
+      ],
+      "facts": [
+       [
+        "Largest module",
+        "<code>compare.rs</code> 2,614 lines"
+       ],
+       [
+        "Oracle",
+        "<code>benchmarks/standings.py</code>"
+       ]
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-benchmarks-standings",
+        "label": "ports"
+       }
+      ]
+     },
+     {
+      "id": "crate-crucible-layout",
+      "title": "Three crates, kept out of the release",
+      "kind": "concept",
+      "summary": "crucible/ is its own Cargo workspace (crucible, crucible-core, crucible-publish), excluded from the ferroplan workspace so its dependency tree can never gate a planner release.",
+      "body": "<p><code>crucible/Cargo.toml</code> is a separate workspace with three members, all <code>publish = false</code>, MSRV 1.80 (ahead of the library's 1.74 because it carries no compatibility debt):</p>\n<ul>\n<li><strong>crucible-core</strong>: the impure half. SQLite database (<code>db/</code>), process supervision (<code>exec/</code>, including orphan reaping), the box monitor and throttle (<code>monitor/</code>), the macOS/generic platform layer (<code>platform/</code>), the scheduler and referee (<code>sched/</code>), and VAL ingestion (<code>validate/</code>). Ships a <code>fakeff</code> test binary.</li>\n<li><strong>crucible-publish</strong>: the pure half. Row classification, standings rendering, comparison, promotion, history. No database, no terminal, no clock.</li>\n<li><strong>crucible</strong>: the binary. CLI (<code>main.rs</code>), the sweep driver (<code>sweep.rs</code>, 3,243 lines, the largest file), resident mode, backfill, subset selection, estimators, and the ratatui TUI.</li>\n</ul>\n<p>The root <code>Cargo.toml</code> lists <code>crucible</code> in <code>exclude</code> with the reason in a comment: it keeps the sweep harness out of <code>cargo test --all</code>, the clippy gate, <code>publish.sh</code> and the RELEASING.md pre-flight. The cost is that CI never sees it, so <code>crucible/preflight.sh</code> is its gate, ordered cheapest-first. A launchd plist in <code>crucible/deploy/</code> runs it resident on the Air.</p>",
+      "files": [
+       "crucible/Cargo.toml:1",
+       "Cargo.toml:18",
+       "crucible/preflight.sh:1",
+       "crucible/deploy/com.ferroplan.crucible.plist"
+      ],
+      "facts": [
+       [
+        "Workspace members",
+        "3"
+       ],
+       [
+        "MSRV",
+        "1.80"
+       ],
+       [
+        "Largest file",
+        "<code>sweep.rs</code> 3,243 lines"
+       ]
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "crate-ferroplan-cli",
+      "label": "measures the ff binary"
+     },
+     {
+      "to": "sec-tooling-cycle",
+      "label": "the instrument for"
+     }
+    ]
+   },
+   {
+    "id": "sec-tooling-benchmarks",
+    "title": "Benchmarks and standings",
+    "kind": "section",
+    "summary": "Corpora, validators, runners, comparison scripts, differentials, the cut-sweep history and the standings generator that produces every published number.",
+    "body": "<p><code>benchmarks/</code> is where measurement lives: fetch scripts, runners, the 32-board manifest, per-board result documents (<code>ipc5-prop.md</code>, <code>ipc2023-numeric.md</code>...), the promoted raw JSONLs (gitignored working data except where noted), and the tools that turn them into STANDINGS.md. Since 0.26 the sweep itself is crucible's job; the Python remains as runner reference and independent oracle.</p>",
+    "files": [
+     "benchmarks/manifest.toml:1",
+     "STANDINGS.md:1"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "sec-tooling-benchmarks-corpus",
+      "title": "Corpora: vendored and fetched",
+      "kind": "data",
+      "summary": "A 208-file regression subset is vendored under benchmarks/ipc/; the full IPC-2006 to IPC-2026 corpora are fetched by get-ipc.sh into a gitignored .ipc-corpus/.",
+      "body": "<p><strong>Vendored</strong>: <code>benchmarks/ipc/</code> holds a curated subset (208 PDDL files in <code>adl</code>, <code>costs</code>, <code>netben</code>, <code>numeric</code>, <code>pref</code>, <code>qualpref</code>, <code>strips</code>, <code>temporal</code>) that needs no download. <code>benchmarks/run.py</code> builds the release <code>ff</code>, runs <code>--json</code> on every problem there, and writes <code>ipc-results.md</code>.</p>\n<p><strong>Fetched</strong>: <code>sh benchmarks/get-ipc.sh</code> builds <code>benchmarks/.ipc-corpus/</code>: IPC-2006/2008/2011/2014 via a sparse checkout of potassco/pddl-instances; IPC-2018 satisficing and optimal from the official repository plus cost bounds; IPC-2023 classical (agile, sat, opt) with reference plans and best-known bounds, and IPC-2023 numeric with result CSVs. The 2018/2023 layouts are normalised into the potassco shape the runner expects (<code>domains/&lt;variant&gt;/{domain.pddl,instances/instance-N.pddl}</code>). Its <code>instnum()</code> normaliser keeps at least one digit because IPC-2026's 0-indexed <code>p000</code> files otherwise collapsed to <code>instance-.pddl</code>.</p>\n<p>The IPC-5 official results archive is vendored as <code>benchmarks/IPC5-results.tgz</code> (see <code>benchmarks/ATTRIBUTION.md</code>); its reference plans with <code>; MetricValue</code> headers are what preference-board quality is scored against.</p>",
+      "files": [
+       "benchmarks/get-ipc.sh:1",
+       "benchmarks/get-ipc.sh:24",
+       "benchmarks/run.py:1",
+       "benchmarks/ATTRIBUTION.md"
+      ],
+      "facts": [
+       [
+        "Vendored PDDL files",
+        "208"
+       ],
+       [
+        "Full-corpus cells",
+        "8,444 over 32 boards"
+       ]
+      ]
+     },
+     {
+      "id": "sec-tooling-benchmarks-val",
+      "title": "VAL: the external referee",
+      "kind": "tool",
+      "summary": "get-val.sh clones and builds KCL-Planning/VAL; runners pick it up through FERROPLAN_VAL and record a val verdict on every solved row.",
+      "body": "<p><code>sh benchmarks/get-val.sh</code> clones KCL-Planning/VAL into <code>benchmarks/.val/</code> and builds <code>Validate</code> with CMake (with <code>-DCMAKE_POLICY_VERSION_MINIMUM=3.5</code>, because CMake 4.x dropped compatibility with VAL's pre-3.5 minimum). Runners find it via <code>$FERROPLAN_VAL</code> or <code>Validate</code> on PATH.</p>\n<p>A solved row carries <code>val</code>: <code>true</code>, <code>false</code> or <code>None</code>. <code>standings.py</code>'s <code>solved()</code> counts a row only if VAL did not reject it; a row VAL rejected is the first-class <code>VAL-RED</code> class (engine soundness bug or harness gap, never lumped with search losses). <code>None</code> means VAL could not ingest the domain or crashed judging it; <code>benchmarks/val-availability.py</code> determines which domains VAL can read at all, and <code>val-unavailable.json</code> records them. Each board line names its count of \"solved VAL-unavailable (engine-oracle only)\" rows, because a 0.24 audit found 71 quietly unattested rows.</p>",
+      "files": [
+       "benchmarks/get-val.sh:1",
+       "benchmarks/standings.py:242",
+       "benchmarks/standings.py:503",
+       "benchmarks/val-availability.py:1"
+      ],
+      "links": [
+       {
+        "to": "mod-verify",
+        "label": "engine-side oracle beside VAL"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-benchmarks-runners",
+      "title": "Runners: run.py and ipc67.py",
+      "kind": "tool",
+      "summary": "The Python board runner ipc67.py ran every full-corpus sweep before crucible, and remains the reference for resume semantics and row format.",
+      "body": "<p><code>benchmarks/ipc67.py</code> (700 lines) runs whole competition variants over the fetched corpus: coverage, plan cost, wall clock, optional VAL, per-domain summary to <code>--out</code> and per-instance raw JSONL to <code>--raw</code>. Flags: <code>--track</code>, <code>--only</code>, <code>--max-instances</code>, <code>--jobs N</code> (each <code>ff</code> stays <code>--threads 1</code>), <code>--mode M</code>. Its <code>load_resume</code> reuses a prior row only under matching conditions, and crucible's window gate reproduces that rule.</p>\n<p>A row is one JSON object per instance (<code>solved</code>, <code>val</code>, <code>time</code>, <code>notes</code>, <code>budget</code>, metric fields). Since 0.23 every row carries its own <code>budget</code> stamp, which <code>classify()</code> prefers over the registry, because one board name can span raws from two budget tiers. The docstring warns that summed cost is not an IPC quality score. <code>run.py</code> (126 lines) is the small vendored-subset runner; <code>bench_temporal.py</code>, <code>perf.py</code> and <code>contention.py</code> are narrower tools.</p>",
+      "files": [
+       "benchmarks/ipc67.py:1",
+       "benchmarks/run.py:1",
+       "benchmarks/standings.py:249"
+      ],
+      "links": [
+       {
+        "to": "crate-crucible",
+        "label": "superseded as driver by"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-benchmarks-standings",
+      "title": "How standings numbers are computed",
+      "kind": "process",
+      "summary": "From promoted raw JSONL to STANDINGS.md: count solves, classify failures, sum the headline and proofs, compare to the same box's last snapshot, place against the field, write, then check parity.",
+      "body": "<p><code>benchmarks/standings.py</code> (1,329 lines) is the generator and oracle. Everything published (STANDINGS.md, <code>benchmarks/ipc-standings.md</code>, the README headline, the book's standings chapter) traces back to the promoted raws through this pipeline.</p>",
+      "files": [
+       "benchmarks/standings.py:1",
+       "STANDINGS.md:1",
+       "benchmarks/ipc-standings.md"
+      ],
+      "facts": [
+       [
+        "Generator",
+        "<code>standings.py</code>, 1,329 lines"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "sec-tooling-benchmarks-st-rows",
+        "title": "Raw rows to solved",
+        "kind": "process",
+        "summary": "Each promoted board raw (benchmarks/<board>.jsonl) is read row by row; solved(r) counts a row only if it solved and VAL did not reject it.",
+        "body": "<p><code>standings.py</code>'s <code>SWEEPS</code> registry maps each raw JSONL to a track label and budget; missing files show as \"not swept / in flight\". A row is solved when <code>r[\"solved\"]</code> is true and <code>val</code> is not <code>False</code>, or VAL is known unable to read the domain. On proof tracks only optimal-mode solves with certificates are produced, so these rows are proofs.</p>",
+        "files": [
+         "benchmarks/standings.py:100",
+         "benchmarks/standings.py:242"
+        ]
+       },
+       {
+        "id": "sec-tooling-benchmarks-st-classify",
+        "title": "Classify every failure",
+        "kind": "process",
+        "summary": "classify() puts each unsolved row in one class: VAL-RED, mem-cap, spawn-fail, timeout (at least 90 % of budget), engine-reject/error, or early-exit.",
+        "body": "<p>The taxonomy is what makes a board readable, and each threshold has a recorded reason. <strong>timeout</strong> is <code>time &gt;= 0.90 x budget</code>, not 95 %, because the refill loop refuses a new round below 10 % of an armed wall, so any graceful exit in [90 %, 100 %] is a spent wall by construction (the 0.21 boundary-sliver finding). <strong>mem-cap</strong> matches exactly \"mem-cap\" or the prefix \"mem-cap (\", because a runner suffix added in 0.24 had silently filed those rows under early-exit for two cuts. <strong>early-exit</strong> is what remains: no plan, no named mechanism, wall left (the class the refill loop exists to shrink). The budget is the row's own stamp when present.</p>\n<p><code>coverage_line()</code> returns <code>(solved, total, \"N timeout, N mem-cap, ...\")</code> per board, plus the VAL-unattested count. Crucible's <code>class.rs</code> ports this and <code>classify_taxonomy.rs</code> tests it.</p>",
+        "files": [
+         "benchmarks/standings.py:249",
+         "benchmarks/standings.py:503",
+         "crucible/crates/crucible-publish/src/class.rs"
+        ]
+       },
+       {
+        "id": "sec-tooling-benchmarks-st-headline",
+        "title": "Headline and proofs",
+        "kind": "process",
+        "summary": "Board totals sum to the headline (5,568/8,444 = 66 % across 32 boards at 0.30.0) and proof-track solves sum to the certified-optima count (694).",
+        "body": "<p>The headline in <code>STANDINGS.md</code> and the README block are the sum of solved over the sum of totals across all live boards, with the box named (\"measured on <code>m5-air</code>\"). Proof-track solves are summed separately into \"<strong>694 are certified optima</strong>\". Boards are grouped Strong / Middle / Weak by rate, each with a 20-character bar. The README's capability grouping (classical, temporal, preferences, optimal...) comes from <code>CAPABILITIES</code>, transcribed into the manifest's <code>capability</code> / <code>front_name</code> fields so the Rust renderer uses the same grouping. Order within a group is registry order, never percentage, so the front page does not reshuffle between cuts.</p>",
+        "files": [
+         "STANDINGS.md:3",
+         "benchmarks/standings.py:535",
+         "benchmarks/standings.py:741"
+        ],
+        "facts": [
+         [
+          "0.30.0 headline",
+          "5,568/8,444 (66 %)"
+         ],
+         [
+          "Boards",
+          "32"
+         ]
+        ]
+       },
+       {
+        "id": "sec-tooling-benchmarks-st-delta",
+        "title": "vs previous: same box only",
+        "kind": "process",
+        "summary": "Movement is a change in share against the newest banked snapshot measured on the same box, from benchmarks/standings-history.json.",
+        "body": "<p><code>_delta()</code> compares percentages, not counts (a corpus can grow), against the previous snapshot: <code>= (vs 0.29.0)</code> under 0.05 points, else <code>+0.7 pts (vs 0.29.0)</code>. A missing predecessor prints <em>baseline</em> or <em>new</em>, never zero.</p>\n<p>The snapshots in <code>benchmarks/standings-history.json</code> (12 at 0.30.0, from 0.20.0 to 0.30.0, all <code>measured_on: m5-air</code>) are written once per release by <code>scripts/standings-snapshot.py</code>. <code>measured_on</code> is load-bearing: coverage at a fixed time budget is a property of the hardware as much as the engine, so STANDINGS.md refuses to draw a cloud-to-Air comparison (\"that would be silicon, not progress\"). <code>measured_at</code> is separate from <code>released</code> because a backfilled old tag is a today measurement of an old release.</p>",
+        "files": [
+         "benchmarks/standings.py:966",
+         "benchmarks/standings-history.json",
+         "scripts/standings-snapshot.py:1"
+        ],
+        "facts": [
+         [
+          "Snapshots",
+          "12 (0.20.0 to 0.30.0)"
+         ],
+         [
+          "Box",
+          "m5-air"
+         ]
+        ]
+       },
+       {
+        "id": "sec-tooling-benchmarks-st-field",
+        "title": "vs field placement",
+        "kind": "process",
+        "summary": "Each board's coverage rate is placed among that competition's actual entrants from field-results.json and the vendored IPC-2023 numeric CSVs.",
+        "body": "<p><code>load_field()</code> reads <code>benchmarks/field-results.json</code> (15 cohorts, transcribed from <code>docs/ipc-rankings.md</code> at 0.25 Phase 1 so the column regenerates instead of drifting) and <code>_placement()</code> renders \"1st of 9 by rate (leader ENHSP hmrp+ha 267/400)\". A <code>~</code> marks a field with unlocated entrants; <code>&mdash;</code> means no per-entrant data. The standing caveats apply: official budgets are about 30x ours, and coverage is not IPC's quality-weighted score.</p>\n<p>Quality is scored separately in <code>ipc-standings.md</code>: plan length vs the IPC-5 archive's plans, makespan computed from each <code>.soln</code>'s timed steps (headers are empty for SGPlan, so they are never trusted), and IPC preference points against SGPlan5's <code>; MetricValue</code> (0.30: simple 96.4, qualitative 62.4, complex 54.1 against 115.2 / 91.8 / 100.0). <code>benchmarks/test_standings.py</code> pins the archive parsers with hand-computed makespans.</p>",
+        "files": [
+         "benchmarks/standings.py:588",
+         "benchmarks/standings.py:680",
+         "benchmarks/field-results.json",
+         "benchmarks/test_standings.py:1"
+        ]
+       },
+       {
+        "id": "sec-tooling-benchmarks-st-write",
+        "title": "Write, then check parity",
+        "kind": "process",
+        "summary": "standings.py writes ipc-standings.md, STANDINGS.md and the README headline block in one command; crucible standings --check must agree byte for byte.",
+        "body": "<p>One command writes all three documents, \"so the front page can never disagree with the boards behind it\" (RELEASING.md). The README block sits between <code>&lt;!-- STANDINGS:BEGIN</code> and <code>&lt;!-- STANDINGS:END --&gt;</code> markers. STANDINGS.md says \"Generated by <code>python3 benchmarks/standings.py</code> — do not hand-edit\". The promote script then runs <code>crucible --repo . standings --check</code>, which renders in memory and diffs against disk, and refuses the cut on any mismatch. This is the meaning of \"scoreboards defend themselves\": the tables are generated, idempotent, checked by a second implementation, and nobody edits a number by hand.</p>",
+        "files": [
+         "benchmarks/standings.py:857",
+         "benchmarks/promote-air30.sh:84",
+         "crucible/crates/crucible/src/main.rs:151"
+        ],
+        "links": [
+         {
+          "to": "crate-crucible-publish",
+          "label": "checked by"
+         }
+        ]
+       }
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-release-record",
+        "label": "run at release by"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-benchmarks-compare",
+      "title": "Cross-planner comparison",
+      "kind": "tool",
+      "summary": "compare.py runs ferroplan, Metric-FF and SGPlan6 over a corpus and reports per-problem results, relative speed and an IPC-5 metric scoreboard. The oracles are not bundled.",
+      "body": "<p><code>benchmarks/compare.py</code> runs ferroplan, Metric-FF (x86_64 under Rosetta, <code>FF_METRICFF</code>) and SGPlan6 (linux/386 in Docker, <code>FF_SGPLAN6</code>) and reports solved, plan length, PDDL3 metric and time per problem, then a geomean speed ratio vs Metric-FF and wins/ties/losses vs SGPlan6. Missing oracles are skipped, so a clean checkout still runs.</p>\n<p>Neither oracle is in the repository: Metric-FF is GPL and SGPlan has a non-commercial research licence, both incompatible with MIT/Apache-2.0. <code>benchmarks/COMPARING.md</code> gives build recipes (Metric-FF's K&amp;R C needs <code>-std=gnu89</code> and a rename of an <code>errno</code> parameter). <code>benchmarks/results.md</code> is the curated output, copied into the book by <code>pages.yml</code>. At last commit it reads, for example, STRIPS 40/40 at 0.71x Metric-FF's speed, ADL 23/24 at 0.77x, numeric 36/40 at 0.22x. Only ratios within one run are meaningful.</p>",
+      "files": [
+       "benchmarks/compare.py:1",
+       "benchmarks/COMPARING.md:1",
+       "benchmarks/results.md:1"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-ci-pages",
+        "label": "results.md wired into"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-benchmarks-differentials",
+      "title": "Differentials",
+      "kind": "tool",
+      "summary": "The house pattern for settling a claim: run the same instances two ways on one box, give each row a verdict, name failures, exit non-zero on any mismatch.",
+      "body": "<p>Because boards from different hardware may never be compared (the re-baseline rule), claims about a feature are settled by same-box differentials:</p>\n<ul>\n<li><strong><code>hatch-differential.py</code></strong>: every phase ships a discriminator env hatch. Run the named witnesses twice, interleaved, once as shipped and once with the hatch set, and report what the feature bought. Results are committed as <code>differential-lmcut.json</code> (hatch <code>FF_NO_LMCUT</code>), <code>differential-novlight.json</code>, <code>differential-refill.json</code>, each with <code>shipped</code>, <code>hatched</code>, <code>feature_worth</code> and <code>hatch_only</code>.</li>\n<li><strong><code>opt-differential.py</code></strong>: the optimal-mode admissibility check. Re-runs every certified seq-opt instance and compares costs. Its history explains its two budgets: at 0.21, ten certificates passed an all-306 re-certify gate at 90 s unarmed and died at 60 s on the boards, so <code>--board-budget</code> runs board conditions and counts a failure to re-certify as a regression.</li>\n<li><strong><code>crucible-differential.py</code></strong>: crucible's pure layer vs the Python oracle over every historical raw, with no inconclusive verdict.</li>\n<li><strong><code>ipc67-diff.py</code></strong>: two raw runs per instance (coverage flips, cost changes, win/tie/loss per variant).</li>\n</ul>",
+      "files": [
+       "benchmarks/hatch-differential.py:1",
+       "benchmarks/opt-differential.py:1",
+       "benchmarks/crucible-differential.py:1",
+       "benchmarks/ipc67-diff.py:1",
+       "benchmarks/differential-lmcut.json"
+      ],
+      "links": [
+       {
+        "to": "crate-crucible-publish",
+        "label": "verifies"
+       },
+       {
+        "to": "mod-optimal",
+        "label": "audits certificates of"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-benchmarks-cuts",
+      "title": "cut-N sweeps: the shell era",
+      "kind": "process",
+      "summary": "cut18-sweeps.sh through cut25-sweeps.sh drove each release sweep before crucible; each opens with what is new this cycle, on the record before the sweep runs.",
+      "body": "<p>From 0.18 to 0.25 a release's measurement was one shell script per cut (<code>benchmarks/cut18-sweeps.sh</code> ... <code>cut25-sweeps.sh</code>, plus <code>cut25-chain.sh</code>, <code>overnight-chain.sh</code>, <code>entries25-sweeps.sh</code>). Each waited for a quiet box, ran boards through <code>ipc67.py</code>, staged into <code>benchmarks/airNN/</code>, and was followed by a <code>promote-airNN.sh</code>. Their headers are part of the record: <code>cut25-sweeps.sh</code> lists four engine changes live for that sweep (the SAT conflict-rate bail, the CEGAR pairing guard, preference tiers, and moving ipc5-time and ipc5-metric-time from 30 s to 60 s) with the hatch that restores each.</p>\n<p>The staging and promotion shape survives in crucible (<code>stage = \"benchmarks/air30\"</code>, <code>promote-air30.sh</code>); the drivers do not. The 0.26 cut was the first measured by crucible, under the R1 referee, and was stopped after five days with rows owed (<code>--accept-owed</code>). Subdirectories <code>cut22/</code> to <code>cut25/</code> and <code>cut27-compare-0.26-vs-0.27.txt</code> keep artifacts of those cuts.</p>",
+      "files": [
+       "benchmarks/cut25-sweeps.sh:1",
+       "benchmarks/promote-air30.sh:30"
+      ],
+      "links": [
+       {
+        "to": "crate-crucible-purpose",
+        "label": "replaced by"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-benchmarks-rankings",
+      "title": "ipc-rankings: the soft question",
+      "kind": "concept",
+      "summary": "docs/ipc-rankings.md answers where ferroplan would land if its coverage were dropped into each competition's real field, with provenance, caveats and confidence grades.",
+      "body": "<p>The page explicitly says it is not a scoreboard. STANDINGS.md and <code>ipc-standings.md</code> are the authoritative numbers; this is the prose companion for \"roughly where would it place\". Every placement is retrospective (ferroplan did not compete) and read against three standing caveats:</p>\n<ul>\n<li><strong>Budget mismatch</strong>: official budgets are typically 1800 s; ferroplan's boards run 60 s (300 s only for the one official-budget agile entry), so a placement is usually a floor.</li>\n<li><strong>Hardware and calendar</strong>: 2006-2011 fields ran on hardware 10-20 years older, which flatters coverage placements. Named, not corrected.</li>\n<li><strong>Coverage is not the scoring formula</strong>: IPC scores are usually quality-weighted or speed-decayed, so coverage placement tends to overstate.</li>\n</ul>\n<p>Each row is graded high/medium/low confidence. Since 0.25 the numbers live in <code>benchmarks/field-results.json</code> and the vs-field column regenerates; the page keeps the provenance.</p>",
+      "files": [
+       "docs/ipc-rankings.md:1",
+       "benchmarks/field-results.json"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-benchmarks-st-field",
+        "label": "data for"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "sec-tooling-cycle",
+    "title": "Cycle discipline",
+    "kind": "section",
+    "summary": "How a release cycle is planned, measured and closed: docs/roadmap-0.N.md as plan and lab notebook, with pre-registered measures and kill clauses.",
+    "body": "<p>The working agreement in <code>CLAUDE.md</code>: \"Cycle discipline lives in <code>docs/roadmap-0.N.md</code>: measured win or recorded negative, fixtures first, scoreboards defend themselves.\" The discipline exists because the instrument (a fanless laptop shared with daily use) is noisy enough to produce any number one wants; pre-registration and recorded negatives are what keep the numbers honest.</p>",
+    "files": [
+     "CLAUDE.md",
+     "docs/roadmap-0.31.md:13"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "sec-tooling-cycle-rules",
+      "title": "The three house rules",
+      "kind": "concept",
+      "summary": "Measured win or recorded negative; fixtures first; scoreboards defend themselves. Repeated verbatim at the top of each roadmap since 0.11.",
+      "body": "<ul>\n<li><strong>Measured win or recorded negative.</strong> Every lane ends in one of two states: a number that clears its pre-registered band, or a written record of why it did not, with the code either removed or left opt-in behind a hatch. A negative is a result and stays in the roadmap. 0.27's packing calibration (\"packing is a RECORDED NEGATIVE at every width\") and 0.30's Lane 6 (-26 first-attempt, killed) are examples. The phrase first appears as an acceptance line in <code>docs/roadmap-0.11.md</code>.</li>\n<li><strong>Fixtures first.</strong> A mechanism lands with a test that fails on the old code before it is measured on boards, for example <code>tests/novlight_arena.rs</code>, which fails on the old 229-byte node layout, or the <code>tests/rung_only.rs</code> fixture required for 0.31 Phase 0.5.</li>\n<li><strong>Scoreboards defend themselves.</strong> Phrased in <code>docs/roadmap-0.16.md</code>: regenerating the standings is scripted, not hand-run prose. In practice: generated tables, a second implementation checking parity, same-box-only comparisons, budget stamps checked at promote.</li>\n</ul>\n<p>Later cycles add standing rules: every claim goes through the crucible (subsets for small questions, the 32-board sweep for the cut); the comparative estimator is declared before the sweep; sweeps run at night with no cargo on the box; a probe records but never claims.</p>",
+      "files": [
+       "docs/roadmap-0.11.md:82",
+       "docs/roadmap-0.16.md:237",
+       "docs/roadmap-0.30.md:12",
+       "docs/roadmap-0.31.md:13"
+      ]
+     },
+     {
+      "id": "sec-tooling-cycle-shape",
+      "title": "The shape of a cycle",
+      "kind": "process",
+      "summary": "Finding, declared measures, Phase 0, lanes, cut sweep, re-check and read, promote and release. Each roadmap is written before the work and filled in as it happens.",
+      "body": "<p>A roadmap is the cycle's plan and its lab notebook. It is scoped the day the previous release ships (0.30 on 2026-10-15, the day 0.29.0 was published; 0.31 on 2026-10-23, while the cut30 re-sweep was still running) and is amended in place with dated, measured sections. There are 27 of them, <code>docs/roadmap-0.5.md</code> through <code>docs/roadmap-0.31.md</code> (<code>docs/roadmap.md</code> is the archived pre-0.5 plan).</p>",
+      "files": [
+       "docs/roadmap-0.30.md:1",
+       "docs/roadmap-0.31.md:1"
+      ],
+      "facts": [
+       [
+        "Roadmaps",
+        "27"
+       ],
+       [
+        "0.30 length",
+        "1,492 lines"
+       ],
+       [
+        "0.31 length",
+        "506 lines"
+       ]
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "sec-tooling-cycle-s-finding",
+        "title": "The finding",
+        "kind": "process",
+        "summary": "Each roadmap opens with what the last cut's record showed, with numbers and file references, and builds the cycle on it.",
+        "body": "<p>0.31's finding: three cuts in a row (0.28 +190 on its six target boards, 0.29 +118 first-attempt, 0.30 flat) and a table of where the 2,889 unsolved rows sit: about 1,215 (42 %) on optimal tracks that \"never had a lane\", ~460 modern satisficing timeouts, 92 constraints, ~50 grounding-class, plus preference points. And a pattern paid for three times: a rung killed by the slice of the wall it was given, not by what it does. 0.30's finding was Lane 5's measurement of 6-15 KB per evaluated node against a ~200 B model, because the best-first search stored every generated successor's full <code>State</code>.</p>",
+        "files": [
+         "docs/roadmap-0.31.md:28",
+         "docs/roadmap-0.30.md:22"
+        ]
+       },
+       {
+        "id": "sec-tooling-cycle-s-measures",
+        "title": "Declared measures",
+        "kind": "process",
+        "summary": "Before any lane runs, the roadmap pre-registers the cut's measures: rows by first attempt against the banked predecessor, points, and (0.31) proofs.",
+        "body": "<p>0.30 declared two: rows (first attempt vs first attempt over the 8,444, <code>crucible compare --a 7fdf185b91e6 --b &lt;cut30 hash&gt;</code>, equal-N beside it, banked never a delta, no delta where estimators disagree in sign) and points (IPC quality score on the three preference boards vs SGPlan5). 0.31 adds proofs (certified-optimum count across the seven opt boards, 691 on 0.29.0). Receipts that are not claims are listed too: Lane A's held-out gain, Lane B's node cost, Lane C's heuristic build time. The baseline is always the banked engine hash, never a rebuild.</p>",
+        "files": [
+         "docs/roadmap-0.30.md:68",
+         "docs/roadmap-0.31.md:73"
+        ],
+        "links": [
+         {
+          "to": "crate-crucible-estimators",
+          "label": "read with"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-cycle-s-phase0",
+        "title": "Phase 0: instrument first",
+        "kind": "process",
+        "summary": "A blocking phase that closes what the last cut owed and fixes the instrument before any lane is measured on it.",
+        "body": "<p>0.31 Phase 0: close the cut30 record (compare <code>--lost</code>, re-check, promote, snapshot, CHANGELOG), pin the canary to a fixed binary, handle demotion at day width 8 with a hold rather than a bank (the bank was withdrawn because a demoted child runs about 13x slower), arm the wall in text mode, build the per-rung matrix harness (<code>FF_RUNG_ONLY</code> plus <code>sweep --env</code>, about 1,200 cells, roughly 140 child-hours over two quiet nights), and a grounder bytes-per-op receipt. 0.30 Phase 0 attributed twelve reproduced losses with a pre-registered fork (hatch restores the cell, or the older engine reproduces, or the box).</p>",
+        "files": [
+         "docs/roadmap-0.31.md:93",
+         "docs/roadmap-0.30.md:86"
+        ]
+       },
+       {
+        "id": "sec-tooling-cycle-s-lanes",
+        "title": "Lanes, each with claim, band, kill",
+        "kind": "process",
+        "summary": "Work is split into lanes ordered so a cut can fall after any of them. Each lane is measured on a crucible subset with its engine hash named.",
+        "body": "<p>Lanes run in an order agreed with the operator, each on the instrument the previous one built, and each in its own engine branch and worktree (<code>engine-0.31</code> at <code>/Users/harold/ferroplan-0.31</code>), with every completed phase pushed to <code>main</code> as well (<code>CLAUDE.md</code>). Mid-cycle results are written into the roadmap under dated headings such as \"Lane 5 — MEASURED 2026-10-15 18:12\" and \"Lane 6 — CLOSED 2026-10-17 22:41\", with the compare file and engine hash.</p>",
+        "files": [
+         "docs/roadmap-0.31.md:478",
+         "docs/roadmap-0.30.md:416",
+         "docs/roadmap-0.30.md:899"
+        ],
+        "links": [
+         {
+          "to": "sec-tooling-cycle-lane",
+          "label": "anatomy"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-cycle-s-cut",
+        "title": "The cut sweep",
+        "kind": "process",
+        "summary": "The full 32-board set on the candidate engine, under the same instrument, swept to SWEEP COMPLETE.",
+        "body": "<p>The cut rule (0.30): the 32-board <code>cut30</code> set, the same instrument, both declared measures read on it, the predecessor's lost cells and every lane's named cells re-run on both engines before any is named, and \"recheck is the referee's job\". 0.30's cut was run twice. The first read on <code>16b920134c1a</code> found a regression (woodworking i15/i16 lost on five board-cells, traced to novelty-light's node layout leaving LAMA 3.96 GiB at rung entry). After the flat-arena fix, the full re-sweep on <code>b02061eded16</code> banked 5,602 rows in ten passes, completing 2026-10-26 04:28.</p>",
+        "files": [
+         "docs/roadmap-0.30.md:1444",
+         "docs/roadmap-0.30.md:1413",
+         "docs/roadmap-0.30.md:1454"
+        ],
+        "links": [
+         {
+          "to": "crate-crucible-lifecycle",
+          "label": "run by"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-cycle-s-read",
+        "title": "Re-check, compare, read",
+        "kind": "process",
+        "summary": "Re-open box-decided rows, compare against the banked predecessor, and write the cut read honestly, including when the honest answer is no claim.",
+        "body": "<p>0.30: <code>recheck30.py --engine b02061eded16 --reopen</code> re-opened 21 rows, all banked in two passes. <code>crucible compare</code> against <code>7fdf185b91e6</code>: first -72, equal-N -69, per-run -22.7, clean-only -1.7, any +11, banked +13. Estimators disagree in sign, so no delta is claimed. The roadmap's sentence is \"a recorded negative on a hot instrument, not a measured loss of engine quality and not a win: memory down, rows flat\". Gains and losses are named per cell (21 gained, 8 lost after the re-check, in <code>lost-after-recheck-b020.tsv</code>).</p>",
+        "files": [
+         "docs/roadmap-0.30.md:1454",
+         "benchmarks/recheck30.py:1"
+        ],
+        "links": [
+         {
+          "to": "crate-crucible-recheck",
+          "label": "uses"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-cycle-s-release",
+        "title": "Promote and release",
+        "kind": "process",
+        "summary": "promote-airNN.sh, the standings snapshot, release notes, the full pre-flight, then publish from main.",
+        "body": "<p>The cut record ends: promoted by <code>promote-air30.sh</code> (crucible <code>standings --check</code> parity), snapshot 0.30.0 measured 2026-10-29. Then the CHANGELOG and README are written, and the release follows RELEASING.md. \"Nothing is published until <code>main</code> has it and the pre-flight, with the token's age on the checklist, is green.\" The commit <code>872cfc2</code> records the whole sequence in its message, ending \"pre-flight green on rustc 1.99.1\".</p>",
+        "files": [
+         "docs/roadmap-0.30.md:1444",
+         "RELEASING.md:79"
+        ],
+        "links": [
+         {
+          "to": "sec-tooling-release",
+          "label": "continues in"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-cycle-lane",
+      "title": "Anatomy of a lane",
+      "kind": "concept",
+      "summary": "Claim, band, kill clause, mechanism with citations, fixture, then a measured or closed section. The kill clause is written before the work starts.",
+      "body": "<p>Every lane follows the same template:</p>\n<ul>\n<li><strong>Claim</strong>: what moves. Lane 5 (0.30): \"the ~140 mem-cap rows ... spend their wall instead of dying at the runner's cap at 19-27 s.\"</li>\n<li><strong>Band</strong>: the expected size, in the declared estimator. Lane 5: +15 to +30 rows across three seq-sat boards, no row lost; bytes per node on city-car i6 under 1 KB. Lane A (0.31): +20 to +50 rows first-attempt.</li>\n<li><strong>Kill</strong>: the observation that ends it as a recorded negative. Lane A: \"held-out gain at or below 0 on the matrix, or any board's loss side larger than its gain side on the subset sweep: the table is recorded and the fractions stay.\"</li>\n<li><strong>Mechanism</strong>: the steps in order, with literature (Lane A cites Fast Downward Stone Soup and Cedalion; Lane B cites BFWS), each with a hatch and a fixture.</li>\n</ul>\n<p>Outcomes at 0.30: Lane 5 (lazy frontier) a memory win with rows flat, -1 [-6, +3], kept; Lane 6 (price of an evaluation) -26 [-39, -15], killed; Lane 2b (metric-time beyond rovers) withdrawn; Lane 1b (complex-board points) flat. Two areas (constraints, seq-opt) were probe-only: a probe records and does not claim.</p>",
+      "files": [
+       "docs/roadmap-0.30.md:359",
+       "docs/roadmap-0.31.md:156",
+       "docs/roadmap-0.30.md:1323"
+      ],
+      "links": [
+       {
+        "to": "mod-novelty",
+        "label": "Lane B targets"
+       },
+       {
+        "to": "mod-portfolio",
+        "label": "Lane A targets"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-cycle-ex030",
+      "title": "Example: 0.30",
+      "kind": "example",
+      "summary": "The wall that memory throws away, and the price of an evaluation. Memory down, rows flat, two defects found and fixed, no delta claimed.",
+      "body": "<p><strong>Order</strong>: Phase 0, the folding grounder fix (a defect before any lane), Lane 5 (the lazy frontier, headline), Lane 6, Lane 2b, Lane 1b, the cut.</p>\n<p><strong>What landed</strong>: the LAMA and novelty rungs' open lists hold a key, a parent and an operator instead of a full state and regenerate on pop (128-bit keys, because 64-bit FxHash collided on rovers' quantised fluents); on the 180-cell memory subset mem-cap verdicts went 45 to 24 and mean RSS fell 20-50 %. Novelty-light's flat arena (88 bytes a node against 229). The crucible's <code>Bank::Hot</code>, wider packing tiers and calibration gate, changed mid-sweep and recorded with the time (12:53, 2026-10-21) so rows before and after are judged by named rules.</p>\n<p><strong>The read</strong>: 5,568/8,444, 694 certified optima; first attempt -72 on a sweep with 24 % clean runs, clean-only level. The CHANGELOG headline reads \"Memory, and two defects the rung exposed\".</p>",
+      "files": [
+       "docs/roadmap-0.30.md:1",
+       "docs/roadmap-0.30.md:1454",
+       "CHANGELOG.md:7"
+      ],
+      "links": [
+       {
+        "to": "mod-search",
+        "label": "Lane 5 changed"
+       },
+       {
+        "to": "mod-lama",
+        "label": "Lane 5 changed"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-cycle-ex031",
+      "title": "Example: 0.31 (in progress)",
+      "kind": "example",
+      "summary": "The ladder learns, a second signal, and the optimal half. Five lanes ordered so a cut can fall after A, after B, or after D/C.1.",
+      "body": "<p>Scoped 2026-10-23 on the operator's brief (\"I don't care the level of effort ... knowing that some will probably fall out as we go\"). Lanes:</p>\n<ul>\n<li><strong>A (headline)</strong>: learn the ladder's time slices from a per-rung matrix (28 hand-set <code>*_FRAC</code>/<code>*_BUDGET</code> knobs today), Stone-Soup-style greedy allocation, judged held-out.</li>\n<li><strong>B</strong>: BFWS done the winners' way. Corrected on reading the code: the 0.22 driver already is BFWS(f5) in all but name; what is missing is Dual BFWS's front end, novelty-first LAMA, R refresh and forgetting.</li>\n<li><strong>C</strong>: the optimal half (42 % of unsolved rows): saturated cost partitioning over PDBs/Cartesian abstractions, then NLM-cut.</li>\n<li><strong>D</strong>: red-black relaxation as the principled consumption charge.</li>\n<li><strong>E</strong>: preference points from the candidate generator.</li>\n</ul>\n<p>Anti-pots (priced at zero): an in-sample table, a hand-set slice, a proof count with uncertified plans, an opt heuristic read without its build time. The roadmap notes the crates.io token expires around 2026-12-28, so a later cut needs a new one first.</p>",
+      "files": [
+       "docs/roadmap-0.31.md:1",
+       "docs/roadmap-0.31.md:199",
+       "docs/roadmap-0.31.md:261",
+       "docs/roadmap-0.31.md:456",
+       "docs/roadmap-0.31.md:497"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-papers-reading",
+        "label": "reads"
+       },
+       {
+        "to": "mod-optimal",
+        "label": "Lane C targets"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-cycle-antipots",
+      "title": "Anti-pots and probes",
+      "kind": "concept",
+      "summary": "Each roadmap lists claims it will not make (priced at zero) and probes that only record, so the cycle cannot drift into claiming what it did not measure.",
+      "body": "<p>The anti-pot list carries forward and grows. 0.30's included: a rows claim from 0.29's unattributed gains; a constraints or seq-opt number as a lane result (both were probes); \"the folding rows\" without the grounding receipt; evals/s from a loaded box (Lane 6's receipt had to be solo, one thread, idle box, canary idle line 0.520 s named beside it; a reading beside foreign load is discarded, not averaged); reopening pinned knobs (<code>FF_TCONC</code>, the polish share, the memory-skip quarter).</p>\n<p>Probes are recorded in <code>probes-0.30/</code> directories and can only propose a lane for the next roadmap. For example, 0.30 found that classic text mode runs its partition-first attempt with no wall armed, which became 0.31 Phase 0.4.</p>",
+      "files": [
+       "docs/roadmap-0.30.md:1352",
+       "docs/roadmap-0.30.md:1323",
+       "docs/roadmap-0.31.md:456"
+      ]
+     }
+    ],
+    "links": [
+     {
+      "to": "crate-crucible",
+      "label": "measured by"
+     },
+     {
+      "to": "sec-tooling-release",
+      "label": "ends in"
+     }
+    ]
+   },
+   {
+    "id": "sec-tooling-release",
+    "title": "Release",
+    "kind": "section",
+    "summary": "RELEASING.md and publish.sh: the pre-flight, version bump, record refresh, four-crate publish to crates.io, GitHub Release, and the separately published Python wheel.",
+    "body": "<p>The workspace publishes four crates to crates.io in dependency order: <code>ferroplan-sat</code>, <code>ferroplan</code>, <code>ferroplan-cli</code>, <code>ferroplan-mcp</code>. The Python wheel goes to PyPI separately and is optional. Crucible, the Bevy GUI and the WASM demo are never published to crates.io. Every rule in RELEASING.md carries the incident that created it.</p>",
+    "files": [
+     "RELEASING.md:1",
+     "publish.sh:1"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "sec-tooling-release-preflight",
+      "title": "Pre-flight",
+      "kind": "process",
+      "summary": "Every step must pass on latest stable before a cut; publish.sh runs them in order and stops at the first failure.",
+      "body": "<p>The pre-flight in <code>RELEASING.md</code>, as summarised in <code>CLAUDE.md</code>: latest stable, <code>fmt --check</code>, clippy <code>--all-targets --all-features -D warnings</code>, <code>test --all</code> (release), doc <code>-D warnings</code>, <code>bench --no-run</code>, ferroplan-py version and re-lock, <code>publish -p ferroplan --dry-run</code>, build-check <code>ferroplan-mcp</code>, and the maturin wheel build. Each step below carries the incident that put it there.</p>",
+      "files": [
+       "RELEASING.md:15",
+       "CLAUDE.md"
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "sec-tooling-release-pf-toolchain",
+        "title": "Latest stable Rust",
+        "kind": "process",
+        "summary": "rustup update stable first. Green on latest stable is the only green that counts, because clippy gains lints every release.",
+        "body": "<p>The pre-flight's clippy step is <code>-D warnings</code>, so a dev box on an older toolchain passes locally and fails on the release machine. RELEASING.md records this biting twice, most recently 1.94 vs 1.97 on <code>collapsible_match</code>. The 0.30.0 cut commit records \"pre-flight green on rustc 1.99.1\".</p>",
+        "files": [
+         "RELEASING.md:17"
+        ]
+       },
+       {
+        "id": "sec-tooling-release-pf-token",
+        "title": "crates.io token age",
+        "kind": "process",
+        "summary": "Tokens expire after 90 days by default; publish.sh refuses a credentials file older than 80 days unless told to continue.",
+        "body": "<p><code>cargo publish</code> is the last step of <code>publish.sh</code>. The first publish of 0.28.0 ran the whole pre-flight and then failed <code>403 authentication failed</code> on a token that had lapsed two days earlier (minted 92 days before). <code>publish.sh</code> now checks <code>~/.cargo/credentials.toml</code>'s age before spending the minutes. The roadmaps put the token's date on the cut checklist (dated 2026-09-29, expiring about 2026-12-28).</p>",
+        "files": [
+         "RELEASING.md:24",
+         "publish.sh:130"
+        ]
+       },
+       {
+        "id": "sec-tooling-release-pf-fmt",
+        "title": "fmt and clippy",
+        "kind": "process",
+        "summary": "cargo fmt --all --check, then clippy with -D warnings.",
+        "body": "<p>RELEASING.md and CLAUDE.md specify <code>cargo clippy --all-targets --all-features -- -D warnings</code>. <code>publish.sh</code> scopes clippy to <code>-p ferroplan-sat -p ferroplan -p ferroplan-cli --all-targets</code>, because a bare workspace <code>--all-targets</code> would compile the Bevy GUI (minutes of build for nothing; the library has no graphics dependency). CI runs the workspace minus <code>ferroplan-bevy</code> with <code>--all-features</code>. The three scopes differ. RELEASING.md says so and runs the widest, workspace-wide form, because green there implies green on the other two.</p>",
+        "files": [
+         "RELEASING.md:39",
+         "publish.sh:147",
+         ".github/workflows/ci.yml:24"
+        ]
+       },
+       {
+        "id": "sec-tooling-release-pf-doc",
+        "title": "Docs and benches compile",
+        "kind": "process",
+        "summary": "RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps --all-features, and cargo bench --no-run.",
+        "body": "<p>Broken intra-doc links and doc warnings fail the release. <code>cargo bench --no-run</code> only checks that the criterion benches compile (CI calls this the perf gate); bench numbers are never produced in CI, because they are machine-dependent.</p>",
+        "files": [
+         "RELEASING.md:41",
+         ".github/workflows/ci.yml:37"
+        ]
+       },
+       {
+        "id": "sec-tooling-release-pf-tests",
+        "title": "Both test passes, no-fail-fast",
+        "kind": "process",
+        "summary": "Release with --include-ignored (the slow guards) and debug across ferroplan, -cli and -mcp, both with --no-fail-fast.",
+        "body": "<p><code>cargo test --release -p ferroplan -p ferroplan-cli --no-fail-fast -- --include-ignored</code> and <code>cargo test -p ferroplan -p ferroplan-cli -p ferroplan-mcp --no-fail-fast</code>. Each has a recorded reason. <strong>--no-fail-fast</strong>: at the 0.28 cut a red <code>opt_wall</code> had hidden a second failure in an ignored test later in the alphabet for a whole cycle. <strong>The debug pass</strong>: 0.21 nearly shipped with <code>ladder_wall.rs</code> failing intermittently in debug, where the engine runs about 20x slower and a wall-denominated assertion on pop-denominated work failed by 10 %. Such tests must scale their wall with <code>cfg!(debug_assertions)</code>. <strong>The ignored pass</strong>: the ignored tests are the slow IPC guards and only run here and in CI's release step. (In <code>publish.sh</code> the ignored pass needs <code>RUN_HEAVY=1</code>.)</p>",
+        "files": [
+         "RELEASING.md:44",
+         "publish.sh:153"
+        ]
+       },
+       {
+        "id": "sec-tooling-release-pf-package",
+        "title": "Package and dry-run",
+        "kind": "process",
+        "summary": "cargo package and publish --dry-run for ferroplan-sat; a build check for the crates that depend on unpublished versions.",
+        "body": "<p>Only <code>ferroplan-sat</code> can be dry-run-published for real, because it has no unpublished path dependencies. <code>cargo publish --dry-run -p ferroplan</code> before <code>ferroplan-sat</code> X.Y.Z is on the index fails with <code>no matching package named 'ferroplan-sat' found</code>, which is expected; likewise the CLI and MCP before the library. Those get <code>cargo build -p ferroplan -p ferroplan-cli -p ferroplan-mcp</code> instead, and their real packaging check happens inside the actual publish. CLAUDE.md lists \"<code>publish -p ferroplan --dry-run</code>\" and \"build-check <code>ferroplan-mcp</code>\" as separate items for this reason.</p>",
+        "files": [
+         "publish.sh:160",
+         "RELEASING.md:146"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-sat",
+          "label": "packaged first"
+         },
+         {
+          "to": "crate-ferroplan-mcp",
+          "label": "build-checked"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-release-pf-wheel",
+        "title": "ferroplan-py version and wheel",
+        "kind": "process",
+        "summary": "Bump the Python crate in Cargo.toml and pyproject.toml, re-lock its own Cargo.lock, and build the maturin wheel locally (0.14+).",
+        "body": "<p><code>crates/ferroplan-py</code> is excluded from the workspace (a pyo3 <code>extension-module</code> does not link libpython, so a plain workspace build would fail to link), so it has its own lock file: <code>cargo update -w --manifest-path crates/ferroplan-py/Cargo.toml</code>. Then <code>maturin build --release -m crates/ferroplan-py/Cargo.toml</code>. The crate builds against <code>abi3-py38</code> (pyo3 0.29), so one wheel covers Python 3.8+.</p>\n<p>The gate stays local by direct decision. A local build on the Air checks that the PyO3 bindings compile against the current library, that packaging works, and that the wheel is well-formed. It does not cover the manylinux x86 cross-build that ships, so the cut record must say that wheel is unverified until CI or a zig cross-build runs: \"A gate that names its own blind spot beats a gate that is skipped.\"</p>",
+        "files": [
+         "RELEASING.md:152",
+         "crates/ferroplan-py/Cargo.toml:26",
+         "Cargo.toml:11"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-py",
+          "label": "builds"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-release-version",
+      "title": "Versioning",
+      "kind": "concept",
+      "summary": "One workspace version in [workspace.package], two dependency pins to update, and ferroplan-py versioned alongside in two files.",
+      "body": "<p>The workspace crates share <code>version</code> through <code>[workspace.package]</code> in the root <code>Cargo.toml</code> (currently <code>0.30.0</code>). A bump also updates the <code>ferroplan = { version = \"X.Y.Z\" }</code> pins in <code>crates/ferroplan-cli/Cargo.toml</code> and <code>crates/ferroplan-mcp/Cargo.toml</code> (a stale pin fails workspace resolution), and <code>crates/ferroplan-py/Cargo.toml</code> and <code>pyproject.toml</code> (both at 0.30.0). Then commit and tag <code>vX.Y.Z</code>. The minor version is the cycle: 0.30.0 is the output of <code>docs/roadmap-0.30.md</code>. Crucible's <code>[[set]] requires_version</code> ties a cut sweep to that version string.</p>",
+      "files": [
+       "RELEASING.md:69",
+       "Cargo.toml:21",
+       "crates/ferroplan-py/pyproject.toml:7"
+      ],
+      "facts": [
+       [
+        "Current",
+        "0.30.0"
+       ]
+      ]
+     },
+     {
+      "id": "sec-tooling-release-record",
+      "title": "Refresh the record",
+      "kind": "process",
+      "summary": "Three idempotent scripts in order: promote and regenerate standings, bank the snapshot, write and roll the release notes.",
+      "body": "<ol>\n<li><code>bash benchmarks/promote-airNN.sh</code>: refuses a partial sweep, promotes the raws, runs <code>standings.py</code> (writes <code>ipc-standings.md</code>, <code>STANDINGS.md</code> and the README headline), then <code>crucible standings --check</code>.</li>\n<li><code>python3 scripts/standings-snapshot.py --version X.Y.Z --measured-at YYYY-MM-DD</code>: banks this release into <code>standings-history.json</code> so the next release can show movement.</li>\n<li>Write the <code>CHANGELOG.md</code> section and a matching \"What's new in X.Y.Z\" blockquote plus the README's \"Status: vX.Y.Z\" line, then <code>python3 scripts/release-notes-roll.py</code>.</li>\n</ol>\n<p>The roll keeps <code>[Unreleased]</code> plus the newest two releases in CHANGELOG.md (older ones move verbatim to <code>CHANGELOG-ARCHIVE.md</code>) and the newest two README blocks. It refuses if the README's Status line or first block does not name the changelog's newest version, because 0.25.0 shipped without its README block. The README had accumulated sixteen \"What's new\" blocks, about 308 lines and 45 % of the file. <code>--check</code> exits non-zero when a roll is due.</p>",
+      "files": [
+       "RELEASING.md:79",
+       "scripts/standings-snapshot.py:1",
+       "scripts/release-notes-roll.py:1"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-benchmarks-standings",
+        "label": "runs"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-release-publishsh",
+      "title": "publish.sh",
+      "kind": "tool",
+      "summary": "Pre-flight, confirm, publish four crates in dependency order with index waits, tag, and cut the GitHub Release from CHANGELOG.md. Resumable.",
+      "body": "<p><code>./publish.sh</code> runs from <code>main</code> on the operator's machine (the sandbox the project is developed in has no crates.io token). Modes: <code>--dry-run</code> (pre-flight and packaging check only), <code>--yes</code>, <code>--release-only [VERSION]</code> (just cut or update the GitHub Release for an existing tag, including historical backfills).</p>\n<p>Order: <code>ferroplan-sat</code> (since 0.24.0, the library's dependency), wait for it on the index (polling <code>cargo search</code> every 5 s, up to about 150 s), then <code>ferroplan</code>, wait, then <code>ferroplan-cli</code> (the <code>ff</code> binary) and <code>ferroplan-mcp</code>. Each crate is skipped if its version is already on crates.io, because a run once died after crates.io succeeded but before tagging. It then tags <code>vX.Y.Z</code> unless the tag is already on the remote, and <code>create_github_release</code> builds the release title and body from the matching <code>## [X.Y.Z] - DATE — Subtitle</code> section of CHANGELOG.md or CHANGELOG-ARCHIVE.md via <code>gh</code>, so the notes cannot drift. A missing <code>gh</code> prints manual steps and is non-fatal. Pushing the tag triggers the Pages rebuild.</p>",
+      "files": [
+       "publish.sh:1",
+       "publish.sh:55",
+       "publish.sh:185",
+       "publish.sh:239"
+      ],
+      "facts": [
+       [
+        "Crates published",
+        "4"
+       ],
+       [
+        "Order",
+        "sat, library, cli, mcp"
+       ]
+      ],
+      "links": [
+       {
+        "to": "crate-ferroplan-sat",
+        "label": "publishes"
+       },
+       {
+        "to": "crate-ferroplan-cli",
+        "label": "publishes"
+       },
+       {
+        "to": "crate-ferroplan-mcp",
+        "label": "publishes"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-release-changelog",
+      "title": "CHANGELOG",
+      "kind": "data",
+      "summary": "CHANGELOG.md keeps Unreleased plus the newest two releases; each release section leads with what was measured, estimator table included.",
+      "body": "<p>Section headers follow <code>## [X.Y.Z] - DATE — Subtitle</code> (e.g. <code>## [0.30.0] - 2026-10-29 — Memory, and two defects the rung exposed</code>), which <code>publish.sh</code> parses for the GitHub Release. A release section opens with prose about the cycle's declared measures, then a <strong>Measured</strong> heading with the headline (66 % across 32 boards, 5,568/8,444, 694 certified optima), the full estimator table with 95 % CIs, the cells gained and lost by name, and links to STANDINGS.md and the roadmap. Negative and flat results appear there in the same form as gains. Older releases live verbatim in <code>CHANGELOG-ARCHIVE.md</code>.</p>",
+      "files": [
+       "CHANGELOG.md:7",
+       "CHANGELOG-ARCHIVE.md"
+      ]
+     },
+     {
+      "id": "sec-tooling-release-main",
+      "title": "Finish in main",
+      "kind": "concept",
+      "summary": "Every completed phase is pushed to main as well as the working branch, because publish.sh runs from main and a release is not ready until main has it.",
+      "body": "<p>From <code>CLAUDE.md</code>: push the working branch, then fast-forward main with <code>git push origin &lt;branch&gt;:main</code>. Each roadmap restates it (all 0.31 work lives on <code>engine-0.31</code> in its own worktree, and every completed phase pushes to <code>main</code> too), and each cut rule ends with \"Nothing is published until <code>main</code> has it\". It also matters because <code>pages.yml</code> and <code>ci.yml</code> trigger on pushes to <code>main</code>.</p>",
+      "files": [
+       "CLAUDE.md",
+       "docs/roadmap-0.31.md:8"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-ci",
+        "label": "triggers"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "sec-tooling-ci",
+    "title": "CI and the docs site",
+    "kind": "section",
+    "summary": "Two GitHub Actions workflows: ci.yml gates every push and PR; pages.yml builds and deploys the mdBook with the WASM planner demo and Bevy GUI embedded.",
+    "body": "<p>CI checks code, not numbers. Everything measured comes from the Air through crucible and is committed; CI only checks that the code builds, lints, tests and documents cleanly, and publishes the committed numbers as they are.</p>",
+    "files": [
+     ".github/workflows/ci.yml:1",
+     ".github/workflows/pages.yml:1"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "sec-tooling-ci-ci",
+      "title": "ci.yml: the push gate",
+      "kind": "tool",
+      "summary": "On every push to main and every PR: fmt, clippy -D warnings, tests, the ignored IPC guards in release, docs -D warnings, and benches compile. Bevy is excluded.",
+      "body": "<p>One job, <code>test</code>, on <code>ubuntu-latest</code> with <code>dtolnay/rust-toolchain@stable</code> (rustfmt, clippy) and <code>Swatinem/rust-cache</code>:</p>\n<ol>\n<li><code>cargo fmt --all --check</code></li>\n<li><code>cargo clippy --workspace --exclude ferroplan-bevy --all-targets --all-features -- -D warnings</code></li>\n<li><code>cargo test --workspace --exclude ferroplan-bevy</code></li>\n<li><code>cargo test --release -p ferroplan -- --ignored</code>: the heavy IPC regression guards (espc, ipc5_pref_metric), which are <code>#[ignore]</code>d so the default test run stays fast and run here in release, about 3x faster.</li>\n<li><code>cargo doc --no-deps --all-features --workspace --exclude ferroplan-bevy</code> with <code>RUSTDOCFLAGS=-D warnings</code></li>\n<li><code>cargo bench --no-run -p ferroplan</code> (the perf gate is only that benches compile)</li>\n</ol>\n<p>Bevy is excluded because the engine needs heavy system libraries on Linux. Crucible is outside the workspace, so CI never builds it; <code>crucible/preflight.sh</code> is its gate. No benchmark numbers are produced in CI, since they are machine-dependent and come from the Air.</p>",
+      "files": [
+       ".github/workflows/ci.yml:1",
+       ".github/workflows/ci.yml:24",
+       ".github/workflows/ci.yml:31"
+      ],
+      "facts": [
+       [
+        "Runner",
+        "ubuntu-latest"
+       ],
+       [
+        "Excluded",
+        "ferroplan-bevy, crucible"
+       ]
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-release-preflight",
+        "label": "subset of"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-ci-pages",
+      "title": "pages.yml: the docs site build",
+      "kind": "process",
+      "summary": "On push to main (or manual dispatch): sanity-check the demo, build the WASM planner and Bevy GUI, build the mdBook, bundle them, stamp the cache, deploy to GitHub Pages.",
+      "body": "<p>The Pages workflow turns the repository into one site: the book at the root, the planner demo at <code>/demo/</code>, the visualiser at <code>/gui/</code>. It has <code>pages: write</code> and <code>id-token: write</code> permissions and a single <code>build</code> job followed by <code>deploy</code>. <code>publish.sh</code> notes that pushing the release tag triggers the rebuild.</p>",
+      "files": [
+       ".github/workflows/pages.yml:1"
+      ],
+      "layout": "flow",
+      "children": [
+       {
+        "id": "sec-tooling-ci-pg-sanity",
+        "title": "Sanity-check the demo modules",
+        "kind": "process",
+        "summary": "Before any wasm build, node imports examples.js as a real ES module and checks DOMAINS is non-empty, checks sw.js syntax, and parses the web manifest.",
+        "body": "<p>A malformed <code>examples.js</code> kills the demo's whole module script, and the page would deploy with empty dropdowns. So the job's first step runs <code>node --input-type=module</code> to import <code>crates/ferroplan-wasm/web/examples.js</code> and throws if <code>DOMAINS</code> is missing or empty, then <code>node --check</code> on <code>sw.js</code> and <code>JSON.parse</code> on <code>manifest.webmanifest</code>. This takes seconds and runs before any minutes are spent on wasm builds.</p>",
+        "files": [
+         ".github/workflows/pages.yml:25"
+        ]
+       },
+       {
+        "id": "sec-tooling-ci-pg-results",
+        "title": "Wire in committed results",
+        "kind": "process",
+        "summary": "Copies benchmarks/results.md into book/src/results.md as-is. Benchmarks are never re-run on the CI runner.",
+        "body": "<p>The comment states the policy: the committed numbers are machine-dependent (generated locally per <code>benchmarks/COMPARING.md</code>), so re-running the suite on a CI runner would be slow and not meaningful. The book's standings chapter pulls the generated table in directly with <code>{{#include ../../benchmarks/ipc-standings.md}}</code>.</p>",
+        "files": [
+         ".github/workflows/pages.yml:41",
+         "book/src/standings.md:48"
+        ],
+        "links": [
+         {
+          "to": "sec-tooling-benchmarks-compare",
+          "label": "copies output of"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-ci-pg-wasm",
+        "title": "Build the planner demo (WASM)",
+        "kind": "process",
+        "summary": "Adds wasm32-unknown-unknown, installs wasm-bindgen-cli 0.2.126, and runs crates/ferroplan-wasm/build.sh.",
+        "body": "<p><code>build.sh</code> compiles <code>ferroplan-wasm</code> in release for <code>wasm32-unknown-unknown</code> and runs <code>wasm-bindgen --target web</code> into <code>crates/ferroplan-wasm/web/pkg/</code>. The CLI version is pinned to match the crate's wasm-bindgen dependency. The web directory carries <code>index.html</code>, a <code>worker.js</code> that runs the planner off the main thread, the example domains, a service worker for offline use, and the village and bazaar live pages.</p>",
+        "files": [
+         ".github/workflows/pages.yml:43",
+         "crates/ferroplan-wasm/build.sh:1"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-wasm",
+          "label": "builds"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-ci-pg-bevy",
+        "title": "Build the GUI (Bevy WASM)",
+        "kind": "process",
+        "summary": "crates/ferroplan-bevy/build-wasm.sh compiles the Bevy visualiser to wasm with the getrandom wasm_js backend and generates JS glue.",
+        "body": "<p>The Bevy GUI cannot be built in <code>ci.yml</code> for Linux native (system libraries), but it does build for the browser: <code>RUSTFLAGS='--cfg getrandom_backend=\"wasm_js\"' cargo build -p ferroplan-bevy --release --target wasm32-unknown-unknown</code>, then <code>wasm-bindgen --target web --no-typescript</code> into <code>crates/ferroplan-bevy/web/pkg</code>. This is the only place in CI where Bevy compiles at all.</p>",
+        "files": [
+         ".github/workflows/pages.yml:48",
+         "crates/ferroplan-bevy/build-wasm.sh:1"
+        ],
+        "links": [
+         {
+          "to": "crate-ferroplan-bevy",
+          "label": "builds"
+         }
+        ]
+       },
+       {
+        "id": "sec-tooling-ci-pg-book",
+        "title": "mdbook build and bundle",
+        "kind": "process",
+        "summary": "mdBook 0.4 builds book/ into book/book; the planner demo is copied to /demo/ and the GUI to /gui/.",
+        "body": "<p><code>cargo install mdbook --version \"^0.4\" --locked</code>, then <code>mdbook build book</code>. The two web directories are copied into the output: <code>crates/ferroplan-wasm/web</code> becomes <code>book/book/demo</code> and <code>crates/ferroplan-bevy/web</code> becomes <code>book/book/gui</code>. One Pages site serves the documentation, the in-browser planner and the visualiser.</p>",
+        "files": [
+         ".github/workflows/pages.yml:36",
+         ".github/workflows/pages.yml:50",
+         ".github/workflows/pages.yml:52"
+        ]
+       },
+       {
+        "id": "sec-tooling-ci-pg-stamp",
+        "title": "Stamp the offline cache, deploy",
+        "kind": "process",
+        "summary": "sed replaces __BUILD_ID__ in the demo's sw.js with the commit SHA, verifies it, uploads the Pages artifact, and deploys.",
+        "body": "<p>The demo's offline copy is keyed by build: a new deploy is a new cache, installed whole and swapped in on activation. The step writes <code>GITHUB_SHA</code> into <code>book/book/demo/sw.js</code> and <code>grep</code>s to confirm the substitution happened, so a deploy cannot silently ship a stale cache key (a local checkout serves <code>'dev'</code>). Then <code>actions/upload-pages-artifact@v3</code> and a separate <code>deploy</code> job with <code>actions/deploy-pages@v4</code> in the <code>github-pages</code> environment. The workflow uses <code>concurrency: pages</code> with <code>cancel-in-progress</code>, so only the newest push deploys.</p>",
+        "files": [
+         ".github/workflows/pages.yml:59",
+         ".github/workflows/pages.yml:71"
+        ]
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-ci-book",
+      "title": "book/: the mdBook",
+      "kind": "frontend",
+      "summary": "Sixteen chapters from introduction and install through library, Session, architecture, PDDL3, temporal, tuning, GUI, performance, benchmarks, results and standings.",
+      "body": "<p><code>book/book.toml</code> (title \"ferroplan\", \"A fast, data-parallel PDDL planner in Rust\", rust theme, git link to hhh42/ferroplan). <code>book/src/SUMMARY.md</code> lists: Introduction, Try it in your browser, Install &amp; quick start, Command line (<code>ff</code>), Library API, Game embedding (the Session), Architecture, PDDL3 preferences, Metric quality &amp; invariants, Temporal planning, Tuning &amp; environment knobs, GUI (ferroplan-bevy), Performance, Benchmarks, Benchmark results, Competition standings. About 1,191 lines of Markdown in total.</p>\n<p>Two chapters are not hand-maintained: <code>results.md</code> is overwritten from <code>benchmarks/results.md</code> at build, and <code>standings.md</code> includes the generated <code>benchmarks/ipc-standings.md</code>, prefaced by prose that explains that <code>standings.py</code> and crucible's renderer must agree. So the published site carries the same numbers as STANDINGS.md.</p>",
+      "files": [
+       "book/book.toml:1",
+       "book/src/SUMMARY.md:1",
+       "book/src/standings.md:1"
+      ],
+      "facts": [
+       [
+        "Chapters",
+        "16"
+       ]
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-benchmarks-standings",
+        "label": "includes output of"
+       },
+       {
+        "to": "crate-ferroplan-cli",
+        "label": "documents"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "sec-tooling-papers",
+    "title": "Docs and papers library",
+    "kind": "section",
+    "summary": "The research shelf: 37 vendored papers, a per-cycle reading list mapped to lanes, and the design memos that justified earlier cycles.",
+    "body": "<p>Since 0.31, a lane's mechanism is expected to cite the literature it implements, and the papers are kept in the repository so the citation can be checked against the code. Older cycles used free-standing memos in <code>docs/</code> for the same purpose.</p>",
+    "files": [
+     "docs/reading-list-0.31.md:1",
+     "docs/papers"
+    ],
+    "layout": "grid",
+    "children": [
+     {
+      "id": "sec-tooling-papers-library",
+      "title": "docs/papers: the vendored PDFs",
+      "kind": "data",
+      "summary": "37 open-access PDFs (about 20 MB) behind the 0.31 lanes: portfolios, BFWS and novelty, cost partitioning and PDBs, red-black relaxation, NLM-cut, soft goals, and IPC 2023 planner abstracts.",
+      "body": "<p>Vendored with the 0.31 scoping commit (<code>1e93380</code>, \"37 papers vendored under docs/papers\"). Named <code>author-year-slug.pdf</code>. Groups, by what they inform:</p>\n<ul>\n<li><strong>Portfolios and slices</strong>: <code>helmert-etal-2011-stone-soup</code>, <code>roeger-etal-2014-stone-soup</code>, <code>seipp-etal-2015-cedalion</code>, <code>ipc2023-fdss</code>.</li>\n<li><strong>Width and novelty</strong>: <code>lipovetzky-geffner-2017-bfws</code>, <code>frances-etal-2017-bfws-simulators</code>, <code>katz-etal-2017-adapting-novelty</code>, <code>singh-etal-2021-approximate-novelty</code>, <code>richter-etal-2010-joy-of-forgetting</code>, <code>richter-westphal-2010-lama</code>.</li>\n<li><strong>Optimal</strong>: <code>seipp-helmert-2018-cegar-jair</code>, <code>seipp-etal-2020-scp-jair</code>, <code>seipp-helmert-2019-subset-scp</code>, <code>haslum-etal-2007-ipdb</code>, <code>rovner-etal-2019-cegar-patterns</code>, <code>kuroiwa-etal-2021/2022-nlmcut</code>, <code>speck-etal-2025-symbolic-jair</code>, and IPC 2023 abstracts (Scorpion, Ragnarok, SymK, SymBD, CEGAR++, complementary PDBs).</li>\n<li><strong>Red-black relaxation</strong>: <code>katz-etal-2013-red-black-relaxed-plan</code>, <code>katz-etal-2013-who-said-relax-all</code>, <code>katz-hoffmann-2014-red-black-reloaded-socs</code>.</li>\n<li><strong>Preferences</strong>: <code>keyder-geffner-2009-soft-goals</code>, <code>baier-etal-2006-hplanp-ipc5</code>, <code>baier-etal-2009-tep-aij</code>.</li>\n<li><strong>Lifted and other</strong>: <code>correa-etal-2020-powerlifted</code>, <code>ipc2023-powerlifted</code>, <code>ipc2023-levitron</code>, <code>icaps14-hsdip-proceedings</code>.</li>\n</ul>",
+      "files": [
+       "docs/papers/lipovetzky-geffner-2017-bfws.pdf",
+       "docs/papers/helmert-etal-2011-stone-soup.pdf",
+       "docs/papers/seipp-etal-2020-scp-jair.pdf"
+      ],
+      "facts": [
+       [
+        "PDFs",
+        "37"
+       ],
+       [
+        "Size",
+        "~20 MB"
+       ]
+      ]
+     },
+     {
+      "id": "sec-tooling-papers-reading",
+      "title": "Reading list 0.31",
+      "kind": "concept",
+      "summary": "docs/reading-list-0.31.md groups the papers by the lane they inform, stars the ones a mechanism is written from, and says how to add one.",
+      "body": "<p>Fetched 2026-10-23. Sections: Lane A (the ladder learns its slices), Lane B (BFWS done the winners' way), Lane C (the optimal half), Lane D (red-black relaxation), Lane E (preference points), Probes (constraints, lifted search), How to add to this list. Starred items are the ones a lane's mechanism is written from, for example Stone Soup (\"the greedy coverage-per-second slice allocation; three pages. The whole of Lane A's allocator\"), Cedalion (the leave-one-out discipline Lane A's held-out receipt copies), and BFWS (the configuration Lane B builds). Two paywalled journal versions are not vendored; their conference versions are, with the DOI.</p>\n<p>The add procedure is part of the discipline: fetch with <code>curl</code>, check <code>head -c 5</code> reads <code>%PDF</code> before keeping it, prefer OJS, arXiv or author pages, and add a line under the lane with the full citation and the sentence that says why. The roadmap then cites papers by name in each lane's mechanism, and Lane B was corrected after reading both the code and the papers.</p>",
+      "files": [
+       "docs/reading-list-0.31.md:1",
+       "docs/reading-list-0.31.md:10",
+       "docs/reading-list-0.31.md:132"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-cycle-ex031",
+        "label": "informs"
+       }
+      ]
+     },
+     {
+      "id": "sec-tooling-papers-memos",
+      "title": "Design memos and forensics",
+      "kind": "concept",
+      "summary": "docs/ also holds one-off analyses that fed roadmaps: the 2026 landscape memo, field-gap pricing, tpp forensics, the M5 migration, perf notes, the ESPC spec.",
+      "body": "<ul>\n<li><code>landscape-2026.md</code>: the 0.17 Phase 1 frontier memo. What IPC 2014-2023 winners actually run, and a ranked list of engine gaps, each with mechanism sketch, evidence and an in-this-engine cost paragraph.</li>\n<li><code>field-gaps-0.26.md</code>, <code>field-gaps-execution-0.26.md</code>: the SGPlan overtake and modern-satisficing climb, priced, drafted with the 0.25 cut in flight.</li>\n<li><code>forensics-tpp.md</code>: what the tpp/pathways tail gap to SGPlan5 actually is (post-0.5.0).</li>\n<li><code>migration-m5.md</code>: the move from a cloud container to the M5 MacBook Air at the 0.20 cut, which is why <code>standings-history.json</code> starts at 0.20.0 on <code>m5-air</code> and why cross-box comparisons are refused. Also the source of <code>jobs = 2</code> on a fanless box.</li>\n<li><code>perf-notes.md</code>, <code>invariants-measurement.md</code>, <code>espc-preferences-spec.md</code>: profiling history, the mutex-group coverage measurement, and the ESPC preference spec.</li>\n<li><code>ipc-rankings.md</code>: the field-placement companion (see Benchmarks).</li>\n</ul>",
+      "files": [
+       "docs/landscape-2026.md:1",
+       "docs/migration-m5.md:1",
+       "docs/forensics-tpp.md:1",
+       "docs/field-gaps-0.26.md:1"
+      ],
+      "links": [
+       {
+        "to": "sec-tooling-benchmarks-rankings",
+        "label": "sibling"
+       },
+       {
+        "to": "sec-tooling-benchmarks-st-delta",
+        "label": "explains same-box rule"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ }
+]

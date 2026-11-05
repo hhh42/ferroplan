@@ -1,0 +1,476 @@
+<title>ferroplan Atlas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="An interactive, zoomable architecture map of the ferroplan PDDL planner.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* Layout: an engineering drawing. Nested boxes on a faint drafting grid; a box opens in place,
+   spans its row and reveals its parts. Flow arrows live under the boxes, cross-links over them. */
+:root {
+  --ground: #e4e2dc;      /* drafting paper, mdBook "rust" family */
+  --grid: #d6d3cb;
+  --surface: #f6f5f1;
+  --surface-2: #eceae4;
+  --ink: #262625;
+  --ink-2: #5d5a55;
+  --rule: #c9c5bc;
+  --rust: #a8431a;        /* iron oxide: the accent */
+  --rust-soft: #a8431a22;
+  --wire: #2b79a2;        /* cross-links, from the book's link blue */
+  --wire-soft: #2b79a233;
+  --k-section: #a8431a; --k-stage: #b8741a; --k-module: #4f6d3a; --k-heuristic: #8a3d78;
+  --k-search: #2b79a2; --k-mode: #6b55a8; --k-data: #3c7f7a; --k-frontend: #b05050;
+  --k-tool: #6d6a63; --k-process: #7a6a2a; --k-concept: #567; --k-example: #c25a00; --k-crate: #8b4513;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 3px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --ground: #181716; --grid: #22201e; --surface: #24211f; --surface-2: #2c2926; --ink: #ebe6df; --ink-2: #aaa39a;
+  --rule: #403b36; --rust: #e2784a; --rust-soft: #e2784a26; --wire: #6cb6de; --wire-soft: #6cb6de33;
+  --k-section: #e2784a; --k-stage: #e0a24c; --k-module: #93b874; --k-heuristic: #d58cc4; --k-search: #6cb6de;
+  --k-mode: #a996e6; --k-data: #6fc2bc; --k-frontend: #e48a8a; --k-tool: #aaa39a; --k-process: #cdbb6a;
+  --k-concept: #9ab; --k-example: #f0954a; --k-crate: #d0905a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --ground: #181716; --grid: #22201e; --surface: #24211f; --surface-2: #2c2926; --ink: #ebe6df; --ink-2: #aaa39a;
+  --rule: #403b36; --rust: #e2784a; --rust-soft: #e2784a26; --wire: #6cb6de; --wire-soft: #6cb6de33;
+  --k-section: #e2784a; --k-stage: #e0a24c; --k-module: #93b874; --k-heuristic: #d58cc4; --k-search: #6cb6de;
+  --k-mode: #a996e6; --k-data: #6fc2bc; --k-frontend: #e48a8a; --k-tool: #aaa39a; --k-process: #cdbb6a;
+  --k-concept: #9ab; --k-example: #f0954a; --k-crate: #d0905a; color-scheme: dark }
+
+* { box-sizing: border-box }
+body {
+  margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.55 var(--f-body);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface) }
+code, pre { font-family: var(--f-mono); font-size: .86em }
+code { background: var(--surface-2); padding: .05em .35em; border-radius: 2px; overflow-wrap: anywhere }
+pre { background: var(--surface-2); padding: .7em .9em; border-radius: var(--r); overflow-x: auto; line-height: 1.45; border: 1px solid var(--rule) }
+pre code { background: none; padding: 0 }
+a { color: var(--wire) }
+button { font: inherit; color: inherit }
+:focus-visible { outline: 2px solid var(--rust); outline-offset: 2px }
+
+/* ---------- top bar ---------- */
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 10px;
+}
+.bar-in { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; max-width: 1500px; margin: 0 auto }
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0 }
+.brand b { font: 700 22px/1 var(--f-display); letter-spacing: -.01em }
+.brand b i { font-style: normal; color: var(--rust) }
+.brand span { font: 500 11px/1 var(--f-mono); color: var(--ink-2); text-transform: uppercase; letter-spacing: .08em }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-left: auto }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: var(--r); overflow: hidden }
+.seg button, .tbtn {
+  background: var(--surface); border: 0; padding: 5px 10px; cursor: pointer; font: 500 12px/1.2 var(--f-mono); color: var(--ink-2)
+}
+.seg button + button { border-left: 1px solid var(--rule) }
+.seg button:hover, .tbtn:hover { color: var(--ink); background: var(--surface-2) }
+.tbtn { border: 1px solid var(--rule); border-radius: var(--r) }
+.tbtn[aria-pressed="true"] { color: var(--wire); border-color: var(--wire); background: var(--wire-soft) }
+.lbl { font: 500 11px/1 var(--f-mono); color: var(--ink-2); text-transform: uppercase; letter-spacing: .08em }
+.search { position: relative }
+.search input {
+  width: 220px; max-width: 60vw; padding: 6px 10px; border: 1px solid var(--rule); border-radius: var(--r);
+  background: var(--ground); color: var(--ink); font: 13px var(--f-body)
+}
+.results {
+  position: absolute; right: 0; top: calc(100% + 4px); width: min(420px, 90vw); max-height: 60vh; overflow: auto;
+  background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); box-shadow: 0 8px 30px #0003; z-index: 30
+}
+.results button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--rule) }
+.results button:hover, .results button.sel { background: var(--surface-2) }
+.results small { display: block; color: var(--ink-2); font: 11px var(--f-mono) }
+.crumbs { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; font: 12px var(--f-mono); color: var(--ink-2); min-height: 18px }
+.crumbs button { background: none; border: 0; padding: 0 2px; cursor: pointer; color: var(--ink-2); font: inherit }
+.crumbs button:hover { color: var(--rust) }
+.crumbs b { color: var(--ink); font-weight: 600 }
+
+/* ---------- page ---------- */
+main {
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 22px 60px;
+}
+.wrap { max-width: 1500px; margin: 0 auto }
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 360px); gap: 20px 36px; margin-bottom: 22px; align-items: start }
+.intro h1 { font: 700 clamp(28px, 4vw, 42px)/1.05 var(--f-display); margin: 0 0 10px; text-wrap: balance; letter-spacing: -.015em }
+.intro p { margin: 0 0 8px; max-width: 68ch; color: var(--ink-2) }
+.legend { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); padding: 12px 14px; font-size: 13px }
+.legend h2 { font: 600 11px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 8px; color: var(--ink-2) }
+.legend ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px }
+.legend svg { vertical-align: middle; margin-right: 6px }
+.stats { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font: 12px var(--f-mono); color: var(--ink-2) }
+.stats b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums }
+@media (max-width: 860px) { .intro { grid-template-columns: minmax(0, 1fr) } }
+
+/* ---------- the diagram ---------- */
+#canvas { position: relative }
+svg.layer { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible }
+svg.under { z-index: 0 }
+svg.over { z-index: 5 }
+.kids { position: relative; z-index: 1 }
+.kids.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 18px; align-items: start }
+.kids.flow { display: flex; flex-wrap: wrap; gap: 26px 46px; align-items: flex-start }
+.kids.flow > .box { flex: 1 1 210px; max-width: 330px }
+.kids.flow > .box.open { flex-basis: 100%; max-width: none }
+.kids.grid > .box.open { grid-column: 1 / -1 }
+#root.kids.grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 22px }
+
+.box {
+  position: relative; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r);
+  min-width: 0; transition: box-shadow .15s, border-color .15s;
+}
+.box.d1, .box.d3, .box.d5 { background: var(--surface-2) }
+.box.d1 .box.d2, .box.d3 .box.d4 { background: var(--surface) }
+.box.section { border-width: 1.5px; border-color: color-mix(in srgb, var(--kc) 55%, var(--rule)) }
+.box.open { box-shadow: 0 1px 0 var(--rule), 0 6px 24px #0000000f }
+.box.hl { border-color: var(--wire); box-shadow: 0 0 0 3px var(--wire-soft) }
+.box.focus { border-color: var(--rust); box-shadow: 0 0 0 3px var(--rust-soft) }
+.box.flash { animation: flash 1.4s ease-out }
+@keyframes flash { 0% { box-shadow: 0 0 0 10px var(--rust-soft) } 100% { box-shadow: 0 0 0 0 transparent } }
+.hd {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 2px 10px; align-items: start;
+  width: 100%; text-align: left; background: none; border: 0; padding: 11px 12px 10px; cursor: pointer
+}
+.hd:hover .ttl { color: var(--rust) }
+.glyph { width: 14px; height: 14px; margin-top: 3px; border-radius: 2px; background: var(--kc); position: relative }
+.glyph::after { content: ""; position: absolute; inset: 3px; border: 1.5px solid var(--surface); border-radius: 1px; opacity: .9 }
+.box.leaf > .hd .glyph { border-radius: 50% }
+.box.leaf > .hd .glyph::after { border-radius: 50% }
+.ttl { font: 600 16px/1.2 var(--f-display); letter-spacing: -.005em; text-wrap: balance; overflow-wrap: anywhere }
+.box.section > .hd .ttl { font-size: 21px }
+.meta { display: flex; gap: 8px; align-items: center; font: 500 10.5px/1 var(--f-mono); color: var(--ink-2); text-transform: uppercase; letter-spacing: .07em; white-space: nowrap; margin-top: 4px }
+.meta .n { color: var(--kc); font-weight: 600 }
+.chev { width: 10px; height: 10px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .15s; margin-left: 2px }
+.box.open > .hd .chev { transform: rotate(45deg) }
+.sum { grid-column: 2 / -1; font-size: 13.5px; color: var(--ink-2); line-height: 1.45 }
+.box.open > .hd .sum { color: var(--ink); font-size: 14.5px }
+.det { padding: 0 14px 14px }
+.det[hidden] { display: none }
+.info { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px); gap: 14px 28px; margin: 2px 0 14px 24px }
+.info.solo { grid-template-columns: minmax(0, 1fr) }
+@media (max-width: 760px) { .info { grid-template-columns: minmax(0, 1fr); margin-left: 0 } }
+.prose { max-width: 74ch; min-width: 0 }
+.prose > :first-child { margin-top: 0 }
+.prose p, .prose ul, .prose ol { margin: 0 0 .7em }
+.prose li { margin-bottom: .25em }
+.prose table { border-collapse: collapse; font-size: 13px; display: block; overflow-x: auto; max-width: 100%; margin: .4em 0 .9em }
+.prose th, .prose td { border: 1px solid var(--rule); padding: 5px 8px; text-align: left; vertical-align: top }
+.prose th { background: var(--surface-2); font: 600 12px var(--f-mono) }
+.side { display: grid; gap: 12px; align-content: start; min-width: 0 }
+.side h4 { margin: 0 0 5px; font: 600 10.5px/1 var(--f-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ink-2) }
+dl.facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 3px 10px; font-size: 13px }
+dl.facts dt { color: var(--ink-2); font: 12px var(--f-mono) }
+dl.facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere }
+.files { display: grid; gap: 3px }
+.files a { font: 12px var(--f-mono); text-decoration: none; overflow-wrap: anywhere }
+.files a:hover { text-decoration: underline }
+.links { display: flex; flex-wrap: wrap; gap: 5px }
+.links button {
+  background: var(--wire-soft); border: 1px solid transparent; color: var(--ink); border-radius: 99px; padding: 2px 9px 3px;
+  cursor: pointer; font-size: 12px; text-align: left
+}
+.links button:hover { border-color: var(--wire) }
+.links button i { font-style: normal; color: var(--ink-2); font: 11px var(--f-mono) }
+.edge-label {
+  font: 500 10.5px var(--f-mono); fill: var(--ink); paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round
+}
+footer { margin-top: 30px; font: 12px var(--f-mono); color: var(--ink-2); display: flex; gap: 16px; flex-wrap: wrap }
+@media (prefers-reduced-motion: reduce) { .box, .chev { transition: none } .box.flash { animation: none } }
+</style>
+
+<header class="bar"><div class="bar-in">
+  <div class="brand"><b>ferroplan <i>Atlas</i></b><span id="ver"></span></div>
+  <div class="tools">
+    <span class="lbl">Open to</span>
+    <div class="seg" role="group" aria-label="Open the diagram to a depth">
+      <button type="button" data-depth="0">Sections</button>
+      <button type="button" data-depth="1">Parts</button>
+      <button type="button" data-depth="2">Modules</button>
+      <button type="button" data-depth="99">Everything</button>
+    </div>
+    <button type="button" class="tbtn" id="allLinks" aria-pressed="false" title="Draw every cross-reference between visible boxes">All links</button>
+    <div class="search">
+      <input id="q" type="search" placeholder="Find a module, idea, function…" autocomplete="off" aria-label="Search the atlas">
+      <div class="results" id="results" hidden></div>
+    </div>
+  </div>
+  <nav class="crumbs" id="crumbs" aria-label="Where you are"></nav>
+</div></header>
+
+<main><div class="wrap">
+  <section class="intro">
+    <div>
+      <h1 id="h1"></h1>
+      <div id="lede"></div>
+      <div class="stats" id="stats"></div>
+    </div>
+    <aside class="legend">
+      <h2>How to read it</h2>
+      <ul>
+        <li><svg width="16" height="16" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="14" rx="2" fill="var(--k-section)"/></svg>Square: has parts inside. Click to open.</li>
+        <li><svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="var(--k-module)"/></svg>Round: a leaf. Click for the full write-up.</li>
+        <li><svg width="30" height="10" viewBox="0 0 30 10"><path d="M1 5H24" stroke="var(--ink-2)" stroke-width="1.5" fill="none"/><path d="M22 1l6 4-6 4z" fill="var(--ink-2)"/></svg>Sequence: data flows in this order.</li>
+        <li><svg width="30" height="10" viewBox="0 0 30 10"><path d="M1 5H24" stroke="var(--wire)" stroke-width="1.8" stroke-dasharray="4 3" fill="none"/><path d="M22 1l6 4-6 4z" fill="var(--wire)"/></svg>Connection: hover or select a box to see what it touches.</li>
+        <li>Links to hidden boxes attach to the nearest open box that contains them.</li>
+      </ul>
+    </aside>
+  </section>
+
+  <div id="canvas">
+    <svg class="layer under" id="under" aria-hidden="true"></svg>
+    <div class="kids grid" id="root"></div>
+    <svg class="layer over" id="over" aria-hidden="true"></svg>
+  </div>
+  <footer><span id="foot"></span><span>Paths link to the source on GitHub.</span></footer>
+</div></main>
+
+<script>
+const DATA = /*__ATLAS_DATA__*/null;
+(() => {
+  const REPO = "https://github.com/hhh42/ferroplan/blob/main/";
+  const KINDS = { section:"Section", crate:"Crate", stage:"Stage", module:"Module", concept:"Concept", heuristic:"Heuristic",
+    search:"Search", data:"Data", mode:"Mode", frontend:"Front door", tool:"Tool", process:"Process", example:"Example" };
+  const byId = new Map(), parent = new Map(), depth = new Map();
+  (function index(n, p, d) {
+    byId.set(n.id, n); if (p) parent.set(n.id, p.id); depth.set(n.id, d);
+    (n.children || []).forEach(c => index(c, n, d + 1));
+  })(DATA, null, -1);
+  const allLinks = [];
+  byId.forEach(n => (n.links || []).forEach(l => { if (byId.has(l.to) && l.to !== n.id) allLinks.push({ from: n.id, to: l.to, label: l.label || "" }); }));
+  const backlinks = new Map();
+  allLinks.forEach(l => { if (!backlinks.has(l.to)) backlinks.set(l.to, []); backlinks.get(l.to).push(l); });
+
+  const $ = s => document.querySelector(s);
+  const open = new Set(); const els = new Map();
+  let focus = null, hover = null, showAll = false;
+  const STORE = "ferroplan-atlas-open";
+  try { (JSON.parse(localStorage.getItem(STORE) || "[]")).forEach(id => byId.has(id) && open.add(id)); } catch (e) {}
+  const save = () => { try { localStorage.setItem(STORE, JSON.stringify([...open])); } catch (e) {} };
+
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+  const kc = k => `var(--k-${KINDS[k] ? k : "concept"})`;
+  const ancestors = id => { const a = []; let p = parent.get(id); while (p && p !== DATA.id) { a.unshift(p); p = parent.get(p); } return a; };
+  const isShown = id => ancestors(id).every(a => open.has(a));
+  const visibleOf = id => { let n = id; while (n && n !== DATA.id && !isShown(n)) n = parent.get(n); return n === DATA.id ? null : n; };
+  const within = (id, root) => { for (let n = id; n; n = parent.get(n)) if (n === root) return true; return false; };
+  const count = n => (n.children || []).reduce((s, c) => s + 1 + count(c), 0);
+
+  function fileLink(f) {
+    const m = /^(.*?)(?::(\d+))?$/.exec(f); const path = m[1], line = m[2];
+    return `<a href="${REPO}${esc(path)}${line ? "#L" + line : ""}" target="_blank" rel="noopener">${esc(f)}</a>`;
+  }
+
+  function makeBox(n) {
+    const d = depth.get(n.id), kids = n.children || [];
+    const box = document.createElement("div");
+    box.className = `box d${Math.min(d, 6)} ${n.kind === "section" ? "section" : ""} ${kids.length ? "" : "leaf"}`;
+    box.dataset.id = n.id; box.style.setProperty("--kc", kc(n.kind));
+    box.innerHTML = `<button type="button" class="hd" aria-expanded="false">
+        <span class="glyph" aria-hidden="true"></span>
+        <span class="ttl">${esc(n.title)}</span>
+        <span class="meta">${kids.length ? `<span class="n">${count(n)}</span>` : ""}${esc(KINDS[n.kind] || n.kind || "")}<span class="chev"></span></span>
+        <span class="sum">${esc(n.summary || "")}</span>
+      </button><div class="det" hidden></div>`;
+    const hd = box.firstElementChild;
+    hd.addEventListener("click", () => toggle(n.id));
+    hd.addEventListener("mouseenter", () => { hover = n.id; draw(); });
+    hd.addEventListener("mouseleave", () => { if (hover === n.id) { hover = null; draw(); } });
+    els.set(n.id, box);
+    return box;
+  }
+
+  function fillDetail(n, box) {
+    const det = box.querySelector(":scope > .det");
+    if (det.dataset.filled) return; det.dataset.filled = "1";
+    const facts = n.facts || [], files = n.files || [];
+    const out = (n.links || []).filter(l => byId.has(l.to));
+    const inc = (backlinks.get(n.id) || []).filter(l => !within(l.from, n.id));
+    let side = "";
+    if (facts.length) side += `<div><h4>Facts</h4><dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl></div>`;
+    if (files.length) side += `<div><h4>Source</h4><div class="files">${files.map(fileLink).join("")}</div></div>`;
+    if (out.length) side += `<div><h4>Connects to</h4><div class="links">${out.map(l => `<button type="button" data-go="${esc(l.to)}">${esc(byId.get(l.to).title)} <i>${esc(l.label || "")}</i></button>`).join("")}</div></div>`;
+    if (inc.length) side += `<div><h4>Used by</h4><div class="links">${dedupe(inc).map(l => `<button type="button" data-go="${esc(l.from)}">${esc(byId.get(l.from).title)} <i>${esc(l.label || "")}</i></button>`).join("")}</div></div>`;
+    const body = n.body || "";
+    if (body || side) det.insertAdjacentHTML("beforeend", `<div class="info ${side ? "" : "solo"}">${body ? `<div class="prose">${body}</div>` : ""}${side ? `<div class="side">${side}</div>` : ""}</div>`);
+    det.querySelectorAll("[data-go]").forEach(b => {
+      b.addEventListener("click", () => reveal(b.dataset.go));
+      b.addEventListener("mouseenter", () => { hover = b.dataset.go; draw(); });
+      b.addEventListener("mouseleave", () => { hover = null; draw(); });
+    });
+    if ((n.children || []).length) {
+      const k = document.createElement("div"); k.className = `kids ${n.layout === "flow" ? "flow" : "grid"}`;
+      n.children.forEach(c => k.appendChild(makeBox(c)));
+      det.appendChild(k);
+    }
+  }
+  function dedupe(ls) { const s = new Set(); return ls.filter(l => !s.has(l.from) && s.add(l.from)); }
+
+  function apply() {
+    els.forEach((box, id) => {
+      const o = open.has(id); box.classList.toggle("open", o);
+      box.firstElementChild.setAttribute("aria-expanded", o);
+      const det = box.querySelector(":scope > .det");
+      if (o) fillDetail(byId.get(id), box);
+      det.hidden = !o;
+    });
+    // fillDetail may create new boxes that are themselves open
+    let again = false;
+    open.forEach(id => { const b = els.get(id); if (b && !b.classList.contains("open") && isShown(id)) again = true; });
+    if (again) return apply();
+    save(); crumbs(); queueDraw();
+  }
+
+  function toggle(id) {
+    if (open.has(id)) open.delete(id); else open.add(id);
+    focus = id; setHash(id); apply();
+  }
+  function reveal(id) {
+    if (!byId.has(id)) return;
+    ancestors(id).forEach(a => open.add(a)); open.add(id); focus = id; setHash(id); apply();
+    const b = els.get(id);
+    if (b) {
+      b.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+      window.scrollBy(0, -($(".bar").offsetHeight + 12));
+      b.classList.remove("flash"); void b.offsetWidth; b.classList.add("flash");
+    }
+  }
+  function setDepth(maxD) {
+    open.clear(); byId.forEach((n, id) => { if (id !== DATA.id && depth.get(id) < maxD && (n.children || []).length) open.add(id); });
+    if (maxD >= 99) byId.forEach((n, id) => id !== DATA.id && open.add(id));
+    focus = null; apply();
+  }
+
+  /* ---------- breadcrumbs + hash ---------- */
+  function crumbs() {
+    const c = $("#crumbs");
+    if (!focus) { c.innerHTML = `<span>Click any box to open it. Hover to see its connections.</span>`; return; }
+    const path = [...ancestors(focus), focus];
+    c.innerHTML = `<button type="button" data-top>Atlas</button>` + path.map(id => `<span>/</span>${id === focus ? `<b>${esc(byId.get(id).title)}</b>` : `<button type="button" data-go="${esc(id)}">${esc(byId.get(id).title)}</button>`}`).join("");
+    c.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => reveal(b.dataset.go)));
+    c.querySelector("[data-top]").addEventListener("click", () => { focus = null; setHash(""); crumbs(); draw(); window.scrollTo({ top: 0 }); });
+  }
+  let hashLock = false;
+  function setHash(id) { hashLock = true; try { history.replaceState(null, "", id ? "#" + id : location.pathname + location.search); } catch (e) { location.hash = id; } setTimeout(() => hashLock = false, 0); }
+  addEventListener("hashchange", () => { if (!hashLock) { const id = location.hash.slice(1); if (byId.has(id)) reveal(id); } });
+
+  /* ---------- edges ---------- */
+  const NS = "http://www.w3.org/2000/svg";
+  let raf = 0; const queueDraw = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(draw); };
+  function rectOf(id, base) {
+    const b = els.get(id); if (!b || !b.offsetParent) return null;
+    const hd = open.has(id) ? b.firstElementChild : b;
+    const r = hd.getBoundingClientRect();
+    return { x: r.left - base.left, y: r.top - base.top, w: r.width, h: r.height };
+  }
+  function path(a, b, curved) {
+    const ac = { x: a.x + a.w / 2, y: a.y + a.h / 2 }, bc = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    const dx = bc.x - ac.x, dy = bc.y - ac.y; let p, q, c1, c2;
+    const sameRow = Math.abs(dy) < Math.min(a.h, b.h) / 2 + 4;
+    if (sameRow || Math.abs(dx) > Math.abs(dy) * 1.6) {
+      const r = dx >= 0; p = { x: r ? a.x + a.w : a.x, y: ac.y }; q = { x: r ? b.x : b.x + b.w, y: bc.y };
+      const k = Math.max(24, Math.abs(q.x - p.x) / 2) * (r ? 1 : -1);
+      c1 = { x: p.x + k, y: p.y }; c2 = { x: q.x - k, y: q.y };
+    } else {
+      const dn = dy >= 0; p = { x: ac.x, y: dn ? a.y + a.h : a.y }; q = { x: bc.x, y: dn ? b.y : b.y + b.h };
+      const k = Math.max(24, Math.abs(q.y - p.y) / 2) * (dn ? 1 : -1);
+      c1 = { x: p.x, y: p.y + k }; c2 = { x: q.x, y: q.y - k };
+    }
+    if (!curved) { /* flow: short straight-ish link */ }
+    return { d: `M${p.x},${p.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${q.x},${q.y}`, mid: { x: (p.x + 3 * c1.x + 3 * c2.x + q.x) / 8, y: (p.y + 3 * c1.y + 3 * c2.y + q.y) / 8 } };
+  }
+  function defs(svg, id, color) {
+    return `<defs><marker id="${id}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0L10,5L0,10z" fill="${color}"/></marker></defs>`;
+  }
+  function draw() {
+    const canvas = $("#canvas"), base = canvas.getBoundingClientRect();
+    const W = canvas.scrollWidth, H = canvas.scrollHeight;
+    for (const s of [$("#under"), $("#over")]) { s.setAttribute("width", W); s.setAttribute("height", H); s.setAttribute("viewBox", `0 0 ${W} ${H}`); }
+    // flow arrows (always)
+    let u = defs(null, "ah", "var(--ink-2)");
+    open.forEach(id => {
+      const n = byId.get(id); if (n.layout !== "flow" || !isShown(id)) return;
+      const ks = n.children || [];
+      for (let i = 0; i + 1 < ks.length; i++) {
+        const a = rectOf(ks[i].id, base), b = rectOf(ks[i + 1].id, base); if (!a || !b) continue;
+        const ar = els.get(ks[i].id).getBoundingClientRect(), br = els.get(ks[i + 1].id).getBoundingClientRect();
+        const A = { x: ar.left - base.left, y: ar.top - base.top, w: ar.width, h: Math.min(ar.height, 120) };
+        const B = { x: br.left - base.left, y: br.top - base.top, w: br.width, h: Math.min(br.height, 120) };
+        const wrapped = B.y > A.y + A.h - 2 && B.x + B.w / 2 < A.x + A.w / 2;
+        const d = wrapped ? (() => { const x1 = A.x + A.w / 2, y1 = A.y + ar.height, x2 = B.x + B.w / 2, y2 = B.y, ym = (y1 + y2) / 2;
+            return `M${x1},${y1} V${ym - 6} Q${x1},${ym} ${x1 - 6},${ym} H${x2 + 6} Q${x2},${ym} ${x2},${ym + 6} V${y2}`; })() : path(A, B).d;
+        u += `<path d="${d}" fill="none" stroke="var(--ink-2)" stroke-width="1.6" marker-end="url(#ah)" opacity=".75"/>`;
+      }
+    });
+    const flowSvg = u;
+    // cross-links (focus / hover / all)
+    const f = hover || (focus && !open.has(focus) ? focus : null); let pairs = new Map();
+    els.forEach(b => b.classList.remove("hl", "focus"));
+    if (focus && els.get(focus)) els.get(focus).classList.add("focus");
+    const pick = showAll ? allLinks : f ? allLinks.filter(l => within(l.from, f) || within(l.to, f)) : [];
+    pick.forEach(l => {
+      const a = visibleOf(l.from), b = visibleOf(l.to);
+      if (!a || !b || a === b || within(a, b) || within(b, a)) return;
+      if (!showAll && f && a !== f && b !== f) return;
+      const k = a + "\u0000" + b; if (!pairs.has(k)) pairs.set(k, { a, b, labels: new Set() });
+      if (l.label) pairs.get(k).labels.add(l.label);
+    });
+    let o = flowSvg + defs(null, "aw", "var(--wire)"); const few = pairs.size <= 14;
+    pairs.forEach(({ a, b, labels }) => {
+      const A = rectOf(a, base), B = rectOf(b, base); if (!A || !B) return;
+      const p = path(A, B, true);
+      o += `<path d="${p.d}" fill="none" stroke="var(--wire)" stroke-width="${showAll && !f ? 1.1 : 1.8}" stroke-dasharray="5 4" marker-end="url(#aw)" opacity="${showAll && !f ? .45 : .9}"/>`;
+      if (few && labels.size && hover) o += `<text class="edge-label" x="${p.mid.x}" y="${p.mid.y}" text-anchor="middle">${esc([...labels].slice(0, 2).join(", "))}</text>`;
+      if (!showAll || f) { els.get(a).classList.add("hl"); els.get(b).classList.add("hl"); }
+    });
+    $("#over").innerHTML = o;
+    if (focus && els.get(focus)) { els.get(focus).classList.remove("hl"); els.get(focus).classList.add("focus"); }
+  }
+  new ResizeObserver(queueDraw).observe($("#canvas"));
+  addEventListener("resize", queueDraw);
+  if (document.fonts) document.fonts.ready.then(queueDraw);
+
+  /* ---------- search ---------- */
+  const text = new Map(); byId.forEach((n, id) => text.set(id, (n.title + " " + (n.summary || "") + " " + (n.body || "").replace(/<[^>]+>/g, " ") + " " + (n.files || []).join(" ")).toLowerCase()));
+  const q = $("#q"), res = $("#results"); let hits = [], sel = 0;
+  function runSearch() {
+    const t = q.value.trim().toLowerCase(); if (t.length < 2) { res.hidden = true; return; }
+    const words = t.split(/\s+/);
+    hits = [...byId.keys()].filter(id => id !== DATA.id && words.every(w => text.get(id).includes(w)))
+      .map(id => ({ id, s: (byId.get(id).title.toLowerCase().includes(t) ? 0 : 1) + depth.get(id) * .01 })).sort((a, b) => a.s - b.s).slice(0, 25).map(h => h.id);
+    sel = 0;
+    res.innerHTML = hits.length ? hits.map((id, i) => `<button type="button" data-go="${esc(id)}" class="${i ? "" : "sel"}">${esc(byId.get(id).title)}<small>${esc(ancestors(id).map(a => byId.get(a).title).join(" / ") || "top level")}</small></button>`).join("") : `<button type="button" disabled>No matches</button>`;
+    res.hidden = false;
+    res.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", () => { reveal(b.dataset.go); res.hidden = true; }));
+  }
+  q.addEventListener("input", runSearch);
+  q.addEventListener("keydown", e => {
+    const bs = [...res.querySelectorAll("[data-go]")];
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); sel = (sel + (e.key === "ArrowDown" ? 1 : bs.length - 1)) % Math.max(1, bs.length); bs.forEach((b, i) => b.classList.toggle("sel", i === sel)); }
+    else if (e.key === "Enter" && hits[sel]) { reveal(hits[sel]); res.hidden = true; }
+    else if (e.key === "Escape") { res.hidden = true; q.blur(); }
+  });
+  document.addEventListener("click", e => { if (!e.target.closest(".search")) res.hidden = true; });
+  addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
+
+  /* ---------- controls + boot ---------- */
+  document.querySelectorAll("[data-depth]").forEach(b => b.addEventListener("click", () => setDepth(+b.dataset.depth)));
+  $("#allLinks").addEventListener("click", e => { showAll = !showAll; e.currentTarget.setAttribute("aria-pressed", showAll); draw(); });
+
+  $("#h1").textContent = DATA.title; $("#lede").innerHTML = DATA.body || ""; $("#ver").textContent = DATA.version || "";
+  $("#foot").textContent = DATA.generated || "";
+  const leaves = [...byId.values()].filter(n => !(n.children || []).length).length;
+  const files = new Set(); byId.forEach(n => (n.files || []).forEach(f => files.add(f.split(":")[0])));
+  $("#stats").innerHTML = `<span><b>${byId.size - 1}</b> boxes</span><span><b>${leaves}</b> write-ups</span><span><b>${allLinks.length}</b> connections</span><span><b>${files.size}</b> source files cited</span>`;
+  DATA.children.forEach(c => $("#root").appendChild(makeBox(c)));
+  apply();
+  const h = location.hash.slice(1); if (byId.has(h)) setTimeout(() => reveal(h), 50);
+})();
+</script>

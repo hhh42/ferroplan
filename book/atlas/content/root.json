@@ -1,0 +1,8 @@
+{
+  "id": "atlas",
+  "title": "How ferroplan works",
+  "kind": "section",
+  "summary": "The whole planner on one zoomable drawing.",
+  "body": "<p>ferroplan takes a PDDL domain and problem and returns a plan. It grounds the lifted task into dense bitsets and CSR tables. It then runs heuristic search over those tables, choosing among classical, optimal, preference (PDDL3), temporal and SAT strategies. The same core sits behind a CLI, an MCP server, Python and WASM bindings, a Bevy GUI, and a game-embedding Session.</p><p>Each box below opens in place to show its parts. Go deep enough and you reach the actual write-ups, with links into the source. Start with <strong>The solve pipeline</strong> or <strong>Life of one solve</strong> if you want the story in order.</p>",
+  "children": []
+}

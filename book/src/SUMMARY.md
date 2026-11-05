@@ -7,6 +7,7 @@
 - [Library API](./library.md)
 - [Game embedding (the Session)](./session.md)
 - [Architecture](./architecture.md)
+  - [Architecture atlas (interactive)](./atlas.md)
 - [PDDL3 preferences](./pddl3.md)
 - [Metric quality & invariants](./metric-quality.md)
 - [Temporal planning](./temporal.md)

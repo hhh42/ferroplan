@@ -35,6 +35,13 @@ then fail `publish.sh` on the release machine. This has bitten twice
 (most recently 1.94 vs 1.97, `collapsible_match`): green on latest
 stable is the only green that counts.
 
+Clippy runs at three scopes, and the pre-flight is the widest of them.
+The pre-flight below lints the whole workspace, Bevy GUI included. CI
+(`ci.yml`) runs `--workspace --exclude ferroplan-bevy --all-features`.
+`publish.sh` lints only the three published crates (`-p ferroplan-sat -p
+ferroplan -p ferroplan-cli`). Green on the pre-flight implies green on both
+of the others; the reverse does not hold.
+
 ```sh
 cargo fmt --all --check
 cargo clippy --all-targets --all-features -- -D warnings

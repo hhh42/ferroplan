@@ -199,8 +199,8 @@ pub struct Domain {
     pub constraints: Vec<Constraint>,
     /// `:derived` rules (axioms). Compiled away before grounding by
     /// [`crate::derived::compile`]: static rules (body over static facts, e.g.
-    /// `reachable` from the map) become init facts; dynamic non-recursive rules
-    /// are inlined into preconditions/goals.
+    /// `reachable` from the map) become init facts; dynamic rules (body over
+    /// facts some action changes) are not yet supported and return an error.
     pub derived: Vec<DerivedRule>,
     /// The shared monitor-transition block (0.8 Phase 2,
     /// docs/roadmap-0.8.md): fully-ground `Effect::When` transitions emitted
