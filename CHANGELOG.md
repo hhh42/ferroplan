@@ -82,8 +82,9 @@ All notable changes to this project are documented here.
   domain transition graph (Katz, Hoffmann & Domshlak 2013; Domshlak,
   Hoffmann & Katz 2015; Mercury, IPC 2014). Painting by prevail count,
   capped at `FF_RB_MAX_BLACK` (8); numeric fluents are never black, so
-  the consumption charge stays where it is. Judged on the matrix sample
-  by unique solves and evals/s.
+  the consumption charge stays where it is. Read on the matrix sample:
+  367 of 936 cells against LAMA's 547, no cell the eight rungs miss, at
+  the same wall per solve — so it stays a hatch, not a rung.
 - **Restarting weighted A* over the compiled preference task, opt-in**
   (`FF_PREF_RWA=1`, or a schedule `FF_PREF_RWA=5,3,2,1.5,1`; 0.31 Lane E's
   probe, `pddl3.rs`): the branch-and-bound's default sweep returns on its

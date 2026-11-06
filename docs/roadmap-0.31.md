@@ -767,8 +767,18 @@ cells are not this build's to win, and the matrix reads what the
 propositional painting buys. Fixtures (`tests/redblack.rs`): the
 shuttle's drive back counted (h_rb 4 = the optimum, h^FF 3); every black
 variable invertible, the black graph acyclic; the rung solves and names
-itself. **Measured next:** `matrix/run-matrix-rb.sh`, unique solves
-against the eight rungs and evals/s against h^FF.
+itself. **Measured 2026-11-06 — a recorded negative; stays opt-in.**
+`matrix31-rb` (engine 49280cb92c9e, the frozen 294959ac4415 build), 936
+of the matrix's cells read against the eight rungs on 6facbec9163c: the
+red-black rung solves 367, LAMA 547, lamanov 636, driverx 587, EHC 266;
+**unique solves against the eight: 0** (1 against the standing five).
+The kill clause is not what fires — on the 332 cells both solve, the
+median wall ratio rb/LAMA is 1.00, so the evaluation is not the price —
+the claim's band does: no row the ladder lacks. The painting this build
+can afford (propositional, outside conditions read at repair start) is
+the reason the paper's semantics are owed before a re-read; that is
+0.32's, with the charge's five cells and the numeric black variables.
+The hatches stay (`FF_RB=1`, `FF_RUNG_ONLY=rb`), byte-identical unset.
 
 ---
 

@@ -1,0 +1,3310 @@
+=== matrix31-rb start 2026-11-04 19:35:41 ff=/Volumes/Data/Projects/ferroplan-0.31/target/engines/ff-294959ac4415
+engine  ff 0.30.0 [49280cb92c9e]
+reap    55 child(ren) recorded by an earlier run
+        45806 already gone
+        47384 already gone
+        53383 already gone
+        54913 already gone
+        56466 already gone
+        57955 already gone
+        59571 already gone
+        61129 already gone
+        62729 already gone
+        64237 already gone
+        65769 already gone
+        67286 already gone
+        68805 already gone
+        70389 already gone
+        72291 already gone
+        73954 already gone
+        75662 already gone
+        77231 already gone
+        78738 already gone
+        80236 already gone
+        81571 already gone
+        83128 already gone
+        84726 already gone
+        86339 is somebody else's now (/usr/libexec/textunderstandingd@1793847548 pg=86339, not /Volumes/Data/Projects/ferroplan-0.31/target/release/ff@1793826113 pg=86339) -- NOT signalled
+        87995 already gone
+        89699 already gone
+        91286 already gone
+        92794 already gone
+        94348 already gone
+        95852 already gone
+        97424 already gone
+        3709 already gone
+        9724 already gone
+        11216 already gone
+        12709 already gone
+        14219 already gone
+        15716 already gone
+        17222 already gone
+        18726 already gone
+        20230 already gone
+        21768 already gone
+        23256 already gone
+        24747 already gone
+        30653 already gone
+        36468 already gone
+        42597 already gone
+        48859 already gone
+        50395 already gone
+        51945 already gone
+        57861 already gone
+        64257 already gone
+        65782 already gone
+        67279 already gone
+        68791 already gone
+        70298 already gone
+canary  trucks-propositional/8@49280cb92c9e baseline 0.517 s (median of 5 runs, no history yet); read every 1200 s, slow above 1.15x
+db      /Users/harold/.crucible/db/crucible.db
+!! width - -> 10 (full, idle 30724s, foreign -0%)
+subset  boards ipc2014-agile,ipc2014-sat,ipc2018-sat,ipc2023-sat,ipc5-prop,ipc67-results; 936 listed row(s); env FF_RUNG_ONLY=rb -- 1008 instance(s) of set cut30, staged at /Volumes/Data/Projects/ferroplan/benchmarks/probes/matrix31-rb/0.30.0-49280cb92c9e
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 6 board(s) outstanding
+   ipc5-prop              packed: 130 wide x10 (14.5 GB budget), 2 narrow, 24 solo
+!! width 10 -> 6 (full, idle 30745s, foreign 397%)
+!! throttle full -> polite (Foreign(398.2))
+!! width 6 -> 5 (polite, idle 30885s, foreign 473%)
+!! width 5 -> 7 (polite, idle 30925s, foreign 298%)
+!! width 7 -> 5 (polite, idle 30965s, foreign 497%)
+!! width 5 -> 6 (polite, idle 31065s, foreign 398%)
+!! width 6 -> 7 (polite, idle 31085s, foreign 297%)
+!! width 7 -> 6 (polite, idle 31105s, foreign 400%)
+!! width 6 -> 4 (polite, idle 31125s, foreign 531%)
+!! width 4 -> 6 (polite, idle 31145s, foreign 395%)
+!! width 6 -> 5 (polite, idle 31225s, foreign 496%)
+!! width 5 -> 4 (polite, idle 31245s, foreign 520%)
+!! width 4 -> 7 (polite, idle 31264s, foreign 205%)
+!! width 7 -> 6 (polite, idle 31285s, foreign 399%)
+!! width 6 -> 5 (polite, idle 31305s, foreign 404%)
+!! width 5 -> 6 (polite, idle 31325s, foreign 397%)
+!! width 6 -> 7 (polite, idle 31345s, foreign 295%)
+!! width 7 -> 4 (polite, idle 31365s, foreign 531%)
+!! width 4 -> 6 (polite, idle 31385s, foreign 398%)
+!! width 6 -> 5 (polite, idle 31425s, foreign 429%)
+!! width 5 -> 6 (polite, idle 31445s, foreign 381%)
+!! width 6 -> 7 (polite, idle 31485s, foreign 297%)
+!! width 7 -> 6 (polite, idle 31505s, foreign 400%)
+!! width 6 -> 5 (polite, idle 31525s, foreign 419%)
+!! width 5 -> 6 (polite, idle 31545s, foreign 400%)
+!! width 6 -> 8 (polite, idle 31565s, foreign 199%)
+!! width 8 -> 9 (polite, idle 31585s, foreign 99%)
+!! width 9 -> 8 (polite, idle 31605s, foreign 104%)
+!! width 8 -> 9 (polite, idle 31625s, foreign 99%)
+!! width 9 -> 7 (polite, idle 31664s, foreign 207%)
+!! width 7 -> 8 (polite, idle 31685s, foreign 200%)
+!! width 8 -> 7 (polite, idle 31725s, foreign 218%)
+!! width 7 -> 8 (polite, idle 31805s, foreign 200%)
+!! width 8 -> 6 (polite, idle 31825s, foreign 364%)
+!! width 6 -> 7 (polite, idle 31845s, foreign 225%)
+!! width 7 -> 8 (polite, idle 31865s, foreign 199%)
+!! width 8 -> 7 (polite, idle 31905s, foreign 208%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 7 -> 10 (polite, idle 31926s, foreign -0%)
+!! width 10 -> 8 (polite, idle 31945s, foreign 198%)
+!! width 8 -> 6 (polite, idle 31965s, foreign 321%)
+!! width 6 -> 8 (polite, idle 31985s, foreign 200%)
+!! width 8 -> 7 (polite, idle 32025s, foreign 211%)
+!! width 7 -> 8 (polite, idle 32105s, foreign 200%)
+!! width 8 -> 6 (polite, idle 32145s, foreign 376%)
+!! width 6 -> 7 (polite, idle 32164s, foreign 204%)
+!! width 7 -> 8 (polite, idle 32185s, foreign 199%)
+!! width 8 -> 7 (polite, idle 32205s, foreign 209%)
+!! width 7 -> 8 (polite, idle 32225s, foreign 199%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 32265s, foreign 207%)
+!! width 7 -> 8 (polite, idle 32285s, foreign 199%)
+!! width 8 -> 7 (polite, idle 32305s, foreign 230%)
+!! width 7 -> 6 (polite, idle 32365s, foreign 320%)
+!! width 6 -> 7 (polite, idle 32385s, foreign 238%)
+!! width 7 -> 8 (polite, idle 32404s, foreign 200%)
+!! width 8 -> 7 (polite, idle 32445s, foreign 210%)
+!! width 7 -> 8 (polite, idle 32464s, foreign 197%)
+!! width 8 -> 7 (polite, idle 32504s, foreign 212%)
+!! width 7 -> 8 (polite, idle 32525s, foreign 199%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 32565s, foreign 206%)
+!! width 7 -> 8 (polite, idle 32605s, foreign 118%)
+!! width 8 -> 7 (polite, idle 32625s, foreign 212%)
+!! width 7 -> 8 (polite, idle 32685s, foreign 174%)
+!! width 8 -> 7 (polite, idle 32745s, foreign 205%)
+!! width 7 -> 8 (polite, idle 32765s, foreign 199%)
+!! width 8 -> 7 (polite, idle 32805s, foreign 205%)
+!! width 7 -> 8 (polite, idle 32825s, foreign 200%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 32844s, foreign 210%)
+!! width 7 -> 8 (polite, idle 32885s, foreign 198%)
+!! width 8 -> 7 (polite, idle 32925s, foreign 212%)
+!! width 7 -> 8 (polite, idle 33125s, foreign 198%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 33145s, foreign 234%)
+!! width 7 -> 8 (polite, idle 33184s, foreign 199%)
+!! width 8 -> 7 (polite, idle 33205s, foreign 215%)
+!! width 7 -> 8 (polite, idle 33245s, foreign 200%)
+!! width 8 -> 7 (polite, idle 33265s, foreign 298%)
+!! width 7 -> 6 (polite, idle 33285s, foreign 306%)
+!! width 6 -> 9 (polite, idle 33304s, foreign 99%)
+!! width 9 -> 8 (polite, idle 33345s, foreign 112%)
+!! width 8 -> 9 (polite, idle 33385s, foreign 100%)
+!! width 9 -> 8 (polite, idle 33405s, foreign 120%)
+!! width 8 -> 9 (polite, idle 33484s, foreign 100%)
+!! width 9 -> 8 (polite, idle 33565s, foreign 129%)
+!! width 8 -> 9 (polite, idle 33625s, foreign 100%)
+!! width 9 -> 8 (polite, idle 33665s, foreign 105%)
+!! width 8 -> 9 (polite, idle 33725s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 33745s, foreign 149%)
+!! width 8 -> 7 (polite, idle 33765s, foreign 217%)
+!! width 7 -> 9 (polite, idle 33785s, foreign 100%)
+!! width 9 -> 8 (polite, idle 33885s, foreign 199%)
+!! width 8 -> 7 (polite, idle 33905s, foreign 201%)
+!! width 7 -> 8 (polite, idle 33925s, foreign 134%)
+!! width 8 -> 9 (polite, idle 33945s, foreign 100%)
+!! width 9 -> 8 (polite, idle 34004s, foreign 105%)
+!! width 8 -> 9 (polite, idle 34025s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 34085s, foreign 130%)
+!! width 8 -> 9 (polite, idle 34105s, foreign 99%)
+!! width 9 -> 8 (polite, idle 34125s, foreign 176%)
+!! width 8 -> 6 (polite, idle 34145s, foreign 370%)
+!! width 6 -> 8 (polite, idle 34165s, foreign 116%)
+!! width 8 -> 9 (polite, idle 34185s, foreign 100%)
+!! width 9 -> 7 (polite, idle 34205s, foreign 245%)
+!! width 7 -> 8 (polite, idle 34225s, foreign 190%)
+!! width 8 -> 9 (polite, idle 34245s, foreign 100%)
+!! width 9 -> 8 (polite, idle 34265s, foreign 114%)
+!! width 8 -> 9 (polite, idle 34285s, foreign 100%)
+!! width 9 -> 8 (polite, idle 34305s, foreign 114%)
+!! width 8 -> 9 (polite, idle 34325s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 34345s, foreign 113%)
+!! width 8 -> 9 (polite, idle 34365s, foreign 100%)
+!! width 9 -> 8 (polite, idle 34384s, foreign 112%)
+!! width 8 -> 9 (polite, idle 34424s, foreign 100%)
+!! width 9 -> 8 (polite, idle 34445s, foreign 114%)
+!! width 8 -> 9 (polite, idle 34465s, foreign 100%)
+!! width 9 -> 8 (polite, idle 34505s, foreign 161%)
+!! width 8 -> 9 (polite, idle 34565s, foreign 99%)
+!! width 9 -> 8 (polite, idle 34605s, foreign 111%)
+!! width 8 -> 9 (polite, idle 34625s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 34705s, foreign 105%)
+!! width 8 -> 9 (polite, idle 34765s, foreign 99%)
+!! width 9 -> 6 (polite, idle 34785s, foreign 323%)
+!! width 6 -> 7 (polite, idle 34805s, foreign 202%)
+!! width 7 -> 6 (polite, idle 34825s, foreign 302%)
+!! width 6 -> 7 (polite, idle 34845s, foreign 256%)
+!! width 7 -> 9 (polite, idle 34865s, foreign 100%)
+!! width 9 -> 8 (polite, idle 34905s, foreign 108%)
+!! width 8 -> 9 (polite, idle 34925s, foreign 99%)
+!! width 9 -> 8 (polite, idle 34965s, foreign 110%)
+!! width 8 -> 9 (polite, idle 34985s, foreign 100%)
+!! width 9 -> 8 (polite, idle 35025s, foreign 110%)
+!! width 8 -> 9 (polite, idle 35065s, foreign 100%)
+!! width 9 -> 8 (polite, idle 35085s, foreign 110%)
+!! width 8 -> 9 (polite, idle 35105s, foreign 99%)
+!! width 9 -> 8 (polite, idle 35125s, foreign 199%)
+!! width 8 -> 9 (polite, idle 35184s, foreign 99%)
+!! width 9 -> 8 (polite, idle 35205s, foreign 111%)
+!! width 8 -> 9 (polite, idle 35264s, foreign 100%)
+!! width 9 -> 8 (polite, idle 35285s, foreign 200%)
+!! width 8 -> 9 (polite, idle 35345s, foreign 100%)
+!! width 9 -> 8 (polite, idle 35365s, foreign 116%)
+!! width 8 -> 9 (polite, idle 35405s, foreign 100%)
+!! width 9 -> 7 (polite, idle 35445s, foreign 212%)
+!! width 7 -> 8 (polite, idle 35464s, foreign 184%)
+!! width 8 -> 9 (polite, idle 35485s, foreign 100%)
+!! width 9 -> 8 (polite, idle 35505s, foreign 105%)
+!! width 8 -> 9 (polite, idle 35525s, foreign 99%)
+!! width 9 -> 7 (polite, idle 35565s, foreign 255%)
+!! width 7 -> 9 (polite, idle 35585s, foreign 100%)
+!! width 9 -> 8 (polite, idle 35625s, foreign 114%)
+!! width 8 -> 9 (polite, idle 35665s, foreign 99%)
+!! width 9 -> 8 (polite, idle 35685s, foreign 106%)
+!! width 8 -> 9 (polite, idle 35705s, foreign 100%)
+!! width 9 -> 8 (polite, idle 35745s, foreign 125%)
+!! width 8 -> 9 (polite, quiet hours, idle 35805s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 35825s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 35844s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 35865s, foreign 114%)
+!! width 8 -> 9 (polite, quiet hours, idle 35885s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 36045s, foreign 114%)
+!! width 8 -> 9 (polite, quiet hours, idle 36104s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 36165s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 36205s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 36225s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 36245s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 36285s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 36305s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 36345s, foreign 110%)
+!! width 8 -> 7 (polite, quiet hours, idle 36385s, foreign 214%)
+!! width 7 -> 8 (polite, quiet hours, idle 36404s, foreign 174%)
+!! width 8 -> 9 (polite, quiet hours, idle 36425s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 36525s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 36565s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 36645s, foreign 116%)
+!! width 8 -> 9 (polite, quiet hours, idle 36665s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 36685s, foreign 187%)
+!! width 8 -> 6 (polite, quiet hours, idle 36725s, foreign 327%)
+!! width 6 -> 9 (polite, quiet hours, idle 36744s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 36825s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 36865s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 36885s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 36905s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 36924s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 36965s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 36985s, foreign 104%)
+!! width 8 -> 6 (polite, quiet hours, idle 37045s, foreign 341%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 6 -> 8 (polite, quiet hours, idle 37065s, foreign 110%)
+!! width 8 -> 7 (polite, quiet hours, idle 37085s, foreign 208%)
+!! width 7 -> 9 (polite, quiet hours, idle 37105s, foreign 99%)
+!! width 9 -> 10 (polite, quiet hours, idle 37184s, foreign -0%)
+!! width 10 -> 9 (polite, quiet hours, idle 37205s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 37305s, foreign 113%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 37385s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 37405s, foreign 108%)
+!! width 8 -> 7 (polite, quiet hours, idle 37425s, foreign 255%)
+!! width 7 -> 8 (polite, quiet hours, idle 37445s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 37465s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 37485s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 37505s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 37545s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 37564s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 37585s, foreign 118%)
+!! width 8 -> 7 (polite, quiet hours, idle 37645s, foreign 298%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 8 (polite, quiet hours, idle 37665s, foreign 129%)
+!! width 8 -> 9 (polite, quiet hours, idle 37684s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 37705s, foreign 142%)
+!! width 8 -> 9 (polite, quiet hours, idle 37745s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 37764s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 37805s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 37825s, foreign 127%)
+!! width 8 -> 9 (polite, quiet hours, idle 37844s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 37905s, foreign 114%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+   ipc5-prop              verdicts: hot 20, packed 111, rho 4, solved 76, suspect 55, thermal 1
+   ipc5-prop              banked  100   156 -> 56
+   ipc2018-sat            packed: 42 wide x10 (14.5 GB budget), 3 narrow, 99 solo
+!! width 8 -> 7 (polite, quiet hours, idle 38005s, foreign 205%)
+!! width 7 -> 4 (polite, quiet hours, idle 38025s, foreign 576%)
+!! width 4 -> 5 (polite, quiet hours, idle 38044s, foreign 499%)
+!! width 5 -> 6 (polite, quiet hours, idle 38104s, foreign 318%)
+!! width 6 -> 7 (polite, quiet hours, idle 38124s, foreign 299%)
+!! width 7 -> 5 (polite, quiet hours, idle 38145s, foreign 410%)
+!! width 5 -> 6 (polite, quiet hours, idle 38165s, foreign 400%)
+!! width 6 -> 5 (polite, quiet hours, idle 38205s, foreign 416%)
+!! width 5 -> 6 (polite, quiet hours, idle 38285s, foreign 398%)
+!! width 6 -> 7 (polite, quiet hours, idle 38305s, foreign 299%)
+!! width 7 -> 6 (polite, quiet hours, idle 38325s, foreign 312%)
+!! width 6 -> 8 (polite, quiet hours, idle 38345s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 38365s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 38385s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 38404s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 38425s, foreign 139%)
+!! width 8 -> 6 (polite, quiet hours, idle 38505s, foreign 301%)
+!! width 6 -> 7 (polite, quiet hours, idle 38525s, foreign 292%)
+!! width 7 -> 8 (polite, quiet hours, idle 38584s, foreign 199%)
+!! width 8 -> 6 (polite, quiet hours, idle 38665s, foreign 373%)
+!! width 6 -> 7 (polite, quiet hours, idle 38684s, foreign 211%)
+!! width 7 -> 8 (polite, quiet hours, idle 38705s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 38784s, foreign 205%)
+!! width 7 -> 6 (polite, quiet hours, idle 38805s, foreign 304%)
+!! width 6 -> 7 (polite, quiet hours, idle 38825s, foreign 295%)
+!! width 7 -> 8 (polite, quiet hours, idle 38885s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 38965s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 39005s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 39045s, foreign 214%)
+!! width 7 -> 8 (polite, quiet hours, idle 39065s, foreign 198%)
+!! width 8 -> 6 (polite, quiet hours, idle 39105s, foreign 306%)
+!! width 6 -> 7 (polite, quiet hours, idle 39124s, foreign 296%)
+!! width 7 -> 9 (polite, quiet hours, idle 39185s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 39224s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 39245s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 39285s, foreign 246%)
+!! width 7 -> 9 (polite, quiet hours, idle 39305s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 39345s, foreign 104%)
+!! width 8 -> 9 (polite, quiet hours, idle 39384s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 39405s, foreign 200%)
+!! width 7 -> 8 (polite, quiet hours, idle 39424s, foreign 198%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.97x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 39464s, foreign 215%)
+!! width 7 -> 1 (polite, quiet hours, idle 39485s, foreign 880%)
+!! width 1 -> 5 (polite, quiet hours, idle 39545s, foreign 409%)
+!! width 5 -> 6 (polite, quiet hours, idle 39565s, foreign 308%)
+!! width 6 -> 7 (polite, quiet hours, idle 39584s, foreign 221%)
+!! width 7 -> 4 (polite, quiet hours, idle 39605s, foreign 505%)
+!! width 4 -> 8 (polite, quiet hours, idle 39625s, foreign 186%)
+!! width 8 -> 9 (polite, quiet hours, idle 39684s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 39705s, foreign 114%)
+!! width 8 -> 9 (polite, quiet hours, idle 39725s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 39745s, foreign 144%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 39805s, foreign 223%)
+!! width 7 -> 9 (polite, quiet hours, idle 39824s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 39865s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 39905s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 39925s, foreign 108%)
+!! width 8 -> 6 (polite, quiet hours, idle 39944s, foreign 304%)
+!! width 6 -> 8 (polite, quiet hours, idle 39965s, foreign 185%)
+!! width 8 -> 9 (polite, quiet hours, idle 39985s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 40005s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 40025s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 40044s, foreign 105%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 40105s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 40125s, foreign 123%)
+!! width 8 -> 9 (polite, quiet hours, idle 40145s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 40184s, foreign 110%)
+!! width 8 -> 7 (polite, quiet hours, idle 40245s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 40265s, foreign 198%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 40525s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 40545s, foreign 124%)
+!! width 8 -> 9 (polite, quiet hours, idle 40625s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 10 (polite, quiet hours, idle 40705s, foreign -0%)
+!! width 10 -> 8 (polite, quiet hours, idle 40725s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 40745s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 40785s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 40804s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 40845s, foreign 107%)
+!! width 8 -> 7 (polite, quiet hours, idle 40884s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 40905s, foreign 157%)
+!! width 8 -> 9 (polite, quiet hours, idle 40925s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 10 (polite, quiet hours, idle 40966s, foreign -0%)
+!! width 10 -> 9 (polite, quiet hours, idle 40984s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 41005s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 41045s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 41085s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 41104s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 41144s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 41165s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 41205s, foreign 298%)
+!! width 7 -> 8 (polite, quiet hours, idle 41225s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 41244s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 41265s, foreign 140%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 41284s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 41324s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 41345s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 41385s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 41405s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 41425s, foreign 178%)
+!! width 8 -> 7 (polite, quiet hours, idle 41504s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 41525s, foreign 188%)
+!! width 8 -> 9 (polite, quiet hours, idle 41545s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 41565s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 41585s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 41605s, foreign 214%)
+!! width 7 -> 8 (polite, quiet hours, idle 41624s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 41645s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 41745s, foreign 210%)
+!! width 7 -> 9 (polite, quiet hours, idle 41765s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 41805s, foreign 211%)
+!! width 7 -> 8 (polite, quiet hours, idle 41825s, foreign 198%)
+!! width 8 -> 9 (polite, quiet hours, idle 41884s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 41924s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 41945s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 41985s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 42004s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 42045s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 42185s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 42225s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 42245s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 42285s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 42305s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 42345s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 42365s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 42384s, foreign 104%)
+!! width 8 -> 9 (polite, quiet hours, idle 42485s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 42525s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 42545s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 42565s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 42605s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 42625s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 42665s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 42685s, foreign 270%)
+!! width 7 -> 8 (polite, quiet hours, idle 42705s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 42725s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 42745s, foreign 199%)
+!! width 8 -> 9 (polite, quiet hours, idle 42845s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 42885s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 42905s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 42945s, foreign 104%)
+!! width 8 -> 9 (polite, quiet hours, idle 42965s, foreign 99%)
+!! width 9 -> 5 (polite, quiet hours, idle 43005s, foreign 468%)
+!! width 5 -> 9 (polite, quiet hours, idle 43024s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 43045s, foreign 128%)
+!! width 8 -> 7 (polite, quiet hours, idle 43065s, foreign 212%)
+!! width 7 -> 8 (polite, quiet hours, idle 43085s, foreign 163%)
+!! width 8 -> 9 (polite, quiet hours, idle 43105s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 43125s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 43145s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 43185s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 43205s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 43244s, foreign 165%)
+!! width 8 -> 9 (polite, quiet hours, idle 43284s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 43305s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 43324s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 43365s, foreign 212%)
+!! width 7 -> 8 (polite, quiet hours, idle 43385s, foreign 198%)
+!! width 8 -> 9 (polite, quiet hours, idle 43445s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 43485s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 43565s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 43605s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 43624s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 43664s, foreign 137%)
+!! width 8 -> 6 (polite, quiet hours, idle 43705s, foreign 386%)
+!! width 6 -> 9 (polite, quiet hours, idle 43745s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 43785s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 43805s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 43905s, foreign 159%)
+!! width 8 -> 9 (polite, quiet hours, idle 43924s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 43945s, foreign 105%)
+!! width 8 -> 6 (polite, quiet hours, idle 44025s, foreign 330%)
+!! width 6 -> 9 (polite, quiet hours, idle 44045s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 44085s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 44105s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 44145s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 44165s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 44205s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 44225s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 44265s, foreign 119%)
+!! width 8 -> 7 (polite, quiet hours, idle 44325s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 44344s, foreign 118%)
+!! width 8 -> 9 (polite, quiet hours, idle 44365s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 44384s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 44405s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 44445s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 44464s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 44505s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 44524s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 44565s, foreign 111%)
+!! width 8 -> 7 (polite, quiet hours, idle 44625s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 44645s, foreign 148%)
+!! width 8 -> 9 (polite, quiet hours, idle 44665s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 44685s, foreign 104%)
+!! width 8 -> 9 (polite, quiet hours, idle 44705s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 44745s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 44804s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 44865s, foreign 247%)
+!! width 7 -> 9 (polite, quiet hours, idle 44885s, foreign 97%)
+!! width 9 -> 8 (polite, quiet hours, idle 44905s, foreign 106%)
+!! width 8 -> 7 (polite, quiet hours, idle 44924s, foreign 212%)
+!! width 7 -> 8 (polite, quiet hours, idle 44945s, foreign 198%)
+!! width 8 -> 9 (polite, quiet hours, idle 45004s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 45045s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 45085s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 45104s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 45125s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 45165s, foreign 107%)
+!! width 8 -> 10 (polite, quiet hours, idle 45185s, foreign -0%)
+!! width 10 -> 8 (polite, quiet hours, idle 45205s, foreign 114%)
+!! width 8 -> 9 (polite, quiet hours, idle 45305s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 45345s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 45364s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 45405s, foreign 120%)
+!! width 8 -> 7 (polite, quiet hours, idle 45545s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 45585s, foreign 130%)
+!! width 8 -> 9 (polite, quiet hours, idle 45604s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 45625s, foreign 115%)
+!! width 8 -> 9 (polite, quiet hours, idle 45665s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 45705s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 45745s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 45825s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 45845s, foreign 95%)
+!! width 9 -> 7 (polite, quiet hours, idle 45865s, foreign 218%)
+!! width 7 -> 8 (polite, quiet hours, idle 45905s, foreign 123%)
+!! width 8 -> 9 (polite, quiet hours, idle 45925s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 46005s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 46024s, foreign 18%)
+   ipc2018-sat            verdicts: contended 5, hot 36, packed 46, rho 44, solved 21, starved 1, suspect 33, swap 2, thermal 2
+   ipc2018-sat            banked  101   144 -> 43
+   ipc2014-sat            packed: 86 wide x10 (14.5 GB budget), 4 narrow, 78 solo
+!! width 9 -> 5 (polite, quiet hours, idle 46045s, foreign 409%)
+!! width 5 -> 6 (polite, quiet hours, idle 46105s, foreign 398%)
+!! width 6 -> 5 (polite, quiet hours, idle 46125s, foreign 410%)
+!! width 5 -> 4 (polite, quiet hours, idle 46165s, foreign 541%)
+!! width 4 -> 5 (polite, quiet hours, idle 46185s, foreign 465%)
+!! width 5 -> 6 (polite, quiet hours, idle 46205s, foreign 400%)
+!! width 6 -> 5 (polite, quiet hours, idle 46225s, foreign 404%)
+!! width 5 -> 6 (polite, quiet hours, idle 46244s, foreign 312%)
+!! width 6 -> 4 (polite, quiet hours, idle 46285s, foreign 600%)
+!! width 4 -> 5 (polite, quiet hours, idle 46305s, foreign 500%)
+!! width 5 -> 6 (polite, quiet hours, idle 46345s, foreign 398%)
+!! width 6 -> 7 (polite, quiet hours, idle 46385s, foreign 300%)
+!! width 7 -> 5 (polite, quiet hours, idle 46405s, foreign 410%)
+!! width 5 -> 4 (polite, quiet hours, idle 46425s, foreign 505%)
+!! width 4 -> 5 (polite, quiet hours, idle 46445s, foreign 415%)
+!! width 5 -> 8 (polite, quiet hours, idle 46464s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 46485s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 46525s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 46585s, foreign 299%)
+!! width 7 -> 6 (polite, quiet hours, idle 46605s, foreign 309%)
+!! width 6 -> 7 (polite, quiet hours, idle 46625s, foreign 300%)
+!! width 7 -> 6 (polite, quiet hours, idle 46665s, foreign 305%)
+!! width 6 -> 7 (polite, quiet hours, idle 46685s, foreign 224%)
+!! width 7 -> 5 (polite, quiet hours, idle 46705s, foreign 418%)
+!! width 5 -> 4 (polite, quiet hours, idle 46724s, foreign 564%)
+!! width 4 -> 5 (polite, quiet hours, idle 46745s, foreign 468%)
+!! width 5 -> 4 (polite, quiet hours, idle 46785s, foreign 502%)
+!! width 4 -> 5 (polite, quiet hours, idle 46805s, foreign 496%)
+!! width 5 -> 4 (polite, quiet hours, idle 46825s, foreign 502%)
+!! width 4 -> 8 (polite, quiet hours, idle 46885s, foreign 105%)
+!! width 8 -> 7 (polite, quiet hours, idle 46965s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 46985s, foreign 197%)
+!! width 8 -> 7 (polite, quiet hours, idle 47005s, foreign 300%)
+!! width 7 -> 6 (polite, quiet hours, idle 47025s, foreign 304%)
+!! width 6 -> 7 (polite, quiet hours, idle 47045s, foreign 222%)
+!! width 7 -> 8 (polite, quiet hours, idle 47065s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 47124s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 47165s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 47184s, foreign 241%)
+!! width 7 -> 8 (polite, quiet hours, idle 47224s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 47285s, foreign 299%)
+!! width 7 -> 6 (polite, quiet hours, idle 47305s, foreign 329%)
+!! width 6 -> 8 (polite, quiet hours, idle 47365s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 47405s, foreign 208%)
+!! width 7 -> 8 (polite, quiet hours, idle 47425s, foreign 196%)
+!! width 8 -> 9 (polite, quiet hours, idle 47444s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 47465s, foreign 220%)
+!! width 7 -> 8 (polite, quiet hours, idle 47484s, foreign 199%)
+!! width 8 -> 5 (polite, quiet hours, idle 47524s, foreign 408%)
+!! width 5 -> 8 (polite, quiet hours, idle 47545s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 47565s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 47585s, foreign 197%)
+!! width 8 -> 7 (polite, quiet hours, idle 47605s, foreign 221%)
+!! width 7 -> 6 (polite, quiet hours, idle 47625s, foreign 311%)
+!! width 6 -> 7 (polite, quiet hours, idle 47645s, foreign 280%)
+!! width 7 -> 8 (polite, quiet hours, idle 47664s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 47685s, foreign 217%)
+!! width 7 -> 8 (polite, quiet hours, idle 47765s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 47805s, foreign 210%)
+!! width 7 -> 8 (polite, quiet hours, idle 47825s, foreign 199%)
+!! width 8 -> 6 (polite, quiet hours, idle 47845s, foreign 376%)
+!! width 6 -> 7 (polite, quiet hours, idle 47865s, foreign 206%)
+!! width 7 -> 6 (polite, quiet hours, idle 47885s, foreign 399%)
+!! width 6 -> 7 (polite, quiet hours, idle 47965s, foreign 298%)
+!! width 7 -> 6 (polite, quiet hours, idle 47985s, foreign 305%)
+!! width 6 -> 7 (polite, quiet hours, idle 48045s, foreign 298%)
+!! width 7 -> 6 (polite, quiet hours, idle 48084s, foreign 357%)
+!! width 6 -> 8 (polite, quiet hours, idle 48125s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 48165s, foreign 228%)
+!! width 7 -> 6 (polite, quiet hours, idle 48225s, foreign 326%)
+!! width 6 -> 7 (polite, quiet hours, idle 48244s, foreign 217%)
+!! width 7 -> 8 (polite, quiet hours, idle 48385s, foreign 190%)
+!! width 8 -> 7 (polite, quiet hours, idle 48405s, foreign 218%)
+!! width 7 -> 9 (polite, quiet hours, idle 48425s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 48465s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 48485s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 48525s, foreign 190%)
+!! width 8 -> 7 (polite, quiet hours, idle 48585s, foreign 253%)
+!! width 7 -> 9 (polite, quiet hours, idle 48605s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 48645s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 48664s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 48704s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 48725s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 48765s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 48785s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 48845s, foreign 200%)
+!! width 8 -> 9 (polite, quiet hours, idle 48904s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 48944s, foreign 117%)
+!! width 8 -> 9 (polite, quiet hours, idle 48965s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 49065s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 49084s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 49125s, foreign 104%)
+!! width 8 -> 7 (polite, quiet hours, idle 49185s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 49205s, foreign 142%)
+!! width 8 -> 9 (polite, quiet hours, idle 49225s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 49244s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 49265s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 49305s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 49345s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 49365s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 49384s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 49464s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 49485s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 49505s, foreign 134%)
+!! width 8 -> 9 (polite, quiet hours, idle 49524s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 49545s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 49564s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 49604s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 49644s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 49685s, foreign 107%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 49705s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 49725s, foreign 107%)
+!! width 8 -> 7 (polite, quiet hours, idle 49785s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 49805s, foreign 196%)
+!! width 8 -> 9 (polite, quiet hours, idle 49865s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 49885s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 49924s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 49964s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 49985s, foreign 98%)
+!! width 9 -> 7 (polite, quiet hours, idle 50005s, foreign 237%)
+!! width 7 -> 8 (polite, quiet hours, idle 50044s, foreign 106%)
+!! width 8 -> 7 (polite, quiet hours, idle 50065s, foreign 213%)
+!! width 7 -> 8 (polite, quiet hours, idle 50124s, foreign 152%)
+!! width 8 -> 9 (polite, quiet hours, idle 50145s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 50204s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 50225s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 50265s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 50285s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 50325s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 50344s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 50385s, foreign 119%)
+!! width 8 -> 7 (polite, quiet hours, idle 50445s, foreign 295%)
+!! width 7 -> 9 (polite, quiet hours, idle 50465s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 50505s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 50524s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 50564s, foreign 123%)
+!! width 8 -> 9 (polite, quiet hours, idle 50585s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 50664s, foreign 105%)
+!! width 8 -> 7 (polite, quiet hours, idle 50725s, foreign 212%)
+!! width 7 -> 9 (polite, quiet hours, idle 50765s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 50804s, foreign 117%)
+!! width 8 -> 9 (polite, quiet hours, idle 50825s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 50845s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 50865s, foreign 208%)
+!! width 7 -> 9 (polite, quiet hours, idle 50945s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 50984s, foreign 112%)
+!! width 8 -> 7 (polite, quiet hours, idle 51045s, foreign 216%)
+!! width 7 -> 8 (polite, quiet hours, idle 51064s, foreign 148%)
+!! width 8 -> 9 (polite, quiet hours, idle 51085s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 51104s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 51125s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 51145s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 51185s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 51225s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 51245s, foreign 97%)
+!! width 9 -> 8 (polite, quiet hours, idle 51284s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 51305s, foreign 91%)
+!! width 9 -> 8 (polite, quiet hours, idle 51324s, foreign 187%)
+!! width 8 -> 7 (polite, quiet hours, idle 51345s, foreign 231%)
+!! width 7 -> 8 (polite, quiet hours, idle 51365s, foreign 151%)
+!! width 8 -> 9 (polite, quiet hours, idle 51385s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 51405s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 51425s, foreign 39%)
+!! width 9 -> 8 (polite, quiet hours, idle 51464s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 51485s, foreign 5%)
+!! width 9 -> 8 (polite, quiet hours, idle 51525s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 51565s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 51585s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 51625s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 51644s, foreign 242%)
+!! width 7 -> 8 (polite, quiet hours, idle 51685s, foreign 166%)
+!! width 8 -> 9 (polite, quiet hours, idle 51804s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 51825s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 51865s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 51885s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 51925s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 51945s, foreign 115%)
+!! width 8 -> 9 (polite, quiet hours, idle 52025s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 52065s, foreign 122%)
+!! width 8 -> 9 (polite, quiet hours, idle 52084s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 52125s, foreign 116%)
+!! width 8 -> 9 (polite, quiet hours, idle 52165s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 52185s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 52204s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 52245s, foreign 160%)
+!! width 8 -> 7 (polite, quiet hours, idle 52264s, foreign 293%)
+!! width 7 -> 8 (polite, quiet hours, idle 52285s, foreign 196%)
+!! width 8 -> 7 (polite, quiet hours, idle 52304s, foreign 271%)
+!! width 7 -> 9 (polite, quiet hours, idle 52325s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 52365s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 52385s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 52425s, foreign 141%)
+!! width 8 -> 9 (polite, quiet hours, idle 52445s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 52565s, foreign 115%)
+!! width 8 -> 9 (polite, quiet hours, idle 52685s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 52725s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 52804s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 52844s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 52865s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 52884s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 52905s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 52925s, foreign 178%)
+!! width 8 -> 9 (polite, quiet hours, idle 52945s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 52965s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 53004s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 53025s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 53045s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 53085s, foreign 226%)
+!! width 7 -> 9 (polite, quiet hours, idle 53105s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 53144s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 53165s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 53204s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 53225s, foreign 198%)
+!! width 8 -> 9 (polite, quiet hours, idle 53284s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 53325s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 53345s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 53385s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 53404s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 53505s, foreign 131%)
+!! width 8 -> 9 (polite, quiet hours, idle 53585s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 53625s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 53645s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 53685s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 53705s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 53745s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 53764s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 53805s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 53885s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 53925s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 53944s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 53984s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 54005s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54045s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 54064s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54105s, foreign 112%)
+!! width 8 -> 6 (polite, quiet hours, idle 54165s, foreign 348%)
+!! width 6 -> 8 (polite, quiet hours, idle 54185s, foreign 122%)
+!! width 8 -> 9 (polite, quiet hours, idle 54204s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 54225s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 54245s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54285s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 54305s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 54345s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 54364s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54404s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 54425s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 54445s, foreign 199%)
+!! width 8 -> 9 (polite, quiet hours, idle 54505s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 54584s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 54605s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54644s, foreign 118%)
+!! width 8 -> 9 (polite, quiet hours, idle 54665s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54705s, foreign 104%)
+!! width 8 -> 9 (polite, quiet hours, idle 54725s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54744s, foreign 109%)
+!! width 8 -> 7 (polite, quiet hours, idle 54765s, foreign 221%)
+!! width 7 -> 8 (polite, quiet hours, idle 54785s, foreign 199%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 54825s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 54885s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 54905s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 54945s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 54965s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 55005s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 55024s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 55064s, foreign 167%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 55125s, foreign 27%)
+!! width 9 -> 8 (polite, quiet hours, idle 55185s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 55204s, foreign 93%)
+!! width 9 -> 8 (polite, quiet hours, idle 55244s, foreign 124%)
+!! width 8 -> 9 (polite, quiet hours, idle 55265s, foreign 84%)
+!! width 9 -> 8 (polite, quiet hours, idle 55305s, foreign 107%)
+   ipc2014-sat            verdicts: hot 19, packed 91, rho 42, solved 50, suspect 56, thermal 1
+   ipc2014-sat            banked  111   168 -> 57
+   ipc2014-agile          packed: 83 wide x10 (14.5 GB budget), 5 narrow, 80 solo
+!! width 8 -> 10 (polite, quiet hours, idle 55324s, foreign -0%)
+!! width 10 -> 5 (polite, quiet hours, idle 55345s, foreign 498%)
+!! width 5 -> 4 (polite, quiet hours, idle 55365s, foreign 504%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 4 -> 5 (polite, quiet hours, idle 55445s, foreign 410%)
+!! width 5 -> 6 (polite, quiet hours, idle 55465s, foreign 398%)
+!! width 6 -> 5 (polite, quiet hours, idle 55485s, foreign 408%)
+!! width 5 -> 6 (polite, quiet hours, idle 55504s, foreign 400%)
+!! width 6 -> 4 (polite, quiet hours, idle 55525s, foreign 600%)
+!! width 4 -> 5 (polite, quiet hours, idle 55584s, foreign 405%)
+!! width 5 -> 4 (polite, quiet hours, idle 55605s, foreign 504%)
+!! width 4 -> 5 (polite, quiet hours, idle 55625s, foreign 498%)
+!! width 5 -> 4 (polite, quiet hours, idle 55665s, foreign 536%)
+!! width 4 -> 6 (polite, quiet hours, idle 55685s, foreign 305%)
+!! width 6 -> 7 (polite, quiet hours, idle 55705s, foreign 297%)
+!! width 7 -> 6 (polite, quiet hours, idle 55725s, foreign 311%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 6 -> 5 (polite, quiet hours, idle 55745s, foreign 405%)
+!! width 5 -> 7 (polite, quiet hours, idle 55765s, foreign 288%)
+!! width 7 -> 6 (polite, quiet hours, idle 55784s, foreign 314%)
+!! width 6 -> 7 (polite, quiet hours, idle 55805s, foreign 296%)
+!! width 7 -> 6 (polite, quiet hours, idle 55905s, foreign 305%)
+!! width 6 -> 4 (polite, quiet hours, idle 55965s, foreign 533%)
+!! width 4 -> 6 (polite, quiet hours, idle 55984s, foreign 399%)
+!! width 6 -> 5 (polite, quiet hours, idle 56005s, foreign 496%)
+!! width 5 -> 3 (polite, quiet hours, idle 56025s, foreign 602%)
+!! width 3 -> 6 (polite, quiet hours, idle 56044s, foreign 399%)
+!! width 6 -> 5 (polite, quiet hours, idle 56065s, foreign 499%)
+!! width 5 -> 6 (polite, quiet hours, idle 56145s, foreign 312%)
+!! width 6 -> 7 (polite, quiet hours, idle 56165s, foreign 299%)
+!! width 7 -> 8 (polite, quiet hours, idle 56185s, foreign 114%)
+!! width 8 -> 7 (polite, quiet hours, idle 56205s, foreign 236%)
+!! width 7 -> 8 (polite, quiet hours, idle 56245s, foreign 196%)
+!! width 8 -> 7 (polite, quiet hours, idle 56265s, foreign 212%)
+!! width 7 -> 8 (polite, quiet hours, idle 56305s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 56325s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 56345s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 56385s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 56405s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 56444s, foreign 235%)
+!! width 7 -> 8 (polite, quiet hours, idle 56465s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 56505s, foreign 285%)
+!! width 7 -> 8 (polite, quiet hours, idle 56585s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 56625s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 56645s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 56685s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 56705s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 56745s, foreign 216%)
+!! width 7 -> 8 (polite, quiet hours, idle 56765s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 56805s, foreign 219%)
+!! width 7 -> 6 (polite, quiet hours, idle 56845s, foreign 312%)
+!! width 6 -> 7 (polite, quiet hours, idle 56865s, foreign 228%)
+!! width 7 -> 8 (polite, quiet hours, idle 56885s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 56905s, foreign 221%)
+!! width 7 -> 8 (polite, quiet hours, idle 56945s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 56985s, foreign 211%)
+!! width 7 -> 8 (polite, quiet hours, idle 57065s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 57085s, foreign 204%)
+!! width 7 -> 6 (polite, quiet hours, idle 57124s, foreign 303%)
+!! width 6 -> 7 (polite, quiet hours, idle 57145s, foreign 298%)
+!! width 7 -> 8 (polite, quiet hours, idle 57185s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 57384s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 57485s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 57525s, foreign 219%)
+!! width 7 -> 8 (polite, quiet hours, idle 57565s, foreign 199%)
+!! width 8 -> 9 (polite, quiet hours, idle 57605s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 57645s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 57665s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 57705s, foreign 107%)
+!! width 8 -> 7 (polite, quiet hours, idle 57764s, foreign 238%)
+!! width 7 -> 8 (polite, quiet hours, idle 57785s, foreign 142%)
+!! width 8 -> 9 (polite, quiet hours, idle 57805s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 57825s, foreign 266%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 9 (polite, quiet hours, idle 57845s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 57885s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 57904s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 57944s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 57965s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 58025s, foreign 208%)
+!! width 7 -> 8 (polite, quiet hours, idle 58044s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 58065s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 58084s, foreign 144%)
+!! width 8 -> 9 (polite, quiet hours, idle 58105s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 58124s, foreign 112%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 58145s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 58224s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 58265s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 58305s, foreign 117%)
+!! width 8 -> 9 (polite, quiet hours, idle 58325s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 58345s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 58364s, foreign 210%)
+!! width 7 -> 9 (polite, quiet hours, idle 58405s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 58425s, foreign 105%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 58444s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 58484s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 58564s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 58585s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 58625s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 58645s, foreign 105%)
+!! width 8 -> 7 (polite, quiet hours, idle 58664s, foreign 211%)
+!! width 7 -> 8 (polite, quiet hours, idle 58685s, foreign 198%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 58745s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 58785s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 58805s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 58905s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 58924s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 58964s, foreign 200%)
+!! width 7 -> 8 (polite, quiet hours, idle 59004s, foreign 196%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 59045s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 59085s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 59105s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 59145s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 59165s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 59204s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 59225s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 59285s, foreign 200%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 59345s, foreign 99%)
+!! width 9 -> 10 (polite, quiet hours, idle 59365s, foreign -0%)
+!! width 10 -> 8 (polite, quiet hours, idle 59385s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 59405s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 59445s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 59485s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 59505s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 59525s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 59564s, foreign 212%)
+!! width 7 -> 6 (polite, quiet hours, idle 59625s, foreign 302%)
+!! width 6 -> 9 (polite, quiet hours, idle 59645s, foreign 45%)
+!! width 9 -> 7 (polite, quiet hours, idle 59685s, foreign 249%)
+!! width 7 -> 9 (polite, quiet hours, idle 59704s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 59744s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 59765s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 59805s, foreign 147%)
+!! width 8 -> 9 (polite, quiet hours, idle 59825s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 59865s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 59885s, foreign 95%)
+!! width 9 -> 8 (polite, quiet hours, idle 59905s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 59924s, foreign 210%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 8 (polite, quiet hours, idle 59946s, foreign 115%)
+!! width 8 -> 9 (polite, quiet hours, idle 59965s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 59984s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 60005s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 60045s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 60065s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 60104s, foreign 112%)
+!! width 8 -> 7 (polite, quiet hours, idle 60125s, foreign 262%)
+!! width 7 -> 9 (polite, quiet hours, idle 60145s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 60185s, foreign 105%)
+!! width 8 -> 7 (polite, quiet hours, idle 60225s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 60244s, foreign 198%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 60285s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 60345s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 60385s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 60405s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 60425s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 60525s, foreign 208%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 8 (polite, quiet hours, idle 60565s, foreign 179%)
+!! width 8 -> 9 (polite, quiet hours, idle 60605s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 60644s, foreign 107%)
+!! width 8 -> 10 (polite, quiet hours, idle 60685s, foreign -0%)
+!! width 10 -> 8 (polite, quiet hours, idle 60705s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 60725s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 60765s, foreign 142%)
+!! width 8 -> 9 (polite, quiet hours, idle 60785s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 60825s, foreign 115%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 60905s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 60944s, foreign 119%)
+!! width 8 -> 9 (polite, quiet hours, idle 60965s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 61005s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 61045s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 61065s, foreign 111%)
+!! width 8 -> 9 (polite, quiet hours, idle 61105s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 61125s, foreign 107%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 61205s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 61265s, foreign 276%)
+!! width 7 -> 9 (polite, quiet hours, idle 61285s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 61305s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 61325s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 61345s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 61365s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 61425s, foreign 108%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 61485s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 61505s, foreign 122%)
+!! width 8 -> 9 (polite, quiet hours, idle 61525s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 61544s, foreign 231%)
+!! width 7 -> 9 (polite, quiet hours, idle 61565s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 61625s, foreign 129%)
+!! width 8 -> 9 (polite, quiet hours, idle 61665s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 61725s, foreign 116%)
+!! width 8 -> 9 (polite, quiet hours, idle 61745s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 61764s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 61785s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 61804s, foreign 194%)
+!! width 8 -> 9 (polite, quiet hours, idle 61825s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 61844s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 61865s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 61905s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 61925s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 61965s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 62005s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 62025s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 62045s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 62065s, foreign 123%)
+!! width 8 -> 7 (polite, quiet hours, idle 62084s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 62105s, foreign 198%)
+!! width 8 -> 9 (polite, quiet hours, idle 62205s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 62225s, foreign 128%)
+!! width 8 -> 9 (polite, quiet hours, idle 62244s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 62265s, foreign 104%)
+!! width 8 -> 9 (polite, quiet hours, idle 62284s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 62325s, foreign 142%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 62385s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 62404s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 62425s, foreign 220%)
+!! width 7 -> 8 (polite, quiet hours, idle 62444s, foreign 107%)
+!! width 8 -> 6 (polite, quiet hours, idle 62465s, foreign 393%)
+!! width 6 -> 9 (polite, quiet hours, idle 62484s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 62505s, foreign 109%)
+!! width 8 -> 9 (polite, quiet hours, idle 62544s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 62565s, foreign 115%)
+!! width 8 -> 9 (polite, quiet hours, idle 62584s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 62605s, foreign 112%)
+!! width 8 -> 9 (polite, quiet hours, idle 62644s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 62685s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 62705s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 62765s, foreign 259%)
+!! width 7 -> 9 (polite, quiet hours, idle 62784s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 62805s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 62824s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 62845s, foreign 115%)
+!! width 8 -> 9 (polite, quiet hours, idle 62884s, foreign 99%)
+!! width 9 -> 7 (polite, quiet hours, idle 62905s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 62944s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 63024s, foreign 213%)
+!! width 7 -> 8 (polite, quiet hours, idle 63045s, foreign 153%)
+!! width 8 -> 9 (polite, quiet hours, idle 63064s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 63104s, foreign 119%)
+!! width 8 -> 9 (polite, quiet hours, idle 63125s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 63145s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 63184s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 63225s, foreign 116%)
+!! width 8 -> 9 (polite, quiet hours, idle 63244s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 63285s, foreign 105%)
+!! width 8 -> 7 (polite, quiet hours, idle 63345s, foreign 201%)
+!! width 7 -> 9 (polite, quiet hours, idle 63364s, foreign 100%)
+!! width 9 -> 7 (polite, quiet hours, idle 63404s, foreign 236%)
+!! width 7 -> 9 (polite, quiet hours, idle 63425s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 63465s, foreign 119%)
+!! width 8 -> 9 (polite, quiet hours, idle 63505s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 63525s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 63545s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 63584s, foreign 114%)
+!! width 8 -> 7 (polite, quiet hours, idle 63625s, foreign 223%)
+!! width 7 -> 8 (polite, quiet hours, idle 63664s, foreign 129%)
+!! width 8 -> 9 (polite, quiet hours, idle 63685s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 63704s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 63725s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 63745s, foreign 106%)
+!! width 8 -> 9 (polite, quiet hours, idle 63784s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 63825s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 63845s, foreign 100%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 63885s, foreign 111%)
+!! width 8 -> 7 (polite, quiet hours, idle 63945s, foreign 219%)
+!! width 7 -> 8 (polite, quiet hours, idle 63965s, foreign 154%)
+!! width 8 -> 9 (polite, quiet hours, idle 63985s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 64005s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 64024s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 64065s, foreign 107%)
+!! width 8 -> 7 (polite, quiet hours, idle 64085s, foreign 278%)
+!! width 7 -> 9 (polite, quiet hours, idle 64105s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 64144s, foreign 106%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 64165s, foreign 57%)
+!! width 9 -> 8 (polite, quiet hours, idle 64185s, foreign 113%)
+!! width 8 -> 9 (polite, quiet hours, idle 64205s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 64225s, foreign 156%)
+!! width 8 -> 7 (polite, quiet hours, idle 64245s, foreign 250%)
+!! width 7 -> 8 (polite, quiet hours, idle 64265s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 64324s, foreign 208%)
+!! width 7 -> 8 (polite, quiet hours, idle 64345s, foreign 151%)
+!! width 8 -> 9 (polite, quiet hours, idle 64365s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 64404s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 64425s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 9 -> 10 (polite, quiet hours, idle 64466s, foreign -0%)
+!! width 10 -> 8 (polite, quiet hours, idle 64485s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 64505s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 64524s, foreign 110%)
+!! width 8 -> 7 (polite, quiet hours, idle 64545s, foreign 209%)
+!! width 7 -> 8 (polite, quiet hours, idle 64565s, foreign 199%)
+!! width 8 -> 9 (polite, quiet hours, idle 64625s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 64645s, foreign 148%)
+!! width 8 -> 9 (polite, quiet hours, idle 64665s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 64704s, foreign 118%)
+!! width 8 -> 7 (polite, quiet hours, idle 64725s, foreign 265%)
+   ipc2014-agile          verdicts: hot 55, packed 91, rho 9, solved 31, suspect 59, thermal 14
+   ipc2014-agile          banked   95   168 -> 73
+   ipc67-results          packed: 236 wide x10 (14.5 GB budget), 8 narrow, 44 solo
+!! width 7 -> 6 (polite, quiet hours, idle 64745s, foreign 398%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 6 -> 5 (polite, quiet hours, idle 64785s, foreign 406%)
+!! width 5 -> 6 (polite, quiet hours, idle 64805s, foreign 399%)
+!! width 6 -> 5 (polite, quiet hours, idle 64825s, foreign 429%)
+!! width 5 -> 3 (polite, quiet hours, idle 64845s, foreign 604%)
+!! width 3 -> 5 (polite, quiet hours, idle 64885s, foreign 500%)
+!! width 5 -> 4 (polite, quiet hours, idle 64905s, foreign 504%)
+!! width 4 -> 5 (polite, quiet hours, idle 64925s, foreign 406%)
+!! width 5 -> 4 (polite, quiet hours, idle 64985s, foreign 518%)
+!! width 4 -> 5 (polite, quiet hours, idle 65005s, foreign 498%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 5 -> 6 (polite, quiet hours, idle 65105s, foreign 394%)
+!! width 6 -> 7 (polite, quiet hours, idle 65125s, foreign 300%)
+!! width 7 -> 8 (polite, quiet hours, idle 65165s, foreign 192%)
+!! width 8 -> 6 (polite, quiet hours, idle 65184s, foreign 312%)
+!! width 6 -> 5 (polite, quiet hours, idle 65205s, foreign 408%)
+!! width 5 -> 7 (polite, quiet hours, idle 65225s, foreign 274%)
+!! width 7 -> 5 (polite, quiet hours, idle 65244s, foreign 405%)
+!! width 5 -> 3 (polite, quiet hours, idle 65265s, foreign 626%)
+!! width 3 -> 7 (polite, quiet hours, idle 65285s, foreign 298%)
+!! width 7 -> 6 (polite, quiet hours, idle 65304s, foreign 398%)
+!! width 6 -> 7 (polite, quiet hours, idle 65345s, foreign 299%)
+!! width 7 -> 5 (polite, quiet hours, idle 65384s, foreign 499%)
+!! width 5 -> 6 (polite, quiet hours, idle 65444s, foreign 305%)
+!! width 6 -> 8 (polite, quiet hours, idle 65465s, foreign 199%)
+!! width 8 -> 6 (polite, quiet hours, idle 65505s, foreign 303%)
+!! width 6 -> 7 (polite, quiet hours, idle 65525s, foreign 298%)
+!! width 7 -> 6 (polite, quiet hours, idle 65564s, foreign 306%)
+!! width 6 -> 7 (polite, quiet hours, idle 65585s, foreign 300%)
+!! width 7 -> 8 (polite, quiet hours, idle 65645s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 65664s, foreign 298%)
+!! width 7 -> 6 (polite, quiet hours, idle 65685s, foreign 309%)
+!! width 6 -> 7 (polite, quiet hours, idle 65704s, foreign 284%)
+!! width 7 -> 9 (polite, quiet hours, idle 65725s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 65744s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 65765s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 65784s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 65805s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 65825s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 65864s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 65885s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 65905s, foreign 300%)
+!! width 7 -> 6 (polite, quiet hours, idle 65924s, foreign 304%)
+!! width 6 -> 5 (polite, quiet hours, idle 65945s, foreign 411%)
+!! width 5 -> 7 (polite, quiet hours, idle 65965s, foreign 299%)
+!! width 7 -> 5 (polite, quiet hours, idle 65985s, foreign 404%)
+!! width 5 -> 6 (polite, quiet hours, idle 66005s, foreign 329%)
+!! width 6 -> 4 (polite, quiet hours, idle 66045s, foreign 555%)
+!! width 4 -> 6 (polite, quiet hours, idle 66065s, foreign 397%)
+!! width 6 -> 4 (polite, quiet hours, idle 66085s, foreign 596%)
+!! width 4 -> 5 (polite, quiet hours, idle 66105s, foreign 497%)
+!! width 5 -> 6 (polite, quiet hours, idle 66145s, foreign 398%)
+!! width 6 -> 5 (polite, quiet hours, idle 66165s, foreign 496%)
+!! width 5 -> 4 (polite, quiet hours, idle 66225s, foreign 535%)
+!! width 4 -> 5 (polite, quiet hours, idle 66265s, foreign 484%)
+!! width 5 -> 6 (polite, quiet hours, idle 66305s, foreign 318%)
+!! width 6 -> 7 (polite, quiet hours, idle 66325s, foreign 300%)
+!! width 7 -> 6 (polite, quiet hours, idle 66344s, foreign 391%)
+!! width 6 -> 8 (polite, quiet hours, idle 66365s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 66385s, foreign 204%)
+!! width 7 -> 9 (polite, quiet hours, idle 66405s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 66465s, foreign 115%)
+!! width 8 -> 9 (polite, quiet hours, idle 66484s, foreign 100%)
+!! width 9 -> 8 (polite, quiet hours, idle 66505s, foreign 135%)
+!! width 8 -> 7 (polite, quiet hours, idle 66524s, foreign 210%)
+!! width 7 -> 8 (polite, quiet hours, idle 66545s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 66605s, foreign 218%)
+!! width 7 -> 8 (polite, quiet hours, idle 66624s, foreign 128%)
+!! width 8 -> 6 (polite, quiet hours, idle 66705s, foreign 305%)
+!! width 6 -> 8 (polite, quiet hours, idle 66724s, foreign 197%)
+!! width 8 -> 9 (polite, quiet hours, idle 66785s, foreign 100%)
+!! width 9 -> 6 (polite, quiet hours, idle 66825s, foreign 307%)
+!! width 6 -> 7 (polite, quiet hours, idle 66844s, foreign 299%)
+!! width 7 -> 8 (polite, quiet hours, idle 66885s, foreign 200%)
+!! width 8 -> 9 (polite, quiet hours, idle 66905s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 66925s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 66945s, foreign 205%)
+!! width 7 -> 9 (polite, quiet hours, idle 66965s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 67005s, foreign 198%)
+!! width 8 -> 6 (polite, quiet hours, idle 67065s, foreign 360%)
+!! width 6 -> 8 (polite, quiet hours, idle 67085s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 67105s, foreign 238%)
+!! width 7 -> 6 (polite, quiet hours, idle 67124s, foreign 309%)
+!! width 6 -> 7 (polite, quiet hours, idle 67165s, foreign 280%)
+!! width 7 -> 8 (polite, quiet hours, idle 67205s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 67305s, foreign 203%)
+!! width 7 -> 8 (polite, quiet hours, idle 67325s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 67345s, foreign 205%)
+!! width 7 -> 6 (polite, quiet hours, idle 67425s, foreign 306%)
+!! width 6 -> 7 (polite, quiet hours, idle 67445s, foreign 298%)
+!! width 7 -> 8 (polite, quiet hours, idle 67525s, foreign 198%)
+!! width 8 -> 7 (polite, quiet hours, idle 67544s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 67565s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 67605s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 67624s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 67645s, foreign 225%)
+!! width 7 -> 8 (polite, quiet hours, idle 67805s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 67825s, foreign 231%)
+!! width 7 -> 8 (polite, quiet hours, idle 67845s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 67884s, foreign 221%)
+!! width 7 -> 8 (polite, quiet hours, idle 67905s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 67965s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 67985s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 68005s, foreign 210%)
+!! width 7 -> 8 (polite, quiet hours, idle 68105s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 68144s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 68165s, foreign 197%)
+!! width 8 -> 7 (polite, idle 68205s, foreign 206%)
+!! width 7 -> 8 (polite, idle 68245s, foreign 199%)
+!! width 8 -> 7 (polite, idle 68425s, foreign 207%)
+!! width 7 -> 9 (polite, idle 68465s, foreign 41%)
+!! width 9 -> 7 (polite, idle 68484s, foreign 205%)
+!! width 7 -> 8 (polite, idle 68505s, foreign 199%)
+!! width 8 -> 7 (polite, idle 68625s, foreign 294%)
+!! width 7 -> 6 (polite, idle 68645s, foreign 311%)
+!! width 6 -> 7 (polite, idle 68664s, foreign 296%)
+!! width 7 -> 8 (polite, idle 68725s, foreign 200%)
+!! width 8 -> 7 (polite, idle 68745s, foreign 206%)
+!! width 7 -> 8 (polite, idle 68765s, foreign 200%)
+!! width 8 -> 7 (polite, idle 68865s, foreign 214%)
+!! width 7 -> 8 (polite, idle 68885s, foreign 198%)
+!! width 8 -> 5 (polite, idle 68925s, foreign 445%)
+!! width 5 -> 7 (polite, idle 68965s, foreign 299%)
+!! width 7 -> 8 (polite, idle 69004s, foreign 199%)
+!! width 8 -> 7 (polite, idle 69045s, foreign 210%)
+!! width 7 -> 8 (polite, idle 69065s, foreign 198%)
+!! width 8 -> 7 (polite, idle 69105s, foreign 206%)
+!! width 7 -> 8 (polite, idle 69124s, foreign 200%)
+!! width 8 -> 7 (polite, idle 69165s, foreign 209%)
+!! width 7 -> 8 (polite, idle 69185s, foreign 200%)
+!! width 8 -> 6 (polite, idle 69225s, foreign 308%)
+!! width 6 -> 7 (polite, idle 69245s, foreign 300%)
+!! width 7 -> 8 (polite, idle 69305s, foreign 199%)
+!! width 8 -> 9 (polite, idle 69325s, foreign 100%)
+!! width 9 -> 8 (polite, idle 69405s, foreign 106%)
+!! width 8 -> 9 (polite, idle 69425s, foreign 100%)
+!! width 9 -> 8 (polite, idle 69464s, foreign 111%)
+!! width 8 -> 9 (polite, idle 69485s, foreign 100%)
+!! width 9 -> 8 (polite, idle 69525s, foreign 118%)
+!! width 8 -> 6 (polite, idle 69565s, foreign 351%)
+!! width 6 -> 9 (polite, idle 69585s, foreign 74%)
+!! width 9 -> 8 (polite, idle 69624s, foreign 104%)
+!! width 8 -> 9 (polite, idle 69665s, foreign 99%)
+!! width 9 -> 8 (polite, idle 69705s, foreign 106%)
+!! width 8 -> 9 (polite, idle 69725s, foreign 100%)
+!! width 9 -> 8 (polite, idle 69764s, foreign 107%)
+!! width 8 -> 9 (polite, idle 69785s, foreign 99%)
+!! width 9 -> 8 (polite, idle 69845s, foreign 199%)
+!! width 8 -> 6 (polite, idle 69885s, foreign 346%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 6 -> 9 (polite, idle 69905s, foreign 100%)
+!! width 9 -> 8 (polite, idle 69984s, foreign 141%)
+!! width 8 -> 9 (polite, idle 70024s, foreign 100%)
+!! width 9 -> 8 (polite, idle 70065s, foreign 105%)
+!! width 8 -> 9 (polite, idle 70085s, foreign 99%)
+!! width 9 -> 8 (polite, idle 70145s, foreign 156%)
+!! width 8 -> 7 (polite, idle 70185s, foreign 210%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 9 (polite, idle 70225s, foreign 99%)
+!! width 9 -> 8 (polite, idle 70245s, foreign 120%)
+!! width 8 -> 9 (polite, idle 70265s, foreign 100%)
+!! width 9 -> 8 (polite, idle 70304s, foreign 110%)
+!! width 8 -> 9 (polite, idle 70325s, foreign 99%)
+!! width 9 -> 8 (polite, idle 70365s, foreign 106%)
+!! width 8 -> 9 (polite, idle 70385s, foreign 100%)
+!! width 9 -> 8 (polite, idle 70425s, foreign 112%)
+!! width 8 -> 9 (polite, idle 70445s, foreign 100%)
+!! width 9 -> 7 (polite, idle 70464s, foreign 206%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 70505s, foreign 197%)
+!! width 8 -> 9 (polite, idle 70564s, foreign 99%)
+!! width 9 -> 7 (polite, idle 70605s, foreign 206%)
+!! width 7 -> 8 (polite, idle 70644s, foreign 185%)
+!! width 8 -> 7 (polite, idle 70665s, foreign 220%)
+!! width 7 -> 8 (polite, idle 70685s, foreign 195%)
+!! width 8 -> 9 (polite, idle 70705s, foreign 100%)
+!! width 9 -> 8 (polite, idle 70724s, foreign 126%)
+!! width 8 -> 9 (polite, idle 70745s, foreign 100%)
+!! width 9 -> 8 (polite, idle 70765s, foreign 150%)
+!! width 8 -> 6 (polite, idle 70785s, foreign 356%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 6 -> 8 (polite, idle 70805s, foreign 200%)
+!! width 8 -> 9 (polite, idle 70865s, foreign 99%)
+!! width 9 -> 8 (polite, idle 70905s, foreign 137%)
+!! width 8 -> 9 (polite, idle 70925s, foreign 99%)
+!! width 9 -> 8 (polite, idle 70965s, foreign 108%)
+!! width 8 -> 9 (polite, idle 70985s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71005s, foreign 114%)
+!! width 8 -> 9 (polite, idle 71045s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71065s, foreign 148%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 71185s, foreign 99%)
+!! width 9 -> 8 (polite, idle 71204s, foreign 107%)
+!! width 8 -> 9 (polite, idle 71225s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71265s, foreign 106%)
+!! width 8 -> 9 (polite, idle 71285s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71324s, foreign 108%)
+!! width 8 -> 9 (polite, idle 71345s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71385s, foreign 194%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 71465s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71565s, foreign 117%)
+!! width 8 -> 9 (polite, idle 71585s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71685s, foreign 112%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 71765s, foreign 100%)
+!! width 9 -> 8 (polite, idle 71785s, foreign 122%)
+!! width 8 -> 6 (polite, idle 71805s, foreign 340%)
+!! width 6 -> 9 (polite, idle 71825s, foreign 99%)
+!! width 9 -> 8 (polite, idle 71864s, foreign 108%)
+!! width 8 -> 9 (polite, idle 71885s, foreign 96%)
+!! width 9 -> 8 (polite, idle 71904s, foreign 112%)
+!! width 8 -> 9 (polite, idle 71945s, foreign 98%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 72005s, foreign 196%)
+!! width 8 -> 7 (polite, idle 72045s, foreign 203%)
+!! width 7 -> 9 (polite, idle 72064s, foreign 92%)
+!! width 9 -> 8 (polite, idle 72085s, foreign 116%)
+!! width 8 -> 9 (polite, idle 72125s, foreign 98%)
+!! width 9 -> 8 (polite, idle 72225s, foreign 105%)
+!! width 8 -> 9 (polite, idle 72245s, foreign 99%)
+!! width 9 -> 8 (polite, idle 72285s, foreign 109%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 72345s, foreign 207%)
+!! width 7 -> 8 (polite, idle 72364s, foreign 116%)
+!! width 8 -> 7 (polite, idle 72385s, foreign 204%)
+!! width 7 -> 8 (polite, idle 72405s, foreign 110%)
+!! width 8 -> 9 (polite, idle 72425s, foreign 99%)
+!! width 9 -> 8 (polite, idle 72525s, foreign 107%)
+!! width 8 -> 9 (polite, idle 72545s, foreign 100%)
+!! width 9 -> 8 (polite, idle 72585s, foreign 105%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 6 (polite, idle 72645s, foreign 340%)
+!! width 6 -> 8 (polite, idle 72665s, foreign 191%)
+!! width 8 -> 9 (polite, idle 72705s, foreign 100%)
+!! width 9 -> 8 (polite, idle 72765s, foreign 105%)
+!! width 8 -> 9 (polite, idle 72785s, foreign 100%)
+!! width 9 -> 8 (polite, idle 72805s, foreign 120%)
+!! width 8 -> 9 (polite, idle 72845s, foreign 99%)
+!! width 9 -> 8 (polite, idle 72884s, foreign 113%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 6 (polite, idle 72965s, foreign 366%)
+!! width 6 -> 8 (polite, idle 72985s, foreign 125%)
+!! width 8 -> 9 (polite, idle 73025s, foreign 99%)
+!! width 9 -> 8 (polite, idle 73045s, foreign 107%)
+!! width 8 -> 9 (polite, idle 73085s, foreign 100%)
+!! width 9 -> 8 (polite, idle 73105s, foreign 122%)
+!! width 8 -> 9 (polite, idle 73145s, foreign 99%)
+!! width 9 -> 8 (polite, idle 73165s, foreign 109%)
+!! width 8 -> 9 (polite, idle 73185s, foreign 99%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 9 -> 8 (polite, idle 73205s, foreign 163%)
+!! width 8 -> 7 (polite, idle 73245s, foreign 258%)
+!! width 7 -> 6 (polite, idle 73265s, foreign 337%)
+!! width 6 -> 7 (polite, idle 73285s, foreign 247%)
+!! width 7 -> 8 (polite, idle 73305s, foreign 143%)
+!! width 8 -> 6 (polite, idle 73345s, foreign 368%)
+!! width 6 -> 8 (polite, idle 73365s, foreign 175%)
+!! width 8 -> 7 (polite, idle 73405s, foreign 204%)
+!! width 7 -> 8 (polite, idle 73425s, foreign 140%)
+!! width 8 -> 5 (polite, idle 73605s, foreign 428%)
+!! width 5 -> 8 (polite, idle 73625s, foreign 152%)
+!! width 8 -> 7 (polite, idle 73825s, foreign 254%)
+!! width 7 -> 8 (polite, idle 73845s, foreign 126%)
+!! width 8 -> 6 (polite, idle 73904s, foreign 322%)
+!! width 6 -> 7 (polite, idle 73924s, foreign 237%)
+!! width 7 -> 8 (polite, idle 73965s, foreign 176%)
+!! width 8 -> 7 (polite, idle 74025s, foreign 235%)
+!! width 7 -> 8 (polite, idle 74045s, foreign 157%)
+!! width 8 -> 9 (polite, idle 74106s, foreign 49%)
+!! width 9 -> 8 (polite, idle 74125s, foreign 155%)
+!! width 8 -> 7 (polite, idle 74204s, foreign 214%)
+!! width 7 -> 8 (polite, idle 74265s, foreign 146%)
+!! width 8 -> 7 (polite, idle 74385s, foreign 236%)
+!! width 7 -> 8 (polite, idle 74405s, foreign 148%)
+!! width 8 -> 7 (polite, idle 74485s, foreign 246%)
+!! width 7 -> 6 (polite, idle 74505s, foreign 332%)
+!! width 6 -> 7 (polite, idle 74525s, foreign 247%)
+!! width 7 -> 6 (polite, idle 74545s, foreign 317%)
+!! width 6 -> 7 (polite, idle 74565s, foreign 236%)
+!! width 7 -> 8 (polite, idle 74585s, foreign 182%)
+!! width 8 -> 7 (polite, idle 74605s, foreign 268%)
+!! width 7 -> 8 (polite, idle 74625s, foreign 164%)
+!! width 8 -> 7 (polite, idle 74665s, foreign 258%)
+!! width 7 -> 8 (polite, idle 74685s, foreign 174%)
+!! width 8 -> 7 (polite, idle 74725s, foreign 240%)
+!! width 7 -> 8 (polite, idle 74765s, foreign 163%)
+!! width 8 -> 7 (polite, idle 74785s, foreign 230%)
+!! width 7 -> 6 (polite, idle 74805s, foreign 319%)
+!! width 6 -> 7 (polite, idle 74845s, foreign 220%)
+!! width 7 -> 8 (polite, idle 74865s, foreign 172%)
+!! width 8 -> 7 (polite, idle 74925s, foreign 230%)
+!! width 7 -> 8 (polite, idle 74945s, foreign 195%)
+!! width 8 -> 7 (polite, idle 74965s, foreign 229%)
+!! width 7 -> 8 (polite, idle 74985s, foreign 165%)
+!! width 8 -> 6 (polite, idle 75104s, foreign 313%)
+!! width 6 -> 7 (polite, idle 75125s, foreign 291%)
+!! width 7 -> 8 (polite, idle 75165s, foreign 177%)
+!! width 8 -> 7 (polite, idle 75205s, foreign 213%)
+!! width 7 -> 8 (polite, idle 75225s, foreign 164%)
+!! width 8 -> 7 (polite, idle 75244s, foreign 220%)
+!! width 7 -> 8 (polite, idle 75265s, foreign 186%)
+!! width 8 -> 7 (polite, idle 75305s, foreign 239%)
+!! width 7 -> 8 (polite, idle 75345s, foreign 194%)
+!! width 8 -> 7 (polite, idle 75365s, foreign 221%)
+!! width 7 -> 6 (polite, idle 75405s, foreign 318%)
+!! width 6 -> 7 (polite, idle 75425s, foreign 245%)
+!! width 7 -> 8 (polite, idle 75445s, foreign 170%)
+!! width 8 -> 7 (polite, idle 75545s, foreign 245%)
+!! width 7 -> 8 (polite, idle 75585s, foreign 171%)
+!! width 8 -> 7 (polite, idle 75625s, foreign 210%)
+!! width 7 -> 8 (polite, idle 75665s, foreign 164%)
+!! width 8 -> 7 (polite, idle 75685s, foreign 249%)
+!! width 7 -> 6 (polite, idle 75705s, foreign 302%)
+!! width 6 -> 8 (polite, idle 75724s, foreign 174%)
+!! width 8 -> 7 (polite, idle 75745s, foreign 214%)
+!! width 7 -> 8 (polite, idle 75785s, foreign 167%)
+!! width 8 -> 7 (polite, idle 75885s, foreign 232%)
+!! width 7 -> 8 (polite, idle 75905s, foreign 166%)
+!! width 8 -> 7 (polite, idle 75985s, foreign 224%)
+!! width 7 -> 8 (polite, idle 76025s, foreign 158%)
+!! width 8 -> 9 (polite, idle 76045s, foreign 70%)
+!! width 9 -> 8 (polite, idle 76065s, foreign 164%)
+!! width 8 -> 7 (polite, idle 76105s, foreign 222%)
+!! width 7 -> 8 (polite, idle 76145s, foreign 170%)
+!! width 8 -> 7 (polite, idle 76185s, foreign 226%)
+!! width 7 -> 8 (polite, idle 76224s, foreign 162%)
+!! width 8 -> 7 (polite, idle 76245s, foreign 247%)
+!! width 7 -> 8 (polite, idle 76325s, foreign 199%)
+!! width 8 -> 7 (polite, idle 76345s, foreign 231%)
+!! width 7 -> 8 (polite, idle 76405s, foreign 157%)
+!! width 8 -> 7 (polite, idle 76425s, foreign 212%)
+!! width 7 -> 8 (polite, idle 76444s, foreign 162%)
+!! width 8 -> 7 (polite, idle 76485s, foreign 235%)
+!! width 7 -> 8 (polite, idle 76505s, foreign 164%)
+!! width 8 -> 7 (polite, idle 76525s, foreign 235%)
+!! width 7 -> 6 (polite, idle 76565s, foreign 306%)
+!! width 6 -> 7 (polite, idle 76585s, foreign 252%)
+   ipc67-results          verdicts: hot 19, packed 159, rho 1, solved 153, suspect 102, thermal 13
+   ipc67-results          banked  173   288 -> 115
+   ipc2023-sat            packed: 20 wide x10 (14.5 GB budget), 3 narrow, 61 solo
+!! width 7 -> 2 (polite, idle 76665s, foreign 740%)
+!! width 2 -> 3 (polite, idle 76685s, foreign 653%)
+!! width 3 -> 5 (polite, idle 76725s, foreign 424%)
+!! width 5 -> 4 (polite, idle 76745s, foreign 549%)
+!! width 4 -> 5 (polite, idle 76805s, foreign 435%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 5 -> 6 (polite, idle 76845s, foreign 305%)
+!! width 6 -> 7 (polite, idle 76905s, foreign 270%)
+!! width 7 -> 6 (polite, idle 76985s, foreign 339%)
+!! width 6 -> 7 (polite, idle 77045s, foreign 270%)
+!! width 7 -> 5 (polite, idle 77085s, foreign 406%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 5 -> 6 (polite, idle 77125s, foreign 399%)
+!! width 6 -> 7 (polite, idle 77165s, foreign 298%)
+!! width 7 -> 5 (polite, idle 77185s, foreign 468%)
+!! width 5 -> 7 (polite, idle 77205s, foreign 299%)
+!! width 7 -> 5 (polite, idle 77285s, foreign 403%)
+!! width 5 -> 7 (polite, idle 77305s, foreign 300%)
+!! width 7 -> 6 (polite, idle 77324s, foreign 308%)
+!! width 6 -> 8 (polite, idle 77345s, foreign 199%)
+!! width 8 -> 7 (polite, idle 77385s, foreign 206%)
+!! width 7 -> 8 (polite, idle 77445s, foreign 164%)
+!! width 8 -> 7 (polite, idle 77505s, foreign 205%)
+!! width 7 -> 8 (polite, idle 77524s, foreign 199%)
+!! width 8 -> 7 (polite, idle 77605s, foreign 215%)
+!! width 7 -> 8 (polite, idle 77625s, foreign 125%)
+!! width 8 -> 7 (polite, idle 77665s, foreign 213%)
+!! width 7 -> 6 (polite, idle 77685s, foreign 332%)
+!! width 6 -> 7 (polite, idle 77725s, foreign 298%)
+!! width 7 -> 8 (polite, idle 77784s, foreign 200%)
+!! width 8 -> 7 (polite, idle 77845s, foreign 205%)
+!! width 7 -> 5 (polite, idle 77924s, foreign 430%)
+!! width 5 -> 7 (polite, idle 77945s, foreign 293%)
+!! width 7 -> 8 (polite, idle 77965s, foreign 198%)
+!! width 8 -> 7 (polite, idle 77985s, foreign 272%)
+!! width 7 -> 8 (polite, idle 78005s, foreign 184%)
+!! width 8 -> 7 (polite, idle 78025s, foreign 232%)
+!! width 7 -> 5 (polite, idle 78064s, foreign 402%)
+!! width 5 -> 8 (polite, idle 78085s, foreign 138%)
+!! width 8 -> 7 (polite, idle 78104s, foreign 251%)
+!! width 7 -> 8 (polite, idle 78145s, foreign 138%)
+!! width 8 -> 7 (polite, idle 78225s, foreign 270%)
+!! width 7 -> 8 (polite, idle 78245s, foreign 140%)
+!! width 8 -> 9 (polite, idle 78325s, foreign 48%)
+!! width 9 -> 8 (polite, idle 78345s, foreign 120%)
+!! width 8 -> 9 (polite, idle 78465s, foreign 33%)
+!! width 9 -> 8 (polite, idle 78485s, foreign 147%)
+!! width 8 -> 7 (polite, idle 78685s, foreign 251%)
+!! width 7 -> 8 (polite, idle 78704s, foreign 130%)
+!! width 8 -> 7 (polite, idle 78965s, foreign 263%)
+!! width 7 -> 8 (polite, idle 78985s, foreign 126%)
+!! width 8 -> 9 (polite, idle 79325s, foreign 41%)
+!! width 9 -> 8 (polite, idle 79345s, foreign 120%)
+!! width 8 -> 9 (polite, idle 79585s, foreign 100%)
+!! width 9 -> 8 (polite, idle 79605s, foreign 125%)
+!! width 8 -> 6 (polite, idle 79645s, foreign 366%)
+!! width 6 -> 8 (polite, idle 79665s, foreign 170%)
+!! width 8 -> 6 (polite, idle 79865s, foreign 334%)
+!! width 6 -> 8 (polite, idle 79885s, foreign 128%)
+!! width 8 -> 7 (polite, idle 79945s, foreign 232%)
+!! width 7 -> 6 (polite, idle 80085s, foreign 327%)
+!! width 6 -> 7 (polite, idle 80105s, foreign 236%)
+!! width 7 -> 6 (polite, operator active 3s ago, foreign 164%)
+!! width 6 -> 5 (polite, operator active 143s ago, foreign 266%)
+!! width 5 -> 6 (polite, operator active 163s ago, foreign 122%)
+!! width 6 -> 8 (polite, idle 303s, foreign 133%)
+!! width 8 -> 5 (polite, operator active 0s ago, foreign 211%)
+!! width 5 -> 6 (polite, operator active 1s ago, foreign 142%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 246%)
+!! width 5 -> 6 (polite, operator active 8s ago, foreign 139%)
+!! width 6 -> 5 (polite, operator active 45s ago, foreign 216%)
+   ipc2023-sat            verdicts: contended 6, packed 30, rho 39, solved 12, suspect 25, swap 2
+   ipc2023-sat            banked   51   84 -> 33
+== pass 2 -- 6 board(s) outstanding
+!! width 5 -> 6 (polite, operator active 65s ago, foreign 163%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 244%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 189%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 211%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 140%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 246%)
+!! width 5 -> 6 (polite, operator active 1s ago, foreign 170%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 207%)
+!! width 5 -> 6 (polite, operator active 6s ago, foreign 167%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 216%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 174%)
+!! width 6 -> 5 (polite, operator active 1s ago, foreign 217%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.45x its baseline -- the box is slow
+!! width 5 -> 6 (polite, operator active 1s ago, foreign 169%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 234%)
+!! width 5 -> 6 (polite, operator active 4s ago, foreign 200%)
+!! width 6 -> 5 (polite, operator active 2s ago, foreign 212%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 164%)
+!! width 6 -> 5 (polite, operator active 2s ago, foreign 290%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.45x its baseline -- the box is slow
+!! width 5 -> 1 (polite, operator active 0s ago, foreign 856%)
+!! width 1 -> 6 (polite, operator active 0s ago, foreign 140%)
+!! width 6 -> 4 (polite, operator active 0s ago, foreign 314%)
+!! width 4 -> 6 (polite, operator active 0s ago, foreign 165%)
+!! width 6 -> 5 (polite, operator active 7s ago, foreign 226%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 129%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.45x its baseline -- the box is slow
+   hold: 8 predecessor-failed row(s) wait for the keyboard to go idle (a demoted timeout is owed, not banked)
+!! width 6 -> 7 (polite, operator active 7s ago, foreign 64%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 126%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 55%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 114%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 79%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 124%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 82%)
+!! width 7 -> 1 (polite, operator active 1s ago, foreign 602%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 1 -> 5 (polite, operator active 9s ago, foreign 270%)
+!! width 5 -> 3 (polite, operator active 0s ago, foreign 476%)
+!! width 3 -> 6 (polite, operator active 0s ago, foreign 196%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 76%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 177%)
+!! width 6 -> 7 (polite, operator active 8s ago, foreign 50%)
+!! width 7 -> 6 (polite, operator active 4s ago, foreign 148%)
+!! no planner running for 10 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 6 -> 7 (polite, operator active 9s ago, foreign 61%)
+!! width 7 -> 6 (polite, operator active 29s ago, foreign 148%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 83%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 107%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 61%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 152%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 93%)
+!! width 7 -> 6 (polite, operator active 2s ago, foreign 113%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 6 -> 7 (polite, operator active 21s ago, foreign 91%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 111%)
+!! width 6 -> 7 (polite, operator active 3s ago, foreign 99%)
+!! width 7 -> 6 (polite, operator active 11s ago, foreign 111%)
+!! width 6 -> 7 (polite, operator active 30s ago, foreign 85%)
+!! no planner running for 20 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 6 (polite, operator active 51s ago, foreign 187%)
+!! width 6 -> 7 (polite, operator active 71s ago, foreign 88%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 7 -> 6 (polite, operator active 101s ago, foreign 110%)
+!! width 6 -> 7 (polite, operator active 121s ago, foreign 88%)
+!! width 7 -> 6 (polite, operator active 141s ago, foreign 108%)
+!! width 6 -> 1 (polite, operator active 181s ago, foreign 788%)
+!! width 1 -> 6 (polite, operator active 201s ago, foreign 122%)
+!! width 6 -> 7 (polite, operator active 221s ago, foreign 68%)
+!! width 7 -> 6 (polite, operator active 261s ago, foreign 177%)
+!! width 6 -> 5 (polite, operator active 281s ago, foreign 262%)
+!! width 5 -> 1 (polite, idle 301s, foreign 893%)
+!! width 1 -> 6 (polite, idle 321s, foreign 344%)
+!! width 6 -> 7 (polite, idle 361s, foreign 281%)
+!! width 7 -> 4 (polite, idle 381s, foreign 518%)
+!! width 4 -> 6 (polite, idle 401s, foreign 362%)
+!! width 6 -> 7 (polite, idle 421s, foreign 276%)
+!! width 7 -> 8 (polite, idle 441s, foreign 118%)
+   ipc2023-sat            verdicts: contended 3, demoted 25, rho 3, swap 2
+   ipc2023-sat            banked    3   33 -> 30
+   ipc2018-sat            packed: 2 wide x10 (14.5 GB budget), 0 narrow, 41 solo
+!! width 8 -> 6 (polite, idle 481s, foreign 340%)
+!! width 6 -> 7 (polite, idle 501s, foreign 278%)
+!! width 7 -> 6 (polite, idle 521s, foreign 380%)
+!! width 6 -> 7 (polite, idle 541s, foreign 240%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 7 -> 6 (polite, idle 581s, foreign 323%)
+!! width 6 -> 8 (polite, idle 601s, foreign 145%)
+!! width 8 -> 7 (polite, idle 1081s, foreign 246%)
+!! width 7 -> 8 (polite, idle 1101s, foreign 172%)
+!! width 8 -> 1 (polite, idle 1141s, foreign 912%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 1 -> 8 (polite, idle 1161s, foreign 164%)
+!! width 8 -> 6 (polite, idle 1201s, foreign 332%)
+!! width 6 -> 5 (polite, idle 1261s, foreign 402%)
+!! width 5 -> 7 (polite, idle 1281s, foreign 212%)
+!! width 7 -> 8 (polite, idle 1321s, foreign 165%)
+!! width 8 -> 7 (polite, idle 1341s, foreign 207%)
+!! width 7 -> 8 (polite, idle 1361s, foreign 175%)
+!! width 8 -> 7 (polite, idle 1441s, foreign 228%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 1461s, foreign 116%)
+!! width 8 -> 5 (polite, operator active 1s ago, foreign 215%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 180%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 220%)
+!! width 5 -> 6 (polite, operator active 2s ago, foreign 186%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 224%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 132%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 258%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 182%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 95%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 153%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 51%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 139%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 218%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 148%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+   hold: 6 predecessor-failed row(s) wait for the keyboard to go idle (a demoted timeout is owed, not banked)
+!! width 6 -> 5 (polite, operator active 1s ago, foreign 243%)
+!! width 5 -> 7 (polite, operator active 19s ago, foreign 91%)
+!! width 7 -> 6 (polite, operator active 18s ago, foreign 132%)
+!! width 6 -> 7 (polite, operator active 78s ago, foreign 91%)
+!! width 7 -> 6 (polite, operator active 30s ago, foreign 108%)
+!! width 6 -> 7 (polite, operator active 50s ago, foreign 91%)
+!! width 7 -> 5 (polite, operator active 130s ago, foreign 221%)
+!! width 5 -> 7 (polite, operator active 150s ago, foreign 92%)
+!! width 7 -> 6 (polite, operator active 210s ago, foreign 130%)
+!! width 6 -> 7 (polite, operator active 230s ago, foreign 80%)
+!! width 7 -> 9 (polite, idle 310s, foreign 91%)
+!! width 9 -> 8 (polite, idle 330s, foreign 157%)
+!! width 8 -> 6 (polite, operator active 8s ago, foreign 141%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 86%)
+!! width 7 -> 6 (polite, operator active 83s ago, foreign 110%)
+!! width 6 -> 7 (polite, operator active 103s ago, foreign 60%)
+!! width 7 -> 6 (polite, operator active 183s ago, foreign 120%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 84%)
+!! width 7 -> 6 (polite, operator active 3s ago, foreign 112%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 79%)
+!! width 7 -> 6 (polite, operator active 2s ago, foreign 170%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 54%)
+!! width 7 -> 6 (polite, operator active 2s ago, foreign 118%)
+!! width 6 -> 7 (polite, operator active 5s ago, foreign 78%)
+!! no planner running for 10 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 127%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 93%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 102%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 76%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 103%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 83%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 129%)
+!! width 6 -> 7 (polite, operator active 21s ago, foreign 80%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 131%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 83%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 106%)
+!! width 6 -> 7 (polite, operator active 3s ago, foreign 92%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 110%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 72%)
+!! no planner running for 20 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 152%)
+!! width 6 -> 7 (polite, operator active 2s ago, foreign 96%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 114%)
+!! width 6 -> 7 (polite, operator active 3s ago, foreign 51%)
+!! width 7 -> 6 (polite, operator active 8s ago, foreign 112%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 267%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 197%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 66%)
+!! width 7 -> 5 (polite, operator active 2s ago, foreign 202%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 105%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 202%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 153%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 200%)
+!! width 5 -> 6 (polite, operator active 9s ago, foreign 105%)
+!! no planner running for 30 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 6 -> 7 (polite, operator active 49s ago, foreign 63%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 193%)
+!! width 6 -> 7 (polite, operator active 2s ago, foreign 48%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 101%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 72%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 117%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 92%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 109%)
+!! width 6 -> 7 (polite, operator active 2s ago, foreign 91%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 187%)
+!! width 6 -> 7 (polite, operator active 6s ago, foreign 64%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 146%)
+!! width 6 -> 7 (polite, operator active 14s ago, foreign 42%)
+!! width 7 -> 6 (polite, operator active 34s ago, foreign 101%)
+!! width 6 -> 7 (polite, operator active 54s ago, foreign 43%)
+!! no planner running for 40 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 5 (polite, operator active 294s ago, foreign 264%)
+!! width 5 -> 7 (polite, operator active 2s ago, foreign 64%)
+!! width 7 -> 8 (polite, idle 302s, foreign 106%)
+   ipc2018-sat            verdicts: contended 3, demoted 18, hot 2, rho 6, solved 2, swap 1, thermal 11
+   ipc2018-sat            banked   10   43 -> 33
+   ipc5-prop              packed: 1 wide x10 (14.5 GB budget), 0 narrow, 55 solo
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 582s, foreign 208%)
+!! width 7 -> 8 (polite, idle 602s, foreign 116%)
+!! width 8 -> 7 (polite, idle 922s, foreign 276%)
+!! width 7 -> 8 (polite, idle 942s, foreign 116%)
+!! width 8 -> 9 (polite, idle 2043s, foreign 18%)
+!! width 9 -> 8 (polite, idle 2062s, foreign 124%)
+!! width 8 -> 7 (polite, idle 2122s, foreign 210%)
+!! width 7 -> 8 (polite, idle 2142s, foreign 123%)
+!! width 8 -> 7 (polite, idle 2622s, foreign 216%)
+!! width 7 -> 8 (polite, idle 2642s, foreign 103%)
+!! width 8 -> 9 (polite, idle 2702s, foreign 80%)
+!! width 9 -> 8 (polite, idle 2722s, foreign 117%)
+!! width 8 -> 9 (polite, idle 2762s, foreign 17%)
+!! width 9 -> 7 (polite, idle 2782s, foreign 229%)
+!! width 7 -> 8 (polite, idle 2802s, foreign 117%)
+!! width 8 -> 9 (polite, idle 2822s, foreign 17%)
+!! width 9 -> 8 (polite, idle 2842s, foreign 143%)
+!! width 8 -> 7 (polite, idle 3102s, foreign 212%)
+!! width 7 -> 8 (polite, idle 3122s, foreign 173%)
+!! width 8 -> 6 (polite, idle 3602s, foreign 342%)
+   ipc5-prop              verdicts: rho 48, solved 1, thermal 7
+   ipc5-prop              banked   49   56 -> 7
+   ipc2014-sat            packed: 1 wide x10 (14.5 GB budget), 0 narrow, 56 solo
+!! width 6 -> 8 (polite, idle 3622s, foreign 124%)
+!! width 8 -> 6 (polite, operator active 11s ago, foreign 122%)
+!! width 6 -> 5 (polite, operator active 31s ago, foreign 219%)
+!! width 5 -> 4 (polite, operator active 51s ago, foreign 305%)
+!! width 4 -> 5 (polite, operator active 71s ago, foreign 202%)
+!! width 5 -> 6 (polite, operator active 91s ago, foreign 123%)
+!! width 6 -> 8 (polite, idle 311s, foreign 147%)
+!! width 8 -> 6 (polite, idle 931s, foreign 302%)
+!! width 6 -> 8 (polite, idle 951s, foreign 131%)
+!! width 8 -> 7 (polite, idle 1091s, foreign 216%)
+!! width 7 -> 8 (polite, idle 1111s, foreign 179%)
+!! width 8 -> 7 (polite, idle 1151s, foreign 206%)
+!! width 7 -> 8 (polite, idle 1171s, foreign 135%)
+!! width 8 -> 7 (polite, idle 1631s, foreign 226%)
+!! width 7 -> 8 (polite, idle 1651s, foreign 129%)
+!! width 8 -> 7 (polite, idle 2591s, foreign 208%)
+!! width 7 -> 8 (polite, idle 2611s, foreign 145%)
+!! width 8 -> 7 (polite, idle 2731s, foreign 265%)
+!! width 7 -> 8 (polite, idle 2751s, foreign 159%)
+!! width 8 -> 9 (polite, idle 2851s, foreign 85%)
+!! width 9 -> 8 (polite, idle 2871s, foreign 151%)
+   ipc2014-sat            verdicts: demoted 5, rho 49, swap 3
+   ipc2014-sat            banked   49   57 -> 8
+   ipc2014-agile          packed: 11 wide x10 (14.5 GB budget), 0 narrow, 62 solo
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 3152s, foreign 50%)
+!! width 9 -> 1 (polite, idle 3171s, foreign 801%)
+!! width 1 -> 2 (polite, idle 3191s, foreign 796%)
+!! width 2 -> 7 (polite, idle 3211s, foreign 223%)
+!! width 7 -> 8 (polite, idle 3271s, foreign 162%)
+!! width 8 -> 7 (polite, idle 3751s, foreign 201%)
+!! width 7 -> 8 (polite, idle 3771s, foreign 149%)
+!! width 8 -> 7 (polite, idle 5311s, foreign 210%)
+!! width 7 -> 8 (polite, idle 5351s, foreign 148%)
+!! width 8 -> 7 (polite, idle 5371s, foreign 215%)
+!! width 7 -> 8 (polite, idle 5391s, foreign 135%)
+!! width 8 -> 7 (polite, idle 5931s, foreign 274%)
+!! width 7 -> 8 (polite, idle 5951s, foreign 159%)
+!! width 8 -> 7 (polite, idle 6331s, foreign 200%)
+!! width 7 -> 8 (polite, idle 6351s, foreign 152%)
+!! width 8 -> 7 (polite, idle 6451s, foreign 293%)
+!! width 7 -> 8 (polite, idle 6471s, foreign 142%)
+!! width 8 -> 7 (polite, idle 6851s, foreign 214%)
+!! width 7 -> 8 (polite, idle 6871s, foreign 187%)
+   ipc2014-agile          verdicts: packed 1, rho 56, solved 3, swap 1, thermal 13
+   ipc2014-agile          banked   59   73 -> 14
+   ipc67-results          packed: 6 wide x10 (14.5 GB budget), 0 narrow, 109 solo
+!! width 8 -> 3 (polite, idle 6931s, foreign 621%)
+!! width 3 -> 5 (polite, idle 6971s, foreign 432%)
+!! width 5 -> 7 (polite, idle 6991s, foreign 209%)
+!! width 7 -> 8 (polite, idle 7011s, foreign 196%)
+!! width 8 -> 7 (polite, idle 7111s, foreign 204%)
+!! width 7 -> 8 (polite, idle 7131s, foreign 132%)
+!! width 8 -> 7 (polite, idle 7151s, foreign 232%)
+!! width 7 -> 8 (polite, idle 7171s, foreign 162%)
+!! width 8 -> 7 (polite, idle 7311s, foreign 204%)
+!! width 7 -> 8 (polite, idle 7331s, foreign 135%)
+!! width 8 -> 7 (polite, idle 7491s, foreign 213%)
+!! width 7 -> 8 (polite, idle 7511s, foreign 130%)
+!! width 8 -> 7 (polite, idle 7571s, foreign 206%)
+!! width 7 -> 8 (polite, idle 7611s, foreign 124%)
+!! width 8 -> 9 (polite, idle 7672s, foreign 98%)
+!! width 9 -> 7 (polite, idle 7691s, foreign 220%)
+!! width 7 -> 8 (polite, idle 7711s, foreign 140%)
+!! width 8 -> 7 (polite, idle 7771s, foreign 202%)
+!! width 7 -> 8 (polite, idle 7791s, foreign 163%)
+!! width 8 -> 7 (polite, idle 7931s, foreign 226%)
+!! width 7 -> 8 (polite, idle 7971s, foreign 190%)
+!! width 8 -> 7 (polite, idle 8111s, foreign 202%)
+!! width 7 -> 8 (polite, idle 8131s, foreign 182%)
+!! width 8 -> 7 (polite, idle 8231s, foreign 221%)
+!! width 7 -> 8 (polite, idle 8251s, foreign 174%)
+!! width 8 -> 7 (polite, idle 8271s, foreign 235%)
+!! width 7 -> 8 (polite, idle 8291s, foreign 157%)
+!! width 8 -> 7 (polite, idle 8311s, foreign 221%)
+!! width 7 -> 8 (polite, idle 8331s, foreign 166%)
+!! width 8 -> 7 (polite, idle 8411s, foreign 201%)
+!! width 7 -> 8 (polite, idle 8431s, foreign 198%)
+!! width 8 -> 7 (polite, idle 8531s, foreign 203%)
+!! width 7 -> 8 (polite, idle 8551s, foreign 192%)
+!! width 8 -> 7 (polite, idle 8631s, foreign 212%)
+!! width 7 -> 8 (polite, idle 8691s, foreign 176%)
+!! width 8 -> 7 (polite, idle 8751s, foreign 213%)
+!! width 7 -> 8 (polite, idle 8771s, foreign 195%)
+!! width 8 -> 7 (polite, idle 8911s, foreign 222%)
+!! width 7 -> 8 (polite, idle 8991s, foreign 193%)
+!! width 8 -> 7 (polite, idle 9011s, foreign 204%)
+!! width 7 -> 8 (polite, idle 9031s, foreign 174%)
+!! width 8 -> 7 (polite, idle 9071s, foreign 224%)
+!! width 7 -> 8 (polite, idle 9111s, foreign 189%)
+!! width 8 -> 7 (polite, idle 9211s, foreign 213%)
+!! width 7 -> 8 (polite, idle 9231s, foreign 187%)
+!! width 8 -> 7 (polite, idle 9271s, foreign 201%)
+!! width 7 -> 8 (polite, idle 9291s, foreign 189%)
+!! width 8 -> 7 (polite, idle 9431s, foreign 217%)
+!! width 7 -> 8 (polite, idle 9451s, foreign 134%)
+!! width 8 -> 7 (polite, idle 9771s, foreign 201%)
+!! width 7 -> 8 (polite, idle 9791s, foreign 142%)
+!! width 8 -> 7 (polite, idle 9811s, foreign 217%)
+!! width 7 -> 8 (polite, idle 9831s, foreign 189%)
+!! width 8 -> 7 (polite, idle 9891s, foreign 206%)
+!! width 7 -> 8 (polite, idle 9911s, foreign 152%)
+!! width 8 -> 7 (polite, idle 10171s, foreign 262%)
+!! width 7 -> 8 (polite, idle 10191s, foreign 191%)
+!! width 8 -> 7 (polite, idle 10651s, foreign 208%)
+!! width 7 -> 8 (polite, idle 10671s, foreign 165%)
+!! width 8 -> 7 (polite, idle 10691s, foreign 233%)
+!! width 7 -> 8 (polite, idle 10711s, foreign 165%)
+!! width 8 -> 7 (polite, idle 10831s, foreign 244%)
+!! width 7 -> 8 (polite, idle 10851s, foreign 148%)
+!! width 8 -> 7 (polite, idle 11091s, foreign 228%)
+!! width 7 -> 8 (polite, idle 11111s, foreign 141%)
+!! width 8 -> 7 (polite, idle 11271s, foreign 203%)
+!! width 7 -> 8 (polite, idle 11291s, foreign 161%)
+!! width 8 -> 7 (polite, idle 11491s, foreign 208%)
+!! width 7 -> 8 (polite, idle 11511s, foreign 150%)
+!! width 8 -> 7 (polite, idle 12011s, foreign 268%)
+!! width 7 -> 8 (polite, idle 12051s, foreign 196%)
+!! width 8 -> 7 (polite, idle 12111s, foreign 204%)
+!! width 7 -> 8 (polite, idle 12131s, foreign 146%)
+!! width 8 -> 7 (polite, idle 12231s, foreign 232%)
+!! width 7 -> 8 (polite, idle 12251s, foreign 136%)
+!! width 8 -> 7 (polite, idle 12291s, foreign 204%)
+!! width 7 -> 8 (polite, idle 12311s, foreign 133%)
+!! width 8 -> 7 (polite, idle 13311s, foreign 227%)
+!! width 7 -> 8 (polite, idle 13331s, foreign 130%)
+   ipc67-results          verdicts: rho 101, solved 8, swap 6
+   ipc67-results          banked  109   115 -> 6
+== pass 3 -- 6 board(s) outstanding
+   ipc67-results          packed: 4 wide x10 (14.5 GB budget), 0 narrow, 2 solo
+!! width 8 -> 5 (polite, idle 13371s, foreign 414%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 5 -> 6 (polite, idle 13411s, foreign 334%)
+!! width 6 -> 8 (polite, idle 13431s, foreign 132%)
+   ipc67-results          verdicts: solved 1, thermal 5
+   ipc67-results          banked    1   6 -> 5
+   ipc5-prop              verdicts: rho 3, thermal 4
+   ipc5-prop              banked    3   7 -> 4
+   ipc2014-sat            packed: 1 wide x10 (14.5 GB budget), 0 narrow, 7 solo
+!! width 8 -> 7 (polite, idle 13891s, foreign 209%)
+!! width 7 -> 8 (polite, idle 13911s, foreign 189%)
+   ipc2014-sat            verdicts: rho 7, swap 1
+   ipc2014-sat            banked    7   8 -> 1
+   ipc2014-agile          packed: 11 wide x10 (14.5 GB budget), 0 narrow, 3 solo
+!! width 8 -> 2 (polite, idle 14371s, foreign 792%)
+!! width 2 -> 7 (polite, idle 14431s, foreign 214%)
+!! width 7 -> 8 (polite, idle 14491s, foreign 115%)
+   ipc2014-agile          verdicts: packed 1, rho 3, solved 10, swap 1
+   ipc2014-agile          banked   13   14 -> 1
+!! width 8 -> 7 (polite, idle 15751s, foreign 233%)
+!! width 7 -> 8 (polite, idle 15771s, foreign 116%)
+!! width 8 -> 7 (polite, idle 15831s, foreign 214%)
+!! width 7 -> 8 (polite, idle 15871s, foreign 116%)
+   ipc2023-sat            verdicts: contended 4, rho 24, solved 1, swap 1
+   ipc2023-sat            banked   25   30 -> 5
+   ipc2018-sat            packed: 1 wide x10 (14.5 GB budget), 0 narrow, 32 solo
+!! width 8 -> 6 (polite, idle 16771s, foreign 319%)
+!! width 6 -> 8 (polite, idle 16791s, foreign 139%)
+!! width 8 -> 7 (polite, idle 16811s, foreign 252%)
+!! width 7 -> 6 (polite, idle 16831s, foreign 330%)
+!! width 6 -> 7 (polite, idle 16851s, foreign 227%)
+!! width 7 -> 6 (polite, idle 16871s, foreign 308%)
+!! width 6 -> 7 (polite, idle 16911s, foreign 213%)
+!! width 7 -> 8 (polite, idle 16931s, foreign 155%)
+!! width 8 -> 6 (polite, idle 16971s, foreign 344%)
+!! width 6 -> 7 (polite, idle 17011s, foreign 224%)
+!! width 7 -> 6 (polite, idle 17071s, foreign 342%)
+!! width 6 -> 8 (polite, idle 17091s, foreign 135%)
+!! width 8 -> 7 (polite, idle 17131s, foreign 221%)
+!! width 7 -> 8 (polite, idle 17171s, foreign 156%)
+!! width 8 -> 7 (polite, idle 17191s, foreign 242%)
+!! width 7 -> 8 (polite, idle 17211s, foreign 142%)
+!! width 8 -> 6 (polite, idle 17231s, foreign 308%)
+!! width 6 -> 5 (polite, idle 17251s, foreign 458%)
+!! width 5 -> 7 (polite, idle 17271s, foreign 238%)
+!! width 7 -> 9 (polite, idle 17291s, foreign 51%)
+!! canary trucks-propositional/8@49280cb92c9e at 2.06x its baseline -- the box is slow
+!! width 9 -> 1 (polite, idle 17313s, foreign 882%)
+!! width 1 -> 5 (polite, idle 17331s, foreign 465%)
+!! width 5 -> 7 (polite, idle 17351s, foreign 217%)
+!! width 7 -> 8 (polite, idle 17411s, foreign 132%)
+!! width 8 -> 7 (polite, idle 17491s, foreign 242%)
+!! width 7 -> 1 (polite, idle 17511s, foreign 941%)
+!! width 1 -> 7 (polite, idle 17531s, foreign 248%)
+!! width 7 -> 8 (polite, idle 17551s, foreign 138%)
+   ipc2018-sat            verdicts: rho 26, solved 1, swap 2, thermal 4
+   ipc2018-sat            banked   27   33 -> 6
+== pass 4 -- 6 board(s) outstanding
+   ipc2014-sat            packed: 1 wide x10 (14.5 GB budget), 0 narrow, 0 solo
+   ipc2014-sat            verdicts: solved 1
+   ipc2014-sat            banked    1   1 -> 0
+   ipc2014-agile          packed: 1 wide x10 (14.5 GB budget), 0 narrow, 0 solo
+   ipc2014-agile          verdicts: solved 1
+   ipc2014-agile          banked    1   1 -> 0
+   ipc5-prop              verdicts: rho 4
+   ipc5-prop              banked    4   4 -> 0
+   ipc67-results          packed: 3 wide x10 (14.5 GB budget), 0 narrow, 2 solo
+!! width 8 -> 6 (polite, idle 18571s, foreign 372%)
+!! width 6 -> 8 (polite, idle 18631s, foreign 147%)
+!! width 8 -> 7 (polite, idle 18651s, foreign 230%)
+!! width 7 -> 8 (polite, idle 18671s, foreign 149%)
+   ipc67-results          verdicts: rho 2, solved 3
+   ipc67-results          banked    5   5 -> 0
+!! width 8 -> 7 (polite, idle 18771s, foreign 250%)
+!! width 7 -> 8 (polite, idle 18791s, foreign 169%)
+   ipc2023-sat            verdicts: contended 3, rho 1, swap 1
+   ipc2023-sat            banked    1   5 -> 4
+   ipc2018-sat            verdicts: contended 1, rho 5
+   ipc2018-sat            banked    5   6 -> 1
+== pass 5 -- 2 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2023-sat            verdicts: contended 2, rho 2
+   ipc2023-sat            banked    2   4 -> 2
+== pass 6 -- 2 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 9 (polite, idle 19251s, foreign 54%)
+   ipc2023-sat            verdicts: contended 1, rho 1
+   ipc2023-sat            banked    1   2 -> 1
+== pass 7 -- 2 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2023-sat            verdicts: contended 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+== pass 8 -- 2 board(s) outstanding
+!! width 9 -> 8 (polite, idle 19331s, foreign 120%)
+!! width 8 -> 7 (polite, idle 19371s, foreign 214%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 7 -> 8 (polite, idle 19391s, foreign 122%)
+   ipc2023-sat            verdicts: contended 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 9 (polite, idle 19411s, foreign 25%)
+== pass 9 -- 2 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2023-sat            verdicts: contended 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 3 passes; backing off 60s, 2 owed
+!! width 9 -> 8 (polite, idle 19471s, foreign 193%)
+!! width 8 -> 9 (polite, idle 19491s, foreign 57%)
+== pass 10 -- 2 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 8 (polite, idle 19531s, foreign 126%)
+   ipc2023-sat            verdicts: contended 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 4 passes; backing off 120s, 2 owed
+!! width 8 -> 9 (polite, idle 19551s, foreign 25%)
+== pass 11 -- 2 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2023-sat            verdicts: contended 1
+   ipc2023-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 5 passes; backing off 240s, 2 owed
+!! width 9 -> 7 (polite, idle 19631s, foreign 230%)
+!! width 7 -> 9 (polite, idle 19651s, foreign 43%)
+== pass 12 -- 2 board(s) outstanding
+!! width 9 -> 8 (polite, idle 19671s, foreign 119%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc2023-sat            verdicts: hot 1
+   ipc2023-sat            banked    1   1 -> 0
+== pass 13 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 9 (polite, idle 19851s, foreign 33%)
+== pass 14 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 9 -> 7 (polite, operator active 0s ago, foreign 45%)
+!! width 7 -> 6 (polite, operator active 5s ago, foreign 102%)
+!! width 6 -> 7 (polite, operator active 5s ago, foreign 76%)
+== pass 15 -- 1 board(s) outstanding
+   hold: 1 predecessor-failed row(s) wait for the keyboard to go idle (a demoted timeout is owed, not banked)
+!! width 7 -> 6 (polite, operator active 25s ago, foreign 101%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 76%)
+!! width 7 -> 6 (polite, operator active 4s ago, foreign 134%)
+!! width 6 -> 7 (polite, operator active 2s ago, foreign 19%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 118%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 73%)
+!! width 7 -> 6 (polite, operator active 2s ago, foreign 143%)
+!! width 6 -> 7 (polite, operator active 22s ago, foreign 79%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 142%)
+!! width 6 -> 7 (polite, operator active 2s ago, foreign 41%)
+!! width 7 -> 6 (polite, operator active 2s ago, foreign 146%)
+!! no planner running for 10 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 6 -> 7 (polite, operator active 180s ago, foreign 93%)
+!! width 7 -> 9 (polite, idle 320s, foreign 90%)
+!! width 9 -> 8 (polite, idle 340s, foreign 172%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 3 passes; backing off 60s, 1 owed
+!! width 8 -> 9 (polite, idle 400s, foreign 86%)
+== pass 16 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 4 passes; backing off 120s, 1 owed
+== pass 17 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 520s, foreign 179%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 5 passes; backing off 240s, 1 owed
+!! width 8 -> 9 (polite, idle 580s, foreign 87%)
+== pass 18 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 6 passes; backing off 480s, 1 owed
+== pass 19 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 700s, foreign 168%)
+!! width 8 -> 7 (polite, idle 740s, foreign 215%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 7 passes; backing off 960s, 1 owed
+!! width 7 -> 9 (polite, idle 760s, foreign 89%)
+== pass 20 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, idle 820s, foreign 224%)
+!! width 7 -> 8 (polite, idle 840s, foreign 189%)
+!! width 8 -> 9 (polite, idle 880s, foreign 87%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 8 passes; backing off 1920s, 1 owed
+!! width 9 -> 8 (polite, idle 900s, foreign 181%)
+!! width 8 -> 9 (polite, idle 920s, foreign 89%)
+== pass 21 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 960s, foreign 164%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 9 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 1040s, foreign 89%)
+== pass 22 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 10 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 1080s, foreign 142%)
+!! width 8 -> 9 (polite, idle 1100s, foreign 89%)
+== pass 23 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 1140s, foreign 192%)
+!! width 8 -> 7 (polite, idle 1160s, foreign 206%)
+!! width 7 -> 8 (polite, idle 1180s, foreign 156%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 11 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 1200s, foreign 84%)
+== pass 24 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, idle 1260s, foreign 258%)
+!! width 7 -> 8 (polite, idle 1280s, foreign 167%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 12 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 1320s, foreign 84%)
+== pass 25 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 13 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 1380s, foreign 104%)
+!! width 8 -> 9 (polite, idle 1401s, foreign 89%)
+!! width 9 -> 8 (polite, idle 1420s, foreign 101%)
+== pass 26 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 14 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 1500s, foreign 98%)
+!! width 9 -> 8 (polite, idle 1520s, foreign 100%)
+== pass 27 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, idle 1600s, foreign 220%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 15 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, idle 1620s, foreign 133%)
+!! width 8 -> 9 (polite, idle 1640s, foreign 90%)
+== pass 28 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 1680s, foreign 188%)
+!! width 8 -> 7 (polite, idle 1700s, foreign 235%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 1720s, foreign 179%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 16 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 1740s, foreign 84%)
+== pass 29 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 1800s, foreign 112%)
+!! width 8 -> 7 (polite, idle 1820s, foreign 280%)
+!! width 7 -> 8 (polite, idle 1840s, foreign 168%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 17 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 1880s, foreign 85%)
+== pass 30 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 18 passes; backing off 3600s, 1 owed
+== pass 31 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 19 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 2040s, foreign 107%)
+== pass 32 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, idle 2080s, foreign 259%)
+!! width 7 -> 8 (polite, idle 2100s, foreign 160%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 20 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 2120s, foreign 95%)
+!! width 9 -> 8 (polite, idle 2140s, foreign 101%)
+== pass 33 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 21 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 2200s, foreign 90%)
+== pass 34 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 22 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 2260s, foreign 142%)
+!! width 8 -> 9 (polite, idle 2280s, foreign 95%)
+== pass 35 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 2320s, foreign 164%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 23 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 2380s, foreign 88%)
+!! width 9 -> 8 (polite, idle 2400s, foreign 113%)
+!! width 8 -> 9 (polite, idle 2420s, foreign 92%)
+== pass 36 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 2440s, foreign 170%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 24 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 2500s, foreign 92%)
+== pass 37 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 25 passes; backing off 3600s, 1 owed
+== pass 38 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 2620s, foreign 181%)
+!! width 8 -> 6 (polite, idle 2660s, foreign 361%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 26 passes; backing off 3600s, 1 owed
+!! width 6 -> 9 (polite, idle 2680s, foreign 85%)
+== pass 39 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 27 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 2760s, foreign 191%)
+!! width 8 -> 9 (polite, idle 2780s, foreign 99%)
+== pass 40 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 2800s, foreign 184%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 28 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 2860s, foreign 88%)
+== pass 41 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 29 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 2940s, foreign 124%)
+!! width 8 -> 9 (polite, idle 2960s, foreign 96%)
+== pass 42 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 3000s, foreign 186%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 30 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3060s, foreign 91%)
+== pass 43 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 3120s, foreign 164%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 31 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3180s, foreign 97%)
+== pass 44 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 3240s, foreign 186%)
+!! width 8 -> 7 (polite, idle 3280s, foreign 234%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 32 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, idle 3300s, foreign 97%)
+!! width 9 -> 8 (polite, idle 3340s, foreign 106%)
+== pass 45 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 33 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3380s, foreign 91%)
+!! width 9 -> 8 (polite, idle 3400s, foreign 107%)
+== pass 46 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, idle 3420s, foreign 200%)
+!! width 7 -> 8 (polite, idle 3440s, foreign 189%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 34 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3480s, foreign 95%)
+!! width 9 -> 8 (polite, idle 3500s, foreign 106%)
+== pass 47 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 35 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3600s, foreign 88%)
+!! width 9 -> 8 (polite, idle 3640s, foreign 112%)
+== pass 48 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 36 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3720s, foreign 90%)
+!! width 9 -> 8 (polite, idle 3760s, foreign 107%)
+== pass 49 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 37 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3840s, foreign 98%)
+!! width 9 -> 8 (polite, idle 3860s, foreign 118%)
+== pass 50 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 38 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3920s, foreign 90%)
+!! width 9 -> 8 (polite, idle 3960s, foreign 114%)
+== pass 51 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 39 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 3980s, foreign 96%)
+!! width 9 -> 8 (polite, idle 4000s, foreign 107%)
+== pass 52 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 40 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 4040s, foreign 96%)
+!! width 9 -> 8 (polite, idle 4060s, foreign 107%)
+== pass 53 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, idle 4100s, foreign 212%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 4120s, foreign 191%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 41 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 4160s, foreign 88%)
+!! width 9 -> 8 (polite, idle 4180s, foreign 139%)
+== pass 54 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, idle 4240s, foreign 215%)
+!! width 7 -> 8 (polite, idle 4260s, foreign 146%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 42 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 4280s, foreign 83%)
+!! width 9 -> 8 (polite, idle 4320s, foreign 114%)
+== pass 55 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 43 passes; backing off 3600s, 1 owed
+== pass 56 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 44 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 4440s, foreign 90%)
+== pass 57 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 4480s, foreign 166%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 45 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 4560s, foreign 86%)
+!! width 9 -> 7 (polite, idle 4580s, foreign 210%)
+== pass 58 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 46 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, idle 4600s, foreign 87%)
+!! width 9 -> 7 (polite, idle 4620s, foreign 218%)
+!! width 7 -> 9 (polite, idle 4640s, foreign 92%)
+== pass 59 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, idle 4660s, foreign 202%)
+!! width 7 -> 8 (polite, idle 4680s, foreign 157%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 47 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 4720s, foreign 89%)
+== pass 60 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 48 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 4800s, foreign 125%)
+!! width 8 -> 9 (polite, idle 4820s, foreign 80%)
+== pass 61 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 49 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 4840s, foreign 174%)
+!! width 8 -> 9 (polite, idle 4880s, foreign 89%)
+== pass 62 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 4900s, foreign 177%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 50 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 4920s, foreign 83%)
+!! width 9 -> 8 (polite, idle 4960s, foreign 106%)
+== pass 63 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 51 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5000s, foreign 89%)
+== pass 64 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 5040s, foreign 163%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 52 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5120s, foreign 97%)
+!! width 9 -> 8 (polite, idle 5140s, foreign 105%)
+== pass 65 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 53 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5160s, foreign 86%)
+!! width 9 -> 8 (polite, idle 5180s, foreign 119%)
+== pass 66 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 54 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5220s, foreign 86%)
+== pass 67 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 5280s, foreign 173%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 55 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5340s, foreign 92%)
+!! width 9 -> 8 (polite, idle 5360s, foreign 100%)
+== pass 68 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 56 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5420s, foreign 86%)
+!! width 9 -> 8 (polite, idle 5440s, foreign 133%)
+!! width 8 -> 9 (polite, idle 5460s, foreign 95%)
+== pass 69 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 5480s, foreign 176%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 57 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5560s, foreign 97%)
+== pass 70 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 58 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 5600s, foreign 103%)
+!! width 8 -> 9 (polite, idle 5620s, foreign 91%)
+!! width 9 -> 8 (polite, idle 5640s, foreign 106%)
+== pass 71 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 59 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5720s, foreign 80%)
+!! width 9 -> 8 (polite, idle 5760s, foreign 135%)
+== pass 72 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 60 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 5820s, foreign 100%)
+== pass 73 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 5840s, foreign 182%)
+!! width 8 -> 7 (polite, idle 5860s, foreign 214%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 61 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, idle 5900s, foreign 90%)
+== pass 74 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 5960s, foreign 176%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 62 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, idle 5980s, foreign 217%)
+!! width 7 -> 9 (polite, idle 6000s, foreign 89%)
+== pass 75 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, idle 6040s, foreign 250%)
+!! width 7 -> 8 (polite, idle 6060s, foreign 145%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 63 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 6100s, foreign 86%)
+== pass 76 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 64 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 6200s, foreign 100%)
+== pass 77 -- 1 board(s) outstanding
+!! width 8 -> 9 (polite, idle 6220s, foreign 86%)
+!! width 9 -> 8 (polite, idle 6240s, foreign 164%)
+!! width 8 -> 7 (polite, idle 6260s, foreign 227%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 65 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, idle 6280s, foreign 89%)
+!! width 9 -> 8 (polite, idle 6300s, foreign 139%)
+== pass 78 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, idle 6360s, foreign 205%)
+!! width 7 -> 8 (polite, idle 6380s, foreign 162%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 66 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 6400s, foreign 85%)
+== pass 79 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 67 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 6500s, foreign 102%)
+== pass 80 -- 1 board(s) outstanding
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 68 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 6580s, foreign 95%)
+== pass 81 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 6640s, foreign 170%)
+!! width 8 -> 9 (polite, idle 6700s, foreign 92%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 69 passes; backing off 3600s, 1 owed
+== pass 82 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 70 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 6780s, foreign 150%)
+!! width 8 -> 9 (polite, idle 6800s, foreign 84%)
+== pass 83 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 71 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 6860s, foreign 101%)
+== pass 84 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 72 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 6900s, foreign 86%)
+!! width 9 -> 7 (polite, idle 6920s, foreign 260%)
+== pass 85 -- 1 board(s) outstanding
+!! width 7 -> 8 (polite, idle 6980s, foreign 163%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 73 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 7020s, foreign 100%)
+== pass 86 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 74 passes; backing off 3600s, 1 owed
+== pass 87 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 7140s, foreign 186%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 75 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 7200s, foreign 88%)
+== pass 88 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 7220s, foreign 165%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 76 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 7280s, foreign 89%)
+== pass 89 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 77 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, idle 7360s, foreign 123%)
+!! width 8 -> 9 (polite, idle 7380s, foreign 94%)
+== pass 90 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 7400s, foreign 178%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 78 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 7480s, foreign 80%)
+!! width 9 -> 8 (polite, idle 7500s, foreign 101%)
+== pass 91 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 79 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 7520s, foreign 88%)
+== pass 92 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 7580s, foreign 188%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 80 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 7640s, foreign 84%)
+!! width 9 -> 8 (polite, idle 7680s, foreign 142%)
+== pass 93 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 81 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, idle 7720s, foreign 86%)
+== pass 94 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, idle 7780s, foreign 181%)
+!! width 8 -> 7 (polite, idle 7820s, foreign 203%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 82 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, idle 7840s, foreign 81%)
+== pass 95 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 83 passes; backing off 3600s, 1 owed
+== pass 96 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, quiet hours, idle 7960s, foreign 201%)
+!! width 7 -> 8 (polite, quiet hours, idle 7980s, foreign 188%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 84 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 8020s, foreign 92%)
+!! width 9 -> 8 (polite, quiet hours, idle 8040s, foreign 100%)
+!! width 8 -> 9 (polite, quiet hours, idle 8060s, foreign 97%)
+== pass 97 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 8080s, foreign 182%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 85 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 8140s, foreign 83%)
+== pass 98 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 8200s, foreign 180%)
+!! width 8 -> 7 (polite, quiet hours, idle 8220s, foreign 251%)
+!! width 7 -> 8 (polite, quiet hours, idle 8240s, foreign 158%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 86 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 8260s, foreign 93%)
+== pass 99 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 87 passes; backing off 3600s, 1 owed
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 8360s, foreign 140%)
+== pass 100 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 8380s, foreign 203%)
+!! width 7 -> 8 (polite, quiet hours, idle 8400s, foreign 175%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 88 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 8440s, foreign 83%)
+== pass 101 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 8500s, foreign 118%)
+!! width 8 -> 9 (polite, quiet hours, idle 8560s, foreign 60%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 89 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 8600s, foreign 110%)
+!! width 8 -> 9 (polite, quiet hours, idle 8620s, foreign 87%)
+== pass 102 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 90 passes; backing off 3600s, 1 owed
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+== pass 103 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 91 passes; backing off 3600s, 1 owed
+== pass 104 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, quiet hours, idle 8760s, foreign 228%)
+!! width 7 -> 8 (polite, quiet hours, idle 8780s, foreign 162%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 92 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 8820s, foreign 90%)
+== pass 105 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 93 passes; backing off 3600s, 1 owed
+== pass 106 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 94 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 8940s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 8960s, foreign 89%)
+!! width 9 -> 8 (polite, quiet hours, idle 8980s, foreign 118%)
+== pass 107 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 9020s, foreign 225%)
+!! width 7 -> 8 (polite, quiet hours, idle 9040s, foreign 193%)
+!! width 8 -> 7 (polite, quiet hours, idle 9060s, foreign 228%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 95 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, quiet hours, idle 9080s, foreign 87%)
+== pass 108 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 96 passes; backing off 3600s, 1 owed
+== pass 109 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 9200s, foreign 191%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 97 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 9280s, foreign 93%)
+== pass 110 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 98 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 9340s, foreign 107%)
+!! width 8 -> 9 (polite, quiet hours, idle 9360s, foreign 93%)
+== pass 111 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 99 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 9400s, foreign 105%)
+!! width 8 -> 9 (polite, quiet hours, idle 9420s, foreign 94%)
+== pass 112 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 9440s, foreign 170%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 100 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 9500s, foreign 92%)
+!! width 9 -> 8 (polite, quiet hours, idle 9540s, foreign 101%)
+== pass 113 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 101 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 9580s, foreign 95%)
+== pass 114 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 9640s, foreign 176%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 102 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 9700s, foreign 99%)
+== pass 115 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 103 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 9760s, foreign 108%)
+!! width 8 -> 9 (polite, quiet hours, idle 9780s, foreign 99%)
+!! width 9 -> 8 (polite, quiet hours, idle 9800s, foreign 103%)
+== pass 116 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 104 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 9840s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 9860s, foreign 114%)
+== pass 117 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 9900s, foreign 203%)
+!! width 7 -> 8 (polite, quiet hours, idle 9920s, foreign 177%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 105 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 9940s, foreign 99%)
+== pass 118 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 10000s, foreign 186%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 106 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 10060s, foreign 78%)
+== pass 119 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 107 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 10140s, foreign 127%)
+!! width 8 -> 9 (polite, quiet hours, idle 10160s, foreign 96%)
+== pass 120 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 10180s, foreign 125%)
+!! width 8 -> 7 (polite, quiet hours, idle 10220s, foreign 255%)
+!! width 7 -> 8 (polite, quiet hours, idle 10240s, foreign 115%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 108 passes; backing off 3600s, 1 owed
+== pass 121 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 109 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 10320s, foreign 98%)
+!! width 9 -> 8 (polite, quiet hours, idle 10340s, foreign 105%)
+== pass 122 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 110 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 10400s, foreign 80%)
+!! width 9 -> 8 (polite, quiet hours, idle 10420s, foreign 111%)
+== pass 123 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 111 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 10440s, foreign 96%)
+!! width 9 -> 8 (polite, quiet hours, idle 10480s, foreign 107%)
+== pass 124 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 112 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 10580s, foreign 91%)
+== pass 125 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 113 passes; backing off 3600s, 1 owed
+== pass 126 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 10680s, foreign 149%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 114 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 10800s, foreign 84%)
+== pass 127 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 115 passes; backing off 3600s, 1 owed
+== pass 128 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 10880s, foreign 170%)
+!! width 8 -> 7 (polite, quiet hours, idle 10900s, foreign 200%)
+!! width 7 -> 8 (polite, quiet hours, idle 10920s, foreign 156%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 116 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 10980s, foreign 94%)
+== pass 129 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 11000s, foreign 160%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 117 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 11060s, foreign 82%)
+== pass 130 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 118 passes; backing off 3600s, 1 owed
+== pass 131 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 119 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 11200s, foreign 147%)
+!! width 8 -> 9 (polite, quiet hours, idle 11220s, foreign 86%)
+== pass 132 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 11240s, foreign 106%)
+!! throttle polite -> suspended (MemoryPressure(43466.75))
+!! width 8 -> 0 (suspended, quiet hours, operator active 37s ago, foreign 96%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 120 passes; backing off 3600s, 1 owed
+== pass 133 -- 1 board(s) outstanding
+   hold: 1 predecessor-failed row(s) wait for the keyboard to go idle (a demoted timeout is owed, not banked)
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 9 (polite, quiet hours, operator active 137s ago, foreign 98%)
+!! width 9 -> 7 (polite, quiet hours, idle 337s, foreign 232%)
+!! width 7 -> 8 (polite, quiet hours, idle 357s, foreign 152%)
+!! width 8 -> 9 (polite, quiet hours, idle 377s, foreign 77%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 121 passes; backing off 3600s, 1 owed
+== pass 134 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 457s, foreign 164%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 122 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, quiet hours, idle 517s, foreign 208%)
+!! width 7 -> 8 (polite, quiet hours, idle 537s, foreign 147%)
+!! width 8 -> 9 (polite, quiet hours, idle 557s, foreign 87%)
+== pass 135 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 123 passes; backing off 3600s, 1 owed
+== pass 136 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 637s, foreign 186%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 124 passes; backing off 3600s, 1 owed
+== pass 137 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 125 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 797s, foreign 90%)
+== pass 138 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, quiet hours, idle 817s, foreign 206%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 126 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, quiet hours, idle 837s, foreign 90%)
+== pass 139 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 897s, foreign 162%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 127 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 957s, foreign 92%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+== pass 140 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 128 passes; backing off 3600s, 1 owed
+== pass 141 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 1077s, foreign 172%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 129 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 1137s, foreign 99%)
+== pass 142 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 130 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 1217s, foreign 146%)
+!! width 8 -> 9 (polite, quiet hours, idle 1237s, foreign 57%)
+== pass 143 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 1257s, foreign 136%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 131 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 1317s, foreign 56%)
+== pass 144 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 132 passes; backing off 3600s, 1 owed
+!! width 9 -> 8 (polite, quiet hours, idle 1397s, foreign 126%)
+!! width 8 -> 9 (polite, quiet hours, idle 1417s, foreign 52%)
+== pass 145 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 1437s, foreign 138%)
+!! width 8 -> 9 (polite, quiet hours, idle 1497s, foreign 79%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 133 passes; backing off 3600s, 1 owed
+== pass 146 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 134 passes; backing off 3600s, 1 owed
+== pass 147 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, quiet hours, idle 1637s, foreign 202%)
+!! width 7 -> 8 (polite, quiet hours, idle 1657s, foreign 132%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 135 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 1697s, foreign 50%)
+== pass 148 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 136 passes; backing off 3600s, 1 owed
+== pass 149 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 1817s, foreign 137%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 137 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 1877s, foreign 51%)
+!! width 9 -> 8 (polite, quiet hours, idle 1917s, foreign 134%)
+== pass 150 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 138 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 1997s, foreign 52%)
+== pass 151 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 139 passes; backing off 3600s, 1 owed
+== pass 152 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 2117s, foreign 138%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 140 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 2177s, foreign 78%)
+== pass 153 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 141 passes; backing off 3600s, 1 owed
+== pass 154 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 2317s, foreign 136%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 142 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 2377s, foreign 55%)
+== pass 155 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 143 passes; backing off 3600s, 1 owed
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+== pass 156 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 144 passes; backing off 3600s, 1 owed
+== pass 157 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 145 passes; backing off 3600s, 1 owed
+== pass 158 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 2617s, foreign 139%)
+!! width 8 -> 9 (polite, quiet hours, idle 2677s, foreign 65%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 146 passes; backing off 3600s, 1 owed
+== pass 159 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 147 passes; backing off 3600s, 1 owed
+== pass 160 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 148 passes; backing off 3600s, 1 owed
+== pass 161 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 2877s, foreign 152%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 149 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 2937s, foreign 53%)
+== pass 162 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 150 passes; backing off 3600s, 1 owed
+== pass 163 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 151 passes; backing off 3600s, 1 owed
+== pass 164 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 3117s, foreign 159%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 152 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 3137s, foreign 65%)
+== pass 165 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 3197s, foreign 150%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 153 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 3257s, foreign 56%)
+== pass 166 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 154 passes; backing off 3600s, 1 owed
+== pass 167 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 3377s, foreign 151%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 155 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 3437s, foreign 55%)
+== pass 168 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 3497s, foreign 138%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 156 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 3557s, foreign 55%)
+== pass 169 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 3617s, foreign 144%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 157 passes; backing off 3600s, 1 owed
+!! width 8 -> 6 (polite, quiet hours, idle 3677s, foreign 314%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 6 -> 9 (polite, quiet hours, idle 3697s, foreign 30%)
+== pass 170 -- 1 board(s) outstanding
+!! width 9 -> 8 (polite, quiet hours, idle 3737s, foreign 195%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 158 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 3797s, foreign 80%)
+!! width 9 -> 7 (polite, quiet hours, idle 3817s, foreign 215%)
+!! width 7 -> 8 (polite, quiet hours, idle 3837s, foreign 177%)
+== pass 171 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 3857s, foreign 247%)
+!! width 7 -> 4 (polite, quiet hours, idle 3917s, foreign 504%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 159 passes; backing off 3600s, 1 owed
+!! width 4 -> 8 (polite, quiet hours, idle 3937s, foreign 142%)
+!! width 8 -> 9 (polite, quiet hours, idle 3977s, foreign 73%)
+== pass 172 -- 1 board(s) outstanding
+!! width 9 -> 7 (polite, quiet hours, idle 3997s, foreign 259%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 160 passes; backing off 3600s, 1 owed
+!! width 7 -> 9 (polite, quiet hours, idle 4057s, foreign 86%)
+!! width 9 -> 8 (polite, quiet hours, idle 4077s, foreign 114%)
+== pass 173 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 4117s, foreign 202%)
+!! width 7 -> 8 (polite, quiet hours, idle 4137s, foreign 130%)
+!! width 8 -> 6 (polite, quiet hours, idle 4157s, foreign 394%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 161 passes; backing off 3600s, 1 owed
+== pass 174 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 162 passes; backing off 3600s, 1 owed
+== pass 175 -- 1 board(s) outstanding
+!! width 6 -> 5 (polite, quiet hours, idle 4297s, foreign 438%)
+!! width 5 -> 6 (polite, quiet hours, idle 4317s, foreign 396%)
+!! width 6 -> 4 (polite, quiet hours, idle 4337s, foreign 501%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 163 passes; backing off 3600s, 1 owed
+!! width 4 -> 7 (polite, quiet hours, idle 4357s, foreign 232%)
+!! width 7 -> 6 (polite, quiet hours, idle 4377s, foreign 368%)
+!! width 6 -> 7 (polite, quiet hours, idle 4397s, foreign 253%)
+== pass 176 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 164 passes; backing off 3600s, 1 owed
+!! width 7 -> 6 (polite, quiet hours, idle 4417s, foreign 303%)
+!! width 6 -> 7 (polite, quiet hours, idle 4457s, foreign 277%)
+== pass 177 -- 1 board(s) outstanding
+!! width 7 -> 6 (polite, quiet hours, idle 4477s, foreign 340%)
+!! width 6 -> 7 (polite, quiet hours, idle 4497s, foreign 297%)
+!! width 7 -> 8 (polite, quiet hours, idle 4517s, foreign 193%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 165 passes; backing off 3600s, 1 owed
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+== pass 178 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 166 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, quiet hours, idle 4617s, foreign 210%)
+!! width 7 -> 8 (polite, quiet hours, idle 4637s, foreign 198%)
+== pass 179 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 4677s, foreign 252%)
+!! width 7 -> 8 (polite, quiet hours, idle 4697s, foreign 200%)
+!! width 8 -> 7 (polite, quiet hours, idle 4717s, foreign 250%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 167 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 4737s, foreign 127%)
+== pass 180 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 168 passes; backing off 3600s, 1 owed
+!! width 8 -> 6 (polite, quiet hours, idle 4837s, foreign 374%)
+== pass 181 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 169 passes; backing off 3600s, 1 owed
+!! width 6 -> 8 (polite, quiet hours, idle 4857s, foreign 118%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+== pass 182 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 170 passes; backing off 3600s, 1 owed
+== pass 183 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 4977s, foreign 215%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 171 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 4997s, foreign 169%)
+== pass 184 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 172 passes; backing off 3600s, 1 owed
+== pass 185 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 5117s, foreign 291%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 173 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 5177s, foreign 128%)
+== pass 186 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 174 passes; backing off 3600s, 1 owed
+== pass 187 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 175 passes; backing off 3600s, 1 owed
+== pass 188 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 176 passes; backing off 3600s, 1 owed
+== pass 189 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 177 passes; backing off 3600s, 1 owed
+== pass 190 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 178 passes; backing off 3600s, 1 owed
+== pass 191 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 179 passes; backing off 3600s, 1 owed
+== pass 192 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 180 passes; backing off 3600s, 1 owed
+== pass 193 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 5677s, foreign 219%)
+!! width 7 -> 8 (polite, quiet hours, idle 5717s, foreign 198%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 181 passes; backing off 3600s, 1 owed
+== pass 194 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 182 passes; backing off 3600s, 1 owed
+== pass 195 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 5877s, foreign 206%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 183 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 5937s, foreign 130%)
+== pass 196 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 184 passes; backing off 3600s, 1 owed
+== pass 197 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 185 passes; backing off 3600s, 1 owed
+== pass 198 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 186 passes; backing off 3600s, 1 owed
+== pass 199 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 6177s, foreign 216%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 187 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 6197s, foreign 128%)
+== pass 200 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 188 passes; backing off 3600s, 1 owed
+== pass 201 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 189 passes; backing off 3600s, 1 owed
+== pass 202 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 190 passes; backing off 3600s, 1 owed
+== pass 203 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 6437s, foreign 205%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 191 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 6517s, foreign 124%)
+== pass 204 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 6557s, foreign 282%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 192 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 6597s, foreign 124%)
+== pass 205 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 193 passes; backing off 3600s, 1 owed
+== pass 206 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 6697s, foreign 208%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 7 -> 8 (polite, quiet hours, idle 6717s, foreign 189%)
+!! width 8 -> 7 (polite, quiet hours, idle 6737s, foreign 228%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 194 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 6757s, foreign 126%)
+== pass 207 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 6817s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 6837s, foreign 199%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 195 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, quiet hours, idle 6897s, foreign 256%)
+!! width 7 -> 8 (polite, quiet hours, idle 6917s, foreign 126%)
+== pass 208 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 6937s, foreign 201%)
+!! width 7 -> 8 (polite, quiet hours, idle 6957s, foreign 196%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 196 passes; backing off 3600s, 1 owed
+== pass 209 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 197 passes; backing off 3600s, 1 owed
+== pass 210 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 198 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, quiet hours, idle 7157s, foreign 245%)
+== pass 211 -- 1 board(s) outstanding
+!! width 7 -> 8 (polite, quiet hours, idle 7177s, foreign 128%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 199 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, quiet hours, idle 7197s, foreign 278%)
+!! width 7 -> 8 (polite, quiet hours, idle 7217s, foreign 131%)
+== pass 212 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 200 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, quiet hours, idle 7257s, foreign 245%)
+!! width 7 -> 8 (polite, quiet hours, idle 7277s, foreign 124%)
+== pass 213 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 201 passes; backing off 3600s, 1 owed
+== pass 214 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 7377s, foreign 216%)
+!! width 7 -> 8 (polite, quiet hours, idle 7397s, foreign 194%)
+!! width 8 -> 7 (polite, quiet hours, idle 7417s, foreign 210%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 202 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 7437s, foreign 126%)
+== pass 215 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 203 passes; backing off 3600s, 1 owed
+== pass 216 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 7557s, foreign 216%)
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 204 passes; backing off 3600s, 1 owed
+!! width 7 -> 8 (polite, quiet hours, idle 7577s, foreign 133%)
+== pass 217 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 205 passes; backing off 3600s, 1 owed
+== pass 218 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 206 passes; backing off 3600s, 1 owed
+== pass 219 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 7757s, foreign 214%)
+!! width 7 -> 8 (polite, quiet hours, idle 7797s, foreign 191%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 207 passes; backing off 3600s, 1 owed
+== pass 220 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 208 passes; backing off 3600s, 1 owed
+== pass 221 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 209 passes; backing off 3600s, 1 owed
+== pass 222 -- 1 board(s) outstanding
+!! width 8 -> 7 (polite, quiet hours, idle 8017s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 8037s, foreign 180%)
+   ipc2018-sat            verdicts: swap 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 210 passes; backing off 3600s, 1 owed
+!! width 8 -> 7 (polite, quiet hours, idle 8077s, foreign 284%)
+!! width 7 -> 8 (polite, quiet hours, idle 8097s, foreign 118%)
+== pass 223 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 211 passes; backing off 3600s, 1 owed
+== pass 224 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 212 passes; backing off 3600s, 1 owed
+== pass 225 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: contended 1
+   ipc2018-sat            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! stalled after 213 passes; backing off 3600s, 1 owed
+!! width 8 -> 9 (polite, quiet hours, idle 8297s, foreign 18%)
+== pass 226 -- 1 board(s) outstanding
+   ipc2018-sat            verdicts: window 1
+   ipc2018-sat            banked    1   1 -> 0
+SWEEP COMPLETE -- 1008 banked in 226 pass(es)
+=== matrix31-rb exit 0 2026-11-06 00:14:43
+=== MATRIX-RB COMPLETE 2026-11-06 00:14:43
