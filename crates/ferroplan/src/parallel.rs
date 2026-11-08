@@ -39,7 +39,7 @@ use std::sync::{mpsc, Arc};
 use std::time::Duration;
 
 /// On when the caller ASKED for two or more threads (`--threads N`,
-/// `Options::threads`; see [`asked`]) unless `FF_PARALLEL_RUNGS=0`;
+/// `Options::threads`; see `asked`) unless `FF_PARALLEL_RUNGS=0`;
 /// `FF_PARALLEL_RUNGS=1` arms it under auto threads too (the 0.31 opt-in,
 /// kept). The caller still gates on the resolved `threads ≥ 2`.
 pub fn enabled() -> bool {
