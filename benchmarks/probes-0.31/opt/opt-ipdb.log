@@ -1,0 +1,1188 @@
+=== opt31-ipdb start 2026-11-06 00:14:43 ff=/Volumes/Data/Projects/ferroplan-0.31/target/engines/ff-294959ac4415
+engine  ff 0.30.0 [49280cb92c9e]
+reap    335 child(ren) recorded by an earlier run
+        3301 already gone
+        4827 already gone
+        6309 already gone
+        7793 already gone
+        9282 already gone
+        10763 already gone
+        12244 already gone
+        13774 already gone
+        15259 already gone
+        16736 already gone
+        18262 already gone
+        19755 already gone
+        21237 already gone
+        22690 already gone
+        24061 already gone
+        25432 already gone
+        26874 already gone
+        28296 already gone
+        29681 already gone
+        31056 already gone
+        32462 already gone
+        33882 already gone
+        35277 already gone
+        36652 already gone
+        38028 already gone
+        39405 already gone
+        40788 already gone
+        42170 already gone
+        43570 already gone
+        44942 already gone
+        46312 already gone
+        47723 already gone
+        49167 already gone
+        50542 already gone
+        51921 already gone
+        53293 already gone
+        54680 already gone
+        56048 already gone
+        57417 already gone
+        58795 already gone
+        60165 already gone
+        61534 already gone
+        62969 already gone
+        64344 already gone
+        65728 already gone
+        67135 already gone
+        68509 already gone
+        69886 already gone
+        71320 already gone
+        74139 already gone
+        75541 already gone
+        76931 already gone
+        78330 already gone
+        79742 already gone
+        81135 already gone
+        82512 already gone
+        83887 already gone
+        85358 already gone
+        86861 already gone
+        88257 already gone
+        89636 already gone
+        91016 already gone
+        92442 already gone
+        93813 already gone
+        95184 already gone
+        96558 already gone
+        97940 already gone
+        99324 already gone
+        1024 already gone
+        2475 already gone
+        3859 already gone
+        5227 already gone
+        6607 already gone
+        7978 already gone
+        9352 already gone
+        10734 already gone
+        12114 already gone
+        13539 already gone
+        14971 already gone
+        16376 already gone
+        17776 already gone
+        19208 already gone
+        20589 already gone
+        21972 already gone
+        23349 already gone
+        24722 already gone
+        26102 already gone
+        27483 already gone
+        28854 already gone
+        31636 already gone
+        34461 already gone
+        35877 already gone
+        37246 already gone
+        38621 already gone
+        39996 already gone
+        41372 already gone
+        42753 already gone
+        44138 already gone
+        45518 already gone
+        46891 already gone
+        48287 already gone
+        49728 already gone
+        51097 already gone
+        52472 already gone
+        53851 already gone
+        55230 already gone
+        56640 already gone
+        58189 already gone
+        59585 already gone
+        61014 already gone
+        62431 already gone
+        63857 already gone
+        65263 already gone
+        66649 already gone
+        68036 already gone
+        69415 already gone
+        70791 already gone
+        72170 already gone
+        73622 already gone
+        75108 already gone
+        76591 already gone
+        78080 already gone
+        79575 already gone
+        81143 already gone
+        82622 already gone
+        84121 already gone
+        85642 already gone
+        87250 already gone
+        88739 already gone
+        90228 already gone
+        91707 already gone
+        93188 already gone
+        94662 already gone
+        96143 already gone
+        97719 already gone
+        99306 already gone
+        1108 already gone
+        2667 already gone
+        4196 already gone
+        5679 already gone
+        7158 already gone
+        8634 already gone
+        10108 already gone
+        11585 already gone
+        14549 already gone
+        16057 already gone
+        17573 already gone
+        19068 already gone
+        20581 already gone
+        22286 already gone
+        23847 already gone
+        25514 already gone
+        27100 already gone
+        28662 already gone
+        30228 already gone
+        31809 already gone
+        33402 already gone
+        34980 already gone
+        36538 already gone
+        38144 already gone
+        39824 already gone
+        41663 already gone
+        43394 already gone
+        45174 already gone
+        47118 already gone
+        48855 already gone
+        50567 already gone
+        52328 already gone
+        54106 already gone
+        55816 already gone
+        57503 already gone
+        59215 already gone
+        60963 already gone
+        62655 already gone
+        64366 already gone
+        66062 already gone
+        67829 already gone
+        69573 already gone
+        71280 already gone
+        73039 already gone
+        74747 already gone
+        76447 already gone
+        78183 already gone
+        79831 already gone
+        81511 already gone
+        83224 already gone
+        84933 already gone
+        86691 already gone
+        88379 already gone
+        90070 already gone
+        91795 already gone
+        93517 already gone
+        95245 already gone
+        97001 already gone
+        98776 already gone
+        679 already gone
+        2533 already gone
+        4278 already gone
+        5986 already gone
+        7696 already gone
+        9426 already gone
+        11192 already gone
+        13212 already gone
+        14930 already gone
+        16655 already gone
+        18356 already gone
+        20083 already gone
+        21752 already gone
+        23442 already gone
+        25145 already gone
+        26863 already gone
+        28583 already gone
+        30286 already gone
+        32043 already gone
+        33736 already gone
+        35435 already gone
+        37129 already gone
+        38824 already gone
+        40532 already gone
+        42228 already gone
+        43966 already gone
+        45680 already gone
+        47439 already gone
+        49135 already gone
+        50832 already gone
+        52542 already gone
+        54280 already gone
+        55998 already gone
+        57735 already gone
+        59429 already gone
+        61122 already gone
+        62848 already gone
+        64575 already gone
+        66290 already gone
+        68017 already gone
+        69753 already gone
+        71516 already gone
+        73239 already gone
+        74960 already gone
+        76656 already gone
+        78349 already gone
+        80041 already gone
+        81805 already gone
+        83564 already gone
+        85259 already gone
+        86983 already gone
+        88696 already gone
+        90400 already gone
+        92148 already gone
+        93851 already gone
+        95612 already gone
+        97379 already gone
+        99074 already gone
+        1039 already gone
+        2830 already gone
+        4545 already gone
+        6248 already gone
+        7949 already gone
+        9672 already gone
+        11393 already gone
+        13111 already gone
+        14808 already gone
+        16503 already gone
+        18214 already gone
+        19944 already gone
+        21651 already gone
+        23427 already gone
+        25229 already gone
+        27042 already gone
+        28766 already gone
+        30463 already gone
+        32189 already gone
+        33973 already gone
+        35726 already gone
+        37561 already gone
+        39424 already gone
+        41205 already gone
+        43004 already gone
+        44795 already gone
+        46592 already gone
+        48368 already gone
+        50230 already gone
+        52082 already gone
+        53803 already gone
+        55606 already gone
+        57376 already gone
+        59089 already gone
+        60854 already gone
+        62670 already gone
+        64458 already gone
+        66264 already gone
+        68097 already gone
+        69893 already gone
+        71721 already gone
+        73511 already gone
+        75278 already gone
+        77027 already gone
+        78662 already gone
+        80385 already gone
+        82017 already gone
+        83743 already gone
+        85380 already gone
+        87070 already gone
+        88778 already gone
+        90433 already gone
+        92130 already gone
+        93840 already gone
+        95505 already gone
+        97154 already gone
+        98868 already gone
+        766 already gone
+        2619 already gone
+        4275 already gone
+        5960 already gone
+        7671 already gone
+        9319 already gone
+        11001 already gone
+        12650 already gone
+        14337 already gone
+        16156 already gone
+        17849 already gone
+        19587 already gone
+        21292 already gone
+        22929 already gone
+        24575 already gone
+        26194 already gone
+        27861 already gone
+        29550 already gone
+        31159 already gone
+        32854 already gone
+        34574 already gone
+        36198 already gone
+        37862 already gone
+        39486 already gone
+        41113 already gone
+canary  foreign load 61% now; adopting the clean history instead of waiting
+canary  trucks-propositional/8@49280cb92c9e baseline 0.517 s (p25 of the last 100 readings is 0.517 s, against 5 runs now); read every 1200 s, slow above 1.15x
+canary  the box has its own line at 7 width(s); a reading is held to the line at its width
+db      /Users/harold/.crucible/db/crucible.db
+!! width - -> 9 (full, quiet hours, idle 8316s, foreign 61%)
+subset  boards ipc-opt-2008-11,ipc2014-opt,ipc2018-opt,ipc2023-opt; env FF_OPT_PDB=ipdb -- 1186 instance(s) of set cut30, staged at /Volumes/Data/Projects/ferroplan/benchmarks/probes/opt31-ipdb/0.30.0-49280cb92c9e
+        no board is marked done and no pass is recorded: the rows are the record
+== pass 1 -- 4 board(s) outstanding
+   ipc2014-opt            packed: 76 wide x10 (14.5 GB budget), 6 narrow, 174 solo
+!! throttle full -> polite (Foreign(888.0))
+!! width 9 -> 1 (polite, quiet hours, idle 8336s, foreign 888%)
+!! width 1 -> 6 (polite, quiet hours, idle 8356s, foreign 316%)
+!! width 6 -> 3 (polite, quiet hours, idle 8376s, foreign 602%)
+!! width 3 -> 5 (polite, quiet hours, idle 8396s, foreign 484%)
+!! width 5 -> 4 (polite, quiet hours, idle 8416s, foreign 571%)
+!! width 4 -> 6 (polite, quiet hours, idle 8436s, foreign 397%)
+!! width 6 -> 7 (polite, quiet hours, idle 8456s, foreign 223%)
+!! width 7 -> 8 (polite, quiet hours, idle 8616s, foreign 121%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 9517s, foreign 90%)
+!! width 9 -> 8 (polite, quiet hours, idle 9536s, foreign 156%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 9856s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 9876s, foreign 129%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 10316s, foreign 270%)
+!! width 7 -> 8 (polite, quiet hours, idle 10336s, foreign 176%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 10796s, foreign 218%)
+!! width 7 -> 8 (polite, quiet hours, idle 10836s, foreign 122%)
+!! width 8 -> 6 (polite, quiet hours, idle 10956s, foreign 316%)
+!! width 6 -> 8 (polite, quiet hours, idle 10976s, foreign 123%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 13356s, foreign 77%)
+!! width 9 -> 8 (polite, quiet hours, idle 13376s, foreign 116%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 9 (polite, quiet hours, idle 14036s, foreign 22%)
+!! width 9 -> 8 (polite, quiet hours, idle 14056s, foreign 123%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 14836s, foreign 205%)
+!! width 7 -> 8 (polite, quiet hours, idle 14856s, foreign 122%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 16396s, foreign 268%)
+!! width 7 -> 8 (polite, quiet hours, idle 16416s, foreign 127%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 16936s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 16956s, foreign 134%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 17376s, foreign 272%)
+!! width 7 -> 8 (polite, quiet hours, idle 17396s, foreign 122%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 18016s, foreign 291%)
+!! width 7 -> 8 (polite, quiet hours, idle 18036s, foreign 115%)
+!! width 8 -> 6 (polite, quiet hours, idle 18436s, foreign 315%)
+!! width 6 -> 7 (polite, quiet hours, idle 18456s, foreign 207%)
+!! width 7 -> 8 (polite, quiet hours, idle 18476s, foreign 113%)
+!! width 8 -> 7 (polite, quiet hours, idle 18496s, foreign 206%)
+!! width 7 -> 8 (polite, quiet hours, idle 18516s, foreign 123%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 18736s, foreign 221%)
+!! width 7 -> 8 (polite, quiet hours, idle 18756s, foreign 135%)
+   ipc2014-opt            verdicts: hot 99, packed 4, rho 74, solved 82, suspect 1
+   ipc2014-opt            banked  255   256 -> 1
+   ipc-opt-2008-11        packed: 285 wide x10 (14.5 GB budget), 12 narrow, 253 solo
+!! width 8 -> 3 (polite, quiet hours, idle 18916s, foreign 655%)
+!! width 3 -> 7 (polite, quiet hours, idle 18936s, foreign 251%)
+!! width 7 -> 3 (polite, quiet hours, idle 18956s, foreign 697%)
+!! width 3 -> 6 (polite, quiet hours, idle 18976s, foreign 312%)
+!! width 6 -> 5 (polite, quiet hours, idle 18996s, foreign 465%)
+!! width 5 -> 4 (polite, quiet hours, idle 19036s, foreign 574%)
+!! width 4 -> 5 (polite, quiet hours, idle 19056s, foreign 410%)
+!! width 5 -> 9 (polite, quiet hours, idle 19156s, foreign 29%)
+!! width 9 -> 2 (polite, quiet hours, idle 19176s, foreign 798%)
+!! width 2 -> 6 (polite, quiet hours, idle 19196s, foreign 310%)
+!! width 6 -> 4 (polite, quiet hours, idle 19216s, foreign 585%)
+!! width 4 -> 6 (polite, quiet hours, idle 19236s, foreign 399%)
+!! width 6 -> 4 (polite, quiet hours, idle 19256s, foreign 509%)
+!! width 4 -> 6 (polite, quiet hours, idle 19276s, foreign 399%)
+!! width 6 -> 4 (polite, quiet hours, idle 19296s, foreign 592%)
+!! width 4 -> 5 (polite, quiet hours, idle 19316s, foreign 417%)
+!! width 5 -> 4 (polite, quiet hours, idle 19336s, foreign 587%)
+!! width 4 -> 5 (polite, quiet hours, idle 19356s, foreign 415%)
+!! width 5 -> 4 (polite, quiet hours, idle 19456s, foreign 560%)
+!! width 4 -> 7 (polite, quiet hours, idle 19476s, foreign 219%)
+!! width 7 -> 6 (polite, quiet hours, idle 19636s, foreign 306%)
+!! width 6 -> 7 (polite, quiet hours, idle 19656s, foreign 214%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 8 (polite, quiet hours, idle 19856s, foreign 115%)
+!! width 8 -> 7 (polite, quiet hours, idle 20536s, foreign 204%)
+!! width 7 -> 8 (polite, quiet hours, idle 20556s, foreign 121%)
+!! width 8 -> 9 (polite, quiet hours, idle 20656s, foreign 96%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 9 -> 8 (polite, quiet hours, idle 20676s, foreign 122%)
+!! width 8 -> 7 (polite, quiet hours, idle 21136s, foreign 210%)
+!! width 7 -> 8 (polite, quiet hours, idle 21156s, foreign 132%)
+!! width 8 -> 7 (polite, quiet hours, idle 21336s, foreign 242%)
+!! width 7 -> 8 (polite, quiet hours, idle 21356s, foreign 128%)
+!! width 8 -> 7 (polite, quiet hours, idle 21436s, foreign 295%)
+!! width 7 -> 8 (polite, quiet hours, idle 21456s, foreign 148%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 21676s, foreign 220%)
+!! width 7 -> 8 (polite, quiet hours, idle 21716s, foreign 151%)
+!! width 8 -> 7 (polite, quiet hours, idle 21736s, foreign 297%)
+!! width 7 -> 8 (polite, quiet hours, idle 21776s, foreign 116%)
+!! width 8 -> 7 (polite, quiet hours, idle 21796s, foreign 272%)
+!! width 7 -> 8 (polite, quiet hours, idle 21816s, foreign 149%)
+!! width 8 -> 7 (polite, quiet hours, idle 21836s, foreign 218%)
+!! width 7 -> 8 (polite, quiet hours, idle 21956s, foreign 141%)
+!! width 8 -> 7 (polite, quiet hours, idle 21976s, foreign 222%)
+!! width 7 -> 8 (polite, quiet hours, idle 22016s, foreign 152%)
+!! width 8 -> 6 (polite, quiet hours, idle 22036s, foreign 338%)
+!! width 6 -> 7 (polite, quiet hours, idle 22056s, foreign 216%)
+!! width 7 -> 8 (polite, quiet hours, idle 22096s, foreign 199%)
+!! width 8 -> 7 (polite, quiet hours, idle 22136s, foreign 221%)
+!! width 7 -> 8 (polite, quiet hours, idle 22296s, foreign 188%)
+!! width 8 -> 7 (polite, quiet hours, idle 22316s, foreign 212%)
+!! width 7 -> 6 (polite, quiet hours, idle 22336s, foreign 339%)
+!! width 6 -> 7 (polite, quiet hours, idle 22356s, foreign 215%)
+!! width 7 -> 8 (polite, quiet hours, idle 22416s, foreign 148%)
+!! width 8 -> 7 (polite, quiet hours, idle 22436s, foreign 216%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 8 (polite, quiet hours, idle 22676s, foreign 142%)
+!! width 8 -> 7 (polite, quiet hours, idle 22736s, foreign 215%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 7 -> 6 (polite, quiet hours, idle 22936s, foreign 333%)
+!! width 6 -> 7 (polite, quiet hours, idle 22956s, foreign 218%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 6 (polite, quiet hours, idle 23236s, foreign 315%)
+!! width 6 -> 7 (polite, quiet hours, idle 23256s, foreign 240%)
+!! width 7 -> 6 (polite, quiet hours, idle 23536s, foreign 326%)
+!! width 6 -> 7 (polite, quiet hours, idle 23556s, foreign 216%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 8 (polite, quiet hours, idle 23736s, foreign 163%)
+!! width 8 -> 7 (polite, quiet hours, idle 23776s, foreign 215%)
+!! width 7 -> 8 (polite, quiet hours, idle 23876s, foreign 168%)
+!! width 8 -> 7 (polite, quiet hours, idle 23896s, foreign 231%)
+!! width 7 -> 8 (polite, quiet hours, idle 23956s, foreign 194%)
+!! width 8 -> 7 (polite, quiet hours, idle 23996s, foreign 246%)
+!! width 7 -> 6 (polite, quiet hours, idle 24136s, foreign 341%)
+!! width 6 -> 7 (polite, quiet hours, idle 24156s, foreign 217%)
+!! width 7 -> 8 (polite, quiet hours, idle 24277s, foreign 128%)
+!! width 8 -> 7 (polite, quiet hours, idle 24296s, foreign 215%)
+!! width 7 -> 6 (polite, quiet hours, idle 24436s, foreign 335%)
+!! width 6 -> 7 (polite, quiet hours, idle 24456s, foreign 210%)
+!! width 7 -> 8 (polite, quiet hours, idle 24536s, foreign 188%)
+!! width 8 -> 7 (polite, quiet hours, idle 24556s, foreign 216%)
+!! width 7 -> 6 (polite, quiet hours, idle 24736s, foreign 310%)
+!! width 6 -> 7 (polite, quiet hours, idle 24756s, foreign 215%)
+!! width 7 -> 6 (polite, quiet hours, idle 24976s, foreign 364%)
+!! width 6 -> 7 (polite, quiet hours, idle 24996s, foreign 221%)
+!! width 7 -> 8 (polite, quiet hours, idle 25276s, foreign 180%)
+!! width 8 -> 7 (polite, quiet hours, idle 25296s, foreign 214%)
+!! width 7 -> 8 (polite, quiet hours, idle 25396s, foreign 153%)
+!! width 8 -> 7 (polite, quiet hours, idle 25416s, foreign 215%)
+!! width 7 -> 8 (polite, quiet hours, idle 25456s, foreign 115%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 25616s, foreign 284%)
+!! width 7 -> 8 (polite, quiet hours, idle 25636s, foreign 195%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 25936s, foreign 255%)
+!! width 7 -> 8 (polite, quiet hours, idle 25956s, foreign 122%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 26236s, foreign 202%)
+!! width 7 -> 8 (polite, quiet hours, idle 26256s, foreign 122%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 6 (polite, quiet hours, idle 26516s, foreign 366%)
+!! width 6 -> 7 (polite, quiet hours, idle 26536s, foreign 228%)
+!! width 7 -> 8 (polite, quiet hours, idle 26556s, foreign 178%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 26836s, foreign 270%)
+!! width 7 -> 8 (polite, quiet hours, idle 26856s, foreign 118%)
+!! width 8 -> 7 (polite, quiet hours, idle 27056s, foreign 261%)
+!! width 7 -> 8 (polite, quiet hours, idle 27076s, foreign 123%)
+!! width 8 -> 6 (polite, quiet hours, idle 27136s, foreign 307%)
+!! width 6 -> 7 (polite, quiet hours, idle 27156s, foreign 216%)
+!! width 7 -> 8 (polite, quiet hours, idle 27176s, foreign 136%)
+!! width 8 -> 9 (polite, quiet hours, idle 27196s, foreign 82%)
+!! width 9 -> 8 (polite, quiet hours, idle 27216s, foreign 153%)
+!! width 8 -> 7 (polite, quiet hours, idle 27236s, foreign 213%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 7 -> 5 (polite, quiet hours, idle 27356s, foreign 410%)
+!! width 5 -> 7 (polite, quiet hours, idle 27376s, foreign 210%)
+!! width 7 -> 8 (polite, quiet hours, idle 27456s, foreign 152%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, quiet hours, idle 28516s, foreign 228%)
+!! width 7 -> 8 (polite, quiet hours, idle 28536s, foreign 123%)
+!! width 8 -> 9 (polite, quiet hours, idle 28556s, foreign 57%)
+!! width 9 -> 8 (polite, quiet hours, idle 28576s, foreign 127%)
+!! width 8 -> 7 (polite, quiet hours, idle 28596s, foreign 259%)
+!! width 7 -> 9 (polite, quiet hours, idle 28616s, foreign 81%)
+!! width 9 -> 8 (polite, quiet hours, idle 28636s, foreign 126%)
+!! width 8 -> 9 (polite, quiet hours, idle 28796s, foreign 37%)
+!! width 9 -> 8 (polite, quiet hours, idle 28816s, foreign 118%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 29216s, foreign 201%)
+!! width 7 -> 8 (polite, idle 29236s, foreign 142%)
+!! width 8 -> 7 (polite, idle 29316s, foreign 258%)
+!! width 7 -> 8 (polite, idle 29336s, foreign 122%)
+!! width 8 -> 6 (polite, idle 29516s, foreign 361%)
+!! width 6 -> 8 (polite, idle 29536s, foreign 124%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 30496s, foreign 18%)
+!! width 9 -> 8 (polite, idle 30516s, foreign 117%)
+!! width 8 -> 9 (polite, idle 30556s, foreign 23%)
+!! width 9 -> 8 (polite, idle 30576s, foreign 124%)
+!! width 8 -> 9 (polite, idle 30616s, foreign 19%)
+!! width 9 -> 8 (polite, idle 30636s, foreign 117%)
+!! width 8 -> 9 (polite, idle 30676s, foreign 23%)
+!! width 9 -> 8 (polite, idle 30696s, foreign 126%)
+!! width 8 -> 7 (polite, idle 30916s, foreign 214%)
+!! width 7 -> 8 (polite, idle 30936s, foreign 117%)
+!! width 8 -> 7 (polite, idle 31096s, foreign 244%)
+!! width 7 -> 8 (polite, idle 31116s, foreign 134%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 8 -> 6 (polite, idle 31256s, foreign 304%)
+!! width 6 -> 8 (polite, idle 31276s, foreign 124%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 6 (polite, idle 31556s, foreign 325%)
+!! width 6 -> 8 (polite, idle 31576s, foreign 127%)
+!! width 8 -> 7 (polite, idle 32016s, foreign 216%)
+!! width 7 -> 8 (polite, idle 32036s, foreign 154%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 6 (polite, idle 32356s, foreign 328%)
+!! width 6 -> 8 (polite, idle 32376s, foreign 181%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 32676s, foreign 291%)
+!! width 7 -> 8 (polite, idle 32696s, foreign 123%)
+!! width 8 -> 7 (polite, idle 32976s, foreign 274%)
+!! width 7 -> 8 (polite, idle 32996s, foreign 129%)
+!! width 8 -> 7 (polite, idle 33016s, foreign 219%)
+!! width 7 -> 8 (polite, idle 33036s, foreign 122%)
+!! width 8 -> 7 (polite, idle 33276s, foreign 259%)
+!! width 7 -> 8 (polite, idle 33296s, foreign 117%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 33616s, foreign 69%)
+!! width 9 -> 8 (polite, idle 33636s, foreign 129%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 33917s, foreign 32%)
+!! width 9 -> 8 (polite, idle 33936s, foreign 125%)
+!! width 8 -> 7 (polite, idle 34016s, foreign 208%)
+!! width 7 -> 8 (polite, idle 34036s, foreign 152%)
+!! width 8 -> 7 (polite, idle 34216s, foreign 241%)
+!! width 7 -> 8 (polite, idle 34236s, foreign 127%)
+   ipc-opt-2008-11        verdicts: hot 132, packed 15, rho 102, solved 303, suspect 8, thermal 5
+   ipc-opt-2008-11        banked  537   550 -> 13
+   ipc2023-opt            packed: 30 wide x10 (14.5 GB budget), 2 narrow, 108 solo
+!! width 8 -> 1 (polite, idle 34516s, foreign 864%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 1 -> 8 (polite, idle 34536s, foreign 146%)
+!! width 8 -> 7 (polite, idle 34556s, foreign 237%)
+!! width 7 -> 8 (polite, idle 34596s, foreign 126%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 34896s, foreign 215%)
+!! width 7 -> 8 (polite, idle 34916s, foreign 126%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 35156s, foreign 247%)
+!! width 7 -> 8 (polite, idle 35176s, foreign 124%)
+!! width 8 -> 7 (polite, idle 35436s, foreign 203%)
+!! width 7 -> 8 (polite, idle 35456s, foreign 135%)
+!! width 8 -> 6 (polite, idle 35596s, foreign 302%)
+!! width 6 -> 9 (polite, idle 35616s, foreign 59%)
+!! width 9 -> 8 (polite, idle 35636s, foreign 136%)
+!! width 8 -> 9 (polite, idle 35676s, foreign 39%)
+!! width 9 -> 8 (polite, idle 35696s, foreign 163%)
+!! width 8 -> 9 (polite, idle 35796s, foreign 54%)
+!! width 9 -> 8 (polite, idle 35816s, foreign 165%)
+!! width 8 -> 9 (polite, idle 35856s, foreign 68%)
+!! width 9 -> 7 (polite, idle 35876s, foreign 217%)
+!! width 7 -> 8 (polite, idle 35896s, foreign 151%)
+!! width 8 -> 7 (polite, idle 35956s, foreign 258%)
+!! width 7 -> 8 (polite, idle 35976s, foreign 127%)
+!! width 8 -> 7 (polite, idle 35996s, foreign 244%)
+!! width 7 -> 8 (polite, idle 36056s, foreign 156%)
+!! width 8 -> 7 (polite, idle 36076s, foreign 268%)
+!! width 7 -> 8 (polite, idle 36136s, foreign 176%)
+!! width 8 -> 7 (polite, idle 36156s, foreign 210%)
+!! width 7 -> 8 (polite, idle 36176s, foreign 181%)
+!! width 8 -> 7 (polite, idle 36296s, foreign 261%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 5 (polite, idle 36336s, foreign 450%)
+!! width 5 -> 7 (polite, idle 36356s, foreign 204%)
+!! width 7 -> 8 (polite, idle 36376s, foreign 194%)
+!! width 8 -> 7 (polite, idle 36396s, foreign 209%)
+!! width 7 -> 6 (polite, idle 36456s, foreign 307%)
+!! width 6 -> 7 (polite, idle 36496s, foreign 236%)
+!! width 7 -> 8 (polite, idle 36516s, foreign 181%)
+!! width 8 -> 7 (polite, idle 36576s, foreign 240%)
+!! width 7 -> 6 (polite, idle 36616s, foreign 304%)
+!! width 6 -> 8 (polite, idle 36636s, foreign 142%)
+!! width 8 -> 7 (polite, idle 36656s, foreign 284%)
+!! width 7 -> 8 (polite, idle 36696s, foreign 149%)
+!! width 8 -> 7 (polite, idle 36716s, foreign 200%)
+!! width 7 -> 8 (polite, idle 36736s, foreign 191%)
+!! width 8 -> 7 (polite, idle 36816s, foreign 209%)
+!! width 7 -> 8 (polite, idle 36836s, foreign 149%)
+!! width 8 -> 7 (polite, idle 36976s, foreign 219%)
+!! width 7 -> 8 (polite, idle 36996s, foreign 168%)
+!! width 8 -> 7 (polite, idle 37076s, foreign 223%)
+!! width 7 -> 6 (polite, idle 37096s, foreign 366%)
+!! width 6 -> 8 (polite, idle 37116s, foreign 157%)
+!! width 8 -> 6 (polite, idle 37136s, foreign 348%)
+!! width 6 -> 8 (polite, idle 37176s, foreign 123%)
+!! width 8 -> 7 (polite, idle 37196s, foreign 228%)
+!! width 7 -> 8 (polite, idle 37216s, foreign 198%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 37276s, foreign 252%)
+!! width 7 -> 8 (polite, idle 37296s, foreign 138%)
+!! width 8 -> 7 (polite, idle 37316s, foreign 205%)
+!! width 7 -> 8 (polite, idle 37336s, foreign 128%)
+!! width 8 -> 7 (polite, idle 37356s, foreign 260%)
+!! width 7 -> 8 (polite, idle 37416s, foreign 180%)
+!! width 8 -> 7 (polite, idle 37456s, foreign 242%)
+!! width 7 -> 8 (polite, idle 37476s, foreign 179%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 37556s, foreign 284%)
+!! width 7 -> 8 (polite, idle 37596s, foreign 173%)
+!! width 8 -> 6 (polite, idle 37616s, foreign 328%)
+!! width 6 -> 7 (polite, idle 37636s, foreign 218%)
+!! width 7 -> 6 (polite, idle 37676s, foreign 306%)
+!! width 6 -> 7 (polite, idle 37716s, foreign 215%)
+!! width 7 -> 8 (polite, idle 37756s, foreign 162%)
+!! width 8 -> 7 (polite, idle 37796s, foreign 227%)
+!! width 7 -> 8 (polite, idle 37816s, foreign 180%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 37856s, foreign 266%)
+!! width 7 -> 8 (polite, idle 37936s, foreign 154%)
+!! width 8 -> 7 (polite, idle 38076s, foreign 231%)
+!! width 7 -> 8 (polite, idle 38096s, foreign 168%)
+!! width 8 -> 7 (polite, idle 38116s, foreign 231%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 38136s, foreign 191%)
+!! width 8 -> 7 (polite, idle 38296s, foreign 205%)
+!! width 7 -> 6 (polite, idle 38316s, foreign 321%)
+!! width 6 -> 8 (polite, idle 38336s, foreign 162%)
+!! width 8 -> 9 (polite, idle 38436s, foreign 69%)
+!! width 9 -> 8 (polite, idle 38456s, foreign 164%)
+!! width 8 -> 7 (polite, idle 38476s, foreign 206%)
+!! width 7 -> 8 (polite, idle 38496s, foreign 171%)
+!! width 8 -> 7 (polite, idle 38536s, foreign 233%)
+!! width 7 -> 6 (polite, idle 38556s, foreign 320%)
+!! width 6 -> 1 (polite, idle 38596s, foreign 824%)
+!! width 1 -> 6 (polite, idle 38616s, foreign 340%)
+!! width 6 -> 5 (polite, idle 38636s, foreign 486%)
+!! width 5 -> 6 (polite, idle 38676s, foreign 333%)
+!! width 6 -> 3 (polite, idle 38696s, foreign 676%)
+!! width 3 -> 6 (polite, idle 38716s, foreign 370%)
+!! canary trucks-propositional/8@49280cb92c9e at 2.49x its baseline -- the box is slow
+!! width 6 -> 1 (polite, idle 38738s, foreign 876%)
+!! width 1 -> 4 (polite, idle 38756s, foreign 527%)
+!! width 4 -> 5 (polite, idle 38816s, foreign 438%)
+!! width 5 -> 6 (polite, idle 38916s, foreign 313%)
+!! width 6 -> 5 (polite, idle 38956s, foreign 467%)
+!! width 5 -> 6 (polite, idle 38976s, foreign 368%)
+!! width 6 -> 5 (polite, idle 38996s, foreign 434%)
+!! width 5 -> 6 (polite, idle 39016s, foreign 366%)
+!! width 6 -> 5 (polite, idle 39036s, foreign 402%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.99x its baseline -- the box is slow
+!! width 5 -> 3 (polite, idle 39076s, foreign 674%)
+!! width 3 -> 1 (polite, idle 39096s, foreign 974%)
+!! width 1 -> 6 (polite, idle 39156s, foreign 328%)
+!! width 6 -> 3 (polite, idle 39196s, foreign 647%)
+!! width 3 -> 4 (polite, idle 39216s, foreign 512%)
+!! width 4 -> 3 (polite, idle 39236s, foreign 666%)
+!! width 3 -> 6 (polite, idle 39256s, foreign 332%)
+!! width 6 -> 3 (polite, operator active 0s ago, foreign 494%)
+!! width 3 -> 2 (polite, operator active 8s ago, foreign 520%)
+   hold: 27 predecessor-failed row(s) wait for the keyboard to go idle (a demoted timeout is owed, not banked)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 453%)
+!! width 3 -> 1 (polite, operator active 0s ago, foreign 663%)
+!! canary trucks-propositional/8@49280cb92c9e at 7.57x its baseline -- the box is slow
+!! width 1 -> 3 (polite, operator active 12s ago, foreign 441%)
+!! width 3 -> 5 (polite, operator active 52s ago, foreign 285%)
+!! width 5 -> 4 (polite, operator active 73s ago, foreign 301%)
+!! width 4 -> 5 (polite, operator active 92s ago, foreign 279%)
+!! width 5 -> 4 (polite, operator active 132s ago, foreign 306%)
+!! width 4 -> 5 (polite, operator active 172s ago, foreign 278%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.96x its baseline -- the box is slow
+!! width 5 -> 7 (polite, idle 313s, foreign 269%)
+!! width 7 -> 6 (polite, idle 333s, foreign 374%)
+!! width 6 -> 5 (polite, idle 472s, foreign 427%)
+!! width 5 -> 6 (polite, idle 493s, foreign 375%)
+!! width 6 -> 5 (polite, idle 552s, foreign 482%)
+!! width 5 -> 6 (polite, idle 593s, foreign 376%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 6 -> 7 (polite, idle 773s, foreign 266%)
+!! width 7 -> 2 (polite, idle 833s, foreign 703%)
+!! width 2 -> 7 (polite, idle 852s, foreign 252%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 7 -> 6 (polite, idle 953s, foreign 312%)
+!! width 6 -> 7 (polite, idle 973s, foreign 214%)
+!! width 7 -> 6 (polite, idle 1192s, foreign 309%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 6 -> 7 (polite, idle 1212s, foreign 270%)
+!! width 7 -> 6 (polite, idle 1293s, foreign 352%)
+!! width 6 -> 7 (polite, idle 1313s, foreign 262%)
+!! width 7 -> 8 (polite, idle 1392s, foreign 175%)
+!! width 8 -> 7 (polite, idle 1553s, foreign 231%)
+!! width 7 -> 8 (polite, idle 1573s, foreign 178%)
+!! width 8 -> 7 (polite, idle 1713s, foreign 278%)
+!! width 7 -> 8 (polite, idle 1733s, foreign 176%)
+!! width 8 -> 7 (polite, idle 1793s, foreign 292%)
+!! width 7 -> 8 (polite, idle 1813s, foreign 191%)
+!! width 8 -> 7 (polite, idle 1833s, foreign 206%)
+!! width 7 -> 8 (polite, idle 1913s, foreign 189%)
+   ipc2023-opt            verdicts: contended 3, hot 61, rho 33, solved 30, starved 3, swap 7, thermal 3
+   ipc2023-opt            banked  124   140 -> 16
+   ipc2018-opt            packed: 88 wide x10 (14.5 GB budget), 6 narrow, 146 solo
+!! width 8 -> 3 (polite, idle 1933s, foreign 650%)
+!! width 3 -> 4 (polite, idle 1953s, foreign 554%)
+!! width 4 -> 5 (polite, idle 1973s, foreign 479%)
+!! width 5 -> 6 (polite, idle 1993s, foreign 358%)
+!! width 6 -> 4 (polite, idle 2013s, foreign 550%)
+!! width 4 -> 5 (polite, idle 2033s, foreign 453%)
+!! width 5 -> 3 (polite, idle 2053s, foreign 606%)
+!! width 3 -> 6 (polite, idle 2073s, foreign 373%)
+!! width 6 -> 1 (polite, operator active 0s ago, foreign 752%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 1 -> 4 (polite, operator active 13s ago, foreign 372%)
+!! width 4 -> 3 (polite, operator active 0s ago, foreign 436%)
+!! width 3 -> 4 (polite, operator active 18s ago, foreign 379%)
+!! width 4 -> 3 (polite, operator active 38s ago, foreign 472%)
+!! width 3 -> 4 (polite, operator active 0s ago, foreign 344%)
+!! width 4 -> 3 (polite, operator active 9s ago, foreign 441%)
+!! width 3 -> 4 (polite, operator active 29s ago, foreign 395%)
+!! width 4 -> 3 (polite, operator active 49s ago, foreign 452%)
+!! width 3 -> 4 (polite, operator active 89s ago, foreign 380%)
+!! width 4 -> 5 (polite, operator active 109s ago, foreign 277%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 5 -> 7 (polite, idle 309s, foreign 277%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 9 (polite, idle 490s, foreign 96%)
+!! width 9 -> 8 (polite, idle 509s, foreign 191%)
+!! width 8 -> 7 (polite, idle 649s, foreign 215%)
+!! width 7 -> 5 (polite, idle 669s, foreign 487%)
+!! width 5 -> 6 (polite, idle 689s, foreign 349%)
+!! width 6 -> 3 (polite, idle 709s, foreign 632%)
+!! width 3 -> 4 (polite, idle 729s, foreign 570%)
+!! width 4 -> 3 (polite, idle 749s, foreign 662%)
+!! width 3 -> 5 (polite, idle 769s, foreign 450%)
+!! width 5 -> 8 (polite, idle 789s, foreign 200%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 6 (polite, idle 829s, foreign 377%)
+!! width 6 -> 7 (polite, idle 849s, foreign 203%)
+!! width 7 -> 6 (polite, idle 869s, foreign 383%)
+!! width 6 -> 7 (polite, idle 889s, foreign 279%)
+!! width 7 -> 8 (polite, idle 929s, foreign 187%)
+!! width 8 -> 4 (polite, operator active 0s ago, foreign 362%)
+!! width 4 -> 2 (polite, operator active 0s ago, foreign 512%)
+!! width 2 -> 5 (polite, operator active 0s ago, foreign 258%)
+!! width 5 -> 6 (polite, operator active 32s ago, foreign 170%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 216%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 181%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 291%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 191%)
+!! width 6 -> 5 (polite, operator active 1s ago, foreign 231%)
+!! width 5 -> 4 (polite, operator active 15s ago, foreign 308%)
+!! width 4 -> 5 (polite, operator active 1s ago, foreign 275%)
+   hold: 138 predecessor-failed row(s) wait for the keyboard to go idle (a demoted timeout is owed, not banked)
+!! width 5 -> 6 (polite, operator active 155s ago, foreign 178%)
+!! width 6 -> 8 (polite, idle 315s, foreign 132%)
+!! width 8 -> 7 (polite, idle 335s, foreign 226%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 675s, foreign 165%)
+!! width 8 -> 6 (polite, idle 695s, foreign 352%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 6 -> 8 (polite, idle 715s, foreign 194%)
+!! width 8 -> 7 (polite, idle 915s, foreign 211%)
+!! width 7 -> 8 (polite, idle 935s, foreign 176%)
+!! width 8 -> 7 (polite, idle 975s, foreign 206%)
+!! width 7 -> 8 (polite, idle 995s, foreign 176%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 1655s, foreign 270%)
+!! width 7 -> 8 (polite, idle 1695s, foreign 186%)
+!! width 8 -> 5 (polite, operator active 16s ago, foreign 244%)
+!! width 5 -> 7 (polite, operator active 36s ago, foreign 86%)
+!! width 7 -> 5 (polite, operator active 0s ago, foreign 224%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 143%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 70%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 138%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 65%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! no planner running for 10 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 9 (polite, idle 313s, foreign 58%)
+!! width 9 -> 8 (polite, idle 333s, foreign 144%)
+!! width 8 -> 6 (polite, operator active 4s ago, foreign 162%)
+!! width 6 -> 7 (polite, operator active 11s ago, foreign 40%)
+!! width 7 -> 6 (polite, operator active 271s ago, foreign 149%)
+!! width 6 -> 7 (polite, operator active 291s ago, foreign 38%)
+!! width 7 -> 9 (polite, idle 311s, foreign 40%)
+!! width 9 -> 8 (polite, idle 331s, foreign 130%)
+!! width 8 -> 6 (polite, operator active 0s ago, foreign 152%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 95%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 119%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 55%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 133%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 29%)
+!! width 7 -> 6 (polite, operator active 26s ago, foreign 100%)
+!! width 6 -> 7 (polite, operator active 46s ago, foreign 56%)
+!! width 7 -> 9 (polite, idle 308s, foreign 41%)
+!! width 9 -> 8 (polite, idle 328s, foreign 136%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+!! width 8 -> 5 (polite, operator active 5s ago, foreign 224%)
+!! width 5 -> 6 (polite, operator active 18s ago, foreign 123%)
+!! width 6 -> 7 (polite, operator active 14s ago, foreign 26%)
+!! width 7 -> 6 (polite, operator active 154s ago, foreign 132%)
+!! width 6 -> 7 (polite, operator active 174s ago, foreign 25%)
+!! width 7 -> 9 (polite, idle 314s, foreign 42%)
+!! width 9 -> 8 (polite, idle 334s, foreign 127%)
+!! width 8 -> 7 (polite, idle 1354s, foreign 265%)
+!! width 7 -> 8 (polite, idle 1374s, foreign 126%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.51x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 1774s, foreign 281%)
+!! width 7 -> 6 (polite, idle 1794s, foreign 354%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 6 -> 7 (polite, idle 1814s, foreign 218%)
+!! width 7 -> 1 (polite, idle 1834s, foreign 904%)
+!! width 1 -> 7 (polite, idle 1934s, foreign 242%)
+!! width 7 -> 9 (polite, idle 1974s, foreign 26%)
+!! width 9 -> 7 (polite, idle 1994s, foreign 215%)
+!! width 7 -> 8 (polite, idle 2054s, foreign 157%)
+!! width 8 -> 7 (polite, idle 2074s, foreign 245%)
+!! width 7 -> 8 (polite, idle 2094s, foreign 110%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 2114s, foreign 243%)
+!! width 7 -> 8 (polite, idle 2214s, foreign 119%)
+!! width 8 -> 7 (polite, idle 2414s, foreign 248%)
+!! width 7 -> 8 (polite, idle 2434s, foreign 109%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 3034s, foreign 92%)
+!! width 9 -> 8 (polite, idle 3054s, foreign 124%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 4814s, foreign 96%)
+!! width 9 -> 8 (polite, idle 4834s, foreign 188%)
+!! width 8 -> 7 (polite, idle 4854s, foreign 205%)
+!! width 7 -> 8 (polite, idle 4874s, foreign 189%)
+!! width 8 -> 7 (polite, idle 4954s, foreign 267%)
+!! width 7 -> 8 (polite, idle 4974s, foreign 185%)
+!! width 8 -> 7 (polite, idle 4994s, foreign 242%)
+!! width 7 -> 8 (polite, idle 5014s, foreign 159%)
+!! width 8 -> 9 (polite, idle 5115s, foreign 74%)
+!! width 9 -> 8 (polite, idle 5134s, foreign 167%)
+!! width 8 -> 7 (polite, idle 5234s, foreign 216%)
+!! width 7 -> 8 (polite, idle 5254s, foreign 156%)
+!! width 8 -> 7 (polite, idle 5334s, foreign 220%)
+!! width 7 -> 8 (polite, idle 5354s, foreign 174%)
+!! width 8 -> 7 (polite, idle 5394s, foreign 219%)
+!! width 7 -> 8 (polite, idle 5414s, foreign 188%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 5514s, foreign 205%)
+!! width 7 -> 8 (polite, idle 5554s, foreign 192%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+   ipc2018-opt            verdicts: contended 5, demoted 3, hot 80, packed 18, rho 52, solved 81, suspect 8, swap 6, thermal 5
+   ipc2018-opt            banked  213   240 -> 27
+== pass 2 -- 4 board(s) outstanding
+   ipc2014-opt            verdicts: thermal 1
+   ipc2014-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 7 (polite, idle 6134s, foreign 257%)
+!! width 7 -> 8 (polite, idle 6154s, foreign 171%)
+!! width 8 -> 7 (polite, idle 6174s, foreign 209%)
+!! width 7 -> 8 (polite, idle 6214s, foreign 174%)
+!! width 8 -> 7 (polite, idle 6334s, foreign 266%)
+!! width 7 -> 8 (polite, idle 6354s, foreign 194%)
+!! width 8 -> 7 (polite, idle 6394s, foreign 270%)
+!! width 7 -> 8 (polite, idle 6414s, foreign 197%)
+   ipc-opt-2008-11        verdicts: rho 7, solved 4, thermal 2
+   ipc-opt-2008-11        banked   11   13 -> 2
+   ipc2023-opt            packed: 2 wide x10 (14.5 GB budget), 1 narrow, 13 solo
+!! width 8 -> 7 (polite, idle 6614s, foreign 258%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 6654s, foreign 173%)
+!! width 8 -> 7 (polite, idle 6694s, foreign 226%)
+!! width 7 -> 8 (polite, idle 6714s, foreign 196%)
+!! width 8 -> 6 (polite, idle 6734s, foreign 324%)
+!! width 6 -> 8 (polite, idle 6754s, foreign 173%)
+!! width 8 -> 7 (polite, idle 6774s, foreign 235%)
+!! width 7 -> 6 (polite, idle 6794s, foreign 302%)
+!! width 6 -> 8 (polite, idle 6814s, foreign 159%)
+!! width 8 -> 7 (polite, idle 6834s, foreign 230%)
+!! width 7 -> 6 (polite, idle 6854s, foreign 329%)
+!! width 6 -> 8 (polite, idle 6874s, foreign 197%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 6934s, foreign 220%)
+!! width 7 -> 8 (polite, idle 6954s, foreign 182%)
+!! width 8 -> 7 (polite, idle 6974s, foreign 232%)
+!! width 7 -> 8 (polite, idle 6994s, foreign 185%)
+!! width 8 -> 7 (polite, idle 7074s, foreign 244%)
+!! width 7 -> 8 (polite, idle 7154s, foreign 197%)
+!! width 8 -> 7 (polite, idle 7214s, foreign 214%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 7234s, foreign 166%)
+!! width 8 -> 7 (polite, idle 7274s, foreign 214%)
+!! width 7 -> 8 (polite, idle 7294s, foreign 176%)
+!! width 8 -> 7 (polite, idle 7314s, foreign 200%)
+!! width 7 -> 8 (polite, idle 7334s, foreign 185%)
+   ipc2023-opt            verdicts: hot 9, rho 2, swap 2, thermal 3
+   ipc2023-opt            banked   11   16 -> 5
+   ipc2018-opt            packed: 8 wide x10 (14.5 GB budget), 0 narrow, 19 solo
+!! width 8 -> 1 (polite, idle 7374s, foreign 838%)
+!! width 1 -> 5 (polite, idle 7414s, foreign 440%)
+!! width 5 -> 6 (polite, idle 7434s, foreign 318%)
+!! width 6 -> 8 (polite, idle 7474s, foreign 184%)
+!! width 8 -> 7 (polite, idle 7494s, foreign 203%)
+!! width 7 -> 8 (polite, idle 7514s, foreign 192%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 7534s, foreign 219%)
+!! width 7 -> 8 (polite, idle 7554s, foreign 172%)
+!! width 8 -> 7 (polite, idle 7574s, foreign 228%)
+!! width 7 -> 5 (polite, idle 7594s, foreign 410%)
+!! width 5 -> 7 (polite, idle 7614s, foreign 279%)
+!! width 7 -> 8 (polite, idle 7694s, foreign 153%)
+!! width 8 -> 7 (polite, idle 7734s, foreign 210%)
+!! width 7 -> 6 (polite, idle 7774s, foreign 306%)
+!! width 6 -> 7 (polite, idle 7794s, foreign 212%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 7834s, foreign 178%)
+!! width 8 -> 7 (polite, idle 7854s, foreign 219%)
+!! width 7 -> 8 (polite, idle 7934s, foreign 198%)
+!! width 8 -> 7 (polite, idle 7954s, foreign 202%)
+!! width 7 -> 8 (polite, idle 7974s, foreign 196%)
+!! width 8 -> 7 (polite, idle 8034s, foreign 204%)
+!! width 7 -> 8 (polite, idle 8054s, foreign 188%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.47x its baseline -- the box is slow
+!! width 8 -> 7 (polite, idle 8174s, foreign 205%)
+!! width 7 -> 8 (polite, idle 8214s, foreign 163%)
+   ipc2018-opt            verdicts: contended 3, hot 2, packed 3, rho 2, solved 2, swap 4, thermal 14
+   ipc2018-opt            banked    6   27 -> 21
+== pass 3 -- 4 board(s) outstanding
+!! width 8 -> 7 (polite, idle 8314s, foreign 258%)
+!! width 7 -> 8 (polite, idle 8334s, foreign 158%)
+   ipc2014-opt            verdicts: thermal 1
+   ipc2014-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc-opt-2008-11        verdicts: thermal 2
+   ipc-opt-2008-11        banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+   ipc2023-opt            packed: 2 wide x10 (14.5 GB budget), 1 narrow, 2 solo
+!! width 8 -> 7 (polite, idle 8454s, foreign 218%)
+!! width 7 -> 8 (polite, idle 8534s, foreign 199%)
+!! width 8 -> 7 (polite, idle 8554s, foreign 259%)
+!! width 7 -> 8 (polite, idle 8574s, foreign 198%)
+!! width 8 -> 7 (polite, idle 8614s, foreign 214%)
+   ipc2023-opt            verdicts: rho 1, solved 3, swap 1
+   ipc2023-opt            banked    4   5 -> 1
+   ipc2018-opt            packed: 8 wide x10 (14.5 GB budget), 3 narrow, 10 solo
+!! width 7 -> 3 (polite, idle 8634s, foreign 658%)
+!! width 3 -> 2 (polite, idle 8654s, foreign 728%)
+!! width 2 -> 8 (polite, idle 8694s, foreign 199%)
+!! width 8 -> 7 (polite, idle 8714s, foreign 246%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.46x its baseline -- the box is slow
+!! width 7 -> 6 (polite, idle 8794s, foreign 324%)
+!! width 6 -> 7 (polite, idle 8814s, foreign 263%)
+!! width 7 -> 6 (polite, idle 8874s, foreign 345%)
+!! width 6 -> 7 (polite, idle 8894s, foreign 275%)
+!! width 7 -> 8 (polite, idle 8934s, foreign 199%)
+!! width 8 -> 7 (polite, idle 8954s, foreign 281%)
+!! width 7 -> 8 (polite, idle 8974s, foreign 153%)
+!! width 8 -> 5 (polite, idle 9014s, foreign 428%)
+!! canary trucks-propositional/8@49280cb92c9e at 2.01x its baseline -- the box is slow
+!! width 5 -> 8 (polite, idle 9034s, foreign 192%)
+!! width 8 -> 7 (polite, idle 9074s, foreign 252%)
+!! width 7 -> 2 (polite, idle 9094s, foreign 701%)
+!! width 2 -> 1 (polite, idle 9114s, foreign 829%)
+!! width 1 -> 4 (polite, idle 9135s, foreign 549%)
+!! throttle polite -> suspended (MemoryPressure(11292.06))
+!! width 4 -> 0 (suspended, idle 9154s, foreign 93%)
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 2 (polite, idle 9234s, foreign 752%)
+!! width 2 -> 4 (polite, idle 9255s, foreign 547%)
+!! throttle polite -> suspended (MemoryPressure(9629.0))
+!! width 4 -> 0 (suspended, idle 9275s, foreign 225%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 9 (polite, idle 9354s, foreign 47%)
+!! width 9 -> 8 (polite, idle 9374s, foreign 110%)
+!! throttle polite -> suspended (MemoryPressure(18430.62))
+!! width 8 -> 0 (suspended, idle 9414s, foreign 255%)
+!! throttle suspended -> polite (Clear)
+!! width 0 -> 9 (polite, idle 9494s, foreign 75%)
+!! width 9 -> 8 (polite, idle 9534s, foreign 167%)
+!! width 8 -> 7 (polite, idle 9574s, foreign 201%)
+!! width 7 -> 8 (polite, idle 9594s, foreign 162%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 8 -> 9 (polite, idle 9634s, foreign 47%)
+!! width 9 -> 8 (polite, idle 9654s, foreign 156%)
+   ipc2018-opt            verdicts: hot 1, packed 6, solved 3, starved 2, swap 4, thermal 11
+   ipc2018-opt            banked    4   21 -> 17
+== pass 4 -- 4 board(s) outstanding
+!! width 8 -> 7 (polite, idle 9834s, foreign 210%)
+!! width 7 -> 8 (polite, idle 9854s, foreign 175%)
+   ipc2014-opt            verdicts: thermal 1
+   ipc2014-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 7 (polite, idle 9914s, foreign 275%)
+!! width 7 -> 8 (polite, idle 9934s, foreign 172%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.50x its baseline -- the box is slow
+   ipc2023-opt            verdicts: swap 1
+   ipc2023-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+   ipc-opt-2008-11        verdicts: thermal 2
+   ipc-opt-2008-11        banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+   ipc2018-opt            packed: 5 wide x10 (14.5 GB budget), 3 narrow, 9 solo
+!! width 8 -> 4 (polite, idle 10074s, foreign 572%)
+!! width 4 -> 5 (polite, idle 10114s, foreign 492%)
+!! width 5 -> 7 (polite, idle 10134s, foreign 289%)
+!! width 7 -> 6 (polite, idle 10194s, foreign 318%)
+!! width 6 -> 7 (polite, idle 10234s, foreign 243%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 10254s, foreign 200%)
+!! width 8 -> 7 (polite, idle 10274s, foreign 202%)
+!! width 7 -> 8 (polite, idle 10314s, foreign 166%)
+!! width 8 -> 7 (polite, idle 10454s, foreign 231%)
+!! width 7 -> 8 (polite, idle 10474s, foreign 173%)
+   ipc2018-opt            verdicts: contended 3, hot 1, packed 4, rho 1, solved 2, swap 2, thermal 8
+   ipc2018-opt            banked    4   17 -> 13
+== pass 5 -- 4 board(s) outstanding
+   ipc2014-opt            verdicts: rho 1
+   ipc2014-opt            banked    1   1 -> 0
+!! width 8 -> 7 (polite, idle 10814s, foreign 242%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.49x its baseline -- the box is slow
+!! width 7 -> 8 (polite, idle 10854s, foreign 195%)
+   ipc2023-opt            verdicts: swap 1
+   ipc2023-opt            banked    0   1 -> 1   [DEGRADED -- not banked, work owed]
+!! width 8 -> 7 (polite, idle 10874s, foreign 206%)
+!! width 7 -> 8 (polite, idle 10934s, foreign 162%)
+!! width 8 -> 6 (polite, idle 10954s, foreign 385%)
+!! width 6 -> 8 (polite, idle 10974s, foreign 194%)
+   ipc-opt-2008-11        verdicts: thermal 2
+   ipc-opt-2008-11        banked    0   2 -> 2   [DEGRADED -- not banked, work owed]
+   ipc2018-opt            packed: 5 wide x10 (14.5 GB budget), 1 narrow, 7 solo
+!! width 8 -> 3 (polite, idle 10994s, foreign 659%)
+!! width 3 -> 2 (polite, idle 11034s, foreign 722%)
+!! width 2 -> 3 (polite, operator active 0s ago, foreign 443%)
+!! width 3 -> 4 (polite, operator active 0s ago, foreign 347%)
+!! width 4 -> 5 (polite, operator active 40s ago, foreign 294%)
+!! width 5 -> 4 (polite, operator active 60s ago, foreign 330%)
+!! width 4 -> 5 (polite, operator active 80s ago, foreign 284%)
+!! width 5 -> 4 (polite, operator active 120s ago, foreign 328%)
+!! width 4 -> 5 (polite, operator active 140s ago, foreign 209%)
+!! width 5 -> 6 (polite, operator active 7s ago, foreign 191%)
+!! width 6 -> 5 (polite, operator active 1s ago, foreign 276%)
+!! width 5 -> 6 (polite, operator active 20s ago, foreign 192%)
+!! width 6 -> 5 (polite, operator active 41s ago, foreign 211%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 197%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 230%)
+!! width 5 -> 6 (polite, operator active 11s ago, foreign 188%)
+!! width 6 -> 5 (polite, operator active 27s ago, foreign 230%)
+!! width 5 -> 4 (polite, operator active 5s ago, foreign 392%)
+!! width 4 -> 5 (polite, operator active 1s ago, foreign 292%)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 171%)
+!! width 6 -> 5 (polite, operator active 0s ago, foreign 284%)
+   hold: 5 predecessor-failed row(s) wait for the keyboard to go idle (a demoted timeout is owed, not banked)
+!! width 5 -> 6 (polite, operator active 4s ago, foreign 135%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 89%)
+!! canary trucks-propositional/8@49280cb92c9e at 1.48x its baseline -- the box is slow
+!! width 7 -> 6 (polite, operator active 14s ago, foreign 127%)
+!! width 6 -> 7 (polite, operator active 3s ago, foreign 92%)
+!! width 7 -> 6 (polite, operator active 4s ago, foreign 134%)
+!! width 6 -> 7 (polite, operator active 8s ago, foreign 84%)
+!! width 7 -> 6 (polite, operator active 28s ago, foreign 129%)
+!! width 6 -> 7 (polite, operator active 10s ago, foreign 92%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 128%)
+!! width 6 -> 7 (polite, operator active 18s ago, foreign 92%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 106%)
+!! width 6 -> 7 (polite, operator active 5s ago, foreign 83%)
+!! no planner running for 10 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 6 (polite, operator active 4s ago, foreign 108%)
+!! width 6 -> 4 (polite, operator active 0s ago, foreign 306%)
+!! width 4 -> 6 (polite, operator active 5s ago, foreign 140%)
+!! width 6 -> 5 (polite, operator active 2s ago, foreign 254%)
+!! width 5 -> 6 (polite, operator active 9s ago, foreign 141%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 80%)
+!! width 7 -> 6 (polite, operator active 2s ago, foreign 105%)
+!! width 6 -> 7 (polite, operator active 7s ago, foreign 84%)
+!! width 7 -> 6 (polite, operator active 3s ago, foreign 137%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 98%)
+!! width 7 -> 6 (polite, operator active 8s ago, foreign 116%)
+!! width 6 -> 7 (polite, operator active 9s ago, foreign 91%)
+!! width 7 -> 6 (polite, operator active 6s ago, foreign 119%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 100%)
+!! no planner running for 20 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 6 (polite, operator active 17s ago, foreign 107%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 68%)
+!! width 7 -> 6 (polite, operator active 10s ago, foreign 103%)
+!! width 6 -> 7 (polite, operator active 10s ago, foreign 95%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 132%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 87%)
+!! width 7 -> 6 (polite, operator active 28s ago, foreign 139%)
+!! width 6 -> 7 (polite, operator active 2s ago, foreign 68%)
+!! width 7 -> 6 (polite, operator active 18s ago, foreign 138%)
+!! width 6 -> 7 (polite, operator active 4s ago, foreign 74%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 121%)
+!! width 6 -> 7 (polite, operator active 20s ago, foreign 80%)
+!! width 7 -> 6 (polite, operator active 39s ago, foreign 106%)
+!! width 6 -> 7 (polite, operator active 79s ago, foreign 90%)
+!! no planner running for 30 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 7 -> 6 (polite, operator active 7s ago, foreign 124%)
+!! width 6 -> 7 (polite, operator active 3s ago, foreign 99%)
+!! width 7 -> 6 (polite, operator active 3s ago, foreign 134%)
+!! width 6 -> 5 (polite, operator active 18s ago, foreign 221%)
+!! width 5 -> 6 (polite, operator active 38s ago, foreign 104%)
+!! width 6 -> 7 (polite, operator active 58s ago, foreign 98%)
+!! width 7 -> 6 (polite, operator active 5s ago, foreign 121%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 97%)
+!! width 7 -> 6 (polite, operator active 4s ago, foreign 114%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 78%)
+!! width 7 -> 6 (polite, operator active 15s ago, foreign 140%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 92%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 172%)
+!! no planner running for 40 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 94%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 114%)
+!! width 6 -> 7 (polite, operator active 49s ago, foreign 84%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 108%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 90%)
+!! width 7 -> 6 (polite, operator active 2s ago, foreign 135%)
+!! width 6 -> 7 (polite, operator active 1s ago, foreign 93%)
+!! width 7 -> 6 (polite, operator active 3s ago, foreign 116%)
+!! width 6 -> 7 (polite, operator active 5s ago, foreign 99%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 122%)
+!! width 6 -> 7 (polite, operator active 9s ago, foreign 79%)
+!! width 7 -> 5 (polite, operator active 0s ago, foreign 242%)
+!! no planner running for 50 min while the throttle is polite -- the runner may be stuck (a sweep between children is idle for seconds)
+!! width 5 -> 6 (polite, operator active 0s ago, foreign 102%)
+!! width 6 -> 7 (polite, operator active 21s ago, foreign 97%)
+!! width 7 -> 6 (polite, operator active 0s ago, foreign 156%)
+!! width 6 -> 7 (polite, operator active 17s ago, foreign 85%)
+!! width 7 -> 6 (polite, operator active 1s ago, foreign 114%)
+!! width 6 -> 7 (polite, operator active 27s ago, foreign 77%)
+!! width 7 -> 6 (polite, operator active 47s ago, foreign 131%)
+!! width 6 -> 7 (polite, operator active 0s ago, foreign 60%)
+!! width 7 -> 6 (polite, operator active 21s ago, foreign 151%)
+!! width 6 -> 7 (polite, operator active 25s ago, foreign 87%)
+!! width 7 -> 5 (polite, operator active 2s ago, foreign 226%)
+   ipc2018-opt            verdicts: demoted 5, packed 10, suspect 2, thermal 1
+   ipc2018-opt            banked    0   13 -> 13   [DEGRADED -- not banked, work owed]
+== pass 6 -- 3 board(s) outstanding
+stopped after 6 pass(es); 16 still owed -- the next run picks them up
+16 instance(s) still owed -- rows are written, nothing is lost

@@ -679,8 +679,47 @@ Solo on 2008 seq-opt, 60 s: elevator 12 proven 0.36 s against 1.49 s
 unproven both; builds 0.03–0.26 s. The patterns stay small (sizes 1–3)
 because the cover is thin there (15 of 105 variables multi-valued on
 transport 8) — the cover, not the climb, is the next lever if the
-board read asks. **Measured next:** `opt/run-opt-ipdb.sh` on the four
-classical proof boards against the banked 0.30.0 rows.
+board read asks.
+**Measured 2026-11-07 — below the band; a recorded negative, the
+collection stays opt-in.** `opt31-ipdb` (engine 49280cb92c9e, the frozen
+294959ac4415 build; `opt/opt-ipdb.log`, the read from the database): the
+four classical proof boards, every row, against the banked 0.30.0 rows;
+1,170 of 1,186 cells banked in six passes before the box rebooted
+(2026-11-06 15:14, the sweep with it), 16 owed and named below. On the
+cells both banked: **+14 net — 23 gained, 9 lost**, against a band of
++40–80; every solved row carries `PROVEN OPTIMAL`, so proofs are rows
+here. The 16 owed cannot reach the band from any side (eleven of them
+0.30.0 solves, so the number lands in [+3, +19]).
+
+| board | cells | banked | 0.30.0 | iPDB | gain | loss | net |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ipc-opt-2008-11 | 550 | 548 | 295 | 307 | 19 | 7 | **+12** |
+| ipc2014-opt | 256 | 256 | 82 | 82 | 1 | 1 | 0 |
+| ipc2018-opt | 240 | 227 | 86 | 88 | 3 | 1 | +2 |
+| ipc2023-opt | 140 | 139 | 33 | 33 | 0 | 0 | 0 |
+
+(0.30.0's column counts the cells both banked.) Gains: woodworking 9,
+elevator 7, sokoban 3 on 2008-11; visit-all 1 on 2014; data-network,
+organic-synthesis, termes one each on 2018. Losses, all nine `rho` (the
+same wall, spent): barman 6/7/8 (0.30.0 at 50 s; patterns [13,12] after
+45 climb steps), openstacks 12 / 16-strips (53–54 s; 20 singleton
+patterns, 0 steps — the cover has 1 multi-valued variable of 155),
+spider 4 (53 s) — the baseline's budget edge — and scanalyzer 7/19
+(23 s) and parking 3 (23.5 s), real losses to the climb's sampling and
+SCP evaluation. **The build receipt** (1,126 cells with a `pdb:` note):
+median 0.95 s, p90 15.0 s, max 15.3 s — the quarter-wall cap is what the
+top decile hits, so one cell in ten spends its full 15 s climbing before
+the first expansion; that is the kill clause's shape on a tenth of the
+board, and the band's miss on the rest. What the receipt says for 0.32:
+the patterns stay singletons where the cover is thin (openstacks,
+scanalyzer: sizes 1–2, "no candidate improves" after 0 steps), so the
+cover — Lane C.0's lever — is the next thing to measure, not the climb.
+The 16 owed: 2008-11 openstacks-adl 15, peg-solitaire 26; 2018 caldera 5,
+caldera-split 6, nurikabe 10, organic-synthesis 1 / 2 / 9 / 10 / 14,
+organic-synthesis-split 15, petri-net-alignment 12, settlers 6, snake 15,
+spider 3 (the thermal / swap rows a quiet box owes); 2023 folding 6. The
+hatch stays (`FF_OPT_PDB=ipdb`, `FF_OPT_PDB=1` the goal pattern alone);
+unset, the optimal A* is byte-identical to 0.30.0.
 
 **C.2 — symbolic bidirectional blind search.** Independent of any
 heuristic; the strongest single technique on a different set of domains

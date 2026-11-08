@@ -72,8 +72,15 @@ All notable changes to this project are documented here.
   receipt. Two fixes to the projection on the way: it now sees the shared
   monitor block's conditional effects (`cond_effs`, not `cond`), and its
   edges carry the op, costed exactly in f64. Solo: elevator-opt 12 proven
-  in 0.36 s against 1.49 s, sokoban-opt 15 in 29 s against 48 s, builds
-  under 0.3 s; the proof boards' sweep decides the default.
+  in 0.36 s against 1.49 s, sokoban-opt 15 in 29 s against 48 s. Measured
+  on the four classical proof boards' 1,186 cells against the banked
+  0.30.0 rows (roadmap Lane C.1; 16 cells owed when the box rebooted):
+  **+14 net** (23 gained, 9 lost; 2008-11 +12, 2018 +2, 2014 and 2023
+  level) against a declared band of +40–80, the gains woodworking,
+  elevator and sokoban, the losses the budget edge plus scanalyzer and
+  parking; the build's median 0.95 s but its top decile at the 15 s
+  quarter-wall cap. A recorded negative at the band: the hatch stays
+  opt-in and the default optimal A* is byte-identical to 0.30.0.
 - **A red-black heuristic, opt-in** (`FF_RB=1` in LAMA's evaluation,
   `FF_RUNG_ONLY=rb` as a greedy rung; 0.31 Lane D, `redblack.rs`): h^FF's
   relaxed plan repaired in layer order with real semantics for a
