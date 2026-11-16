@@ -141,6 +141,19 @@ impl Iterator for Achievers<'_> {
     }
 }
 
+/// The [`PackedTask::comp_facts`] bitset: the complementary facts are the
+/// ones the grounder named `(NOT (...))` -- `not` is reserved, so no declared
+/// predicate displays that way.
+pub(crate) fn comp_facts_of(fact_names: &[String], words: usize) -> Arc<[u64]> {
+    let mut bits = vec![0u64; words];
+    for (i, n) in fact_names.iter().enumerate() {
+        if n.starts_with("(NOT (") {
+            bitset::set(&mut bits, i);
+        }
+    }
+    bits.into()
+}
+
 #[derive(Clone)]
 pub struct PackedTask {
     pub n_facts: usize,
@@ -236,6 +249,11 @@ pub struct PackedTask {
     pub trpg: Option<Arc<crate::heuristic::TrpgInfo>>,
 
     pub fact_names: Arc<[String]>,
+    /// Bitset over facts: is this a complementary `(NOT (p))` fact of the
+    /// negative-precondition compilation? [`Self::apply`] reads it to keep a
+    /// complement honest when a delete and an add of `p` fire from different
+    /// scopes of one op (0.31: add wins, so the complement must not hold).
+    pub comp_facts: Arc<[u64]>,
     /// fluent id -> display string `(NAME ARGS)` (for metric/cost-fluent lookup).
     pub fluent_names: Arc<[String]>,
     /// DEFINED-STATIC fluents the 0.21 fluent compaction dropped from
@@ -401,6 +419,30 @@ impl PackedTask {
             if fire {
                 for &f in &ce.add {
                     bitset::set(&mut ns.bits, f as usize);
+                }
+            }
+        }
+
+        // Add wins, for the complements too. A complementary `(NOT (p))`
+        // fact sits in a del list exactly where its `p` sits in the add list
+        // beside it, so every such del that fired names a `p` that is now
+        // true -- and a delete of `p` from ANOTHER scope of this op (the
+        // unconditional effect against a firing conditional one, or two
+        // conditional ones) has just set that complement in the add pass
+        // above. Clear it again: one state never holds `p` and `(NOT (p))`.
+        // The same-scope case never reaches here (the grounder drops the
+        // complement's add), which is why the fast path needs no such pass.
+        for &f in self.del.slice(oi) {
+            if bitset::test(&self.comp_facts, f as usize) {
+                bitset::clear(&mut ns.bits, f as usize);
+            }
+        }
+        for (ce, &fire) in conds.iter().zip(&firing) {
+            if fire {
+                for &f in &ce.del {
+                    if bitset::test(&self.comp_facts, f as usize) {
+                        bitset::clear(&mut ns.bits, f as usize);
+                    }
                 }
             }
         }

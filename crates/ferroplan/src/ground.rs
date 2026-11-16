@@ -734,6 +734,15 @@ impl WallTick<'_> {
         }
         false
     }
+
+    /// [`Self::tripped`] without the stride: one clock (and memory) read NOW.
+    /// For the places that are not a binding -- a sort over everything the
+    /// enumeration collected -- where the next counted binding may be
+    /// minutes away.
+    fn tripped_now(&mut self) -> bool {
+        self.n = Self::STRIDE - 1;
+        self.tripped()
+    }
 }
 
 /// Parse an `FF_*` threshold override: finite and positive, else the default.
@@ -1228,7 +1237,9 @@ fn for_each_binding(
             // SORT BACK to declaration row-major: emission — and with it the
             // RawOp stream and the fact-intern order — is byte-identical to
             // the plain product's.
-            survivors.sort_unstable();
+            if !sort_survivors(&mut survivors, tick) {
+                return; // wall: the caller discards the output wholesale
+            }
             for tup in &survivors {
                 if tick.tripped() {
                     return; // wall: the caller discards the output wholesale
@@ -1287,6 +1298,61 @@ fn for_each_binding(
         tick,
         &mut f,
     );
+}
+
+/// Sort the MCV enumeration's surviving index tuples, UNDER THE WALL (the
+/// 0.31 cut). This was one `sort_unstable()` with no clock in it, and it is
+/// the place the grounder stopped honouring its wall: folding i5 collects its
+/// survivors by 40 s of a 60 s wall, far past the box's memory, and the sort
+/// over a swapped `Vec<Vec<u32>>` then ran to 257 s before the next counted
+/// binding could look at the clock (the Phase 0.6 receipt's 220 s). Runs are
+/// sorted as before and merged bottom-up with a clock read every run and
+/// every 256 moves (a move of a swapped-out tuple is a page fault, not a
+/// nanosecond: at 2^14 moves a read, organic-synthesis i6 still ran 96 s
+/// over). The tuples are distinct bindings, so the order is the
+/// one `sort_unstable` gave -- emission stays byte-identical. `false` = the
+/// wall tripped; the tuples are gone and the caller discards its output.
+fn sort_survivors(v: &mut Vec<Vec<u32>>, tick: &mut WallTick) -> bool {
+    const RUN: usize = 1 << 14;
+    if v.len() <= RUN {
+        v.sort_unstable();
+        return true;
+    }
+    for run in v.chunks_mut(RUN) {
+        run.sort_unstable();
+        if tick.tripped_now() {
+            return false;
+        }
+    }
+    let n = v.len();
+    let mut src = std::mem::take(v);
+    let mut dst: Vec<Vec<u32>> = Vec::with_capacity(n);
+    let mut width = RUN;
+    let mut moved = 0usize;
+    while width < n {
+        dst.clear(); // what it held was moved out: empty tuples, nothing to free
+        let mut lo = 0;
+        while lo < n {
+            let mid = (lo + width).min(n);
+            let hi = (lo + 2 * width).min(n);
+            let (mut i, mut j) = (lo, mid);
+            while i < mid || j < hi {
+                let from_right = i == mid || (j < hi && src[j] < src[i]);
+                let k = if from_right { &mut j } else { &mut i };
+                dst.push(std::mem::take(&mut src[*k]));
+                *k += 1;
+                moved += 1;
+                if moved & 0xFF == 0 && tick.tripped_now() {
+                    return false;
+                }
+            }
+            lo = hi;
+        }
+        std::mem::swap(&mut src, &mut dst);
+        width *= 2;
+    }
+    *v = src;
+    true
 }
 
 /// Phase B (parallelisable): all ground RawOps for a single action.
@@ -2051,7 +2117,16 @@ fn ground_v(
         for (&ai, ops) in idx2.iter().zip(chunks2) {
             raw_chunks[ai] = ops;
         }
-        raw_chunks.into_iter().flatten().collect()
+        // A tripped wall hands back nothing (0.31 cut): the splice below
+        // moves every op the enumeration emitted, and on a task grounded
+        // far past the box's memory that move alone ran half a minute past
+        // the wall the workers had already seen -- for output the check
+        // just below discards whole.
+        if gwall.as_ref().is_some_and(|g| g.tripped()) {
+            Vec::new()
+        } else {
+            raw_chunks.into_iter().flatten().collect()
+        }
     };
     // A tripped wall discards the partial Phase B output WHOLESALE:
     // the abort point depends on scheduling, and a task shaped by it
@@ -2195,6 +2270,23 @@ fn ground_v(
         num: vec![],
         cond: vec![],
     };
+    // UNDER THE WALL (0.31 cut), the goal expansion's own discipline: a
+    // monitor whose condition DNF-multiplies ballooned here with no check at
+    // all -- storage-preferences-complex i19 was still inside `and_merge` at
+    // 240 s of a 60 s wall. Armed only where this grounding has a wall or a
+    // budget to answer to (`gwall`); a grounding that must finish whatever it
+    // costs (the validator's) is untouched.
+    let monitors_walled = gwall.is_some() && !domain.monitors.is_empty();
+    if monitors_walled {
+        DNF_WALL.with(|w| {
+            *w.borrow_mut() = DnfWall {
+                armed: true,
+                hit: false,
+                produced: 0,
+                budget_bytes: crate::search::rlimit_budget(),
+            }
+        });
+    }
     for e in &domain.monitors {
         // No static resolution here (None): the constraint fixtures pin the
         // 0.7/0.8 shared-block shapes, and monitor conditions are TRAJ-fact
@@ -2207,6 +2299,36 @@ fn ground_v(
             &mut shared_reff,
             None,
         );
+        if monitors_walled && DNF_WALL.with(|w| w.borrow().hit) {
+            break;
+        }
+    }
+    if monitors_walled {
+        let hit = DNF_WALL.with(|w| {
+            let hit = w.borrow().hit;
+            *w.borrow_mut() = DnfWall {
+                armed: false,
+                hit: false,
+                produced: 0,
+                budget_bytes: usize::MAX,
+            };
+            hit
+        });
+        if hit {
+            if std::env::var("FF_WALL_DEBUG").is_ok() {
+                eprintln!(
+                    "wall: grounding stopped in the monitor block's DNF (no task, no verdict)"
+                );
+            }
+            return Outcome::WallExhausted(format!(
+                "the trajectory monitors' DNF expansion ({} monitor effects) exceeded the \
+                 declared budget{}: no task grounded, no verdict",
+                domain.monitors.len(),
+                crate::search::call_budget_label()
+                    .map(|why| format!(" ({why})"))
+                    .unwrap_or_default()
+            ));
+        }
     }
     debug_assert!(
         shared_reff.num.is_empty(),
@@ -2480,18 +2602,27 @@ fn ground_v(
         }
         let mut add = m.add.clone();
         let mut del = m.del.clone();
-        // Complementary (NOT p) maintenance via blind toggles, matching
-        // Metric-FF's negative-precondition compilation: every add of p deletes
-        // (NOT p) and every del of p adds (NOT p), resolved per-fact add-wins.
-        // (This faithfully reproduces FF's behaviour — including the inconsistent
-        // p AND (NOT p) state an action that both adds and deletes p can yield —
-        // verified against the C oracle.)
+        // Complementary (NOT p) maintenance: every add of p deletes (NOT p)
+        // and every del of p adds (NOT p) -- EXCEPT where the same effect
+        // also adds p. PDDL applies deletes first, so an effect that both
+        // deletes and adds p leaves p true, and (NOT p) must not be asserted
+        // beside it. Until the 0.31 cut these were Metric-FF's blind toggles,
+        // which leave p AND (NOT p) true after such an action (verified
+        // against the C oracle, and wrong: tidybot's `base-cart-*` on
+        // `base-obstacle`, where a plan walked through the contradiction and
+        // VAL rejected it). The same-scope case is resolved here, statically;
+        // a delete and an add that meet from DIFFERENT scopes (the op's own
+        // effect against a firing conditional one, or two conditional ones)
+        // is resolved in `PackedTask::apply`, which knows what fired.
         for a in &m.add_atoms {
             if let Some(&c) = neg_fact.get(a) {
                 del.push(c);
             }
         }
         for a in &m.del_atoms {
+            if m.add_atoms.contains(a) {
+                continue;
+            }
             if let Some(&c) = neg_fact.get(a) {
                 add.push(c);
             }
@@ -2505,6 +2636,9 @@ fn ground_v(
                 }
             }
             for a in del_atoms {
+                if add_atoms.contains(a) {
+                    continue;
+                }
                 if let Some(&c) = neg_fact.get(a) {
                     ce.add.push(c);
                 }
@@ -2529,6 +2663,9 @@ fn ground_v(
             }
         }
         for a in del_atoms {
+            if add_atoms.contains(a) {
+                continue;
+            }
             if let Some(&c) = neg_fact.get(a) {
                 ce.add.push(c);
             }
@@ -3402,6 +3539,7 @@ fn ground_v(
         // Same rule for the TRPG-lite tables (temporal.rs `trpg_info`,
         // 0.23 Phase 4 probe 2) — a temporal solve-time overlay.
         trpg: None,
+        comp_facts: crate::packed::comp_facts_of(&fact_names_packed, words),
         fact_names: fact_names_packed.into(),
         fluent_names: fluent_names.into(),
         static_fluents: static_fluents.into(),
@@ -3417,4 +3555,47 @@ fn ground_v(
 pub use crate::packed::PackedTask as Task;
 pub fn initial_state(t: &PackedTask) -> State {
     t.initial()
+}
+
+#[cfg(test)]
+mod sort_survivors_tests {
+    use super::*;
+
+    /// The walled merge sort returns exactly `sort_unstable`'s order, on a
+    /// set large enough to take the merge path several passes deep.
+    #[test]
+    fn the_walled_sort_is_the_plain_sort() {
+        // Distinct tuples (as bindings are), in a scrambled order: a
+        // multiplicative walk over a prime modulus visits each residue once.
+        const N: u64 = 100_003;
+        let mut v: Vec<Vec<u32>> = (1..N)
+            .map(|i| {
+                let x = i * 48_271 % N;
+                vec![(x % 97) as u32, (x / 97) as u32, (x % 7) as u32]
+            })
+            .collect();
+        let mut want = v.clone();
+        want.sort_unstable();
+        let mut tick = WallTick { wall: None, n: 0 };
+        assert!(sort_survivors(&mut v, &mut tick));
+        assert_eq!(v, want);
+    }
+
+    /// A tripped wall stops it: `false`, and the tuples are not handed back.
+    #[test]
+    fn a_tripped_wall_stops_the_sort() {
+        let wall = GroundWall {
+            deadline: None,
+            cancel: None,
+            tripped: std::sync::atomic::AtomicBool::new(true),
+            mem: crate::mem::MemWall::unarmed(),
+            mem_tripped: std::sync::atomic::AtomicBool::new(false),
+        };
+        let mut v: Vec<Vec<u32>> = (0..40_000u32).rev().map(|i| vec![i]).collect();
+        let mut tick = WallTick {
+            wall: Some(&wall),
+            n: 0,
+        };
+        assert!(!sort_survivors(&mut v, &mut tick));
+    }
 }

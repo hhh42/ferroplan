@@ -312,6 +312,55 @@ fn unavailable_validation_is_not_a_rejection() {
     assert_eq!(rows, 256);
 }
 
+/// **A plan VAL rejected is not a solve, in `compare` either (the 0.31 cut).**
+/// `attempts_by_board` is what the estimators of `crucible compare` read, and
+/// it took `run.solved` on its word: on cut31 it counted 5,724 where the
+/// standings -- which drop a rejected plan, `Referee::is_solved` -- counted
+/// 5,722. The two rows were tidybot plans that walked through a fact and its
+/// negation both true. One solved row of the fixture is given a rejection
+/// here; the estimators must see one solve fewer, and an UNAVAILABLE
+/// validation (NULL) must go on counting.
+#[test]
+fn a_rejected_plan_is_not_a_solve_to_the_estimators() {
+    let scratch = Scratch::new("val-rejected");
+    let raw = committed_raw();
+    let solved = raw
+        .lines()
+        .filter(|l| l.contains(r#""solved": true"#))
+        .count();
+    let mut flipped = false;
+    let doctored: String = raw
+        .lines()
+        .map(|l| {
+            if !flipped && l.contains(r#""solved": true"#) && l.contains(r#""val": true"#) {
+                flipped = true;
+                l.replacen(r#""val": true"#, r#""val": false"#, 1)
+            } else {
+                l.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n";
+    assert!(flipped, "the fixture has a solved, validated row to reject");
+    let art = artifacts(&scratch, "artifacts", &doctored);
+    let db = Db::open(&scratch.join("db")).expect("open");
+    let built = rebuild_from_artifacts(db.writer(), &manifest(), &art, None).expect("rebuild");
+    let b = &built[0];
+    let reader = db.reader().expect("reader");
+
+    assert_eq!(reader.val_rejected(b.board_id, b.engine_id).unwrap(), 1);
+    let attempts = reader
+        .attempts_by_board(b.board_id, b.engine_id)
+        .expect("attempts");
+    assert_eq!(attempts.len(), 256);
+    assert_eq!(
+        attempts.iter().filter(|a| a.solved).count(),
+        solved - 1,
+        "the rejected plan still reads as a solve"
+    );
+}
+
 /// The four boards with a real timeline are the only ones whose samples can be
 /// imported at all, and importing one twice must not double it -- a doubled
 /// timeline does not change the resume gate's verdict, it just makes every

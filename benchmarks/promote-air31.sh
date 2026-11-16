@@ -89,17 +89,38 @@ python3 benchmarks/standings.py
 # disagreeing. Found at the 0.28 cut. Look in both places, and REFUSE to
 # cut if neither has one -- an unrunnable check must never pass for having
 # nothing to run.
-CRUCIBLE=""
-for c in ./crucible/target/release/crucible \
-         ../ferroplan-r2/crucible/target/release/crucible; do
-  [ -x "$c" ] && { CRUCIBLE="$c"; break; }
-done
+#
+# 0.31 cut: the same gate degraded a second way. The first path that EXISTED
+# was the main checkout's own build, a month stale -- it could not parse the
+# operator config's `canary_engine` (0.31 Phase 0.2), died on the TOML, and
+# the script printed MISMATCH for a check that never ran. The cycle's own
+# worktree build comes first now (`CRUCIBLE=<path>` overrides), and a check
+# that died on its own error is reported as NOT RUN, never as a mismatch.
+CRUCIBLE="${CRUCIBLE:-}"
 if [ -z "$CRUCIBLE" ]; then
+  for c in ../ferroplan-0.31/crucible/target/release/crucible \
+           ./crucible/target/release/crucible \
+           ../ferroplan-r2/crucible/target/release/crucible; do
+    [ -x "$c" ] && { CRUCIBLE="$c"; break; }
+  done
+fi
+if [ -z "$CRUCIBLE" ] || [ ! -x "$CRUCIBLE" ]; then
   echo "  no crucible binary: build it, or the parity gate is not a gate"; exit 1
 fi
-"$CRUCIBLE" --repo . standings --check \
-  && echo "  crucible standings --check: parity" \
-  || { echo "  crucible standings --check: MISMATCH — do not cut on this"; exit 1; }
+echo "  parity gate: $CRUCIBLE"
+set +e
+check_out=$("$CRUCIBLE" --repo . standings --check 2>&1); check_rc=$?
+set -e
+printf '%s\n' "$check_out"
+if [ "$check_rc" -eq 0 ]; then
+  echo "  crucible standings --check: parity"
+elif printf '%s\n' "$check_out" | grep -q '^crucible: '; then
+  # crucible's own error line: it never compared anything.
+  echo "  crucible standings --check DID NOT RUN (the error above is the binary's,"
+  echo "  not a disagreement) — rebuild it or pass CRUCIBLE=<path>; do not cut on this"; exit 1
+else
+  echo "  crucible standings --check: MISMATCH — do not cut on this"; exit 1
+fi
 
 echo
 echo "done — review benchmarks/ipc-standings.md and STANDINGS.md, then:"

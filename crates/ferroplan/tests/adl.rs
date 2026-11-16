@@ -195,13 +195,16 @@ fn negated_numeric_equality_solved() {
 }
 
 #[test]
-fn complement_fact_semantics_match_metric_ff() {
-    // act deletes p AND conditionally re-adds it (c holds). Metric-FF compiles
-    // negative goals to an independent (NOT p) fact maintained by blind add-wins
-    // toggles, so ACT's `(not p)` toggle leaves (NOT p) TRUE and the goal `(not p)`
-    // is satisfied — even though p is also true. ffdp reproduces this faithfully
-    // (verified: the C oracle finds the same [ACT] plan). Drop-in fidelity beats
-    // textbook add-wins linkage here.
+fn complement_fact_semantics_are_pddl_add_wins() {
+    // act deletes p AND conditionally re-adds it (c holds). PDDL applies the
+    // deletes first and then the adds, so p is TRUE after ACT and the goal
+    // `(not (p))` is not reached: there is no plan. Until the 0.31 cut this
+    // test pinned the opposite -- Metric-FF maintains (NOT p) by blind
+    // toggles, leaves p AND (NOT p) true after ACT, and reports [ACT] as a
+    // plan; ffdp reproduced that for drop-in fidelity, and VAL rejects it.
+    // The cut found the same contradiction inside a real plan (tidybot, see
+    // tests/add_del_complement.rs), and a plan the referee refuses is not
+    // fidelity worth keeping.
     let dom = "(define (domain comp) (:requirements :adl)
         (:predicates (p) (c))
         (:action act :parameters () :precondition (c)
@@ -216,12 +219,12 @@ fn complement_fact_semantics_match_metric_ff() {
             ..Default::default()
         },
     );
-    assert_eq!(code, 0, "{}", out);
     assert!(
-        out.contains("found legal plan"),
-        "must match the oracle (solvable via ACT)\n{}",
+        !out.contains("found legal plan"),
+        "[ACT] leaves p true: it is not a plan for (not (p))\n{}",
         out
     );
+    assert_ne!(code, 0, "{}", out);
 }
 
 #[test]

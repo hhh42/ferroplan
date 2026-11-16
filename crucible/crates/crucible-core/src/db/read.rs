@@ -384,7 +384,13 @@ impl Reader {
         engine_id: i64,
     ) -> Result<Vec<CellAttempt>, DbError> {
         let mut st = self.conn.prepare(
-            "SELECT r.instance_id, v.name, i.label, r.attempt, r.solved, r.banked, r.timing_quality
+            // A plan VAL REJECTED is not a solve (the 0.31 cut): the boards and
+            // `Referee::is_solved` have always dropped such a row, and this
+            // query did not -- `compare` read 5,724 where the standings read
+            // 5,722, two tidybot plans the referee had refused. `val IS NULL`
+            // is validation UNAVAILABLE and counts, as everywhere else.
+            "SELECT r.instance_id, v.name, i.label, r.attempt,
+                    (r.solved != 0 AND (r.val IS NULL OR r.val = 1)), r.banked, r.timing_quality
                FROM run r
                JOIN instance i ON i.id = r.instance_id
                JOIN variant  v ON v.id = i.variant_id
